@@ -146,21 +146,8 @@ leaves On Me, or returns to it, in the task of the gesture that moves it, and wh
 version moves the answer, as one adding a step to a checklist does, the question asks
 again as soon as a tab shows that version. `lf-options` answers once a pick is made,
 or, where it takes several, while its Done stands on the options it shows and the picks
-among them, which its `answer` action records:
-
-```js
-static answered(state, group) {
-  if (!group.hasAttribute("multiple"))
-    return Boolean(state.choose?.action) && state.choose.value.length > 0;
-  const { options, picked } = state.answer?.action ? state.answer.detail : {};
-  const shown = [...group.querySelectorAll(":scope > lf-option")].map(({ id }) => id);
-  return (
-    Boolean(options) &&
-    shown.every((id) => options.includes(id)) &&
-    shown.every((id) => picked.includes(id) === state.choose.value.includes(id))
-  );
-}
-```
+among them, which its `answer` action records
+([`lf-options.js`](../../../packages/default/widgets/lf-options.js), `static answered`).
 
 A class without `answered` is answered while the user's acts in force hold a state at
 the verb `awaits.value` names: an action there that records a non-empty value, or, for

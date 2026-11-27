@@ -25,12 +25,14 @@
    a gesture of this tab's still on its way is left to that gesture, which carries its
    facts, and a widget whose class isn't defined yet, or whose markup the tab doesn't
    hold, waits for it, since only its class can say, and from that markup. A tab sends
-   one word on each set of facts it works out on a version, and says them again only
-   once it works out others, on a newer version, once a gesture of its own has spoken
-   for the widget, or where the send never reached the server. So two tabs that work
-   out different values each say theirs once, rather than overtaking each other without
-   end, and a word refused because a newer version landed first is said again on that
-   version. */
+   one word on each set of facts it works out on a version, with the reading it worked
+   them out from (`through`), and says them again only once it works out others, on a
+   newer version, once a gesture of its own has spoken for the widget, or where the
+   page didn't take the word. The page refuses one worked out from a reading a gesture
+   or another word on the widget has since moved past, so the tab works the facts out
+   again from the reading the refusal brings, and says them where they still differ.
+   So two tabs that work out different values each say theirs once, rather than
+   overtaking each other without end. */
 import { effect, untracked } from "/vendor/signals-core.js";
 import { readApplication, readPart } from "../state/semantic-state.js";
 import { gestureWidget } from "../state/pending/model.js";
@@ -116,9 +118,9 @@ export function reportFacts(send) {
       const through = state.browser.basis.through_seq;
       void send({ kind: "facts", widget: id, revision, through, facts: changed }).then(
         (result) => {
-          // A word that never reached the page is compared and said again at the
-          // next reading, though nothing in it moved.
-          if (result !== "unreached" || sent.get(id) !== said) return;
+          // A word the page didn't take is compared and said again at the next
+          // reading, though nothing in the widget moved.
+          if (result === "accepted" || sent.get(id) !== said) return;
           sent.delete(id);
           workedOut.delete(id);
         },

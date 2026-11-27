@@ -64,11 +64,13 @@
  * the group shows (`static answered`). Answered is paint on the press, never a wider
  * word. A second press withdraws that answer through the widget's exact undo, reopening
  * the obligation. The set can still change after either press, and each toggle reaches
- * the agent; a set that changed after Done, by the user's pick, a pick a version
- * restated away or an option a version added, waits on Done again with its picks kept,
- * since Done said the set it was pressed on was whole and no other. The alternative,
- * Done answering whatever set follows it, could not ask again about an option a version
- * added or rewrote without taking back every pick (`$restated` on the group).
+ * the agent. A set that changed after Done waits on Done again, since Done said the set
+ * it was pressed on was whole and no other: an option a version added asks again with
+ * the picks kept, a pick the user changed asks again with the new picks, and a version
+ * that rewrites a picked option (`$restated`) takes back the pick, with the picks it
+ * replaced, so the question asks again with none picked. The alternative, Done
+ * answering whatever set follows it, could not ask again about an option a version
+ * added without taking back every pick (`$restated` on the group).
  *
  * That paint goes on the press and nowhere else, which is a rule rather than a
  * preference. A module writes an attribute in the author's namespace only where the
@@ -210,9 +212,9 @@ function doneSet(state, group) {
 }
 
 // Whether Done answers the set the group shows now: pressed on every option it shows,
-// with the same of them picked. An option a version adds, a pick a version restates
-// away, or a pick the user changes after Done leaves it waiting on Done again, with the
-// picks kept; an option a version removes changes nothing.
+// with the same of them picked. An option a version adds, a pick a version takes back,
+// or a pick the user changes after Done leaves it waiting on Done again; an option a
+// version removes changes nothing.
 /** @param {import("../../../browser/runtime/host/widget-controller.js").WidgetReading["state"] | null | undefined} state @param {Element} group */
 function isAnswered(state, group) {
   const answer = state?.answer;

@@ -244,11 +244,11 @@ state"](module-state.md#declared-widget-state)), counting only the user's acts i
 force: a starting value the page's markup writes answers nothing. So a queue whose
 question is answered once its marked column is empty says so from the positions its
 `state` holds, and a checklist decided step by step says so once its last step is.
-The widget says it on each gesture and again as a version or another tab's act moves
-its state or markup, so a version that adds a step to a checklist asks again, with
-the decisions on the other steps kept, once a tab shows it. Marking an element
-`restated` asks again too: it withdraws every decision resting on that element, and
-the question stays open until the widget says otherwise. If the widget's `when` stops
+The widget says it on each gesture and as a version or another tab's act moves it,
+so a version adding a step to a checklist asks again, keeping the other steps'
+decisions, once a tab shows it. Marking an element `restated` asks again too: it
+withdraws every decision resting on that element and those they replaced, and the
+question stays open until the widget says otherwise. If the widget's `when` stops
 holding, a complete obligation stays answered and an incomplete one is withdrawn.
 
 `awaits.retired` names the attribute an author sets to close an obligation but

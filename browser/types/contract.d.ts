@@ -9,7 +9,7 @@ export interface EventMap {
 "summary": { "attention": boolean; "id": string; "ts": string; "author": "agent"; "kind": "summary"; "seq": number; "thread": string; "from": string; "through": string; "text": string; "label"?: string; "agent": string; "session": string; };
 "read": { "attention": boolean; "id": string; "ts": string; "author": "user"; "kind": "read"; "seq": number; "messages": ReadonlyArray<{ "message": string; "version": string; }>; "attempt"?: string; };
 "seen": { "attention": boolean; "id": string; "ts": string; "author": "user"; "kind": "seen"; "seq": number; "revision": number; "attempt"?: string; };
-"facts": { "attention": boolean; "id": string; "ts": string; "author": "user"; "kind": "facts"; "seq": number; "widget": string; "revision": number; "facts": { [key: string]: unknown; }; "attempt"?: string; };
+"facts": { "attention": boolean; "id": string; "ts": string; "author": "user"; "kind": "facts"; "seq": number; "widget": string; "revision": number; "through": number; "facts": { [key: string]: unknown; }; "attempt"?: string; };
 "thread_title": { "attention": boolean; "id": string; "ts": string; "author": "agent"; "kind": "thread_title"; "seq": number; "thread": string; "title": string; "agent": string; "session": string; };
 "todo": { "attention": boolean; "id": string; "ts": string; "author": "agent"; "kind": "todo"; "seq": number; "subject": { "kind": "widget" | "element" | "thread"; "id": string; } | { "kind": "page"; }; "revision"?: number; "title": string; "agent"?: string; "session"?: string; "waiting_on"?: string; };
 "start": { "attention": boolean; "id": string; "ts": string; "author": "agent"; "kind": "start"; "seq": number; "item": string; "text": string; "turn"?: string; "agent"?: string; "session"?: string; };
@@ -38,7 +38,7 @@ export interface BrowserCommandMap {
 "edit": { "kind": "edit"; "attempt"?: string; "message": string; "revision"?: number; "text": string; "base": string; } | { "kind": "edit"; "attempt"?: string; "message": string; "revision"?: number; "text": string; "base": string; };
 "read": { "kind": "read"; "messages": ReadonlyArray<{ "message": string; "version": string; }>; "attempt"?: string; };
 "seen": { "kind": "seen"; "revision": number; "attempt"?: string; };
-"facts": { "kind": "facts"; "widget": string; "revision": number; "facts": { [key: string]: unknown; }; "attempt"?: string; };
+"facts": { "kind": "facts"; "widget": string; "revision": number; "through": number; "facts": { [key: string]: unknown; }; "attempt"?: string; };
 "resolve": { "kind": "resolve"; "parent": string; "attempt"?: string; };
 "unresolve": { "kind": "unresolve"; "parent": string; "attempt"?: string; };
 "action": { "kind": "action"; "widget": string; "action": string; "detail": { [key: string]: unknown; }; "revision": number; "facts"?: { [key: string]: unknown; }; "attempt"?: string; };

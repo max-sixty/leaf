@@ -130,14 +130,15 @@ test("a word that never reached the page is said again at the next reading", asy
   assert.deepEqual(sent.splice(0), []);
 });
 
-test("a word refused because a newer version landed first is said again on that version", () => {
+test("a word the page refused is said again at the next reading", async () => {
   delivered = "refused";
   reading({}, shown('<lf-test-tally id="tally" count="5"></lf-test-tally>'));
   assert.deepEqual(sent.splice(0), [tally({ count: 5 })]);
   delivered = "accepted";
-  // The newer version leaves the widget as it was, and the page still keeps none of
-  // its word.
-  reading({}, shown('<lf-test-tally id="tally" count="5"></lf-test-tally>'));
+  await Promise.resolve();
+  // The page refused the word as worked out from a reading something has since
+  // moved past, and the reading the refusal brings still keeps none of it.
+  reading({ tally: {} });
   assert.deepEqual(sent.splice(0), [tally({ count: 5 })]);
 });
 

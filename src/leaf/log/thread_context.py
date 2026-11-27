@@ -242,9 +242,10 @@ def thread_memberships(
     different way (`event_threads`), and some change a thread without naming it at
     all: an action, undo, or version note that changes which action wins a
     coordinate (`InForce`) changes the threads the winner before and after it
-    answer. A later action supersedes the answer there, its undo restores it, and a
-    note retracting an answer's superseder closes that answer's thread again. An
-    undo also inherits the membership of the gesture it takes back.
+    answer. A later action supersedes the answer there, and its undo restores it; a
+    note retracting the answer, or an action that superseded it, takes the answer
+    back with it (`InForce`). An undo also inherits the membership of the gesture it
+    takes back.
 
     This is the shared join for wait delivery, sampled thread closures, and the
     browser state, which serves it so the browser files an unsent undo or action

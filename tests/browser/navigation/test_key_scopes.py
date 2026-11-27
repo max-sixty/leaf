@@ -5,13 +5,7 @@ import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import panel_comment, serve_obligations
-from render_cases_layout import (
-    SHOT_SRC,
-    SHOTS,
-    current_location_ring,
-    ring_faults,
-    rings_drawn,
-)
+from render_cases_layout import SHOT_SRC, SHOTS
 from render_cases_navigation import (
     ADDRESSED_PAGE,
     BINDING_BADGE_PAGE,
@@ -59,6 +53,7 @@ from browser.threads.test_rewrites import _rewrite_surface
 from leaf.log import event_log as events_model
 from leaf.source.render_checks import rendered
 from leaf_dev.browser import PANEL_THREAD, open_on_me
+from leaf_dev.rings import current_location_ring, ring_faults, rings_drawn
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

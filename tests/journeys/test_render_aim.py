@@ -18,7 +18,6 @@ from render_cases_layout import (
     AIMED,
     DRAFT_MARK,
     FOCUS_IN_PAGE,
-    NAMED,
     PAGE_MARKUP,
     aim_targets,
 )
@@ -41,6 +40,7 @@ from render_harness import (
 
 from leaf.log import event_log as events_model
 from leaf.source.render_checks import rendered, wait_until_ready
+from leaf_dev.rings import NAMED
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

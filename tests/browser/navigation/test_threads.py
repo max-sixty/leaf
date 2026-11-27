@@ -8,7 +8,7 @@ import pytest
 from interact_support import append_carried_log_record, element_declaration
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, SEATED_OBLIGATION_PAGE, panel_comment
-from render_cases_layout import overlapped_words, ring_faults, ring_rule, rings_drawn
+from render_cases_layout import overlapped_words
 from render_cases_navigation import NOTED_PAGE, compose
 from render_harness import (
     INLINE_PAGE,
@@ -39,6 +39,7 @@ from browser.threads import open_panel_thread
 from leaf.log import event_log as events_model
 from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
+from leaf_dev.rings import ring_faults, ring_rule, rings_drawn
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

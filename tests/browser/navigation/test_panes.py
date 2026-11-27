@@ -7,7 +7,7 @@ import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import NESTED_PROPOSAL_PAGE, executable_revision, live_url
-from render_cases_layout import page_at_rest, ring_faults, rings_drawn
+from render_cases_layout import page_at_rest
 from render_cases_navigation import pending_text, wait_for_pending_mark
 from render_harness import (
     RELEASE_FOCUS,
@@ -39,6 +39,7 @@ from browser.threads import open_panel_thread
 from leaf.log import event_log as events_model
 from leaf.source.render_checks import rendered
 from leaf_dev.example_data import named_source
+from leaf_dev.rings import ring_faults, rings_drawn
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

@@ -1605,7 +1605,6 @@ export default [
       "tests/watch_platform.js",
       "dev/leaf_dev/main_thread.js",
       "dev/leaf_dev/frames.js",
-      "dev/leaf_dev/edges.js",
     ],
     languageOptions: { globals: globals.browser },
   },
@@ -1696,7 +1695,12 @@ export default [
   {
     // Python executes these test expressions and modules inside the browser. Their
     // source is linted here rather than hidden inside Python string literals.
-    files: ["tests/page_scripts/**/*.js"],
+    files: [
+      "tests/page_scripts/**/*.js",
+      "dev/leaf_dev/geometry.js",
+      "dev/leaf_dev/focus_rings.js",
+      "dev/leaf_dev/control_name.js",
+    ],
     languageOptions: { globals: browserGlobals },
   },
   {
@@ -1716,12 +1720,6 @@ export default [
         ),
       ],
     },
-  },
-  {
-    // The reading `leaf-dev edges` evaluates in a page asks the diagnostic adapter, as
-    // the render checks do; an evaluated expression can only import dynamically.
-    files: ["dev/leaf_dev/edges.js"],
-    rules: { "no-restricted-syntax": "off" },
   },
   {
     files: ["src/leaf/source/render-checks/*.js"],

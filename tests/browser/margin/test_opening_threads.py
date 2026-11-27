@@ -15,7 +15,6 @@ from render_cases_interaction import (
     executable_revision,
     live_url,
 )
-from render_cases_layout import current_location_ring, rings_drawn
 from render_harness import (
     PANEL,
     PREVIEW,
@@ -62,6 +61,7 @@ from leaf.log import event_log as events_model
 from leaf.source import render_checks as render_checks_model
 from leaf.source.render_checks import rendered
 from leaf_dev.browser import PANEL_THREAD, text_field
+from leaf_dev.rings import current_location_ring, rings_drawn
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

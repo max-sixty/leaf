@@ -183,9 +183,9 @@ def test_a_comment_inside_a_widget_stays_out_of_what_the_widget_reads(
     page = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 2")
     expect_comment_notes(page, "#draft-ops", 1)
-    # The thread's margin row, which stands by the passage it quotes, has the same seat
-    # as its note: the widget, not the paragraph its Markdown body renders.
-    expect(page.locator("[data-lf-margin-for]")).to_have_count(2)
+    # The two threads' margin row, which stands by the passage they quote, has the same
+    # seat as their note: the widget, not the paragraph its Markdown body renders.
+    expect(page.locator("[data-lf-margin-for]")).to_have_count(1)
     expect(
         page.locator("[data-lf-margin-for]:not([data-lf-margin-for=draft-ops])")
     ).to_have_count(0)

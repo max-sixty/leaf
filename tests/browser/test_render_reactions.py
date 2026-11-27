@@ -285,8 +285,11 @@ def test_a_reaction_press_opens_a_thread_and_a_second_press_takes_it_back(
     item.locator(THREAD_MARKER).click()
     root = page.locator(f'.lf-margin-preview .lf-msg[data-lf-event="{sent["id"]}"]')
     expect(root.locator(".lf-react-said")).to_have_text("✂️")
+    # The card opens in its reply, as any thread's does: Escape leaves the reply for the
+    # thread, and a second takes the card down.
     page.keyboard.press("Escape")
-    expect(root).to_have_count(0)
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
     # The bar raised on the same passage again says the reaction stands, and pressing
     # its emoji again takes it back.
     select_paragraph(page, "#how-store")

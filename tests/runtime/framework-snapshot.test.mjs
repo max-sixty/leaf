@@ -120,7 +120,7 @@ test("publisher shares unchanged subtrees, so a selection hears only its own par
     authoritative: {},
     unresolved: [],
     effective: {
-      thread: { all: [{ id: "t1", words: ["hello"] }] },
+      thread: { collection: { threads: [{ id: "t1", words: ["hello"] }] } },
       widgets: new Map([["board", { state: { column: "todo" } }]]),
     },
     semanticEpoch: 0,
@@ -128,7 +128,7 @@ test("publisher shares unchanged subtrees, so a selection hears only its own par
   const publisher = createApplicationPublisher(initial);
   const thread = publisher.select((root) => root.effective.thread);
   const pair = publisher.select((root) => [
-    root.effective.thread.all[0],
+    root.effective.thread.collection.threads[0],
     root.document.revision,
   ]);
   const heard = [];
@@ -139,7 +139,7 @@ test("publisher shares unchanged subtrees, so a selection hears only its own par
   publisher.publish({
     ...initial,
     effective: {
-      thread: { all: [{ id: "t1", words: ["hello"] }] },
+      thread: { collection: { threads: [{ id: "t1", words: ["hello"] }] } },
       widgets: new Map([["board", { state: { column: "done" } }]]),
     },
   });
@@ -149,7 +149,7 @@ test("publisher shares unchanged subtrees, so a selection hears only its own par
   publisher.publish({
     ...initial,
     effective: {
-      thread: { all: [{ id: "t1", words: ["hello", "again"] }] },
+      thread: { collection: { threads: [{ id: "t1", words: ["hello", "again"] }] } },
       widgets: new Map([["board", { state: { column: "done" } }]]),
     },
   });

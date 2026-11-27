@@ -45,7 +45,7 @@ test("a module that names a layer above its own is refused, however it names it"
 
 test("a module names its own layer, the layers below it and what stands outside them", () => {
   for (const code of [
-    'import { allThreads } from "./thread/state.js";',
+    'import { threadList } from "./thread/state.js";',
     'import { focused } from "../dom/focus.js";',
     'import { keeps } from "../lib/keeps.js";',
     'import { focused } from "/runtime/dom/focus.js";',

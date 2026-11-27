@@ -3152,12 +3152,7 @@ def test_design_mode_settles_on_a_page_with_marked_elements(browser, serve):
             },
         )
     page = open_page(browser, url)
-    expect(
-        page.locator(
-            '[data-lf-margin-for="reacted"] [data-lf-margin-entry-owner="reactions"][data-lf-behavior="disclosure"]'
-        )
-    ).to_have_count(1)
-    expect(page.locator("#commented.lf-mark-el")).to_have_count(1)
+    expect(page.locator("#reacted.lf-mark-el, #commented.lf-mark-el")).to_have_count(2)
     page.keyboard.press("l")
     expect(page.locator('.lf-legend-box[data-lf-for="reacted"]')).to_be_visible()
     rendered(page)

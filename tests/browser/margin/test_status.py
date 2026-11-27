@@ -1275,10 +1275,10 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     expect(page.locator("#job-mounts[selected]")).to_have_count(1)
 
 
-def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
+def test_a_reaction_s_thread_keeps_an_unided_selected_blocks_visual_coordinate(
     browser, serve
 ):
-    """The durable section coordinate does not pull the visible RHS receipt to its top."""
+    """The durable section coordinate does not pull the thread's RHS marker to its top."""
     page = open_page(browser, serve(UNID_SELECTION_PAGE))
     resized(page, 1600, 900)
     paragraph = page.locator("#s-how > p:nth-of-type(2)")
@@ -1292,9 +1292,9 @@ def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
     bar = page.locator(".lf-fab-bar")
     expect(bar).to_be_visible()
     page.keyboard.press("e")
-    # The choices stay with the captured selection. The reaction in force that replaces
-    # them must keep that same visual coordinate even though the durable section
-    # coordinate belongs to the surrounding id-bearing section.
+    # The choices stay with the captured selection. The thread the reaction opens must
+    # keep that same visual coordinate even though the durable section coordinate
+    # belongs to the surrounding id-bearing section.
     reactions = bar.locator(":scope > .lf-response-options")
     expect(reactions).to_be_visible()
 
@@ -1304,18 +1304,13 @@ def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["anchor"]["section"] == "s-how" and sent["anchor"]["quote"]
     receipt = page.locator(".lf-margin-cluster").filter(
-        has=page.get_by_role("button", name="👍 reaction actions", exact=True)
+        has=page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     )
     expect(receipt).to_have_count(1)
     assert abs(receipt.bounding_box()["y"] - paragraph.bounding_box()["y"]) <= 6
-    # The optimistic receipt is already on screen. Let the accepted reading
-    # finish replacing it before testing the disclosure gesture.
+    # The optimistic thread is already on screen; the accepted reading keeps it there.
     told(page)
     assert abs(receipt.bounding_box()["y"] - paragraph.bounding_box()["y"]) <= 6
-    reaction = receipt.get_by_role("button", name="👍 reaction actions", exact=True)
-    reaction.click()
-    expect(reaction).to_have_attribute("aria-expanded", "true")
-    expect(reaction).to_have_css("border-top-color", token_colour(page, "--lf-accent"))
 
 
 def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):

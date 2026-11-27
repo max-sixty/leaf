@@ -35,7 +35,6 @@ from render_harness import (
     draft_control,
     example_media,
     leaf_page,
-    margins_laid_out,
     navigate,
     open_page,
     press_draft_control,
@@ -753,46 +752,10 @@ def test_drafting_in_a_pane_keeps_the_card_and_reply_top_when_its_room_runs_out(
     assert caret["caretBottom"] <= caret["boxBottom"], caret
 
 
-def test_a_pin_unfolds_from_the_seat_it_was_pressed_in(browser, serve):
-    """Unfolding a pin's options widens it, and a pin seated afresh at that width could
-    move the control under the press: at 390px a reaction pin reseated 24px to the
-    right as it unfolded. The pin the user holds keeps its seat and grows leftward."""
-    context = browser.new_context(
-        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
-    )
-    keep = {
-        "kind": "comment",
-        "author": "user",
-        "revision": 1,
-        "emoji": "👍",
-        "anchor": {"section": "editing-guide"},
-    }
-    page = open_page(
-        browser, serve(MARGIN_ACTIONS_PAGE, events=[keep]), context=context
-    )
-    margins_laid_out(page)
-    reaction = page.get_by_role("button", name="👍 reaction actions", exact=True)
-    cluster = page.locator(".lf-margin-cluster").filter(has=reaction)
-    expect(cluster).to_have_attribute("data-lf-place", "pin")
-    reaction.scroll_into_view_if_needed()
-    margins_laid_out(page)
-    before = cluster.bounding_box()
-    reaction.tap()
-    expect(reaction).to_have_attribute("aria-expanded", "true")
-    margins_laid_out(page)
-    after = cluster.bounding_box()
-    assert after["width"] > before["width"], (before, after)
-    assert after["x"] + after["width"] == pytest.approx(
-        before["x"] + before["width"], abs=1
-    ), (before, after)
-    assert after["y"] == pytest.approx(before["y"], abs=1), (before, after)
-
-
 @pytest.mark.parametrize("width", [1440, 390])
-def test_draft_and_page_map_reaction_actions_stay_reachable(browser, serve, width):
-    """A draft's local Save and Cancel stay reachable while it is edited, and the save outlasts
-    a reload; the Undo control of a reaction in force is reachable from the Page Map by keyboard
-    and withdraws the reaction."""
+def test_a_draft_s_save_and_cancel_stay_reachable(browser, serve, width):
+    """A draft's local Save and Cancel stay reachable while it is edited, and the save
+    outlasts a reload."""
     page = open_page(browser, serve(MARGIN_ACTIONS_PAGE, events=MARGIN_ACTIONS_EVENTS))
     resized(page, width, 900)
     draft_control(page, "edit", "d-draft").click()
@@ -810,37 +773,3 @@ def test_draft_and_page_map_reaction_actions_stay_reachable(browser, serve, widt
     expect(page.locator("#d-draft .lf-draft-body")).to_have_text(
         body, use_inner_text=True
     )
-
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+p")
-    dialog = page.get_by_role("dialog", name="Page Map", exact=True)
-    reaction = next(
-        event
-        for event in events_model.read_events(serve.page_dir)
-        if event.get("emoji") == "🎯"
-    )
-    reaction_actions = dialog.locator(
-        '[data-lf-margin-entry-owner="reactions"]'
-        f'[data-lf-margin-entry-key="reaction:{reaction["id"]}:open"]'
-    )
-    expect(reaction_actions).to_have_attribute("aria-label", "🎯 reaction actions")
-    reaction_actions.click()
-    expect(dialog).to_be_visible()
-    remove = dialog.get_by_role("button", name="Undo 🎯 reaction", exact=True)
-    expect(remove).to_be_focused()
-    page.keyboard.press("Escape")
-    expect(remove).to_be_hidden()
-    expect(reaction_actions).to_be_focused()
-    expect(dialog).to_be_visible()
-    reaction_actions.click()
-    expect(remove).to_be_focused()
-    with sending(page, "the withdrawal of the Page Map reaction"):
-        remove.click()
-    expect(dialog).to_be_hidden()
-    expect(
-        page.locator(
-            f'[data-lf-margin-for="s-crowded"] [data-lf-event="{reaction["id"]}"]'
-        )
-    ).to_have_count(0)
-    last = events_model.read_events(serve.page_dir)[-1]
-    assert (last["kind"], last["undoes"]) == ("undo", reaction["id"])

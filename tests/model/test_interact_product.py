@@ -2026,7 +2026,6 @@ def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
         placed = next(m for m in thread["msgs"] if m["id"] == gesture["id"])
         assert "emoji" not in placed and placed["text"] == ""
         assert placed["withdrawn"] == {"id": undo["id"], "ts": undo["ts"], "was": said}
-    assert not event_folds_model.bare_reaction(thread)
     assert event_folds_model.unanswered_turns(thread) == []
     # Taking back the reaction the resolve named leaves the thread closed.
     assert thread["resolved"]["kind"] == "resolve"

@@ -691,8 +691,8 @@ def reaction_thread(page: Page) -> None:
 
 def reaction_working(page: Page) -> None:
     """The user's ✂️ on a passage, a message the agent owes an answer, under a pointer
-    resting on its mark once the agent has started work on it: the mark says the work's
-    line, as a thread's margin entry does."""
+    resting on its thread's margin entry once the agent has started work on it: the
+    entry says the work's line, as any thread's does."""
     cut = PageClient(served_page.get().address).post(
         {
             "kind": "comment",
@@ -703,7 +703,7 @@ def reaction_working(page: Page) -> None:
     )
     as_agent("task", "start", cut["id"], "--text", "Cutting the resend timing")
     wait_until_ready(page, PageClient(served_page.get().address).state())
-    mark = page.locator('[data-lf-margin-entry-owner="reactions"]:visible')
+    mark = page.locator('.lf-margin-marker[aria-label*="After 20 seconds"]')
     expect(mark).to_have_count(1)
     mark.hover()
     rest_past_dwell(page)
@@ -753,15 +753,12 @@ def margin_reaction_choices(page: Page) -> None:
 
 
 def margin_reaction_mark(page: Page) -> None:
-    """The same row once a reaction stands on its target, unfolded to show the
-    reaction's own margin entry beside Reject."""
+    """The same row once a reaction stands on its target, which opens a thread there
+    like a comment's."""
     margin_reaction_choices(page)
     row = page.locator(MARGIN_SUGGESTION)
     row.locator('[data-lf-margin-entry-owner="responses"]:visible').first.click()
-    mark = row.locator('[data-lf-margin-entry-owner="reactions"]')
-    expect(mark).to_have_count(1)
-    row.locator(".lf-margin-more").click()
-    expect(mark).to_be_visible()
+    expect(row.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(1)
     page.mouse.move(0, 0)
     settle(page)
 
@@ -883,7 +880,7 @@ def thread_preview(page: Page) -> None:
 
 def passage_reaction(page: Page) -> None:
     """A passage the user reacted to, selected by pointer and answered with `e` and
-    `1`, in the item below the stop thread's commented passage, so a reaction's mark
+    `1`, in the item below the stop thread's commented passage, so a reaction's thread
     and a comment's stand at rest side by side."""
     lines = word_lines(page, "reject symlink path components")
     first, last = lines[0], lines[-1]
@@ -894,7 +891,10 @@ def passage_reaction(page: Page) -> None:
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     page.keyboard.press("e")
     page.keyboard.press("1")
-    page.wait_for_function("() => (CSS.highlights.get('lf-react')?.size ?? 0) > 0")
+    page.wait_for_function(
+        """() => [...(CSS.highlights.get('lf-mark') ?? [])]
+          .some((range) => range.toString().includes('symlink'))"""
+    )
     page.keyboard.press("Escape")
     page.mouse.move(0, 0)
     word_lines(page, STOP_PASSAGE)

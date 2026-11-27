@@ -253,3 +253,18 @@ test("words given back to a box holding only whitespace keep it and its payload"
   assert.deepEqual(payload, own);
   assert.deepEqual(loadDraft("composer:spaced")?.payload, own);
 });
+
+// A reaction writes no words, so taking back one that opened a thread gives back only
+// the reply begun under that thread, to the passage's box, and with none begun leaves
+// the passage's box as it stands.
+test("words given back with none of their own bring only the reply under them", async () => {
+  saveDraft("reply:reacted", "Also check the cap.", {});
+  await writesSettled();
+  const passage = { anchor: { says: "the cap" } };
+  giveBackWords("composer:reacted", "", passage, "reply:reacted");
+  assert.equal(loadDraft("composer:reacted")?.text, "Also check the cap.");
+  assert.deepEqual(loadDraft("composer:reacted")?.payload, passage);
+  assert.equal(loadDraft("reply:reacted"), null);
+  giveBackWords("composer:untouched", "", passage, "reply:none");
+  assert.equal(loadDraft("composer:untouched"), null);
+});

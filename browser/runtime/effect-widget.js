@@ -1,64 +1,102 @@
+// Compiled from effect-widget.ts by build/typescript.mjs; edit that file.
 /* A widget written as an Effect UI component, on the protocol any custom element has
-   with its host (module-plain-elements.md): properties in, events out.
+   with its host (module-plain-elements.md): properties in, events out. This header is
+   the contract a widget builds against.
 
    `defineWidget(tag, component, options)` defines `tag` as a plain custom element that
-   mounts `component` with `BrowserHost.mountEffect` into a box of its own after the
-   element's authored children, or into an open shadow root of its own with
-   `shadow: true`, where a `<slot>` the view draws shows the element's authored
-   children in place. Either way the authored children stay where the author put them,
-   for Leaf's revisions and for `inputs` to read: the box is a `display: contents`
-   `div` marked as words the source lacks (`data-lf-gen`), and a widget that draws its
-   authored children in their place hides them from its stylesheet. A widget that
-   decorates those children, drawing its controls in its shadow root around the slot
-   and exposing them to the theme as shadow parts, takes the shape lf-options.js's
-   header gives ("How it is drawn: a decorating widget"). The component's Model holds
-   only what the user is doing in the widget, such as an open disclosure; what Leaf
-   knows arrives as props:
+   mounts `component` with `BrowserHost.mountEffect`. The authored children stay where
+   the author put them, for Leaf's revisions and for `inputs` to read, and the root
+   draws beside them:
+
+   - By default it draws in a box of its own after the authored children: a
+     `display: contents` `div` marked as words the source lacks (`data-lf-gen`). A
+     widget that draws its authored children in their place hides them from its
+     stylesheet while it draws.
+   - With `shadow: true` it draws in an open shadow root of its own, where a `<slot>`
+     the view draws shows the authored children in place. A widget that decorates
+     those children draws its controls around the slot and exposes them to the theme as
+     shadow parts (`part=` / `::part`), as lf-options.js's header says ("How it is
+     drawn: a decorating widget").
+
+   Props. The component's Model holds only what the user is doing in the widget, such
+   as an open disclosure; what Leaf knows arrives as props:
 
    - `state`, the reading Leaf sets on a widget whose tag declares `verbs`, as the
-     `state` property every widget gets.
-   - What `options.inputs(element)` returns, called inside a signal effect, so a
-     signal-backed reader it calls, such as `readObligations`, gives the component
-     new props when it moves. The function reads the element's attributes too, and
-     only there does the component see its element. Its second argument, `reread`,
-     asks for it to be read again, for an input no signal carries, such as a media
-     query or a reading Leaf holds back (`HeldReading`) until it lets it go.
+     `state` property every widget gets (`widgetProps`).
+   - What `options.inputs(element, reread)` returns. It is called inside a signal
+     effect, so a signal-backed reader it calls, such as `readObligations`, gives the
+     component new props when it moves. It reads the element's attributes too, and
+     only there does the component see its element. `reread()` asks for it to be read
+     again, for an input no signal carries, such as a media query or a reading Leaf
+     holds back (`HeldReading`) until it lets it go. A DOM node it returns is the same
+     input only as itself.
+   - `options.properties`, names of properties the page's own code sets on the
+     element, which keeps what is set. Each is a prop of that name.
 
-   What the component asks of Leaf, such as recording a gesture, it issues as a
-   Command of Leaf's services (widget-services.js), which the mount provides for this
-   element. A Command runs in a microtask of the task that issued it, on the
-   scheduler the mount provides, so a gesture's Command lands before the browser's
-   next frame. The component's events are for the page around it: each is a
-   bubbling, composed `CustomEvent` named by its lowercased tag, with the event as
-   `detail`, as `BrowserHost.defineElement` dispatches one.
+   `options.members` are properties that read and write the Model instead: reading one
+   gives what its `get` reads off the Model, and setting one sends the root the message
+   its `set` returns. Out of the document a member reads the Model the closed root ended
+   with, and a set waits for the next root. A property or member the page set before
+   the tag was defined counts, so either module may load first.
+
+   `options.statics` are the class's static members Leaf reads off a widget's class,
+   such as `lfPatch` (module-authoring.md, "Revisions") and `answered`
+   (module-state.md).
+
+   Calls to Leaf. What the component asks of Leaf, such as recording a gesture, it
+   issues as a Command of Leaf's services (widget-services.js), which the mount
+   provides for this element. A Command runs in a microtask of the task that issued
+   it, so a gesture's Command lands before the browser's next frame. The component's
+   events are for the page around it: each is a bubbling, composed `CustomEvent` named
+   by its lowercased tag, with the event as `detail`, as `BrowserHost.defineElement`
+   dispatches one.
+
+   Declarations. What Leaf reads off the element itself, its keys (`lfCommands`) and
+   its visual parts (`lfParts`), a widget states with `declare(node, declarations)`
+   from a Mount, where `node` is the element or one its view drew: they stand on the
+   element while the root does. Each call says them (`lf-commands`, and `lf-layout`
+   for parts), so Leaf reads again what they read. A widget gives the Mount, as its
+   args, what its declarations read, such as the step a row's `when` reads, and
+   declares on each change of them (the Mount's `changes`), the one hook Effect UI
+   gives on a draw the component's own Model starts. After a draw the adapter
+   started, from a set of `state`, an input or a member, the element also says
+   `lf-commands` for everything under it, so Leaf reads again every key scope there,
+   including one that is a single node's own `lfCommands`, such as a control's, and
+   `lf-layout` where it declares parts.
 
    Drawing follows the protocol's "Drawing" rule. The first mount draws before
    `connectedCallback` returns. A later set draws in Effect UI's flush, a microtask
    later and before the next frame, so each set that gives new props dispatches a
-   `pending-task` whose promise settles after that flush, and an `lf-commands` once it
-   has drawn, since what the element binds keys to may have changed. A root that fails
-   reports through `failSoft` and shows nothing.
+   `pending-task` whose promise settles after that flush.
 
-   The element dispatches `lf-connect` as it connects, so Leaf dresses its shadow root
-   and makes its sets first; where Leaf cancels the event, the element mounts once
-   `state` arrives. A descendant's `lf-connect` reads `inputs` again, since a revision
-   may have replaced the members they read, as `LeafElement` draws again then.
-   `statics` are the class's static members Leaf reads off a widget's class, such as
-   `lfPatch` (module-authoring.md, "Revisions") and `answered` (module-state.md). Moving
-   the element keeps its root (`connectedMoveCallback`), and leaving the document
-   closes it a microtask later, as `defineElement`'s elements do.
+   Failure. A root that fails, or inputs that throw, report the failure as the
+   element's `error` and show Leaf's failure box beside the authored children, which
+   stay visible: a shadow root that failed shows them through a bare slot. A later
+   successful reading of the inputs removes the box; a failed root stands failed until
+   the element connects again.
 
-   A widget whose page module talks to the element itself names those properties:
+   Lifecycle. The element dispatches `lf-connect` as it connects, so Leaf dresses its
+   shadow root and makes its sets first; where Leaf cancels the event, the element
+   mounts once `state` arrives. A descendant's `lf-connect` reads `inputs` again, since
+   a revision may have replaced the members they read. Moving the element keeps its
+   root (`connectedMoveCallback`), and leaving the document closes it a microtask
+   later, as `defineElement`'s elements do.
 
-   - `options.properties` are props too, as `BrowserHost.defineElement`'s are: the
-     element keeps what the page sets, and a set gives the component new props. A
-     value the page set before the tag was defined counts, so either module may load
-     first.
-   - `options.members` read and write the component's Model: reading one gives what
-     its `get` reads off the Model, and setting one sends the root the message its
-     `set` returns, which draws as a set of props does. Out of the document a member reads the Model the closed root
-     ended with, and a set waits for the next root, as one made before the tag was
-     defined does. */
+   Effect UI's limits that shape this module:
+
+   - Each element mounts its own root with `BrowserHost.mountEffect`, which builds a
+     host for the document per mount. `defineElement` shares one host across its
+     instances, but only through an internal argument, and it clears the element's
+     children and knows nothing of `lf-connect`, `inputs` or `members`, so Leaf can't
+     define its widgets with it.
+   - A root gives its owner no hook on a flush: `Renderer.Root` has `model`, `send`
+     and `setProps`, and the per-flush `commit` is the host's own. So the adapter
+     hears only the draws it starts, and a draw from the component's own messages is
+     said by the widget's Mount (Declarations).
+   - A render that changes a node's attributes removes the ones it drops before it
+     sets the new ones (`patchAttrs`), so an `<a>` that trades `href` for `tabindex`
+     loses focusability for an instant and Chromium blurs it. A widget keeps such a
+     node focusable across both states (lf-activity.js, a row's target). */
 import {
   BrowserHost,
   Cause,
@@ -70,15 +108,19 @@ import {
   Scope,
 } from "/vendor/effect-ui.js";
 import { signal, effect as watch, untracked } from "/vendor/signals-core.js";
-import { failSoft } from "./lib/failure.js";
+import { failSoft, placesFailure } from "./lib/failure.js";
 import { inWindowDocument } from "./lib/once.js";
 import { PendingTaskEvent } from "./lib/pending-task.js";
-import { COMMANDS, CONNECT } from "./lib/widget-events.js";
+import { COMMANDS, CONNECT, layoutChanged } from "./lib/widget-events.js";
 import { leafServices } from "./widget-services.js";
 
 /** The props every widget component gets: Leaf's reading of it, undefined until Leaf
  *  sets one and off a Leaf page. A component's own `props` Schema extends it. */
 export const widgetProps = { state: Schema.optional(Schema.Unknown) };
+
+/** A property that reads and writes the component's Model. */
+
+/** What a widget states on its element for Leaf to read. */
 
 let mounts = 0;
 
@@ -88,17 +130,30 @@ let mounts = 0;
 // time-sliced HtmlScheduler, as later tasks.
 const microtasks = new Scheduler.MixedScheduler("sync");
 
-/** @typedef {{get?: (model: any) => unknown, set?: (value: any) => unknown}} Member */
+// Each standing root's element, and its container, a shadow root or a light box, to
+// the element, which `declare` finds from a node the root drew.
+const elementOf = new WeakMap();
 
-/**
- * Define `tag` as a widget that draws `component`.
- * @param {string} tag
- * @param {any} component an Effect UI HTML component whose props hold `state`, what
- *   `inputs` returns and the `properties`
- * @param {{shadow?: boolean, statics?: Record<string, unknown>,
- *   inputs?: (element: HTMLElement, reread: () => void) => Record<string, unknown>,
- *   properties?: readonly string[], members?: Record<string, Member>}} [options]
- */
+/** State `declarations` on the widget whose root drew `node`, or on the widget `node`
+ *  is, until that root closes, and say them, so Leaf reads them again. */
+export function declare(node, declarations) {
+  let at = node;
+  while (at && !elementOf.has(at)) at = at.parentNode;
+  const element = at && elementOf.get(at);
+  if (!element) throw new Error("declare: the node stands in no widget's root");
+  const { lfCommands, lfParts } = declarations;
+  if ("lfCommands" in declarations) {
+    element.lfCommands = lfCommands;
+    element.dispatchEvent(new CustomEvent(COMMANDS, { bubbles: true, composed: true }));
+  }
+  if ("lfParts" in declarations) {
+    element.lfParts = lfParts;
+    layoutChanged(element);
+  }
+}
+
+/** Define `tag` as a widget that draws `component`, an Effect UI HTML component whose
+ *  props hold `state`, what `inputs` returns and the `properties`. */
 export function defineWidget(
   tag,
   component,
@@ -108,11 +163,9 @@ export function defineWidget(
     static {
       for (const name of properties)
         Object.defineProperty(this.prototype, name, {
-          /** @this {InstanceType<typeof Widget>} */
           get() {
             return this.#properties[name];
           },
-          /** @this {InstanceType<typeof Widget>} @param {unknown} value */
           set(value) {
             this.#properties = { ...this.#properties, [name]: value };
             if (this.#root) this.#update();
@@ -121,14 +174,11 @@ export function defineWidget(
         });
       for (const [name, { get, set }] of Object.entries(members))
         Object.defineProperty(this.prototype, name, {
-          /** @this {InstanceType<typeof Widget>} */
           get() {
             const model = this.#root?.model() ?? this.#ended;
-            return get && model !== undefined ? get(model) : undefined;
+            return model === undefined ? undefined : get(model);
           },
-          /** @this {InstanceType<typeof Widget>} @param {unknown} value */
           set(value) {
-            if (!set) return;
             const message = set(value);
             if (!this.#root) this.#held.push(message);
             else {
@@ -138,26 +188,21 @@ export function defineWidget(
           },
         });
     }
-    /** @type {unknown} */
     #state = undefined;
-    /** @type {Record<string, unknown>} */
     #inputs = {};
-    /** @type {Record<string, unknown>} */
     #properties = {};
-    /** @type {{setProps: (props: any) => void, model: () => unknown, send: (message: any) => void} | undefined} */
     #root = undefined;
     // The Model the last root ended with, which `members` read while none stands.
-    /** @type {unknown} */
     #ended = undefined;
     // The messages `members` set while no root stood, which the next root takes.
-    /** @type {unknown[]} */
     #held = [];
-    /** @type {Scope.Closeable | undefined} */
     #scope = undefined;
-    /** @type {HTMLElement | undefined} */
-    #box = undefined;
-    /** @type {(() => void) | undefined} */
+    #container = undefined;
     #unwatch = undefined;
+    // The failure box standing beside the authored children, and whether the root
+    // failed, which only connecting again mends.
+    #failure = undefined;
+    #failed = false;
     // Leaf answered `lf-connect`: it sets `state`, and nothing mounts before it has.
     #hosted = false;
     // Moved by `reread`, and read with the inputs, so the watch reads them again.
@@ -174,21 +219,22 @@ export function defineWidget(
       // the accessor's mount: an element upgraded in the document mounts from
       // `connectedCallback`, once Leaf has answered `lf-connect`. A member's value
       // goes through its accessor, which holds the message for that mount.
-      const own = /** @type {Record<string, unknown>} */ (
-        /** @type {unknown} */ (this)
-      );
-      for (const name of properties)
+      const own = this;
+      for (const name of [...properties, ...Object.keys(members)])
         if (Object.hasOwn(this, name)) {
           const value = own[name];
           delete own[name];
-          this.#properties = { ...this.#properties, [name]: value };
+          if (name in members) own[name] = value;
+          else this.#properties = { ...this.#properties, [name]: value };
         }
-      for (const name of Object.keys(members))
-        if (Object.hasOwn(this, name)) {
-          const value = own[name];
-          delete own[name];
-          own[name] = value;
-        }
+      // The box goes beside the authored children, which stay as they are.
+      placesFailure(this, (box) => {
+        this.#failure?.remove();
+        this.#failure = box;
+        box.setAttribute("data-lf-gen", "1");
+        this.append(box);
+        return true;
+      });
       // A listener on a shadow host sees itself as the target of an event from inside
       // its root, so the element that connected is read off the path.
       this.addEventListener(CONNECT, (event) => {
@@ -230,24 +276,27 @@ export function defineWidget(
         const scope = this.#scope;
         this.#ended = this.#root?.model();
         this.#unwatch?.();
-        this.#box?.remove();
-        this.#root = this.#scope = this.#unwatch = this.#box = undefined;
+        if (this.#container) elementOf.delete(this.#container);
+        elementOf.delete(this);
+        if (!this.shadowRoot) this.#container?.remove();
+        this.lfCommands = this.lfParts = undefined;
+        this.#root = this.#scope = this.#unwatch = this.#container = undefined;
         Effect.runFork(Scope.close(scope, Exit.void));
       });
     }
 
     // What `inputs` reads, or nothing where it throws: the failure stays on this
-    // widget, as `LeafElement`'s does, rather than aborting the update that moved a
-    // signal it reads. A DOM node it returns is the same input only as itself:
-    // Effect UI compares props that differ by reference with `Equal.equals`, which
-    // would otherwise compare two nodes by every property they reach, a walk that
-    // covers the document and throws on a getter such as an SVG length's.
+    // widget, rather than aborting the update that moved a signal it reads. Effect UI
+    // compares props that differ by reference with `Equal.equals`, which would compare
+    // two DOM nodes by every property they reach, a walk that covers the document and
+    // throws on a getter such as an SVG length's, so a node is compared as itself.
     #read() {
       try {
-        this.#asked.value;
+        void this.#asked.value;
         const next = inputs?.(this, this.#reread);
         for (const value of Object.values(next ?? {}))
           if (value instanceof Node) Equal.byReferenceUnsafe(value);
+        if (!this.#failed) untracked(() => this.#mended());
         return next;
       } catch (error) {
         untracked(() => failSoft(this, error));
@@ -261,6 +310,8 @@ export function defineWidget(
     #mount() {
       if (this.#root || !this.isConnected) return;
       if (this.#hosted && this.#state === undefined) return;
+      this.#failed = false;
+      this.#mended();
       if (inputs) {
         // The first run reads the inputs the mount draws from; later runs are the
         // signals they read moving.
@@ -279,22 +330,19 @@ export function defineWidget(
         });
       }
       const scope = (this.#scope = Scope.makeUnsafe());
-      const element = this;
       // A shadow root is a container as an element is, as `defineElement` mounts one.
-      const container = /** @type {Element} */ (
-        /** @type {unknown} */ (this.shadowRoot ?? this.#stage())
-      );
-      const mounting = /** @type {Effect.Effect<any, never, Scope.Scope>} */ (
-        BrowserHost.mountEffect(component, this.#props(), container, {
-          head: false,
-          key: `${tag}:${mounts++}`,
-          onEmit: (/** @type {any} */ event) => element.#emit(event),
-          fallback: (/** @type {any} */ failure, /** @type {any} */ h) => {
-            queueMicrotask(() => failSoft(element, Cause.squash(failure.cause)));
-            return h.span;
-          },
-        })
-      );
+      const container = (this.#container = this.shadowRoot ?? this.#box());
+      elementOf.set(container, this).set(this, this);
+      const mounting = BrowserHost.mountEffect(component, this.#props(), container, {
+        head: false,
+        key: `${tag}:${mounts++}`,
+        onEmit: (event) => this.#emit(event),
+        fallback: (failure, h) => {
+          this.#failed = true;
+          queueMicrotask(() => failSoft(this, Cause.squash(failure.cause)));
+          return this.shadowRoot ? h.slot : h.span;
+        },
+      });
       const root = (this.#root = Effect.runSync(
         mounting.pipe(
           Effect.provide(leafServices(this)),
@@ -308,10 +356,15 @@ export function defineWidget(
       if (held.length) this.#redraws();
     }
 
+    #mended() {
+      this.#failure?.remove();
+      this.#failure = undefined;
+    }
+
     // The box a light widget draws in, since Effect UI empties the container it mounts
     // into.
-    #stage() {
-      const box = (this.#box = document.createElement("div"));
+    #box() {
+      const box = document.createElement("div");
       box.setAttribute("data-lf-gen", "1");
       box.style.display = "contents";
       this.append(box);
@@ -335,6 +388,7 @@ export function defineWidget(
     // Said on the element, which Leaf reads off the event's path, and which holds
     // every scope its shadow root draws.
     #drawn() {
+      if (!this.#root) return;
       this.dispatchEvent(
         new CustomEvent(COMMANDS, {
           bubbles: true,
@@ -342,9 +396,9 @@ export function defineWidget(
           detail: { within: true },
         }),
       );
+      if (this.lfParts) layoutChanged(this);
     }
 
-    /** @param {{_tag: string}} event */
     #emit(event) {
       this.dispatchEvent(
         new CustomEvent(event._tag.toLowerCase(), {

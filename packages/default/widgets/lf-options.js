@@ -174,7 +174,7 @@ import {
   scrollIntoView,
   tabStore,
 } from "/runtime/widget-api.js";
-import { defineWidget, widgetProps } from "/runtime/effect-widget.js";
+import { declare, defineWidget, widgetProps } from "/runtime/effect-widget.js";
 import { RecordAction, KeepInTab, TakeBack } from "/runtime/widget-services.js";
 import { offerAttributes, pressAttributes } from "/runtime/lib/controls.js";
 import { keeps } from "/runtime/lib/keeps.js";
@@ -665,10 +665,7 @@ class GroupLight {
       args.offered,
       args.multiple,
     ]);
-    if (key === this.#scopeKey)
-      return host.dispatchEvent(
-        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
-      );
+    if (key === this.#scopeKey) return;
     this.#scopeKey = key;
     const state = () => /** @type {any} */ (host).state;
     const shown = () => shownOptions(host, state());
@@ -726,10 +723,7 @@ class GroupLight {
         when: () => doneAvailable(state(), shown()),
         run: () => this.send(OptionsMessage.PressedDone()),
       });
-    /** @type {any} */ (host).lfCommands = { title: SECTION, rows };
-    host.dispatchEvent(
-      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
-    );
+    declare(host, { lfCommands: { title: SECTION, rows } });
   }
 
   // The `choice` output, said with `change` each time it moves.

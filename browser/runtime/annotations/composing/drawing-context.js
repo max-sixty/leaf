@@ -1,3 +1,4 @@
+// Compiled from drawing-context.ts by build/typescript.mjs; edit that file.
 /* A composer's drawing preview is a frozen picture of the page beneath its ink.
  *
  * The drawing record remains geometry, independent of this disposable local picture.
@@ -19,7 +20,6 @@ const CONTEXT_PAD = 24;
 const PREVIEW_WIDTH = 2048;
 const PREVIEW_HEIGHT = 1536;
 
-/** @param {import("./drawing-record.js").Drawing} drawing @param {Element | null} target */
 function readPicture(drawing, target) {
   const geometry = target && drawingGeometry(drawing, target);
   const strokes = geometry?.strokes ?? drawing.strokes;
@@ -41,7 +41,6 @@ function readPicture(drawing, target) {
   };
 }
 
-/** @param {import("./drawing-record.js").Drawing} drawing @param {Element | null} target */
 export function drawingThumbnail(drawing, target) {
   const canvas = document.createElement("canvas");
   canvas.setAttribute("aria-hidden", "true");

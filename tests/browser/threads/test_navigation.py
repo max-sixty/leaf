@@ -16,7 +16,6 @@ from render_harness import (
     scroll_settled,
     select_words,
     told,
-    without_end_room,
 )
 
 from browser.margin import CARD_AT_REST
@@ -142,8 +141,6 @@ def test_back_reopens_the_thread_its_departure_put_away(browser, serve, left):
                 },
             )
     page = open_page(browser, url)
-    # The last paragraph ends a page with no room below it, so the view stands over it.
-    without_end_room(page)
     card = page.locator(
         f'.lf-margin-preview .lf-page-thread[data-lf-thread="{passage_root}"]'
     )

@@ -1,12 +1,10 @@
-// @ts-check
+// Compiled from abort.ts by build/typescript.mjs; edit that file.
 /* An abort signal as a promise, for work that races its own cancellation
    (`Promise.race([work, aborted(signal)])`). The platform offers the signal's event and
    `throwIfAborted`, but nothing to await. */
 
-/** Resolves, with nothing, once `signal` aborts; at once if it already has.
- * @param {AbortSignal} signal */
+/** Resolves, with nothing, once `signal` aborts; at once if it already has. */
 export const aborted = (signal) => {
-  /** @type {PromiseWithResolvers<void>} */
   const { promise, resolve } = Promise.withResolvers();
   if (signal.aborted) resolve();
   else signal.addEventListener("abort", () => resolve(), { once: true });

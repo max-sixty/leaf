@@ -1,3 +1,4 @@
+// Compiled from reply-continuity.ts by build/typescript.mjs; edit that file.
 /* Natural thread layout, with the room a publication removes held for the reply.
 
    Transcript, quote, response and the reply editor size themselves through CSS. A
@@ -21,7 +22,6 @@ import { growthIsSeen, whenNone } from "../../dom/geometry.js";
 import { layoutPx } from "../../lib/keeps.js";
 
 // The room a box takes in its flow, its margins included; none once it has gone.
-/** @param {Element} node */
 const room = (node) => {
   if (!node.isConnected) return 0;
   const { marginBlockStart, marginBlockEnd } = getComputedStyle(node);
@@ -34,16 +34,12 @@ const room = (node) => {
 
 export class ReplyContinuity {
   #owner;
-  /** @type {Element | null} */
   #row = null;
-  /** @type {(() => void) | null} */
   #departure = null;
   #space = 0;
   // The boxes a presentation changes itself, each with its height before it.
-  /** @type {{node: Element, height: number}[]} */
   #presenting = [];
   gap = document.createElement("div");
-  /** @param {HTMLElement} owner */
   constructor(owner) {
     this.#owner = owner;
     owner.classList.add("lf-reply-continuity");
@@ -59,7 +55,6 @@ export class ReplyContinuity {
   }
   // `own` are the boxes the presentation opens, closes, changes the words of or removes,
   // whose own height change the extent follows.
-  /** @param {readonly Element[]} own */
   before(own = []) {
     this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
     this.#presenting = [];
@@ -69,7 +64,6 @@ export class ReplyContinuity {
       .map((node) => ({ node, height: room(node) }));
     return { extent: parseFloat(getComputedStyle(this.#owner).blockSize) };
   }
-  /** @param {ReturnType<ReplyContinuity["before"]>} reading */
   after(reading) {
     this.#row = this.#owner.querySelector(":scope > .lf-thread-reply");
     const presenting = this.#presenting;
@@ -89,7 +83,6 @@ export class ReplyContinuity {
     this.#departure?.();
     this.#departure = whenNone([this.#row], growthIsSeen, () => this.release());
   }
-  /** @param {number} space */
   #keep(space) {
     if (space === this.#space) return;
     this.#space = space;

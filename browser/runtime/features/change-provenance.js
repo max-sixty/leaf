@@ -1,4 +1,4 @@
-// @ts-check
+// Compiled from change-provenance.ts by build/typescript.mjs; edit that file.
 /* Which of the user's comments a version was saved after: where the page compares a
    version with the one before it, every change it marks was made by that version's
    revisions, so one line under each change's count says the messages that waited
@@ -36,11 +36,10 @@ import { comparisonSavedAfter } from "./version.js";
 import { leafSays } from "../base/voice.js";
 import { counted, quotedWords } from "../lib/words.js";
 
-/** One of the user's messages a version was saved after, as the server names it.
- * @typedef {NonNullable<import("../../types/contract.js").ServedViewAnswer["saved_after"]>[number]} WaitedMessage */
+/** One of the user's messages a version was saved after, as the server names it. */
+
 /** What a version was saved after: its name and `lines`, what it says, each line a run
- * of words in their speakers' faces (base/voice.js).
- * @typedef {Readonly<{version: string, lines: readonly (readonly (string | import("../base/voice.js").Said)[])[]}>} VersionProvenance */
+ * of words in their speakers' faces (base/voice.js). */
 
 // The quoted lines a version's provenance shows at most before saying how many more.
 const QUOTED = 3;
@@ -49,8 +48,7 @@ const QUOTE_CAP = 90;
 
 /** What the messages are to the user: "your comment", "your 2 replies", or for kinds
  * mixed, "your 3 updates" (glossary.md, "Reader-facing words"). A message that opened
- * its thread is a comment; any other a reply.
- * @param {readonly WaitedMessage[]} messages */
+ * its thread is a comment; any other a reply. */
 function yours(messages) {
   const kinds = new Set(
     messages.map(({ thread, message }) =>
@@ -70,10 +68,7 @@ function yours(messages) {
 
 /** What the version `version` says it was saved after `messages`, in the order they
  * were sent: a heading, up to three quotes, each in the words `wordsOf` gives the
- * message, and past three how many more.
- * @param {string} version @param {readonly WaitedMessage[]} messages
- * @param {(message: WaitedMessage) => string} wordsOf
- * @returns {VersionProvenance} */
+ * message, and past three how many more. */
 export function savedAfter(version, messages, wordsOf) {
   const shown = messages.slice(0, messages.length > QUOTED ? QUOTED - 1 : QUOTED);
   return Object.freeze({
@@ -98,13 +93,11 @@ export function savedAfter(version, messages, wordsOf) {
 
 /** The words a message had where it waited: the message as its thread then held it,
  * read as a thread reads a whole message (records/thread/messages.js, `messageWords`), under a
- * name of its own beside the thread's reading of it now.
- * @param {WaitedMessage} waited */
+ * name of its own beside the thread's reading of it now. */
 export const waitedWords = ({ message }) =>
   messageWords({ ...message, id: `${message.id}@${message.edited?.id ?? ""}` });
 
 // The last reading `versionProvenance` made, and what it was made from.
-/** @type {{inputs: readonly unknown[], value: VersionProvenance | null} | null} */
 let held = null;
 
 /** What the version the comparison shows was saved after, or null where the server

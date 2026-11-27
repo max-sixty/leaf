@@ -1,3 +1,4 @@
+// Compiled from keys.ts by build/typescript.mjs; edit that file.
 /* The keys a control answers, read from the control: what activates a button, the
    press a control claims for itself, and the arrows that step back and ahead along a
    row of controls in its text direction. */
@@ -13,7 +14,6 @@ export const PRESS = ["Enter", " "];
 // Cmd- or Ctrl-click opens a link elsewhere and Ctrl-click is the Mac's context menu,
 // Shift extends a selection or opens a window, Alt downloads or aims at the item — so a
 // handler that takes over a press leaves a modified one to the browser.
-/** @param {MouseEvent} event */
 export const plainPress = (event) =>
   event.button === 0 &&
   !event.altKey &&
@@ -30,6 +30,5 @@ export const plainPress = (event) =>
 // availability asks this of every disclosure on the page, in the frame's pass after
 // other work has written to the document, so reading the computed `direction` made it
 // recalculate style for those writes, several times a comment on a page of diffs.
-/** @param {Element} node @returns {[string, string]} */
 export const rowArrows = (node) =>
   node.matches(":dir(rtl)") ? ["ArrowRight", "ArrowLeft"] : ["ArrowLeft", "ArrowRight"];

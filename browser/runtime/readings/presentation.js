@@ -1,3 +1,4 @@
+// Compiled from presentation.ts by build/typescript.mjs; edit that file.
 /* The page's readiness: the stamps written on body, the work an owner finishes after
    presentation (`deferredArrival`), and the events startup dispatches to present the
    page (`PRESENTATION`, `PAGE_INTERFACE`). The words and marks the runtime paints onto
@@ -71,7 +72,6 @@ export function markPageUpgraded() {
 }
 // The stamp is written here and nowhere else, and never taken back, so the promise it
 // resolves answers every later waiter too.
-/** @type {PromiseWithResolvers<void>} */
 const { promise: presented, resolve: resolvePresented } = Promise.withResolvers();
 export function markPagePresented() {
   setRuntimeRootAttribute(document.body, PAGE_PAINT_ATTRIBUTE.presented, "1");
@@ -83,11 +83,9 @@ export function markPagePresented() {
 // presentation for anything a page starts with — so the page never reads as arrived in
 // the window between presenting and its first deferred upgrade taking hold. A
 // rejection lands the arrival like a resolution; its owner draws the failure.
-/** @type {Set<PromiseLike<unknown>>} */
 const arriving = new Set();
 
-/** Declare work this page finishes after presenting, and hand back its promise.
- * @template {PromiseLike<unknown>} T @param {T} work */
+/** Declare work this page finishes after presenting, and hand back its promise. */
 export function deferredArrival(work) {
   arriving.add(work);
   const landed = () => arriving.delete(work);
@@ -106,15 +104,12 @@ export const arrivalsOutstanding = () => arriving.size;
 
 /** Run `work` once the page has presented, as an arrival the page answers for from
  * this call until what `work` returns settles; a `work` that returns a promise already
- * running declares that promise.
- * @template T @param {() => T | PromiseLike<T>} work @returns {Promise<T>} */
+ * running declares that promise. */
 export const afterPresentation = (work) => deferredArrival(presented.then(work));
 
-/** @type {Set<() => void>} */
 const nearing = new Set();
 // Whether a check has asked for all near work (`startNearWork`), and who hears it ask.
 let allNear = false;
-/** @type {Set<() => void>} */
 const askingAllNear = new Set();
 
 /** Run `start` once, when `node` comes near the window as `nearObserver` reads it
@@ -124,10 +119,8 @@ const askingAllNear = new Set();
  * whose rendering brought the node near owns what `start`'s work later moves only
  * where `start` announces that work, in its own stack, with a `pending-task` event
  * (lib/pending-task.js; tests/shift_watch.js), as `mountSample` does for a live
- * sample's frame (widget-api.js). Returns the step that stops waiting.
- * @param {Element} node @param {() => void} start */
+ * sample's frame (widget-api.js). Returns the step that stops waiting. */
 export function whenNear(node, start) {
-  /** @type {PromiseWithResolvers<void>} */
   const { promise: read, resolve: land } = Promise.withResolvers();
   deferredArrival(read);
   const observer = nearObserver((entries) => {
@@ -162,8 +155,7 @@ export function startNearWork() {
   for (const hear of askingAllNear) hear();
 }
 
-/** Call `hear` each time a check asks for all near work, and say whether one has.
- * @param {() => void} hear */
+/** Call `hear` each time a check asks for all near work, and say whether one has. */
 export function onAllNear(hear) {
   askingAllNear.add(hear);
   return {
@@ -178,12 +170,10 @@ export function onAllNear(hear) {
 // the server took it, and the moment its activity could next change with no file
 // moving (`activityTransitionAt`), all on the server's clock. The `state` stage below
 // compares these with the answer a reader holds.
-/** @type {{reading: string, taken: number, lapses: number} | null} */
 let appliedState = null;
 
 /** Record `state` as applied. Called once per answer, after its document's presentation
-    pass and every data subscriber it told have finished.
- * @param {import("../../types/contract.js").ServedState} state */
+ *     pass and every data subscriber it told have finished. */
 export function markStateApplied(state) {
   setRuntimeRootAttribute(document.body, PAGE_PAINT_ATTRIBUTE.reading, state.reading);
   appliedState = {
@@ -193,11 +183,9 @@ export function markStateApplied(state) {
   };
 }
 
-/** @param {keyof typeof PAGE_PAINT_ATTRIBUTE} name */
 const stamp = (name) => document.body.getAttribute(PAGE_PAINT_ATTRIBUTE[name]);
 // In the order a page reaches them. `held` is the `/api/state` answer a reader holds
 // (`{reading, taken}`), or null for a reader holding none, which skips `state`.
-/** @type {[string, (held?: {taken: number, reading: string} | null) => boolean][]} */
 const READINESS = [
   ["upgraded", () => stamp("upgraded") === "1"],
   ["log", () => stamp("applied") !== null],
@@ -236,7 +224,6 @@ const READINESS_STAGES = new Set(READINESS.map(([stage]) => stage));
 
     Finite animation is not a stage: the render gate's `pageSettled` asks that
     separately. */
-/** @param {{taken: number, reading: string} | null} held @param {string} through */
 export function pageReadiness(held = null, through = "rendering") {
   if (!READINESS_STAGES.has(through))
     throw new TypeError(`no readiness stage named ${through}`);
@@ -262,9 +249,7 @@ export const PAGE_INTERFACE = "lf-page-interface";
 // Prepare interface owners over the current DOM. This joins their reconciliation,
 // separately from the semantic document's canonical presentation proof.
 export async function settlePageInterface() {
-  /** @type {PromiseLike<unknown>[]} */
   const pending = [];
-  /** @template {PromiseLike<unknown>} T @param {T} promise */
   const present = (promise) => {
     if (!promise?.then)
       throw new TypeError("Page interface presentation must be a promise");
@@ -287,12 +272,10 @@ export async function settlePageInterface() {
 // lifetime; `connect(signal)` runs on each connection, and its returned cleanup runs as
 // the element leaves. A later PAGE_INTERFACE, from a revision applied in place, finds
 // the view already connected.
-/** @param {Element} element @param {{declare?: () => void, connect: (signal: AbortSignal) => (() => void) | void}} callbacks */
 export function whileInterfaceConnected(element, { declare, connect }) {
   let declared = false;
   return whileConnected(element, (signal) => {
     let connected = false;
-    /** @type {(() => void) | void} */
     let cleanup;
     const start = () => {
       if (signal.aborted || connected) return;

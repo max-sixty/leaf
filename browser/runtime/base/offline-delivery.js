@@ -1,3 +1,4 @@
+// Compiled from offline-delivery.ts by build/typescript.mjs; edit that file.
 /* One offline document's resource addresses, allocated before native HTML parsing.
 
    The export's composed document, CSS resource bodies and runtime address table use
@@ -7,22 +8,18 @@
    addresses and the import map share that allocator and module identity. document.write
    hands the existing composed source to the native parser, including classic scripts,
    import maps and declarative shadow trees; it creates no alternate renderer. */
-/** @typedef {{mime: string, base64: string}} Resource */
+
 window.setTimeout(() => {
   const packageScript = document.querySelector("script[data-lf-export]");
   if (!packageScript) throw new Error("Offline delivery has no resource package");
-  /** @type {{prefix: string, document: string, resources: Record<string, Resource>}} */
   const exported = JSON.parse(packageScript.textContent);
-  /** @type {Map<string, string>} */
   const addresses = new Map();
   const reference = new RegExp(`${exported.prefix}[a-f0-9]{64}`, "g");
-  /** @param {string} source @returns {string} */
   const rebase = (source) =>
     source.replace(reference, (token) => {
       const resource = exported.resources[token];
       return resource ? address(token, resource) : token;
     });
-  /** @param {string} token @param {Resource} resource @returns {string} */
   function address(token, resource) {
     const held = addresses.get(token);
     if (held !== undefined) return held;

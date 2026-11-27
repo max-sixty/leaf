@@ -1,3 +1,4 @@
+// Compiled from version.ts by build/typescript.mjs; edit that file.
 /* Version travel, comparison, and user continuity.
  *
  * The picker paints its immutable reading from what it reads of the application's
@@ -169,6 +170,7 @@ import {
   tagsDeclaring,
   upgrades,
 } from "../state/registry.js";
+
 import { inlineMarkdownFragment, paintMarkdown } from "../lib/markdown.js";
 import {
   pageLinks,
@@ -269,9 +271,7 @@ const PRIVATE_REVISION_PARAM = "_leaf-revision";
 // a root, so that boundary identifies the authored share without mistaking
 // early runtime state for page source. An activation can then replace exactly that share
 // without erasing the presentation, layout, and mode facts the surviving runtime owns.
-/** @param {Element} root */
 function authoredAttributes(root) {
-  /** @type {Map<string, string>} */
   const attributes = new Map();
   for (const { name, value } of root.attributes) {
     if (name.startsWith("data-lf-")) continue;
@@ -288,7 +288,6 @@ function authoredAttributes(root) {
 // what it inserts — the identity markers, the page's canonical address, a
 // publication's card — and that share belongs to the document the user was
 // served rather than to the revision arriving inside it.
-/** @param {Element} node */
 const versionedHeadNode = (node) =>
   !node.hasAttribute("data-lf-runtime") &&
   (node.localName === "title" ||
@@ -300,7 +299,6 @@ const versionedHeadNode = (node) =>
 // Keep one inert authored baseline before Leaf mounts or upgrades anything. Live
 // revisions compare against it and pair retained source nodes with their live peers.
 // Delivery's Markdown preview is presentation, so neither baseline includes it.
-/** @template {Element | Document | DocumentFragment} T @param {T} root @returns {T} */
 const authoredMarkup = (root) => {
   // Prepaint can already have painted the first document. Both source snapshots
   // exclude runtime-owned attributes; their live values stay with their writers.
@@ -324,7 +322,6 @@ const authoredMarkup = (root) => {
   }
   return root;
 };
-/** @param {Node} source @param {Node} live @param {SourcePairs} pairs @returns {SourcePairs} */
 const pairSources = (source, live, pairs) => {
   pairs.pair(source, live);
   const held = source instanceof HTMLTemplateElement ? source.content : source;
@@ -341,9 +338,9 @@ const pairSources = (source, live, pairs) => {
   }
   return pairs;
 };
+
 // Only the version controller keeps this baseline; replacing a revision releases
 // its source and the source/live node pairs together.
-/** @typedef {ReturnType<typeof captureInitialDocument>} InitialDocument */
 function captureInitialDocument() {
   const body = pageDocument();
   const inert = document.implementation.createHTMLDocument("");
@@ -376,7 +373,6 @@ function captureInitialDocument() {
     pairs,
   };
 }
-/** @type {InitialDocument | null} */
 let initialDocument = captureInitialDocument();
 
 // Boot lends this same captured source and its original node pairs to typed
@@ -391,12 +387,10 @@ export function takeInitialDocument() {
 
 // ---------- the version picker ----------
 // Version facts are selectors of the accepted application reading.
-/** @param {number} version */
 const stamped = (version) =>
   runtime.versions.find((candidate) => candidate.version === version);
 // A comparison's base, built from a stamped version's entry: the revision the page is
 // compared with, its document's address, and its name in what the comparison says.
-/** @param {import("../../types/contract.js").ServedReading["versions"][number]} entry */
 export const revisionBase = ({ revision, version, url }) =>
   Object.freeze({ revision, url, name: `v${version}` });
 // The version picker: a press that says which version this is, and a menu that says
@@ -442,7 +436,6 @@ const behindCurrent = () =>
 // Which version a page behind the latest shows, in the few words the floating panel's
 // field says before the status: the version and the latest one's number, as in
 // "v2 of 3", or a draft the agent has since revised.
-/** @param {NonNullable<typeof runtime.active>} active */
 const shownBehind = (active) =>
   runtime.currentStamp === null
     ? "An older draft"
@@ -450,10 +443,8 @@ const shownBehind = (active) =>
       ? `v${runtime.currentStamp}`
       : `v${runtime.currentStamp} of ${active.version}`;
 
-/** @typedef {import("../../types/contract.js").ServedReading["versions"][number]} StampedVersion */
 // The version the user last saw, as their arrival found it (host/since-seen.js, `sawLast`).
-const lastSeen = signal(/** @type {StampedVersion | null} */ (null));
-/** @param {StampedVersion | null} version */
+const lastSeen = signal(null);
 export const sawLast = (version) => {
   lastSeen.value = version;
 };
@@ -465,7 +456,6 @@ const seenBase = () => {
 };
 // What a version's name says it is after its number, as in "v3 (latest version, last
 // seen)".
-/** @param {(string | false)[]} roles */
 const parenthesized = (roles) => {
   const said = roles.filter(Boolean);
   return said.length ? ` (${said.join(", ")})` : "";
@@ -484,31 +474,25 @@ const parenthesized = (roles) => {
 // `nearObserver` reads it (dom/geometry.js), whose 600px past each edge of a scroller suits
 // layout work; for counts, each pick would also fetch and compare those 600px of rows.
 const widgetStates = readPart((root) => root.effective.widgets);
-const versionCounts = signal(
-  /** @type {{revision: number | null, widgets: unknown, counts: ReadonlyMap<number, number>}} */ ({
-    revision: null,
-    widgets: null,
-    counts: new Map(),
-  }),
-);
+const versionCounts = signal({
+  revision: null,
+  widgets: null,
+  counts: new Map(),
+});
 /** How many changes a comparison with the version at `revision` would mark, or null
- * until Versions has counted them for the page as it stands.
- * @param {number} revision */
+ * until Versions has counted them for the page as it stands. */
 export const changesCounted = (revision) => {
   const at = versionCounts.value;
   return at.revision === runtime.currentRevision && at.widgets === widgetStates()
     ? (at.counts.get(revision) ?? null)
     : null;
 };
-/** The versions whose Compare shows in the window, by revision.
- * @type {Set<number>} */
+/** The versions whose Compare shows in the window, by revision. */
 const countsShown = new Set();
-/** @type {WeakMap<Element, number>} */
 const shownRevision = new WeakMap();
 // Wakes Versions' counting for the page as it stands when a row comes into view; it
 // does nothing while Versions is closed.
 let countShown = () => {};
-/** @type {IntersectionObserver | undefined} */
 let showing;
 const watchShowing = () =>
   (showing ??= new IntersectionObserver((entries) => {
@@ -524,13 +508,10 @@ const watchShowing = () =>
  * changes since the version at `revision` once this element shows in the window. */
 export const countWhenShown = directive(
   class extends AsyncDirective {
-    /** @type {Element | null} */
     node = null;
-    /** @param {number} _revision */
     render(_revision) {
       return nothing;
     }
-    /** @param {import("/vendor/lit.js").ElementPart} part @param {[number]} args */
     update(part, [revision]) {
       if (this.node !== part.element) {
         this.node = part.element;
@@ -550,14 +531,12 @@ export const countWhenShown = directive(
     }
   },
 );
-/** @param {number} revision @param {unknown} widgets @param {() => boolean} open */
 async function countVersions(revision, widgets, open) {
   const counts = () => {
     const at = versionCounts.peek();
     return at.revision === revision && at.widgets === widgets ? at.counts : new Map();
   };
   // A version whose count fails keeps Compare's word, and the others still count.
-  /** @type {Set<number>} */
   const failed = new Set();
   while (open()) {
     const entry = runtime.versions.findLast(
@@ -577,13 +556,9 @@ async function countVersions(revision, widgets, open) {
   }
 }
 
-/** @typedef {{revision: number, version: number | null, name: string, note: string | null, current: boolean, active: boolean, comparable: boolean}} VersionRow */
-/** @param {import("../../types/contract.js").ServedState} state
- * @param {Readonly<Record<string, string>>} notes @param {NonNullable<typeof runtime.active>} active */
 function menuRows(state, notes, active) {
   const latest = state.versions.at(-1)?.version;
   const seen = seenBase()?.revision;
-  /** @type {VersionRow[]} */
   const entries = state.versions.map((entry) => ({
     revision: entry.revision,
     version: entry.version,
@@ -623,7 +598,6 @@ function menuRows(state, notes, active) {
 // view deliberately retains the rows it is already showing while its popover stands;
 // the candidate rows below keep advancing, so dismissal can commit them without
 // replaying an accepted state or consulting the rendered DOM as authority.
-/** @param {import("../../types/contract.js").ServedState | null} state */
 function pickerModel(state) {
   const active = runtime.active;
   const offered = state !== null && versionsOffered();
@@ -762,39 +736,33 @@ const diffOpaqueSel = () =>
 // comes from the immutable picker model and is read back by nothing. The comparison
 // owns the marked identities; the CSS marks are only their rendering.
 const diffOn = signal(false);
-/** @typedef {ReturnType<typeof revisionBase>} ComparisonBase */
-const diffBase = signal(/** @type {ComparisonBase | null} */ (null));
+
+const diffBase = signal(null);
 // Advanced after the marked DOM changes, so tracked readers see its new contents.
 const comparisonGeneration = signal(0);
-const diffPendingBase = signal(/** @type {ComparisonBase | null} */ (null));
-/** @type {Set<Element>} */
+const diffPendingBase = signal(null);
 const diffMarked = new Set();
 // The marked blocks grouped into changes (`changeRuns`), in the page's rendered order.
 /** A block a hunk took out of the base: the words it said, its element's name and its
  * word for the reader (lib/element-word.js), and the id it had, which pairs it with the
- * block that kept that id.
- * @typedef {Readonly<{id: string, tag: string, word: string, words: string}>} Removed */
+ * block that kept that id. */
+
 /** A change: one hunk of the block diff as the page shows it. `blocks` are its changed
  * blocks in page order, none where it only took blocks out; `removed` the base blocks it
  * took out; `at` where it stands, its first block, or for one that only took blocks out,
- * the element its gap stands before, after or in, as `gap` says (`changedSince`).
- * @typedef {Readonly<{blocks: readonly Element[], removed: readonly Removed[], at: Element, gap: "before" | "after" | "in" | null}>} Change */
-/** @type {readonly Change[]} */
+ * the element its gap stands before, after or in, as `gap` says (`changedSince`). */
+
 let diffChanges = [];
 // What the server says the version shown was saved after, read with the base
 // (`/api/view`, `saved_after`): null where it can say nothing (change-provenance.js).
-/** @type {import("../../types/contract.js").ServedViewAnswer["saved_after"]} */
 let diffSavedAfter = null;
 // Where each block a change took out stood among the base version's blocks, so its card
 // reads it in its place (`changeRedline`).
-/** @type {WeakMap<Removed, number>} */
 const stoodAt = new WeakMap();
 // The change whose card stands open (margin-bars.js), one at a time.
-/** @type {Change | null} */
 let cardOpen = null;
 // The marked blocks the base held an element of the same id for, each with where that
 // element stood among the base's blocks, or null where it is not one of them.
-/** @type {Map<Element, number | null>} */
 const diffPaired = new Map();
 // What each marked block said in the base version and says in this version's source.
 // The marks say a block changed; these say what it changed from, on its change's card,
@@ -806,7 +774,6 @@ const diffPaired = new Map();
 // words for it, and the block it replaced reads as taken out. An opaque widget holds
 // nothing either: what the user reads there is its module's rendering, not the source
 // words the two versions hold.
-/** @type {Map<Element, {was: string | null, is: string | null}>} */
 const diffWordsOf = new Map();
 // The comparison request that owns the page. Every request takes the next number and every
 // stop takes one too, so a base whose document lands after the user has moved on is
@@ -816,22 +783,17 @@ let diffRequest = 0;
 // A containing prose block owns its words, not an opaque child's rendered data.
 // Use the same boundary for comparison keys, stored words and inline ranges.
 // The child has its own identity and binding key in diffBlocks below.
-/** @param {Element} root @param {string} [opaque] */
 const comparisonTextNodes = (root, opaque = diffOpaqueSel()) =>
   textNodesUnder(root, "wrote", (child) => child.matches(opaque));
-/** @param {Element} root @param {string} [opaque] */
 const comparisonWords = (root, opaque) => quoteFrom(comparisonTextNodes(root, opaque));
 
 // The blocks of a painted source (`paintedSource`), each keyed by its authored text
 // (`wrote`), which leaves out what formatting generated, such as Markdown's media button.
-/** @param {Element} root @returns {[Element, string][]} */
 function diffBlocks(root) {
-  /** @type {[Element, string][]} */
   const pairs = [];
   const [blocks, opaque] = [diffBlockSel(), diffOpaqueSel()];
   // A data body is one source value. Its formatted paragraphs are its reading,
   // not independent source units; comparing the source also detects changed emphasis.
-  /** @type {NodeListOf<HTMLElement>} */
   const bodies = root.querySelectorAll(".lf-markdown-body");
   for (const body of bodies) {
     const owner = body.parentElement;
@@ -867,9 +829,7 @@ function diffBlocks(root) {
   );
 }
 /** What a comparison folds of one revision at a log boundary, as `/api/view` answers it:
- * its document projection, and what the version at `shown` was saved after.
- * @param {number} baseRevision @param {number} throughSeq @param {number | null} shown
- * @returns {Promise<import("../../types/contract.js").ServedViewAnswer>} */
+ * its document projection, and what the version at `shown` was saved after. */
 async function baseReading(baseRevision, throughSeq, shown) {
   const params = new URLSearchParams({
     revision: String(baseRevision),
@@ -884,12 +844,10 @@ async function baseReading(baseRevision, throughSeq, shown) {
 }
 // The longest run of `after` that keeps the order `before` gave the same units:
 // the units that did not move.
-/** @param {readonly string[]} before @param {readonly string[]} after */
 function inOrder(before, after) {
   const width = after.length;
   const lengths = new Uint32Array(before.length * width);
-  const at = (/** @type {number} */ i, /** @type {number} */ j) =>
-    j >= width ? 0 : (lengths[i * width + j] ?? 0);
+  const at = (i, j) => (j >= width ? 0 : (lengths[i * width + j] ?? 0));
   for (let i = before.length - 1; i >= 0; i--)
     for (let j = after.length - 1; j >= 0; j--)
       lengths[i * width + j] =
@@ -908,14 +866,12 @@ function inOrder(before, after) {
 }
 // A painted source holds the same accepted body projection as its version would
 // show: the event's exact source, never a collapsed comparison value.
-/** @param {Document} doc @param {ReturnType<typeof readApplication>["effective"]["widgets"]} widgets */
 function paintBodies(doc, widgets) {
   for (const [id, { state, specs }] of widgets)
     for (const [verb, value] of Object.entries(state)) {
       const spec = specs.get(verb);
       if (spec?.record?.kind !== "body" || !("action" in value) || !value.action)
         continue;
-      /** @type {HTMLElement | null | undefined} */
       const body = doc.getElementById(id)?.querySelector(":scope > .lf-markdown-body");
       if (body) {
         if (typeof value.value !== "string")
@@ -928,7 +884,6 @@ function paintBodies(doc, widgets) {
 // showed, so its painted source holds it too, as passages.py adds it to the file's
 // reading: at its owner's end, marked `data-lf-added`, its words the user's inline
 // Markdown. Without it, an option the user added before the base reads as changed since.
-/** @param {Document} doc @param {ReturnType<typeof readApplication>["effective"]["widgets"]} widgets */
 function placeCreated(doc, widgets) {
   for (const [id, { state, specs }] of widgets)
     for (const [verb, value] of Object.entries(state)) {
@@ -959,7 +914,6 @@ function placeCreated(doc, widgets) {
 // created child's words read as their source until the renderer loads, which the page
 // asks for once it has presented (text-field.js); both sources a comparison reads are
 // painted in one task, so they agree either way.
-/** @param {Element} source @param {ReturnType<typeof readApplication>["effective"]["widgets"]} widgets */
 function paintedSource(source, widgets) {
   const doc = document.implementation.createHTMLDocument("");
   const root = doc.importNode(source, true);
@@ -972,7 +926,6 @@ function paintedSource(source, widgets) {
 }
 // This version's source and the live node each of its nodes stands for, as the
 // controller holds them.
-/** @type {() => {source: Element | null, pairs: SourcePairs} | null} */
 let versionSource = () => null;
 // This version's source painted with the state the page shows now.
 const currentVersionSource = () => {
@@ -988,10 +941,8 @@ const currentSource = () =>
 // painting created or an element a script replaced with a copy. Where a module took
 // that node off the page, as a widget that redraws its words does, the nearest ancestor
 // still on it stands for the block.
-/** @param {Element} block @param {ReturnType<typeof paintedSource>} current */
 function standingFor(block, current) {
   const { pairs } = currentVersionSource();
-  /** @type {Element | null} */
   let at = block;
   for (; at && at !== current.root; at = at.parentElement) {
     const original = current.sourceOf.get(at);
@@ -1006,9 +957,7 @@ function standingFor(block, current) {
 // thread, so past this many edits, such as a long page rewritten whole, the comparison
 // reads a block as unchanged wherever the base holds its words, in one pass.
 const MAX_BLOCK_EDITS = 1_000;
-/** @param {string[]} before @param {[Element, string][]} after */
 const heldAnywhere = (before, after) => {
-  /** @type {Map<string, number>} */
   const held = new Map();
   for (const key of before) held.set(key, (held.get(key) ?? 0) + 1);
   return after.map(([, key]) => {
@@ -1018,15 +967,14 @@ const heldAnywhere = (before, after) => {
   });
 };
 // The nearest element holding both of two elements of one document.
-/** @param {Element} one @param {Element} other */
 const around = (one, other) => {
   let at = one.parentElement;
   while (at && !at.contains(other)) at = at.parentElement;
   return at;
 };
 /** Base blocks a hunk took out with nothing in their place, and the element their gap
- * stands beside, or in (`gapIn`).
- * @typedef {{gone: [Element, string][], at: Element}} Gap */
+ * stands beside, or in (`gapIn`). */
+
 // The content half: the live nodes standing for the blocks of `current` that changed
 // since `base` (`changed`), both painted sources, and for the unchanged blocks that
 // separate one change from the next (`kept`). An ordered diff of the two sources'
@@ -1049,7 +997,6 @@ const around = (one, other) => {
 // before a `details` stands before the `details` rather than before its summary (`at`).
 // A revision landing asks this of the source it replaced, to tint the blocks the
 // revision changed.
-/** @param {ReturnType<typeof paintedSource>} base @param {ReturnType<typeof paintedSource>} [current] */
 function changedSince(base, current = currentSource()) {
   const baseBlocks = diffBlocks(base.root);
   const before = baseBlocks.map(([, key]) => key);
@@ -1060,30 +1007,22 @@ function changedSince(base, current = currentSource()) {
       after.map(([, key]) => key),
       { maxEditLength: MAX_BLOCK_EDITS },
     ) ?? heldAnywhere(before, after);
-  /** @type {Map<string, number>} */
   const removed = new Map();
   for (const part of parts)
     if (part.removed)
       for (const key of part.value) removed.set(key, (removed.get(key) ?? 0) + 1);
-  /** @type {Set<Element>} */
   const changed = new Set();
-  /** @type {Set<Element>} */
   const kept = new Set();
-  /** @type {Map<string, number>} */
   const moved = new Map();
-  /** @type {Map<Element, Gap>} */
   const gapBefore = new Map();
-  /** @type {Map<Element, Gap>} */
   const gapAfter = new Map();
-  /** @type {Map<Element, Gap>} */
   const gapIn = new Map();
   /** A live block, the current source's block it stands for, and the base block it
-   * kept, null where it is new.
-   * @typedef {{live: Element, source: Element, was: Element | null}} Placed */
+   * kept, null where it is new. */
+
   // The live element `taken` stands in where it was the last block of it: the nearest
   // element that held it and neither block beside its gap, with an id the live page
   // still has, holding neither block there either.
-  /** @param {Element} taken @param {Placed[]} beside */
   const emptied = (taken, beside) => {
     for (let at = taken.parentElement; at; at = at.parentElement) {
       if (beside.some(({ was }) => was && at.contains(was))) return null;
@@ -1096,7 +1035,6 @@ function changedSince(base, current = currentSource()) {
   // The element the taken block `near` shared with the base block `by` kept, found in
   // this version's source as many elements up from `by` as it was in the base, and its
   // child holding `by`, beside which a gap between them stands.
-  /** @param {Placed} by @param {Element} near */
   const sharedWith = (by, near) => {
     let child = by.source;
     const shared = by.was && around(near, by.was);
@@ -1107,19 +1045,15 @@ function changedSince(base, current = currentSource()) {
       }
     return { holder: child.parentElement, child };
   };
-  /** @param {Map<Element, Gap>} gaps @param {Element} key @param {Element} at @param {[Element, string][]} gone */
   const stand = (gaps, key, at, gone) => {
     const gap = gaps.get(key);
     if (gap) gap.gone.push(...gone);
     else gaps.set(key, { gone, at });
   };
-  /** @type {[Element, string][]} */
   let pending = [];
   // Stand the blocks taken out since `last` in their gap, before `next`.
-  /** @param {Placed | null} last @param {Placed | null} next */
   const flush = (last, next) => {
     const flanks = [last, next].filter((each) => each !== null);
-    /** @type {{gaps: Map<Element, Gap>, by: Placed | Element, gone: [Element, string][]}[]} */
     const groups = [];
     for (const entry of pending) {
       const [taken] = entry;
@@ -1146,7 +1080,6 @@ function changedSince(base, current = currentSource()) {
       }
     pending = [];
   };
-  /** @type {Placed | null} */
   let last = null;
   let next = 0;
   let gone = 0;
@@ -1176,14 +1109,13 @@ function changedSince(base, current = currentSource()) {
   }
   flush(last, null);
   // A moved block's base copy was not taken out.
-  const takenOut = (/** @type {[Element, string][]} */ list) =>
+  const takenOut = (list) =>
     list.flatMap(([block, key]) => {
       const left = moved.get(key) ?? 0;
       if (!left) return [block];
       moved.set(key, left - 1);
       return [];
     });
-  /** @param {Map<Element, Gap>} gaps */
   const taken = (gaps) =>
     new Map(
       [...gaps].map(([block, gap]) => [
@@ -1206,9 +1138,8 @@ function changedSince(base, current = currentSource()) {
 // such as a settled options group's options, which share their one control's view.
 // Each is structure, so a change's extent doesn't depend on which views were open when
 // the comparison ran. A fold whose control names nothing in `aria-controls` is no view.
-/** @param {Element} block @param {Map<string, Element>} controls */
 function viewOf(block, controls) {
-  for (let at = /** @type {Element | null} */ (block); at; at = at.parentElement) {
+  for (let at = block; at; at = at.parentElement) {
     if (at.localName === "details") return at;
     const members = registry[at.parentElement?.localName ?? ""]?.views?.members;
     if (members && at.matches(members)) return at;
@@ -1217,6 +1148,7 @@ function viewOf(block, controls) {
   }
   return null;
 }
+
 // A change is a run of marked blocks in one view with no unchanged block between them
 // in rendered order, as a diff's hunk is a run of changed lines, holding the base blocks
 // its hunks took out. A reader takes such a run, such as a section rewritten whole, for
@@ -1231,24 +1163,16 @@ function viewOf(block, controls) {
 // margin entry of one the reader can see. A base block that kept its id in a run's
 // blocks is that block edited, and reads there (`changeRedline`) rather than as taken
 // out.
-/** @typedef {Map<Element, {at: Element, gone: Removed[]}>} Gaps */
-/** @param {Set<Element>} marked @param {Set<Element>} kept
- * @param {{gapBefore: Gaps, gapAfter: Gaps, gapIn: Gaps}} gaps */
 function changeRuns(marked, kept, { gapBefore, gapAfter, gapIn }) {
-  /** @type {{blocks: Element[], removed: Removed[], at: Element, gap: Change["gap"]}[]} */
   const runs = [];
-  /** @type {(typeof runs)[number] | null} */
   let run = null;
   // The view the run stands in.
-  /** @type {Element | null} */
   let view = null;
-  /** @type {Map<string, Element>} */
   const controls = new Map();
   for (const control of document.querySelectorAll("[aria-expanded][aria-controls]"))
     for (const id of (control.getAttribute("aria-controls") ?? "").split(/\s+/))
       controls.set(id, control);
   // A gap's blocks join the run where it stands in the run's view, else stand alone.
-  /** @param {{at: Element, gone: Removed[]} | undefined} found @param {"before" | "after" | "in"} gap */
   const place = (found, gap) => {
     if (!found?.gone.length) return;
     const { at, gone } = found;
@@ -1291,7 +1215,6 @@ function changeRuns(marked, kept, { gapBefore, gapAfter, gapIn }) {
 // The live elements this version's source wrote: whether the page or Leaf put an
 // element there is this, not whether a module marked the words it fills it with.
 export function servedElements() {
-  /** @type {Set<Element>} */
   const served = new Set();
   const version = versionSource();
   if (!version?.source) return served;
@@ -1306,8 +1229,6 @@ export function servedElements() {
 // (`loadBase`) without touching the page: the blocks a comparison marks, the earlier
 // readings its cards show, and its changes (`commitDiff` puts them on the page). A
 // count of the changes reads the same answer and marks nothing (`changesSince`).
-/** @param {Document} doc @param {Parameters<typeof foldWidgetStates>[0]} baseAuthored
- * @param {import("../../types/contract.js").ServedViewAnswer["document"]} baseDocument */
 function diffWith(doc, baseAuthored, baseDocument) {
   // The base version's widget state, folded as the publisher folds the current one:
   // its authored values, staged before its Markdown was formatted, under the
@@ -1317,9 +1238,7 @@ function diffWith(doc, baseAuthored, baseDocument) {
   // are decoded under this document's; an entry whose verb was declared otherwise
   // then has no value here to compare, so the fold leaves it out.
   const baseProjection = projectDocument(baseDocument.projection);
-  const declaredAlike = (
-    /** @type {import("../../types/domain.js").ProjectionEntry} */ { e, spec },
-  ) => {
+  const declaredAlike = ({ e, spec }) => {
     const current = baseAuthored.get(e.widget)?.specs.get(e.action);
     return current?.unit === spec.unit && sameRecord(current.record, spec.record);
   };
@@ -1329,9 +1248,8 @@ function diffWith(doc, baseAuthored, baseDocument) {
       [...baseProjection.desired].filter(([, entry]) => declaredAlike(entry)),
     ),
   });
-  /** @type {Set<Element>} */
   const marked = new Set();
-  const mark = (/** @type {Element} */ target) => marked.add(target);
+  const mark = (target) => marked.add(target);
   const base = paintedSource(pageDocument(doc), baseWidgets);
   const current = currentSource();
   const { changed, kept, gapBefore, gapAfter, gapIn, order } = changedSince(
@@ -1390,7 +1308,7 @@ function diffWith(doc, baseAuthored, baseDocument) {
       // The option now picked is where a pick reads; anything else reads on its
       // widget.
       // An attribute record's value is the ids it picks.
-      const ids = /** @type {string[]} */ (value);
+      const ids = value;
       const picked =
         spec.record.kind === "attribute" && ids.length === 1
           ? elementById(ids[0])
@@ -1404,9 +1322,7 @@ function diffWith(doc, baseAuthored, baseDocument) {
   // the two sources are in hand, and holding them open for a press that may never come
   // would keep two more documents alive for the life of the comparison.
   const opaque = diffOpaqueSel();
-  /** @type {Map<Element, number | null>} */
   const paired = new Map();
-  /** @type {Map<Element, {was: string | null, is: string | null}>} */
   const words = new Map();
   for (const block of marked) {
     const pair = block.id ? base.doc.getElementById(block.id) : null;
@@ -1419,7 +1335,7 @@ function diffWith(doc, baseAuthored, baseDocument) {
     });
   }
   // What each base block a hunk took out said, read while its source is in hand.
-  const takenOut = (/** @type {Element[]} */ blocks) =>
+  const takenOut = (blocks) =>
     blocks.map((block) => {
       const record = Object.freeze({
         id: block.id,
@@ -1427,10 +1343,9 @@ function diffWith(doc, baseAuthored, baseDocument) {
         word: addressableWord(block),
         words: block.matches(opaque) ? "" : comparisonWords(block, opaque),
       });
-      stoodAt.set(record, /** @type {number} */ (order.get(block)));
+      stoodAt.set(record, order.get(block));
       return record;
     });
-  /** @param {Map<Element, {at: Element, gone: Element[]}>} gaps */
   const read = (gaps) =>
     new Map(
       [...gaps].map(([block, { at, gone }]) => [block, { at, gone: takenOut(gone) }]),
@@ -1443,7 +1358,6 @@ function diffWith(doc, baseAuthored, baseDocument) {
   return { marked, paired, words, changes };
 }
 // Put a comparison's reading on the page, which `setDiff(false)` cleared before it.
-/** @param {ReturnType<typeof diffWith>} diff */
 function commitDiff({ marked, paired, words, changes }) {
   for (const block of marked) {
     block.classList.add("lf-ins-block");
@@ -1463,13 +1377,12 @@ function commitDiff({ marked, paired, words, changes }) {
 
 // A marked block's two readings, where its live words are its source's: a block a module
 // writes into shows what the page shows and compares nothing.
-/** @param {Element} target */
 function blockWords(target) {
   const words = diffWordsOf.get(target);
   return words && words.is === comparisonWords(target) ? words : null;
 }
 // One word for a set of blocks: theirs where they share one, else "block".
-const nounOf = (/** @type {string[]} */ words) => {
+const nounOf = (words) => {
   const [first = "block", ...rest] = words.map((word) =>
     word === "code" ? "code block" : word,
   );
@@ -1477,8 +1390,7 @@ const nounOf = (/** @type {string[]} */ words) => {
 };
 /** What a change did, in the reader's words: "2 paragraphs replaced by 3", "1 paragraph
  * removed", "1 item edited, 1 added". A part naming the same kind of block as the one
- * before it leaves the noun out.
- * @param {Change} change */
+ * before it leaves the noun out. */
 export function changeAccount({ blocks, removed }) {
   const added = blocks.filter((block) => !diffPaired.has(block));
   const edited = blocks.filter((block) => {
@@ -1490,7 +1402,6 @@ export function changeAccount({ blocks, removed }) {
   );
   const out = removed.map(({ word }) => word);
   const into = added.map(addressableWord);
-  /** @type {[number, string, string][]} */
   const parts = [];
   if (edited.length)
     parts.push([edited.length, nounOf(edited.map(addressableWord)), "edited"]);
@@ -1506,27 +1417,25 @@ export function changeAccount({ blocks, removed }) {
     )
     .join(", ");
 }
-/** What a change did and since which version: "1 paragraph removed since v1".
- * @param {Change} change */
+/** What a change did and since which version: "1 paragraph removed since v1". */
 export function changeSince(change) {
   const base = comparisonBase();
   return `${changeAccount(change)}${base ? ` since ${base.name}` : ""}`;
 }
 // Whether a change has words to show: a block it took out, or one whose words it edited.
-const shows = (/** @type {Change} */ { blocks, removed }) =>
+const shows = ({ blocks, removed }) =>
   removed.length > 0 ||
   blocks.some((block) => {
     const words = blockWords(block);
     return words && words.was !== words.is;
   });
-/** @typedef {{kind: "heading" | "code" | "text", runs: import("../lib/text-alignment.js").TextRun[]}} RedlineBlock */
+
 // A block's kind on the card, which keeps a heading and code recognisable.
-const kindOf = (/** @type {string} */ tag) =>
+const kindOf = (tag) =>
   /^h[1-6]$/.test(tag) ? "heading" : tag === "pre" ? "code" : "text";
 /** What a block of a change reads on its card: the word diff of its two versions where it
  * kept its id and changed its words; inserted where the base had no element of its id;
- * and otherwise as the page shows it.
- * @param {Element} block @returns {RedlineBlock} */
+ * and otherwise as the page shows it. */
 function redlineOf(block) {
   const kind = kindOf(block.localName);
   const words = blockWords(block);
@@ -1539,19 +1448,14 @@ function redlineOf(block) {
  * block it took out, struck, after the last of its blocks whose base version stood
  * before it, so the card reads in the base's order where the two versions share it.
  * Null where it has nothing to show, as for a pure state change, a card moved or an
- * option picked, which reads on the page itself.
- * @param {Change} change @returns {{account: string, versions: string, blocks: RedlineBlock[]} | null} */
+ * option picked, which reads on the page itself. */
 export function changeRedline(change) {
   const base = diffOn.value ? diffBase.value : null;
   if (!base || !shows(change)) return null;
-  /** @param {Removed} record */
   const placeOf = (record) =>
     change.blocks.findLastIndex(
-      (block) =>
-        (diffPaired.get(block) ?? Infinity) <
-        /** @type {number} */ (stoodAt.get(record)),
+      (block) => (diffPaired.get(block) ?? Infinity) < stoodAt.get(record),
     ) + 1;
-  /** @param {number} place @returns {RedlineBlock[]} */
   const struck = (place) =>
     change.removed
       .filter((record) => placeOf(record) === place)
@@ -1569,8 +1473,7 @@ export function changeRedline(change) {
     blocks,
   };
 }
-/** The card the change's margin entry discloses, or null where it has nothing to show.
- * @param {Change} change */
+/** The card the change's margin entry discloses, or null where it has nothing to show. */
 export const changeCard = (change) => {
   comparisonGeneration.value;
   const base = diffOn.value ? diffBase.value : null;
@@ -1590,8 +1493,7 @@ export const openedChange = () => {
 // The id of the one card, which the margin entry controls.
 export const CHANGE_CARD = "lf-change-card";
 /** Open the change's card, or close it where it stands open: the press, and the sentence
- * to say about it. Opening one card closes any other.
- * @param {Change} change */
+ * to say about it. Opening one card closes any other. */
 export function toggleChangeCard(change) {
   if (!changeCard(change)) return null;
   cardOpen = cardOpen === change ? null : change;
@@ -1606,13 +1508,11 @@ export function closeChangeCard() {
 
 // Whether a revision can be compared with the one being read: any earlier one, which
 // is which stamped rows the menu builds a press onto.
-/** @param {number} revision */
 export const comparable = (revision) =>
   runtime.currentRevision !== null && revision < runtime.currentRevision;
 // Whether the comparison is active and what against, or which base a stopped one is
 // waiting on — the only thing that decides it, the marks and the paint being renderings
 // rather than a second copy.
-/** @param {boolean} on @param {ComparisonBase | null} [base] @param {ComparisonBase | null} [pendingBase] */
 function setDiff(on, base = null, pendingBase = null) {
   batch(() => {
     diffOn.value = on;
@@ -1639,7 +1539,6 @@ function setDiff(on, base = null, pendingBase = null) {
 // happens in one synchronous stretch after the single await: presses can ask for a
 // comparison faster than one arrives, and a marking pass that could interleave with the
 // next one's would leave two bases' marks in place under a picker naming one of them.
-/** @param {ComparisonBase} base */
 export async function showComparison(base) {
   // Selection is immediate even though its result needs two documents. Clear the prior
   // marks, move the menu's checked state to the requested base, and expose the wait as
@@ -1676,8 +1575,6 @@ export async function showComparison(base) {
 // A base's document and the server's projection of it at the log this tab has applied,
 // which `diffWith` reads, and what the version at `shown` was saved after. Null once
 // `wanted` says a later press made it moot.
-/** @param {ComparisonBase} base @param {() => boolean} wanted
- * @param {number | null} [shown] */
 async function loadBase(base, wanted, shown = null) {
   const documentRequest = authoredDocument(base.url);
   while (true) {
@@ -1699,8 +1596,7 @@ async function loadBase(base, wanted, shown = null) {
   }
 }
 /** How many changes a comparison with `base` would mark, read without marking any, for
- * the revision being read when the count is in; null once `wanted` says it is moot.
- * @param {ComparisonBase} base @param {() => boolean} wanted */
+ * the revision being read when the count is in; null once `wanted` says it is moot. */
 export async function changesSince(base, wanted) {
   while (wanted()) {
     const revision = runtime.currentRevision;
@@ -1722,7 +1618,6 @@ const endComparison = () => {
 // A press names one stamped version, so pressing the current one again is the way off
 // it: Compare is a toggle where it is lit and a switch of base where it isn't. Versions
 // opens on its version, so `g V v` is the keyboard's way off, from whichever base.
-/** @param {number | null} version */
 const pressComparison = (version) => {
   if (version === null) return;
   const entry = stamped(version);
@@ -1744,20 +1639,16 @@ export const comparisonSavedAfter = () => {
 // while the public projection above stays paired with the marks that have settled.
 export const selectedBase = () => diffPendingBase.value ?? comparisonBase();
 
-/** The element a change that only took blocks out stands in: the one its gap is in.
- * @param {Pick<Change, "at" | "gap">} change */
+/** The element a change that only took blocks out stands in: the one its gap is in. */
 export const gapHolder = ({ at, gap }) =>
   gap === "in" ? at : (at.parentElement ?? at);
 /** The changes the comparison marks (`changeRuns`), in page order; under `owner`, each
  * change with blocks inside it, holding only those, and each one that only took blocks
- * out whose gap stands inside it.
- * @param {Element | null} [owner]
- * @returns {readonly Change[]} */
+ * out whose gap stands inside it. */
 export function comparisonChanges(owner = null) {
   comparisonGeneration.value;
   const changes = diffOn.value ? diffChanges : [];
   if (!owner) return changes;
-  /** @param {Element} node */
   const inside = (node) => node !== owner && under(node, owner);
   return changes.flatMap((change) => {
     if (!change.blocks.length) return under(gapHolder(change), owner) ? [change] : [];
@@ -1773,7 +1664,6 @@ export function comparisonChanges(owner = null) {
 // generation rather than the page's — so neither is a delivery answer and neither goes
 // through the gate. A layer that really did move under the user reaches them through
 // the state feed, which is the live channel.
-/** @param {string} url */
 async function authoredDocument(url) {
   const response = await fetch(url);
   if (!response.ok) throw new Error(`couldn't load ${url} (${response.status})`);
@@ -1786,9 +1676,7 @@ async function authoredDocument(url) {
   return doc;
 }
 // Preparing an activation of the same immutable revision again shares its document fetch.
-/** @type {Map<number, Promise<Document>>} */
 const revisionDocuments = new Map();
-/** @param {import("../../types/contract.js").ServedRevision} revision */
 function revisionDocument(revision) {
   const saved = revisionDocuments.get(revision.revision);
   if (saved) return saved;
@@ -1800,23 +1688,6 @@ function revisionDocument(revision) {
   return arriving;
 }
 
-/**
- * @template RetainedLocation
- * @template ObligationLocation
- * @param {{
- *   initialDocument: NonNullable<ReturnType<typeof takeInitialDocument>>,
- *   openThread: Parameters<typeof replyDestination>[1],
- *   refreshThread: () => unknown,
- *   midComposition: (retains?: (node: Element | null | undefined) => boolean) => boolean | undefined,
- *   hasPending: () => boolean,
- *   readAndApply: () => unknown,
- *   syncLayout: () => unknown,
- *   captureRetainedCurrentLocation: () => RetainedLocation,
- *   restoreRetainedCurrentLocation: (currentLocation: RetainedLocation) => Promise<boolean>,
- *   captureObligationCurrentLocation: () => ObligationLocation,
- *   restoreObligationCurrentLocation: (currentLocation: ObligationLocation | null) => void,
- *   versions: { press: () => void, shows: () => boolean, scope: import("../dom/keyboard/bindings.js").Scope },
- * }} controller */
 export function createVersionController({
   initialDocument,
   openThread,
@@ -1863,7 +1734,7 @@ export function createVersionController({
   // A stamped version is historical and always pins. The active working document owns
   // the live root, whether or not that revision has already received a stamp.
   let forceActivation = false;
-  const goVersion = (/** @type {number} */ version) => {
+  const goVersion = (version) => {
     if (version === runtime.currentStamp) return;
     const target = stamped(version);
     if (!target) return;
@@ -1888,12 +1759,10 @@ export function createVersionController({
   // in place. These roots are `html` and `body`, where a class or attribute that comes
   // off and goes back on restyles the whole document, so the layer's rule against
   // rewriting what a node already says (`keeps`) matters most here.
-  /** @param {HTMLElement} target @param {HTMLElement} source @param {Map<string, string>} prior */
   function replaceAuthoredAttributes(target, source, prior) {
     const runtimeState = runtimeRootState(target);
     const next = authoredAttributes(source);
-    const tokens = (/** @type {string | undefined} */ value) =>
-      new Set(value?.split(" "));
+    const tokens = (value) => new Set(value?.split(" "));
     const nextTokens = tokens(next.get("class"));
     for (const token of tokens(prior.get("class")))
       if (!nextTokens.has(token)) target.classList.remove(token);
@@ -1923,7 +1792,7 @@ export function createVersionController({
       )
         target.style.setProperty(property, value || " ", priority);
     }
-    const plain = (/** @type {string} */ name) =>
+    const plain = (name) =>
       name !== "class" && name !== "style" && !runtimeState.attributes.has(name);
     for (const name of prior.keys())
       if (plain(name) && !next.has(name)) target.removeAttribute(name);
@@ -1933,7 +1802,6 @@ export function createVersionController({
 
   // The chrome's sheets are adopted, not head nodes, so they cascade after everything
   // the head holds whatever order it is written in; the authored share goes at the end.
-  /** @param {Document} doc @param {import("../../types/contract.js").ServedRevision} revision */
   function activateHead(doc, revision) {
     const source = [...doc.head.children].filter(versionedHeadNode);
     const current = [...document.head.children].filter((node) =>
@@ -1953,7 +1821,6 @@ export function createVersionController({
       }
       authoredHeadNodes = next;
     }
-    /** @type {HTMLMetaElement | null} */
     let marker = document.querySelector('meta[name="lf-revision"][data-lf-runtime]');
     if (!marker) {
       marker = document.createElement("meta");
@@ -1964,10 +1831,9 @@ export function createVersionController({
     marker.content = String(revision.revision);
   }
 
-  const upgraded = (/** @type {Element} */ element) => upgrades(element.localName);
+  const upgraded = (element) => upgrades(element.localName);
 
   // Every element under a root in document order, including inert template contents.
-  /** @param {Element} root @returns {Generator<Element>} */
   function* elementsWithin(root) {
     const inner = root instanceof HTMLTemplateElement ? root.content : root;
     for (const child of inner.children) {
@@ -1983,7 +1849,7 @@ export function createVersionController({
   // exact delivery root rather than keeping a second list of resource attributes.
   // Script and style bodies use that same rule without reclassifying their content.
   const deferredScript = "data:text/javascript;charset=utf-8,";
-  const unrooted = (/** @type {string} */ value, /** @type {string | null} */ root) => {
+  const unrooted = (value, root) => {
     if (value.startsWith(deferredScript)) {
       // revision_delivery defers inline classics as URL-encoded source, padded to
       // their document line. That diagnostic padding is not the script's identity.
@@ -1996,18 +1862,11 @@ export function createVersionController({
   // One attribute, read the same way: an address that differs only by the revision it
   // was delivered under is the same address, and the page keeps the one it has, which
   // is still served because revisions are immutable.
-  const sameValue = (
-    /** @type {string} */ held,
-    /** @type {string} */ value,
-    /** @type {string | null} */ arrivingRoot,
-  ) => unrooted(held, authoredRoot) === unrooted(value, arrivingRoot);
-  /** @param {Element} before @param {Element} after @param {string | null} arrivingRoot */
+  const sameValue = (held, value, arrivingRoot) =>
+    unrooted(held, authoredRoot) === unrooted(value, arrivingRoot);
   function sameAuthoredMarkup(before, after, arrivingRoot) {
     if (before.isEqualNode(after) && sameTemplates(before, after)) return true;
-    const strip = (
-      /** @type {Element} */ element,
-      /** @type {string | null} */ root,
-    ) => {
+    const strip = (element, root) => {
       const copy = element.ownerDocument.importNode(element, true);
       if (!root) return copy;
       for (const node of [copy, ...elementsWithin(copy)]) {
@@ -2025,9 +1884,7 @@ export function createVersionController({
   // A <template>'s markup is its content, which isn't among its children, so
   // isEqualNode passes two templates whose content differs, and a revision that
   // rewrites only that content would leave the page holding the old one.
-  /** @param {Element | DocumentFragment} before @param {Element | DocumentFragment} after @returns {boolean} */
   function sameTemplates(before, after) {
-    /** @param {Element | DocumentFragment} node */
     const templates = (node) =>
       [node, ...node.querySelectorAll("template")].filter(
         (each) => each instanceof HTMLTemplateElement,
@@ -2037,7 +1894,7 @@ export function createVersionController({
     return (
       held.length === arriving.length &&
       held.every((template, at) => {
-        const other = /** @type {HTMLTemplateElement} */ (arriving[at]);
+        const other = arriving[at];
         return (
           template.content.isEqualNode(other.content) &&
           sameTemplates(template.content, other.content)
@@ -2059,7 +1916,7 @@ export function createVersionController({
   // including native attributes. A widget that draws its content itself
   // (`content` `data`, `markdown` or `empty`) reads the text a revision would edit,
   // so a revision that changes it replaces it whatever its class declares.
-  const shell = (/** @type {Element} */ element, /** @type {boolean} */ members) => {
+  const shell = (element, members) => {
     const copy = element.ownerDocument.importNode(element, false);
     if (members)
       for (const child of element.childNodes) {
@@ -2071,11 +1928,7 @@ export function createVersionController({
       }
     return copy;
   };
-  const reachesMembers = (
-    /** @type {Element} */ before,
-    /** @type {Element} */ after,
-    /** @type {string | null} */ arrivingRoot,
-  ) => {
+  const reachesMembers = (before, after, arrivingRoot) => {
     const entry = registry[before.localName];
     const content = entry?.content;
     if (
@@ -2095,7 +1948,6 @@ export function createVersionController({
   // Preparation and installation use the same matching, widget ownership, and resource
   // equality. A retained subject is proved through every containing owner, not by an
   // id or matching markup alone.
-  /** @param {Document} doc @returns {import("../dom/dom-children.js").RetentionRules} */
   function patchRules(doc) {
     const arrivingRoot = layerRoot(doc);
     return {
@@ -2139,7 +1991,6 @@ export function createVersionController({
   // Mechanical landing is outside proved semantic presentation. An unexpected
   // failure reports once through the page error owner and leaves both installs free
   // to finish receipt accounting and initial presentation/deferred arrivals.
-  /** @param {() => unknown} land */
   async function landContinuity(land) {
     try {
       await land();
@@ -2150,7 +2001,6 @@ export function createVersionController({
 
   // `work` with the session of the reply being written open, where one is, as a
   // resolved thread's reply keeps its thread drawn while the user writes in it.
-  /** @param {ReturnType<typeof captureEditingContinuity>} continuity @param {() => Promise<void>} work */
   async function keepReplySession({ draftEditing, replyThread }, work) {
     if (!replyThread || !draftEditing) return work();
     await restoreReplyEditing(draftEditing, async () => {
@@ -2161,7 +2011,6 @@ export function createVersionController({
     });
   }
 
-  /** @param {ReturnType<typeof captureEditingContinuity>} continuity @param {ReturnType<typeof retainUserIntent>} currentIntent */
   async function restoreEditingContinuity(continuity, currentIntent) {
     if (!currentIntent()) return;
     const { draftEditing, replyThread, replyInView, obligationCurrentLocation } =
@@ -2190,7 +2039,6 @@ export function createVersionController({
     if (mayRestore()) restoreDraftEditing(draftEditing, input);
   }
 
-  /** @param {Document} doc @param {import("../../types/contract.js").ServedRevision} target */
   async function activateRevision(doc, target) {
     const currentIntent = retainUserIntent();
     const view = captureView();
@@ -2213,14 +2061,13 @@ export function createVersionController({
     // may hold authored markup and `elementOver` has no element to answer with. Nothing
     // there is the runtime's.
     const isAuthored = authored(live);
-    const generated = (/** @type {Node} */ node) =>
+    const generated = (node) =>
       (node.nodeType === Node.ELEMENT_NODE || node.parentElement !== null) &&
       (Boolean(leafSurface(node)) || !isAuthored(node));
     // Step 5 of the startup order, for the markup this revision brings: read while it is
     // still what its author wrote, because connecting a widget is what hands its children
     // to a controller. The nodes read here are the nodes that end up in the page, and the
     // roots among them are what the install dresses.
-    /** @type {Element[]} */
     const arrived = [];
     const arrivedDescriptors = new Map();
     const prior = readApplication().document;
@@ -2235,9 +2082,7 @@ export function createVersionController({
     // Elements whose attributes the patch rewrote in place. What a dressing pass reads
     // off an attribute — a word an element says, the language of a code block — is
     // owed again, and these are the roots the install dresses beside the arrivals.
-    /** @type {Element[]} */
     const touched = [];
-    /** @param {Node} node @param {Node} parent */
     const arrive = (node, parent) => {
       const arriving = document.importNode(node, true);
       pairSources(node, arriving, sourcePairs);
@@ -2379,7 +2224,6 @@ export function createVersionController({
   // `midComposition` defers it, unless the chip was pressed (goActive)
   // — the one override, spent by the install it forced or by a load that failed, after
   // which the lit chip asks for a new press.
-  /** @param {import("../../types/contract.js").ServedReading} state */
   async function prepareActivation(state) {
     const target = state.active;
     if (
@@ -2389,9 +2233,7 @@ export function createVersionController({
       target.revision <= runtime.currentRevision
     )
       return null;
-    const activates = (
-      /** @type {Parameters<typeof midComposition>[0]} */ retains = undefined,
-    ) =>
+    const activates = (retains = undefined) =>
       runtime.currentRevision !== null &&
       target.revision > runtime.currentRevision &&
       !hasPending() &&
@@ -2474,21 +2316,19 @@ export function createVersionController({
   }
   // The revision a revision's reload lands at; a reload into another runtime lands this
   // one's.
-  /** @type {number | null} */
   let reloadRevision = null;
 
   // Changed executable identity requires a fresh document.
-  const reloadInto =
-    (/** @type {import("../../types/contract.js").ServedRevision} */ target) => () => {
-      forceActivation = false;
-      reloadRevision = target.revision;
-      const marked = new URL(location.href);
-      marked.searchParams.set(PRIVATE_REVISION_PARAM, String(target.revision));
-      reloadAt(marked);
-      // The new document owns the continuation. Keeping this activation pending
-      // prevents the old realm from applying state while navigation commits.
-      return new Promise(() => {});
-    };
+  const reloadInto = (target) => () => {
+    forceActivation = false;
+    reloadRevision = target.revision;
+    const marked = new URL(location.href);
+    marked.searchParams.set(PRIVATE_REVISION_PARAM, String(target.revision));
+    reloadAt(marked);
+    // The new document owns the continuation. Keeping this activation pending
+    // prevents the old realm from applying state while navigation commits.
+    return new Promise(() => {});
+  };
 
   // ---------- reading continuity across a replacement ----------
   // Capture passage and decision landmarks plus each reading region's position. Resolve
@@ -2496,15 +2336,9 @@ export function createVersionController({
   // same width and revision (readings/reading-place.js, `rawOffsetFits`). Document travel stores
   // this reading per tab; restored chrome layout precedes scroll recovery.
 
-  /** @typedef {import("../readings/reading-place.js").ReadingPlace} ReadingPlace */
-  /** @typedef {import("../readings/reading-regions.js").ReadingRegion} ReadingRegion */
-  /** @typedef {ReturnType<typeof retainUserIntent>} UserIntent */
-  /** @typedef {{page: ReadingPlace | null, revision: number | null, activeRegion: string | undefined, regions: Record<string, ReadingPlace>}} CapturedView */
-  /** @returns {CapturedView} */
   function captureView() {
     dropGonePlaces();
     const active = activeReadingRegion(readingRegions());
-    /** @type {CapturedView} */
     const view = {
       page: capturePlace(null),
       revision: runtime.currentRevision,
@@ -2525,7 +2359,6 @@ export function createVersionController({
     return view;
   }
 
-  /** @param {CapturedView} view @param {UserIntent} currentIntent */
   function restoreView(view, currentIntent) {
     // Every restore of a whole view is a handoff that supersedes the places a shift
     // was holding, as a shift while widgets upgrade before an arrival lands.
@@ -2646,24 +2479,18 @@ export function createVersionController({
   // `showReadingSubject`). The place of a subject leaving is kept by subject, and the
   // one showing returns the reader to theirs.
   const PAGE = "$page";
-  /** @typedef {{reading: ReadingPlace, at: number, choices: number, inputs: number}} RecordedPlace */
-  /** @typedef {{box: WeakRef<Element>, reading: ReadingPlace, since: number, offset: number, top: number, currentIntent: UserIntent}} PlaceHold */
-  /** @type {Map<string, RecordedPlace>} */
+
   const places = new Map();
   let placeCount = 0;
   let shifting = false;
   // Each hold by the scroller it holds, named as places are: the page, or a bounded
   // region's id. The box itself is held weakly, so a box a widget replaces without a
   // revision leaves memory with the document, and its hold ends at its next reading.
-  /** @type {Map<string, PlaceHold>} */
   const holds = new Map();
-  /** @type {Map<string, Map<string | null | undefined, ReadingPlace>>} */
   const subjectPlaces = new Map();
-  /** @type {ResizeObserver | null} */
   let reapply = null;
   // The identity a box scrolls as: the page, a bounded region's id, or undefined.
-  const boxId = (/** @type {Element} */ box) =>
-    box === pageScroller ? PAGE : regionForBox(box)?.id;
+  const boxId = (box) => (box === pageScroller ? PAGE : regionForBox(box)?.id);
   // The hold `box` still keeps, or null once someone has moved it: input aimed at the
   // box, or a scroll that carried the held landmark with it. Which moved, the box or
   // what it shows, says whose the move was. A scroll moves the box and the landmark by
@@ -2674,11 +2501,10 @@ export function createVersionController({
   // layout's only while the shift's layout settles, and as someone's after that. A
   // landmark the box no longer carries, or a box that no longer scrolls as the one held,
   // ends the hold.
-  const held = (/** @type {Element} */ box) => {
+  const held = (box) => {
     const id = boxId(box);
     return id === undefined ? null : holdOf(id);
   };
-  /** @param {string} id */
   function holdOf(id) {
     const hold = holds.get(id);
     if (!hold) return null;
@@ -2711,11 +2537,7 @@ export function createVersionController({
   // anchoring answers a change the layout made, and someone's after that, as a script
   // that scrolls as content grows above the reader. A landmark a widget is repainting is
   // missing only for a moment while the layout settles, so the hold waits it out.
-  const movedAway = (
-    /** @type {Element | undefined} */ box,
-    /** @type {PlaceHold} */ hold,
-    /** @type {ReadingRegion | null} */ region,
-  ) => {
+  const movedAway = (box, hold, region) => {
     const settling = reapply !== null;
     const node = placeNode(hold.reading);
     if (!node) return settling ? null : "gone";
@@ -2737,33 +2559,28 @@ export function createVersionController({
   // The input count when the reader last aimed input at each box: a wheel or touch at
   // the box under it, a key at the box holding focus. A scroll the box passes on to the
   // one around it is that one's to record when it ends.
-  /** @type {WeakMap<Element, number>} */
   const touched = new WeakMap();
-  const inputSince = (/** @type {Element} */ box, /** @type {number} */ count) =>
-    (touched.get(box) ?? 0) > count;
+  const inputSince = (box, count) => (touched.get(box) ?? 0) > count;
   // A scroll the runtime's own restore started is the runtime's when it ends, wherever
   // layout settling carried the box before the end, unless the reader aimed input at
   // the box meanwhile: the end of a keeper's sequence the layout moved on is no choice
   // of the reader's (dom/scrolling.js counts it as one). `writing` holds each box a restore
   // moved until its sequence ends; `ownEnd` the choice count of that end.
-  /** @type {WeakMap<Element, number>} */
   const writing = new WeakMap();
-  /** @type {WeakMap<Element, number>} */
   const ownEnd = new WeakMap();
-  const wrote = (/** @type {Element} */ box, /** @type {number} */ from) => {
+  const wrote = (box, from) => {
     if (box.scrollTop !== from) writing.set(box, inputCount());
   };
-  const readerChose = (/** @type {Element} */ box, /** @type {number} */ count) =>
+  const readerChose = (box, count) =>
     chosenSince(box, Math.max(count, ownEnd.get(box) ?? 0));
   // The bounded region scrolling a box, null for the page, undefined for neither.
-  const regionForBox = (/** @type {Element | undefined} */ box) =>
+  const regionForBox = (box) =>
     box === pageScroller
       ? null
       : readingRegions().find(
           (region) => region.body === box && regionScrollBehavior(region) === "bounded",
         );
-  const boxOf = (/** @type {Node | null} */ node) =>
-    effectiveScroller(containingReadingRegionFor(node));
+  const boxOf = (node) => effectiveScroller(containingReadingRegionFor(node));
   const dropGonePlaces = () => {
     const present = new Set(readingRegions().map(({ id }) => id));
     for (const map of [places, subjectPlaces])
@@ -2775,7 +2592,6 @@ export function createVersionController({
   // scroll ends, or stand in the box (`currentLocation`). Only those records rank (`at`): a
   // scroll layout made, a clamp or an anchoring adjustment, records nothing, and a box's
   // first place, taken as the page arrives, ranks below every one the reader made.
-  /** @param {Iterable<Element>} boxes @param {{currentLocation?: boolean}} [options] */
   function recordPlaces(boxes, { currentLocation = false } = {}) {
     if (shifting || compositionChanges.size || !regionsSettled()) return;
     dropGonePlaces();
@@ -2809,12 +2625,10 @@ export function createVersionController({
   // by when they made them; among places none of them made, such as those the page
   // arrived with, the box's own speaks for it, so a region the reader never read in
   // doesn't move the page to itself as a resize carries it into the page.
-  /** @param {Element} box @param {ReadonlyMap<string, RecordedPlace>} recorded @param {Set<string | undefined> | null} before */
   function placeFor(box, recorded, before) {
     const region = regionForBox(box);
     if (region === undefined) return null;
     const own = region ? region.id : PAGE;
-    /** @type {(RecordedPlace & {lands: boolean | null}) | null} */
     let found = null;
     for (const [id, entry] of recorded) {
       if (!before && id !== own) continue;
@@ -2830,7 +2644,6 @@ export function createVersionController({
     return found?.lands ? found : null;
   }
 
-  /** @param {import("../readings/reading-regions.js").RegionShift[]} shifted @param {UserIntent} currentIntent @param {ReadonlyMap<string, RecordedPlace>} recorded */
   function restoreShifted(shifted, currentIntent, recorded) {
     shifting = false;
     if (compositionChanges.size) return;
@@ -2842,10 +2655,9 @@ export function createVersionController({
       placeKept(pageScroller);
       wrote(pageScroller, from);
     }
-    /** @type {Map<Element, Set<string | undefined>>} */
     const boxes = new Map(page ? [[pageScroller, new Set()]] : []);
     const returning = new Set();
-    const touch = (/** @type {Element} */ box) => {
+    const touch = (box) => {
       let before = boxes.get(box);
       if (!before) {
         before = new Set();
@@ -2853,7 +2665,7 @@ export function createVersionController({
       }
       return before;
     };
-    const idOf = (/** @type {Element} */ box) =>
+    const idOf = (box) =>
       box === pageScroller
         ? PAGE
         : readingRegions().find(({ body }) => body === box)?.id;
@@ -2912,7 +2724,6 @@ export function createVersionController({
   // Heard from the controller's start, since a preparation reports its end only to
   // those who heard it begin, and one a width change sets going can begin before the
   // shift that opens the window is announced.
-  /** @type {(phase: import("../base/rendering.js").PreparationPhase) => void} */
   let preparation = () => {};
   observePreparations((phase) => preparation(phase));
   const stopReapplying = () => {
@@ -2996,9 +2807,8 @@ export function createVersionController({
   // composition only its own scrollers are restored: document travel belongs to the
   // navigation that changed it. A widget may recompose without the user, so what it
   // captures serves its own restore and is no place the user recorded.
-  /** @type {Map<Element, {currentIntent: UserIntent, captured: Map<string, ReadingPlace>}>} */
   const compositionChanges = new Map();
-  const ownBoxes = (/** @type {Element} */ owner) =>
+  const ownBoxes = (owner) =>
     readingRegions()
       .filter(
         (region) =>
@@ -3008,7 +2818,6 @@ export function createVersionController({
       )
       .map((region) => region.body);
 
-  /** @param {Element} box */
   function ownRegion(box) {
     const region = regionForBox(box);
     if (!region)
@@ -3020,7 +2829,6 @@ export function createVersionController({
   // box scrolls it, on screen or not; the one showing returns them to theirs. Neither
   // waits on a composition around it, which restores where the reader is in what shows
   // rather than which subject shows.
-  /** @param {"leaving" | "showing"} phase @param {ReadingRegion} region */
   function showSubject(phase, region) {
     const box = region.body;
     const own = regionForBox(box) && box.checkVisibility();
@@ -3053,7 +2861,6 @@ export function createVersionController({
     if (own) restorePlace(reading, regionForBox(box));
   }
 
-  /** @param {import("../readings/reading-regions.js").ReadingTransition} transition */
   function readingRegionTransition(transition) {
     if ("region" in transition) {
       showSubject(transition.phase, transition.region);
@@ -3093,7 +2900,6 @@ export function createVersionController({
         prior.currentIntent = retainUserIntent();
         return;
       }
-      /** @type {Map<string, ReadingPlace>} */
       const captured = new Map();
       for (const box of ownBoxes(owner)) {
         const region = ownRegion(box);
@@ -3114,7 +2920,6 @@ export function createVersionController({
     }
   }
 
-  /** @param {Event} event */
   function scrollEventBox(event) {
     return event.target === document
       ? pageScroller
@@ -3131,11 +2936,10 @@ export function createVersionController({
     // A scroll is recorded on the first frame no scroll event reached: a long page is
     // read once a gesture rather than each frame. `scrollend` would say the same, but
     // Chrome holds it for a wheel until its gesture times out, past a resize that soon.
-    /** @type {Set<Element>} */
     const moving = new Set();
     let scrolls = 0;
     let resting = false;
-    const rest = (/** @type {number} */ seen) =>
+    const rest = (seen) =>
       nextRender(() => {
         if (seen !== scrolls) return rest(scrolls);
         resting = false;
@@ -3143,7 +2947,7 @@ export function createVersionController({
         moving.clear();
         recordPlaces(boxes);
       });
-    const scrolled = (/** @type {Event} */ event) => {
+    const scrolled = (event) => {
       const box = scrollEventBox(event);
       if (!box) return;
       moving.add(box);
@@ -3175,7 +2979,6 @@ export function createVersionController({
     // page on a long one, only to cover a window resized in the same frame; a frame that
     // resized records nothing (`regionsSettled`), so a shift there restores the place
     // recorded before the input.
-    /** @type {Map<Element, number>} */
     const settling = new Map();
     const recordCurrentLocation = () => {
       const at = focused();
@@ -3215,7 +3018,6 @@ export function createVersionController({
     );
   }
 
-  /** @param {import("../records/history.js").Restoration} arrival */
   function installArrival(arrival) {
     installReadingContinuity();
     // A reload and Back or Forward from another document return to the entry's record
@@ -3225,16 +3027,14 @@ export function createVersionController({
     // another revision since the tab last left it, whose new entry the view saved at
     // `pagehide` places (`savedView`), a passage being a better landmark there than the
     // old document's pixels.
-    const navigationType = /** @type {PerformanceNavigationTiming | undefined} */ (
-      performance.getEntriesByType("navigation")[0]
-    )?.type;
+    const navigationType = performance.getEntriesByType("navigation")[0]?.type;
     const currentRevision = runtime.currentRevision;
     // The handoff a departure at this document's entry handed it (prepaint.js), read at
     // a revision no newer than this one. One from a document whose runtime never
     // started, which no handoff had come to, names no revision: it carries only the
     // controls the user changed there.
     const handoff = (() => {
-      const value = /** @type {any} */ (window.lfStorage.handoff);
+      const value = window.lfStorage.handoff;
       const at = value?.revision;
       return value &&
         currentRevision !== null &&
@@ -3291,7 +3091,6 @@ export function createVersionController({
     window.lfStorage.handOnWith(() =>
       placed && arrival.owes() ? handoff : leafReloads() ? captureHandoff() : null,
     );
-    /** @param {readonly import("../records/carry.js").CarryRecord[] | null | undefined} records */
     const unchanged = (records) =>
       (records ?? []).filter(({ id }) => {
         const node = elementById(id, pageDocument());
@@ -3315,7 +3114,6 @@ export function createVersionController({
     }
     // The arrival in order, returning to the entry's record where it calls for it
     // (`returnToRecord`, records/history.js `arrive`).
-    /** @param {(returnsFocus?: boolean) => Promise<void>} returnToRecord */
     const landArrival = (returnToRecord) =>
       landContinuity(async () => {
         if (currentIntent()) {
@@ -3378,16 +3176,10 @@ export function createVersionController({
   // (anchor-travel.js, `followFragment`), as is Back or Forward to one the page has
   // hidden since (`returnToFragment`); both read the same destination and reveal it the
   // same way.
-  /** @type {Element | false | null} */
   let aimedAt = null;
-  /** @param {ReturnType<typeof retainUserIntent>} currentIntent */
   function aimArrival(currentIntent) {
-    const fresh =
-      /** @type {PerformanceNavigationTiming | undefined} */ (
-        performance.getEntriesByType("navigation")[0]
-      )?.type === "navigate";
+    const fresh = performance.getEntriesByType("navigation")[0]?.type === "navigate";
     const arrivedAt = location.hash;
-    /** @type {PromiseLike<unknown> | null} */
     let drawing = null;
     const land = () => {
       const where = aimedAt && currentIntent() && fragmentTarget(arrivedAt);

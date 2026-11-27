@@ -1,3 +1,4 @@
+// Compiled from restore-state.ts by build/typescript.mjs; edit that file.
 /* `USER_VIEW_RESTORE_CASES` declares each stored runtime arrangement the render suite
    must visit. Add a new remembered surface here when the surface is introduced.
 
@@ -28,7 +29,6 @@ export const USER_VIEW_RESTORE_CASES = [
 
 // The chrome put back the way this user left it, before the page is presented. A view
 // of the floating panel lasts only while it is used, so none comes back with the page.
-/** @param {{setDesignMode: (enabled: boolean, options: {spoken: boolean}) => void}} dependencies */
 export function restoreUserView({ setDesignMode }) {
   if (tabStore.get(DESIGN_MODE_KEY) === "1") setDesignMode(true, { spoken: false });
 }

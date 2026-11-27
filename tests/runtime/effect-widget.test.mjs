@@ -137,3 +137,77 @@ test("inputs that throw when a signal moves fail the widget, not the code that m
   assert.match(String(errors[0]), /cannot read/);
   el.remove();
 });
+
+test("a property the page set before the tag was defined is a prop once it upgrades", () => {
+  const tag = `lf-effect-${++tags}`;
+  const el = /** @type {HTMLElement & {note?: string}} */ (document.createElement(tag));
+  el.note = "early";
+  document.body.append(el);
+  defineWidget(tag, Verdict, { properties: ["note"] });
+  try {
+    assert.equal(el.querySelector(".note")?.textContent, "early");
+    assert.equal(Object.hasOwn(el, "note"), false);
+  } finally {
+    el.remove();
+  }
+});
+
+const DialMessage = UiSchema.TaggedEnum({ Set: { at: Schema.Number } });
+
+// A widget whose Model holds a number that a member reads and sets.
+const Dial = Html.component({
+  name: "Dial",
+  props: Schema.Struct({ ...widgetProps }),
+  model: Schema.Struct({ at: Schema.Number }),
+  message: DialMessage,
+}).make({
+  init: () => ({ at: 0 }),
+  update: (_$, /** @type {{at: number}} */ message) => ({ at: message.at }),
+  view: (h, /** @type {{at: number}} */ model) => h.output.children(String(model.at)),
+});
+
+const dialMembers = {
+  at: {
+    get: (/** @type {{at: number}} */ model) => model.at,
+    set: (/** @type {number} */ at) => DialMessage.Set({ at }),
+  },
+};
+
+test("a member set before the element connects reaches its root, and draws before lf-commands", async () => {
+  const tag = `lf-effect-${++tags}`;
+  defineWidget(tag, Dial, { members: dialMembers });
+  const el = /** @type {HTMLElement & {at: number}} */ (document.createElement(tag));
+  el.at = 3;
+  /** @type {PromiseLike<unknown>[]} */
+  const pending = [];
+  /** @type {(string | null | undefined)[]} */
+  const announced = [];
+  el.addEventListener("pending-task", (event) =>
+    pending.push(/** @type {any} */ (event).complete),
+  );
+  el.addEventListener("lf-commands", () => announced.push(shown(el)));
+  document.body.append(el);
+  try {
+    assert.equal(el.at, 3);
+    assert.equal(pending.length, 1);
+    await pending[0];
+    assert.equal(shown(el), "3");
+    assert.equal(announced.at(-1), "3");
+  } finally {
+    el.remove();
+  }
+});
+
+test("a member the page set before the tag was defined reaches the Model once it mounts", () => {
+  const tag = `lf-effect-${++tags}`;
+  const el = /** @type {HTMLElement & {at?: number}} */ (document.createElement(tag));
+  el.at = 7;
+  document.body.append(el);
+  defineWidget(tag, Dial, { members: dialMembers });
+  try {
+    assert.equal(Object.hasOwn(el, "at"), false);
+    assert.equal(el.at, 7);
+  } finally {
+    el.remove();
+  }
+});

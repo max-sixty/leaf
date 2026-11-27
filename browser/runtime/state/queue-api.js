@@ -1,3 +1,4 @@
+// Compiled from queue-api.ts by build/typescript.mjs; edit that file.
 /* Complete obligation selections and typed activation, shared by core and packages.
 
    The application publisher alone derives membership. This boundary selects its
@@ -17,11 +18,8 @@ export const onUserCount = () => {
 };
 export const readPlan = readPart((root) => root.effective.plan);
 
-/** @typedef {ReturnType<typeof readQueues>["on_user"][number]} CurrentQueueItem */
-/** @param {{arrive: (item: CurrentQueueItem) => Promise<boolean | undefined>}} dependencies */
 export function createQueueActions({ arrive }) {
   return Object.freeze({
-    /** @param {string} id */
     open(id) {
       const reading = readQueues();
       const item = [...reading.on_user, ...reading.on_agent, ...reading.done].find(

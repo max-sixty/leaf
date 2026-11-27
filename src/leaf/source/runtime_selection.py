@@ -58,6 +58,7 @@ from leaf.base.schema import (
 from leaf.base.state import PLUGIN_ROOT, json_bytes
 from leaf.source.layer import (
     LayerComposition,
+    composed,
     composed_sheets,
     files_identity,
     forget_layers,
@@ -90,7 +91,7 @@ def _files(root, *names) -> dict[str, bytes]:
     for name in names:
         top = root / name
         for path in sorted([top] if top.is_file() else top.rglob("*")):
-            if path.is_file():
+            if path.is_file() and composed(path):
                 found["/" + path.relative_to(root).as_posix()] = (
                     stylesheet(path, root).encode()
                     if path.suffix == ".css"

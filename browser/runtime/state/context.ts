@@ -1,0 +1,228 @@
+/* Shared mechanical runtime context: which address this document is and how a server
+   delivered it, the interactive export's payload, and read-only views of the semantic
+   root. Accepted facts are never installed here independently of application
+   publication. */
+import { readPart } from "./semantic-state.js";
+import type { AuthoredAllocations } from "../../types/contract.js";
+import type { SemanticDocument } from "./semantic-application.js";
+
+// ---------- which address this document is ----------
+// Which version a document is comes from its served `lf-version` marker
+// (`document-identity.js`), and where another version is from that version's `url` in
+// the state reading, which the server addresses at the page root. Neither is read off
+// this path.
+const PAGE_PATH = location.pathname;
+// The live root follows the active revision in place; a virtual version address
+// (`versions/vN.html`) stays pinned to its mapped revision.
+export const LIVE_ROOT = PAGE_PATH.endsWith("/");
+// Which page this document belongs to. The server declares the page's root in the
+// canonical link it adds to every document it serves, the live root and each version
+// address alike, and every page operation resolves against it. An interactive export
+// has no server and no link, so no root: the file is the page.
+export const PAGE_ROOT =
+  document.querySelector<HTMLLinkElement>('link[rel="canonical"][data-lf-runtime]')
+    ?.href ?? null;
+// How a server delivered this document: the runtime script it adds to every document it
+// serves (http.py) names the layer and release the document belongs to, the runtime it
+// runs where no release names one (`runtime_selection.py`), the probe its source
+// answers, and a keyed transport's share address. An interactive export carries
+// no such script. Its own marker (`offlineMarker` below) shares `data-lf-entry`, the
+// seam a harness finds either delivery by, and `data-lf-layer`, the generation it was
+// captured at.
+const served = document.querySelector<HTMLScriptElement>(
+  "script[data-lf-runtime][data-lf-server]",
+);
+const offlineMarker = document.querySelector<HTMLScriptElement>(
+  'script[type="application/json"][data-lf-runtime][data-lf-offline]',
+);
+export const DELIVERY = Object.freeze({
+  layer: (served ?? offlineMarker)?.dataset.lfLayer,
+  release: served?.dataset.lfRelease,
+  runtime: served?.dataset.lfRuntimeIdentity,
+  probe: served?.dataset.lfProbe,
+});
+// The public website declares the release it serves; a local server declares none.
+export const WEBSITE_DELIVERY = DELIVERY.release !== undefined;
+// Where a delivered document's captured layer is addressed. The entry names an
+// immutable address for what the document runs, which a page server shares among
+// revisions that differ only in their document; the registry probe may instead name
+// the mutable page root so startup can detect a newer layer. Empty where nothing
+// declared an entry.
+export const layerRoot = (doc: Document | DocumentFragment | Element) => {
+  const entry: HTMLScriptElement | null = doc.querySelector(
+    "script[data-lf-runtime][data-lf-entry]",
+  );
+  return entry?.dataset.lfEntry?.replace(/leaf\.js$/, "") ?? "";
+};
+// A keyed transport declares its share address even on a cookie-authorized reload.
+// Samples and the public website have no share address. Preserve the current
+// version path, query and passage while taking access from the transport's URL.
+export const SHARE_ROOT = served?.dataset.lfShareUrl;
+export function shareUrl(root: string) {
+  const url = new URL(root);
+  url.pathname = location.pathname;
+  const access = [...url.searchParams];
+  url.search = location.search;
+  for (const [key, value] of access) url.searchParams.set(key, value);
+  url.hash = location.hash;
+  return url.href;
+}
+
+// Code may be shared by several documents, including a sample and its parent.
+// Page operations belong to the document's declared root, never to the module's asset
+// URL.
+export const pageUrl = (path: string) => new URL(path, PAGE_ROOT ?? undefined).href;
+
+const offlinePayload = offlineMarker
+  ? JSON.parse(offlineMarker.textContent || "null")
+  : null;
+// This declaration participates in executable identity: changing it replaces this
+// document realm rather than switching initialized physical owners in place.
+type Allocations = AuthoredAllocations;
+/** A page-wide allocation `body` states (`$authored`), or null where it states none. */
+const allocation = <A extends keyof Allocations>(name: A): Allocations[A] | null =>
+  document.body.getAttribute(name) as any;
+export const annotationMode: Allocations["data-annotations"] =
+  allocation("data-annotations") ?? "overlay";
+
+export const offlineInteractive = offlinePayload !== null;
+// The captured reading with its sources' values, as a served page's state answer
+// brings them. An export holds the values outside its reading, as one gzipped JSON
+// object keyed by source (`exporting.py`) at the address the payload names. Each read
+// decodes its own copy, as each answer from a server is one, so the runtime holds no
+// decoded copy beside the reading it accepted.
+export const offlineState = async () => {
+  if (!offlineInteractive) return null;
+  const state = structuredClone(offlinePayload.state);
+  const { body } = await fetch(offlinePayload.data);
+  const values = await new Response(
+    (body as ReadableStream<BufferSource>).pipeThrough(
+      new globalThis.DecompressionStream("gzip"),
+    ),
+  ).json();
+  for (const [source, value] of Object.entries(values))
+    state.data.sources[source].value = value;
+  return state;
+};
+export const runtimeModule = (path: string) =>
+  offlineInteractive ? `leaf:${path.startsWith("/") ? path : `/${path}`}` : path;
+// A layer file by its rooted path in the page directory (`/icon.svg`,
+// `/widgets/lf-tabs.js`), at the address this document's layer is served from
+// (`layerRoot`); a document nothing declared one for takes the layer at its own root.
+const servedLayerRoot = layerRoot(document);
+export const runtimeResource = (path: string) => {
+  if (!offlineInteractive)
+    return servedLayerRoot
+      ? new URL(`.${path}`, new URL(servedLayerRoot, document.baseURI)).href
+      : path;
+  const located = new URL(path, document.baseURI);
+  const resource = offlinePayload.resources[located.pathname];
+  if (typeof resource !== "string")
+    throw new Error(`Leaf's interactive export is missing ${path}`);
+  // A resource query does not change captured bytes; fragments retain native URL
+  // meaning (for example an SVG symbol or a recording's start time).
+  return resource + located.hash;
+};
+
+// Each part the getters below read, through its own selection (`readPart`).
+const part = {
+  active: readPart((root) => root.authoritative?.active ?? null),
+  browser: readPart((root) => root.authoritative?.browser ?? null),
+  revision: readPart((root) => root.document.revision),
+  live: readPart((root) => root.document.live),
+  stamp: readPart((root) => root.document.stamp ?? null),
+  data: readPart((root) => root.data),
+  seq: readPart((root) => root.authoritative?.browser.basis.through_seq ?? null),
+  reading: readPart((root) => root.authoritative?.reading ?? null),
+  state: readPart((root) => root.authoritative),
+  phase: readPart((root) => root.phase),
+  versions: readPart((root) => root.authoritative?.versions ?? []),
+  seen: readPart((root) => root.authoritative?.seen ?? null),
+  workflows: readPart((root) => root.effective.workflows),
+  view: readPart((root) => root.effective.view),
+  undo: readPart((root) => root.effective.view?.undo ?? []),
+  events: readPart((root) => root.authoritative?.events ?? []),
+  revisionLabels: readPart((root) => root.authoritative?.revision_labels),
+};
+
+// Capture the active reading together with the revision that qualifies it.
+const shownActive = () => {
+  const active = part.active();
+  return active && part.revision() === active.revision ? active : null;
+};
+
+export const runtime = {
+  get active() {
+    return part.active();
+  },
+  get browser() {
+    return part.browser();
+  },
+  // Whether the document shows the active revision. Activation only moves forward
+  // (the publisher refuses an answer whose active revision went back), so a document
+  // showing any other revision is behind it: an older pin, or a tab the agent has
+  // since revised.
+  get showsActive() {
+    return shownActive() !== null;
+  },
+  get currentLabel() {
+    const active = part.live() ? shownActive() : null;
+    return active
+      ? active.label
+      : runtime.currentStamp === null
+        ? null
+        : `v${runtime.currentStamp}`;
+  },
+  get currentRevision() {
+    return part.revision();
+  },
+  get currentStamp() {
+    const active = part.live() ? shownActive() : null;
+    return active ? active.version : part.stamp();
+  },
+  get data() {
+    return part.data();
+  },
+  get lastEventSeq() {
+    return part.seq();
+  },
+  get reading() {
+    return part.reading();
+  },
+  sessionReference: null as string | null,
+  // Whether the server's latest answer refused this tab's key (`transport/layer-client.js`).
+  keyRefused: false,
+  get state() {
+    return part.state();
+  },
+  // The layer's `registry.json`, which fills this once it loads (registry.js).
+  registry: {} as SemanticDocument["registry"] & Record<string, any>,
+  get statePhase() {
+    return part.phase();
+  },
+  get versions() {
+    return part.versions();
+  },
+  // The newest revision any tab showed the page's user (host/since-seen.js), or null.
+  get seen() {
+    return part.seen();
+  },
+  get workflows() {
+    return part.workflows();
+  },
+  // The shown revision's server view, less its basis, as the publisher resolved it.
+  get view() {
+    return part.view();
+  },
+  // The gestures that can still be taken back, newest first; empty between versions.
+  get undo() {
+    return part.undo();
+  },
+  // The log as the adopted reading holds it; an event carrying an `attempt` is the
+  // receipt of the gesture that sent it.
+  get events() {
+    return part.events();
+  },
+};
+
+export const revisionLabel = (revision: number) => part.revisionLabels()?.[revision];

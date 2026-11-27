@@ -1,3 +1,4 @@
+// Compiled from page-image.ts by build/typescript.mjs; edit that file.
 /* An image of part of this document, as its reader sees it.
  *
  * SnapDOM reconstructs the live DOM inside a document-coordinate crop; Leaf owns no
@@ -39,7 +40,7 @@ import { canvas2D } from "../lib/canvas.js";
 import { carriedBox, elementBorderFrame } from "../dom/element-axes.js";
 import { hasArea, intersect, overlaps } from "../dom/rect.js";
 import { describeFailure } from "../lib/exception.js";
-/** @param {Blob} blob */
+
 const asDataUrl = async (blob) =>
   `data:${blob.type};base64,${(await blob.bytes()).toBase64()}`;
 
@@ -56,13 +57,10 @@ export const pageRenderer = async () => {
   return { snapdom, isSampleFrame, sampleFrameImage };
 };
 
-/** @import { Box } from "../base/box.js" */
-/** @param {Box} a @param {Box} b */
 const holds = (a, b) =>
   a.left <= b.left && a.top <= b.top && a.right >= b.right && a.bottom >= b.bottom;
 
 // Paint of a parent's own that lies over or around its children's.
-/** @param {Element} parent @param {CSSStyleDeclaration} style */
 const paintsOverChildren = (parent, style) =>
   style.backgroundImage !== "none" ||
   style.overflowX !== "visible" ||
@@ -74,7 +72,6 @@ const paintsOverChildren = (parent, style) =>
   });
 
 // An element that draws its subtree through an effect, which only its own capture keeps.
-/** @param {CSSStyleDeclaration} style */
 const drawsThroughEffect = (style) =>
   style.opacity !== "1" ||
   style.mixBlendMode !== "normal" ||
@@ -90,7 +87,6 @@ const drawsThroughEffect = (style) =>
   ].some((property) => style.getPropertyValue(property) !== "none");
 
 // The boxes a parent lays out, through any child that generates none of its own.
-/** @param {Element} parent @param {string} skip @returns {Generator<Element>} */
 function* laidOut(parent, skip) {
   for (const child of parent.children) {
     if (skip && child.matches(skip)) continue;
@@ -100,7 +96,6 @@ function* laidOut(parent, skip) {
   }
 }
 
-/** @param {Box} region @param {string} skip */
 function captureRoot(region, skip) {
   let root = document.body;
   const ground = [getComputedStyle(document.documentElement).backgroundColor];
@@ -138,11 +133,8 @@ function captureRoot(region, skip) {
   return { root, ground: `rgba(${channels.join(", ")})` };
 }
 
-/** @import { PageImage } from "../base/sample-protocol.js" */
-/** @param {{x: number, y: number, width: number, height: number}} clip @param {{exclude?: string[]}} [options] @returns {Promise<PageImage>} */
 export async function pageImage(clip, { exclude = [] } = {}) {
   const { snapdom, isSampleFrame, sampleFrameImage } = await pageRenderer();
-  /** @type {Set<string>} */
   const warnings = new Set();
   // The crop in window coordinates, at the page's scroll when called.
   const shownClip = () => ({
@@ -155,7 +147,6 @@ export async function pageImage(clip, { exclude = [] } = {}) {
   // (dom/element-axes.js, `elementBorderFrame`), where the child and the substitute's own
   // box read it, held to that viewport. A turned frame draws the box that covers the
   // turned crop; the crop cuts what lies outside it from the image.
-  /** @param {HTMLIFrameElement} frame */
   async function sampleContent(frame) {
     // SnapDOM applies the frame's box to the returned node, border included.
     const box = document.createElement("div");

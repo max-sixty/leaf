@@ -5,6 +5,10 @@ lf-motion {
   --lf-motion-top: var(--lf-top);
   --lf-motion-control-height: var(--lf-line);
   --lf-motion-toolbar-height: calc(var(--lf-motion-control-height) + 16px);
+  /* A declared shadow tree starts without markup's reading face (reading.css, `:host`),
+     but the previews it slots are the page's own markup and the transport stands among
+     them, so the study reads in the face of the page around it. */
+  --lf-reading-face: inherit;
 }
 
 lf-motion:not(:defined)::before {
@@ -13,12 +17,24 @@ lf-motion:not(:defined)::before {
   block-size: calc(var(--lf-motion-toolbar-height) + var(--lf-sp-3));
 }
 @container (max-width: 30rem) {
-  lf-motion:not(:defined)::before {
+  lf-motion:not(:defined)::before,
+  lf-motion > * {
     --lf-motion-toolbar-height: calc(2 * var(--lf-motion-control-height) + 24px);
   }
 }
 
-.lf-motion-controls {
+/* What sticks among the previews sticks beneath the transport. */
+lf-motion > * {
+  --lf-top: calc(var(--lf-motion-top) + var(--lf-motion-toolbar-height));
+}
+
+/* The transport, in the shadow root, styled by its parts so the look reaches a page
+ * without Leaf too: one sticky row over the previews the slot shows, opaque on the
+ * surface that holds the recordings. */
+lf-motion::part(study) {
+  display: contents;
+}
+lf-motion::part(controls) {
   position: sticky;
   top: var(--lf-top);
   z-index: 2;
@@ -30,59 +46,48 @@ lf-motion:not(:defined)::before {
   margin-block-end: var(--lf-sp-3);
   box-sizing: border-box;
   block-size: var(--lf-motion-toolbar-height);
-  /* Sticky apparatus stays opaque on the surface that contains the recording. */
   background: var(--lf-ground);
   --lf-head-inset: 8px;
   font: var(--lf-font-small);
 }
-.lf-motion-transport {
-  display: contents;
-}
-lf-motion > :not(.lf-motion-transport) {
-  --lf-top: calc(var(--lf-motion-top) + var(--lf-motion-toolbar-height));
-}
-.lf-motion-time {
+lf-motion::part(time) {
   min-inline-size: 80px;
   min-block-size: var(--lf-line);
   accent-color: var(--lf-accent);
 }
-.lf-motion-clock {
+lf-motion::part(clock) {
   inline-size: 9ch;
   text-align: end;
   font-variant-numeric: tabular-nums;
   color: var(--lf-muted);
 }
-.lf-motion-speed {
+lf-motion::part(speed) {
   display: flex;
   align-items: center;
   gap: 6px;
   white-space: nowrap;
 }
-.lf-motion-speed select {
+lf-motion::part(speed-select) {
   min-block-size: var(--lf-line);
 }
+lf-motion::part(play) {
+  --lf-icon-action-face: var(--lf-motion-control-height);
+}
 @container (max-width: 30rem) {
-  .lf-motion-controls,
-  lf-motion > :not(.lf-motion-transport) {
+  lf-motion::part(controls) {
     --lf-motion-toolbar-height: calc(2 * var(--lf-motion-control-height) + 24px);
-  }
-  .lf-motion-controls {
     grid-template-columns: auto 1fr auto;
   }
-  .lf-motion-speed {
+  lf-motion::part(speed) {
     grid-column: 3;
     grid-row: 1;
   }
-  .lf-motion-time {
+  lf-motion::part(time) {
     grid-column: 1 / 3;
     grid-row: 2;
   }
-  .lf-motion-clock {
+  lf-motion::part(clock) {
     grid-column: 3;
     grid-row: 2;
   }
-}
-
-.lf-motion-play {
-  --lf-icon-action-face: var(--lf-motion-control-height);
 }

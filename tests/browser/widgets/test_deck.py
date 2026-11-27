@@ -2,11 +2,13 @@
 Back and Review step through answered cards, and a new tab opens where a card waits."""
 
 import re
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import HOLD_MOTION, live_url
 from render_harness import (
+    clocked,
     holding,
     leaf_page,
     open_page,
@@ -269,13 +271,26 @@ def test_an_answer_read_back_late_moves_the_card_and_not_the_page(browser, serve
 def test_a_scroll_as_the_card_moves_on_keeps_the_page(browser, serve):
     """An answer by key brings up the next card, and a wheel the user turns while it
     comes up leaves the page where the wheel took it: neither the card's landing nor
-    the focus that follows the answer pulls it back."""
-    page = open_page(browser, serve(TALL_DECK_PAGE))
+    the focus that follows the answer pulls it back. The card's motion and the page's
+    timers are held until the page has read the wheel, so the wheel lands while the
+    card comes up however long the machine takes to deliver it."""
+    page = open_page(clocked(browser), serve(TALL_DECK_PAGE))
     page.emulate_media(reduced_motion="no-preference")
     page.keyboard.press("m")
     expect(page.locator("#store-ask")).to_be_focused()
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    page.evaluate(
+        "() => { window.__wheeled = new Promise((read) =>"
+        " addEventListener('wheel', read, { once: true, passive: true })); }"
+    )
+    page.clock.pause_at(datetime.now(UTC) + timedelta(seconds=1))
     page.keyboard.press("1")
     page.mouse.wheel(0, -3000)
+    page.evaluate("() => window.__wheeled.then(() => {})")
+    page.evaluate(
+        "() => __lfHeld.filter(a => a.playState !== 'idle').forEach(a => a.finish())"
+    )
+    page.clock.resume()
     open_card(page, "tall-ask")
     page.wait_for_function(LANDED)
     # The arrival an answer by key makes waits as long as the card that came up takes
@@ -501,6 +516,30 @@ def test_a_swipe_stays_held_until_the_fingers_lift(browser, serve):
         page.evaluate("() => document.querySelector('#store-ask').style.translate")
         == ""
     )
+
+
+def test_a_swipe_begun_on_read_only_text_moves_the_card(browser, serve):
+    """Text a card's content marks `contenteditable="false"`, as a diff's rows are, is
+    no control, so a swipe begun on it holds the card as one begun on plain text does."""
+    context = browser.new_context(
+        has_touch=True, viewport={"width": 900, "height": 800}
+    )
+    page = open_page(browser, serve(DECK_PAGE), context=context)
+    open_card(page, "store-ask")
+    page.evaluate(
+        "() => document.querySelector('#store-ask-h')"
+        ".setAttribute('contenteditable', 'false')"
+    )
+    cdp = context.new_cdp_session(page)
+    box = page.locator("#store-ask-h").bounding_box()
+    x, y = box["x"] + 20, box["y"] + box["height"] / 2
+    for kind, dx in [("touchStart", 0), ("touchMove", 15), ("touchMove", 30)]:
+        cdp.send(
+            "Input.dispatchTouchEvent",
+            {"type": kind, "touchPoints": [{"x": x + dx, "y": y, "id": 0}]},
+        )
+    wait_for_check_api(page, "(api) => api.dragHeld()")
+    cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
 
 
 # The height each motion of the deck's own box ends at, recorded as it starts.

@@ -52,7 +52,9 @@ thing.
 `on-me`, `activity` and the margin's other kinds. `read()` may also return `readings`,
 items each with an `id` unique within the contribution, the `text` the margin shows
 for it, an optional `kind` from the same list, and an optional `activate`, which the
-registration's `activateReading(id)` calls.
+registration's `activateReading(id)` calls. A reading sets `represents: true` when the
+widget's own entries answer its question, as a pending suggestion's Accept and Reject
+do. Leaf then leaves out the "Waiting on me" it would draw at the same target.
 
 A widget that shows margin entries inside its own content, as the feature gallery does,
 draws its own control as an entry with

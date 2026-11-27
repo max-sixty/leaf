@@ -1,3 +1,4 @@
+// Compiled from inline.ts by build/typescript.mjs; edit that file.
 /* Synchronous thread seats outside the panel. Each seat owns its host's children: its
    retained open thread cards in order, its Resolved disclosure, then its response row.
    Descriptors contain values; the native editor of a seat's response row remains an
@@ -36,28 +37,15 @@ import { releaseReplies, replyIsEditing } from "./replies.js";
 import { passOn } from "../../dom/user-intent.js";
 import { foldBlock } from "../../dom/motion.js";
 
-/** @typedef {import("./thread-card.js").ThreadCommands} ThreadCommands */
-/** @typedef {import("./thread-card.js").ThreadRecord} ThreadRecord */
-/** @typedef {import("./thread-card.js").ThreadReading} ThreadReading */
-/** @typedef {import("./thread-card.js").ThreadViewModel} ThreadViewModel */
-/** @typedef {import("./thread-card.js").ViewOutlets} ViewOutlets */
-/** @typedef {{threads: readonly ThreadReading[], response: boolean, surface?: string}} SeatReading */
-/** @typedef {{threads: readonly ThreadViewModel[], response: boolean, surface?: string}} SeatShowing */
-/** @typedef {{seats: Map<ThreadSeat, ReturnType<typeof holdFocus>>}} SeatBatch */
-/** @typedef {{node: HTMLDivElement, view: ThreadView, played: ReturnType<typeof foldBlock>}} SeatFold */
-/** @type {WeakMap<Element, ThreadSeat>} */
 const seats = new WeakMap();
-/** @type {Set<ThreadSeat>} */
 const activeSeats = new Set();
 const EMPTY = Object.freeze({ threads: Object.freeze([]), response: false });
-/** @type {SeatBatch | null} */
 let activeBatch = null;
 
 class ResolvedThreads {
   node = document.createElement("details");
   summary = document.createElement("summary");
 
-  /** @param {() => void} opened */
   constructor(opened) {
     this.node.className = "lf-resolved-threads lf-ui";
     this.node.dataset.lfRuntime = ""; // readings/passages.js, leafSurface
@@ -70,7 +58,6 @@ class ResolvedThreads {
     }).observe(this.node, { attributeFilter: ["open"] });
   }
 
-  /** @param {readonly ThreadViewModel[]} threads @param {readonly Node[]} nodes */
   present(threads, nodes) {
     // A name that is a sentence keeps its words but not its full stop, which a list
     // of names would read as two marks in a row.
@@ -82,19 +69,13 @@ class ResolvedThreads {
 }
 
 class ThreadSeat {
-  /** @type {Map<string, ThreadView>} */
   #views = new Map();
-  /** @type {ResolvedThreads | null} */
   #resolved = null;
-  /** @type {Map<string, SeatFold>} */
   #folding = new Map();
   #settled = new Set();
   #place = () => {};
-  /** @type {SeatReading} */
   #model = EMPTY;
-  /** @type {SeatShowing} */
   #shown = EMPTY;
-  /** @type {SeatReading} */
   #committed = EMPTY;
   // A seat holds back news that would move what the reader reads (held-news.js). The
   // margin's floating card is a seat too, so it holds news as a seat in the page's flow
@@ -105,10 +86,8 @@ class ThreadSeat {
   // thread between the seat's open threads and its Resolved disclosure, out from under
   // the user. The margin's card keeps its own rule for a user in it (thread-card.js,
   // `newsMoves`).
-  /** @type {HeldNews | null} */
   #held = null;
   #commands;
-  /** @type {() => HTMLElement | null} */
   #response = () => null;
   // Whether the seat has stood in the document, read at a commit or when its owner
   // places it (`claim`). A seat that stood there and left is pruned at the next commit;
@@ -116,21 +95,17 @@ class ThreadSeat {
   #connected = false;
   // Where the margin's floating card stands its thread's parts (thread-card.js,
   // `ViewOutlets`); a seat in the page's flow gives none.
-  /** @type {ViewOutlets} */
   #outlets = {};
 
-  /** @param {Element} node @param {ThreadCommands} commands */
   constructor(node, commands) {
     this.node = node;
     this.#commands = commands;
   }
-  /** @param {() => HTMLElement | null} response @param {ViewOutlets} outlets */
   configure(response, outlets = {}) {
     this.#response = response;
     this.#outlets = outlets;
   }
 
-  /** @param {SeatReading} model @param {SeatBatch | null} [batch] */
   present(model, batch = activeBatch) {
     // A refused batch hands the user back their previous location when the seat joined
     // it (`retainThreadSeats`); this render hands them their place across itself.
@@ -156,7 +131,6 @@ class ThreadSeat {
           if (!view || this.#model.surface === "margin") return view ?? null;
           return {
             node: view.node,
-            /** @param {import("./held-news.js").ThreadChange} change */
             newsMoves: (change) =>
               (!currentLocationIn(view.node) || Boolean(change.news.settled)) &&
               view.newsMoves(change),
@@ -231,7 +205,6 @@ class ThreadSeat {
       return { descriptor, view };
     });
     const place = () => {
-      /** @type {Node[]} */
       const nodes = drawn.flatMap(({ descriptor: thread, view }) =>
         !settled.includes(thread) || this.#folding.has(thread.key) ? [view.node] : [],
       );
@@ -319,7 +292,6 @@ class ThreadSeat {
     return drawn;
   }
 
-  /** @param {string} key @param {SeatFold} fold */
   #stopFold(key, { node, played }) {
     this.#folding.delete(key);
     node.inert = false;
@@ -350,7 +322,6 @@ class ThreadSeat {
     }
     this.#connected ||= this.node.isConnected;
   }
-  /** @param {ReturnType<typeof holdFocus>} restoreFocus */
   retain(restoreFocus) {
     this.present(this.#committed);
     restoreFocus?.();
@@ -365,8 +336,6 @@ class ThreadSeat {
   }
 }
 
-/** @param {Element} host @param {ThreadCommands} commands
- * @param {() => HTMLElement | null} response @param {ViewOutlets} outlets */
 function seatFor(host, commands, response, outlets = {}) {
   let seat = seats.get(host);
   if (!seat) {
@@ -377,8 +346,6 @@ function seatFor(host, commands, response, outlets = {}) {
   seat.configure(response, outlets);
   return seat;
 }
-/** @param {readonly ThreadRecord[]} threads @param {string} surface
- * @param {ThreadCommands} commands @param {unknown} response @returns {SeatReading} */
 function seatReading(threads, surface, commands, response) {
   return Object.freeze({
     threads: Object.freeze(
@@ -389,9 +356,6 @@ function seatReading(threads, surface, commands, response) {
   });
 }
 
-/** @param {Element} host @param {readonly ThreadRecord[]} threads
- * @param {ThreadCommands & {composition: {outlet: () => Element | null, node: () => HTMLElement}}} commands
- * @param {unknown} response */
 export function renderThreadSurface(host, threads, commands, response = null) {
   const editor = () =>
     commands.composition.outlet() === host ? commands.composition.node() : null;
@@ -400,16 +364,12 @@ export function renderThreadSurface(host, threads, commands, response = null) {
   );
 }
 
-/** @param {Element} host */
 export const claimSeatReplies = (host) => seats.get(host)?.claim();
 
-/** @param {Element} host */
 export function clearThreadSurface(host) {
   seats.get(host)?.present(EMPTY);
 }
 
-/** @param {HTMLElement} host @param {ThreadRecord} thread @param {ThreadCommands} commands
- * @param {ViewOutlets} outlets */
 export function renderMarginThread(host, thread, commands, outlets) {
   return seatFor(host, commands, () => null, outlets)
     .present(seatReading([thread], "margin", commands, false))
@@ -418,7 +378,6 @@ export function renderMarginThread(host, thread, commands, outlets) {
       transcript: view.transcript,
       settled: () => view.settled(),
       answering: () => view.answering,
-      /** @param {import("../../dom/scrolling.js").BoxExtent} before */
       placesEnd: (before) => view.placesEnd(before),
     }));
 }
@@ -427,7 +386,6 @@ export function beginThreadSeats() {
   activeBatch = { seats: new Map() };
   return activeBatch;
 }
-/** @param {SeatBatch} batch */
 export function commitThreadSeats(batch) {
   if (activeBatch !== batch) return;
   for (const seat of batch.seats.keys()) seat.commit();
@@ -443,14 +401,12 @@ export function commitThreadSeats(batch) {
 // (`commitThreadSeats`), so its drawings let go of what they held, a message's widgets
 // among them, which the drawing standing in its place takes (messages.js,
 // `authoredHolders`).
-/** @param {Element} host */
 export function pruneThreadSeat(host) {
   const seat = seats.get(host);
   if (!seat?.prune()) return;
   activeSeats.delete(seat);
   seats.delete(seat.node);
 }
-/** @param {SeatBatch} batch */
 export function retainThreadSeats(batch) {
   if (activeBatch !== batch) return;
   for (const [seat, restoreFocus] of batch.seats) seat.retain(restoreFocus);

@@ -1066,7 +1066,7 @@ def test_co_located_headings_share_the_current_title_and_lens_position(browser, 
 def test_the_lens_follows_the_scroll_in_every_engine(request, serve, engine):
     """The lens shows the reader's place by the browser's own scroll timeline in each
     engine Leaf supports, at the top, the middle and the foot of the document, while
-    the map itself stands still in the window, the document's end room included."""
+    the map itself stands still in the window."""
     source = contents_page(
         "contents lens in every engine",
         """

@@ -1,3 +1,4 @@
+// Compiled from pointer.ts by build/typescript.mjs; edit that file.
 /* The user's pointer: the one unrounded position shared by hit-test consumers, and
    whether it is a finger. */
 import { isNode } from "../lib/shadow-tree.js";
@@ -7,7 +8,6 @@ let y = -1;
 // Read pointer events rather than legacy mouse events, whose client coordinates are
 // rounded away from the point the browser hit-tested. A snapshot keeps consumers from
 // becoming another writer of the position they read.
-/** @param {PointerEvent} ev */
 const remember = (ev) => {
   x = ev.clientX;
   y = ev.clientY;
@@ -42,14 +42,12 @@ export const coarsePointer = matchMedia("(pointer: coarse)");
 // belongs to the control it is on, whatever the pointer did a moment ago, and a mode
 // that eats it makes the control unreachable from the keyboard for as long as the claim
 // stands.
-/** @param {UIEvent} event */
 export const pressIsKeyboardActivation = (event) =>
   event.type === "click" && !event.detail;
 
 // An automatic revision activation replaces the document, not the user's pointer.
 // New input wins over a handoff captured by the departing document. A handoff from a
 // document whose runtime never started carries no pointer (features/version.js).
-/** @param {{x: number, y: number} | undefined} point */
 export function restorePointer(point) {
   if (x !== -1 || y !== -1 || !point) return;
   if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
@@ -57,7 +55,6 @@ export function restorePointer(point) {
   y = point.y;
 }
 
-/** The DOM origin across shadow roots; a window-only event has no DOM source.
- * @param {Event} event @returns {Node | null} */
+/** The DOM origin across shadow roots; a window-only event has no DOM source. */
 export const eventSource = (event) =>
   event.composedPath().find((node) => isNode(node)) ?? null;

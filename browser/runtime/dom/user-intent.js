@@ -1,3 +1,4 @@
+// Compiled from user-intent.ts by build/typescript.mjs; edit that file.
 /* A delayed completion may move the user only while the gesture that started it
    remains their latest intent. Runtime-owned repaint and focus changes do not supersede
    that intent, including a repaint dropping focus on a container of the surface that
@@ -16,14 +17,11 @@ import { renderedUnder } from "../lib/shadow-tree.js";
 // before any newer input, as the Threads list passes its focus to the thread it shows
 // open. Focus that went anywhere else went somewhere in particular, as a widget handing
 // it on does.
-/** @type {WeakMap<Element, {container: Element, intent: number}>} */
 const passed = new WeakMap();
-/** @param {Element} container @param {Element} target */
 export const passOn = (container, target) =>
   passed.set(target, { container, intent: inputCount() });
 // So is focus a hold carried from the source, or from inside it, to the node a render put
 // in its place, before any newer input.
-/** @param {Node | undefined} source @param {Element | null} at */
 const displaced = (source, at) => {
   if (!(source instanceof Node) || !at) return false;
   const via = passed.get(at);
@@ -46,17 +44,6 @@ const displaced = (source, at) => {
 // The source is held weakly: an intent can be kept long after its gesture, as a reading
 // place keeps one, and a source the document has since dropped can neither hold focus
 // nor be what focus was carried from, so it answers nothing a held node would.
-/** @typedef {{(): boolean, available: () => boolean, handoff: (move: () => unknown) => boolean}} UserIntent */
-/**
- * @returns {UserIntent}
- * @param {{
- *   source?: unknown,
- *   available?: () => boolean,
- *   fallback?: Element | null,
- *   count?: () => number,
- *   since?: number,
- * }} [options]
- */
 export function retainUserIntent({
   source = focused(),
   available = () => true,
@@ -85,7 +72,7 @@ export function retainUserIntent({
   // during replacement. Keep that destination instead of running the old focus move,
   // and adopt it for subsequent continuity without renewing the input generation.
   // A delayed caller must check current() before beginning its synchronous handoff.
-  current.handoff = /** @param {() => unknown} move */ (move) => {
+  current.handoff = (move) => {
     if (!available() || retained !== count()) return false;
     const moved = current();
     if (moved) move();
@@ -100,11 +87,9 @@ export function retainUserIntent({
 // that same capability; taking a new intent would authorize stale work with newer input.
 // Refine a retained gesture's availability without recapturing its generation. The
 // same admission guards readiness and the actual focus/scroll handoff.
-/** @param {UserIntent} retained @param {() => boolean} available @returns {UserIntent} */
 export function restrictUserIntent(retained, available) {
   const current = () => available() && retained();
   current.available = () => available() && retained.available();
-  current.handoff = /** @param {() => unknown} move */ (move) =>
-    available() && retained.handoff(move);
+  current.handoff = (move) => available() && retained.handoff(move);
   return current;
 }

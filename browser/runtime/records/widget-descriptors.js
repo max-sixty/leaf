@@ -1,3 +1,4 @@
+// Compiled from widget-descriptors.ts by build/typescript.mjs; edit that file.
 /* Revision-bound widget identity captured before a content module upgrades the DOM.
 
    A controller receives no caller-supplied declaration or scope. Leaf records the
@@ -20,16 +21,12 @@ import { isElementName } from "../state/registry-contract.js";
 import { authoredParents } from "./projection/authored.js";
 import { readPart } from "../state/semantic-state.js";
 
-/** @typedef {import("../state/semantic-application.js").WidgetDescriptor} WidgetDescriptor */
-/** @type {WeakMap<Element, WidgetDescriptor>} */
 const byElement = new WeakMap();
 const adoptedDescriptors = readPart((root) => root.document.descriptors);
 
-/** @param {Element} element @returns {Element | null} */
 const parentOf = (element) =>
   authoredParents.has(element) ? authoredParents.get(element) : element.parentElement;
 
-/** @param {Element} element */
 const declaredAncestors = (element) => {
   const ancestors = [];
   for (let parent = parentOf(element); parent; parent = parentOf(parent))
@@ -48,22 +45,20 @@ const declaredAncestors = (element) => {
 // `tests/exhibit_cases.json` holds both runtimes to one set of cases. Asked of
 // authored parents, so a widget layout has moved still answers for where it was
 // written.
-/** @param {Element} element */
 const quotedBy = (element) => {
   for (let node = parentOf(element); node; node = parentOf(node))
     if (exhibits(node, runtime.registry[node.localName])) return true;
   return false;
 };
 
-/** @param {Document | Element | DocumentFragment} [root]
- * @param {WidgetDescriptor["document"]} [documentContext] */
 export function stageWidgetDescriptors(
   root = document,
-  documentContext = { kind: "page", revision: runtime.currentRevision },
+  documentContext = {
+    kind: "page",
+    revision: runtime.currentRevision,
+  },
 ) {
-  /** @type {Map<string, WidgetDescriptor>} */
   const captured = new Map();
-  /** @type {{element: Element, descriptor: WidgetDescriptor}[]} */
   const bindings = [];
   for (const element of declaredElements(root)) {
     if (!element.id) continue;
@@ -100,12 +95,10 @@ export function stageWidgetDescriptors(
 
 // Each staged descriptor on the element it stands for, before insertion can connect
 // the element's custom element.
-/** @param {ReturnType<typeof stageWidgetDescriptors>["bindings"]} bindings */
 export function bindWidgetDescriptors(bindings) {
   for (const { element, descriptor } of bindings) byElement.set(element, descriptor);
 }
 
-/** @param {Element} owner */
 export function widgetDescriptor(owner) {
   const captured = byElement.get(owner);
   if (captured) return captured;
@@ -123,10 +116,8 @@ export function widgetDescriptor(owner) {
 // carry input back (a choose path, a drag grip), so an exhibit never takes the user's
 // edits. The answer is the one its controller's actions read, the descriptor's, or the
 // same rule for an element with no descriptor.
-/** @param {Element} element */
 export const quoted = (element) =>
   widgetDescriptor(element)?.quoted ?? quotedBy(element);
 
-/** @param {Element} owner @param {WidgetDescriptor} descriptor */
 export const descriptorStillMatches = (owner, descriptor) =>
   owner.id === descriptor.id && owner.localName === descriptor.tag;

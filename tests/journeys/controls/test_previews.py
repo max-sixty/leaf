@@ -12,7 +12,7 @@ from browser.controls.test_previews import (
     _reads,
 )
 from browser.threads import open_panel_thread
-from interact_support import append_carried_log_record
+from interact_support import append_carried_log_record, append_command
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_harness import (
@@ -72,6 +72,19 @@ def test_a_link_into_the_page_previews_where_it_points(engine, request, serve):
     touch in Chromium, and in Firefox, which takes no held touch from a test, by the
     pointer events a finger sends. A link to another site previews nothing."""
     url = serve(LINKS_PAGE)
+    # A question is answered by the user's pick in the log, never by the markup's own.
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "decision-options",
+            "action": "choose",
+            "detail": {"value": ["decision-ship"]},
+            "answered": True,
+        },
+    )
     question = panel_comment(
         serve.page_dir,
         "Should this wait for the vendor's release?",

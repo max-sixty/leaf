@@ -1,4 +1,4 @@
-// @ts-check
+// Compiled from semantic-state.ts by build/typescript.mjs; edit that file.
 /* The page's application state, `applicationState`: one immutable root that compiled
    pure folds publish synchronously, and the presenters that paint it. DOM nodes and
    network promises stay out of the root, in the modules that own them. Importing this
@@ -13,7 +13,6 @@ import { createSemanticApplication } from "./semantic-application.js";
 import { bindQueuedWork } from "../lib/queued-work.js";
 import { tick } from "./version-signal.js";
 
-/** @param {unknown} reason */
 let reportPresentationFailure = (reason) =>
   console.error("leaf: presentation failed", reason);
 const presentation = createPresentationCoordinator({
@@ -30,10 +29,6 @@ export const readApplication = applicationState.read;
 // paint follows it (`LeafElement`, `applicationPresenter`), so each reads again
 // only when that part moves. An accessor that reads the whole root would make every
 // reflection read again on every publication.
-/**
- * @template T
- * @param {(root: ReturnType<typeof readApplication>) => T} derive
- */
 export const readPart = (derive) => applicationState.select(derive).read;
 // What the page calls its agent: the name the server's answer gives, or "the agent"
 // before one has arrived. Every surface naming the agent's side reads it here.
@@ -46,25 +41,14 @@ export const pageClaimed = readPart(
 );
 export const projectDocument = applicationState.projectDocument;
 export const selectWidgets = applicationState.selectWidgets;
-/** @param {string} region */
 export const attachApplicationPresentation = (region) => presentation.attach(region);
-/**
- * @param {string} widget
- * @param {string} kind
- */
 const widgetRegion = (widget, kind) => `widget:${widget}:${kind}`;
-/** @param {string} widget */
 const widgetRegions = (widget) =>
   ["render", "preparation"].map((kind) => widgetRegion(widget, kind));
-/**
- * @param {string} widget
- * @param {string} kind
- */
 export const attachWidgetPresentation = (widget, kind) =>
   presentation.attach(widgetRegion(widget, kind));
 
 // These promises describe committed DOM, never semantic presentation completion.
-/** @type {Map<string, () => readonly PromiseLike<unknown>[]>} */
 const documentCommits = new Map();
 
 // The DOM each document owner reads: projection decorates widget output, threads
@@ -93,8 +77,8 @@ export const PRESENTATION_DOM = Object.freeze({
 // The document-wide presenters, in registration order. `presentDocument` is what a
 // caller reaches for when it has changed something every region may be showing and has
 // no business knowing which those are.
-/** @type {Array<() => Promise<void>>} */
 const documentPresenters = [];
+
 // `applicationPresenter` registers one region of the page, such as `projection:chrome`
 // in records/projection/presentation.js, that repaints when the parts of the application state
 // it reads change.
@@ -125,18 +109,6 @@ const documentPresenters = [];
 // The returned `committed()` is the region's own DOM commit. It settles at once when the
 // region owes no paint; a claimed paint commits only after the DOM `after` names, so its
 // commit waits for everything upstream as well.
-/** @typedef {<A extends unknown[], R>(run: (...args: A) => R) => (...args: A) => R} Resume */
-
-/**
- * @template T
- * @param {{
- *   region: string,
- *   after?: () => readonly PromiseLike<unknown>[],
- *   reading: () => T | null,
- *   paint: (value: T, current: () => boolean, resume: Resume) => unknown,
- *   failSoft?: (reason: unknown) => unknown,
- * }} options
- */
 export const applicationPresenter = ({ region, after, reading, paint, failSoft }) => {
   // Reading identity decides whether a region needs new content. Preact owns its
   // dependencies, including subscriptions to values outside the application state.
@@ -149,12 +121,10 @@ export const applicationPresenter = ({ region, after, reading, paint, failSoft }
       throw new Error(`the ${region} region's reading moved a part it read`);
     return value;
   });
-  /** @type {T | null | undefined} */
   let claimed;
   let owed = false;
   // A resumed asynchronous paint has one effect per synchronous stretch. A new paint
   // releases the whole generation; a superseded continuation keeps no subscriptions.
-  /** @type {Array<() => void>} */
   let following = [];
   const forget = () => {
     for (const stop of following) stop();
@@ -163,18 +133,12 @@ export const applicationPresenter = ({ region, after, reading, paint, failSoft }
   const presenter = schedule.presenter({
     attach: () => presentation.attach(region),
     after,
-    paint: (/** @type {T} */ value, current) => {
+    paint: (value, current) => {
       owed = false;
       forget();
       const generation = following;
-      /**
-       * @template R
-       * @param {() => R} run
-       * @returns {R}
-       */
       const stretch = (run) => {
         let first = true;
-        /** @type {{value: R} | {error: unknown} | undefined} */
         let outcome;
         const stop = effect(() => {
           if (!first) {
@@ -197,11 +161,9 @@ export const applicationPresenter = ({ region, after, reading, paint, failSoft }
         });
         if (current() && following === generation) generation.push(stop);
         else stop();
-        if ("error" in /** @type {{value: R} | {error: unknown}} */ (outcome))
-          throw /** @type {{error: unknown}} */ (outcome).error;
-        return /** @type {{value: R}} */ (outcome).value;
+        if ("error" in outcome) throw outcome.error;
+        return outcome.value;
       };
-      /** @type {Resume} */
       const resume =
         (run) =>
         (...args) =>
@@ -214,7 +176,6 @@ export const applicationPresenter = ({ region, after, reading, paint, failSoft }
   // Keep the dependency transitive even then; its last DOM commit cannot certify
   // the new upstream DOM. Each owner still declares only the edges it reads.
   documentCommits.set(region, () => [...(after?.() ?? []), presenter.committed()]);
-  /** @param {T | null} value */
   const claim = (value) => {
     claimed = value;
     if (value === null) return schedule.passed();
@@ -275,28 +236,19 @@ export const whenDocumentPresented = () => schedule.passed();
 
 export const whenApplicationPresented = () => presentation.whenCurrentPresented();
 export const applicationPresented = () => presentation.currentPresented();
-/** @param {readonly string[]} widgets */
 export const whenWidgetsPresented = (widgets) =>
   presentation.whenCurrentRegionsPresented(widgets.flatMap(widgetRegions));
-/**
- * @param {readonly string[]} regions
- * @param {() => boolean} [current]
- */
 export const whenApplicationRegionsPresented = (regions, current) =>
   presentation.whenCurrentRegionsPresented(regions, current);
-/** @param {readonly string[]} regions */
 export const applicationRegionsPresented = (regions) =>
   presentation.currentRegionsPresented(regions);
-/** @param {readonly string[]} widgets */
 export const projectionRegionsPresented = (widgets) =>
   applicationRegionsPresented(["projection:chrome", ...widgets.flatMap(widgetRegions)]);
 export const watchPresentation = presentation.subscribe;
 export const readApplicationPresentation = presentation.read;
-/** @param {(reason: unknown, title: string) => unknown} report */
 export function setPresentationFailureReporter(report) {
   reportPresentationFailure = (reason) => report(reason, "Presentation failed");
 }
-/** @param {(root: ReturnType<typeof readApplication>) => unknown} callback */
 export const watchSemantic = (callback) =>
   applicationState
     .select((root) => root.semanticEpoch)

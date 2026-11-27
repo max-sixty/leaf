@@ -30,7 +30,6 @@ from render_harness import (
     scroll_settled,
     sending,
     wait_for_check_api,
-    without_end_room,
     write,
 )
 
@@ -1828,8 +1827,6 @@ def test_back_and_forward_show_the_thread_each_entry_names(request, serve, engin
         },
     )
     page = open_page(request.getfixturevalue(engine), thread_url(url, root))
-    # The last paragraph ends a page with no room below it, so the view stands over it.
-    without_end_room(page)
     thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
     expect(thread).to_be_focused()
 

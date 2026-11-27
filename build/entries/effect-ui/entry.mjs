@@ -7,5 +7,6 @@ export * as Exit from "effect/Exit";
 export * as Layer from "effect/Layer";
 export * as Schema from "effect/Schema";
 export * as Scope from "effect/Scope";
-export { Command, Component, UiSchema } from "@effect/ui";
+export * as Stream from "effect/Stream";
+export { Command, Component, Mount, UiSchema } from "@effect/ui";
 export { BrowserHost, Html } from "@effect/ui/html";

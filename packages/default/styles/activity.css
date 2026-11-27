@@ -10,6 +10,11 @@ lf-activity {
      page takes, its rows' spacing at working density included. */
   --lf-reading-face: 1;
 }
+/* The component's one root wraps the notice, the list and the empty line, and lays
+   out as though they stood in the feed itself. */
+lf-activity .lf-activity-feed {
+  display: contents;
+}
 /* The feed's notice ("Show activity · 1 new") is an inline press on the feed's line
    (controls.css), across the feed and the aim floor tall, so its words changing move
    no edge of it. */
@@ -42,7 +47,7 @@ lf-activity .lf-activity-list {
     overflow: visible;
     --lf-top: inherit;
   }
-  lf-activity[data-lf-bound] > .lf-activity-list {
+  lf-activity[data-lf-bound] .lf-activity-list {
     max-block-size: var(--lf-bound, 28rem);
     overflow: auto;
     --lf-holds-height: 1;

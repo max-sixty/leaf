@@ -14,9 +14,16 @@
      new `state` before the Command runs to its end, so a component that draws from
      `state` maps the delivery to nothing.
    - `NextOnMe` steps to the next obligation waiting on the user within `within`, as
-     `obligationActions.next` does. */
+     `obligationActions.next` does.
+   - `OpenThread` opens the thread whose id is `id` where Leaf opens it, inline or in
+     Threads, as `threadActions.open` does. A thread Threads no longer lists opens
+     nothing.
+   - `ShowHeld` shows what the element's `HeldReading`s hold back, since the reader
+     asked to see it (held-news.js, `showHeldReadings`). */
 import { Command, Effect, Layer, Schema } from "/vendor/effect-ui.js";
-import { obligationActions } from "./host/application.js";
+import { obligationActions, threadActions } from "./host/application.js";
+import { showHeldReadings } from "./records/thread/held-news.js";
+import { readThreads } from "./records/thread/state.js";
 import { sendGesture } from "./lib/widget-events.js";
 
 /** What became of a recorded gesture. */
@@ -35,6 +42,12 @@ export class RecordAction extends Command.Service()("leaf/RecordAction", {
 export class NextOnMe extends Command.Service()("leaf/NextOnMe", {
   args: { within: Schema.Unknown },
 }) {}
+
+export class OpenThread extends Command.Service()("leaf/OpenThread", {
+  args: { id: Schema.String },
+}) {}
+
+export class ShowHeld extends Command.Service()("leaf/ShowHeld", {}) {}
 
 /** Record a gesture on `element` and wait for what became of it.
  * @param {Element} element @param {Record<string, unknown>} detail */
@@ -55,6 +68,13 @@ export const leafServices = (element) =>
     NextOnMe.toLayer((/** @type {any} */ { within }) =>
       Effect.sync(() => obligationActions.next({ within })),
     ),
+    OpenThread.toLayer((/** @type {any} */ { id }) =>
+      Effect.sync(() => {
+        const thread = readThreads().threads.find((thread) => thread.id === id);
+        if (thread) void threadActions.open(thread.key, { part: "thread" });
+      }),
+    ),
+    ShowHeld.toLayer(() => Effect.sync(() => showHeldReadings(element))),
   );
 
 /** @param {Record<string, unknown>} args */

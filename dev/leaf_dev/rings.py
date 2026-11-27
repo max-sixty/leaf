@@ -4,10 +4,8 @@ and `leaf-dev stills` share, so a ring a change newly cuts reads the same in bot
 `rings_drawn` asks the page which boxes paint the ring (`focus_rings.js`,
 `ringCandidates`), asks Chromium's DevTools protocol which rule drew each, and then
 measures each ring against the clips around it and the boxes in front of it
-(`ringsDrawn`), confirming covers against a screenshot. In another engine the protocol
-is out of reach, so no rule is named, a ring on a pseudo-element goes unmeasured, and
-only the rings on focus and the boxes that carry it are read. `ring_faults` puts a
-reading's faults in a failure's words.
+(`ringsDrawn`), confirming covers against a screenshot. It reads Chromium only, as
+the protocol does. `ring_faults` puts a reading's faults in a failure's words.
 """
 
 import io
@@ -221,20 +219,16 @@ def rings_drawn(page):
     candidates = page.evaluate(RING_CANDIDATES)
     if not candidates:
         return []
-    if page.context.browser.browser_type.name == "chromium":
-        rules, rectangles = _read_ring_boxes(
-            page,
-            [(seen["pseudo"], seen["carrier"]) for seen in candidates],
-            geometry=True,
-        )
-    else:
-        page.evaluate("() => { delete globalThis.__lfRingBoxes; }")
-        rules, rectangles = [""] * len(candidates), [None] * len(candidates)
+    rules, rectangles = _read_ring_boxes(
+        page,
+        [(seen["pseudo"], seen["carrier"]) for seen in candidates],
+        geometry=True,
+    )
     answers = page.evaluate(RINGS_DRAWN, rectangles)
-    _read_ring_pixels(page, [seen for seen in answers if seen])
+    _read_ring_pixels(page, answers)
     drawn = []
     for seen, rule in zip(answers, rules, strict=True):
-        if not seen or (seen.pop("mark") and not seen["focused"] and not rule):
+        if seen.pop("mark") and not seen["focused"] and not rule:
             continue
         seen["rule"] = rule
         drawn.append(seen)

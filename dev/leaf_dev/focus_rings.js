@@ -277,11 +277,6 @@
       // drawn in an SVG's foreignObject, shows smaller on screen. offsetWidth is the
       // unscaled width in whole pixels, so a difference of a pixel or less is its rounding.
       const b = pseudo ? rectangles[index] : el.getBoundingClientRect();
-      // Only Chromium's protocol measures a pseudo-element's box (rings.py).
-      if (!b) {
-        answers.push(null);
-        continue;
-      }
       const scale =
         !pseudo && Math.abs(b.width - el.offsetWidth) > 1
           ? b.width / el.offsetWidth

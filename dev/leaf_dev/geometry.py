@@ -7,7 +7,7 @@ Two readings, each a list of findings:
 - edges: a box Leaf draws that nearly meets its frame's edge, crosses it or is cut by
   it, and a round mark closer to the edge than `--lf-clear` (browser/AGENTS.md, "A box
   inside a frame either meets its edge or stands clear of it"; `geometry.js`);
-- rings: a focus ring a clip cuts or a box covers (`rings.py`).
+- rings, in Chromium: a focus ring a clip cuts or a box covers (`rings.py`).
 
 A finding is keyed by its kind, side, box and frame (or the rule that drew the ring),
 never by a length, so the same fault reads alike on both arms and a change that moves
@@ -49,13 +49,15 @@ IDIOMS = sorted(
 
 def read(page, *, running: bool = True) -> list[dict]:
     """The edge and ring findings of the settled tab `page`. A tab that takes no script
-    with arguments, as the iOS simulator's Safari doesn't, has none, and one whose
-    runtime isn't `running`, as a state holding its entry module shows the authored
-    layout (`State.activated`), draws no ring to read."""
+    with arguments, as the iOS simulator's Safari doesn't, has none. Rings are read in
+    Chromium alone, whose protocol names the rule that drew each, and only where the
+    runtime is `running`: a state holding its entry module shows the authored layout
+    (`State.activated`), which draws no ring."""
     if not isinstance(page, Page):
         return []
     findings = page.evaluate(GEOMETRY, {"idioms": IDIOMS})
-    for seen in rings_drawn(page) if running else ():
+    chromium = page.context.browser.browser_type.name == "chromium"
+    for seen in rings_drawn(page) if running and chromium else ():
         faults = seen["cuts"] + seen["covers"]
         if faults:
             findings.append(

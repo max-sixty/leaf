@@ -888,11 +888,13 @@ def test_a_finger_opens_a_card_on_its_thread(browser, serve):
     expect(page.locator(".lf-margin-thread .lf-page-thread")).to_be_focused()
 
 
-def test_a_card_opens_on_its_first_unread_reply(browser, serve):
+@pytest.mark.parametrize("direction", ["ltr", "rtl"])
+def test_a_card_opens_on_its_first_unread_reply(browser, serve, direction):
     """A card opens where the replies the user hasn't read begin, so a long one is read
     from its head down and reads like the short one after it. Opened at its latest
     reply instead, the card showed that reply whole, which read it, beneath the end of a
-    long one whose start stayed above the card and so stayed unread."""
+    long one whose start stayed above the card and so stayed unread. In either writing
+    direction each unread reply's dot stands whole before its name."""
     long_reply, short_reply = (
         LONG_THREAD[1],
         {
@@ -907,6 +909,7 @@ def test_a_card_opens_on_its_first_unread_reply(browser, serve):
         serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT, long_reply, short_reply]),
     )
     resized(page, 1440, 700)
+    page.evaluate("direction => document.documentElement.dir = direction", direction)
     page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
     transcript = page.locator(".lf-margin-preview .lf-thread-transcript")
     first = transcript.locator(".lf-msg").nth(1)
@@ -928,16 +931,26 @@ def test_a_card_opens_on_its_first_unread_reply(browser, serve):
     expect(transcript.locator(".lf-msg-new")).to_have_count(2)
     expect(first.locator(".lf-msg-head")).to_contain_text("New")
     # Its dot hangs in the gutter before the name, centred between the card's edge and
-    # the name, so it touches neither.
+    # the name, so it touches neither, and nothing clips its edge nearer the card's:
+    # a press there lands on it.
     gaps = """msg => {
-      const dot = msg.querySelector('.lf-msg-new').getBoundingClientRect();
+      const new_ = msg.querySelector('.lf-msg-new');
+      const dot = new_.getBoundingClientRect();
       const card = msg.closest('.lf-margin-preview-card');
-      const edge = card.getBoundingClientRect().left + card.clientLeft;
+      const box = card.getBoundingClientRect();
       const name = msg.querySelector('.lf-msg-head > b').getBoundingClientRect();
-      return [dot.left - edge, name.left - dot.right];
+      const rtl = getComputedStyle(msg).direction === 'rtl';
+      const outer = rtl ? dot.right - 1 : dot.left + 1;
+      const whole = document
+        .elementsFromPoint(outer, dot.top + dot.height / 2)
+        .includes(new_);
+      return rtl
+        ? [box.right - card.clientLeft - dot.right, dot.left - name.right, whole]
+        : [dot.left - box.left - card.clientLeft, name.left - dot.right, whole];
     }"""
-    edge_gap, name_gap = first.evaluate(gaps)
+    edge_gap, name_gap, whole = first.evaluate(gaps)
     assert edge_gap > 0 and abs(edge_gap - name_gap) <= 1, (edge_gap, name_gap)
+    assert whole
 
     transcript.hover()
     for _ in range(40):

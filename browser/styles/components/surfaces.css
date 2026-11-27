@@ -687,12 +687,17 @@ summary {
    reactions must not change its metadata-to-body gap. A head too narrow for what it
    holds, as a first message's beside a page thread's controls can be, cuts it at its
    end, a gap past it, so it never runs under them; it cuts nothing above or below,
-   where its controls' rings and a finger's reach stand. It holds what is placed
+   where its controls' rings and a finger's reach stand, or at its start, where a card
+   hangs an unread reply's dot (annotation-chrome.css). It holds what is placed
    against its own box, such as the rule past a first message's controls
-   (controls.css). */
+   (controls.css). A clip's sides are physical, so a right-to-left head names its end
+   on the left. */
 :where(.lf-msg-head) {
   position: relative;
   clip-path: inset(-100vh calc(-1 * var(--lf-sp-2)) -100vh -100vw);
+}
+:where(.lf-msg-head:dir(rtl)) {
+  clip-path: inset(-100vh -100vw -100vh calc(-1 * var(--lf-sp-2)));
 }
 .lf-msg-head,
 .lf-thread-working-head {

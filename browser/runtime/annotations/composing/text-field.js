@@ -160,7 +160,10 @@
  * whether words in view, or its caret, reach that square (`:state(corner-taken)`), and
  * the box shows its action while the corner is free, and over the words only when
  * focus comes to it or the pointer rests on it. Wrapping still turns on nothing but the words; only the
- * action comes and goes. Under a mouse, Return sends when the action is hidden.
+ * action comes and goes. Under a mouse, Return sends when the action is hidden. A box
+ * that stands a key before its action sets `--lf-field-key-corner` to the corner's
+ * width with the key, read on the same row (`:state(key-corner-taken)`), so the key
+ * gives way to the words as the action does.
  *
  * Leaf's key dispatcher owns submission and Escape. Return inserts a newline unless
  * its owner cancels `lf-edit-return` to reserve the press for submission. Android's
@@ -533,7 +536,7 @@ class LeafText extends HTMLElement {
           below:
             this.scrollTop + this.clientHeight <
             this.scrollHeight - Number.parseFloat(style.paddingBottom) - 1,
-          corner: this.#cornerTaken(content.module, view, style),
+          ...this.#cornerTaken(content.module, view, style),
         };
       },
       write: (reading) => {
@@ -543,6 +546,7 @@ class LeafText extends HTMLElement {
           ["more-above", reading.scrolls && reading.above],
           ["more-below", reading.scrolls && reading.below],
           ["corner-taken", reading.corner],
+          ["key-corner-taken", reading.keyCorner],
         ];
         for (const [state, on] of states) {
           // Adding a state already set restyles all the same, on every scrolled frame.
@@ -568,10 +572,17 @@ class LeafText extends HTMLElement {
   // the words as drawn, which nothing reads again when the tween ends: a line removed
   // left Send over the words the carry brought down to it, and a line added left the
   // corner free with Send hidden.
+  //
+  // The key a box stands before its action is read on the same row, across the wider
+  // `--lf-field-key-corner`, which holds the square.
   /** @param {FieldEditor} module @param {import("@codemirror/view").EditorView} view @param {CSSStyleDeclaration} style */
   #cornerTaken(module, view, style) {
     const size = Number.parseFloat(style.getPropertyValue("--lf-field-corner"));
-    if (!(size > 0)) return false;
+    if (!(size > 0)) return { corner: false, keyCorner: false };
+    const wide = Math.max(
+      size,
+      Number.parseFloat(style.getPropertyValue("--lf-field-key-corner")) || 0,
+    );
     const { scaleX, scaleY } = view;
     const carry = style.getPropertyValue("--lf-field-carry").trim();
     const [dx = 0, dy = 0] =
@@ -583,16 +594,25 @@ class LeafText extends HTMLElement {
       bottom: at.bottom + dy * scaleY,
     };
     const rtl = style.direction === "rtl";
-    const left = rtl ? box.left : box.right - size * scaleX;
-    const right = rtl ? box.left + size * scaleX : box.right;
+    // The span `width` wide in from the field's trailing edge.
+    /** @param {number} width */
+    const span = (width) =>
+      rtl
+        ? { left: box.left, right: box.left + width * scaleX }
+        : { left: box.right - width * scaleX, right: box.right };
+    const square = span(size);
+    const withKey = span(wide);
     const top = box.bottom - size * scaleY;
     const middle = box.bottom - (size * scaleY) / 2;
+    const reading = { corner: false, keyCorner: false };
     /** @param {import("../../base/box.js").Box} rect @param {number} leading */
-    const reaches = (rect, leading) =>
-      rect.left < right &&
-      rect.right > left &&
-      rect.top - leading <= middle &&
-      rect.bottom + leading > middle;
+    const reach = (rect, leading) => {
+      if (rect.top - leading > middle || rect.bottom + leading <= middle) return;
+      /** @param {{left: number, right: number}} at */
+      const across = (at) => rect.left < at.right && rect.right > at.left;
+      if (across(square)) reading.corner = true;
+      if (across(withKey)) reading.keyCorner = true;
+    };
     for (const line of view.contentDOM.children) {
       // A line after the change carries farther than the words' carry
       // (`--lf-field-after`), so it is read back by that much.
@@ -611,17 +631,19 @@ class LeafText extends HTMLElement {
       const block = back(line.getBoundingClientRect());
       if (block.bottom <= top || block.top >= box.bottom) continue;
       const height = Number.parseFloat(lineStyle.lineHeight) * scaleY;
-      for (const rect of contentsRects(line))
-        if (reaches(back(rect), Math.max(0, (height - rect.height) / 2) || 0))
-          return true;
+      for (const rect of contentsRects(line)) {
+        reach(back(rect), Math.max(0, (height - rect.height) / 2) || 0);
+        if (reading.corner) return reading;
+      }
     }
-    if (!view.hasFocus) return false;
+    if (!view.hasFocus) return reading;
     const { rectangle: caret } = module.LeafEditorView.caretAt(
       view,
       view.state.selection.main.head,
     );
     const { left: x, top: y, bottom: foot } = caret;
-    return reaches({ left: x, right: x + 1, top: y, bottom: foot }, 0);
+    reach({ left: x, right: x + 1, top: y, bottom: foot }, 0);
+    return reading;
   }
 
   static observedAttributes = [
@@ -955,6 +977,7 @@ class LeafText extends HTMLElement {
       if (this.isConnected) return;
       this.#states.delete("ready");
       this.#states.delete("corner-taken");
+      this.#states.delete("key-corner-taken");
       const content = this.#content;
       if (content.kind !== "view") return;
       this.#content = {

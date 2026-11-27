@@ -3,12 +3,15 @@
  *
  * A row or route opts in through `bindingBadge`: an Element lends a widget-positioned
  * face; null requests a runtime corner chip. A text box whose words cover the
- * placeholder that names the key entering it wears that key as a corner chip too
- * (`coveredEntry`; annotations/composing/surface.js): the key is the dispatcher's, and
- * the box is where its press lands, which its command can't declare as a control
+ * placeholder that names the key entering it lends that key a face in its own corner
+ * too (`coveredEntry`; annotations/composing/surface.js): the key is the dispatcher's,
+ * and the box is where its press lands, which its command can't declare as a control
  * without the key dying wherever the box is gone. The widget owns placement, while this
  * presenter owns words and visibility; a control's accessible shortcuts are
- * dom/keyboard/control-keys.js's, from the same reading. A lent face keeps its out-of-flow seat even
+ * dom/keyboard/control-keys.js's, from the same reading. A widget's CSS may still
+ * withhold a face it lent: one it leaves no box (`display: none`, over the inline
+ * `block` this presenter writes) hands its route to a chip, while one it turns
+ * transparent stays worn, so nothing stands in for it. A lent face keeps its out-of-flow seat even
  * when empty or its command leaves reach. A face labels a key and takes no pointer, as
  * a chip takes none, so a press where one stands lands on what the widget drew it over,
  * whether the face shows, has just arrived or has just gone. Neither Decision metadata
@@ -127,7 +130,7 @@ export const drawnKeys = (control) =>
         .map(({ binding }) => spell(binding))
     : [];
 
-/** @param {{presentedControl: (control: Element) => Element, coveredEntry: () => {control: Element, binding: string} | null}} options */
+/** @param {{presentedControl: (control: Element) => Element, coveredEntry: () => {control: Element, bindingBadge: Element, binding: string} | null}} options */
 export function createCommandHints({ presentedControl, coveredEntry }) {
   let mounted = false;
   let hasRoutes = false;
@@ -211,7 +214,7 @@ export function createCommandHints({ presentedControl, coveredEntry }) {
     const visualRoutes = advertisesKeys() ? hintRoutes(available) : [];
     // A touch screen's dispatcher names no key, so no box wears one.
     const entry = coveredEntry();
-    if (entry) visualRoutes.push({ ...entry, bindingBadge: null });
+    if (entry) visualRoutes.push(entry);
     hasRoutes = visualRoutes.length > 0;
     if (!visualRoutes.length) {
       restoreBindingBadges();
@@ -250,7 +253,8 @@ export function createCommandHints({ presentedControl, coveredEntry }) {
     // (root AGENTS.md, "Responsiveness"). The chips below go the same way.
     //
     // Those rules are for a page at rest. A face whose control the window doesn't show,
-    // and every face while any box on the page scrolls, is worn unmeasured: the browser
+    // and every face while any box on the page scrolls, is worn unmeasured, unless its
+    // widget leaves it no box, whose chip stays (above): the browser
     // carries it with its control and clips and stacks it as it does the control, so a
     // scroll brings the digit in with the choice it labels, a trackpad's momentum
     // included, and the rules apply again once the scroll ends. So a box that scrolls
@@ -295,7 +299,8 @@ export function createCommandHints({ presentedControl, coveredEntry }) {
     });
     const faces = lending.map((route) => {
       const { control, bindingBadge, measured } = route;
-      if (!measured) return { ...route, exposed: true, face: null };
+      if (!measured)
+        return { ...route, exposed: bindingBadge.checkVisibility(), face: null };
       const box = bindingBadge.checkVisibility() && placement.badgeBox(bindingBadge);
       const exposed = Boolean(
         box &&

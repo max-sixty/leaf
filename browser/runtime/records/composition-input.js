@@ -36,7 +36,7 @@
  * @typedef {{(): void, cancelDictation: () => void, value: () => string, closed: () => boolean, hasMedia: () => boolean,
  * arrive: () => void, load: (value: string) => void, button: HTMLButtonElement | null,
  * composition: () => {field: HTMLElement, frame: HTMLElement}, addMedia: (images: readonly Blob[]) => Promise<boolean>,
- * writing: () => boolean, covered: () => HTMLElement | null}} InputSync
+ * writing: () => boolean, covered: () => {frame: HTMLElement, key: HTMLElement} | null}} InputSync
  * @typedef {(field: InputField, options: InputOptions) => InputSync} WireInput
  */
 export {};

@@ -180,6 +180,58 @@ def test_send_leaves_the_corner_to_the_words_and_takes_a_press_after_a_rest(
     assert True not in page.evaluate("() => __lfSendFades")
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_box_s_key_gives_way_to_words_that_reach_it(engine, request, serve):
+    """A reply box holding words says the key that enters it just before Send, on Send's
+    line, while the words' last row leaves that room free, and the key gives way once
+    the row reaches it, as Send gives way to words that reach Send (response.css,
+    `.lf-compose-key`; text-field.js, `:state(key-corner-taken)`). Send keeps its own
+    corner: words that reach the key alone leave Send standing. The firefox case is the
+    user's browser."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT]),
+        init_script=KEEP_ROOTS,
+    )
+    card = page.locator(".lf-margin-preview .lf-page-thread")
+    field = _open_card_reply(page)
+    key = field.locator(":scope > .lf-compose-key")
+    words = field.locator(":scope > leaf-text")
+
+    def stand_on_the_card():
+        page.locator("#title").click()
+        page.keyboard.press("t")
+        expect(card).to_be_focused()
+        expect(key).to_have_text("c")
+        rendered(page)
+        return key.evaluate("key => getComputedStyle(key).opacity")
+
+    page.keyboard.type("Short")
+    assert stand_on_the_card() == "1"
+
+    words.click()
+    page.keyboard.press("ControlOrMeta+End")
+    # The key's room before Send's corner, as the field reads it.
+    room = words.evaluate(
+        """w => { const s = getComputedStyle(w);
+          return parseFloat(s.getPropertyValue('--lf-field-key-corner'))
+            - parseFloat(s.getPropertyValue('--lf-field-corner')); }"""
+    )
+    assert room > 0
+    for character in SENTENCE * 3:
+        page.keyboard.type(character)
+        rendered(page)
+        reading = field.evaluate(CORNER)
+        if reading["rowEnd"] > reading["sendStart"] - room:
+            break
+    else:
+        raise AssertionError("three sentences never ran the words to the key")
+    assert reading["rowEnd"] < reading["sendStart"], reading
+    assert stand_on_the_card() == "0"
+    assert words.evaluate("w => w.matches(':state(key-corner-taken)')")
+    assert field.evaluate(CORNER)["shown"]
+
+
 def _settled(page, field):
     """Wait until the edit has drawn and the box's motion has carried the field's words
     to rest, with Send's fade finished."""

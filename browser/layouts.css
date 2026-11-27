@@ -113,7 +113,15 @@
    * fixed in the window, the list anchored below the title; the grid keeps their
    * column's width. A title too tall to leave the list 8rem, a few names' room,
    * scrolls on its own, so neither stands
-   * out of reach in a short window. So the column stands still whichever part is open
+   * out of reach in a short window. The list reaches the window's foot, as the open
+   * part does, where a narrow window puts the floating panel's row over the column, and
+   * scrolls on its own where it holds more names than that leaves it, a height it holds
+   * on purpose (`--lf-holds-height`), as a sticking block does. The package that draws
+   * the parts sets only how the list looks (the default package's tabs.css, "A page's
+   * parts"), where the parts' `main` carries no Layout (`--lf-layout-box`). In a `main`
+   * that carries one, which `page check` advises against (`parts-in-layout`), the parts
+   * draw as a strip of tabs inside that Layout.
+   * So the column stands still whichever part is open
    * and wherever it is read, the rubber band at the page's end included: every engine
    * holds a fixed box still through overscroll, while Firefox and Chrome move a stuck
    * sticky one with the page (notes/browser-support.md). The runtime reads a box fixed
@@ -122,7 +130,9 @@
    * the list is drawn, so a short part leaves nothing to scroll and a full-height
    * workspace takes the whole window. The holder itself draws nothing. The
    * part is the shell its Layout's box stands in. On a phone the title, the list and the
-   * part stack. Before the module upgrades the holder, the column holds only the title.
+   * part stack: the title scrolls away, and the list sticks over the part as page tabs'
+   * strip does, at the height its package gives it. Before the module upgrades the
+   * holder, the column holds only the title.
    *
    * What the page writes before the parts is whatever `main` holds besides the parts'
    * holder, which the authoring contract keeps to the page's header (page-layout.md,
@@ -169,7 +179,7 @@
         --lf-holds-height: 1;
         margin: 0;
         /* Room for a focus ring at its foot, where it scrolls, taken from the list's
-         * top (the package theme). */
+         * top padding, which the list's package sets. */
         padding: var(--lf-sp-4) 20px var(--lf-focus-ring-room);
         /* It heads the column, and what it holds is set as the column's text
          * (reading.css). The property inherits, so everything in it can ask. */
@@ -189,6 +199,17 @@
       > [role="tablist"] {
       grid-column: 1;
       grid-row: 2;
+      position: fixed;
+      position-anchor: --lf-parts-title;
+      top: anchor(bottom, var(--lf-top));
+      inline-size: var(--lf-parts-list);
+      box-sizing: border-box;
+      align-self: start;
+      block-size: calc(100dvh - var(--lf-head-room) - anchor-size(height, 0px));
+      min-block-size: 0;
+      overflow-x: hidden;
+      overflow-y: auto;
+      --lf-holds-height: 1;
     }
     html[data-lf-interactive]
       body
@@ -253,7 +274,21 @@
         grid-column: 1;
         grid-row: auto;
       }
-      /* The title scrolls away; the list sticks over the part (the package theme). */
+      html[data-lf-interactive]
+        body
+        > main:not(.layout-column, .layout-sidebar, .layout-workspace)
+        > [data-lf-views="parts"]
+        > [role="tablist"] {
+        position-anchor: normal;
+        position: sticky;
+        --lf-head-inset: 0px;
+        top: var(--lf-top);
+        inline-size: auto;
+        z-index: 2;
+        block-size: revert-layer;
+        overflow-x: auto;
+        overflow-y: hidden;
+      }
       @container style(--lf-holds-parts: 1) {
         :where(main > *):not([data-lf-views="parts"]) {
           position: static;

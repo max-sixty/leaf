@@ -206,9 +206,10 @@ LONG_RULES = "\n\n".join(f"Paragraph {n} of the quoted rules." for n in range(1,
 
 @pytest.mark.parametrize("preview", ["markdown", None], ids=["preview", "listing"])
 def test_a_document_its_bound_cuts_shows_whole_on_a_press(browser, serve, preview):
-    """A document longer than its bound stops at the bound and doesn't scroll inside
-    it: a press shows the whole document, in every reading, and puts focus on the
-    text it showed."""
+    """A document longer than its bound stops at the bound, doesn't scroll, and folds
+    the text it cuts off where find-in-page and travel reach it. Focusing its press
+    changes nothing; pressing it shows the whole document, in every reading, and puts
+    focus on the text it showed."""
     attribute = f' preview="{preview}"' if preview else ""
     url = serve(
         leaf_page(
@@ -223,31 +224,38 @@ def test_a_document_its_bound_cuts_shows_whole_on_a_press(browser, serve, previe
     shown = document.locator(
         "lf-tab:not([hidden])" if preview else ".lf-text-document-listing > pre"
     )
-    bound = shown.evaluate("box => [box.clientHeight, box.scrollHeight]")
-    assert bound[0] < bound[1], bound
-    assert shown.evaluate("box => getComputedStyle(box).overflowY") == "hidden"
+    units = document.locator(
+        ".lf-text-document-preview > *" if preview else ".lf-text-document-run > *"
+    )
+    folded = document.locator(
+        ".lf-text-document-preview > [hidden='until-found'],"
+        " .lf-text-document-run > [hidden='until-found']"
+    )
+    bound = page.evaluate(
+        "parseFloat(getComputedStyle(document.documentElement).fontSize) * 28"
+    )
+    cut = shown.evaluate("box => box.getBoundingClientRect().height")
+    assert cut <= bound + 1, (cut, bound)
+    assert shown.evaluate("box => getComputedStyle(box).overflowY") == "clip"
+    expect(units.last).to_have_attribute("hidden", "until-found")
     press = document.get_by_role("button", name="Show all 80 lines")
+    press.focus()
+    expect(press).to_be_focused()
     expect(press).to_be_visible()
-    press.click()
+    assert folded.count() > 0
+    page.keyboard.press("Enter")
     expect(press).to_be_hidden()
     expect(shown).to_be_focused()
+    expect(folded).to_have_count(0)
     assert shown.evaluate("box => getComputedStyle(box).overflowY") == "visible"
+    assert shown.evaluate("box => box.getBoundingClientRect().height") > 2 * bound
     if not preview:
-        # The listing's last line stands inside its box.
-        assert shown.evaluate(
-            "pre => pre.querySelector('code').getBoundingClientRect().bottom"
-            " <= pre.getBoundingClientRect().bottom + 1"
-        )
         return
-    whole = shown.evaluate("box => [box.clientHeight, box.scrollHeight]")
-    assert whole[0] == whole[1] == bound[1], (whole, bound)
     document.get_by_role("tab", name="Source", exact=True).click()
     expect(document.get_by_role("button", name=re.compile("^Show all"))).to_have_count(
         0
     )
-    source = document.locator("lf-tab:not([hidden])")
-    held = source.evaluate("tab => [tab.clientHeight, tab.scrollHeight]")
-    assert held[0] == held[1], held
+    expect(folded).to_have_count(0)
 
 
 def test_a_short_document_takes_its_text_s_height(browser, serve):
@@ -264,10 +272,10 @@ def test_a_short_document_takes_its_text_s_height(browser, serve):
     page = open_page(browser, url)
     listing = page.locator("#config .lf-text-document-listing > pre")
     rows = listing.evaluate(
-        "pre => [pre.clientHeight, pre.scrollHeight, "
+        "pre => [pre.getBoundingClientRect().height, "
         "pre.querySelector('code').getBoundingClientRect().height]"
     )
-    assert rows[0] == rows[1] and rows[0] < 4 * rows[2], rows
+    assert rows[0] == pytest.approx(rows[1], abs=1), rows
     expect(page.get_by_role("button", name=re.compile("^Show all"))).to_have_count(0)
 
 
@@ -939,16 +947,18 @@ def test_a_comment_on_a_closed_tab_s_document_never_reads_as_earlier_data(
 
 
 def test_a_listing_s_scroll_mark_changes_nothing_its_rows_inherit(browser, serve):
-    """The runtime marks a document's listing as a box that scrolls once it has drawn,
-    and the mark restarts the sticky-header slot. The listing states that restart from
-    the first paint, so the mark changes nothing its rows inherit: Firefox styles the
-    rows of runs it doesn't draw too, and a mark that changed inherited values would
-    take a long frame on a long listing. The listing's `code`, which
-    every row inherits from, computes the same style, custom properties included, with
-    the mark and without it, whatever the mark's rule sets."""
+    """The runtime marks a following document's listing as a box that scrolls once it
+    has drawn, and the mark restarts the sticky-header slot. The listing states that
+    restart from the first paint, so the mark changes nothing its rows inherit: Firefox
+    styles the rows of runs it doesn't draw too, and a mark that changed inherited
+    values would take a long frame on a long listing. The listing's `code`, which every
+    row inherits from, computes the same style, custom properties included, with the
+    mark and without it, whatever the mark's rule sets."""
     url = serve(
         leaf_page(
-            "Log", '<lf-text-document id="log" source="log-text"></lf-text-document>'
+            "Log",
+            '<lf-text-document id="log" source="log-text" data-bound="end">'
+            "</lf-text-document>",
         )
     )
     page_data_model.cmd_data_set(serve.page_dir, "log-text", "a line\n" * 400)

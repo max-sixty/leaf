@@ -310,9 +310,10 @@ lf-text-document iframe.lf-text-document-preview {
   }
   /* The preview sets the height both tabs take, its own up to the bound, which the
      module gives the Source tab (lf-text-document.js, `holdSource`). A reading that
-     height cuts ends in a fade and a press showing the whole document (`cuts`), after
-     which each reading takes its own height in the page. Told it has a definite height
-     to fill (below), a document fills that height instead and scrolls inside it. */
+     height cuts clips its text there, folds what it clipped, and ends in a fade and a
+     press showing the whole document (`cuts`), after which each reading takes its own
+     height in the page. Told it has a definite height to fill (below), a document fills
+     that height instead and scrolls inside it. */
   @container not style(--lf-full-height: 1) {
     lf-text-document:not([data-lf-bound="end"]) {
       & .lf-text-document-view > lf-tabs > lf-tab:not([hidden], [data-lf-all]),
@@ -321,7 +322,7 @@ lf-text-document iframe.lf-text-document-preview {
       }
       & .lf-text-document-view > lf-tabs > lf-tab:not([data-lf-all]),
       &:not([preview]) .lf-text-document-listing > pre:not([data-lf-all]) {
-        overflow: hidden;
+        overflow: clip;
       }
       &
         .lf-text-document-view
@@ -344,6 +345,21 @@ lf-text-document iframe.lf-text-document-preview {
   lf-text-document .lf-text-document-listing > pre[data-lf-all] {
     max-block-size: none;
     overflow: visible;
+  }
+  /* What a cut folds (lf-text-document.js, `cutText`) keeps no room below the press:
+     travel and find-in-page still reach it, and open the whole document. */
+  lf-text-document
+    :is(
+      .lf-text-document-preview > *,
+      .lf-text-document-run,
+      .lf-text-document-run > *
+    )[hidden="until-found"] {
+    content-visibility: hidden;
+    block-size: 0 !important;
+    min-block-size: 0 !important;
+    margin-block: 0 !important;
+    padding-block: 0 !important;
+    border-block-width: 0 !important;
   }
   lf-text-document .lf-text-document-cut {
     position: absolute;

@@ -11,11 +11,11 @@
  * the box the page first painted, and switching to the preview then takes the
  * preview's height. Where that height cuts the text, a press shows the whole document
  * in every reading (`cuts`), as a quote's label opens a thread's whole quote: a reflow
- * the reader asks for. A cut box doesn't scroll for the reader, so the press is the
- * one way to the rest, and stays at the box's foot. What scrolls the box itself, as
- * travel to a comment on a cut-off line or find-in-page does, shows the whole document
- * with what it scrolled to where it stood (`cut`). An author sets where the cut falls
- * with `--lf-bound`, in lines with `lh`, or shows the whole document with `none`.
+ * the reader asks for. A cut box doesn't scroll, so the press is the reader's way to
+ * the rest, and what the cut hides is folded `hidden="until-found"`, so travel to a
+ * comment on it and find-in-page show the whole document too (`cut`). An author sets
+ * where the cut falls with `--lf-bound`, in lines with `lh`, or shows the whole
+ * document with `none`.
  * Filling a workspace pane, a document scrolls inside the pane instead
  * (text-document.css). Bound text arrives after first paint, so its box changes
  * height as the text arrives and as later writes change its length.
@@ -54,7 +54,6 @@ import {
   aimedAt,
   navigateToDatum,
   boundFile,
-  scrollersOf,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { failSoft } from "/runtime/lib/failure.js";
@@ -95,8 +94,8 @@ const drawnMarkup = (node) =>
 
 // The key a place of the Markdown preview takes before its name (`lfElementsFor`).
 const PLACE = "preview:";
-// Whether a reading's box cuts its text rather than scrolling it, as it does filling a
-// pane (text-document.css).
+// Whether a reading's box clips its text at its bound rather than scrolling it, as it
+// does filling a pane (text-document.css).
 /** @param {Element} box */
 const cutting = (box) => /^(hidden|clip)$/.test(getComputedStyle(box).overflowY);
 
@@ -973,11 +972,13 @@ class TextDocument extends LeafElement {
   /** @typedef {{panel: HTMLElement, box: HTMLElement, press: HTMLButtonElement}} Cut */
   /** @type {{preview?: Cut, source: Cut} | null} */
   cuts = null;
-  // A cut on `panel`, its press at the foot of `holder`, the box that stays put. Only
-  // what reaches past the press scrolls a cut box, as travel to a comment on a line it
-  // cuts off and find-in-page do, so where a scroll ends there, the document shows
-  // whole and its holder's scroller takes the offset, leaving what the scroll brought
-  // into view where it stood.
+  // What the cuts fold (`cutText`).
+  /** @type {Set<Element>} */
+  tail = new Set();
+  // A cut on `panel`, its press at the foot of `holder`. What the cut folds is
+  // `hidden="until-found"`, so Leaf's travel to a comment on it and the browser's
+  // find-in-page open it as they open any fold, firing `beforematch` first, and the
+  // document shows whole before they place what they reached.
   /** @param {HTMLElement} panel @param {HTMLElement} holder @param {() => HTMLElement | undefined} shown
    * @returns {Cut} */
   cut(panel, holder, shown) {
@@ -991,21 +992,22 @@ class TextDocument extends LeafElement {
       const text = shown();
       if (text) focusDestination(text, "return");
     });
-    panel.addEventListener("scrollend", () => {
-      const past = panel.scrollTop;
-      if (past <= 0 || panel.hasAttribute("data-lf-all") || !cutting(panel)) return;
-      this.showWhole();
-      const outer = [...scrollersOf(holder)].find((box) => box !== panel);
-      outer?.scrollTo({ top: outer.scrollTop + past, behavior: "instant" });
+    panel.addEventListener("beforematch", (event) => {
+      if (event.target instanceof Element && this.tail.has(event.target))
+        this.showWhole(event.target);
     });
     return { panel, box, press };
   }
-  // A press shows the whole document in every reading and goes.
-  showWhole() {
+  // Shows the whole document in every reading, its presses gone. Whoever opens `found`,
+  // the fold travel or find reached, takes its attribute off itself.
+  /** @param {Element | null} [found] */
+  showWhole(found = null) {
     for (const { panel, box } of Object.values(this.cuts ?? {})) {
       panel.toggleAttribute("data-lf-all", true);
       box.toggleAttribute("hidden", true);
     }
+    for (const unit of this.tail) if (unit !== found) unit.removeAttribute("hidden");
+    this.tail.clear();
   }
   // The Source tab takes the preview's height once the preview has shown, so switching
   // to it moves nothing below the document. A closed tab skips its contents' layout
@@ -1030,19 +1032,76 @@ class TextDocument extends LeafElement {
     else return;
     panel.style.setProperty("--lf-preview-block", layoutPx(measured));
   }
-  // The press shows only while the box cuts lines off, as a thread's quote label does,
-  // and not where it scrolls to them instead, as it does filling a pane
-  // (text-document.css).
+  // Each reading shown folds the text its height cuts off, and shows its press only
+  // while it cuts some, as a thread's quote label does. A closed tab keeps its folds
+  // until it shows, since measuring it would lay out what the browser skips.
   measureCut() {
     if (!this.cuts) return;
-    for (const { panel, box } of Object.values(this.cuts))
-      box.toggleAttribute(
-        "hidden",
-        panel.hasAttribute("hidden") ||
-          panel.hasAttribute("data-lf-all") ||
-          panel.scrollHeight <= panel.clientHeight + 1 ||
-          !cutting(panel),
+    for (const { panel, box } of Object.values(this.cuts)) {
+      if (panel.hidden) continue;
+      const text =
+        panel === this.cuts.preview?.panel ? this.view?.preview : this.sourceView?.code;
+      box.toggleAttribute("hidden", !text || !this.cutText(panel, text));
+    }
+  }
+  // The width and text each reading last cut at (`cutText`).
+  /** @type {WeakMap<HTMLElement, {width: number, lines: Lines}>} */
+  cutFor = new WeakMap();
+  // Folds what of `text` stands below the foot of `panel`, whose bound clips it
+  // (text-document.css): `hidden="until-found"` on the first unit that ends past the
+  // foot and on every unit after it (`cut`). A unit is a block of the preview or a row
+  // of the listing; the runs after the one the foot falls in fold whole. The first unit
+  // stays, clipped where it alone outgrows the bound. A folded unit has no box to
+  // measure, so where the reading's width or text has changed since it cut, it unfolds
+  // its units and cuts again in the next frame, from what that frame lays out; the
+  // bound's clip hides them meanwhile. Answers whether the panel cuts any text. A
+  // reading that fills a pane scrolls instead, and cuts nothing.
+  /** @param {HTMLElement} panel @param {Element} text */
+  cutText(panel, text) {
+    const folded = [...this.tail].filter((unit) => text.contains(unit));
+    const unfold = () => {
+      for (const unit of folded) {
+        unit.removeAttribute("hidden");
+        this.tail.delete(unit);
+      }
+    };
+    if (panel.hasAttribute("data-lf-all") || !cutting(panel)) {
+      unfold();
+      return false;
+    }
+    const width = panel.clientWidth;
+    const made = this.cutFor.get(panel);
+    if (folded.length && (made?.width !== width || made?.lines !== this.lines)) {
+      unfold();
+      this.cutFor.delete(panel);
+      nextFrame(() => this.measureCut());
+      return true;
+    }
+    this.cutFor.set(panel, { width, lines: this.lines });
+    const foot =
+      panel.getBoundingClientRect().top + panel.clientTop + panel.clientHeight;
+    if (text.getBoundingClientRect().bottom <= foot + 0.5) return folded.length > 0;
+    /** @param {Element} unit */
+    const fold = (unit) => {
+      if (this.tail.has(unit)) return;
+      unit.setAttribute("hidden", "until-found");
+      this.tail.add(unit);
+    };
+    /** @param {Element} parent @param {boolean} first */
+    const cutWithin = (parent, first) => {
+      const units = [...parent.children];
+      const at = units.findIndex(
+        (unit) => unit.getBoundingClientRect().bottom > foot + 0.5,
       );
+      const unit = units[at];
+      if (!unit) return;
+      const keep = first && at === 0;
+      if (unit.classList.contains("lf-text-document-run")) cutWithin(unit, keep);
+      else if (!keep) fold(unit);
+      for (const after of units.slice(at + 1)) fold(after);
+    };
+    cutWithin(text, true);
+    return true;
   }
   // The runs the browser has drawn since they last forgot a height (`sizeRuns`).
   drawn = new WeakSet();

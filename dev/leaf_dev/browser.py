@@ -326,6 +326,11 @@ HELD = """:root { caret-animation: manual; }
 def screenshot(page) -> bytes:
     """The PNG of `page`'s viewport, a tab brought to a state.
 
+    It takes the whole window; a reader that wants a region of it, as the ring reading
+    does (`rings.py`), reads the region out of this capture. In Chromium, a capture
+    clipped to a region can leave some of the page unpainted in the tab's next capture,
+    such as a margin card's lower half.
+
     A capture holds each animation the browser draws of its own accord in one state,
     so two captures of one state draw it alike whenever each is taken, however loaded
     the host:

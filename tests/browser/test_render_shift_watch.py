@@ -639,6 +639,12 @@ RISES = {
         "answer.hidden = true; log.append(answer); card.style.paddingTop = '120px'",
         False,
     ),
+    "the-transcript-pads": ("log.style.paddingBottom = '120px'", False),
+    "a-short-message-joins-past-it": (
+        "answer.textContent = 'Yes.'; log.append(answer);"
+        " card.style.paddingTop = '120px'",
+        False,
+    ),
 }
 
 
@@ -649,8 +655,9 @@ def test_a_card_standing_on_its_foot_rises_as_it_widens_only_as_far_as_its_trans
     """A card over its subject stands on its foot (`data-lf-rises`), so the long message
     that widens it once (`data-lf-widens`) lifts its head in the same frame, carrying
     its controls up and sideways, whether the message joins its transcript or grows
-    the reply streaming into it. A card whose head rises further than its transcript
-    grew, as with no message or a hidden one, is reported."""
+    the reply streaming into it. A card whose head rises further than what joined its
+    transcript, as with no message, a hidden one, padding or a short one with padding
+    past it, is reported."""
     script, credited = RISES[change]
     page = browser.new_page()
     page.goto(
@@ -660,7 +667,8 @@ def test_a_card_standing_on_its_foot_rises_as_it_widens_only_as_far_as_its_trans
             '<div id="card" data-lf-widens data-lf-rises style="position:fixed;'
             'bottom:40px;right:40px;width:160px">'
             '<button id="close">Close</button>'
-            '<div id="log" data-lf-reflow="append"><p>A short question.</p></div>'
+            '<div id="log" data-lf-reflow="append">'
+            "<p data-lf-append-tail>A short question.</p></div>"
             "</div></div></body>"
         )
     )

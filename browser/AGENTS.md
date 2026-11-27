@@ -57,7 +57,8 @@ rule draws at once is drawn.
   arrives, a box may grow or shrink into free room, but reading content and controls
   stay put. The exception is a thread card narrower than
   the measure, which the user chose to let widen once when a long message arrives,
-  carrying its controls; a card standing by its right edge carries its words instead
+  carrying its controls; a card standing by the edge its words end at carries its words
+  instead
   (`data-lf-widens`; `annotations/annotation-overlay/thread-preview.js`).
   No hard-to-undo action arrives under a pointer
   that hasn't moved. A reveal on hover, focus or a key never moves its ancestors or

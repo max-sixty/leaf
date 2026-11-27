@@ -612,9 +612,12 @@ export const attachedEdge = (side) => (side === "top" ? "foot" : "top");
    that reserves the measure's width (`place-under-or-over`); carried, its left edge
    where the user dropped it; with nothing to stand by, the room's left edge. So a
    change of its room moves its far edge and never carries it across the words it
-   comments on. Held by its right edge, its words move as it widens: a first line typed
-   into the box slides the words before the caret toward its start, and a card's one
-   widening moves its words where elsewhere it moves its far controls.
+   comments on. Held by the edge its words end at, its words move as it widens: its
+   right edge in a left-to-right page, as left of its subject, and its left edge in a
+   right-to-left one, as right of its subject, under quoted words or carried. A first
+   line typed into the box then slides the words before the caret toward its start,
+   and a card's one widening moves its words where elsewhere it moves its far
+   controls.
 
    Rejected: holding the edge its words start at. Left of its subject, or under words
    its place starts left of, a slim surface held that way would stand apart from them,

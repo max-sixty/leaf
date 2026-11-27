@@ -2854,9 +2854,9 @@
   // take the new width. It is the one case where news may carry controls or words
   // sideways, which the user chose for a card that widens once. One that also declares
   // it may rise at its head (`data-lf-rises`), as a card over its subject does, may grow
-  // at its head and its foot as it widens, by no more than a region it holds that grows
-  // at its end (`data-lf-reflow="append"`) grew, since the message that grew it lifts
-  // its head too (`appendGrowth`).
+  // at its head and its foot as it widens, by no more than the content that joined a
+  // region it holds that grows at its end (`data-lf-reflow="append"`), since the
+  // message that joined lifts its head too (`appendGrowth`).
   const permittedWidening = ({ node, previousRect, currentRect }, around) => {
     const element = node?.nodeType === Node.TEXT_NODE ? up(node) : node;
     if (around.length !== 3) return false;
@@ -2873,23 +2873,39 @@
         return false;
       const from = boxAt(owner, first),
         to = boxAt(owner, last);
-      // How far the regions it holds that grow at their end grew, on screen, which
-      // bounds how much taller a rising box may stand.
-      const grown = () =>
-        Math.max(
-          0,
-          ...around[0].nodes.map((source) => {
-            if (
-              paintAt(source, first)?.reflow !== "append" ||
-              paintAt(source, last)?.reflow !== "append" ||
-              !ancestryAt(source, first).includes(owner)
-            )
-              return 0;
-            const was = boxAt(source, first),
-              is = boxAt(source, last);
-            return was && is ? is.bottom - is.top - (was.bottom - was.top) : 0;
-          }),
-        );
+      // How much the regions it holds that grow at their end gained on screen, which
+      // bounds how much taller a rising box may stand: the room the children that
+      // joined take after the last old one, and the growth of a tail that streams
+      // (`data-lf-append-tail`).
+      const grown = () => {
+        let by = 0;
+        for (const source of around[0].nodes) {
+          const was = paintAt(source, first),
+            is = paintAt(source, last);
+          if (
+            was?.reflow !== "append" ||
+            is?.reflow !== "append" ||
+            !ancestryAt(source, first).includes(owner)
+          )
+            continue;
+          const kept = was.appendChildren.filter((child) =>
+            is.appendChildren.includes(child),
+          );
+          const tail = kept.at(-1);
+          const joined = is.appendChildren
+            .filter((child) => !was.appendChildren.includes(child))
+            .map((child) => boxAt(child, last))
+            .filter((box) => box && box.bottom > box.top);
+          const start = tail ? boxAt(tail, last)?.bottom : boxAt(source, last)?.top;
+          if (joined.length && start !== undefined)
+            by += Math.max(...joined.map((box) => box.bottom)) - start;
+          const before = tail && paintAt(tail, first)?.appendTail && boxAt(tail, first),
+            after = before && boxAt(tail, last);
+          if (after)
+            by += Math.max(0, after.bottom - after.top - (before.bottom - before.top));
+        }
+        return by;
+      };
       return (
         Boolean(from && to) &&
         (Math.abs(to.top - from.top) < 1 ||

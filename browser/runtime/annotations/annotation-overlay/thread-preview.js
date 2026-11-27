@@ -86,7 +86,8 @@
    comment-placement.js, `standsTall`), so it widens at most once, away from the edge
    its placement holds, which keeps room for it (comment-placement.js, `holds`). A long
    comment widens the card Send opens; a long answer widens it as it arrives, carrying
-   what stands at its far edge, its controls, or, held by its right edge, its words
+   what stands at its far edge, its controls, or, held by the edge its words end at,
+   its words
    (`data-lf-widens`; browser/AGENTS.md, "Controls stay where the user aims"), or,
    while the user writes a reply, as they send it. A narrower room caps either width,
    and a card the user carried keeps the width it was carried at. The user chose these slim

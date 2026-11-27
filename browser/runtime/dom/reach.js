@@ -2,7 +2,7 @@
 /* Keyboard reachability, containment, the sticky-header slot, and continuation paint for
    scrollable page and shadow content. */
 
-import { isElement, skipped, under, upFrom } from "../lib/shadow-tree.js";
+import { isElement, skipped, treesUnder, under, upFrom } from "../lib/shadow-tree.js";
 import { watchArrivals, watchScrolls } from "./arrivals.js";
 import { tabStops, wearsLentStop } from "./focus.js";
 import { LENT_REACH_STOP, TEXT_BOX } from "./control-selectors.js";
@@ -11,7 +11,7 @@ import { afterScript } from "../base/rendering.js";
 import { nextRender, sizeObserver } from "../lib/frame-pass.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../base/page-paint.js";
 import { SCROLL_SLACK, atScrollEnd } from "./scrolling.js";
-import { shadowRootsIn } from "./shadow.js";
+import { declaredRoot } from "./shadow.js";
 import { LAYOUT } from "../lib/widget-events.js";
 import { eventSource } from "../base/pointer.js";
 import { keeps } from "../lib/keeps.js";
@@ -226,8 +226,7 @@ const wait = (el) => {
   reachSizes.observe(el);
 };
 function sweep(root) {
-  const scopes = [root];
-  for (const scope of scopes) scopes.push(...shadowRootsIn(scope));
+  const scopes = treesUnder(root, declaredRoot);
   for (const scope of scopes) watchAncestorStyles(scope);
   const surfaces = scopes.flatMap((scope) => [
     ...(isElement(scope) && scope.matches(SCROLL_SURFACE) ? [scope] : []),

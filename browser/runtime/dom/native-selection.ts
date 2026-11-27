@@ -53,19 +53,9 @@ export function pageRange(sel: Selection) {
   return range;
 }
 
-// The caret position at a point, inside the declared root of a host in the document's
-// tree where the point stands over one, as `pageRange` reads a selection: asked with no
-// roots, the platform answers at the host's place (`declaredRootAt`), and its root is
-// handed over.
-export function pageCaretAt(x: number, y: number) {
-  const outer = document.caretPositionFromPoint(x, y, { shadowRoots: [] });
-  const root = outer && declaredRootAt(outer.offsetNode, outer.offset, false);
-  return root ? document.caretPositionFromPoint(x, y, { shadowRoots: [root] }) : outer;
-}
-
 // The element a boundary point stands against, which is where the platform leaves a
-// point in a root it was not handed: a start, or a caret at a point, just before the
-// root's host, and an end just after it.
+// selection's end in a root it was not handed: a start just before the root's host, and
+// an end just after it.
 const edgeAt = (node: Node, offset: number, end: boolean) => {
   const edge = isText(node) ? null : node.childNodes[end ? offset - 1 : offset];
   return isElement(edge) ? edge : null;

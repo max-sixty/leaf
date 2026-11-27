@@ -32,12 +32,7 @@ export { generatedElement } from "../base/element-markers.js";
    mark — so the caller names that apparatus, which is the container's to press. The
    answer otherwise fails closed: declining one ambiguous container gesture is safer
    than recording a choice while the user operates nested evidence. */
-import {
-  pageCaretAt,
-  pageRange,
-  selectionBackward,
-  selectionEnds,
-} from "./native-selection.js";
+import { pageRange, selectionBackward, selectionEnds } from "./native-selection.js";
 import { overCharacter } from "./geometry.js";
 
 import { CONTROLS, PRESSES, WORKS } from "./control-selectors.js";
@@ -52,6 +47,7 @@ import {
   closestAcross,
   isElement,
   isNativeLayer,
+  isShadowRoot,
   renderedUnder,
   renderedParent,
   untilFound,
@@ -352,9 +348,14 @@ addEventListener(
   { capture: true, passive: true },
 );
 
-// Whether a point lies over a character `range` holds.
+// Whether a point lies over a character `range` holds. Only the range's own tree can hold
+// one, so that tree alone is handed to the platform, and a point over any other tree
+// comes back outside it.
 function onSelectedWords(range: Range, x: number, y: number) {
-  const caret = pageCaretAt(x, y);
+  const tree = range.startContainer.getRootNode();
+  const caret = document.caretPositionFromPoint(x, y, {
+    shadowRoots: isShadowRoot(tree) ? [tree] : [],
+  });
   const node = caret?.offsetNode;
   if (!caret || !(node instanceof Text)) return false;
   return [caret.offset, caret.offset - 1].some(

@@ -150,6 +150,33 @@ export function eachRenderedElement(
     each(child);
 }
 
+// `root` and every tree under it that `rootOf` names for a host, however deep they nest:
+// each tree, then the trees under it, `root`'s own first and then its hosts' in document
+// order. The walk finds hosts among each tree's elements, so it costs what `root` holds,
+// and keeps the trees still to read in a list rather than calling itself, so no depth of
+// nesting runs out the stack. Which trees it enters is the caller's, as for the walks
+// above: every open root by default, the declared ones for the page reading, and a closed
+// tree only where the caller holds it.
+export function treesUnder<R extends Document | DocumentFragment | Element>(
+  root: R,
+  rootOf: RootOf = openRoot,
+): (R | ShadowRoot)[] {
+  const trees: (R | ShadowRoot)[] = [];
+  const pending: (R | ShadowRoot)[] = [root];
+  for (let tree = pending.pop(); tree; tree = pending.pop()) {
+    trees.push(tree);
+    const inner: ShadowRoot[] = [];
+    const own = isElement(tree) ? rootOf(tree) : null;
+    if (own) inner.push(own);
+    for (const host of tree.querySelectorAll("*")) {
+      const held = rootOf(host);
+      if (held) inner.push(held);
+    }
+    for (const held of inner.reverse()) pending.push(held);
+  }
+  return trees;
+}
+
 // The same two climbs through every node rather than every element: a root, a shadow root
 // or the document, is a step of its own, so a reading can stop at a root as well as at an
 // element. The parent node, then a shadow root's host:

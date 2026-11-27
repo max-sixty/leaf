@@ -1,8 +1,9 @@
 // Compiled from shadow.ts by build/typescript.mjs; edit that file.
 /* This module owns declared shadow roots, the shadow.css rules they render under, and
  * the shared highlight rules. */
-import { isStage } from "./arrivals.js";
-import { declaredElements, registry } from "../state/registry.js";
+import { isStage, liveStages } from "./arrivals.js";
+import { isElement } from "../lib/shadow-tree.js";
+import { registry } from "../state/registry.js";
 
 // The open shadow roots under some root that hold the page's own words, from what the
 // registry declares rather than from a sweep of every element: a `shadow` widget is
@@ -16,17 +17,21 @@ import { declaredElements, registry } from "../state/registry.js";
 // to ask about. A root is found under `root` as a selector would find its host: `root`
 // itself or an element in `root`'s own tree, not one inside another root.
 //
-// A declared root is the stage a `shadow` widget built through `shadowStage`, so its
-// host is an element of `root`'s tree whose tag declares `shadow`, which the browser
-// finds (`declaredElements`). The answer costs what `root` holds rather than the stages
-// the page holds, since the page reading's watch asks it of each node a change names.
-// Two readers of the whole page ask otherwise. The selection's capture, which runs on
-// every key and wheel step, hands the platform only the roots its ends stand in
-// (`pageRange`, native-selection.js). A lookup of an id the document doesn't hold, which
-// the runtime makes hundreds of times for one comment, asks each stage for the id and
-// keeps what one of these roots holds (`declaredIn`, `elementById` in
-// readings/passages.js). A root attached any other way carries none of a stage's marks
-// or watches, and its host reads as one with no declared root: by its own children.
+// A declared root is the stage a `shadow` widget built through `shadowStage`, and its
+// host an element of `root`'s tree that `declaredRoot` answers for. Each question asks
+// whichever source costs less. Asked of the document, whose tree holds every stage not
+// nested in another, the stages' registry answers (`liveStages`, arrivals.js), at the
+// cost of the stages, since the anchor reading asks so on every wheel step and Tab
+// (`pageQueryAll`, readings/passages.js), and a page of plain prose then pays nothing.
+// Asked of anything else, as the page reading's watch asks of each node a change names,
+// `root`'s own elements answer, at the cost of what `root` holds. Two readers of the
+// whole page ask more narrowly still. The selection's capture hands the platform only the
+// roots its ends stand in (`pageRange`, native-selection.js). A lookup of an id the
+// document doesn't hold, which the runtime makes hundreds of times for one comment, asks
+// each stage for the id and keeps what one of these roots holds (`declaredIn`,
+// `elementById` in readings/passages.js). A root attached any other way carries none of
+// a stage's marks or watches, and its host reads as one with no declared root: by its
+// own children.
 //
 // A root refused for holding bare text (readings/passages.js, `refusesBareText`) leaves the list for
 // good, and its host reads the same way.
@@ -40,10 +45,12 @@ export const declaredRoot = (host) =>
   !refusedRoots.has(host.shadowRoot)
     ? host.shadowRoot
     : null;
-export const shadowRootsIn = (root) =>
-  declaredElements(root, (entry) => entry.shadow).flatMap(
-    (host) => declaredRoot(host) ?? [],
-  );
+const shadowRootsIn = (root) =>
+  root.nodeType === root.DOCUMENT_NODE
+    ? liveStages().filter((stage) => declaredIn(root, stage))
+    : [...(isElement(root) ? [root] : []), ...root.querySelectorAll("*")].flatMap(
+        (host) => declaredRoot(host) ?? [],
+      );
 // Whether `stage` is one of the roots `shadowRootsIn(root)` lists.
 export const declaredIn = (root, stage) =>
   root.contains(stage.host) && declaredRoot(stage.host) === stage;

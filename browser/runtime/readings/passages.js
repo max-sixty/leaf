@@ -128,7 +128,6 @@ import {
   declaredRoot,
   refuseShadowRoot,
   queryAllUnder,
-  shadowRootsIn,
 } from "../dom/shadow.js";
 import {
   alongClimb,
@@ -141,6 +140,7 @@ import {
   isHTML,
   renderedParent,
   skipper,
+  treesUnder,
 } from "../lib/shadow-tree.js";
 import { decisionFor, registry } from "../state/registry.js";
 import {
@@ -369,7 +369,7 @@ export const elementOver = (n) => {
 // says the page has a problem, and the page never presents (leaf.js). A page already
 // upgraded keeps running without those words, and without the root: a mark or a
 // projection painted into it is never cleared, and an id inside it stops resolving,
-// since every sweep of declared roots (`shadowRootsIn`) has dropped it.
+// since every sweep of declared roots (`declaredRoot`) has dropped it.
 function refusesBareText(root) {
   const bare = [...root.childNodes].filter(isText).find((node) => node.data.trim());
   if (!bare) return false;
@@ -1841,8 +1841,8 @@ function forgetPartsBeneath(nodes) {
   const under = (node) => {
     if (isElement(node)) forgetPart(node);
     else if (!isShadowRoot(node)) return;
-    for (const part of node.querySelectorAll(DATUM)) forgetPart(part);
-    shadowRootsIn(node).forEach(under);
+    for (const tree of treesUnder(node, declaredRoot))
+      for (const part of tree.querySelectorAll(DATUM)) forgetPart(part);
   };
   const tops = new Set();
   for (let at of nodes) {

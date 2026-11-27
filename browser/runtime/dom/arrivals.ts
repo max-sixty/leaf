@@ -76,7 +76,12 @@
    This module is the stages' one registry (`liveStages`), held weakly: a stage outlives
    its widget only as garbage. A stage built while its host was detached arrives with the
    host. */
-import { isElement, renderedParent, shadowHost } from "../lib/shadow-tree.js";
+import {
+  isElement,
+  renderedParent,
+  shadowHost,
+  treesUnder,
+} from "../lib/shadow-tree.js";
 import { cancelRender, nextFrame, nextRender } from "../lib/frame-pass.js";
 import { scrollMoves } from "../lib/scroll-range.js";
 import {
@@ -243,24 +248,20 @@ const ownerKind: Kind = {
   },
 };
 
-// Every match in what a record names, the stages inside it included.
+// Every match in what a record names, the stages inside it included, found from the
+// node down (`treesUnder`), so a record costs what it names rather than the stages the
+// page holds. The walk passes through every tree this module can see, including open
+// roots that are no stage, since a stage can stand inside one; only the node's own tree
+// and the stages hold matches. A stage behind a closed root that is no stage is out of
+// the walk's sight, so it is heard only by records of its own.
 function* matching(node: Node | null, kind: Kind): Generator<Element> {
   if (!isElement(node)) return;
   if (kind.is(node)) yield node;
-  for (const tree of treesFrom(node)) yield* kind.within(tree);
+  for (const tree of treesUnder(node, seenRoot))
+    if (tree === node || isStage(tree)) yield* kind.within(tree);
 }
-// `root`'s tree, then the stage of each host there, `root` included, and the stages
-// inside each in turn, found from `root` down by its hosts, so a record costs what it
-// names rather than the stages the page holds.
-function* treesFrom(root: Element | ShadowRoot): Generator<Element | ShadowRoot> {
-  yield root;
-  const own = isElement(root) ? hostStages.get(root) : undefined;
-  if (own) yield* treesFrom(own);
-  for (const host of root.querySelectorAll("*")) {
-    const stage = hostStages.get(host);
-    if (stage) yield* treesFrom(stage);
-  }
-}
+// The tree a host holds that this module can see: its open root, or its closed stage.
+const seenRoot = (host: Element) => host.shadowRoot ?? hostStages.get(host) ?? null;
 
 /** @param watcher Each arrival goes to `arriveBatch` where there is one, else to `arrive`. */
 export const watchArrivals = (

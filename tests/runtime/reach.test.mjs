@@ -6,14 +6,13 @@ import { test } from "node:test";
 import { watchArrivalsIn } from "/runtime/dom/arrivals.js";
 import { watchCodeBlocks } from "/runtime/records/code-copy.js";
 import { reachScrollers } from "/runtime/dom/reach.js";
-import { adoptRegistry, registry } from "/runtime/state/registry.js";
+import { registry } from "/runtime/state/registry.js";
 
 test("a sweep reaches a scroll surface in a nested declared shadow stage", () => {
-  const tag = "lf-reach-nested-stage";
-  adoptRegistry({
-    $layer: { generation: "reach-nested-stage" },
-    [tag]: { shadow: true },
-  });
+  const tag = "x-reach-nested-stage";
+  registry[tag] = {
+    shadow: true,
+  };
   const outer = document.createElement(tag);
   const outerRoot = outer.attachShadow({ mode: "open" });
   const inner = document.createElement(tag);

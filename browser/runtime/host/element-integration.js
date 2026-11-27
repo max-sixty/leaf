@@ -6,7 +6,7 @@
    on it:
 
    - `state`, where the element is a widget whose tag declares `verbs`: its reading
-     (`widgetState`, widget-controller.js), once its class is defined and again each
+     (`widgetState`, widget-state.js), once its class is defined and again each
      time the reading moves, whoever moved it. Leaf also sets it again, though the
      reading stands, where something the element draws beside its `state` has moved
      (`stateAgain`): setting `state` is how Leaf tells any element to draw;
@@ -103,8 +103,8 @@ import {
   isDrawing,
   takeDrawing,
   widgetMounted,
-  widgetState,
 } from "./widget-controller.js";
+import { widgetState } from "./widget-state.js";
 import { ElementData } from "./element-data.js";
 import { heldMoved } from "./data.js";
 import { registry, tagsDeclaring } from "../state/registry.js";

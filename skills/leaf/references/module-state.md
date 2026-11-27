@@ -144,6 +144,30 @@ lists, which otherwise show none. `value` is the obligation's `answer.value`, an
 `element` gives the authored markup, such as option labels; read only that, not what
 the module draws.
 
+Such a widget says whether its question is answered with
+`static answered(state, element)`, returning `true` or `false`. Leaf calls it after
+each of the widget's actions and each undo of one, with the `state` it then sets on the
+element and the authored markup, wherever the widget stands, and sends the answer with
+the gesture: the obligation leaves On Me, or returns to it, as the user acts, and the
+log keeps the widget's word. `lf-options` answers once a pick is made, or Done is
+pressed where it takes several:
+
+```js
+static answered(state, group) {
+  return group.hasAttribute("multiple")
+    ? Boolean(state.answer?.action)
+    : Boolean(state.choose?.action) && state.choose.value.length > 0;
+}
+```
+
+A class without it is answered while the user's acts in force hold a state at the
+verb `awaits.value` names: an action there that records a non-empty value, or, for a
+verb with no record, any action there. Either way, `answered` reads only the user's
+acts, never a value the markup holds, as lf-options' reads `action` beside its
+`value`. Only the user's gestures carry the word, so a version that writes an answer into the markup
+answers nothing: one that settles a question retires it (`awaits.retired`), and one
+that asks a decided question again marks it `restated` (`authoring-revisions.md`).
+
 ## Bound data and projections
 
 A widget reads a bound data source through the property its input (`inputs`) names

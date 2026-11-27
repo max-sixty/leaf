@@ -538,10 +538,6 @@ def _created(v: dict, says: str) -> str:
     return f"verb `{v['verb']}` (`verbs`) creates <{v['child']}>, {says}"
 
 
-def _answering(v: dict, says: str) -> str:
-    return f"`awaits` answering verb `{v['verb']}` {says}"
-
-
 def _box(box: dict) -> str:
     return f"{round(box['left'])},{round(box['top'])} {_size(box)}"
 
@@ -1668,17 +1664,6 @@ _TEXT = {
         )
     ),
     # Its interactions: its obligation, and the state its verbs write.
-    "answering-detail": _declared(
-        lambda v: _answering(
-            v, f"detail condition names an undeclared or invalid field `{v['field']}`"
-        )
-    ),
-    "awaits-verbs": _declared(
-        lambda v: (
-            f"`awaits` answers with verbs {json_value(v['verbs'])}, which are"
-            " not `verbs` the user writes"
-        )
-    ),
     "awaits-value": _declared(
         lambda v: "`awaits` value must name a user-written verb (`verbs`)"
     ),
@@ -1839,48 +1824,6 @@ _TEXT = {
         lambda v: (
             f"`retired-when` `{v['outcome']}` is invalid: <{v['owner']}>"
             " declares no deciding verb (`verbs`) with that outcome"
-        )
-    ),
-    "answering-part": _declared(
-        lambda v: _answering(
-            v,
-            "folds on a part rather than the widget, so `awaits.answered` gives"
-            " it a condition with `empty` or `every`",
-        )
-    ),
-    "answering-every": _declared(
-        lambda v: _answering(
-            v,
-            f"requires every <{v['member']}>, but `every` needs a verb kept per"
-            " member with no position record and no `empty` beside it, and a"
-            " member that lists this widget in `owners` and requires `id`",
-        )
-    ),
-    "answering-position": _declared(
-        lambda v: _answering(v, "tests an empty container but records no position")
-    ),
-    "answering-members": _declared(
-        lambda v: _answering(
-            v,
-            f"tests whether its container <{v['within']}> is empty, but that"
-            " container's content is not members",
-        )
-    ),
-    "answering-undeclared": _declared(
-        lambda v: _answering(
-            v, f"tests undeclared <{v['within']}> attribute `{v['attr']}`"
-        )
-    ),
-    "answering-mutable": _declared(
-        lambda v: _answering(
-            v, f"tests mutable <{v['within']}> attribute `{v['attr']}`"
-        )
-    ),
-    "answering-schema": _declared(
-        lambda v: _answering(
-            v,
-            f"tests <{v['within']}> `{v['attr']}` at {json_value(v['value'])}, which"
-            f" its schema does not admit: {v['reason']}",
         )
     ),
     # Capturing the page and the files it loads as an immutable revision: `file` is
@@ -2066,6 +2009,20 @@ _TEXT = {
         _LIVE,
         lambda at, v: (
             f"<{v['tag']}> {v['widget']!r} stands inside an exhibit (`exhibit`)"
+        ),
+    ),
+    "answered-missing": _refuses(
+        _DECIDES,
+        lambda at, v: (
+            f"<{v['tag']}> declares `awaits`, so each act and undo of it says whether"
+            " its question is answered; send `answered`"
+        ),
+    ),
+    "answered-unasked": _refuses(
+        _ADMITS,
+        lambda at, v: (
+            f"<{v['tag']}> declares no `awaits`, so its gestures say nothing of an"
+            " answer; send no `answered`"
         ),
     ),
     "created-exists": _refuses(

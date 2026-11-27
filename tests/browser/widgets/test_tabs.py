@@ -963,6 +963,7 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
             "widget": "o-a",
             "action": "choose",
             "detail": {"value": ["o-a-fix"]},
+            "answered": True,
         },
     )
     assert posted.ok, posted.text()

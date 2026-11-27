@@ -79,6 +79,7 @@ def test_a_playground_records_an_edit_made_while_loading_or_as_the_page_leaves(
             "widget": "card-playground",
             "action": "tune",
             "detail": {"values": values},
+            "answered": False,
         },
     )
     assert response.ok
@@ -211,6 +212,8 @@ def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
                 "widget": "query-config",
                 "action": verb,
                 "detail": detail,
+                # The choice in force answers it, the tune and the choice after it alike.
+                "answered": True,
             },
         )
         assert response.ok

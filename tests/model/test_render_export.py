@@ -194,7 +194,14 @@ def test_an_export_holds_the_page_and_nothing_of_the_conversation(claimed, tmp_p
         "<text>ATTACHMENTWORD</text></svg>"
     )
     attached = media_model.cmd_media(claimed, [attachment])[0]["path"]
-    choice = {"kind": "action", "author": "user", "revision": 1, "action": "choose"}
+    # Each single choice says its pick answers it.
+    choice = {
+        "kind": "action",
+        "author": "user",
+        "revision": 1,
+        "action": "choose",
+        "answered": True,
+    }
     chosen = append_command(
         claimed, {**choice, "widget": "picks", "detail": {"value": ["second"]}}
     )
@@ -202,7 +209,13 @@ def test_an_export_holds_the_page_and_nothing_of_the_conversation(claimed, tmp_p
         claimed, {**choice, "widget": "taken-back", "detail": {"value": ["drop"]}}
     )
     append_command(
-        claimed, {"kind": "undo", "author": "user", "undoes": taken_back["id"]}
+        claimed,
+        {
+            "kind": "undo",
+            "author": "user",
+            "undoes": taken_back["id"],
+            "answered": False,
+        },
     )
     comment = append_command(
         claimed,

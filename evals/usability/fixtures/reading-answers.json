@@ -40,7 +40,8 @@
       "action": "choose",
       "detail": {
         "value": ["mode-shard"]
-      }
+      },
+      "answered": true
     },
     {
       "kind": "action",
@@ -49,11 +50,13 @@
       "action": "choose",
       "detail": {
         "value": ["mode-dual"]
-      }
+      },
+      "answered": true
     },
     {
       "kind": "undo",
-      "undoes": "previous"
+      "undoes": "previous",
+      "answered": true
     }
   ]
 }

@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import TYPE_CHECKING, TypedDict
 
 from leaf.base.leases import lock_is_held
+from leaf.base.machine import settings, settings_path
 from leaf.base.refusals import Refused
 from leaf.base.schema import PREVIEW_FILE, SERVER_LOCK, SERVICE_FILE
 from leaf.base.service import PREVIEW
@@ -86,9 +87,6 @@ ACCESS: Record[AccessRecord] = Record(
     ),
     since=13,
 )
-# The hostname the user reaches every page on this machine by, stated once in the
-# environment `leaf` runs in (`page_access`).
-HOST_VARIABLE = "LEAF_HOST"
 
 
 def read_service(page_dir: Path) -> ServiceRecord | None:
@@ -197,21 +195,21 @@ def page_access(page_dir: Path, host: str | None = None) -> ServiceRecord | Page
     further — leaf never creates a route that didn't exist.
 
     A user who reaches every page by one name, such as a phone on their tailnet,
-    states it once in `LEAF_HOST` (`HOST_VARIABLE`), which a page with no record
-    takes as if `--host` had named it. Like `--host`, it outranks SSH_CONNECTION:
-    the user named the route their browser takes, which the session's route may
-    not be.
+    states it once as the `host` setting (`machine.settings`), which a page with no
+    record takes as if `--host` had named it. Like `--host`, it outranks
+    SSH_CONNECTION: the user named the route their browser takes, which the
+    session's route may not be.
 
     Recorded once and kept. `start_server` restarts a dead server by re-running
     `server run` bare, and a fresh address there would leave the user's open page
     polling a URL that no longer answers — which is why a stated host is recorded
-    here rather than passed per run. For the same reason a record outranks
-    `LEAF_HOST`: a page first served elsewhere, or before the user set it, keeps
+    here rather than passed per run. For the same reason a record outranks the
+    `host` setting: a page first served elsewhere, or before the user set it, keeps
     its address until a `--host` restates it."""
     access: ServiceRecord | PageAddress | None = read_service(page_dir)
     if access and not host:
         return access
-    if stated := host or os.environ.get(HOST_VARIABLE):
+    if stated := host or settings().get("host"):
         # The record's one door checks what it keeps: a scheme, a port, or a
         # path pasted into --host would mint a URL no browser resolves, handed
         # to the one user who can't report it.
@@ -219,7 +217,9 @@ def page_access(page_dir: Path, host: str | None = None) -> ServiceRecord | Page
             ipaddress.ip_address(stated)
         except ValueError:
             if not re.fullmatch(r"[A-Za-z0-9]([A-Za-z0-9.-]*[A-Za-z0-9])?", stated):
-                source = f"--host {host}" if host else f"{HOST_VARIABLE}={stated}"
+                source = (
+                    f"--host {host}" if host else f"{settings_path()}: host {stated}"
+                )
                 raise Refused(
                     f"{source}: not a hostname or IP address "
                     "(no scheme, no port — leaf picks the port)"

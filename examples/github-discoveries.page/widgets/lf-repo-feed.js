@@ -459,6 +459,8 @@ class RepoFeed extends LeafElement {
           : days < 7
             ? `${days}d ago`
             : date.format(new Date(item.at));
+    // The avatar links where the repository's name beside it does, so assistive
+    // technology and the keyboard reach that link in its place.
     return html`<article
       class="feed-card"
       data-change=${item.id}
@@ -470,7 +472,8 @@ class RepoFeed extends LeafElement {
         href=${`https://github.com/${item.repo}`}
         target="_blank"
         rel="noreferrer"
-        aria-label=${item.repo}
+        aria-hidden="true"
+        tabindex="-1"
         >${mark}</a
       >
       <div class="feed-story">

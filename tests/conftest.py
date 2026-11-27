@@ -30,7 +30,6 @@ from leaf.agents import codex_adapter as codex_adapter_model
 from leaf.base import harness as harness_model
 from leaf.base import leases as leases_model
 from leaf.base import machine as machine_model
-from leaf.base import server as server_model
 from leaf.base import state as cleanup_model
 from leaf.commands import cli as cli_model
 from leaf.commands import hooks as hooks_model
@@ -644,10 +643,10 @@ def isolated_session(tmp_path_factory, monkeypatch):
     Keep the developer's session and machine state out of every fixture. A page
     tagged with the session running the tests is otherwise reported as unattended
     by the loop guard. Isolate XDG_STATE_HOME, where Leaf stores claims and installed
-    packages, and CODEX_HOME, where Codex reads its configuration and sessions,
-    while retaining HOME so subprocesses share the host's uv cache. Clear the
-    developer's App Server endpoint and host launcher override so a fake task cannot
-    use them, and their `LEAF_HOST`, so a page a test serves takes a derived address.
+    packages, XDG_CONFIG_HOME, where it reads the developer's settings, and
+    CODEX_HOME, where Codex reads its configuration and sessions, while retaining
+    HOME so subprocesses share the host's uv cache. Clear the developer's App Server
+    endpoint and host launcher override so a fake task cannot use them.
 
     The session the tests run as is this worker: a synthetic id, so nothing of
     the developer's answers for it, and the worker's own pid. Every page a test
@@ -676,7 +675,6 @@ def isolated_session(tmp_path_factory, monkeypatch):
     monkeypatch.setenv("CODEX_HOME", str(home / "codex"))
     monkeypatch.delenv(codex_model.APP_SERVER_ENV, raising=False)
     monkeypatch.delenv("LEAF_HOST_LAUNCHER", raising=False)
-    monkeypatch.delenv(server_model.HOST_VARIABLE, raising=False)
     monkeypatch.delenv("CODEX_INTERNAL_ORIGINATOR_OVERRIDE", raising=False)
     for name in (*harness_model.IDENTITY_VARIABLES, *machine_model.SANDBOX_REMEDIES):
         monkeypatch.delenv(name, raising=False)

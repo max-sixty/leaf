@@ -77,6 +77,7 @@ from leaf.agents import thread_titles as thread_titles_model
 from leaf.base import detached as detached_model
 from leaf.base import files as files_model
 from leaf.base import leases as leases_model
+from leaf.base import machine as machine_model
 from leaf.base import rows as rows_model
 from leaf.base import schema as schema_model
 from leaf.base import server as server_model
@@ -4188,16 +4189,22 @@ def test_a_local_session_is_served_on_loopback(page_dir, monkeypatch):
 
 
 def test_a_default_host_serves_a_new_page_as_a_stated_one(page_dir, monkeypatch):
-    """`LEAF_HOST` names the host a user reaches every page by, so a page with no
-    record takes it as `--host` would give it, over what SSH_CONNECTION derives.
-    A record keeps its own address, since an open tab polls it, and a default
-    that is no hostname refuses under its own name."""
+    """The `host` setting names the host a user reaches every page by, so a page
+    with no record takes it as `--host` would give it, over what SSH_CONNECTION
+    derives. A record keeps its own address, since an open tab polls it. A
+    setting that is no hostname, or a key Leaf doesn't read, refuses naming the
+    file, rather than leaving pages on the address it was meant to replace."""
     monkeypatch.setenv("SSH_CONNECTION", "10.1.1.9 51234 10.20.30.40 22")
-    monkeypatch.setenv(server_model.HOST_VARIABLE, "box:8443")
-    with pytest.raises(Refused, match="LEAF_HOST=box:8443"):
+    config = machine_model.settings_path()
+    config.parent.mkdir(parents=True)
+    config.write_text('hots = "box.tailnet.example"\n')
+    with pytest.raises(Refused, match=r"config\.toml: Leaf reads no 'hots'"):
+        server_model.page_access(page_dir)
+    config.write_text('host = "box:8443"\n')
+    with pytest.raises(Refused, match=r"config\.toml: host box:8443: not a hostname"):
         server_model.page_access(page_dir)
 
-    monkeypatch.setenv(server_model.HOST_VARIABLE, "box.tailnet.example")
+    config.write_text('host = "box.tailnet.example"\n')
     access = server_model.page_access(page_dir)
     assert (access["host"], access["bind"]) == ("box.tailnet.example", "::")
 

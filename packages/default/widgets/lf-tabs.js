@@ -62,7 +62,12 @@
  * once; keyboard and vertical navigation stay immediate. A reversed choice continues
  * from the line's painted place, and scrolling or resizing the strip ends the cue at
  * its selected tab.
- * Every tab's accessible name is its label; what else the tab shows describes it. A
+ * A tab's accessible name is the words it shows, in the order it shows them, so a
+ * user who speaks what they see reaches it (WCAG 2.5.3, Label in Name): its label, a
+ * side list's summary and answer line, and its change count. A tab that shows its
+ * panel's face (`face`) is named by its `label`, since the face is markup the agent
+ * writes for the eye and Leaf derives no name from it (the maintainer's choice). What
+ * a tab shows only as a mark, and its group, describe it. A
  * side list stands each run of neighbouring panels that share a `group` under a label
  * of that group, which each of their tabs' descriptions names. A side list's row adds
  * the panel's `summary` under the name, then its obligations' state on a reserved line. Counted
@@ -368,8 +373,8 @@ export class TabSet extends LeafElement {
     keeps(this.#strip, "data-lf-scroll", holds ? "list" : "");
   }
 
-  // What each panel holds, said with its summary as the tab's description: the
-  // version diff's marked passages, and in a list down beside the panels its obligations'
+  // What each panel holds, said in the tab's description with its summary where the
+  // tab doesn't show that: the version diff's marked passages, and in a list down beside the panels its obligations'
   // state, with the answer once they are all answered.
   render() {
     if (!this.#panels.length) return nothing;
@@ -433,9 +438,10 @@ export class TabSet extends LeafElement {
         ? turn
         : "";
     const group = this.#side && panel.getAttribute("group");
+    const summarized = this.#down && !face(panel) && panel.hasAttribute("summary");
     const description = [
       group && `${group} group`,
-      panel.getAttribute("summary"),
+      summarized ? "" : panel.getAttribute("summary"),
       changed === 1 ? "1 change" : changed ? `${changed} changes` : "",
       !total
         ? ""
@@ -458,7 +464,7 @@ export class TabSet extends LeafElement {
         if (button instanceof HTMLElement) this.#buttons.set(panel, button);
       })}
       aria-controls=${panel.id}
-      aria-label=${panel.getAttribute("label")}
+      aria-label=${face(panel) ? panel.getAttribute("label") : nothing}
       aria-selected=${panel === this.#active}
       aria-description=${description || nothing}
       tabindex=${panel === this.#active ? 0 : -1}
@@ -467,7 +473,7 @@ export class TabSet extends LeafElement {
       ><span class="lf-tab-name" data-lf-gen="1" data-lf-said
         >${face(panel) ?? panel.getAttribute("label")}${this.#down ? nothing : mark}</span
       >${
-        this.#down && !face(panel) && panel.hasAttribute("summary")
+        summarized
           ? html`<span class="lf-tab-summary" data-lf-gen="1" data-lf-said
               >${panel.getAttribute("summary")}</span
             >`
@@ -476,12 +482,11 @@ export class TabSet extends LeafElement {
         hasAnswer
           ? html`<span
               class="lf-tab-answer"
-              aria-hidden="true"
               data-lf-obligations=${answered ? "answered" : answer ? "open" : nothing}
               ><span class="lf-tab-answer-words">${answer}</span></span
             >`
           : nothing
-      }<span class="lf-tabdiff lf-chip lf-change-count" aria-hidden="true"
+      }<span class="lf-tabdiff lf-chip lf-change-count"
         >${changed ? `Δ${changed}` : ""}</span
       >${
         hasAnswer

@@ -1094,8 +1094,11 @@ def test_a_queue_stands_its_items_under_their_groups(browser, serve):
 
     tabs = page.locator("#queue").get_by_role("tab")
     expect(tabs).to_have_count(6)
-    expect(tabs.nth(2)).to_have_accessible_description("Close group. c summary")
-    expect(tabs.nth(3)).to_have_accessible_description("d summary")
+    # A row's summary shows under its name, so the name says it and the description
+    # says only the group the row stands under.
+    expect(tabs.nth(2)).to_have_accessible_name(re.compile(r" c summary$"))
+    expect(tabs.nth(2)).to_have_accessible_description("Close group")
+    expect(tabs.nth(3)).to_have_accessible_description("")
     tabs.nth(1).focus()
     page.keyboard.press("ArrowDown")
     expect(tabs.nth(2)).to_have_attribute("aria-selected", "true")
@@ -1106,7 +1109,7 @@ def test_a_queue_stands_its_items_under_their_groups(browser, serve):
     expect(page.locator("#queue > .lf-tabstrip .lf-tab-group")).to_have_text(
         ["Merge", "FYI"]
     )
-    expect(tabs.nth(2)).to_have_accessible_description("Merge group. c summary")
+    expect(tabs.nth(2)).to_have_accessible_description("Merge group")
 
     # On a phone, loaded there so the row has its presses from the start. A run's
     # first tab comes into the row with its label, clear of the presses: at rest, and
@@ -1645,7 +1648,10 @@ def test_each_part_s_row_says_where_its_question_stands(browser, serve):
     resized(page, 1280, 800)
 
     def row(key):
-        return page.locator("#parts").get_by_role("tab", name=key.title(), exact=True)
+        # A row's name is the words it shows, its answer line's included.
+        return page.locator("#parts").get_by_role(
+            "tab", name=re.compile(f"^{key.title()}( |$)")
+        )
 
     def mark(key):
         return row(key).locator(".lf-tab-answer")
@@ -1675,6 +1681,7 @@ def test_each_part_s_row_says_where_its_question_stands(browser, serve):
     expect(mark("answered")).to_have_text("Alpha")
     expect(on_me("answered")).to_be_hidden()
     expect(row("answered")).to_have_accessible_description("Answered: Alpha")
+    expect(row("answered")).to_have_accessible_name("Answered Alpha")
     name = row("answered").locator(".lf-tab-name").bounding_box()
     assert mark("answered").bounding_box()["y"] >= name["y"] + name["height"] - 0.5
     assert row("answered").bounding_box()["height"] == height

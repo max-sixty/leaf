@@ -2064,7 +2064,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     numbers = [number for file in files for number in file["numbers"]]
     assert numbers, "the rendered diff has no visible line numbers"
     assert all(
-        number["text"].isdigit()
+        # Old and new numbers, a space apart so they read as two words.
+        number["text"].replace(" ", "").isdigit()
         and number["chrome"]
         and number["generated"]
         and number["label"].startswith("Comment on ")

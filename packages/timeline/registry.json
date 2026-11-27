@@ -1,6 +1,6 @@
 {
   "lf-timeline": {
-    "description": "An authored sequence of events over time, one lane per actor, that the reader steps through with Previous and Next while a playhead and a step list follow. Use it to explain an order of events, such as a race between jobs, or to compare several runs of the same sequence on one time axis, such as before and after a fix; use `lf-trace` for a recorded browser journey and `lf-motion` for continuous playback.",
+    "description": "An authored sequence of events over time, one lane per actor, that the reader steps through with Previous and Next while a playhead and a step list follow. Use it to explain an order of events, such as a race between jobs, or to compare several runs of the same sequence on one time axis, such as before and after a fix. A recorded browser journey belongs in a widget that replays the recording, and continuous playback in one with play and pause.",
     "attributes": {
       "properties": {
         "aria-label": {

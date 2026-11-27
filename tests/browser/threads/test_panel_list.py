@@ -126,15 +126,26 @@ def test_a_title_on_its_way_reads_as_one(browser, serve, request):
     """While an agent holds the page and owes an untitled thread its work, a title is
     on its way (thread_titles.py), so every surface drawing the thread's name says so
     rather than naming the thread with its opening words, until the title lands:
-    Threads' row, Page Map's row, the agent's card in On and the heading over the
-    thread's view, which shows only while the title is on its way, since otherwise it
-    would repeat the opening message under it. A page nobody holds is sent no title, so
-    there the thread reads its opening words."""
+    Threads' row, Page Map's row, the agent's card in On, and the heading over the
+    thread's view and on its margin card's head line, which shows only while the title
+    is on its way, since otherwise it would repeat the opening message under it, the
+    card drawing none then. A page nobody holds is sent no title, so there the thread
+    reads its opening words."""
     url = serve(PANEL_PAGE)
     opening = "Is the workshop room accessible?"
     pending = "Generating thread name…"
     root = panel_comment(serve.page_dir, opening, {"section": "h-how"})
     page = open_page(browser, url)
+    marker = page.locator('[data-lf-margin-for="h-how"] .lf-margin-marker')
+    marker.click()
+    card = page.locator(".lf-margin-preview")
+    heading = card.locator(".lf-margin-thread-title")
+    expect(
+        card.get_by_role("button", name="Resolve thread", exact=True)
+    ).to_be_visible()
+    expect(heading).to_be_hidden()
+    card.get_by_role("button", name="Dismiss thread view", exact=True).click()
+    expect(card).to_be_hidden()
     label = thread_row(page, root).locator(".lf-fp-label")
     expect(label).to_have_text(opening)
 
@@ -158,6 +169,11 @@ def test_a_title_on_its_way_reads_as_one(browser, serve, request):
     page.locator(".lf-fp-filters button").filter(has_text="On Codex").click()
     owed = page.locator('.lf-fp-on-item[data-lf-list="agent"]')
     expect(owed.locator(".lf-thread-name-pending")).to_have_text(pending)
+    marker.click()
+    expect(heading.locator(".lf-thread-name-pending")).to_be_visible()
+    expect(heading).to_have_text(spoken)
+    card.get_by_role("button", name="Dismiss thread view", exact=True).click()
+    expect(card).to_be_hidden()
     open_panel_thread(page, root)
     title = page.locator(".lf-fp-head .lf-fp-title")
     expect(title.locator(".lf-thread-name-pending")).to_have_text(pending)

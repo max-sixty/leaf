@@ -1,3 +1,4 @@
+// Compiled from lf-call-diff.ts by build/typescript.mjs; edit that file.
 /* CallDiff owns the call hierarchy, status and source coordinates in its native JSON.
  * This widget draws trees[].tree as commentable evidence, retaining unchanged nodes
  * and deriving only the visible tree rails. Its optional locations are used directly,
@@ -5,29 +6,42 @@
  * Each root keeps its disclosure separate from its source link. Every root opens as it
  * arrives, the maintainer's choice, so the whole capture reads at once; the toolbar's
  * Collapse all folds a long one.
- * Ordinary activation travels to the exact line; modified activation keeps the
- * native link's separate-tab, separate-window and context-menu routes. CallDiff
- * locations name the after tree for added and unchanged rows, and the before tree
- * for removed rows (calldiff's diffNode/pickLoc contract). Source navigation keeps
- * that side even when the same number names a different line on the other side.
+ * Ordinary activation travels to the exact line (`NavigateToDatum`, widget-services.js);
+ * modified activation keeps the native link's separate-tab, separate-window and
+ * context-menu routes. CallDiff locations name the after tree for added and unchanged
+ * rows, and the before tree for removed rows (calldiff's diffNode/pickLoc contract).
+ * Source navigation keeps that side even when the same number names a different line
+ * on the other side.
  * Comments stay bound to the capture's source revision: callee keys do not identify
- * persistent invocation instances. Rows are keyed by call and placed with setChildLists rather than a Lit repeat per root:
- * a capture can move a call under another root, and a row leaving one repeat list
- * for another is recreated, which would drop the focus of a user on it. */
-import { html, render, nothing } from "/vendor/lit.js";
-import { navigateToDatum, setChildLists, setChildren } from "/runtime/widget-api.js";
-import { LeafElement } from "/runtime/lib/leaf-element.js";
-import { el } from "/runtime/lib/elements.js";
-import { nameAction, offerAction } from "/runtime/lib/controls.js";
-import { keeps, keepsText } from "/runtime/lib/keeps.js";
-import { plainPress } from "/runtime/lib/keys.js";
+ * persistent invocation instances.
+ *
+ * An Effect UI component (runtime/effect-widget.js) draws the document Leaf sets as
+ * `value`, in a box after the element's (empty) authored content. Its Model is the
+ * roots the reader folded, by root key, so a capture that keeps a root keeps its fold.
+ * Rows are keyed by call within their root, so a row the next capture keeps under the
+ * same root keeps its nodes, and the selection or focus on it. A row a capture moves
+ * under another root is a new node there, in that root's fold, since Effect UI keys
+ * children within one parent. Focus on the row follows it by its datum key while that
+ * fold is open; in a folded root, focus lands on the nearest row still drawn
+ * (effect-widget.js). After each commit the root says the value it drew (`drawn`,
+ * host/element-data.js), so Leaf stamps the rows' datum marks with that value's
+ * snapshot. */
+import {
+  Component,
+  Effect,
+  Html,
+  Mount,
+  Schema,
+  Stream,
+  UiSchema,
+} from "/vendor/effect-ui.js";
+import { Announce, NavigateToDatum } from "/runtime/widget-services.js";
+import { defineWidget, widgetProps } from "/runtime/effect-widget.js";
+import { offerActionElement } from "/runtime/lib/controls.js";
 
 import { diffLocationKey } from "./diff-coordinates.js";
 
-/** @typedef {{body: string, key: string, location: {text: string, path: string, line: number} | null, root: boolean, meta: boolean, status: "unchanged" | "added" | "removed", originPath: (string | number)[]}} CallRecord */
-/** @param {import("../../../browser/types/contract.js").DataCalldiff} document */
 function recordsOf(document) {
-  /** @type {CallRecord} */
   const meta = {
     body:
       (!document.trees.length && document.message) ||
@@ -41,9 +55,6 @@ function recordsOf(document) {
   };
   const occurrences = new Map();
   const groups = document.trees.map(({ entry, tree }, treeIndex) => {
-    /** @param {import("../../../browser/types/contract.js").DataCalldiffNode} node
-     * @param {string} indent @param {boolean} last @param {boolean} root
-     * @param {(string | number)[]} originPath @returns {[CallRecord, ...CallRecord[]]} */
     const walk = (node, indent, last, root, originPath) => {
       const status = node.status === "same" ? "unchanged" : node.status;
       const location =
@@ -59,12 +70,10 @@ function recordsOf(document) {
       const occurrenceKey = JSON.stringify(keyParts);
       const occurrence = occurrences.get(occurrenceKey) ?? 0;
       occurrences.set(occurrenceKey, occurrence + 1);
-      const key = JSON.stringify([...keyParts, occurrence]);
-      /** @type {CallRecord} */
       const record = {
         body: `${indent}${root ? "" : last ? "└─ " : "├─ "}${node.label}`,
         originPath,
-        key,
+        key: JSON.stringify([...keyParts, occurrence]),
         location,
         root,
         meta: false,
@@ -88,83 +97,17 @@ function recordsOf(document) {
       treeIndex,
       "tree",
     ]);
-    return { root, children };
+    return { root: root, children };
   });
   return { meta, groups };
 }
 
-/** @param {"div" | "summary"} [tag] */
-function buildLine(tag = "div") {
-  return el(tag, "lf-call-line");
-}
+const counted = (records, status) =>
+  records.filter((record) => record.status === status).length;
 
-/** @param {HTMLElement} owner */
-function updateDisclosureControl(owner) {
-  const groups = [...owner.querySelectorAll("details")].filter(
-    (group) =>
-      group.parentElement === owner && group.classList.contains("lf-call-group"),
-  );
-  const button = owner.querySelector(":scope > .lf-call-tools .lf-call-toggle");
-  if (!button) return;
-  const expand = groups.some((group) => !group.open);
-  const label = `${expand ? "Expand" : "Collapse"} all ${groups.length} call-tree ${groups.length === 1 ? "root" : "roots"}`;
-  nameAction(button, expand ? "expand-all" : "collapse-all", { label });
-}
-
-/** @param {HTMLElement} owner */
-function buildToolbar(owner) {
-  const toolbar = el("div", "lf-call-tools");
-  // The counts this widget writes are an account of the tree, not words the page holds,
-  // so `data-lf-gen` takes them out of the version diff and makes each its own passage
-  // cell — the marker `lf-diff` puts on its own injected stat. It does not stop a drag
-  // quoting them: that is `.lf-ui`, which `lf-diff` adds beside it on its line numbers.
-  const summary = el("p", "lf-call-summary");
-  keeps(summary, "data-lf-gen", "1");
-  // An offer, not a bare button: the disclosure control is chrome this widget injected,
-  // and the offer gives it the press markers the theme and the keyboard read.
-  const button = offerAction("symbol", "lf-call-toggle", undefined, {
-    action: "expand-all",
-  });
-  button.addEventListener("click", () => {
-    const groups = [...owner.querySelectorAll("details")].filter(
-      (group) =>
-        group.parentElement === owner && group.classList.contains("lf-call-group"),
-    );
-    const open = groups.some((group) => !group.open);
-    for (const group of groups) if (group.open !== open) group.open = open;
-    updateDisclosureControl(owner);
-    window.dispatchEvent(
-      new CustomEvent("lf-announce", {
-        detail: `${open ? "Expanded" : "Collapsed"} all call-tree roots`,
-      }),
-    );
-  });
-  toolbar.append(summary, button);
-  return { element: toolbar, summary };
-}
-
-/** @param {HTMLElement} owner @param {string} key */
-function buildGroup(owner, key) {
-  const group = el("details", "lf-call-group");
-  group.open = true;
-  // Source navigation and disclosure are separate controls: a link nested in summary
-  // disappears from some accessibility readings. Keep the summary as the tight root
-  // datum, and its source control beside it rather than around the whole call tree.
-  const location = el("div", "lf-call-root-location");
-  const summary = buildLine("summary");
-  const body = el("div", "lf-call-group-body lf-text-scroller");
-  body.toggleAttribute("data-lf-scroll", true);
-  group.dataset.lfCallGroup = key;
-  summary.classList.add("lf-call-group-summary", "lf-disclosure-marker");
-  group.append(summary, body);
-  group.addEventListener("toggle", () => updateDisclosureControl(owner));
-  return { body, group, location, summary };
-}
-
-/** @param {CallRecord[]} records */
 function groupLabel(records) {
-  const added = records.filter((record) => record.status === "added").length;
-  const removed = records.filter((record) => record.status === "removed").length;
+  const added = counted(records, "added");
+  const removed = counted(records, "removed");
   const context = records.length - added - removed;
   return [
     added ? `${added} added` : "",
@@ -175,189 +118,235 @@ function groupLabel(records) {
     .join(" · ");
 }
 
-/** @param {HTMLElement} owner @param {CallRecord} record */
-async function travelToLine(owner, record) {
-  const location = record.location;
-  if (!location) return false;
-  const key = diffLocationKey(
-    location.path,
-    record.status === "removed" ? "old" : "new",
-    location.line,
-  );
-  return navigateToDatum(owner, "diff", key, {
-    success: `Opened ${location.text} in the exact patch`,
-    missing: `${location.text} is not present in the exact patch`,
-  });
-}
-
-/** @param {CallRecord} record @param {HTMLElement} owner */
-function locationLink(record, owner) {
-  return record.location
-    ? html`<a
-        class="lf-call-location"
-        href=${`#${owner.getAttribute("diff")}`}
-        @click=${async (/** @type {MouseEvent} */ event) => {
-          // A modified click keeps the link's own meaning, such as opening a new tab.
-          if (event.defaultPrevented || !plainPress(event)) return;
-          event.preventDefault();
-          event.stopPropagation();
-          await travelToLine(owner, record);
-        }}
-        >${record.location.text}</a
-      >`
-    : html`<a class="lf-call-location" hidden></a>`;
-}
-
-/** @param {CallRecord} record @param {HTMLElement} line @param {HTMLElement} owner @param {string | null} [count] */
-function renderLine(record, line, owner, count = null) {
-  keeps(line, "data-lf-status", record.status);
-  line.toggleAttribute("data-lf-root", record.root);
-  line.toggleAttribute("data-lf-meta", record.meta);
-  render(
-    html`<span class="lf-call-marker" aria-hidden="true"
-        >${
-          record.status === "added" ? "+" : record.status === "removed" ? "−" : " "
-        }</span
-      >
-      <span class="lf-call-body">${record.body}</span>${
-        record.root ? "" : locationLink(record, owner)
-      }${
-        count === null
-          ? ""
-          : html`<span class="lf-call-group-count" data-lf-gen="1">${count}</span>`
-      }`,
-    line,
-  );
-  return line;
-}
-
-// A drawn row's marks, which make it a datum on a Leaf page (`module-state.md`,
-// "Marking drawn data").
-/** @param {HTMLElement} node @param {string} key @param {string} label @param {(string | number)[] | null} path */
-function mark(node, key, label, path) {
-  keeps(node, "data-lf-datum", key);
-  keeps(node, "data-lf-datum-label", label);
-  keeps(node, "data-lf-origin-path", path ? JSON.stringify(path) : null);
-}
-
-/** @param {CallRecord} record */
 function labelOf(record) {
   if (record.meta) return record.body;
   const location = record.location ? ` at ${record.location.text}` : "";
   return `${record.status} call-tree item ${record.body.trim()}${location}`;
 }
 
-customElements.define(
-  "lf-call-diff",
-  class extends LeafElement {
-    // The CallDiff document, set by whoever hosts the widget: Leaf from the bound
-    // source (the registry's `inputs.document.property`), or null while it has
-    // none.
-    static properties = { value: { attribute: false } };
+// The CallDiff document, compared by identity: Leaf names the snapshot that supplied
+// a drawing by the value object it set.
+const Document = Schema.declare((value) => typeof value === "object" && value !== null);
 
-    constructor() {
-      super();
-      /** @type {import("../../../browser/types/contract.js").DataCalldiff | null} */
-      this.value = null;
-    }
+const CallDiffProps = Schema.Struct({
+  ...widgetProps,
+  value: Schema.optional(Schema.NullOr(Document)),
+  diff: Schema.String,
+});
 
-    /** @type {Map<string, ReturnType<typeof buildGroup>>} */
-    groups = new Map();
-    /** @type {Map<string, HTMLElement>} */
-    rows = new Map();
-    toolbar = buildToolbar(this);
-    messageNode = el("div", "lf-call-line");
+const CallDiffModel = Schema.Struct({ closed: Schema.Array(Schema.String) });
 
-    render() {
-      this.show(this.value);
-      return nothing;
-    }
+export const CallDiffMessage = UiSchema.TaggedEnum({
+  ToggledGroup: { key: Schema.String, open: Schema.Boolean },
+  ClickedToggle: {},
+  ClickedLocation: { key: Schema.String, text: Schema.String },
+});
 
-    /** @param {import("../../../browser/types/contract.js").DataCalldiff | null} value */
-    message(value) {
-      this.groups = new Map();
-      this.rows = new Map();
-      const node = this.messageNode;
-      keeps(node, "class", "lf-call-line lf-call-missing");
-      keepsText(node, "Waiting for call-diff data.");
-      setChildren(this, [node]);
-      mark(node, "unavailable", "Call-diff data unavailable", null);
-      this.dispatchEvent(new CustomEvent("drawn", { detail: { value } }));
-    }
-
-    /** @param {import("../../../browser/types/contract.js").DataCalldiff | null} value */
-    show(value) {
-      this.classList.toggle("lf-rendered", value !== null);
-      if (!value) {
-        this.message(value);
-        return;
-      }
-      const records = recordsOf(value);
-      const dataRows = records.groups.flatMap(({ root, children }) => [
-        root,
-        ...children,
-      ]);
-      const added = dataRows.filter((record) => record.status === "added").length;
-      const removed = dataRows.filter((record) => record.status === "removed").length;
-      keepsText(
-        this.toolbar.summary,
-        `${records.groups.length} changed ${records.groups.length === 1 ? "root" : "roots"} · ${added} added · ${removed} removed · ${dataRows.length} items`,
-      );
-      const oldRows = this.rows;
-      /** @type {Map<string, HTMLElement>} */
-      const rows = new Map();
-      /** @param {CallRecord} record @param {() => HTMLElement} fallback @param {string | null} [count] */
-      const draw = (record, fallback, count = null) => {
-        const node = oldRows.get(record.key) ?? fallback();
-        renderLine(record, node, this, count);
-        rows.set(record.key, node);
-        mark(node, record.key, labelOf(record), record.originPath);
-        return node;
-      };
-      const meta = draw(records.meta, () => buildLine());
-      const placements = records.groups.map(({ root, children }) => {
-        const owned = this.groups.get(root.key) ?? buildGroup(this, root.key);
-        const summary = draw(
-          root,
-          () => owned.summary,
-          groupLabel([root, ...children]),
-        );
-        keeps(owned.location, "data-lf-status", root.status);
-        render(locationLink(root, this), owned.location);
-        return {
-          key: root.key,
-          ...owned,
-          summary,
-          children: children.map((record) => draw(record, () => buildLine())),
-        };
-      });
-      const currentLocation = /** @type {Document | ShadowRoot} */ (this.getRootNode())
-        .activeElement;
-      for (const { group, body, children } of placements)
-        if (
-          children.some(
-            (node) => node.parentNode !== body && node.contains(currentLocation),
-          )
-        )
-          if (!group.open) group.open = true;
-      /** @type {[HTMLElement, HTMLElement[]][]} */
-      const lists = [
-        [
-          this,
-          [
-            this.toolbar.element,
-            meta,
-            ...placements.flatMap(({ group, location }) => [location, group]),
-          ],
-        ],
-      ];
-      for (const { group, body, summary, children } of placements)
-        lists.push([group, [summary, body]], [body, children]);
-      setChildLists(lists);
-      this.groups = new Map(placements.map((group) => [group.key, group]));
-      this.rows = rows;
-      this.dispatchEvent(new CustomEvent("drawn", { detail: { value } }));
-      updateDisclosureControl(this);
-    }
-  },
+// Expand all and Collapse all draw their action's symbol, which a view's attributes
+// can't write (controls.js, `pressAttributes`), and say the count as their name.
+const OfferToggle = Mount.make(
+  "OfferToggle",
+  { args: { action: Schema.String, label: Schema.String } },
+  (node, _args, changes) =>
+    Stream.runForEach(changes, ({ action, label }) =>
+      Effect.sync(() => {
+        offerActionElement(node, "symbol", "lf-call-toggle", label, { action });
+      }),
+    ).pipe(Effect.as(Component.noop)),
 );
+
+// After each commit, the element says the value it drew, and whether it drew one.
+const ReportDrawn = Mount.make(
+  "ReportDrawn",
+  { args: { value: Schema.NullOr(Document) } },
+  (node, _args, changes) =>
+    Stream.runForEach(changes, ({ value }) =>
+      Effect.sync(() => {
+        const element = node.parentElement?.closest("lf-call-diff");
+        if (!element) return;
+        element.classList.toggle("lf-rendered", value !== null);
+        element.dispatchEvent(new CustomEvent("drawn", { detail: { value } }));
+      }),
+    ).pipe(Effect.as(Component.noop)),
+);
+
+const rootKeys = (value) =>
+  value ? recordsOf(value).groups.map(({ root }) => root.key) : [];
+
+export const CallDiff = Html.component({
+  name: "CallDiff",
+  props: CallDiffProps,
+  model: CallDiffModel,
+  message: CallDiffMessage,
+}).make({
+  init: () => ({ closed: [] }),
+  update: {
+    ToggledGroup: ($, { key, open }) =>
+      $.evolve({
+        closed: (closed) =>
+          open
+            ? closed.filter((folded) => folded !== key)
+            : [...new Set([...closed, key])],
+      }),
+    ClickedToggle: ($) => {
+      const keys = rootKeys($.props.value);
+      const open = keys.some((key) => $.model.closed.includes(key));
+      return $.evolve({ closed: open ? [] : keys }).run(
+        Announce.make({
+          words: `${open ? "Expanded" : "Collapsed"} all call-tree roots`,
+        }),
+      );
+    },
+    ClickedLocation: ($, { key, text }) =>
+      $.run(
+        NavigateToDatum.make({
+          reference: "diff",
+          key,
+          success: `Opened ${text} in the exact patch`,
+          missing: `${text} is not present in the exact patch`,
+          focus: true,
+        }),
+      ),
+  },
+  view: (h, model) => {
+    const value = h.props.value ?? null;
+    const frame = h.div.style({ display: "contents" }).onMount(ReportDrawn({ value }));
+    if (!value)
+      return frame.children(
+        h.div
+          .class("lf-call-line lf-call-missing")
+          .attr("data-lf-datum", "unavailable")
+          .attr("data-lf-datum-label", "Call-diff data unavailable")
+          .children("Waiting for call-diff data."),
+      );
+
+    const href = `#${h.props.diff}`;
+    const locationLink = (record) => {
+      const location = record.location;
+      if (!location) return null;
+      const key = diffLocationKey(
+        location.path,
+        record.status === "removed" ? "old" : "new",
+        location.line,
+      );
+      return h.a
+        .class("lf-call-location")
+        .attr("href", href)
+        .on(
+          "click",
+          // A modified click keeps the link's own meaning, such as opening a new tab.
+          (press) =>
+            press.button === 0 &&
+            !press.alt &&
+            !press.ctrl &&
+            !press.meta &&
+            !press.shift
+              ? CallDiffMessage.ClickedLocation({ key, text: location.text })
+              : undefined,
+          { preventDefault: true },
+        )
+        .children(location.text);
+    };
+    // A drawn row's marks make it a datum on a Leaf page (`module-state.md`, "Marking
+    // drawn data").
+    const marks = (record) => ({
+      "data-lf-status": record.status,
+      ...(record.root && { "data-lf-root": "" }),
+      ...(record.meta && { "data-lf-meta": "" }),
+      "data-lf-datum": record.key,
+      "data-lf-datum-label": labelOf(record),
+      "data-lf-origin-path": JSON.stringify(record.originPath),
+    });
+    const words = (record, count = null) => [
+      h.span
+        .class("lf-call-marker")
+        .attr("aria-hidden", "true")
+        .children(
+          record.status === "added" ? "+" : record.status === "removed" ? "−" : " ",
+        ),
+      h.span.class("lf-call-body").children(record.body),
+      record.root ? null : locationLink(record),
+      count === null
+        ? null
+        : h.span.class("lf-call-group-count").attr("data-lf-gen", "1").children(count),
+    ];
+
+    const records = recordsOf(value);
+    const rows = records.groups.flatMap(({ root, children }) => [root, ...children]);
+    const roots = records.groups.length;
+    const closed = new Set(model.closed);
+    const expand = records.groups.some(({ root }) => closed.has(root.key));
+    const rootsWord = roots === 1 ? "root" : "roots";
+    return frame.children(
+      h.div
+        .key("tools")
+        .class("lf-call-tools")
+        .children(
+          // The counts are an account of the tree, not words the page holds, so
+          // `data-lf-gen` takes them out of the version diff and makes each its own
+          // passage cell, as `lf-diff` marks its own injected stat.
+          h.p
+            .class("lf-call-summary")
+            .attr("data-lf-gen", "1")
+            .children(
+              `${roots} changed ${rootsWord} · ${counted(rows, "added")} added · ${counted(rows, "removed")} removed · ${rows.length} items`,
+            ),
+          h.button
+            .onMount(
+              OfferToggle({
+                action: expand ? "expand-all" : "collapse-all",
+                label: `${expand ? "Expand" : "Collapse"} all ${roots} call-tree ${rootsWord}`,
+              }),
+            )
+            .on("click", CallDiffMessage.ClickedToggle()),
+        ),
+      h.div
+        .key("meta")
+        .class("lf-call-line")
+        .attrs(marks(records.meta))
+        .children(...words(records.meta)),
+      ...records.groups.flatMap(({ root, children }) => [
+        // Source navigation and disclosure are separate controls: a link nested in
+        // summary disappears from some accessibility readings. The summary stays the
+        // tight root datum, and its source control stands beside it rather than
+        // around the whole call tree.
+        h.div
+          .key(`location:${root.key}`)
+          .class("lf-call-root-location")
+          .attr("data-lf-status", root.status)
+          .children(locationLink(root)),
+        h.details
+          .key(`group:${root.key}`)
+          .class("lf-call-group")
+          .attr("data-lf-call-group", root.key)
+          .open(!closed.has(root.key))
+          .on("toggle", ({ open }) =>
+            CallDiffMessage.ToggledGroup({ key: root.key, open }),
+          )
+          .children(
+            h.summary
+              .class("lf-call-line lf-call-group-summary lf-disclosure-marker")
+              .attrs(marks(root))
+              .children(...words(root, groupLabel([root, ...children]))),
+            h.div
+              .class("lf-call-group-body lf-text-scroller")
+              .attr("data-lf-scroll", "")
+              .children(
+                ...children.map((record) =>
+                  h.div
+                    .key(record.key)
+                    .class("lf-call-line")
+                    .attrs(marks(record))
+                    .children(...words(record)),
+                ),
+              ),
+          ),
+      ]),
+    );
+  },
+});
+
+defineWidget("lf-call-diff", CallDiff, {
+  properties: ["value"],
+  inputs: (element) => ({ diff: element.getAttribute("diff") ?? "" }),
+});

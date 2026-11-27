@@ -81,11 +81,13 @@ Then the delivery steps:
   reaches no hook;
 - `boundary`: a comment that arrives while a wake's turn answers another, handed over
   at the tool boundary after that answer, whose other hook sleeps, and Escape then
-  ends that turn with neither comment half done. Another hook before each shell
-  command, the session's own setting, holds the answer until the comment is admitted,
-  so where it is handed over doesn't depend on how the agent batches its calls. That
-  boundary comes about a second after the comment's admission, sooner than a line
-  fork usually answers, so its handing the comment over shows the session getting a
+  ends that turn with neither comment half done. Another hook after each tool call,
+  the session's own setting, holds the call until the journey has read whether the
+  page has the wake's comment answered, and holds the call that answered it until the
+  comment is admitted, so where it is handed over doesn't depend on how the agent
+  posts its answer or batches its calls. That boundary comes about a second after
+  the comment's admission, sooner than a line fork usually answers, so its handing
+  the comment over shows the session getting a
   comment without waiting for its line. The watch the wake's prompt started wakes
   the session, whose prompt names the comment as owed rather than handing it over
   again, so it is handed over once, and a turn of its own answers it;
@@ -651,28 +653,36 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         step("withdrawn", started)
 
         started = time.monotonic()
-        # The wake's answer to `first-wake` waits before its command runs, so
+        # Each tool call of the wake's turn waits once it has run, and goes on unless
+        # the page has `first-wake` answered. So the call that answers it waits, and
         # `boundary`, sent then, reaches the turn at the tool boundary after that
         # answer. Handed over between the wake's edit and its answer, it would leave
         # `first-wake` half done as Escape lands, which the woken turn may reasonably
         # ask the user about rather than finish.
-        hold, holding = answer_hold(place)
-        hold.touch()
+        hold = tool_hold(place)
+        hold.mkdir()
+
+        def answer_held() -> bool:
+            """Whether a tool call waits and the page has `first-wake` answered;
+            otherwise the calls waiting go on. A call run after the answer makes its
+            file once the answer is admitted, so the reading after a listing that
+            holds the file has the comment answered, and never lets that call go."""
+            calls = list(hold.iterdir())
+            if calls and user.answered("first-wake"):
+                return True
+            for call in calls:
+                call.unlink()
+            return False
+
         try:
             user.comment("first-wake")
             cc.until(
-                lambda: holding.exists() or user.answered("first-wake"),
-                "boundary: the wake's turn did not answer its comment",
-            )
-            require(
-                holding.exists(),
-                "boundary: the wake's turn answered its comment past the answer hold",
+                answer_held, "boundary: the wake's turn did not answer its comment"
             )
             boundary = user.comment("boundary")
-            escaped = drop(boundary, release=hold.unlink)
+            escaped = drop(boundary, release=partial(shutil.rmtree, hold))
         finally:
-            hold.unlink(missing_ok=True)
-            holding.unlink(missing_ok=True)
+            shutil.rmtree(hold, ignore_errors=True)
         cc.until(
             answered("first-wake", "boundary"),
             "boundary: the comment Escape kept was not answered",
@@ -1066,11 +1076,11 @@ def slow_prompt(place: Isolation) -> Path:
     return place.root / "slow-prompt"
 
 
-def answer_hold(place: Isolation) -> tuple[Path, Path]:
-    """The file whose presence holds the session's answer to a comment, a `leaf
-    thread reply`, in its other hook before the command runs, and the file that hook
-    makes once it holds one."""
-    return place.root / "hold-answer", place.root / "answer-held"
+def tool_hold(place: Isolation) -> Path:
+    """The directory whose presence holds each tool call of the session once it has
+    run, in its other hook after the call: the hook makes a file there and waits
+    until the file is gone."""
+    return place.root / "tool-hold"
 
 
 def native_records(home: Path, session: str) -> list[dict]:
@@ -1138,27 +1148,17 @@ def answering(browser, *, sandbox: bool) -> Generator[tuple[User, Callable]]:
             ]
             for event in ("UserPromptSubmit", "PostToolBatch")
         }
-        # And its hook before each shell command, which holds the session's answer to
-        # a comment while the `boundary` step asks it to (`answer_hold`). A progress
-        # line, `leaf thread reply --ephemeral`, is no answer, but one command may
-        # post the progress line, make the edit and answer, so the hook holds a
-        # command that runs `thread reply` more often than it passes `--ephemeral`.
-        hold, held = (shlex.quote(str(path)) for path in answer_hold(place))
-        hooks["PreToolUse"] = [
+        # And its hook after each tool call, which holds the call while the `boundary`
+        # step asks it to (`tool_hold`).
+        call = shlex.quote(str(tool_hold(place))) + "/$$"
+        hooks["PostToolUse"] = [
             {
-                "matcher": "Bash",
                 "hooks": [
                     {
                         "type": "command",
                         "command": (
-                            f"[ -e {hold} ] || exit 0; "
-                            "command=$(jq -r .tool_input.command); "
-                            'replies=$(printf %s "$command" '
-                            "| grep -o 'thread reply' | wc -l); "
-                            'progress=$(printf %s "$command" '
-                            "| grep -o -e --ephemeral | wc -l); "
-                            f'[ "$replies" -gt "$progress" ] || exit 0; '
-                            f"touch {held}; while [ -e {hold} ]; do sleep 0.1; done"
+                            f"touch {call} 2>/dev/null || exit 0; "
+                            f"while [ -e {call} ]; do sleep 0.1; done"
                         ),
                         "timeout": 120,
                     }

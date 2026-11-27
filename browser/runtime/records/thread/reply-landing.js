@@ -126,9 +126,10 @@ const returnTurn = (transcript, unread) => {
   return start ?? turns.findLast((node) => showsContents(node)) ?? null;
 };
 
-// Where a box scrolling a transcript starts showing its turns: where their heads stick,
-// below the focus-ring room the box keeps over them. A turn landed in that room would
-// start where read tracking sees nothing of it (dom/geometry.js, `seenRect`), and never read.
+// Where a box scrolling a transcript starts showing its turns: where its first turn's
+// head stands at rest, below the focus-ring room the box keeps over them. A turn
+// landed in that room would start where read tracking sees nothing of it
+// (dom/geometry.js, `seenRect`), and never read.
 const headLine = (scroller) =>
   scroller.getBoundingClientRect().top + scroller.clientTop + slotTop(scroller);
 

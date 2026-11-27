@@ -281,7 +281,7 @@ import {
   threadName,
   threadPassage,
   threadPreview,
-  titlePending,
+  titleShown,
 } from "../records/thread/messages.js";
 import { drawnThreadId, THREAD } from "../records/thread/selectors.js";
 import { declareThreadParts } from "../records/thread/selectors.js";
@@ -1878,7 +1878,7 @@ export function createFloatingPanel({
       },
       quiet: (route) => {
         const thread = threadOf(route);
-        return thread?.title == null && !(thread && titlePending(thread));
+        return !(thread && titleShown(thread));
       },
       draw: () => threadView(),
       presses: (route) => threadPresses(route),

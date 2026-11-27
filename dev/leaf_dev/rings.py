@@ -9,7 +9,6 @@ the protocol does. `ring_faults` puts a reading's faults in a failure's words.
 """
 
 import io
-import math
 import re
 from pathlib import Path
 from typing import cast
@@ -19,7 +18,7 @@ import tinycss2
 from PIL import Image
 
 from leaf.source.render_checks import rendered
-from leaf_dev.browser import CHECK_API, page_function
+from leaf_dev.browser import CHECK_API, page_function, screenshot
 
 HERE = Path(__file__).parent
 CONTROL_NAME = (HERE / "control_name.js").read_text()
@@ -255,22 +254,11 @@ def _read_ring_pixels(page, answers):
     Drop the samples, ink and rectangle from each answer.
 
     The screenshot is taken a round trip after the reading, so a caller reads a page at
-    rest (`rendered`); one still repainting can read a ring where it no longer is."""
-    sampled = [seen for seen in answers if seen["runs"] or seen["coverPoints"]]
-    if sampled:
-        points = [p for seen in sampled for run in seen["runs"] for p in run["points"]]
-        points.extend(c["point"] for seen in sampled for c in seen["coverPoints"])
-        # Whole CSS pixels, since Chrome truncates a clip to them before it scales.
-        left = math.floor(min(x for x, _ in points))
-        top = math.floor(min(y for _, y in points))
-        clip = {
-            "x": left,
-            "y": top,
-            "width": math.floor(max(x for x, _ in points)) + 1 - left,
-            "height": math.floor(max(y for _, y in points)) + 1 - top,
-        }
-        image = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
-        scale = image.width / clip["width"]
+    rest (`rendered`); one still repainting can read a ring where it no longer is. It is
+    the whole window's, as every capture is (`browser.screenshot`)."""
+    if any(seen["runs"] or seen["coverPoints"] for seen in answers):
+        image = Image.open(io.BytesIO(screenshot(page))).convert("RGB")
+        scale = image.width / page.viewport_size["width"]
     for seen in answers:
         runs, ink, ring = seen.pop("runs"), seen.pop("ink"), seen.pop("ringAt")
 
@@ -281,8 +269,8 @@ def _read_ring_pixels(page, answers):
                 tuple[int, int, int],
                 image.getpixel(
                     (
-                        min(int((x - left) * scale), image.width - 1),
-                        min(int((y - top) * scale), image.height - 1),
+                        min(max(int(x * scale), 0), image.width - 1),
+                        min(max(int(y * scale), 0), image.height - 1),
                     ),
                 ),
             )

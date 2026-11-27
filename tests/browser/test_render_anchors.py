@@ -5256,6 +5256,83 @@ def test_a_passage_staged_into_a_new_shadow_tree_keeps_its_mark(engine, request,
     expect(page.locator("[data-lf-over-mark]")).to_have_count(1)
 
 
+def test_a_press_on_selected_words_a_table_s_staged_widget_holds_is_theirs(
+    browser, serve
+):
+    """Words selected in a declared shadow tree whose host stands first in a table, as
+    the browser may place a widget there, take the press that lands on them, as they do
+    anywhere: the control the table stands in is not pressed. Asked for the caret with
+    no tree handed over, Chromium answers before the table rather than at the host."""
+    url = serve(
+        leaf_page(
+            "Staged in a table",
+            '<div role="button" tabindex="0" id="press"><table id="grid"><tbody><tr>'
+            "<td>A cell.</td></tr></tbody></table></div>"
+            '<lf-late-stage id="late"><p id="inside">Words the widget in the table '
+            "holds.</p></lf-late-stage>",
+        ),
+        layer_registry={"lf-late-stage": LATE_STAGE},
+        layer_widgets={"lf-late-stage.js": LATE_STAGE_MODULE},
+    )
+    page = open_page(browser, url)
+    box = page.evaluate(
+        """() => {
+          const late = document.getElementById('late');
+          document.getElementById('grid').prepend(late);
+          late.stage();
+          window.presses = 0;
+          document.getElementById('press')
+            .addEventListener('click', () => { window.presses += 1; });
+          const text = late.shadowRoot.getElementById('inside').firstChild;
+          getSelection().setBaseAndExtent(text, 0, text, text.length);
+          const at = text.data.indexOf('widget');
+          const range = document.createRange();
+          range.setStart(text, at);
+          range.setEnd(text, at + 6);
+          return range.getBoundingClientRect().toJSON();
+        }"""
+    )
+    page.mouse.click(box["left"] + box["width"] / 2, box["top"] + box["height"] / 2)
+    assert page.evaluate("() => window.presses") == 0
+
+
+FRAMED_STAGE = {
+    **LATE_STAGE,
+    "example": '<lf-framed-stage id="example"></lf-framed-stage>',
+}
+
+
+def test_a_host_made_in_another_window_holds_its_declared_root(browser, serve):
+    """A host made by another window's document, as a live sample's frame makes its
+    widgets, is an element of that window, so no test of this window's classes knows
+    it: a query under it still reaches its declared root, as one under the page does."""
+    url = serve(
+        leaf_page("Framed host", "<p>Before the host.</p>"),
+        layer_registry={"lf-framed-stage": FRAMED_STAGE},
+        # It defines no element, so the host keeps the class its own window gave it.
+        layer_widgets={"lf-framed-stage.js": "export {};"},
+    )
+    page = open_page(browser, url)
+    found = page.evaluate(
+        """async () => {
+          const { shadowStage } = await import('/runtime/widget-api.js');
+          const { queryAllUnder } = await import('/runtime/dom/shadow.js');
+          const frame = document.body.appendChild(document.createElement('iframe'));
+          const host = frame.contentDocument.createElement('lf-framed-stage');
+          document.body.append(host);
+          const words = document.createElement('p');
+          shadowStage(host, [words]);
+          const found = (root) => queryAllUnder(root, 'p').includes(words);
+          return {
+            foreign: !(host instanceof Element),
+            itself: found(host),
+            body: found(document.body),
+          };
+        }"""
+    )
+    assert found == {"foreign": True, "itself": True, "body": True}
+
+
 def test_a_presentation_that_changes_no_mark_builds_none(browser, serve):
     """The anchor paint builds a thread's marks, the index the pointer is found in and
     the highlight painting them only for a presentation that changes a mark: ten that

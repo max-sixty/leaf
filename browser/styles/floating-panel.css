@@ -1829,6 +1829,12 @@
   }
   .lf-fp-messages .lf-thread-transcript {
     padding-block: var(--lf-sp-1) var(--lf-fp-transcript-end);
+    /* How far its messages paint their ground (surfaces.css): to the view's sides,
+       over the room above them, and over half the gap to the field below. */
+    --lf-transcript-start: var(--lf-fp-text-edge);
+    --lf-transcript-end: var(--lf-thread-pad);
+    --lf-transcript-top: var(--lf-sp-1);
+    --lf-transcript-foot: calc(var(--lf-msg-gap) / 2);
   }
   .lf-fp-messages .lf-msg,
   .lf-fp-messages .lf-thread-working {

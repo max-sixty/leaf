@@ -2113,7 +2113,6 @@ export function mountPreviews(chrome) {
   // two nodes of one shadow tree by no `pointerover` (the event, retargeted to the host
   // as both its target and its related target, stops at the shadow root), so a move
   // onto a node other than the one last heard of is that arrival too.
-  /** @param {PointerEvent} event */
   const arrived = (event) => {
     if (event.pointerType === "touch") return;
     const path = event.composedPath();

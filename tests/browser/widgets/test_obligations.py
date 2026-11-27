@@ -730,9 +730,7 @@ def test_the_obligation_itself_binds_each_contributed_action(browser, serve):
     expect(page.locator("#live-question-decision")).to_be_focused()
     assert active_digit_bindings(page) == "1–3"
     expect(
-        page.locator(
-            "#live-question > lf-option .lf-key-badge[data-lf-binding-badge]"
-        )
+        page.locator("#live-question > lf-option .lf-key-badge[data-lf-binding-badge]")
     ).to_have_text(["1", "2"])
 
     page.keyboard.press("2")

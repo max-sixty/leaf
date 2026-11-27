@@ -294,7 +294,9 @@ def test_a_settled_obligation_reconciles_added_options_into_its_disclosure(
     expect(row).to_have_attribute("aria-expanded", "false")
     expect(group.locator(":scope > lf-option:visible")).to_have_count(0)
     expect(group.locator(":scope > lf-option")).to_have_count(4)
-    assert row.evaluate("row => row.ariaControlsElements.map((option) => option.id)") == [
+    assert row.evaluate(
+        "row => row.ariaControlsElements.map((option) => option.id)"
+    ) == [
         "job-mounts",
         "job-heater",
         "job-camera",
@@ -313,7 +315,9 @@ def test_a_settled_obligation_reconciles_added_options_into_its_disclosure(
     undo(page)
     expect(group.locator(":scope > lf-option[data-lf-added]")).to_have_count(0)
     expect(group.locator(":scope > lf-option")).to_have_count(3)
-    assert row.evaluate("row => row.ariaControlsElements.map((option) => option.id)") == [
+    assert row.evaluate(
+        "row => row.ariaControlsElements.map((option) => option.id)"
+    ) == [
         "job-mounts",
         "job-heater",
         "job-camera",

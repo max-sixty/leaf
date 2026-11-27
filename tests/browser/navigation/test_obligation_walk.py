@@ -305,9 +305,7 @@ def test_keys_answer_an_obligation_from_its_marks(browser, serve):
     # The arrival stands on the obligation, which wears its options' digits; the marks
     # are the next Tab stops.
     expect(
-        page.locator(
-            "#live-question > lf-option .lf-key-badge[data-lf-binding-badge]"
-        )
+        page.locator("#live-question > lf-option .lf-key-badge[data-lf-binding-badge]")
     ).to_have_text(["1", "2"])
     page.evaluate(
         """async () => {
@@ -320,17 +318,13 @@ def test_keys_answer_an_obligation_from_its_marks(browser, serve):
         "data-lf-says", "notice"
     )
     expect(
-        page.locator(
-            "#live-question > lf-option .lf-key-badge[data-lf-binding-badge]"
-        )
+        page.locator("#live-question > lf-option .lf-key-badge[data-lf-binding-badge]")
     ).to_have_text(["1", "2"])
     page.keyboard.press("Tab")
     expect(marks.first).to_be_focused()
     expect_walk_position(page, "1 of 4 waiting on me")
     expect(
-        page.locator(
-            "#live-question > lf-option .lf-key-badge[data-lf-binding-badge]"
-        )
+        page.locator("#live-question > lf-option .lf-key-badge[data-lf-binding-badge]")
     ).to_have_text(["1", "2"])
     expect(nums.first).to_be_visible()
     expect(nums.nth(1)).to_have_text("2")

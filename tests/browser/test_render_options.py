@@ -1783,8 +1783,13 @@ def test_a_nested_obligation_keeps_its_own_arity_and_commands(browser, serve, su
         )
         # And the outer group's own marks are unaffected by the group standing inside one of
         # its options: the mark on #out-drill is the outer question's, not the inner one's.
-        assert page.locator("#out-drill > [data-lf-form] > .lf-pick").evaluate(corner) < 0.5
-        assert page.locator("#out-keys > [data-lf-form] > .lf-pick").evaluate(corner) < 0.5
+        assert (
+            page.locator("#out-drill > [data-lf-form] > .lf-pick").evaluate(corner)
+            < 0.5
+        )
+        assert (
+            page.locator("#out-keys > [data-lf-form] > .lf-pick").evaluate(corner) < 0.5
+        )
 
     with subtests.test("a nested obligation's commands belong only to it"):
         # An obligation projects commands from its answer source, but containment alone
@@ -1797,10 +1802,14 @@ def test_a_nested_obligation_keeps_its_own_arity_and_commands(browser, serve, su
         # obligation.
         page.keyboard.press("m")
         expect(page.locator("#outer-decision")).to_be_focused()
-        outer_hints = page.locator("#outer > lf-option > [data-lf-form] > .lf-key-badge")
+        outer_hints = page.locator(
+            "#outer > lf-option > [data-lf-form] > .lf-key-badge"
+        )
         expect(outer_hints).to_have_text(["1", "2"])
         expect(outer_hints.first).to_be_visible()
-        expect(page.locator("#inner > lf-option > [data-lf-form] > .lf-key-badge").first).to_be_hidden()
+        expect(
+            page.locator("#inner > lf-option > [data-lf-form] > .lf-key-badge").first
+        ).to_be_hidden()
         page.keyboard.press("2")
         expect(page.locator("#out-keys")).to_have_attribute("selected", "")
         expect(page.locator("#inner > lf-option[selected]")).to_have_count(0)
@@ -1981,9 +1990,7 @@ def test_a_press_on_a_mark_in_an_options_selected_words_opens_its_thread(
     assert page.evaluate("() => getSelection().toString()").strip()
     stop.locator(".lf-pick").hover()
     page.mouse.down()
-    expect(stop.locator(".lf-key-badge")).to_have_attribute(
-        "data-lf-binding-badge", ""
-    )
+    expect(stop.locator(".lf-key-badge")).to_have_attribute("data-lf-binding-badge", "")
     page.mouse.up()
     expect(stop).to_have_attribute("selected", re.compile(".*"))
 

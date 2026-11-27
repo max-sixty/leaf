@@ -13,16 +13,11 @@ state. A `WorkReading` lasts for one transaction and is never written to disk.
 from functools import cached_property
 
 from leaf.log.events import build_threads
-from leaf.log.obligations import (
-    collection,
-    thread_obligation_readings,
-    widget_facts,
-)
+from leaf.log.obligations import collection, thread_obligation_readings
 from leaf.log.projection import thread_markup_reading
 from leaf.records.document_reading import read_document
 from leaf.records.plans import plan_reading
 from leaf.records.todos import TodoReading
-from leaf.source.passages import enclosing_of
 
 
 class WorkReading:
@@ -77,15 +72,6 @@ class WorkReading:
         )
 
     @cached_property
-    def thread_facts(self) -> dict:
-        """Each thread widget's facts as the page keeps them
-        (`obligations.widget_facts`). No page version bounds thread markup."""
-        reading = self.thread
-        return widget_facts(
-            self.events, reading.projection, enclosing_of(reading.spoken), None
-        )
-
-    @cached_property
     def thread_obligations(self) -> dict:
         return thread_obligation_readings(
             self.events,
@@ -93,7 +79,6 @@ class WorkReading:
             self.threads,
             self.log.owed,
             reading=self.thread,
-            facts=self.thread_facts,
         )
 
     @cached_property

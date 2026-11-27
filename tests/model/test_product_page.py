@@ -299,7 +299,7 @@ def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
         "widget",
         "action",
         "detail",
-        "facts",
+        "answered",
         "attempt",
     )
     ids = {}
@@ -379,7 +379,6 @@ def test_the_event_log_page_quotes_the_registry():
     assert shown == {
         "verbs": entry["verbs"],
         "awaits": {"value": entry["awaits"]["value"]},
-        "facts": {"answered": {"type": "boolean"}},
     }
     lines = block.splitlines()
     noted = []
@@ -395,7 +394,6 @@ def test_the_event_log_page_quotes_the_registry():
         '"answer": ',
         '"awaits": ',
         '"value": ',
-        '"answered": ',
     ]
     assert [line[: len(key)] for line, key in zip(noted, explained, strict=True)] == (
         explained

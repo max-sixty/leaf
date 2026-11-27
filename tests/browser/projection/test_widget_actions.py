@@ -147,7 +147,6 @@ def test_a_projected_attribute_opens_an_obligation_captured_from_authored_markup
             "when": {"phase": ["open"]},
             "value": "answer",
         },
-        "facts": {"answered": {"type": "boolean"}},
         "example": '<lf-conditional id="example" phase="closed">Choose.</lf-conditional>',
     }
     module = """\
@@ -184,7 +183,7 @@ customElements.define("lf-conditional", class extends LeafElement {
                 "widget": "question",
                 "action": "phase",
                 "detail": {"value": phase},
-                "facts": {"answered": False},
+                "answered": False,
             },
         )
         told(page)
@@ -665,7 +664,7 @@ def test_replay_signatures_exclude_settlement_and_other_runtime_paint(browser, s
             "widget": "sug-refill",
             "action": "decide",
             "detail": {"outcome": "accept"},
-            "facts": {"answered": True},
+            "answered": True,
         },
     )
     page = open_page(browser, url)
@@ -846,7 +845,7 @@ def test_a_decision_already_in_the_log_retires_its_slot_at_load(browser, serve):
             "widget": "sug-refill",
             "action": "decide",
             "detail": {"outcome": "accept"},
-            "facts": {"answered": True},
+            "answered": True,
         },
     )
     page = open_page(browser, url)
@@ -911,7 +910,7 @@ def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve)
             "widget": "sug-swap",
             "action": "decide",
             "detail": {"outcome": "accept"},
-            "facts": {"answered": True},
+            "answered": True,
         },
     )
     page = open_page(browser, url)

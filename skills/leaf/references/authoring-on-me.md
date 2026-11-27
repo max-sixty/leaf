@@ -182,7 +182,8 @@ approved wording or settings distinct from subsequent edits.
 
 The pick belongs to the `lf-options` and its id, `publish-report`, not to the `lf-group`
 round it. Unrelated edits and page stamps keep it. If the action or evidence changes
-enough to invalidate the permission, explain the change and mark the `lf-options`
-`restated` before asking again (`authoring-revisions.md`, "Honor user state"). A new
+enough to invalidate the permission, explain the change and mark the option the user
+picked `restated`, which takes the pick back, before asking again
+(`authoring-revisions.md`, "Honor user state"). A new
 stamp neither requests nor renews permission, and recording it does not end the page
 or report that the permitted work has been done.

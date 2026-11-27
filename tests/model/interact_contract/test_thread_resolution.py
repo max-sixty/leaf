@@ -124,7 +124,7 @@ def test_late_answer_to_a_thread_widget_reopens_without_repeating_its_obligation
                 "widget": "thread-picks",
                 "action": "choose",
                 "detail": {"value": ["thread-option"]},
-                "facts": {"answered": True},
+                "answered": True,
             }
         ).encode(),
     )
@@ -176,7 +176,7 @@ PICKED = {
     "widget": "sug-a",
     "action": "decide",
     "detail": {"outcome": "accept"},
-    "facts": {"answered": True},
+    "answered": True,
 }
 
 
@@ -185,7 +185,7 @@ TURNED_DOWN = {
     "widget": "sug-a",
     "action": "decide",
     "detail": {"outcome": "reject"},
-    "facts": {"answered": True},
+    "answered": True,
 }
 
 
@@ -247,9 +247,7 @@ def test_the_answer_that_settles_a_thread_acknowledges_what_it_said():
 
     assert unread() == ["e2"]
     assert unread(PICKED) == []
-    assert unread(
-        PICKED, {"kind": "undo", "undoes": "e3", "facts": {"answered": False}}
-    ) == ["e2"]
+    assert unread(PICKED, {"kind": "undo", "undoes": "e3", "answered": False}) == ["e2"]
     assert unread(PICKED, {**edit, "text": "Try sug-a first."}, TURNED_DOWN) == ["e4"]
 
 
@@ -343,7 +341,7 @@ def test_taking_back_a_reject_lets_the_accept_it_superseded_stand_again():
     assert settlement(ASKED, PICKED, TURNED_DOWN) is None
     # The reject is the third event written, so `e3` is what the undo names.
     # The accept still stands, so the suggestion stays decided.
-    taken_back = {"kind": "undo", "undoes": "e3", "facts": {"answered": True}}
+    taken_back = {"kind": "undo", "undoes": "e3", "answered": True}
     assert settlement(ASKED, PICKED, TURNED_DOWN, taken_back)["detail"] == {
         "outcome": "accept"
     }
@@ -467,7 +465,7 @@ def test_independent_state_does_not_reopen_an_answer_even_after_retirement(
             "action": action,
             "detail": detail,
             # A decided suggestion says its question is answered.
-            "facts": {"answered": True},
+            "answered": True,
             "attempt": attempt,
         }
         status, body = fetch(f"{server}/api/event", data=json.dumps(command).encode())
@@ -531,7 +529,7 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
         "widget": "sug-a",
         "action": "label",
         "detail": {},
-        "facts": {"answered": True},
+        "answered": True,
     }
     html = '<lf-suggestion id="sug-a" resolves="c1"><lf-new><p>Proposed</p></lf-new></lf-suggestion>'
     stated = ModelPage(html, registry=registry)
@@ -624,9 +622,8 @@ def test_a_gesture_at_a_coordinate_reaches_only_the_answers_still_in_force_there
         {},
     )
     assert (late["stale"], late["again"]) == (["c1"], ["c2"])
-    # A version retracting the action that superseded an answer takes the answer
-    # with it, so the coordinate falls back to no decision: the thread the rejection
-    # reopened stays open, and the note changes no thread's resolution.
+    # A version retracting only the action that superseded an answer gives the
+    # coordinate back to that answer, which closes its thread again.
     restored = thread_memberships(
         [
             *comments,
@@ -638,7 +635,7 @@ def test_a_gesture_at_a_coordinate_reaches_only_the_answers_still_in_force_there
         {},
         {"sug-note": ["sug-a", "sug-note"]},
     )
-    assert (restored["reject"], restored["v2"]) == (["c1"], [])
+    assert (restored["reject"], restored["v2"]) == (["c1"], ["c1"])
     # Taking back an answer another has since superseded moves no winner, so the
     # undo concerns only the thread its own gesture did.
     behind = thread_memberships(

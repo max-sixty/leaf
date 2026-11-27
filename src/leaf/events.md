@@ -15,14 +15,13 @@ so an id is not a global identifier. Each kind's record schema is `$events.kinds
 | <a id="kind-edit"></a>`edit`                 | user or agent   | `POST /api/event`, `leaf thread edit`                                                    | `message`, `text`; `base` (browser)                                                                                                                                                                   | replaces the text of a message its own author wrote; the original stays in the log ("Messages")                                                                                               |
 | <a id="kind-read"></a>`read`                 | user            | `POST /api/event`                                                                        | `messages: [{message, version}]`                                                                                                                                                                      | records the agent-content versions the user has read; bookkeeping ("Read state")                                                                                                              |
 | <a id="kind-seen"></a>`seen`                 | user            | `POST /api/event`                                                                        | `revision`                                                                                                                                                                                            | records the newest live revision a tab showed the user, as they leave; bookkeeping ("Read state")                                                                                             |
-| <a id="kind-facts"></a>`facts`               | user            | `POST /api/event`                                                                        | `widget`, `revision`, `through`, the seq of the log reading it was worked out from, `facts`, the facts that differ from the ones the page keeps                                                       | what a widget works out of its state and markup, said again where a version or another tab's act moved it; bookkeeping ("Widget facts")                                                       |
 | <a id="kind-thread_title"></a>`thread_title` | agent           | `leaf thread edit --title`, or Leaf's own title request (`thread_titles.py`)             | `thread`, `title`                                                                                                                                                                                     | names a thread; the latest title wins                                                                                                                                                         |
 | <a id="kind-activation"></a>`activation`     | page            | revision activation                                                                      | `revision`, `publication`                                                                                                                                                                             | a revision a read activated after another went live here, before the reanchors it caused                                                                                                      |
 | <a id="kind-reanchor"></a>`reanchor`         | page            | revision activation                                                                      | `thread`, `revision`, `anchor: {section} or null`                                                                                                                                                     | moves an open thread whose passage or visual part no longer resolves to its surviving section, or detaches it, adding no message ("Anchors")                                                  |
 | <a id="kind-summary"></a>`summary`           | agent           | `leaf thread summarize`                                                                  | `thread`, `from`, `through`, `text`; optional `label`                                                                                                                                                 | folds a contiguous range of a thread under optional Markdown; the originals stay revealable                                                                                                   |
 | <a id="kind-resolve"></a>`resolve`           | user or agent   | `POST /api/event`, `leaf thread resolve`                                                 | `parent`                                                                                                                                                                                              | closes a thread                                                                                                                                                                               |
 | <a id="kind-unresolve"></a>`unresolve`       | user or agent   | `POST /api/event`, `leaf thread reopen`                                                  | `parent`                                                                                                                                                                                              | reopens a resolved thread                                                                                                                                                                     |
-| <a id="kind-action"></a>`action`             | user            | `POST /api/event` from a widget                                                          | `widget`, `action`, `detail`, `facts`; server-stamped `meaning`                                                                                                                                       | changes the document through the widget ("Admission")                                                                                                                                         |
+| <a id="kind-action"></a>`action`             | user            | `POST /api/event` from a widget                                                          | `widget`, `action`, `detail`, `answered`; server-stamped `meaning`                                                                                                                                    | changes the document through the widget ("Admission")                                                                                                                                         |
 | <a id="kind-report"></a>`report`             | agent or worker | `leaf page report`                                                                       | `widget`, `action`, `detail`; server-stamped `meaning` (as for `action`, under a verb (`verbs`) declaring `writer: "agent"`)                                                                          | provisional widget state, in force until a stamped version settles it                                                                                                                         |
 | <a id="kind-pickup"></a>`pickup`             | page            | the delivery transport, or a harness's failure receipt                                   | `events`, `phase` (`queued`, `opened` or `failed`), `session`, `turn`; `failure` (when `failed`); `refs`, the `answer.ref` its delivery gave each input owed an answer                                | the named inputs reached the Codex queue, entered an exact agent turn, or were given up with no answer coming; idempotent per event, phase, session and turn; never a `start` (`delivery.py`) |
 | <a id="kind-receipt"></a>`receipt`           | page            | delivery receipt (`delivery.receive_batch`)                                              | `through`, the seq the receipt confirms                                                                                                                                                               | the complete delivery of the log through `through` reached its durable consumer; the greatest `through` is the acknowledgement cursor                                                         |
@@ -34,7 +33,7 @@ so an id is not a global identifier. Each kind's record schema is `$events.kinds
 | <a id="kind-start"></a>`start`               | agent           | `leaf task start`, or progress posted to an owed update                                  | `item`, an owed update's event id or an open to-do's; `text`, the status line; `turn`                                                                                                                 | takes the item in hand until it ends or a `status` follows; the newest start on an item replaces the one before (`todos.py`)                                                                  |
 | <a id="kind-status"></a>`status`             | agent           | `leaf page open` and `leaf page close`, or the website harness at a turn's edge          | `state` (`waiting` or `idle`)                                                                                                                                                                         | declares the page open for feedback or closed, and puts down every earlier start (`activity.declaration`, `todos.item_starts`)                                                                |
 | <a id="kind-plan"></a>`plan`                 | agent           | `leaf task plan`                                                                         | `steps`, an outline of headings `{depth, title}` and items `{depth, item}`                                                                                                                            | replaces the agent's plan, which arranges to-dos and obligations under headings without owning them (`plans.py`)                                                                              |
-| <a id="kind-undo"></a>`undo`                 | user            | `POST /api/event`                                                                        | `undoes`, `facts`                                                                                                                                                                                     | withdraws one gesture of the user's own ("Undo")                                                                                                                                              |
+| <a id="kind-undo"></a>`undo`                 | user            | `POST /api/event`                                                                        | `undoes`, `answered`                                                                                                                                                                                  | withdraws one gesture of the user's own ("Undo")                                                                                                                                              |
 
 ## Anchors
 
@@ -201,9 +200,9 @@ compares every field but those the server assigns (`event_log._attempt_payload`)
 `browser_discard` fields browser ingress drops; it is fixed by the running kernel, and
 no layer changes it.
 
-An `action` of a widget whose tag declares `facts`, and an `undo` of one, carries
-`facts`, what the widget works out of its state as the gesture leaves it ("Widget
-facts").
+An `action` of a widget whose tag declares `awaits`, and an `undo` of one, carries
+`answered`, the widget's word on its question ("Widget answers"). Admission refuses
+such a gesture without it, and it on any other gesture, and decides nothing about it.
 
 `meaning` holds what a reader without the sending registry cannot recover from the
 event. Every `action` and `report` records:
@@ -223,8 +222,8 @@ event. Every `action` and `report` records:
 - `state`, the operation and detail domain the gesture was admitted under, so under a
   later layer whose domain excludes the value, the event stays in history only
   (`layer-registry.md`).
-- `answer`, on an action of a widget that asks whose `facts.answered` says its
-  obligation is answered, where the action either records the answer itself (its verb is
+- `answer`, on an action of a widget that asks whose `answered` says its obligation
+  is answered, where the action either records the answer itself (its verb is
   `awaits.value`) or turns the obligation from open to answered: the thread the answer
   closes, from the widget's authored `resolves` in the sending
   document, or null. The outcome its deciding verb `withdraws` declines and closes
@@ -252,64 +251,34 @@ as a written-back pick does, but the markup now decides the order an undo would 
 restored, so it can no longer be undone. The door refuses a move made on an older
 revision whose container the newest one authors differently.
 
-### Widget facts
+### Widget answers
 
-A widget's facts are what it works out of its state and markup for the page to keep,
-each a static function of its class that its declaration lists, with its value's
-schema, under `facts` (`module-state.md`, "Declared widget state"). The runtime works
-them out and sends them, whoever writes the event, and the server decides nothing
-about them:
+Three rules decide whether a widget's question is answered, and what the user's
+decisions on it come to across versions:
 
-- An `action` of the widget, and the user's `undo` of one, carries `facts`, each
-  value as the gesture leaves the widget's state, which the runtime reads after
-  drawing the gesture and before sending it. An act or undo of a widget that asks
-  (`awaits`) carries `answered`, and admission refuses one without it.
-- A `facts` event carries the facts a tab worked out again where the widget's state
-  or markup moved without a gesture of its own, as when a version or another tab's act
-  reached it: only those whose values differ from the ones the page keeps. It names
-  the widget, the newest revision, which the tab showed, and `through`, the seq of
-  the log reading it was worked out from. It is bookkeeping: it wakes no one, no
-  undo takes it back, and it travels beside the user's gestures rather than behind
-  them. Admission refuses one naming an older revision, and one after whose reading
-  a gesture on the widget or another tab's word on it landed, since either is a word
-  on a state the page has moved past. It also refuses one that changes no value the
-  page keeps, so tabs that work out the same value leave one event.
+1. **A gesture carries its word.** Each action of the widget and each undo of one
+   carries `answered`: whether the question is answered as the gesture leaves the
+   widget's state, in the widget's own word (`module-state.md`, "Declared widget
+   state"), which the runtime works out in the gesture's task and sends with it. The
+   latest such gesture in force decides (`obligations.gesture_answers`).
+2. **A rewrite takes back only itself.** A version note's `restated` takes each element
+   it names out of the user's actions, made on an earlier version, that rest on it
+   (`depends`), as `events.restated_reading` reads them. An action with an `attribute`
+   record loses the element as a member and keeps the rest, so a rewritten option
+   leaves the rest of the pick, and a restated `lf-options` keeps every pick. Any other
+   action resting on the element no longer applies, as a draft's words and an
+   `lf-options`' Done don't once the draft or the group is restated. No key falls back
+   to a decision the user replaced. An action made on an earlier version that lands
+   after the note, as from a tab still showing that version, is read the same way, and
+   one that no longer applies never comes into force.
+3. **A restating version asks again.** The note asks the question of each widget whose
+   actions it reaches again, and so does a reached action that lands after it, until
+   the user's next gesture on the widget says otherwise. A version that edits a
+   widget's markup and restates nothing asks nothing again: most such edits record the
+   answer, as a version writing the user's pick into `selected` does.
 
-Admission refuses a fact the widget's declaration doesn't list, and a value its
-schema refuses, on each of these. The page keeps each fact's latest value: the newest
-said by the widget's actions in force, the user's undos of them and its `facts`
-events, in log order through the revision a view reads. A word said on a version
-older than the newest one the kept values were said on leaves those standing; the
-browser's undo names the version it was made on (`revision`), as an action does. A
-version note that
-restates what any of the widget's actions rests on changes the widget's state with
-no word from it, so the values said before it lapse until the widget says them again
-(`obligations.widget_facts`). A value is therefore stale while no tab shows the
-version that moved it. Leaf gives meaning only to `answered`: the widget's obligation
-is answered while it says so, and one with no `answered` kept stands asked. A `facts`
-event may say the question is open again but never that it is answered, since an
-answer is the user's act and its word travels on that act (`obligations.told_facts`);
-admission counts such a word as changing nothing. The served view (`facts`) and
-`leaf page state` (each element's `facts`) show the kept values.
-
-### Restated decisions
-
-A version note's `restated` names elements the version rewrote. It reaches each
-action made on an earlier version that rests on one of them (`depends`), and the
-action then stands as the version reads it (`events.restated_reading`). An action with
-an `attribute` record keeps the members the version left alone, so a rewritten option
-leaves the rest of the pick, and a pick of that option alone leaves an empty pick. Any
-other action no longer applies, and neither does any action before it at its key, so a
-card moved into a rewritten column goes back to where the markup puts it, not to the
-column it left. No key falls back to a decision the user replaced. An action the
-version took members out of carries no `answer` and no `facts`, since the widget said
-nothing of the members left. The served entry's `value` is the record as it stands,
-and the browser folds that value rather than the event's detail.
-
-An action made on an earlier version that lands after the note, as from a tab still
-showing that version, is read the same way, except that a decision that no longer
-applies never comes into force and takes out nothing, so it leaves the decisions the
-user made on the new version standing.
+The served entry's `value` is the record as it stands, and the browser folds that value
+rather than the event's detail.
 
 ## Following the log
 

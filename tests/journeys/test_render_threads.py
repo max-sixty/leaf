@@ -722,7 +722,7 @@ def test_a_settlement_in_a_reply_leaves_its_own_anchor_on_the_page(browser, serv
                 "widget": wid,
                 "action": "decide",
                 "detail": {"outcome": "accept"},
-                "facts": {"answered": True},
+                "answered": True,
             },
         )
         page = open_page(browser, url)

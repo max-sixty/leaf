@@ -161,7 +161,7 @@ def test_an_ordinary_outcome_answers_its_condition_without_withdrawing_a_proposa
                 "widget": "proposal",
                 "action": "review",
                 "detail": {"outcome": outcome},
-                "facts": {"answered": answers},
+                "answered": answers,
             }
         )
         state = model.served_reading(source, commands, registry=registry)
@@ -307,7 +307,7 @@ def test_two_playgrounds_on_one_page_validate_their_own_values(instance_input_re
                         "values": {"count": count},
                         "instruction": "Use this count.",
                     },
-                    "facts": {"answered": True},
+                    "answered": True,
                 },
             )
         )
@@ -319,7 +319,7 @@ def test_two_playgrounds_on_one_page_validate_their_own_values(instance_input_re
                 **STATED_PICK,
                 "widget": "small",
                 "detail": log[-1]["detail"],
-                "facts": {"answered": True},
+                "answered": True,
             },
         )
     assert refused_on(refused.value).code == "invalid-detail"
@@ -405,7 +405,7 @@ def test_a_pick_names_only_options_its_group_holds():
         **STATED_PICK,
         "widget": "live-pick",
         "detail": {"value": ["live-mine"]},
-        "facts": {"answered": True},
+        "answered": True,
     }
 
     def admit(log, event):
@@ -426,7 +426,7 @@ def test_a_pick_names_only_options_its_group_holds():
             "widget": "live-pick",
             "action": "add",
             "detail": {"option": "live-mine", "text": "My own way"},
-            "facts": {"answered": False},
+            "answered": False,
         },
     )
     assert add["meaning"]["unit"] == "live-mine"
@@ -454,17 +454,12 @@ def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made():
     retired = model.leaf_page(
         "Route", '<h1>Route</h1><lf-activity id="feed"></lf-activity>'
     )
-    pick = {
-        "kind": "action",
-        "widget": "route",
-        "action": "choose",
-        "facts": {"answered": True},
-    }
+    pick = {"kind": "action", "widget": "route", "action": "choose", "answered": True}
     events = (
         {**pick, "detail": {"value": ["fast"]}},
         {**pick, "detail": {"value": ["slow"]}},
         # The first pick still stands, so the question stays answered.
-        {"kind": "undo", "undoes": "e2", "facts": {"answered": True}},
+        {"kind": "undo", "undoes": "e2", "answered": True},
     )
 
     history = model.reading({1: question, 2: retired}, events)["history"]
@@ -500,7 +495,7 @@ def test_history_words_a_pick_of_an_added_option_by_what_the_user_wrote():
             "widget": "route",
             "action": "add",
             "detail": {"option": "route-mine", "text": text},
-            "facts": {"answered": False},
+            "answered": False,
         }
 
     pick = {
@@ -508,13 +503,13 @@ def test_history_words_a_pick_of_an_added_option_by_what_the_user_wrote():
         "widget": "route",
         "action": "choose",
         "detail": {"value": ["route-mine"]},
-        "facts": {"answered": True},
+        "answered": True,
     }
     events = (
         add("**Ship** half"),
         pick,
-        {"kind": "undo", "undoes": "e2", "facts": {"answered": False}},
-        {"kind": "undo", "undoes": "e1", "facts": {"answered": False}},
+        {"kind": "undo", "undoes": "e2", "answered": False},
+        {"kind": "undo", "undoes": "e1", "answered": False},
         add("Ship everything"),
         pick,
     )
@@ -544,47 +539,30 @@ def test_a_widget_that_asks_says_on_each_gesture_whether_it_is_answered():
 
     assert refusal(STATED_LOG, dict(pick)).code == "answered-missing"
     picked = event_contracts_model.admitted_event(
-        page, STATED_LOG, {**pick, "facts": {"answered": True}}
+        page, STATED_LOG, {**pick, "answered": True}
     )
     log = [*STATED_LOG, {**picked, "id": "p1", "ts": "2026-09-19T12:01:00+00:00"}]
     undo = {"kind": "undo", "author": "user", "undoes": "p1"}
     assert refusal(log, undo).code == "answered-missing"
-    assert event_contracts_model.admitted_event(
-        page, log, {**undo, "facts": {"answered": False}}
-    )
+    assert event_contracts_model.admitted_event(page, log, {**undo, "answered": False})
 
 
-def test_a_gesture_says_only_the_facts_its_widget_declares_in_their_schemas():
-    """The door holds the facts a gesture carries to its widget's `facts`: a fact the
-    widget doesn't declare is refused on an act or an undo of it, as on a widget that
-    declares none, and so is a value the fact's schema refuses."""
+def test_a_widget_that_asks_nothing_says_nothing_of_an_answer():
+    """`answered` is the word of a widget that asks, so the door refuses it on a
+    gesture of one that doesn't, an act or an undo of one alike."""
     page = ModelPage(STATED_QUEUE)
     move = {**STATED_MOVE, "detail": {"unit": "card-a", "value": "keep", "rank": "0i"}}
 
-    def refusal(page, log, event):
+    def refusal(log, event):
         with pytest.raises(events_model.EventRefused) as refused:
             event_contracts_model.admitted_event(page, log, event)
         return refused_on(refused.value)
 
-    undeclared = refusal(page, [], {**move, "facts": {"answered": True}})
-    assert (undeclared.code, undeclared.values["fact"]) == (
-        "undeclared-fact",
-        "answered",
-    )
+    assert refusal([], {**move, "answered": True}).code == "answered-unasked"
     moved = event_contracts_model.admitted_event(page, [], dict(move))
     log = [{**moved, "id": "s1", "ts": "2026-09-19T12:01:00+00:00", "seq": 1}]
-    undo = {"kind": "undo", "author": "user", "undoes": "s1", "facts": {"count": 1}}
-    assert refusal(page, log, undo).code == "undeclared-fact"
-    pick = {**STATED_PICK, "widget": "live-pick", "detail": {"value": ["live-gps"]}}
-    kit = ModelPage(STATED_KIT)
-    invalid = refusal(kit, STATED_LOG, {**pick, "facts": {"answered": "yes"}})
-    assert (invalid.code, invalid.values["fact"]) == ("invalid-fact", "answered")
-    extra = refusal(kit, STATED_LOG, {**pick, "facts": {"answered": True, "n": 1}})
-    assert (extra.code, extra.values["fact"], extra.values["declared"]) == (
-        "undeclared-fact",
-        "n",
-        ["answered"],
-    )
+    undo = {"kind": "undo", "author": "user", "undoes": "s1", "answered": False}
+    assert refusal(log, undo).code == "answered-unasked"
 
 
 def test_the_move_that_empties_the_queue_answers_its_obligation():
@@ -603,7 +581,7 @@ def test_the_move_that_empties_the_queue_answers_its_obligation():
         {
             **STATED_MOVE,
             "detail": {"unit": "card-a", "value": "keep", "rank": "0i"},
-            "facts": {"answered": False},
+            "answered": False,
         },
     )
     assert first["meaning"]["unit"] == "card-a"
@@ -614,7 +592,7 @@ def test_the_move_that_empties_the_queue_answers_its_obligation():
         {
             **STATED_MOVE,
             "detail": {"unit": "card-b", "value": "keep", "rank": "0r"},
-            "facts": {"answered": True},
+            "answered": True,
         },
     )
     assert last["meaning"]["answer"] is None
@@ -625,7 +603,7 @@ def test_the_move_that_empties_the_queue_answers_its_obligation():
             {
                 **STATED_MOVE,
                 "detail": {"unit": "not-a-card", "value": "keep", "rank": "0r"},
-                "facts": {"answered": True},
+                "answered": True,
             },
         )
     unknown = refused_on(refused.value)
@@ -659,7 +637,7 @@ def test_admission_decides_from_the_markup_and_the_current_log_alone():
         **STATED_PICK,
         "widget": "live-pick",
         "detail": {"value": ["live-gps"]},
-        "facts": {"answered": True},
+        "answered": True,
     }
     assert admit(choose_live)["meaning"]["unit"] == "live-pick"
     assert refusal({**choose_live, "revision": 2}).values["revisions"] == [1]
@@ -667,7 +645,7 @@ def test_admission_decides_from_the_markup_and_the_current_log_alone():
         **STATED_PICK,
         "widget": "quoted-pick",
         "detail": {"value": ["quoted-gps"]},
-        "facts": {"answered": True},
+        "answered": True,
     }
     assert refusal(quoted).code == "quoted-widget"
     answer = {"kind": "reply", "author": "agent", "revision": 1, "text": "The GPS."}
@@ -1028,7 +1006,7 @@ def test_admission_names_dependencies_and_revendoring_preserves_their_meaning(
         "widget": "picks",
         "action": "choose",
         "detail": {"value": ["flag-first"]},
-        "facts": {"answered": True},
+        "answered": True,
         "attempt": "named-dependencies",
         "attention": False,
     }
@@ -1070,7 +1048,7 @@ def test_created_ids_cannot_collide_across_page_and_thread_content():
             "widget": "thread-options",
             "action": "add",
             "detail": {"option": "elm", "text": "Elm"},
-            "facts": {"answered": False},
+            "answered": False,
         },
     ]
     for widget, identity in (("page-options", "elm"), ("thread-options", "reserved")):
@@ -1084,7 +1062,7 @@ def test_created_ids_cannot_collide_across_page_and_thread_content():
                         "widget": widget,
                         "action": "add",
                         "detail": {"option": identity, "text": "Duplicate"},
-                        "facts": {"answered": False},
+                        "answered": False,
                     },
                 ],
             )

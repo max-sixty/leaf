@@ -1001,25 +1001,21 @@ def restated_reading(action: dict, restated: set) -> dict | None:
     or None where the decision no longer applies.
 
     A decision recording a set of the widget's members (an `attribute` record, as an
-    `lf-options` pick is) keeps the members the version left alone, so a rewritten
-    option leaves the rest of the pick, and an emptied set still stands: what the user
-    unpicked stays unpicked. The reading is the action with the rewritten members out
-    of its value and its dependencies, so it rests on them no longer. It carries
-    neither the answer nor the facts the widget said of the whole set, since the
-    widget has said nothing of what is left (`obligations.widget_facts`). Every other
-    decision rested on what the version rewrote, as a move rests on its column, or on
-    the widget or unit it decides."""
+    `lf-options` pick is) keeps every member the version left alone, so a rewritten
+    option leaves the rest of the pick, an emptied set still stands (what the user
+    unpicked stays unpicked), and restating the widget itself leaves the set whole.
+    The reading is the action without the rewritten members in its value and its
+    dependencies, so it rests on them no longer, and without the answer it gave as a
+    whole. Any other decision is of what the version rewrote, as a draft's words or a
+    suggestion's outcome are of the draft or the suggestion, so it no longer
+    applies."""
     meaning = action["meaning"]
-    value = action["detail"].get("value")
-    if (
-        ((meaning.get("state") or {}).get("record") or {}).get("kind") != "attribute"
-        or not restated <= set(value)
-        or restated & {action["widget"], meaning["unit"]}
-    ):
+    if ((meaning.get("state") or {}).get("record") or {}).get("kind") != "attribute":
         return None
-    reading = {
-        key: field for key, field in action.items() if key not in ("facts", "meaning")
-    }
+    value = action["detail"]["value"]
+    if not restated & set(value):
+        return action
+    reading = {key: field for key, field in action.items() if key != "meaning"}
     reading["detail"] = {
         **action["detail"],
         "value": [member for member in value if member not in restated],
@@ -1045,34 +1041,31 @@ class InForce:
 
     The one reading of which action decides a coordinate, and of what it decides, so
     every reader of liveness walks it: the projection fold, the threads a decision
-    closes, memberships, a widget's facts and a sampled page. A decision the log has
-    taken back has to be absent everywhere at once: a reader that judged it alone, as
-    `build_threads` settling a thread on a decision without asking would, brings a
-    suggestion the next version rewrote back pending with the thread it answered still
-    filed away, and the user is never asked the question again.
+    closes, memberships, a widget's word on its question and a sampled page. A
+    decision the log has taken back has to be absent everywhere at once: a reader
+    that judged it alone, as `build_threads` settling a thread on a decision without
+    asking would, brings a suggestion the next version rewrote back pending with the
+    thread it answered still filed away, and the user is never asked the question
+    again.
 
     Each reader walks the log in order, handing actions to `admit`, undos to
     `withdraw` and version notes to `restate` where they fall. An action stands from
     its admission until an undo withdraws it, and the latest action in force wins, one
     answering nothing included. A note that restates an id reaches each action made on
-    an earlier version that rests on it. A reached action stands as the version reads
-    it (`restated_reading`): a set of members without the rewritten ones, or nothing,
-    and then nothing the decision replaced stands either, so every action before it at
-    its coordinate goes too. The coordinate never falls back to a decision the user
-    replaced: a version taking back a pick of b that replaced a pick of a leaves no
-    pick, rather than a again. An undo of a decision still in force brings back the one
-    before it, as the version reads that one.
+    an earlier version that rests on it (`reaches`), and each stands as the version
+    reads it (`restated_reading`): a set of members without the rewritten ones, or
+    nowhere. The version takes back only what it rewrote, so a coordinate never falls
+    back to a decision the user replaced: a version taking back a pick of b that
+    replaced a pick of a leaves no pick, rather than a again. An undo of a decision
+    still in force brings back the one before it, as the version reads that one.
 
     The note's floor reaches an action made on an earlier version that arrives after
-    it, as from a tab still showing that version. A set stands without the rewritten
-    members, as any act from an older tab stands; any other decision never comes into
-    force and changes nothing, so it can't take out a decision the user made on the
-    version that rewrote what it rests on.
+    it, as from a tab still showing that version, the same way: a set stands without
+    the rewritten members, and any other decision never comes into force.
 
     A step reports a `Change` only where the winner moved: taking out an action
     that was not winning changes no coordinate's reading. A reached winner that still
-    stands moves to its reading, a different record, and readers that tell whether
-    the user's own word stands compare `after` with the action they admitted.
+    stands moves to its reading where the version rewrote one of its members.
 
     Each step costs what it touches: a note reaches the actions resting on what it
     restates through an index of them, never every action in force, a coordinate's
@@ -1135,49 +1128,41 @@ class InForce:
         after = self.winner(coordinate)
         return Change(coordinate, before, after) if after is not before else None
 
-    def restate(self, note: dict) -> list[Change]:
-        """Read every action made on an earlier version that rests on what a version
-        note restates as that version does, and raise its floors for actions admitted
-        after it."""
-        restated = note.get("restated", [])
-        for identity in restated:
-            self.floors[identity] = max(self.floors.get(identity, 0), note["revision"])
-        # Coordinate → each action reached there → the restated ids it rests on.
+    def reaches(self, note: dict) -> dict[tuple, dict[str, set]]:
+        """Coordinate → each action in force there, made on a version before the
+        note's, that rests on an id the note restates → the restated ids it rests
+        on."""
         hit: dict[tuple, dict[str, set]] = {}
-        for identity in restated:
+        for identity in note.get("restated", []):
             for action_id in self._resting.get(identity, {}):
                 coordinate = self._coordinate[action_id]
                 if self._at[coordinate][action_id]["revision"] < note["revision"]:
                     hit.setdefault(coordinate, {}).setdefault(action_id, set()).add(
                         identity
                     )
+        return hit
+
+    def restate(self, note: dict) -> list[Change]:
+        """Read every action a version note reaches as that version does, and raise
+        its floors for actions admitted after it."""
+        hit = self.reaches(note)
+        for identity in note.get("restated", []):
+            self.floors[identity] = max(self.floors.get(identity, 0), note["revision"])
         changes = []
         for coordinate, reached in hit.items():
             before = self.winner(coordinate)
             for action_id, ids in reached.items():
-                # A later decision reached here that no longer applies took this one
-                # with it.
-                if action_id not in self._coordinate:
-                    continue
-                reading = restated_reading(self._at[coordinate][action_id], ids)
+                action = self._at[coordinate][action_id]
+                reading = restated_reading(action, ids)
                 if reading is None:
-                    self._cut(coordinate, action_id)
-                    continue
-                self._at[coordinate][action_id] = reading
-                for identity in ids:
-                    self._resting[identity].pop(action_id, None)
+                    self._remove(action_id)
+                elif reading is not action:
+                    self._at[coordinate][action_id] = reading
+                    for identity in ids:
+                        self._resting[identity].pop(action_id, None)
             if (after := self.winner(coordinate)) is not before:
                 changes.append(Change(coordinate, before, after))
         return changes
-
-    def _cut(self, coordinate: tuple, through: str) -> None:
-        """Take out every action at `coordinate` up to and including `through`."""
-        actions = self._at[coordinate]
-        while True:
-            identity = next(iter(actions))
-            self._remove(identity)
-            if identity == through:
-                return
 
     def _remove(self, identity: str) -> None:
         coordinate = self._coordinate.pop(identity)

@@ -14,10 +14,9 @@ its thread, words or a reaction. Leaf adds no control of its own, such as a gene
 Done, and nothing reaches On Me unless a widget or a thread answers it (`todos` records
 the decision). Any widget may ask by declaring `awaits`; content that doesn't is
 asked about in a thread anchored to it. Whether a widget's obligation is answered is
-the widget's own word, its `answered` fact, which its gestures and its tabs' `facts`
-events carry (`widget_facts`), so this module reads it and keeps no rule of its own
-for it. The browser draws a gesture's word in the gesture's task, and this reading
-takes over once it arrives.
+the widget's own word, which its gestures carry (`gesture_answers`), so this module
+reads it and keeps no rule of its own for it. The browser draws the same word in the
+gesture's task, and this reading takes over once it arrives.
 
 An update the user handed over publishes a record of its own (`update_obligation`),
 built by the fold that decides which updates are handed over and settled
@@ -72,6 +71,7 @@ from leaf.log.events import (
     InForce,
     owed_turns,
     report_settled_at,
+    restated_under,
     taken_back,
     unanswered_agent_turn,
     widget_messages,
@@ -86,6 +86,7 @@ from leaf.log.projection import (
     page_reading,
 )
 from leaf.source.obligation_sources import ObligationSources, obligation_sources
+from leaf.source.passages import enclosing_of
 from leaf.source.reading import SourceReading
 from leaf.source.registry.contract import matches_when
 from leaf.source.registry.kernel import verb_writers
@@ -251,55 +252,30 @@ def previously_requested(
     return False
 
 
-def widget_facts(
+def gesture_answers(
     events: list, projection: StateProjection, within: dict, revision: int | None
-) -> dict[str, dict]:
-    """The facts each widget worked out of its state and markup (`facts`), as the page
-    keeps them: widget id → fact name → the latest value said of it. A gesture says
-    the facts it carries, an action of the widget in force in `projection` or the
-    user's undo of one, and so does a `facts` event, a tab's word on a widget whose
-    state or markup moved without a gesture of its own. A version that moves the
-    winner at any of the widget's coordinates, by restating what it rests on, changes
-    the widget's state with no word from it, whether its note lands before the action
-    or after, so the facts said before lapse until the widget says them again. A
-    gesture made on a version older than the newest one the widget's kept facts were
-    said on leaves those standing: a tab still showing that older version worked its
-    word out of markup the page has since replaced. A `facts` event's word is
-    `told_facts`. A widget whose `answered` is unsaid asks on (`awaits`).
+) -> dict[str, bool]:
+    """Each widget's word on whether its obligation is answered: widget id → the newest
+    word said of it. Each of the widget's actions in force in `projection`, and the
+    user's undo of one, carries its `answered`, which the widget worked out in the
+    browser as the gesture left its state (`module-state.md`, "Declared widget state"),
+    so this reads the word and decides nothing again. A version that restates an id
+    the widget's actions rest on asks again: its note says the question is open, and
+    so does an action made on an earlier version that arrives after it, which the
+    version reads without what it restated (`events.InForce`). The user's next gesture
+    on the widget says otherwise.
 
-    The widget works each fact out, in the browser, from its state and markup
-    (`module-state.md`, "Declared widget state"), and the runtime sends the values on
-    the events, so this reads the values and decides nothing again. The walk that says
-    which actions stand (`events.InForce`, the fold's own reading of survival) takes the
-    log in order, through `revision` where a view of one revision reads it, as the fold
-    does, so a note a later version wrote retracts nothing a view of an earlier one
-    holds, and a tab's word on a later version says nothing of it. `within` is the
-    document's containment (`passages.enclosing_of`), so a `facts` event about a widget
-    the document doesn't hold says nothing here."""
+    The walk takes the log in order, through `revision` where a view of one revision
+    reads it, as the fold does, so a note a later version wrote asks nothing again in a
+    view of an earlier one. `within` is the document's containment
+    (`passages.enclosing_of`). A widget with no word is unanswered, whatever its markup
+    holds."""
     walk = InForce(within)
-    # The widget of each action this reading classified.
     widget_of: dict[str, str] = {}
-    kept: dict[str, dict] = {}
-    # The newest version a gesture or tab said each widget's kept facts on.
-    said_on: dict[str, int] = {}
-
-    def say(widget: str, facts: dict, on: int | None) -> None:
-        # A word worked out on an older version than one already said leaves the newer
-        # word standing, as admission refuses a tab's (`stale-facts`). A word that names
-        # no version, as an undo another writer made may, stands.
-        if on is not None and on < said_on.get(widget, 0):
-            return
-        kept.setdefault(widget, {}).update(facts)
-        if on is not None:
-            said_on[widget] = on
-
-    def lapse(widget: str) -> None:
-        kept.pop(widget, None)
-        said_on.pop(widget, None)
-
+    said: dict[str, bool] = {}
     for event in events:
         kind = event["kind"]
-        if kind in ("action", "note", "facts") and revision is not None:
+        if kind in ("action", "note") and revision is not None:
             if event["revision"] > revision:
                 continue
         if kind == "action":
@@ -307,44 +283,22 @@ def widget_facts(
             if event["id"] not in projection.classified:
                 continue
             widget_of[event["id"]] = event["widget"]
-            change = walk.admit(event)
-            if change is None:
-                continue
-            # A version restated what the action rests on before it arrived, so the
-            # state it leaves is the version's reading, which the widget said nothing of.
-            if change.after is not event:
-                lapse(event["widget"])
-            elif "facts" in event and event["id"] in projection.in_force:
-                say(event["widget"], event["facts"], event["revision"])
+            asked = bool(restated_under(event, walk.floors, within))
+            if (
+                walk.admit(event) is not None
+                and "answered" in event
+                and event["id"] in projection.in_force
+            ):
+                said[event["widget"]] = event["answered"] and not asked
         elif kind == "undo" and (widget := widget_of.get(event["undoes"])):
             walk.withdraw(event["undoes"])
-            if "facts" in event:
-                say(widget, event["facts"], event.get("revision"))
-        elif kind == "facts" and event["widget"] in within:
-            say(event["widget"], told_facts(event), event["revision"])
+            if "answered" in event:
+                said[widget] = event["answered"]
         elif kind == "note":
-            for change in walk.restate(event):
-                lapse(change.coordinate[0])
-    return kept
-
-
-def told_facts(event: dict) -> dict:
-    """The facts of a `facts` event the page keeps: all of them, apart from an
-    `answered` that says the question is answered. A tab's word can reopen a question,
-    as when a version adds a step to a checklist the user called done, but never
-    answer one: an answer is the user's act, and the widget's word on it travels on
-    that act ("Responsiveness" in root `AGENTS.md`). So a version that brings back
-    what an earlier answer covered leaves the question asking until the user acts on
-    it again. A Done rests on its widget alone, so a version taking back a pick made
-    after Done leaves the Done standing on the picks before it. lf-options compares
-    Done with the markup's `selected` where no pick stands, so a version writing the
-    pick Done covered matches it. And a version may take out the one step Done didn't
-    cover."""
-    return {
-        fact: value
-        for fact, value in event["facts"].items()
-        if not (fact == "answered" and value)
-    }
+            for widget, _unit, _verb in walk.reaches(event):
+                said[widget] = False
+            walk.restate(event)
+    return said
 
 
 def anchors_with_agent(threads: dict, owed: list[dict]) -> list[dict]:
@@ -507,7 +461,6 @@ class _ObligationReducer:
         spk,
         registry: dict,
         dropped: set,
-        facts: dict,
         revision: int | None = None,
         events: list | None = None,
     ):
@@ -521,7 +474,9 @@ class _ObligationReducer:
         self.events = [] if events is None else events
         self.prompts = sources.prompts
         self.records = [record for record, _shown in sources.asking]
-        self.facts = facts
+        self.answers = gesture_answers(
+            self.events, projection, enclosing_of(spk), revision
+        )
 
         self.exists: dict[int, bool] = {}
         self.local: dict[int, bool] = {}
@@ -543,7 +498,7 @@ class _ObligationReducer:
         )
 
     def _answered(self, record):
-        return self.facts.get(record["attrs"].get("id"), {}).get("answered", False)
+        return self.answers.get(record["attrs"].get("id"), False)
 
     def inventory(self, settled_away: set[str], prior=None) -> list:
         """Every present source remains identifiable after completion or withdrawal."""
@@ -727,16 +682,14 @@ def page_obligation_readings(
     *,
     settled_away: set[str] | None = None,
     prior=None,
-    facts: dict,
     revision: int | None = None,
     events: list | None = None,
 ) -> dict:
     """Obligations in one document basis; a discussion changes attention, not answer:
     an obligation a thread with the agent is about is the agent's (`anchors_with_agent`).
-    `owed` is the work the agent's replies promised (`todos.TodoReading.owed`), and
-    `facts` the document's `widget_facts`."""
+    `owed` is the work the agent's replies promised (`todos.TodoReading.owed`)."""
     reducer = _ObligationReducer(
-        sources, projection, byid, spk, registry, dropped, facts, revision, events
+        sources, projection, byid, spk, registry, dropped, revision, events
     )
     records = reducer.inventory(settled_away or set(), prior)
     discussed(records, anchors_with_agent(threads, owed), within)
@@ -750,7 +703,6 @@ def thread_obligation_readings(
     owed: list[dict],
     *,
     reading: ThreadMarkupReading,
-    facts: dict,
 ) -> dict:
     """Message and thread widget obligations retain inventory when their thread closes,
     with no next actor. While the thread is open, a user turn after the message
@@ -758,8 +710,7 @@ def thread_obligation_readings(
     until the work a reply after it promised ends, as a thread anchored on a page
     obligation does (`anchors_with_agent`). That turn instead answers a message
     obligation, whether it says words or an emoji. `owed` is
-    the work replies promised (`todos.TodoReading.owed`), and `facts` the thread
-    markup's `widget_facts`."""
+    the work replies promised (`todos.TodoReading.owed`)."""
     reducer = _ObligationReducer(
         obligation_sources(reading.structure, registry),
         reading.projection,
@@ -767,7 +718,6 @@ def thread_obligation_readings(
         reading.spoken,
         registry,
         set(),
-        facts,
         events=events,
     )
     records = reducer.inventory(set())

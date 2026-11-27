@@ -147,9 +147,10 @@ changes, and the verb. For each key the latest action not taken back sets the st
 moving a card again replaces that card's position while other cards keep theirs.
 `record` says how the state shows in markup, here as the card's place in a column. A
 new version may change the authored markup freely; the user's decisions still apply
-over it until a `restated` event takes one back. A version takes a decision back by
-setting the boolean `restated` attribute on the element it rests on, and stamping that
-version records the retraction (the registry's `$restated`). The `$keys` entries in
+over it. A version that sets the boolean `restated` attribute on an element takes that
+element out of the decisions resting on it and asks again, and stamping that version
+records it (the registry's `$restated`, `events.md`, "Widget answers"). The `$keys`
+entries in
 `browser/registry.json` define each key exactly.
 
 The record kind fixes the event's payload, a closed object with every field required:
@@ -229,26 +230,25 @@ answers it. `text: true` requires each report to carry short news for a person i
 agent's report. A widget with such a verb takes a boolean `overruled` attribute, which a
 version sets to keep its authored state over the report. A widget with a user verb
 that keeps one state for the whole widget takes a boolean `restated` the same way,
-which a version sets to take the user's decision back. Leaf writes both into the composed declaration, so the
+which a version sets to ask the user again. Leaf writes both into the composed declaration, so the
 package's own lists neither. An element that another widget's verb names by id, as
 `lf-board`'s `move` names an `lf-card`, lists `restated` itself.
 
 `awaits` puts a widget's obligation on the user's list, On Me. Its `value` names
 the verb whose state is the answer: the recorded value, or a recordless verb's latest
 `detail`. A playground's unrecorded `choose` gives its submitted settings.
-Whether the obligation is answered is the widget's own word, its `answered` fact,
-which the declaration lists under `facts` as `{"type": "boolean"}`: its class's
-`static answered(state, element)`, or, without one, whether that verb holds a state
-([module-state.md, "Declared widget
+Whether the obligation is answered is the widget's own word, which each of its
+gestures carries: its class's `static answered(state, element)`, or, without one,
+whether that verb holds a state ([module-state.md, "Declared widget
 state"](module-state.md#declared-widget-state)), counting only the user's acts in
 force: a starting value the page's markup writes answers nothing. So a queue whose
 question is answered once its marked column is empty says so from the positions its
 `state` holds, and a checklist decided step by step says so once its last step is.
-The widget says it on each gesture and as a version or another tab's act moves it,
-so a version adding a step to a checklist asks again, keeping the other steps'
-decisions, once a tab shows it. Marking an element `restated` asks again too: every
-decision resting on that element is read without it, as the registry's `$restated`
-says, and the question stays open until the widget says otherwise. If the widget's `when` stops
+Only a gesture says it, so a version that changes the answer, as one adding a step
+does, says nothing by itself. Marking an element `restated` asks again: the question
+stays open until the user's next gesture says otherwise. Marking the widget keeps
+every decision on its members, as a checklist given a step keeps its other steps'
+picks; marking a member takes it out of them. If the widget's `when` stops
 holding, a complete obligation stays answered and an incomplete one is withdrawn.
 
 `awaits.retired` names the attribute an author sets to close an obligation but

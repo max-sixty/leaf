@@ -4,6 +4,7 @@ export * as Cause from "effect/Cause";
 export * as Effect from "effect/Effect";
 export * as Equal from "effect/Equal";
 export * as Exit from "effect/Exit";
+export * as Layer from "effect/Layer";
 export * as Schema from "effect/Schema";
 export * as Scope from "effect/Scope";
 export { Command, Component, UiSchema } from "@effect/ui";

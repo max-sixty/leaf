@@ -15,10 +15,11 @@
      new props when it moves. The function reads the element's attributes too, and
      only there does the component see its element.
 
-   The component's events are what it says to Leaf: a `Recorded` event (`WidgetEvents`)
-   is an `lf-action` and a `TookBack` one an `lf-undo`, dispatched on the element, and
-   any other event a bubbling, composed `CustomEvent` named by its lowercased tag, with
-   the event as `detail`, as `BrowserHost.defineElement` dispatches one.
+   What the component asks of Leaf, such as recording a gesture, it issues as a
+   Command of Leaf's services (widget-services.js), which the mount provides for this
+   element. Its events are for the page around it: each is a bubbling, composed
+   `CustomEvent` named by its lowercased tag, with the event as `detail`, as
+   `BrowserHost.defineElement` dispatches one.
 
    Drawing follows the protocol's "Drawing" rule. The first mount draws before
    `connectedCallback` returns. A later set draws in Effect UI's flush, a microtask
@@ -42,26 +43,13 @@ import {
   Exit,
   Schema,
   Scope,
-  UiSchema,
 } from "/vendor/effect-ui.js";
 import { effect as watch, untracked } from "/vendor/signals-core.js";
-import { failSoft } from "./failure.js";
-import { inWindowDocument } from "./once.js";
-import { PendingTaskEvent } from "./pending-task.js";
-import { COMMANDS, CONNECT } from "./widget-events.js";
-
-/** The events a widget component emits for Leaf to record or take back, in the shapes
- *  `lf-action` and `lf-undo` carry. A component lists them in its `events`, beside
- *  any of its own: `events: WidgetEvents`. */
-export const WidgetEvents = UiSchema.TaggedEnum({
-  Recorded: {
-    verb: Schema.String,
-    detail: Schema.Record(Schema.String, Schema.Unknown),
-    says: Schema.optional(Schema.String),
-    attempt: Schema.optional(Schema.String),
-  },
-  TookBack: { verb: Schema.String, unit: Schema.optional(Schema.String) },
-});
+import { failSoft } from "./lib/failure.js";
+import { inWindowDocument } from "./lib/once.js";
+import { PendingTaskEvent } from "./lib/pending-task.js";
+import { COMMANDS, CONNECT } from "./lib/widget-events.js";
+import { leafServices } from "./widget-services.js";
 
 /** The props every widget component gets: Leaf's reading of it, undefined until Leaf
  *  sets one and off a Leaf page. A component's own `props` Schema extends it. */
@@ -197,7 +185,9 @@ export function defineWidget(tag, component, { shadow = false, lfPatch, inputs }
           },
         })
       );
-      this.#root = Effect.runSync(mounting.pipe(Scope.provide(scope)));
+      this.#root = Effect.runSync(
+        mounting.pipe(Effect.provide(leafServices(this)), Scope.provide(scope)),
+      );
       this.#drawn();
     }
 
@@ -222,21 +212,15 @@ export function defineWidget(tag, component, { shadow = false, lfPatch, inputs }
       );
     }
 
-    /** @param {{_tag: string} & Record<string, unknown>} event */
+    /** @param {{_tag: string}} event */
     #emit(event) {
-      const { _tag, ...detail } = event;
-      if (_tag === "Recorded" || _tag === "TookBack")
-        this.dispatchEvent(
-          new CustomEvent(_tag === "Recorded" ? "lf-action" : "lf-undo", { detail }),
-        );
-      else
-        this.dispatchEvent(
-          new CustomEvent(_tag.toLowerCase(), {
-            detail: event,
-            bubbles: true,
-            composed: true,
-          }),
-        );
+      this.dispatchEvent(
+        new CustomEvent(event._tag.toLowerCase(), {
+          detail: event,
+          bubbles: true,
+          composed: true,
+        }),
+      );
     }
   };
   if (lfPatch) Object.assign(Widget, { lfPatch });

@@ -145,7 +145,7 @@ const roleElement = (node, role, cls, label, pressable = false) => {
   return node;
 };
 // A worded press's marks as attributes, for a button a view builds itself, such as an
-// Effect UI component's (lib/effect-widget.js): the template's `offeredAction` with the
+// Effect UI component's (runtime/effect-widget.js): the template's `offeredAction` with the
 // words left to the view. A symbol or a mark draws its symbol into the node, so it
 // takes `offerActionElement` in a mount instead.
 /** @param {LeafActionRole} role @param {string} [cls] @param {string} [label] */

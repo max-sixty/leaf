@@ -1,10 +1,10 @@
 /* One native disclosure from delivery through live updates, drawn by an Effect UI
- * component (lib/effect-widget.js) from the snapshot's attributes. The disclosure owns
+ * component (runtime/effect-widget.js) from the snapshot's attributes. The disclosure owns
  * its open state: the view writes `open` from the markup and never again while the
  * markup says the same, so the user's toggle stands. Authored evidence stays in the
  * host's light DOM, and the browser distributes it through the slot. */
 import { Html, Schema } from "/vendor/effect-ui.js";
-import { defineWidget, widgetProps } from "/runtime/lib/effect-widget.js";
+import { defineWidget, widgetProps } from "/runtime/effect-widget.js";
 
 const WorktreeProps = Schema.Struct({
   ...widgetProps,

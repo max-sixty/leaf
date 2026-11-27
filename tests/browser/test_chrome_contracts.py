@@ -656,7 +656,7 @@ def test_writing_in_a_comment_box_over_the_window_foot_moves_no_words(
     page.keyboard.type("Fine")
     rendered(page)
     assert page.evaluate("scrollY") == scrolled
-    # The band the panel states on the root, which the rule hides from the browser.
+    # The root's landing band at the window's foot, over the floating panel's cover.
     caret, band_top = field.evaluate(f"""async box => {{{CARET_AT}
       const caret = document.createRange();
       caret.setStart(at, offset);

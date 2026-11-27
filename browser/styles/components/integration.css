@@ -89,7 +89,7 @@
    and stack where the control would. A positioned box is the containing block of an
    absolute one, which an anchor outside it cannot position (CSS Anchor Positioning,
    "acceptable anchor element"), and a document control stands in two: Leaf's chrome
-   root (base.css, `:root > .lf-chrome`) and, cut, its frame. So a document control is
+   root (elements.css, `:root > .lf-chrome`) and, cut, its frame. So a document control is
    fixed, with the window for its containing block, and its anchor carries it through
    every scroll. A widget's control, standing in the widget's own tree with its block,
    stays absolute. */

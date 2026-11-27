@@ -5,6 +5,7 @@ A check on a page of millions of elements finds its controls as
 notes/browser-support.md, "Walking every element of a page of millions in Chromium",
 says."""
 
+import json
 import re
 import subprocess
 import sys
@@ -584,6 +585,25 @@ def text_field(
     text fields alone, since other groups can carry the same words."""
     return scope.get_by_role("group", name=name, exact=exact).and_(
         scope.locator("leaf-text")
+    )
+
+
+def page_function(source: str, function: str, *, helpers: str | None = None) -> str:
+    """A function for `page.evaluate` that calls `function` of the callbacks `source`
+    returns, in the same call, so nothing is installed as a page global. `source` is a
+    JavaScript expression returning named callbacks or, with `helpers`, a factory that
+    takes the callbacks `helpers` returns. Playwright passes the arguments as usual."""
+    if helpers is None:
+        declaration = f"const callbacks = {source}\n"
+    else:
+        declaration = (
+            f"const factory = {source}\n"
+            f"const helpers = {helpers}\n"
+            "const callbacks = factory(helpers);\n"
+        )
+    return (
+        f"(...args) => {{ {declaration}"
+        f"return callbacks[{json.dumps(function)}](...args); }}"
     )
 
 

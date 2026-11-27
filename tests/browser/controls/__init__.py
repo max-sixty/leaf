@@ -1,8 +1,9 @@
 """The page's controls and chrome: command routes, status, focus and
 rings, covering surfaces, and the pages and helpers its test modules share."""
 
-from browser_sources import browser_function
 from render_harness import leaf_page
+
+from leaf_dev.rings import ring_script
 
 SAMPLE_STARTUP_FAILURE = """<script type="module">
 if (new URL(location.href).searchParams.has('startup-failure'))
@@ -42,4 +43,4 @@ LIVE_SAMPLES_PAGE = leaf_page(
 ).replace("</template>", SAMPLE_STARTUP_FAILURE + "</template>")
 
 
-RING_NEW_STOP = browser_function("focus_rings.js", "newStop", using="control_name.js")
+RING_NEW_STOP = ring_script("newStop")

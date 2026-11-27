@@ -4,8 +4,9 @@ import pytest
 from browser.controls import LIVE_SAMPLES_PAGE
 from browser.controls.test_live_samples import RING_INK
 from playwright.sync_api import expect
-from render_cases_layout import current_location_ring
 from render_harness import leaf_page, open_page, put_preview_away, rendered, resized
+
+from leaf_dev.rings import current_location_ring
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

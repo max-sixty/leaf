@@ -24,7 +24,7 @@ from render_cases_interaction import (
     live_url,
     panel_comment,
 )
-from render_cases_layout import page_at_rest, ring_faults, rings_drawn, solid_png
+from render_cases_layout import page_at_rest, solid_png
 from render_cases_navigation import UNDO_PAGE
 from render_cases_widgets import PAGE_DECLARATION, PAGE_WIDGET
 from render_harness import (
@@ -79,6 +79,7 @@ from leaf.source.render_checks import one_frame, rendered, wait_until_ready
 from leaf_dev import browser as dev_browser
 from leaf_dev.browser import choose_threads_in_panel, open_on_me, panel_tab
 from leaf_dev.panel_paint import ROUTES, ink_box, mark_colours, near, settled
+from leaf_dev.rings import ring_faults, rings_drawn
 
 OBLIGATION_PAGE = leaf_page(
     "obligation",

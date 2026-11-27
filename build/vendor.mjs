@@ -171,9 +171,13 @@ const bundles = {
 
   // Effect and Effect UI, the component model widgets and Leaf's own chrome draw
   // with (runtime/effect-widget.js). One module, so a page runs one Effect runtime.
+  // The `production` condition picks Effect UI's builds without its development
+  // checks and hot reload, which read session storage and scan every root at each
+  // mount.
   "effect-ui": () => ({
     out: `${assets}/vendor/effect-ui.js`,
     entryPoints: [input("entries/effect-ui/entry.mjs")],
+    conditions: ["production"],
     banner: {
       js: `/*! effect ${version("effect")} and @effect/ui ${version("@effect/ui")} — MIT — https://github.com/Effect-TS/ui */`,
     },

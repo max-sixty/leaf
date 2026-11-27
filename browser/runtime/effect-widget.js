@@ -23,9 +23,11 @@
 
    What the component asks of Leaf, such as recording a gesture, it issues as a
    Command of Leaf's services (widget-services.js), which the mount provides for this
-   element. Its events are for the page around it: each is a bubbling, composed
-   `CustomEvent` named by its lowercased tag, with the event as `detail`, as
-   `BrowserHost.defineElement` dispatches one.
+   element. A Command runs in a microtask of the task that issued it, on the
+   scheduler the mount provides, so a gesture's Command lands before the browser's
+   next frame. The component's events are for the page around it: each is a
+   bubbling, composed `CustomEvent` named by its lowercased tag, with the event as
+   `detail`, as `BrowserHost.defineElement` dispatches one.
 
    Drawing follows the protocol's "Drawing" rule. The first mount draws before
    `connectedCallback` returns. A later set draws in Effect UI's flush, a microtask
@@ -59,6 +61,7 @@ import {
   Equal,
   Exit,
   Schema,
+  Scheduler,
   Scope,
 } from "/vendor/effect-ui.js";
 import { signal, effect as watch, untracked } from "/vendor/signals-core.js";
@@ -73,6 +76,12 @@ import { leafServices } from "./widget-services.js";
 export const widgetProps = { state: Schema.optional(Schema.Unknown) };
 
 let mounts = 0;
+
+// The scheduler a root's Commands and Subscriptions run on: microtasks of the task that
+// asked, so a Command a gesture issues runs before the browser's next frame
+// (AGENTS.md, "Responsiveness"). Without one, Effect UI posts them through its
+// time-sliced HtmlScheduler, as later tasks.
+const microtasks = new Scheduler.MixedScheduler("sync");
 
 /** @typedef {{get?: (model: any) => unknown, set?: (value: any) => unknown}} Member */
 
@@ -266,7 +275,11 @@ export function defineWidget(
         })
       );
       this.#root = Effect.runSync(
-        mounting.pipe(Effect.provide(leafServices(this)), Scope.provide(scope)),
+        mounting.pipe(
+          Effect.provide(leafServices(this)),
+          Effect.provideService(Scheduler.Scheduler, microtasks),
+          Scope.provide(scope),
+        ),
       );
       this.#drawn();
     }

@@ -2566,7 +2566,7 @@ export function createFloatingPanel({
       opening.rewriting = false;
       opening.room = null;
     }
-    paint();
+    paintSoon();
   });
   // The menu grows upward from the row, so news that adds a row to it, or takes one
   // away, would carry every row above up or down the window under the reader: a row a
@@ -5246,6 +5246,14 @@ export function createFloatingPanel({
       host.performUpdate();
     }
   }
+  // A move of the user's place repaints once the script that moved it has ended, still
+  // before the next frame (Lit's schedule), so a press that moves the place and then
+  // acts, as Go-to's press focuses a tab and then clicks it, draws the panel once: the
+  // act's own paint takes the update over.
+  function paintSoon() {
+    if (painting) again = true;
+    else host.requestUpdate();
+  }
   function paintPanel() {
     draws += 1;
     painting = true;
@@ -5867,7 +5875,7 @@ export function createFloatingPanel({
     else if (inside && left?.isConnected && !renderedUnder(left, host))
       heldCurrentLocation = readPlace(left);
     if (!inside && writesIn(fieldInput()) === drawnWriting) return;
-    paint();
+    paintSoon();
   });
   // A press away from the panel puts away what stands open above the row (dom/focus.js,
   // `onPressAway`). A press in a modal over the panel is not on the page (`overPanel`).

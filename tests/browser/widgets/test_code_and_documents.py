@@ -220,7 +220,7 @@ def test_a_written_markdown_preview_its_bound_cuts_shows_whole_on_a_press(
     bound = shown.evaluate("tab => [tab.clientHeight, tab.scrollHeight]")
     assert bound[0] < bound[1], bound
     assert shown.evaluate("tab => getComputedStyle(tab).overflowY") == "hidden"
-    press = document.get_by_role("button", name="Show all", exact=True)
+    press = document.get_by_role("button", name="Show all 80 lines")
     expect(press).to_be_visible()
     press.click()
     expect(press).to_be_hidden()

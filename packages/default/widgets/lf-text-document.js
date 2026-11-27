@@ -1390,7 +1390,10 @@ class TextDocument extends LeafElement {
         keeps(view.preview, "title", `${label} preview`);
       const previous = this.lines;
       this.lines = next;
-      if (this.cuts) keepsText(this.cuts.source.press, `Show all ${text.length} lines`);
+      // Both presses show the same document, so they say the same: how long it is.
+      if (this.cuts)
+        for (const { press } of Object.values(this.cuts))
+          keepsText(press, `Show all ${text.length} lines`);
       // The first line the new text changes, past the end where it changes none.
       let from = 0;
       if (!this.sourceView) {
@@ -1561,19 +1564,16 @@ class TextDocument extends LeafElement {
     rendered.append(drawn);
     literal.append(listing);
     if (this.matches(WRITTEN)) {
-      /** @param {HTMLElement} panel @param {string} label @returns {Cut} */
-      const cut = (panel, label) => {
+      /** @param {HTMLElement} panel @returns {Cut} */
+      const cut = (panel) => {
         const box = offer("div", "lf-text-document-cut");
         box.hidden = true;
-        const press = offerAction("inline", "lf-text-document-more", label);
+        const press = offerAction("inline", "lf-text-document-more", "");
         box.append(press);
         panel.append(box);
         return { panel, box, press };
       };
-      const cuts = (this.cuts = {
-        preview: cut(rendered, "Show all"),
-        source: cut(literal, ""),
-      });
+      const cuts = (this.cuts = { preview: cut(rendered), source: cut(literal) });
       // Either press shows the whole document in both tabs and goes, so focus moves to
       // the text it showed.
       /** @param {() => HTMLElement | undefined} shown */

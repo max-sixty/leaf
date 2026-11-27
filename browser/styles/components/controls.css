@@ -231,6 +231,13 @@
   opacity: var(--lf-msg-offered, 0);
   cursor: pointer;
 }
+/* Leaf's controls size at their border. The document's reset says so in chrome.css,
+   which a declared shadow tree doesn't read, so a tree says it here. */
+:where(:host .lf-ui, :host .lf-ui *),
+:where(:host .lf-ui *)::before,
+:where(:host .lf-ui *)::after {
+  box-sizing: border-box;
+}
 /* Every Leaf icon (icons.js) is drawn the same way, whatever class its caller places it
    by: a round-capped stroke in the text's colour, unfilled, so no caller's class can
    leave one drawn as the browser's default black fill. */

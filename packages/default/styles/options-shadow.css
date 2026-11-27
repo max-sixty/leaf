@@ -10,14 +10,6 @@
  * it is settled (`data-lf-settled`), since an option's root can't see its group. A mark
  * that takes a pick is a checkbox; an exhibit's is an image. */
 
-/* The hosts hold the page's own words, so they keep the page's reading face, which a
- * shadow tree's host otherwise sets aside for what the tree draws (reading.css); their
- * slots pass it to the options' words, and their controls stand in it as they did
- * among those words. */
-:host(lf-options),
-:host(lf-option) {
-  --lf-reading-face: inherit;
-}
 /* An option's words ask it whether it shares a row (`--lf-option-in-row`, options.css),
  * a property that doesn't inherit, and a style query asks an element's parent, which
  * for the words is the option's slot. So the root passes the option's answer down to
@@ -25,14 +17,6 @@
 :host(lf-option) > *,
 :host(lf-option) slot {
   --lf-option-in-row: inherit;
-}
-/* Leaf's controls size at their border, which the chrome's reset says for the document
- * alone (chrome.css), so the cells' and marks' room is the room they had there. */
-:host(:is(lf-options, lf-option)) .lf-ui,
-:host(:is(lf-options, lf-option)) .lf-ui *,
-:host(:is(lf-options, lf-option)) .lf-ui *::before,
-:host(:is(lf-options, lf-option)) .lf-ui *::after {
-  box-sizing: border-box;
 }
 
 /* An option's root. The obligation's action keys stand on the cells they bind: the

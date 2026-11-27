@@ -171,6 +171,8 @@
         /* Room for a focus ring at its foot, where it scrolls, taken from the list's
          * top (the package theme). */
         padding: var(--lf-sp-4) 20px var(--lf-focus-ring-room);
+        /* It heads the column, and what it holds is set as the column's text
+         * (reading.css). The property inherits, so everything in it can ask. */
         --lf-parts-title: 1;
       }
     }

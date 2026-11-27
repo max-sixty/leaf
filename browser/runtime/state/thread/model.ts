@@ -191,9 +191,7 @@ export const isNews = (thread: Pick<Thread, "resolved"> & Unread) =>
  * says, and those that are news (`isNews`), which the leaf's dot says. A page's
  * served row counts the same way
  * (`served_state.thread.thread_counts`); tests/thread_count_cases.json holds both. */
-export function threadCounts(
-  threads: readonly (Pick<Thread, "resolved"> & Unread)[],
-) {
+export function threadCounts(threads: readonly (Pick<Thread, "resolved"> & Unread)[]) {
   return {
     open: threads.filter((thread) => !thread.resolved).length,
     unread: threads.filter(isNews).length,

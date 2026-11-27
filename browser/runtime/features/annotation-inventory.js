@@ -17,6 +17,7 @@ import { replyIsEditing } from "../records/thread/replies.js";
 import { KINDS } from "../base/contribution-model.js";
 import { excerptWords, labelWords } from "../lib/words.js";
 import { contributionEntries } from "./contributions.js";
+import { contributionAnswers } from "./contribution-controls.js";
 import { marginEntry, threadMarks } from "./margin-model.js";
 import { agentName, readPart } from "../state/semantic-state.js";
 import { livePoint } from "../readings/pointed-place.js";
@@ -702,24 +703,30 @@ export function createAnnotationInventory({
       for (const item of drafts) add(groups, target, item, pointed);
     }
     // A widget's obligation has a place on the page (records/obligations/place.js); the rest
-    // have no node.
+    // have no node. Each is added once the contributions are grouped, below.
+    /** @type {{target: Element, source: Element | null, item: LiveItem}[]} */
+    const asks = [];
     for (const item of readObligations().user) {
       const id = item.id;
-      const target = obligationPlace(item).node;
+      const { node: target, source } = obligationPlace(item);
       if (!target) continue;
-      add(groups, target, {
-        kind: "on-me",
-        id: `on-me:${id}`,
-        // The group this row stands in already names the obligation; the row says why it is
-        // there, since these are the obligations the user owes.
-        text: "Waiting on me",
-        words: WAITING_ON_ME,
-        // The marker's own label is the question, which says more than the kind its
-        // glyph already shows: the widget's name.
-        label: labelOf(target) || null,
-        activate: () => {
-          const next = readObligations().byId.get(id);
-          if (hasObligationSource(next, "widget")) goToObligation(next);
+      asks.push({
+        target,
+        source,
+        item: {
+          kind: "on-me",
+          id: `on-me:${id}`,
+          // The group this row stands in already names the obligation; the row says why it
+          // is there, since these are the obligations the user owes.
+          text: "Waiting on me",
+          words: WAITING_ON_ME,
+          // The marker's own label is the question, which says more than the kind its
+          // glyph already shows: the widget's name.
+          label: labelOf(target) || null,
+          activate: () => {
+            const next = readObligations().byId.get(id);
+            if (hasObligationSource(next, "widget")) goToObligation(next);
+          },
         },
       });
     }
@@ -926,6 +933,19 @@ export function createAnnotationInventory({
           activate: () => offered.registration.activateReading(item.id),
         });
       }
+    }
+    // Leaf's ask stands for a widget's question only where the widget's own answers
+    // don't: an entry beside it that runs one of the widget's decision commands asks it
+    // already, as a suggestion's Accept and Reject do.
+    for (const { target, source, item } of asks) {
+      const answered = groups
+        .get(target)
+        ?.offers.some((offered) =>
+          offered.reading.entries.some(
+            (entry) => source && contributionAnswers(entry, source),
+          ),
+        );
+      if (!answered) add(groups, target, item);
     }
 
     const collected = [...groups.values()];

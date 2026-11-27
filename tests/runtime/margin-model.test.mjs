@@ -333,33 +333,10 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
   });
 });
 
-test("a contributed reading stands for Leaf's On Me marker but never for a thread or a draft", () => {
-  const stands = (id, kind) =>
-    marker(id, kind, { marker: false, represents: true, owner: "widget" });
-  const entry = inventory({
-    items: [
-      stands("for-ask", "on-me"),
-      marker("on-me:ask", "on-me"),
-      stands("for-thread", "comment"),
-      marker("thread", "comment"),
-      stands("for-draft", "draft"),
-      marker("draft:here", "draft"),
-    ],
-  });
-  assert.deepEqual(entry.items.map((item) => item.id).sort(), [
-    "draft:here",
-    "for-ask",
-    "for-draft",
-    "for-thread",
-    "thread",
-  ]);
-});
-
-test("declared representation and a workflow carrier suppress only duplicate readings", () => {
+test("a workflow carrier suppresses only the reading it carries", () => {
   const workflowReceipt = Object.freeze({ id: "claim" });
   const items = [
-    marker("declared", "change", { marker: false, represents: true, owner: "widget" }),
-    marker("duplicate", "change"),
+    marker("declared", "change", { marker: false, owner: "widget" }),
     marker("receipt", "activity", {
       workflowFace: KINDS.activity,
       carriesWorkflow: true,
@@ -565,7 +542,7 @@ test("contribution reading projections contain data while producers retain activ
 });
 
 test("a contribution reading keeps only the fields a reading declares", () => {
-  const declared = { id: "inbox", text: "Inbox", kind: "on-me", represents: true };
+  const declared = { id: "inbox", text: "Inbox", kind: "on-me" };
   const reading = normalizeContributionReading(
     {
       readings: [

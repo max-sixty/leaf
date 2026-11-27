@@ -87,6 +87,83 @@ test("a kept item acts through the capabilities of the latest reading", () => {
   }
 });
 
+// A widget whose own margin entries run its decision commands asks its question there, so
+// Leaf's "Waiting on me" stands aside. Any other entry beside the widget, such as a
+// reaction, a Copy bound to one of its other commands, or another widget's answer, leaves
+// the ask standing.
+test("Leaf's ask stands aside only for entries that run the widget's own decisions", () => {
+  document.body.innerHTML =
+    '<main><p id="asked">A question</p><p id="other">Other</p></main>';
+  const asked = document.getElementById("asked");
+  const other = document.getElementById("other");
+  const row = (id, decision) => ({
+    id,
+    title: id,
+    decision,
+    control: () => null,
+    run() {},
+  });
+  asked.lfCommands = {
+    title: "Asked",
+    rows: [row("asked.yes", true), row("asked.copy", false)],
+  };
+  other.lfCommands = { title: "Other", rows: [row("other.yes", true)] };
+  const inventory = inventoryOf([obligation("first")]);
+  const asks = () =>
+    entryFor(inventory.collect(), "asked")
+      .items.filter((item) => item.id === "on-me:first")
+      .map((item) => item.text);
+  /** @param {object} entry */
+  const beside = (entry) =>
+    registerContribution({
+      key: `probe:${entry.key}`,
+      target: asked,
+      read: () => ({ entries: [entry] }),
+      activate() {},
+    });
+  const planted = [
+    { key: "react", label: "👍", glyph: "👍" },
+    {
+      key: "copy",
+      label: "Copy",
+      icon: "copy",
+      activation: "asked.copy",
+      scope: asked.lfCommands,
+    },
+    {
+      key: "elsewhere",
+      label: "Yes",
+      icon: "check",
+      activation: "other.yes",
+      scope: other.lfCommands,
+    },
+  ];
+  try {
+    for (const entry of planted) {
+      const registration = beside(entry);
+      try {
+        assert.deepEqual(asks(), ["Waiting on me"], `beside ${entry.key}`);
+      } finally {
+        registration.unregister();
+      }
+    }
+    const answering = beside({
+      key: "yes",
+      label: "Yes",
+      icon: "check",
+      activation: "asked.yes",
+      scope: asked.lfCommands,
+    });
+    try {
+      assert.deepEqual(asks(), []);
+    } finally {
+      answering.unregister();
+    }
+  } finally {
+    document.body.replaceChildren();
+  }
+});
+
 // A passage's row is keyed from a reading of its target's words, which a change to
 // another part of the page leaves as they were, as a closed tab's document drawing does:
 // the collection that follows reads none of the target's elements.

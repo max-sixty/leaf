@@ -12,11 +12,7 @@ import { agentName, readPart } from "../state/semantic-state.js";
 import { elementDirective, offerActionElement } from "../lib/controls.js";
 import { keeps, inlineStyle } from "../lib/keeps.js";
 import { pressIsKeyboardActivation } from "../base/pointer.js";
-import {
-  currentLocationIn,
-  focusDestination,
-  nativeFocusTarget,
-} from "../dom/focus.js";
+import { currentLocationIn, nativeFocusTarget } from "../dom/focus.js";
 import { reducedMotion } from "../dom/motion.js";
 import { motionTime } from "../lib/motion-timing.js";
 import { projectCommandScope, statedScope } from "../dom/keyboard/scopes.js";
@@ -99,6 +95,18 @@ export function contributionCommand(record) {
   if (!record || !contributionOwnsCommand(record)) return null;
   const scope = commandScopes.get(record);
   return entryCommand(scope, record.activation);
+}
+// Whether an entry runs one of `widget`'s own decision commands, which is what its
+// declaration says the entry answers (dom/keyboard/bindings.js, `decision`).
+/** @param {EntryInput | Entry} record @param {Element} widget */
+export function contributionAnswers(record, widget) {
+  const command = contributionCommand(record);
+  return Boolean(
+    command &&
+    widget.lfCommands &&
+    command.scope === statedScope(widget.lfCommands) &&
+    (command.route ?? command.row).decision,
+  );
 }
 /** @param {EntryInput | Entry | undefined} record */
 export function contributionCommandDisabled(record) {
@@ -596,26 +604,19 @@ export function forgetContributionControls(offered) {
   presented.delete(offered);
 }
 
-/** Activate the current record and retain focus through its current surface: the
- *  activation's `focus(key)` hands the user on from the control they pressed to the
- *  entry `key` names, which is a return (dom/focus.js, `focusDestination`). `reveal` shows a
- *  destination its surface hides first, as the margin does a row annotations hide. */
-/** @param {ControlActivation} activation @param {((control: Element) => unknown) | null} reveal */
-export function activateContributionControl(
-  { offered, entry, control, surface, event },
-  reveal = null,
-) {
+/** Activate the current record from the control pressed on `surface`.
+ *  @param {ControlActivation} activation */
+export function activateContributionControl({
+  offered,
+  entry,
+  control,
+  surface,
+  event,
+}) {
   return offered.registration.activate(entry.key, {
     origin: control,
     surface,
     input: pressIsKeyboardActivation(event) ? "keyboard" : "pointer",
-    focus: (key) => {
-      const destination = offered.registration.control(key, surface, true);
-      if (!destination) return false;
-      reveal?.(destination);
-      focusDestination(destination, "return");
-      return true;
-    },
   });
 }
 

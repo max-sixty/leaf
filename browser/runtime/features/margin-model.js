@@ -15,8 +15,7 @@
    the icon of its primary contribution's declared `kind`; unfolded, it is More.
    Placement decides whether a pin folds, and the user's gesture opens it.
 
-   A contributed control that represents a kind of generated reading replaces that
-   reading. A target's workflow receipt goes on its primary control, and every other
+   A target's workflow receipt goes on its primary control, and every other
    control carries its own (`controlReceipt`). Whether a cluster is expanded and
    whether a thread is open arrive as arguments. This module reads no DOM and no
    registrations; layout and the retained controls read its values.
@@ -41,7 +40,7 @@ import { leafSays, wordsText } from "../base/voice.js";
  * @typedef {import("../../types/domain.js").Workflow} Workflow
  * @typedef {{word: import("../base/voice.js").Words, reason: string}} UserAttention
  * @typedef {{id: string, text: string, owner?: string, marker?: boolean,
- * represents?: boolean, workflowFace?: KindFace & {state?: State}, workflowReceipt?: Workflow | null,
+ * workflowFace?: KindFace & {state?: State}, workflowReceipt?: Workflow | null,
  * carriesWorkflow?: boolean, state?: State, label?: string | null, subject?: string,
  * userAttention?: UserAttention | null, unread?: number, context?: import("../base/voice.js").Words | null,
  * mapContext?: import("../base/voice.js").Words | null, words?: import("../base/voice.js").Words, atWork?: boolean,
@@ -514,31 +513,15 @@ export function clusterProjection(
   });
 }
 
-// The kinds of reading that hold the user's own words: their threads and their drafts.
-const USERS_OWN = new Set(["comment", "draft"]);
-
 // Inputs are captured by the browser adapter. DOM targets, registrations, and activation
 // callbacks stay there; an entry owns only values.
 /** @template {Offer} O @param {MarginGroup<O>} group @returns {Readonly<MarginEntry<O>>} */
 export function marginEntry(group) {
-  // A contributed reading stands for Leaf's of its kind at its target, as a suggestion's
-  // stands for its own On Me marker, but never for the user's own threads and drafts.
-  const represented = new Set(
-    group.items
-      .filter((item) => item.marker === false && item.represents)
-      .map((item) => item.kind)
-      .filter((kind) => !USERS_OWN.has(kind)),
+  let items = [...group.items].sort(
+    (left, right) =>
+      KINDS[left.kind].priority - KINDS[right.kind].priority ||
+      (left.kind === "comment" ? 0 : left.id.localeCompare(right.id)),
   );
-  let items = group.items
-    .filter(
-      (item) =>
-        item.marker === false || item.workflowFace || !represented.has(item.kind),
-    )
-    .sort(
-      (left, right) =>
-        KINDS[left.kind].priority - KINDS[right.kind].priority ||
-        (left.kind === "comment" ? 0 : left.id.localeCompare(right.id)),
-    );
   const direct = group.offers.filter(
     (offered) => offered.reading.side === "before" || offered.reading.hasReadings,
   );

@@ -44,9 +44,9 @@ defaults to its key. An entry for one of the widget's declared commands instead 
 `scope` to the object that declares the command, the one the widget holds as
 `lfCommands` (`module-input.md`, "Commands and keyboard routes"), and `activation` to
 the command's id, and Leaf disables it with the command and runs the command's own
-`run`. A command the widget adds for one of
-these entries calls `this.actions.activate(key)`, so a key and a press do the same
-thing.
+`run`, so a key and a press do the same thing. Where that command is one of the
+widget's `decision: true` commands, the entry answers the widget's question, and Leaf's
+own "Waiting on me" for that question stands aside at the same target.
 
 `kind` says what the whole contribution is: `action` by default, or `change`, `comment`,
 `on-me`, `activity` and the margin's other kinds. `read()` may also return `readings`,

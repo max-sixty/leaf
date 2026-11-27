@@ -53,7 +53,8 @@
    - `options.members` read and write the component's Model: reading one gives what
      its `get` reads off the Model, and setting one sends the root the message its
      `set` returns. Out of the document a member reads the Model the closed root
-     ended with. */
+     ended with, and a set waits for the next root, as one made before the tag was
+     defined does. */
 import {
   BrowserHost,
   Cause,
@@ -123,7 +124,10 @@ export function defineWidget(
           },
           /** @this {InstanceType<typeof Widget>} @param {unknown} value */
           set(value) {
-            if (set) this.#root?.send(set(value));
+            if (!set) return;
+            const message = set(value);
+            if (this.#root) this.#root.send(message);
+            else this.#held.push(message);
           },
         });
     }
@@ -138,6 +142,9 @@ export function defineWidget(
     // The Model the last root ended with, which `members` read while none stands.
     /** @type {unknown} */
     #ended = undefined;
+    // The messages `members` set while no root stood, which the next root takes.
+    /** @type {unknown[]} */
+    #held = [];
     /** @type {Scope.Closeable | undefined} */
     #scope = undefined;
     /** @type {HTMLElement | undefined} */
@@ -158,7 +165,8 @@ export function defineWidget(
       // A page may set a property before this module defines the tag, which leaves an
       // own property hiding the accessor. Its value moves into the props here, without
       // the accessor's mount: an element upgraded in the document mounts from
-      // `connectedCallback`, once Leaf has answered `lf-connect`.
+      // `connectedCallback`, once Leaf has answered `lf-connect`. A member's value
+      // goes through its accessor, which holds the message for that mount.
       const own = /** @type {Record<string, unknown>} */ (
         /** @type {unknown} */ (this)
       );
@@ -167,6 +175,12 @@ export function defineWidget(
           const value = own[name];
           delete own[name];
           this.#properties = { ...this.#properties, [name]: value };
+        }
+      for (const name of Object.keys(members))
+        if (Object.hasOwn(this, name)) {
+          const value = own[name];
+          delete own[name];
+          own[name] = value;
         }
       // A listener on a shadow host sees itself as the target of an event from inside
       // its root, so the element that connected is read off the path.
@@ -274,13 +288,14 @@ export function defineWidget(
           },
         })
       );
-      this.#root = Effect.runSync(
+      const root = (this.#root = Effect.runSync(
         mounting.pipe(
           Effect.provide(leafServices(this)),
           Effect.provideService(Scheduler.Scheduler, microtasks),
           Scope.provide(scope),
         ),
-      );
+      ));
+      for (const message of this.#held.splice(0)) root.send(message);
       this.#drawn();
     }
 

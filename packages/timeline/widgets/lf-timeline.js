@@ -20,8 +20,7 @@
  * it reads from outside: the keys as `lfCommands`, the step a key reached as words for
  * a listener, where a key from a row of the step list leaves the user (`lands`), and
  * the events as visual parts (`lfParts`). The view's root declares these once it is
- * in the document (`DeclareTimeline`), and says again after each draw that moves the
- * step or the layout that what they read may have changed.
+ * in the document (`DeclareTimeline`).
  *
  * Labels are laid out against the ruler's width and the labels' font, which the
  * ruler reports as it connects and whenever its width or the page's fonts change
@@ -36,7 +35,7 @@ import {
   Stream,
   UiSchema,
 } from "/vendor/effect-ui.js";
-import { defineWidget, widgetProps } from "/runtime/effect-widget.js";
+import { declare, defineWidget, widgetProps } from "/runtime/effect-widget.js";
 import { Announce, KeepInTab } from "/runtime/widget-services.js";
 import { tabStore } from "/runtime/portable-api.js";
 import {
@@ -46,7 +45,6 @@ import {
 } from "/runtime/lib/controls.js";
 import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { textWidth } from "/runtime/lib/text-width.js";
-import { COMMANDS, layoutChanged } from "/runtime/lib/widget-events.js";
 import {
   assignRows,
   axisMarks,
@@ -375,8 +373,8 @@ const MeasureRuler = Mount.makeStream(
 
 /** The timeline's declarations to Leaf, on the element that holds the view: its keys
  * (`lfCommands`) and its events as visual parts (`lfParts`), and the reading's
- * problems as the element's `error`s. Each draw that moves the step or the layout
- * says so (`lf-layout`, `lf-commands`).
+ * problems as the element's `error`s. The element says each draw (effect-widget.js,
+ * `declare`).
  *
  * A key's row reads the step as last drawn. Leaf asks where a key from a row of the
  * step list leaves the user (`lands`) synchronously after the press, before the
@@ -396,10 +394,6 @@ const DeclareTimeline = Mount.makeStream(
   (/** @type {HTMLElement} */ node, { reading }, changes) =>
     Stream.callback((queue) =>
       Effect.gen(function* () {
-        const host =
-          /** @type {HTMLElement & {lfCommands?: unknown, lfParts?: unknown}} */ (
-            node.closest("lf-timeline")
-          );
         const last = reading.steps.length - 1;
         let drawn = 0;
         const rows = () => [
@@ -414,7 +408,7 @@ const DeclareTimeline = Mount.makeStream(
         /** @param {number} step */
         const press = (step) => () =>
           Queue.offerUnsafe(queue, TimelineMessage.PressedStepControl({ step }));
-        host.lfCommands = {
+        const lfCommands = {
           title: "On a timeline",
           rows: [
             {
@@ -454,7 +448,7 @@ const DeclareTimeline = Mount.makeStream(
         const byId = new Map(reading.events.map((event) => [event.id, event]));
         const eventOf = (/** @type {string} */ id) =>
           byId.get(id.slice("event:".length));
-        host.lfParts = {
+        const lfParts = {
           read: () =>
             reading.events.flatMap((event) => {
               const element = node.querySelector(
@@ -486,6 +480,8 @@ const DeclareTimeline = Mount.makeStream(
               );
           },
         };
+        declare(node, { lfCommands, lfParts });
+        const host = /** @type {HTMLElement} */ (node.closest("lf-timeline"));
         for (const problem of reading.problems)
           host.dispatchEvent(
             new ErrorEvent("error", {
@@ -498,10 +494,6 @@ const DeclareTimeline = Mount.makeStream(
         yield* Stream.runForEach(changes, ({ current }) =>
           Effect.sync(() => {
             drawn = current;
-            layoutChanged(host);
-            host.dispatchEvent(
-              new CustomEvent(COMMANDS, { bubbles: true, composed: true }),
-            );
           }),
         ).pipe(Effect.forkScoped);
       }),

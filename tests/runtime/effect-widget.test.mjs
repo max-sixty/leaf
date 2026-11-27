@@ -4,9 +4,17 @@
    browser suite's. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { Command, Component, Html, Schema, UiSchema } from "/vendor/effect-ui.js";
+import {
+  Command,
+  Component,
+  Effect,
+  Html,
+  Mount,
+  Schema,
+  UiSchema,
+} from "/vendor/effect-ui.js";
 import { signal } from "/vendor/signals-core.js";
-import { defineWidget, widgetProps } from "/runtime/effect-widget.js";
+import { declare, defineWidget, widgetProps } from "/runtime/effect-widget.js";
 import { RecordAction } from "/runtime/widget-services.js";
 
 let tags = 0;
@@ -230,4 +238,99 @@ test("a member the page set before the tag was defined reaches the Model once it
   } finally {
     el.remove();
   }
+});
+
+// A widget whose view throws, so its root fails as it mounts.
+const Broken = Html.component({
+  name: "Broken",
+  props: Schema.Struct({ ...widgetProps }),
+  model: Schema.Struct({}),
+  message: Schema.Never,
+}).make({
+  init: () => ({}),
+  update: {},
+  view: () => {
+    throw new Error("cannot draw");
+  },
+});
+
+for (const shadow of [false, true])
+  test(`a ${shadow ? "shadow" : "light"} widget whose root fails keeps its authored children in view`, async () => {
+    const tag = `lf-effect-${++tags}`;
+    defineWidget(tag, Broken, { shadow });
+    const el = document.createElement(tag);
+    el.innerHTML = "<p>authored</p>";
+    /** @type {unknown[]} */
+    const errors = [];
+    el.addEventListener("error", (event) =>
+      errors.push(/** @type {ErrorEvent} */ (event).error),
+    );
+    document.body.append(el);
+    try {
+      await Promise.resolve();
+      assert.match(String(errors[0]), /cannot draw/);
+      assert.equal(el.querySelector("p")?.textContent, "authored");
+      assert.match(el.querySelector(".lf-error")?.textContent ?? "", /cannot draw/);
+      // A shadow root shows the authored children, and the box among them, through a
+      // bare slot.
+      if (shadow) assert.ok(el.shadowRoot?.querySelector("slot:not([name])"));
+    } finally {
+      el.remove();
+    }
+  });
+
+test("inputs that throw show the box beside the authored children until they read again", () => {
+  const note = signal("first");
+  const el = widget({
+    inputs: () => {
+      if (note.value === "bad") throw new Error("cannot read");
+      return { note: note.value };
+    },
+  });
+  el.innerHTML = "<p>authored</p>";
+  document.body.append(el);
+  el.addEventListener("error", () => {});
+  try {
+    note.value = "bad";
+    assert.equal(el.querySelector("p")?.textContent, "authored");
+    assert.ok(el.querySelector(".lf-error"));
+    note.value = "good";
+    assert.equal(el.querySelector(".lf-error"), null);
+  } finally {
+    el.remove();
+  }
+});
+
+const Declaring = Html.component({
+  name: "Declaring",
+  props: Schema.Struct({ ...widgetProps }),
+  model: Schema.Struct({}),
+  message: Schema.Never,
+}).make({
+  init: () => ({}),
+  update: {},
+  view: (h) =>
+    h.button.onMount(
+      Mount.make("Declare", {}, (/** @type {HTMLElement} */ node) =>
+        Effect.sync(() => {
+          declare(node, { lfCommands: { title: "Here", rows: [] } });
+          return Component.noop;
+        }),
+      )({}),
+    ),
+});
+
+test("what a widget declares stands on its element, said as it changes, until its root closes", async () => {
+  const tag = `lf-effect-${++tags}`;
+  defineWidget(tag, Declaring, { shadow: true });
+  const el = document.createElement(tag);
+  /** @type {unknown[]} */
+  const said = [];
+  el.addEventListener("lf-commands", () => said.push(el.lfCommands?.title));
+  document.body.append(el);
+  assert.equal(el.lfCommands?.title, "Here");
+  assert.equal(said[0], "Here");
+  el.remove();
+  await Promise.resolve();
+  assert.equal(el.lfCommands, undefined);
 });

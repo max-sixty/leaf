@@ -103,10 +103,6 @@ export const MotionMessage = UiSchema.TaggedEnum({
   ChangedMotion: { reduced: Schema.Boolean },
 });
 
-/** @param {any} builder @param {Record<string, string>} attributes */
-const withAttributes = (builder, attributes) =>
-  Object.entries(attributes).reduce((b, [name, value]) => b.attr(name, value), builder);
-
 /** @param {{videos: boolean}} model @param {{renderFrame?: unknown}} props */
 const playable = (model, props) =>
   model.videos || typeof props.renderFrame === "function";
@@ -378,7 +374,8 @@ export const Motion = Html.component({
       .class("lf-motion-study")
       .attr("part", "study")
       .children(
-        withAttributes(h.div, offerAttributes("div", "lf-motion-controls"))
+        h.div
+          .attrs(offerAttributes("div", "lf-motion-controls"))
           .attr("part", "controls")
           .attr("role", "group")
           .attr("aria-label", label)
@@ -390,10 +387,8 @@ export const Motion = Html.component({
                 OfferPlay({ action: model.playing ? "pause" : "play", label: word }),
               )
               .on("click", MotionMessage.ClickedPlay()),
-            withAttributes(
-              h.input,
-              offerAttributes("input", "lf-motion-time", { type: "range" }),
-            )
+            h.input
+              .attrs(offerAttributes("input", "lf-motion-time", { type: "range" }))
               .attr("part", "time")
               .attr("type", "range")
               .attr("name", "time")
@@ -406,14 +401,17 @@ export const Motion = Html.component({
               .on("input", (/** @type {{value: string}} */ { value }) =>
                 MotionMessage.Sought({ time: Number(value) }),
               ),
-            withAttributes(h.span, offerAttributes("span", "lf-motion-clock"))
+            h.span
+              .attrs(offerAttributes("span", "lf-motion-clock"))
               .attr("part", "clock")
               .children(model.failure ?? `${Math.round(model.time)} ms`),
-            withAttributes(h.label, offerAttributes("label", "lf-motion-speed"))
+            h.label
+              .attrs(offerAttributes("label", "lf-motion-speed"))
               .attr("part", "speed")
               .children(
                 "Speed",
-                withAttributes(h.select, offerAttributes("select"))
+                h.select
+                  .attrs(offerAttributes("select"))
                   .attr("part", "speed-select")
                   .attr("name", "speed")
                   .value(String(model.rate))

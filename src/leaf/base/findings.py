@@ -310,7 +310,6 @@ _MARKS = "each comment marks and reaches the element or part it anchors to"
 _WORKS = "the user sees the page's widgets and scripts work as written"
 _STATE = "each widget shows the state the log records"
 _COMMENTS = "the user can comment on every word the page shows outside a control"
-_QUOTES = "a comment's quote resolves to the words the page shows"
 _EXAMPLES = "each widget's worked example draws for the authors who copy it"
 _COMPOSES = "every page that selects the package composes into a layer Leaf serves"
 
@@ -322,21 +321,6 @@ def _explained(console: list[dict]) -> str:
 
 def _visual_problem(problem: dict) -> str:
     return f"named parts its prefixes do not admit {', '.join(problem['parts'])}"
-
-
-def _verbatim(at: str, v: dict) -> str:
-    provenance = v["provenance"]
-    if provenance is None:
-        where = " without pre-upgrade source provenance"
-    elif provenance[0] == "page":
-        where = f" at page occurrence {provenance[2] + 1}"
-    else:
-        where = f" at {provenance[0]} {provenance[1]} occurrence {provenance[2] + 1}"
-    return (
-        f"{at}{where} declares `verbatim` but shows {v['says'][:80]!r} with owned "
-        f"structure {json_value(v['shown'])} where the file reads "
-        f"{json_value(v['expected'])}"
-    )
 
 
 def _squeezed(at: str, v: dict) -> str:
@@ -814,7 +798,6 @@ _TEXT = {
             else ""
         )
     ),
-    "verbatim": _fails(_QUOTES, _verbatim),
     "undeclared-attr": lambda at, v: (
         f"{at} carries {v['attr']!r}, which its element declaration does not name —"
         " declare it as a verb's record form (`verbs`) if a version is meant to carry"
@@ -2432,6 +2415,22 @@ _TEXT = {
                 else ""
             )
         ),
+    ),
+    # What a quote's capture notes beside its thread where the file's reading of the
+    # page finds the words zero or several times (`anchor_capture.capture_anchor`):
+    # only the drawn page says whether it shows them once, which places the thread.
+    # The thread is already posted, so the note says where it stands and gives no
+    # advice to quote again, which would post a second thread beside it.
+    "unplaced-quote": lambda at, v: (
+        f"Leaf's reading of the page's files finds {v['quote']!r}"
+        + (" nowhere" if not v["found"] else f" {v['found']} times")
+        + (f" in § {v['section']}" if v["section"] else "")
+        + ", so unless the page as drawn shows it once, the thread stands "
+        + (
+            f"on § {v['section']} as a whole, with the quote above its messages"
+            if v["section"]
+            else "in Threads, on no passage"
+        )
     ),
     # What `thread create --part` notes beside a thread on a part its visual didn't
     # draw (`anchor_capture.drawn_part`): one the page shows on the whole visual, and

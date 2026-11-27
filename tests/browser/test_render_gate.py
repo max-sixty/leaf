@@ -1176,7 +1176,9 @@ DIAGRAM_FAMILIES = {
 }
 
 
-def _author_lying_callout(tmp_path):
+def _author_callout_writing_an_undeclared_attribute(tmp_path):
+    """A callout whose module writes an attribute its declaration doesn't name, which
+    the gate reads only once the page has replayed its state (`undeclared-attr`)."""
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
@@ -1186,7 +1188,7 @@ def _author_lying_callout(tmp_path):
         "  class extends HTMLElement {\n"
         "    connectedCallback() {\n"
         "      if (!once(this)) return;\n"
-        '      this.textContent = "Entirely different words.";\n'
+        '      this.setAttribute("mood", "unsettled");\n'
         "    }\n"
         "  },\n"
         ");\n"
@@ -1206,7 +1208,7 @@ def test_only_a_final_settling_failure_keeps_projection_findings(
     browser, serve, tmp_path, monkeypatch, failed_stage, expects_projection
 ):
     monkeypatch.chdir(tmp_path)
-    _author_lying_callout(tmp_path)
+    _author_callout_writing_an_undeclared_attribute(tmp_path)
     if failed_stage == "pageSettled":
         probe = render_gate_model.wait_for_probe
 
@@ -1237,7 +1239,7 @@ def test_only_a_final_settling_failure_keeps_projection_findings(
 
     assert completed is True
     codes = {failure.code for failure in failures}
-    assert ("verbatim" in codes) is expects_projection
+    assert ("undeclared-attr" in codes) is expects_projection
     assert ("never-settled" in codes) is (failed_stage == "pageSettled")
 
 
@@ -1402,61 +1404,6 @@ def test_the_state_wait_covers_a_status_that_moves_neither_log_nor_data(browser,
         assert "awaits" in page.locator(".lf-fp-leaf").get_attribute("aria-label")
     finally:
         leases_model.release_lease(lease)
-
-
-def _author_stateful_verbatim_widget(tmp_path):
-    """A stateful widget whose corrupt state rewrites prose it does not own: its own
-    paragraph, or, inside the preserving `lf-shell` wrapper, the wrapper's."""
-    add_test_widget(tmp_path / ".leaf", "lf-stateful", upgrade=True)
-    registry_path = tmp_path / ".leaf" / "registry.json"
-    declarations = json.loads(registry_path.read_text())
-    stateful = declarations["lf-stateful"]
-    stateful["attributes"]["properties"].update(
-        {
-            "user": {"type": "string"},
-            "agent": {"type": "string"},
-        }
-    )
-    stateful["verbs"] = {
-        "change": {
-            "unit": "widget",
-            "record": {"kind": "value", "attr": "user"},
-        },
-        "status": {
-            "writer": "agent",
-            "unit": "widget",
-            "record": {"kind": "value", "attr": "agent"},
-        },
-    }
-    declarations["lf-shell"] = {
-        "description": "A preserving wrapper around a stateful child.",
-        "attributes": {
-            "properties": {},
-            "required": ["id"],
-        },
-        "content": "markup",
-        "verbatim": True,
-        "example": '<lf-shell id="shell-example">Example</lf-shell>',
-    }
-    registry_path.write_text(json.dumps(declarations, indent=2))
-    (tmp_path / ".leaf" / "widgets" / "lf-shell.js").write_text(
-        'import { once } from "/runtime/lib/once.js";\n'
-        'customElements.define("lf-shell", class extends HTMLElement {\n'
-        "  connectedCallback() { once(this); }\n"
-        "});\n"
-    )
-    (tmp_path / ".leaf" / "widgets" / "lf-stateful.js").write_text(
-        'import { LeafElement } from "/runtime/lib/leaf-element.js";\n'
-        'import { keepsText } from "/runtime/lib/keeps.js";\n'
-        'customElements.define("lf-stateful", class extends LeafElement {\n'
-        "  render() {\n"
-        "    const { state } = this;\n"
-        '    if (state.change.value === "corrupt" || state.status.value === "corrupt")\n'
-        '      keepsText(this.closest("lf-shell")?.querySelector(":scope > p")'
-        ' ?? this.querySelector("p"), "State replaced unrelated prose.");\n'
-        "  }\n"
-        "});\n"
-    )
 
 
 # The page's longest scroller, the one its reader spends the scroll in.

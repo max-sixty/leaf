@@ -214,11 +214,13 @@ def test_a_question_asked_again_reopens_its_thread_under_its_id(claimed, capsys)
     ]
 
 
-def test_an_ask_about_a_passage_stands_on_it_or_else_on_the_page(claimed, capsys):
-    """An ask about one passage opens its thread on the page's words the fork names,
-    as `thread create --quote` would. Words the page doesn't show leave the ask on the
-    page as a whole rather than unasked, since the fork has no next attempt, and the
-    agent hears where each went."""
+def test_an_ask_about_a_passage_quotes_it_and_says_where_the_files_miss(
+    claimed, capsys
+):
+    """An ask about one passage opens its thread quoting the page's words the fork
+    names, as `thread create --quote` would, and is asked whether or not the page's
+    files hold them. The agent hears what Leaf noted of words its reading of the files
+    doesn't find once, which the page shows in Threads unless it draws them once."""
     page = claimed.resolve()
     hook(capsys, "UserPromptSubmit")
     basis = asked()["basis"]
@@ -226,14 +228,16 @@ def test_an_ask_about_a_passage_stands_on_it_or_else_on_the_page(claimed, capsys
     answer["asks"][0]["passage"] = "The cutoff lives in"
     answer["asks"][1]["passage"] = "the retry budget"
     wrote = clerk_model.take_answer("s1", json.dumps(answer), basis)["wrote"]
-    assert [record.get("anchor", {}).get("quote") for record in wrote] == [
+    assert [record["anchor"]["quote"] for record in wrote] == [
         "The cutoff lives in",
-        None,
+        "the retry budget",
     ]
     assert all(record["obligation"] for record in wrote)
     context = hook(capsys, "PostToolBatch")
-    assert f'in a new thread on the words "The cutoff lives in" in {page},' in context
-    assert f'"The retry budget" On Me, in a new thread on {page} as a whole,' in context
+    assert f'in a new thread quoting "The cutoff lives in" in {page},' in context
+    assert f'in a new thread quoting "the retry budget" in {page},' in context
+    assert context.count("Leaf's reading of the page's files finds") == 1
+    assert "finds 'the retry budget' nowhere" in context
 
 
 def test_an_ask_with_listable_answers_is_a_choice_the_user_presses(claimed, capsys):

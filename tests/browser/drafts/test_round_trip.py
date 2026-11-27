@@ -2,6 +2,7 @@
 agent, decisions surviving the next version, and which edits each version shows."""
 
 import itertools
+import json
 
 import pytest
 from click.testing import CliRunner
@@ -139,6 +140,7 @@ def test_page_round_trip(browser, serve):
         "section": "intro",
         "quote": SENTENCE,
         "prefix": "Journey",
+        "suffix": "",
     }
     assert events[1]["text"] == "Is 0041 idempotent?"
     assert {k: events[2][k] for k in ("widget", "action", "detail")} == {
@@ -387,9 +389,8 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
     """`leaf thread create` reads the mapped revision plus the log; the user's tab reads
     the DOM replay builds from the same two. An edited draft is where those readings
     could drift — the file holds words the page stopped showing — so write the anchor
-    blind, on the user's own words, and prove the page paints it. The words the edit
-    replaced are refused at the CLI, because posted they would detach in front of the
-    user."""
+    blind, on the user's own words, and prove the page paints it. The CLI notes that
+    the page no longer shows the words the edit replaced."""
     url = serve(JOURNEY_V1)
     d = serve.page_dir
     append_command(
@@ -418,7 +419,8 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
             "x",
         ],
     )
-    assert refused.exit_code != 0 and "doesn't say" in refused.output
+    assert refused.exit_code == 0, refused.output
+    assert "finds 'It is online.' nowhere" in refused.output
     written = CliRunner().invoke(
         cli_model.cli,
         [
@@ -438,9 +440,7 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
 
     page = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    comment = next(
-        e["id"] for e in events_model.read_events(d) if e["kind"] == "comment"
-    )
+    comment = json.loads(written.output)["id"]
     head = open_panel_thread(page, comment).locator(".lf-thread-quote-head")
     expect(head).not_to_have_attribute("data-lf-detached", "")
     assert painted(page, "lf-mark") == "It takes about a minute."

@@ -11,15 +11,12 @@ import json
 from dataclasses import dataclass
 from itertools import pairwise
 
-from leaf.base.findings import Finding, element_at
+from leaf.base.findings import Finding
 from leaf.log.projection import (
-    logged_words,
     page_reading,
     retirement_holders,
     retirement_outcomes,
-    thread_markup_reading,
 )
-from leaf.source.passages import page_passages
 from leaf.source.reading import SourceReading
 from leaf.source.registry.contract import (
     MODULES,
@@ -144,78 +141,6 @@ class _PageContext:
     devtools: DevtoolsIssues
 
 
-def _projected_verbatim(document, registry, projection, authored_ids, source):
-    """Read preserving owners after applying exactly the projection's text changes."""
-    return page_passages(
-        document, registry, **logged_words(projection, authored_ids), source=source
-    ).verbatim
-
-
-def _expected_verbatim(markup, events, registry, here):
-    """Expected preserving-owner readings in the page and thread markup.
-
-    Page actions are bounded by the immutable revision being rendered. Message
-    markup has no later authored revision and therefore uses the thread's whole
-    action window. Both use the same passage projection as comment capture.
-    """
-    page = page_reading(SourceReading(SourceDocument(markup), registry), events, here)
-    expected = _projected_verbatim(
-        page.document,
-        registry,
-        page.projection,
-        page.document.ids,
-        ("page", None),
-    )
-    thread = thread_markup_reading(events, registry)
-    for event_id, fragment in thread.structure.fragments.items():
-        expected.update(
-            _projected_verbatim(
-                fragment,
-                registry,
-                thread.projection,
-                thread.structure.ids,
-                ("event", event_id),
-            )
-        )
-    return expected
-
-
-def _verbatim_findings(context: _PageContext) -> list[Finding]:
-    shown = evaluate_probe(
-        context.page,
-        "shownVerbatim",
-        context.declarations,
-        sorted(context.registry[MODULES]),
-    )
-    if not shown:
-        return []
-    expected = _expected_verbatim(
-        context.markup,
-        context.state["events"],
-        context.registry,
-        context.here,
-    )
-    findings = []
-    for reading in shown:
-        provenance = reading["provenance"]
-        key = tuple(provenance) if provenance is not None else None
-        if reading["compositional"] == expected.get(key):
-            continue
-        findings.append(
-            Finding(
-                "verbatim",
-                element_at(reading["tag"], reading["id"]),
-                {
-                    "provenance": provenance,
-                    "says": reading["says"],
-                    "shown": reading["compositional"],
-                    "expected": expected.get(key, []),
-                },
-            )
-        )
-    return findings
-
-
 def _retired_holders(context: _PageContext) -> list[dict]:
     """Each settlement holder on the page with the outcome the file's reading gives it
     and the slots that outcome retires, for `retiredSlots` to hold the page to.
@@ -300,12 +225,6 @@ def _widget_findings(context: _PageContext) -> list[Finding]:
     tiny = evaluate_probe(page, "tinyBoxes", declarations)
     # Words a widget's own chrome holds with nothing saying whose they are.
     unreachable = evaluate_probe(page, "unreachableWords")
-    # `verbatim` promises the words the page renders. Source provenance was
-    # captured before upgrade, so anonymous page and message owners have the
-    # same coordinate as the file reading without acquiring authored ids. Its file
-    # side is the settled projection, so a page that never applied that projection is
-    # already reported by the readiness wait and supplies no comparison.
-    dishonest_verbatim = _verbatim_findings(context) if replayed else []
     undeclared_attrs = []
     relative = []
     # Behind the caught-up wait, because reconciliation is one of the two writers: a
@@ -328,7 +247,6 @@ def _widget_findings(context: _PageContext) -> list[Finding]:
     if tiny:
         found.append(Finding("tiny-boxes", values={"boxes": tiny}))
     found += map(Finding.read, unreachable)
-    found += dishonest_verbatim
     # One mistake is on every instance, so one finding per tag and attribute.
     found += {(u["tag"], u["attr"]): Finding.read(u) for u in undeclared_attrs}.values()
     found += map(Finding.read, relative)

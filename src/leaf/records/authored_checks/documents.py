@@ -296,7 +296,7 @@ def sample_errors(
             # whatever the log holds — so the child checked here is the child
             # allocation would build from this document and this history.
             try:
-                child_events = (
+                child_events, notes = (
                     initial_sample_events(
                         page_dir,
                         document,
@@ -307,8 +307,9 @@ def sample_errors(
                         contracts,
                     )
                     if registry is not None
-                    else []
+                    else ([], [])
                 )
+                errors.extend(found.but(samples=samples) for found in notes)
             except Rejected as error:
                 errors.extend(found.but(samples=samples) for found in error.findings)
                 child_events = []
@@ -354,12 +355,17 @@ def _refused(code: str, reference: str, **values) -> Rejected:
     return Rejected([Finding(code, values={"reference": reference, **values})])
 
 
-def _fixture_anchor(anchor: dict, readings: AdmissionReadings) -> dict:
-    """Capture an authored target in the child's current page or thread markup.
+def _fixture_anchor(
+    anchor: dict, readings: AdmissionReadings
+) -> tuple[dict, Finding | None]:
+    """Capture an authored target in the child's current page or thread markup, with
+    the note on where the child shows a quote its files don't hold once.
 
     Browser admission receives targets already captured in a rendered document.
-    A fixture has no such observation, so the existing file-side capture proves
-    its section and passage against the same current projection instead.
+    A fixture has no such observation, so the file-side capture checks its section
+    against the same current projection instead (`anchor_capture.capture_anchor`).
+    Context the fixture gives is its own choice of copy (`findQuote`), so it replaces
+    the capture's, and no note says the thread stands on its section.
     """
     page = readings.page(1)
     document, projection = page.document, page.projection
@@ -380,7 +386,7 @@ def _fixture_anchor(anchor: dict, readings: AdmissionReadings) -> dict:
             if target in fragment.ids
         )
         projection = thread.projection
-    captured = capture_anchor(
+    captured, found = capture_anchor(
         document,
         readings.registry,
         # A datum's displayed words come from its module, not authored text.
@@ -390,14 +396,12 @@ def _fixture_anchor(anchor: dict, readings: AdmissionReadings) -> dict:
         part=anchor.get("visual"),
         **logged_words(projection, document.ids),
     )
-    # File capture proves a unique passage and derives its context, including absent
-    # neighbours. Supplied context or uncertainty cannot override that observation.
-    authored = {
-        key: value
-        for key, value in anchor.items()
-        if key not in {"prefix", "suffix", "detached"}
-    }
-    return {**authored, **captured}
+    if not ({"prefix", "suffix"} & anchor.keys()):
+        return {**anchor, **captured}, found
+    # The capture's sides are another copy's wherever the fixture means a copy the
+    # files don't hold once, so a side the fixture leaves out stays unknown.
+    sides = ("prefix", "suffix")
+    return {**anchor, **{k: v for k, v in captured.items() if k not in sides}}, None
 
 
 def initial_sample_events(
@@ -408,8 +412,9 @@ def initial_sample_events(
     template: dict,
     registry: dict,
     contracts: dict,
-) -> list[dict]:
-    """Construct the child's admitted log without mutating any captured input.
+) -> tuple[list[dict], list[Finding]]:
+    """Construct the child's admitted log without mutating any captured input, and
+    what its capture of fixture anchors noted (`_fixture_anchor`).
 
     `parent` is the document `parent_events` is the log of, and `holder` the markup
     declaring `template`: `parent` itself, or one of its log's messages. `registry`
@@ -434,7 +439,7 @@ def initial_sample_events(
             )[1]
         ]:
             raise Rejected(conflicts)
-        return copied
+        return copied, []
     if "data-sample-threads" in attrs:
         raise Rejected([Finding("sample-source-both")])
     scripts = [
@@ -464,7 +469,7 @@ def initial_sample_events(
         raise _refused("sample-array", reference)
     child = template["document"]
     view = InitialPageView(child, registry, contracts)
-    events = []
+    events, notes = [], []
     kinds = kernel_event_kinds()
     constructed_at = now_iso()
     for seq, command in enumerate(commands, 1):
@@ -497,9 +502,10 @@ def initial_sample_events(
             if event["id"] in child.ids | thread_structure(events).holders.keys():
                 raise _refused("fixture-id-taken", reference, event=seq, id=event["id"])
             if event.get("anchor"):
-                event["anchor"] = _fixture_anchor(
+                event["anchor"], found = _fixture_anchor(
                     event["anchor"], AdmissionReadings(view, events, registry)
                 )
+                notes.extend([found] if found else [])
             fragment = logged_fragment(event)
             if "text" in event and (
                 errors := text_media_errors(
@@ -555,4 +561,4 @@ def initial_sample_events(
             raise _refused(
                 "fixture-refused", reference, event=seq, error=str(error)
             ) from error
-    return events
+    return events, notes

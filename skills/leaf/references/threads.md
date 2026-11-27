@@ -27,10 +27,14 @@ draws only while a view of it is open, is missing from the list; name such a par
 widget's guidance says.
 
 `leaf thread create` anchors in the active revision as the user sees it. Quote exact
-words the user can see, within one widget part, including words a page's script
-draws. The command refuses a quote that matches more than one place, or is retired,
-replaced, or crosses a boundary, rather than open a thread with no anchor. The thread's id is
-the `id` of its opening comment, in the record the command prints.
+words the user can see once, within one widget part, including words a page's script
+draws. The page finds them as it draws them: where it doesn't show them once, the
+thread stands on its section, or in Threads without one. Its section is the
+`--section` you named, or else the element around the one copy Leaf's reading of the
+page's files finds. Where that reading finds the words zero or several times, the
+record the command prints carries a note saying where the thread stands. The command refuses a
+`--section` the active revision doesn't hold or a decision took off the page. The
+thread's id is the `id` of its opening comment, in the record the command prints.
 `leaf page state <page> <message>`, `leaf thread reply`, `edit`, `resolve` and
 `reopen` take the id of any message in the thread.
 

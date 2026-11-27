@@ -2161,8 +2161,17 @@ def test_author_notes_follow_source_lines_and_survive_a_source_refresh(browser, 
     registry = read_page_registry(serve.page_dir).registry
     file_reading = passages.page_passages(structure.SourceDocument(source), registry)
     assert "Explain the new line." in file_reading.text
-    anchor = anchor_capture.capture_anchor(
+    anchor, noted = anchor_capture.capture_anchor(
         structure.SourceDocument(source), registry, "Explain the new line.", "new-note"
+    )
+    assert (anchor, noted) == (
+        {
+            "section": "new-note",
+            "quote": "Explain the new line.",
+            "prefix": "",
+            "suffix": "",
+        },
+        None,
     )
     page = open_page(browser, url)
     note = page.locator("#new-note")
@@ -2192,15 +2201,19 @@ def test_author_notes_follow_source_lines_and_survive_a_source_refresh(browser, 
       range.selectNodeContents(note);
       return (await window.__lfCheckApi()).anchorForRange(range);
     }""")
-    assert captured == anchor
-    # File-side and browser-side anchors agree on the preserved prose node.
-    assert page.evaluate(
-        """async anchor => {
-      const resolved = (await window.__lfCheckApi()).resolveAnchor(anchor);
-      return resolved?.exact === true;
-    }""",
-        anchor,
+    assert (captured["section"], captured["quote"]) == (
+        "new-note",
+        "Explain the new line.",
     )
+    # A selection of the note and an agent's quote of it both land on its prose.
+    for landed in (captured, anchor):
+        assert page.evaluate(
+            """async anchor => {
+          const resolved = (await window.__lfCheckApi()).resolveAnchor(anchor);
+          return resolved?.exact === true;
+        }""",
+            landed,
+        )
     # Keep the authored object itself through a replacement, not just a copied label.
     held = note.element_handle()
     page_data_model.cmd_data_set(

@@ -99,9 +99,9 @@ export function offer(tag, cls, label, inputType, pressable = false) {
 // shows with the keys that press it on Leaf (annotations/preview.js), and off Leaf as the `title`
 // the browser's tooltip shows (`titlesName`).
 /** @template {Element} T @param {T} node @param {LeafActionRole} role
- * @param {string} [cls] @param {string} [label] @returns {T} */
-const roleElement = (node, role, cls, label) => {
-  offerElement(node, actionClass(role, cls));
+ * @param {string} [cls] @param {string} [label] @param {boolean} [pressable] @returns {T} */
+const roleElement = (node, role, cls, label, pressable = false) => {
+  offerElement(node, actionClass(role, cls), pressable);
   if (label !== undefined && (role === "symbol" || role === "mark")) {
     keeps(node, "aria-label", label);
     keeps(node, "title", titlesName() ? label : null);
@@ -215,15 +215,22 @@ export function offerAction(role, className, label, { action } = {}) {
   if (face.action !== undefined) drawAction(node, role, face.action);
   return node;
 }
-// The same face, symbol and name written onto an element the caller made.
+// The same face, symbol and name written onto an element the caller made, a custom
+// host among them, which opts into the press contract as `offer`'s does (`pressable`).
 /**
  * @template {Element} T
  * @param {T} node @param {LeafActionRole} role @param {string} [className]
- * @param {string} [label] @param {{action?: string}} [options]
+ * @param {string} [label] @param {{action?: string, pressable?: boolean}} [options]
  */
-export function offerActionElement(node, role, className, label, { action } = {}) {
+export function offerActionElement(
+  node,
+  role,
+  className,
+  label,
+  { action, pressable } = {},
+) {
   const face = actionFace(role, label, action);
-  roleElement(node, role, className, face.label);
+  roleElement(node, role, className, face.label, pressable);
   if (face.action !== undefined) drawAction(node, role, face.action);
   return node;
 }

@@ -60,7 +60,6 @@ import {
   contributionReceipts,
 } from "../features/contribution-controls.js";
 import { railStands } from "../readings/content-layout.js";
-import { commandSteps } from "../dom/keyboard/control-keys.js";
 
 import { contributionItemKey, KINDS } from "../base/contribution-model.js";
 import { marginMapGroups } from "../features/margin-map-model.js";
@@ -148,7 +147,7 @@ export function createPageMapDialog({
     rank: PAGE_CONTROL_RANK.map,
     label: "Page Map",
     value: () => String(entries.length),
-    shortcut: () => commandSteps("navigation.page-map"),
+    command: "navigation.page-map",
     offered: () => entries.length > 0,
     group: () => (railStands() ? "keys" : "navigate"),
     press: () => openPageMap(),

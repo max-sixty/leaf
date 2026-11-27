@@ -13,7 +13,6 @@ import { pageUrl, runtime } from "../state/context.js";
 import { authoredTitle } from "../base/tab-title.js";
 import { pagePresented } from "../base/page-paint.js";
 import { activityFacts, leafRow } from "../state/activity-words.js";
-import { commandSteps } from "../dom/keyboard/control-keys.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "../base/page-controls.js";
 
 /** @typedef {import("../../types/contract.js").ServedLivePage} LivePage */
@@ -138,7 +137,7 @@ registerPageControl({
   rank: PAGE_CONTROL_RANK.leaves,
   label: "All pages",
   value: () => String(listedPages(runtime.state).length),
-  shortcut: () => commandSteps("navigation.panel.leaves"),
+  command: "navigation.panel.leaves",
   offered: leavesOffered,
   group: "navigate",
 });

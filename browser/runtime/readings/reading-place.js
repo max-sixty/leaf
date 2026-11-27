@@ -80,6 +80,7 @@ import {
   stickyHolder,
 } from "../dom/geometry.js";
 import { scrollAxes } from "../dom/element-axes.js";
+import { DRAWING, draws } from "../lib/shown-box.js";
 import { layoutsChanged } from "../state/visual-parts.js";
 import {
   composedParentNode,
@@ -197,11 +198,6 @@ const drawnPlace = (reading) => {
   };
   return { node, top };
 };
-// What draws something to see without words: a replaced element, or a widget, which is
-// a custom element. Empty boxes and spacers draw nothing, so no place stands on them.
-const DRAWING = "img, svg, canvas, video, picture, iframe, object, embed";
-/** @param {Element} element */
-const draws = (element) => element.matches(DRAWING) || element.localName.includes("-");
 const LANDMARK_CAP = 160;
 // The shortest run of words that names a reading place (`capturePlace`).
 const QUOTABLE = 24;

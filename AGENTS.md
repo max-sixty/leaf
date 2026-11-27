@@ -137,9 +137,9 @@ question is answered and its gesture carries that word to the log, where the ser
 reads it rather than deciding again (`awaits`), so a press that answers a question
 moves it off On Me, and a deck to its next card, at once. Facts that depend on the
 rest of the log, such as whose turn a thread is and whom an open obligation waits on,
-arrive with the server's reading of the gesture, and a question a gesture reopens
-stands as the user's until that reading says otherwise: the page's state as the server
-computes it from the whole log after admitting the gesture. That reading should be on
+arrive with the server's reading of the gesture: the page's state as the server
+computes it from the whole log after admitting the gesture. A question a gesture
+reopens stands as the user's until that reading says otherwise. That reading should be on
 screen within 100 ms, since the server usually runs on the user's machine. The
 browser doesn't predict that reading: a prediction is a second copy of the server's
 rules, and each case it misses shows the wrong state until the reading arrives. Where

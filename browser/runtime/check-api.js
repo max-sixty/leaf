@@ -44,6 +44,7 @@ export {
   stuckBox,
   stackLevel,
   shownParts,
+  markedParts,
 } from "./dom/geometry.js";
 export { inChrome, uiInside } from "./base/ui-marks.js";
 export { anchoringIsReady } from "./readings/anchor-resolution.js";

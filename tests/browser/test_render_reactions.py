@@ -1517,8 +1517,9 @@ def test_a_visual_proxy_resolves_a_rebuilt_part_and_reveals_it_on_focus(browser,
     # of what it draws.
     assert control.evaluate("control => getComputedStyle(control).opacity") == "0"
     expect(page.locator("[data-lf-proxied]")).to_have_count(1)
-    expect(part).to_have_attribute("data-lf-proxied", "")
-    assert_drawn_in(part, token_colour(page, "--lf-ok"), 2)
+    ring = part.locator("[data-lf-proxied]")
+    expect(ring).to_have_count(1)
+    assert_drawn_in(ring, token_colour(page, "--lf-ok"), 2)
 
 
 def test_a_visual_proxy_keeps_user_current_location_across_provider_updates(

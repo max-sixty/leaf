@@ -825,6 +825,36 @@ export function shownParts(el, { leaveSkipped = false } = {}) {
     .filter((child) => !uiInside(child, el) && !(leaveSkipped && skipped(child)))
     .flatMap((child) => shownParts(child, { leaveSkipped }));
 }
+// The elements the marks Leaf draws round `el` stand on: each part `el` shows through
+// (`shownParts`), or the frame that part is drawn in (`drawnFrame`). Where `el` stands
+// and how much of it shows stay the shown parts' to say, words outside a frame included.
+export const markedParts = (el) =>
+  shownParts(el).map((part) => drawnFrame(part) ?? part);
+// The frame a drawing's part is drawn in, or null: the first shape among the part's
+// children, where that shape shows, encloses an area, and its box holds the whole part.
+// A mark on the part runs along the frame's contour alone, so the shapes inside keep
+// their look, and a part drawn inside can wear a mark of its own. A part without a
+// frame, such as an arrow with its label, wears the mark on every shape it draws
+// (element-marks.css). A line encloses nothing, though a diagonal one's box may hold
+// the whole part.
+function drawnFrame(part) {
+  if (!isSVG(part) || !part.ownerSVGElement || part instanceof SVGGeometryElement)
+    return null;
+  let frame = part.firstElementChild;
+  while (frame && !(frame instanceof SVGGeometryElement))
+    frame = frame.nextElementSibling;
+  if (
+    !frame ||
+    frame.matches("line, polyline") ||
+    !frame.checkVisibility({ visibilityProperty: true, opacityProperty: true })
+  )
+    return null;
+  const box = frame.getBoundingClientRect();
+  const whole = part.getBoundingClientRect();
+  return holds(box, whole.left, whole.top) && holds(box, whole.right, whole.bottom)
+    ? frame
+    : null;
+}
 // The box an element's shown parts cover together: a mark hung on the element stands at
 // its corner, so a comment on one shape of a drawing stands on that shape rather than at
 // the drawing's edge. An element with no shown part has none.

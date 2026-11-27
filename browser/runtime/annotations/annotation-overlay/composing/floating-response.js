@@ -617,6 +617,7 @@ export function createFloatingResponsePlacement({
           row: place.row,
           lastRow: place.lastRow,
           column: place.column,
+          direction: place.direction,
           margin: place.margin,
           boundary,
           fit({ width, room, scale }) {

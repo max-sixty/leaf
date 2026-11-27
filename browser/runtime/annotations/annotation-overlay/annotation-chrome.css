@@ -706,7 +706,7 @@
      below the turns, which the reply row's gap holds. A rewrite's frame and a
      summary's region stand at the card's padding, inside the room at the sides.
      At the sides, where the card's edge bounds the transcript, the room
-     (`--lf-transcript-edge-room`, chrome.css) is what the card's padding and border
+     (`--lf-transcript-edge-room`, surfaces.css) is what the card's padding and border
      leave inside the card's own ring, which the transcript's paper would otherwise
      cover: the words' inset holds a region's gap at their sides, and the room holds
      the rewrite's ring past its frame. It is taken from the card's padding, so the

@@ -959,7 +959,9 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 2px;
-    min-height: 36px;
+    /* Its padding over a head's height, which holds a line of the name face, so a
+       title arriving never makes the line taller (surfaces.css). */
+    min-height: calc(8px + var(--lf-msg-head-height));
     padding: 8px var(--lf-thread-pad) 0 var(--lf-fp-text-edge);
     box-sizing: border-box;
   }

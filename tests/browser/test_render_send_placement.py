@@ -1834,6 +1834,10 @@ def test_a_card_on_a_log_row_stands_beside_the_log_and_leaves_with_its_row(
     )
     scroll_settled(page, "#log")
     rendered(page)
+    page.wait_for_function(
+        "() => parseFloat(document.querySelector('.lf-margin-preview')"
+        ".style.getPropertyValue('--lf-cut-top')) > 5"
+    )
     cut = card.evaluate(
         "card => card.getBoundingClientRect().top"
         " + parseFloat(card.style.getPropertyValue('--lf-cut-top'))"

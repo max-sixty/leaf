@@ -161,23 +161,19 @@ def named_in_place(page, serve, request, root):
     expect(heading).to_be_visible()
     rendered(page)
     assert where() == pytest.approx(before, abs=0.5), "the title moved them"
-    return before
 
 
-def test_a_comment_s_words_stay_put_from_send_until_its_title_comes(
-    browser, serve, request
-):
-    """A comment's words stand where the box held them once Send makes the box a card,
-    and stay there while the card's head line, which holds the card's presses from the
-    start, takes the placeholder that shows while an agent names the thread and then
-    the title."""
+def test_a_sent_comment_s_card_stays_put_until_its_title_comes(browser, serve, request):
+    """The card Send makes of a comment box stays where Send stood it while its head
+    line, which holds the card's presses from the start, takes the placeholder that
+    shows while an agent names the thread and then the title. Where Send stands the
+    words is `test_send_grows_thread_around_the_words`'s to read."""
     page = open_page(browser, serve(PANEL_PAGE))
     resized(page, 1440, 900)
     page.locator("#how-store").click(modifiers=["Alt"], position={"x": 30, "y": 8})
     expect(page.locator(".lf-fab-input")).to_be_visible()
     page.keyboard.insert_text("Is the workshop room accessible?")
     rendered(page)
-    typed = page.locator(".lf-fab-input").evaluate(FIRST_LINE)
     page.keyboard.press("Enter")
     card = page.locator(".lf-margin-preview")
     expect(card).to_have_attribute("data-lf-thread-placement", re.compile(".+"))
@@ -187,8 +183,7 @@ def test_a_comment_s_words_stay_put_from_send_until_its_title_comes(
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     ]
-    sent = named_in_place(page, serve, request, root)
-    assert sent["words"] == pytest.approx(typed, abs=0.5), "Send moved the words"
+    named_in_place(page, serve, request, root)
 
 
 def test_a_card_s_head_line_keeps_its_height_in_large_type(browser, serve, request):

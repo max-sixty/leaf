@@ -551,9 +551,10 @@ summary {
 .lf-fab-bar {
   --lf-thread-text-inset: 8px;
   /* A head's height: 28px, or a line of the name face (`--lf-font-name`, tokens.css)
-     where the reader's font size makes that taller. A card's head line, its messages'
-     heads and the room a comment box keeps for them all read it, so a title, its
-     placeholder or a name never stands taller than the room kept for it. */
+     where the reader's font size makes that taller. A view's head line, in a card or
+     the floating panel, its messages' heads and the room a comment box keeps for them
+     all read it, so a title, its placeholder or a name never stands taller than the
+     room kept for it. */
   --lf-msg-head-height: max(28px, var(--lf-t-working-label) * var(--lf-ui-lh));
   --lf-msg-body-gap: 4px;
   /* The room between a message's last line and what follows it in the conversation,

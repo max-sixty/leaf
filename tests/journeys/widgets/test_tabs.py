@@ -322,8 +322,9 @@ def test_parts_switch_without_moving_the_list_and_follow_history(browser, serve)
     plan_start = switch(plan)
     assert plan_start == 0
     at_start("#plan-part")
-    # Summary fits under the title, so it opens with the title.
+    # Summary fits under the title, so it opens with the title and nothing to scroll.
     assert switch(summary) == 0
+    assert page.evaluate("document.scrollingElement.scrollHeight - innerHeight") <= 0
     # Evidence reopens where the user left it, and pressing the open tab moves nothing.
     assert switch(evidence) == pytest.approx(evidence_read, abs=2)
     assert switch(evidence) == pytest.approx(evidence_read, abs=2)

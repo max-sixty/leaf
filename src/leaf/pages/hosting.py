@@ -663,9 +663,12 @@ def cmd_serve(
     handshake: Handshake | None = None,
     acquire: bool = False,
     prepared_claim: dict | None = None,
+    started_in: str | None = None,
 ) -> None:
     """Prepare a serving resource for `harness`, the session its starter acts
-    for, then publish it and ownership on acceptance.
+    for, then publish it and ownership on acceptance. A server for no session
+    that a session's shell started names that session in its row (`started_in`,
+    `server_rows`).
 
     The page lock serializes preparation through commitment, so another start
     cannot adopt an uncommitted listener. Binding and delivery preparation happen
@@ -719,7 +722,7 @@ def cmd_serve(
                     raise Refused(f"can't serve {page_dir}: {error}") from error
                 lease.write(httpd.server_id.encode())
                 lease.flush()
-                rows = RowPublisher(page_dir, httpd.server_id)
+                rows = RowPublisher(page_dir, httpd.server_id, started_in)
                 service = _service_record(
                     access,
                     httpd,
@@ -828,7 +831,11 @@ def _starting_server(
     deadline: float | None = None,
 ):
     """Prepare a private serving resource and expose its owner before accepting,
-    refusing a start that is not ready by `deadline`, a `time.monotonic()` reading."""
+    refusing a start that is not ready by `deadline`, a `time.monotonic()` reading.
+    The server starts detached from every harness (`detached_environment`), so a
+    start for no session tells it which session's shell it came from, if any
+    (`unserved_session`)."""
+    started_in = unserved_session() if harness is None else None
     with starting_detached(
         [
             "server",
@@ -842,6 +849,7 @@ def _starting_server(
             *(["--claim", json.dumps(claim)] if claim is not None else []),
             "--harness",
             harness_argument(harness),
+            *(["--started-in", started_in] if started_in else []),
         ],
         harness=harness,
         what=f"the server for {page_dir}",

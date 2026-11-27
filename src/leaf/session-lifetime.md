@@ -300,8 +300,10 @@ from the session's first command on. The user chose that developing Leaf works a
 developing any project does, so that Leaf's version, page protocol included, never
 reaches the session: it claims nothing, writes none of the session's records, and
 serves a page unclaimed, which its own `leaf wait` hears, as `leaf server start`
-and `leaf server run` then say (`serves-for-no-session`). A page the session holds
-it treats as another session's.
+and `leaf server run` then say (`serves-for-no-session`). The server's row names the
+session whose shell started it (`server_rows`), so the session's line above Claude
+Code's prompt lists the page beside those the session holds (`hooks.cmd_pages`). A
+page the session holds it treats as another session's.
 
 Only the session holding a page, through its own Leaf, serves the page or changes
 its layer record, its server up or down (`service.refuse_held`); another session

@@ -1424,6 +1424,29 @@ def _style_rules(sheet, *, whole=False):
     )
 
 
+def _scope_roots(sheet):
+    """The prelude of each `@scope` in the file, its root and any limit, which
+    `_style_rules` leaves out of a rule's selector and conditions."""
+
+    def visit(rules):
+        for rule in rules:
+            if rule.type not in ("at-rule", "qualified-rule") or rule.content is None:
+                continue
+            if rule.type == "at-rule" and rule.lower_at_keyword == "scope":
+                yield " ".join(tinycss2.serialize(rule.prelude).split())
+            yield from visit(
+                tinycss2.parse_blocks_contents(
+                    rule.content, skip_comments=True, skip_whitespace=True
+                )
+            )
+
+    yield from visit(
+        tinycss2.parse_stylesheet(
+            sheet.read_text(), skip_comments=True, skip_whitespace=True
+        )
+    )
+
+
 def _stated_faces(sheet, *, only_top_level):
     """{complex selector: {property}} for every rule stating a shared visual property."""
     stated = {}
@@ -1785,8 +1808,9 @@ def test_layout_style_and_widgets_never_read_each_other():
     """Layouts own placement, styles own type, and widgets consume their own box.
 
     Margin placement reads authored notes to keep annotations clear of them.
-    Packages do not depend on Layout containers, and no other sheet
-    restates a Layout's rules. Style classes remain private to the kernel theme.
+    Packages do not depend on Layout containers, in a rule's selector or the root of
+    the `@scope` it stands in, and no other sheet restates a Layout's rules. Style
+    classes remain private to the kernel theme.
     """
     layouts = schema_model.ASSETS / "layouts.css"
     theme = schema_model.ASSETS / "base.css"
@@ -1839,6 +1863,11 @@ def test_layout_style_and_widgets_never_read_each_other():
                     source
                 )
                 if named.search(selector)
+            ]
+            readers += [
+                f"{where}: @scope {root}"
+                for root in _scope_roots(source)
+                if named.search(root)
             ]
         elif source.suffix == ".js":
             # A module reads a class through a string; a comment may name one.

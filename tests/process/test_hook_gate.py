@@ -7,10 +7,11 @@ import os
 import signal
 import subprocess
 
-from interact_support import ROOT, STATED_TIMEOUT
+from interact_support import ROOT, STATED_TIMEOUT, serving
 
 from leaf.base import service as service_model
 from leaf.base import state as state_model
+from leaf.serving import server_rows as server_rows_model
 
 LAUNCHER = str(ROOT / "bin" / "leaf")
 REGISTRATIONS = json.loads((ROOT / "hooks" / "hooks.json").read_text())["hooks"]
@@ -100,6 +101,37 @@ def test_worker_batch_skips_uv_even_when_parent_holds_a_page(claimed, tmp_path):
     assert prompt.returncode == 72, (prompt.stdout, prompt.stderr)
     codex = run(True, harness="codex")
     assert codex.returncode == 72, (codex.stdout, codex.stderr)
+
+
+def test_the_pages_follower_runs_where_a_row_names_its_session(page_dir, tmp_path):
+    """In a session holding no claim, the launcher skips the pages follower unless a
+    server for no session started from the session's shell names it in its row, as
+    a checkout's preview does (`state.named_by_row`); the session's other hooks
+    stay skipped either way, and so does the follower where the only row is one no
+    Leaf wrote."""
+    uv = tmp_path / "uv"
+    uv.write_text("#!/bin/sh\nexit 72\n")
+    uv.chmod(0o755)
+
+    def run(event):
+        return subprocess.run(
+            [LAUNCHER, "hook", "--harness", "claude-code", "--if-claimed", "--pages"],
+            input=json.dumps({"hook_event_name": event, "session_id": "dev"}),
+            env={**os.environ, "PATH": str(tmp_path) + os.pathsep + os.environ["PATH"]},
+            capture_output=True,
+            text=True,
+            timeout=STATED_TIMEOUT,
+            check=False,
+        ).returncode
+
+    assert run("Pages") == 0
+    rows = state_model.state_home() / "rows"
+    rows.mkdir(parents=True, exist_ok=True)
+    (rows / f"torn@{state_model.ROW_SINCE}.json").write_text("{")
+    assert run("Pages") == 0
+    serving(page_dir, 1)
+    server_rows_model.RowPublisher(page_dir, "fixture-server", "dev").refresh()
+    assert (run("Pages"), run("Stop")) == (72, 0)
 
 
 def test_a_terminated_pages_follower_exits_with_its_signal(claimed, spawn):

@@ -194,6 +194,17 @@ def live_servers(among: set[Path] | None = None):
             yield candidate, record, info
 
 
+def started_in(session: str) -> set[Path]:
+    """The pages whose rows name `session` as the one whose shell started their
+    server for no session (`server_rows`), whether or not that server still runs:
+    `live_leaves` takes only the live ones, and deletes the rest's rows."""
+    return {
+        page
+        for page, record in neighbor_candidates()
+        if record["started_in"] == session
+    }
+
+
 def live_leaves(among: set[Path] | None = None) -> list:
     """Each live page that is not closed, by its directory, with its row entry, in
     title order (`other_leaves` says what each costs and holds); only those `among`

@@ -621,8 +621,7 @@ def test_firefox_s_copy_of_a_group_builds_no_add_field(firefox_browser, serve):
     }""")
     box = field.bounding_box()
     select(page, start, (box["x"] + 230, box["y"] + box["height"] / 2), steps=15)
-    # A throw says Firefox copied the Document, which `inWindowDocument` (lib/once.js)
-    # keeps the copied widgets from setting up in.
+    # A throw says Firefox copied the Document; the widgets it copies there stay markup.
     page.wait_for_function("copies.length")
     assert page.evaluate("copies") in (["HierarchyRequestError"], ["cloned"])
     rendered(page)

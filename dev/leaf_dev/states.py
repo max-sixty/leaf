@@ -1684,6 +1684,17 @@ def leaf_draft_kept(page: Page) -> None:
     settle(page)
 
 
+def leaf_folded(page: Page) -> None:
+    """The panel folded to its leaf while something waits on the user and a thread has
+    news, so the leaf's tile wears its count and its news dot."""
+    page.locator("body").focus()
+    page.keyboard.press(".")
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-rest", "mark")
+    expect(page.locator(".lf-fp-badge[data-lf-shown]")).to_be_visible()
+    expect(page.locator(".lf-fp-news-dot[data-lf-shown]")).to_be_visible()
+    settle(page)
+
+
 def panel_draw_mode(page: Page) -> None:
     """The panel's row in Draw mode, its mode chip naming the mode beside its way out."""
     page.keyboard.press("w")
@@ -2152,6 +2163,14 @@ def screenshot_startup(page: Page) -> None:
     """The section holding a shot, at the top of the window, before the shot's module
     draws it."""
     page.locator("#rn-console-section").evaluate(
+        "node => node.scrollIntoView({block: 'start'})"
+    )
+
+
+def options_startup(page: Page) -> None:
+    """A question's joined options at the top of the window before the runtime adds
+    their Add cell, whose place a reserve holds at the group's foot."""
+    page.locator("#rn-publication-decision").evaluate(
         "node => node.scrollIntoView({block: 'start'})"
     )
 
@@ -3740,6 +3759,7 @@ STATES = (
     State("panel-resolved", "ship-review", panel_resolved, region=".lf-fp-row"),
     State("panel-draft-kept", "lost-update", panel_draft_kept, region=".lf-fp-row"),
     State("leaf-draft-kept", "lost-update", leaf_draft_kept, region=".lf-fp-leaf"),
+    State("leaf-folded", "review-a-plan", leaf_folded, region=PANEL),
     State("walked-to-draft", "lost-update", walked_to_draft),
     State("panel-draw-mode", "review-a-plan", panel_draw_mode, region=".lf-fp-row"),
     State("panel-selection", "review-a-plan", panel_selection, region=".lf-fp-row"),
@@ -3914,6 +3934,13 @@ STATES = (
         screenshot_startup,
         activated=False,
         region="#rn-console-section",
+    ),
+    State(
+        "options-startup",
+        "release-notes",
+        options_startup,
+        activated=False,
+        region="#rn-publication-decision",
     ),
     State(
         "page-disclosure",

@@ -252,15 +252,28 @@
   }
   /* The leaf's badges (`.lf-badges`, controls.css): its count of what waits on the
      user, a dot for news, faint grey for a put-away draft where nothing has news, and a
-     dot for an error, over its top edge, at the row's end as folded, so a fold carries
-     them as they stand. The user chose the folded leaf's badge for the row too, over
-     the count beside the mark in room the leaf kept for it, which crowded the row's
-     end. */
+     dot for an error. Folded, they stand on the corners of the leaf's tile (below). In
+     the row they stand clear inside the panel's corner (`--lf-clear`), their tops in
+     line past the leaf's top edge and the count over its mark: the panel's card clips
+     what crosses its edge, which an open view's corners rely on. A fold or an unfold
+     moves them between the two places in its first frame, and the leaf carries them
+     from there (dom/box-motion.js, which carries the leaf whole). The row stands in
+     the leaf's padding box, so each inset also takes back the leaf's 1px border. The
+     user chose the folded leaf's badge for the row too, over the count beside the mark
+     in room the leaf kept for it, which crowded the row's end. */
   .lf-fp-leaf > .lf-badges {
     position: absolute;
-    inset: -3px -3px auto;
-    --lf-badge-reach: 3px;
     pointer-events: none;
+  }
+  .lf-floating-panel:not([data-lf-rest="mark"]) .lf-fp-leaf > .lf-badges {
+    inset: calc(var(--lf-clear) - var(--lf-thread-pad) - 1px)
+      calc(var(--lf-clear) - var(--lf-thread-pad) - 1px) auto;
+    --lf-badge-reach: 0px;
+  }
+  /* On a right-to-left page the row's leaf stands at the panel's left edge, so badges
+     wider than the leaf run past its right end, into the panel, rather than its left. */
+  .lf-floating-panel:not([data-lf-rest="mark"]) .lf-fp-leaf:dir(rtl) > .lf-badges {
+    justify-content: flex-start;
   }
   .lf-badges > .lf-fp-error-dot {
     box-shadow: 0 0 0 2px var(--lf-fp-surface);
@@ -856,10 +869,22 @@
     }
     /* The leaf keeps its face and status marks through the move. The card supplies
        the folded surround; the button's hit area still reaches every edge of it.
-       Let the badge overhang, and avoid clipping the native focus ring a second time
+       Let the badges overhang, and avoid clipping the native focus ring a second time
        when the moving surface hands back to the resting card. */
     .lf-fp-card {
       overflow: visible;
+    }
+    /* The card is the leaf's tile, and its badges stand on the tile's corners, as on an
+       icon's (`.lf-badges`, controls.css). */
+    .lf-fp-leaf > .lf-badges {
+      --lf-badge-corner: var(--lf-r-l);
+      inset: calc(-1 * (var(--lf-fp-fold-pad-block) + var(--lf-badge-seat) + 1px))
+        calc(-1 * (var(--lf-fp-fold-pad-inline) + var(--lf-badge-seat) + 1px)) auto;
+    }
+    /* An error and news together: the dot beside the corner's stands centred on the
+       tile's top edge. */
+    .lf-fp-leaf > .lf-badges > [data-lf-shown] ~ [data-lf-shown]:not(.lf-fp-badge) {
+      margin-block-start: calc(-1 * var(--lf-badge-arc));
     }
     .lf-fp-row {
       min-height: 0;

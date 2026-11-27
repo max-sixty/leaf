@@ -3034,3 +3034,45 @@ def test_an_option_set_as_a_paragraph_starts_under_its_title_as_a_sentence_does(
     )
     for shape in ("element", "paragraph"):
         assert gaps[shape] == pytest.approx(gaps["sentence"], abs=1), gaps
+
+
+def test_a_nested_group_reserves_only_the_cells_it_will_draw(browser, serve):
+    """Before the runtime draws Add and Done, a group holds their place at its foot, and a
+    group nested in an option holds only what it will draw itself: a closed group that
+    takes several answers holds Done's row inside an open group as it does on its own,
+    not its holder's Add besides."""
+    inner = (
+        '<lf-group id="{0}-q" label="Which parts?"><lf-options id="{0}" closed multiple>'
+        '<lf-option id="{0}-a">Alpha</lf-option><lf-option id="{0}-b">Beta</lf-option>'
+        "</lf-options></lf-group>"
+    )
+    url = serve(
+        leaf_page(
+            "Nested groups",
+            '<lf-group id="outer-q" label="Which way?"><lf-options id="outer">'
+            '<lf-option id="outer-a">Either '
+            + inner.format("inner")
+            + '</lf-option><lf-option id="outer-b">Or</lf-option></lf-options></lf-group>'
+            + inner.format("alone"),
+        )
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    held_entry = []
+    # As the widget check holds it (`render_gate/widget_quality.py`): the first
+    # request for the entry waits, and the route stays until the page closes.
+    page.route(
+        "**/leaf.js",
+        lambda route: route.fallback() if held_entry else held_entry.append(route),
+    )
+    with page.expect_request("**/leaf.js"):
+        page.goto(url, wait_until="commit")
+    page.wait_for_function(
+        "[...document.styleSheets].some(sheet => sheet.href?.endsWith('/theme.css'))"
+    )
+    reserves = page.evaluate(
+        """() => Object.fromEntries(['inner', 'alone'].map((id) => [id,
+          parseFloat(getComputedStyle(document.getElementById(id), '::after').height)]))"""
+    )
+    held_entry[0].fallback()
+    assert reserves["alone"] > 0, reserves
+    assert reserves["inner"] == pytest.approx(reserves["alone"], abs=0.5), reserves

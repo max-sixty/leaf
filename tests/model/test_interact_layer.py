@@ -76,6 +76,7 @@ from leaf.records.revisioning import activate_source
 from leaf.source import data as data_model
 from leaf.source import layer as layer_model
 from leaf.source import revision_artifact as artifact_model
+from leaf.source import runtime_selection
 from leaf.source import structure as structure_model
 from leaf.source import styles as styles_model
 from leaf.source import vocabulary as vocabulary_model
@@ -5944,3 +5945,16 @@ def test_portable_css_carries_the_widgets_look_and_no_theme():
         layer.top_files["theme.css"].decode()
     )
     assert layer_model.stylesheet(reading / "theme.css", reading) not in sheet
+
+
+def test_a_typescript_source_reaches_no_page(tmp_path):
+    """A layer serves the JavaScript compiled beside a TypeScript module, and neither a
+    page's copy of a package nor the runtime a page loads carries the source."""
+    widgets = tmp_path / "demo" / "widgets"
+    widgets.mkdir(parents=True)
+    (widgets / "helper.ts").write_text("export const one: number = 1;\n")
+    (widgets / "helper.js").write_text("export const one = 1;\n")
+    assert sorted(layer_model.package_files(tmp_path / "demo")) == ["widgets/helper.js"]
+    assert not [
+        path for path in runtime_selection.read_runtime().source if path.endswith(".ts")
+    ]

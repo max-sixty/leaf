@@ -11,7 +11,8 @@
     "skipLibCheck": true,
     "types": ["node"],
     "resolveJsonModule": true,
-    "noUncheckedSideEffectImports": true
+    "noUncheckedSideEffectImports": true,
+    "allowImportingTsExtensions": true
   },
   "include": [
     "**/*.mjs",

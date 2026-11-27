@@ -375,19 +375,37 @@ def test_a_stuck_sidebar_track_keeps_its_place_to_the_page_end(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("held", ["follow-ups", "contents map"])
 def test_a_sidebar_among_a_column_s_blocks_keeps_its_track_off_what_follows(
-    request, serve, engine
+    request, serve, engine, held
 ):
     """A sidebar among a column page's blocks isn't the page's Layout box, so its stuck
     track ends with the sidebar rather than hanging through the document's end room
-    over the column's blocks after it."""
-    follow_ups = "".join(f"<p>Follow-up {n} to check.</p>" for n in range(80))
-    body = "".join(f"<p>Body paragraph {n} of the review.</p>" for n in range(200))
+    over the column's blocks after it. The contents map's track, which stands fixed in
+    the window where its sidebar spans the page, sticks here as any other does."""
+    if held == "contents map":
+        track = '<lf-toc id="contents"></lf-toc>'
+        body = (
+            '<div class="layout-column">'
+            + "".join(
+                f'<h2 id="part-{n}">Part {n}</h2>'
+                + "".join(f"<p>Paragraph {k} of part {n}.</p>" for k in range(20))
+                for n in range(10)
+            )
+            + "</div>"
+        )
+    else:
+        track = "".join(f"<p>Follow-up {n} to check.</p>" for n in range(80))
+        body = (
+            "<div>"
+            + "".join(f"<p>Body paragraph {n} of the review.</p>" for n in range(200))
+            + "</div>"
+        )
     after = "".join(f"<p>Column paragraph {n}.</p>" for n in range(60))
     source = leaf_page(
         "sidebar among a column's blocks",
         f'<div class="layout-sidebar"><aside><div class="layout-track" id="track">'
-        f'{follow_ups}</div></aside><div>{body}</div></div><div id="after">{after}</div>',
+        f'{track}</div></aside>{body}</div><div id="after">{after}</div>',
     )
     page = open_page(request.getfixturevalue(engine), serve(source))
     resized(page, 1400, 600)

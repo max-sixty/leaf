@@ -880,11 +880,12 @@ radio checked there.
 ### A stuck sticky box bounces with the page
 
 Firefox on macOS bounced a sticky column with trackpad overscroll on
-2026-10-20. The page-of-parts column in `browser/layouts.css` uses fixed
-positioning to stay still; other root-sticky boxes can still bounce.
-Recheck with a native trackpad fling at the document's end; headless Playwright
-supplies no overscroll. If engines hold sticky boxes still, the column can
-return to sticky positioning.
+2026-10-20, and the contents map's stuck track on 2026-11-26. The page-of-parts
+column and the contents map's narrowed track, where its sidebar spans the page,
+use fixed positioning in `browser/layouts.css` to stay still; other root-sticky
+boxes can still bounce. Recheck with a native trackpad fling at the document's
+top and end; headless Playwright supplies no overscroll. If engines hold sticky
+boxes still, both can return to sticky positioning.
 
 ### An anchor inside an SVG foreignObject in Chromium
 

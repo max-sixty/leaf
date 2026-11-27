@@ -162,9 +162,9 @@ lf-text-document .lf-text-document-run:only-child {
   }
 }
 /* A document takes its text's height up to `--lf-bound` under a caption that stays
-   put, and where that height cuts the text, ends in a fade and a press that shows the
-   whole document (lf-text-document.js, `cuts`): the tab shown with a preview, the
-   listing's `pre` without one. A preview's Source tab takes the preview's height
+   put, and scrolls inside that box past it, with a press under it that shows the whole
+   document (lf-text-document.js, `more`): the tab shown with a preview, the listing's
+   `pre` without one. A preview's Source tab takes the preview's height
    (`holdSource`), so switching tabs keeps the page still.
 
    The module draws the figure once it loads, after first paint, so until then the
@@ -308,32 +308,33 @@ lf-text-document iframe.lf-text-document-preview {
   lf-text-document[preview] .lf-text-document-view > lf-tabs > lf-tab:not([hidden]) {
     overscroll-behavior: auto;
   }
-  /* The preview sets the height both tabs take, its own up to the bound, which the
-     module gives the Source tab (lf-text-document.js, `holdSource`). A reading that
-     height cuts clips its text there, folds what it clipped, and ends in a fade and a
-     press showing the whole document (`cuts`), after which each reading takes its own
-     height in the page. Told it has a definite height to fill (below), a document fills
-     that height instead and scrolls inside it. */
+  /* Each reading scrolls inside the bound (`[data-lf-bound]`, base.css), at its text's
+     height up to it. The preview sets the height both tabs take, which the module
+     gives the Source tab (lf-text-document.js, `holdSource`). While the reading shown
+     scrolls, a press under it shows the whole document (`more`), after which each
+     reading takes its own height in the page. Told it has a definite height to fill
+     (below), a document fills that height instead and scrolls inside it, with no
+     press. */
   @container not style(--lf-full-height: 1) {
-    lf-text-document:not([data-lf-bound="end"]) {
-      & .lf-text-document-view > lf-tabs > lf-tab:not([hidden], [data-lf-all]),
-      &:not([preview]) .lf-text-document-listing > pre:not([data-lf-all]) {
+    lf-text-document:not([data-lf-bound="end"]) > .lf-text-document-view {
+      &:not([data-lf-all]) > .lf-text-document-listing > pre {
         max-block-size: var(--lf-bound, 28rem);
       }
-      & .lf-text-document-view > lf-tabs > lf-tab:not([data-lf-all]),
-      &:not([preview]) .lf-text-document-listing > pre:not([data-lf-all]) {
-        overflow: clip;
-      }
-      &
-        .lf-text-document-view
-        > lf-tabs
-        > lf-tab:has(> .lf-text-document-listing):not([data-lf-all]) {
+      &:not([data-lf-all]) > lf-tabs > lf-tab:has(> .lf-text-document-listing) {
         block-size: min(var(--lf-preview-block), var(--lf-bound, 28rem));
+      }
+      &[data-lf-all] > lf-tabs > lf-tab,
+      &[data-lf-all] > .lf-text-document-listing > pre {
+        max-block-size: none;
+        overflow: visible;
+      }
+      & > .lf-text-document-foot:not([hidden]) {
+        display: block;
       }
     }
     /* A document that follows its newest line, as a log does (`data-bound="end"`),
-       scrolls in a box the bound's height instead, which keeps that line in view as
-       lines arrive while the reader is at the end (bounds.js). */
+       keeps a box the bound's height, which keeps that line in view as lines arrive
+       while the reader is at the end (bounds.js). */
     lf-text-document[data-lf-bound="end"] {
       & .lf-text-document-view > lf-tabs > lf-tab:not([hidden]),
       &:not([preview]) .lf-text-document-listing > pre {
@@ -341,35 +342,11 @@ lf-text-document iframe.lf-text-document-preview {
       }
     }
   }
-  lf-text-document .lf-text-document-view > lf-tabs > lf-tab[data-lf-all],
-  lf-text-document .lf-text-document-listing > pre[data-lf-all] {
-    max-block-size: none;
-    overflow: visible;
-  }
-  /* What a cut folds (lf-text-document.js, `cutText`) keeps no height below the press,
-     and its margins, so it starts where it would shown: travel and find-in-page still
-     reach it, and open the whole document. */
-  lf-text-document
-    :is(
-      .lf-text-document-preview > *,
-      .lf-text-document-run,
-      .lf-text-document-run > *
-    )[hidden="until-found"] {
-    content-visibility: hidden;
-    block-size: 0 !important;
-    min-block-size: 0 !important;
-    padding-block: 0 !important;
-    border-block-width: 0 !important;
-  }
-  lf-text-document .lf-text-document-cut {
-    position: absolute;
-    inset: auto 0 0;
-    padding: calc(2 * var(--lf-sp-5)) var(--lf-sp-4) var(--lf-sp-2);
-    background: linear-gradient(transparent, var(--lf-pre-bg) 70%);
+  lf-text-document .lf-text-document-foot {
+    display: none;
+    padding: var(--lf-sp-2) var(--lf-sp-4);
+    border-top: 1px solid var(--lf-rule);
     text-align: center;
-  }
-  lf-text-document lf-tab:has(> .lf-text-document-preview) > .lf-text-document-cut {
-    background: linear-gradient(transparent, var(--lf-paper) 70%);
   }
 }
 /* As a pane's body, the document wears the pane's frame rather than a second one inside
@@ -417,11 +394,6 @@ lf-text-document iframe.lf-text-document-preview {
     lf-text-document iframe.lf-text-document-preview {
       block-size: 100%;
       max-block-size: none;
-    }
-    /* A reading shown whole scrolls inside the pane it fills. */
-    lf-text-document .lf-text-document-view > lf-tabs > lf-tab[data-lf-all],
-    lf-text-document .lf-text-document-listing > pre[data-lf-all] {
-      overflow: auto;
     }
   }
 }

@@ -1148,8 +1148,7 @@ def test_a_place_in_a_long_document_names_the_line_at_its_top(browser, serve):
     url = serve(
         leaf_page(
             "A long document",
-            '<lf-text-document id="log" source="log-text" data-bound="end">'
-            "</lf-text-document>",
+            '<lf-text-document id="log" source="log-text"></lf-text-document>',
             head="<style>#log { --lf-bound: 400px; }</style>",
         )
     )

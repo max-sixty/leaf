@@ -818,6 +818,7 @@ def test_go_to_armed_as_a_panel_view_replaces_another_names_the_arriving_view(
     page.keyboard.press("Shift+t")
     page.keyboard.press("g")
     expect(panel).to_have_attribute("data-lf-open", "threads")
+    expect(page.locator(CHIPS).first).to_be_visible()
     routes = heard_routes(page)
     view = page.locator(".lf-fp-view:not([data-lf-leaving])").bounding_box()
     in_view = [

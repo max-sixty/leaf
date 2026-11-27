@@ -21,7 +21,7 @@ so an id is not a global identifier. Each kind's record schema is `$events.kinds
 | <a id="kind-summary"></a>`summary`           | agent           | `leaf thread summarize`                                                                  | `thread`, `from`, `through`, `text`; optional `label`                                                                                                                                                 | folds a contiguous range of a thread under optional Markdown; the originals stay revealable                                                                                                   |
 | <a id="kind-resolve"></a>`resolve`           | user or agent   | `POST /api/event`, `leaf thread resolve`                                                 | `parent`                                                                                                                                                                                              | closes a thread                                                                                                                                                                               |
 | <a id="kind-unresolve"></a>`unresolve`       | user or agent   | `POST /api/event`, `leaf thread reopen`                                                  | `parent`                                                                                                                                                                                              | reopens a resolved thread                                                                                                                                                                     |
-| <a id="kind-action"></a>`action`             | user            | `POST /api/event` from a widget                                                          | `widget`, `action`, `detail`; server-stamped `meaning`                                                                                                                                                | changes the document through the widget ("Admission")                                                                                                                                         |
+| <a id="kind-action"></a>`action`             | user            | `POST /api/event` from a widget                                                          | `widget`, `action`, `detail`, `answered`; server-stamped `meaning`                                                                                                                                    | changes the document through the widget ("Admission")                                                                                                                                         |
 | <a id="kind-report"></a>`report`             | agent or worker | `leaf page report`                                                                       | `widget`, `action`, `detail`; server-stamped `meaning` (as for `action`, under a verb (`verbs`) declaring `writer: "agent"`)                                                                          | provisional widget state, in force until a stamped version settles it                                                                                                                         |
 | <a id="kind-pickup"></a>`pickup`             | page            | the delivery transport, or a harness's failure receipt                                   | `events`, `phase` (`queued`, `opened` or `failed`), `session`, `turn`; `failure` (when `failed`); `refs`, the `answer.ref` its delivery gave each input owed an answer                                | the named inputs reached the Codex queue, entered an exact agent turn, or were given up with no answer coming; idempotent per event, phase, session and turn; never a `start` (`delivery.py`) |
 | <a id="kind-receipt"></a>`receipt`           | page            | delivery receipt (`delivery.receive_batch`)                                              | `through`, the seq the receipt confirms                                                                                                                                                               | the complete delivery of the log through `through` reached its durable consumer; the greatest `through` is the acknowledgement cursor                                                         |
@@ -33,7 +33,7 @@ so an id is not a global identifier. Each kind's record schema is `$events.kinds
 | <a id="kind-start"></a>`start`               | agent           | `leaf task start`, or progress posted to an owed update                                  | `item`, an owed update's event id or an open to-do's; `text`, the status line; `turn`                                                                                                                 | takes the item in hand until it ends or a `status` follows; the newest start on an item replaces the one before (`todos.py`)                                                                  |
 | <a id="kind-status"></a>`status`             | agent           | `leaf page open` and `leaf page close`, or the website harness at a turn's edge          | `state` (`waiting` or `idle`)                                                                                                                                                                         | declares the page open for feedback or closed, and puts down every earlier start (`activity.declaration`, `todos.item_starts`)                                                                |
 | <a id="kind-plan"></a>`plan`                 | agent           | `leaf task plan`                                                                         | `steps`, an outline of headings `{depth, title}` and items `{depth, item}`                                                                                                                            | replaces the agent's plan, which arranges to-dos and obligations under headings without owning them (`plans.py`)                                                                              |
-| <a id="kind-undo"></a>`undo`                 | user            | `POST /api/event`                                                                        | `undoes`                                                                                                                                                                                              | withdraws one gesture of the user's own ("Undo")                                                                                                                                              |
+| <a id="kind-undo"></a>`undo`                 | user            | `POST /api/event`                                                                        | `undoes`, `answered`                                                                                                                                                                                  | withdraws one gesture of the user's own ("Undo")                                                                                                                                              |
 
 ## Anchors
 
@@ -195,6 +195,16 @@ compares every field but those the server assigns (`event_log._attempt_payload`)
 `browser_discard` fields browser ingress drops; it is fixed by the running kernel, and
 no layer changes it.
 
+An `action` of a widget whose tag declares `awaits`, and an `undo` of one, carries
+`answered`: whether the widget's obligation is answered as the gesture leaves the
+widget's state, in the widget's own word (`module-state.md`, "Declared widget state"),
+which the runtime reads after drawing the gesture and before sending it, whoever
+writes it. Admission refuses such a gesture without it, and it on any other gesture,
+and decides nothing about it: the obligation is answered while the newest of the
+widget's words says so, a word being one of its actions in force or the user's undos
+of them, or a version note that restates what any of its actions rests on, which says
+the question is open again (`obligations.gesture_answers`).
+
 `meaning` holds what a reader without the sending registry cannot recover from the
 event. Every `action` and `report` records:
 
@@ -213,8 +223,10 @@ event. Every `action` and `report` records:
 - `state`, the operation and detail domain the gesture was admitted under, so under a
   later layer whose domain excludes the value, the event stays in history only
   (`layer-registry.md`).
-- `answer`, on an action whose admission makes its widget's `awaits.answered` hold:
-  the thread the answer closes, from the widget's authored `resolves` in the sending
+- `answer`, on an action of a widget that asks whose `answered` says its obligation
+  is answered, where the action either records the answer itself (its verb is
+  `awaits.value`) or turns the obligation from open to answered: the thread the answer
+  closes, from the widget's authored `resolves` in the sending
   document, or null. The outcome its deciding verb `withdraws` declines and closes
   nothing.
 - `creates`, the tag of the child a `creates` verb adds. The child is the action's
@@ -338,7 +350,7 @@ to a page obligation, each carrying `failure`, a harness-owned code. Only the ha
 writes `failure`, and the panel draws such a reply as a receipt that answers nothing.
 
 A widget with a local `awaits` obligation in a reply's markup declares that
-obligation itself. It stays open until `awaits.answered` holds. Actions on it before
+obligation itself. It stays open until a gesture of it says it is answered. Actions on it before
 then are not handed over: they carry no receipt and need no reply. The action that
 answers carries the receipt and hands the turn to the agent, and undoing it returns
 the obligation to the user and removes the reply obligation. An action on a thread

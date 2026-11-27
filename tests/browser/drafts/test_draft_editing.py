@@ -1277,6 +1277,7 @@ def test_draft_comparison_detects_format_changes_but_not_the_same_current_edit(
             "widget": "source",
             "action": "edit",
             "detail": {"value": "Current **edit**."},
+            "answered": True,
         },
     )
     _publish(

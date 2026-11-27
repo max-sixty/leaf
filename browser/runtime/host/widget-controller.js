@@ -28,6 +28,7 @@ import {
   attachApplicationPresentation,
   attachWidgetPresentation,
 } from "../state/semantic-state.js";
+import { immutable, undoCandidates } from "./widget-state.js";
 import { dispatchWidget, invalidateDom } from "./application.js";
 import {
   descriptorStillMatches,
@@ -41,7 +42,7 @@ import { holdRendering } from "../base/rendering.js";
 
 /** @typedef {ReturnType<typeof createWidgetController>} Controller
  * @typedef {import('../state/semantic-application.js').WidgetDescriptor} WidgetDescriptor
- * @typedef {ReturnType<ReturnType<typeof applicationState.selectWidget>["read"]>} WidgetReading
+ * @typedef {import("./widget-state.js").WidgetReading} WidgetReading
  * @typedef {{completion: Promise<unknown[]>}} Preparation
  * @typedef {ReturnType<typeof attachWidgetPresentation>} PreparationHandle */
 
@@ -52,15 +53,6 @@ import { holdRendering } from "../base/rendering.js";
 export function widgetMounted() {
   invalidateDom();
 }
-
-/** @template T @param {T} value @returns {T} */
-const immutable = (value) => {
-  if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
-    for (const child of Object.values(value)) immutable(child);
-    Object.freeze(value);
-  }
-  return value;
-};
 
 /** @param {WidgetReading} reading */
 const unavailable = (reading) =>
@@ -310,55 +302,6 @@ document.addEventListener(DEFER, (event) => {
   };
   Promise.resolve(event.complete).then(ended, ended);
 });
-
-// Each unit of a verb whose action in force the user may take back, with the Undo
-// candidate that takes it back.
-/** @param {WidgetReading["actions"][string] | undefined} action */
-const undoCandidates = (action) => {
-  const undo = new Map(action?.undo.map((event) => [event.id, event]));
-  /** @type {Map<string, WidgetReading["actions"][string]["undo"][number]>} */
-  const units = new Map();
-  for (const { unit, event } of action?.inForce ?? []) {
-    const candidate = undo.get(event.id);
-    if (candidate) units.set(unit, candidate);
-  }
-  return units;
-};
-
-// A widget's reading as the immutable `state` property Leaf sets on an element it
-// drives from outside (element-integration.js): each declared verb's folded state, with
-// whether the user may act on it now (`available`), the reason they may not where Leaf
-// has one to give (`unavailable`), and whether `lf-undo` would take back the action in
-// force (`undoable`), which a verb holding a state for each unit says on each unit. A
-// verb the agent writes reads as one the user may neither act on nor take back.
-/** @param {WidgetReading} reading @returns {import("../../types/domain.js").WidgetState} */
-export const widgetState = ({ state, actions }) =>
-  immutable(
-    Object.fromEntries(
-      Object.entries(state).map(([verb, held]) => {
-        const undoable = undoCandidates(actions[verb]);
-        const offered = {
-          available: actions[verb]?.available ?? false,
-          unavailable: actions[verb]?.unavailable ?? null,
-        };
-        return [
-          verb,
-          "units" in held
-            ? {
-                ...held,
-                units: Object.fromEntries(
-                  Object.entries(held.units).map(([unit, at]) => [
-                    unit,
-                    { ...at, undoable: undoable.has(unit) },
-                  ]),
-                ),
-                ...offered,
-              }
-            : { ...held, undoable: undoable.size > 0, ...offered },
-        ];
-      }),
-    ),
-  );
 
 // What a widget records and takes back, heard on the element Leaf drives
 // (element-integration.js): an `lf-action` event whose detail is `{verb, detail, says?,

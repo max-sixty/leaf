@@ -240,8 +240,9 @@ this.dispatchEvent(hold);
 - **Startup.** `lf-presentation` and `lf-page-interface` on `document`
   (`module-authoring.md`, "Startup and presentation").
 - **A stroke drawn on it.** `lf-inspect` (`module-input.md`, "Pointer presses").
-- **On Me and comment targets.** The class's `static answerWords` words its answer
-  (`module-state.md`, "Declared widget state"), and `data-lf-part` marks each comment
+- **On Me and comment targets.** The class's `static answered` says whether its
+  question is answered and `static answerWords` words the answer (`module-state.md`,
+  "Declared widget state"), and `data-lf-part` marks each comment
   target, or the element's `lfParts` states them (`module-annotations.md`, "Visual
   parts").
 - **A box it scrolls.** `data-lf-scroll` marks a box the element makes scroll, and

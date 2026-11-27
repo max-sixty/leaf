@@ -240,28 +240,19 @@ package's own lists neither. An element that another widget's verb names by id, 
 `awaits` puts a widget's obligation on the user's list, On Me. Its `value` names
 the verb whose state is the answer: the recorded value, or a recordless verb's latest
 `detail`. A playground's unrecorded `choose` gives its submitted settings.
-The obligation is complete once that verb has a state, which a starting value the
-page's markup writes gives it too. Where it is complete at another moment,
-`awaits.answered` maps each answering verb to its condition: `{}` once the verb has a
-state, `when`
-for instances with matching attributes, and `empty` while the one container of the
-verb's position record (`within`) whose attributes match its `when` has no members.
-`every: {member}` holds once each `member` element in the widget has an action of a
-verb kept per member, so a checklist the user decides step by step asks until its
-last step is decided, and asks again when a version adds a step; `detail` beside it
-asks each step's action for the named values. A page-owned queue can declare:
-
-```json
-{
-  "value": "move",
-  "answered": {
-    "move": { "empty": { "when": { "queued": [true] } } }
-  }
-}
-```
-
-The obligation is answered once the marked column is empty, and returning a card reopens it. If
-the widget's `when` stops holding, a complete obligation stays answered and an incomplete one is withdrawn.
+Whether the obligation is answered is the widget's own word, which each of its
+gestures carries: its class's `static answered(state, element)`, or, without one,
+whether that verb holds a state ([module-state.md, "Declared widget
+state"](module-state.md#declared-widget-state)), counting only the user's acts in
+force: a starting value the page's markup writes answers nothing. So a queue whose
+question is answered once its marked column is empty says so from the positions its
+`state` holds, and a checklist decided step by step says so once its last step is.
+Only a gesture says it, so a version that changes the answer, as one adding a step
+does, says nothing by itself. Marking an element `restated` asks again: it withdraws
+every decision resting on that element, and the question stays open until the
+user's next gesture says otherwise. A version that adds a step can't reopen the ask
+while keeping the decisions on the other steps. If the widget's `when` stops
+holding, a complete obligation stays answered and an incomplete one is withdrawn.
 
 `awaits.retired` names the attribute an author sets to close an obligation but
 keep its widget on the page, such as a decided question collapsed with its options;

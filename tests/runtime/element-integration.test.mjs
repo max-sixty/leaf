@@ -11,7 +11,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { hostDeclaredElements } from "/runtime/host/element-integration.js";
-import { widgetState } from "/runtime/host/widget-controller.js";
+import { widgetState } from "/runtime/host/widget-state.js";
 import { failureOf, placesFailure } from "/runtime/lib/failure.js";
 import { adoptRegistry } from "/runtime/state/registry.js";
 import { acceptData, notifyDataSubscribers } from "/runtime/host/data.js";

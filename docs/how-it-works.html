@@ -2726,13 +2726,13 @@ flowchart TD
             <p id="undo">
               Outside a text box, <kbd>⌘Z</kbd> (<kbd>Ctrl+Z</kbd> off a Mac) withdraws
               the user's latest action at once, then leaves the user at what it took
-              back: where that was out of view, the page goes there, and Back returns to
-              where they pressed. A tint marks what changed for about a second, and a
-              notice names the action and how long ago it was made until the user's next
-              key, press or scroll. Undoing a resolve opens the thread again where they
-              had it open. Undoing a message or a rewrite puts its words back in the box
-              they were written in, as a draft to edit or send again. Each undo appends
-              an event naming its target, so the recomputed result survives reloads.
+              back: where that was out of view, the page goes there. A tint marks what
+              changed for about a second, and a notice names the action and how long ago
+              it was made until the user's next key, press or scroll. Undoing a resolve
+              opens the thread again where they had it open. Undoing a message or a
+              rewrite puts its words back in the box they were written in, as a draft to
+              edit or send again. Each undo appends an event naming its target, so the
+              recomputed result survives reloads.
             </p>
           </section></lf-tab
         ><lf-tab id="progress" label="Progress"
@@ -5537,8 +5537,10 @@ flowchart LR
             <h2>Page addresses</h2>
             <p id="local-address">
               A page's server binds the address its session arrived through: the SSH
-              destination for an SSH session, otherwise loopback. The page keeps its
-              host and port in
+              destination for an SSH session, otherwise loopback. Where the user sets
+              <code>host</code> in Leaf's config file to a hostname, such as the
+              machine's name on a tailnet, a new page binds every interface and carries
+              that name in its URL instead. The page keeps its host and port in
               <code>service.json</code>, so serving it again, changing its packages or
               reviving it keeps the same URL, and a watcher restarts a server whose
               process dies at that URL.

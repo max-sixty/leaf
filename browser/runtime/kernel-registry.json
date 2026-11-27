@@ -3,6 +3,7 @@
     "description": "The module paths a page or package may import. Admission, linting and bundling read this list. module-authoring.md describes the capabilities of Leaf's own modules. The paths under `/runtime/lib/` are the library of shared web code, every module of that directory, each described in its own header (browser/AGENTS.md, \"The library of shared web code\").",
     "paths": [
       "/vendor/lit.js",
+      "/vendor/effect-ui.js",
       "/runtime/widget-api.js",
       "/runtime/portable-api.js",
       "/vendor/floating-ui.esm.js",
@@ -11,6 +12,8 @@
       "/runtime/lib/controls.js",
       "/runtime/lib/data-body.js",
       "/runtime/lib/element-word.js",
+      "/runtime/effect-widget.js",
+      "/runtime/widget-services.js",
       "/runtime/lib/elements.js",
       "/runtime/lib/exception.js",
       "/runtime/lib/failure.js",

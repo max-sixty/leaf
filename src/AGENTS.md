@@ -28,7 +28,9 @@ note a command prints is a `findings` record, and every JSON record Leaf keeps o
 page's log and document is a `state.Record`. Whether a session is live, and whether its
 turn is open or closed, is asked of `state.session_live`, `state.turn_open` and
 `state.turn_closed`, whether the caller holds the session record, a claim or the page's
-served reading of it.
+served reading of it. A setting the user states once for every Leaf on the machine,
+such as the host new pages are served on, is a key of the config file that
+`machine.settings` reads, since each harness starts Leaf from an environment of its own.
 
 ## Protocol references
 

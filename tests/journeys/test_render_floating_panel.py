@@ -115,7 +115,7 @@ def test_nothing_lies_over_a_view_s_foot_but_new_reply(browser, serve):
     page = floating(browser, url)
 
     def at_end(parts, *, gap=False):
-        page.locator(".lf-fp-view:not([data-lf-leaving])").evaluate(
+        page.locator(".lf-fp-view").evaluate(
             "view => view.scrollTop = view.scrollHeight"
         )
         settled(page)

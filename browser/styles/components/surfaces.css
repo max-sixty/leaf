@@ -489,6 +489,16 @@ summary {
 [data-lf-thread-surface] {
   --lf-seat-column: calc(var(--lf-thread-card) - 2 * var(--lf-thread-frame));
 }
+/* A seat's messages paint their ground out to the card's sides and down to its foot,
+   inside its frame's 1px line (`--lf-transcript-start`, below), but not up into its
+   top padding, where the frame's corners curve in further than the line. */
+[data-lf-thread-surface] .lf-thread-transcript {
+  --lf-transcript-start: calc(
+    var(--lf-thread-text-inset) + var(--lf-thread-frame) - 1px
+  );
+  --lf-transcript-end: calc(var(--lf-thread-frame) - 1px);
+  --lf-transcript-foot: calc(var(--lf-thread-frame) - 1px);
+}
 [data-lf-thread-surface] .lf-msg-body {
   max-inline-size: calc(var(--lf-seat-column) - var(--lf-thread-text-inset));
 }
@@ -605,6 +615,74 @@ summary {
 .lf-thread-transcript > :nth-child(1 of .lf-msg, .lf-thread-checkpoint) {
   margin-top: 0;
 }
+/* In a thread's views every pixel between and beside the messages is the user's or the
+   agent's. The user's messages stand on the ground the reply box takes while they type
+   (response.css, `--lf-field-ground`), and the agent's messages and working step on
+   paper, in every view, so the user's read the lighter in either scheme. Each paints
+   its ground over half the gap on either side of it and out to its view's sides; the
+   first also over the room its view keeps above it, and the last over its half of the
+   room below it. Each view says how far its sides and those rooms stand from the words
+   (`--lf-transcript-start`, `-end`, `-top`, `-foot`). A message paints them as a
+   border image, a ring outside its box, so every box and word stands where it did, and
+   a landing, a scroll's reach and a reading of the messages' boxes measure what they
+   did. What else a transcript holds, a summary and the messages it folds, keeps its
+   own ground. The user chose this in a playground over gaps of paper between messages,
+   and the reply box's ground for their messages over a faint grey, a green wash and
+   the agent's messages on grey. Rejected: each message holding its halves as padding,
+   which also put the pointer over a message in every gap, but moved every box a
+   landing or a fit measures by half a gap. */
+.lf-page-thread {
+  --lf-msg-user-ground: var(--lf-card);
+}
+.lf-thread-transcript > :is(.lf-msg:not([data-lf-summarized]), .lf-thread-working) {
+  --lf-msg-rest-ground: var(--lf-paper);
+  --lf-msg-above: calc(var(--lf-msg-gap) / 2);
+  --lf-msg-below: calc(var(--lf-msg-gap) / 2);
+  --lf-msg-left: var(--lf-transcript-start, 0px);
+  --lf-msg-right: var(--lf-transcript-end, 0px);
+  --lf-msg-ring: var(--lf-msg-above) var(--lf-msg-right) var(--lf-msg-below)
+    var(--lf-msg-left);
+  border-image-source: linear-gradient(var(--lf-msg-ground), var(--lf-msg-ground));
+  border-image-slice: 1;
+  border-image-width: var(--lf-msg-ring);
+  border-image-outset: var(--lf-msg-ring);
+  &[data-lf-author="user"] {
+    --lf-msg-rest-ground: var(--lf-msg-user-ground);
+  }
+}
+.lf-thread-transcript
+  > :is(.lf-msg:not([data-lf-summarized]), .lf-thread-working):dir(rtl) {
+  --lf-msg-left: var(--lf-transcript-end, 0px);
+  --lf-msg-right: var(--lf-transcript-start, 0px);
+}
+/* A first message stands flush on what precedes it, the view's room above it or, in a
+   thread a reaction started, the working step. */
+.lf-thread-transcript
+  > :is(.lf-msg:not([data-lf-summarized]), .lf-thread-working):nth-child(
+    1 of .lf-msg,
+    .lf-thread-checkpoint
+  ):not(:first-child) {
+  --lf-msg-above: 0px;
+}
+.lf-thread-transcript
+  > :is(.lf-msg:not([data-lf-summarized]), .lf-thread-working):first-child {
+  --lf-msg-above: var(--lf-transcript-top, 0px);
+}
+.lf-thread-transcript
+  > :is(.lf-msg:not([data-lf-summarized]), .lf-thread-working):nth-last-child(
+    1 of .lf-msg,
+    .lf-thread-checkpoint,
+    .lf-thread-working
+  ) {
+  --lf-msg-below: var(--lf-transcript-foot, 0px);
+}
+/* A forced palette keeps a border image, which would paint the ground under the
+   system's own colours, and every ground is the system's canvas there. */
+@media (forced-colors: active) {
+  .lf-thread-transcript > :is(.lf-msg:not([data-lf-summarized]), .lf-thread-working) {
+    border-image: none;
+  }
+}
 /* Every message header holds the same control-height row, including sticky margin
    heads. Thread actions and reactions must not change its metadata-to-body gap. A
    head too narrow for what it holds, as a first message's beside a narrow card's
@@ -639,8 +717,13 @@ summary {
    million times the next one's, so a part gives up all its room before the next gives
    up any visible width. The metadata shrinks as one part at its time's weight, which
    keeps its annotations and time together in the order. A primary reader's notice of
-   news (below) gives way with the metadata, each in proportion to its width. A long
-   name is cut at its cap (below) however much room is left. */
+   news (below) gives way with the metadata, each in proportion to its width. A card's
+   notice, on the line of its actions beside the first head, keeps its whole count
+   (annotation-chrome.css), so that head gives up its parts beside it. A long name is
+   cut at its cap (below) however much room is left. Shown, the controls stand over the
+   words' end (controls.css), so they cover the parts in this order too, and where they
+   are wider than the room the head leaves beside its name, as a message's three are on
+   a card's least-width line beside Previous and Next, they cover the name as well. */
 .lf-msg-head,
 .lf-thread-working-head {
   & > .lf-msg-control-room {
@@ -725,6 +808,17 @@ summary {
   white-space: nowrap;
   font: var(--lf-font-name);
   color: var(--lf-ink);
+}
+/* In a thread's views each name wears its party's colour, as its message wears its
+   ground (above): the user's the green of their marks and the agent's the blue of its
+   own, so the name says whose words follow before it is read. The user chose this in
+   the playground, knowing the agent's blue is also the links'. */
+.lf-thread-transcript > .lf-msg > .lf-msg-head > b,
+.lf-thread-transcript > .lf-thread-working > .lf-thread-working-head > b {
+  color: var(--lf-accent);
+}
+.lf-thread-transcript > .lf-msg[data-lf-author="user"] > .lf-msg-head > b {
+  color: var(--lf-ok-ink);
 }
 /* A checkpoint is agent-written reading context, followed in the transcript by the
    messages it covers, which stand where they were said and are hidden while it is

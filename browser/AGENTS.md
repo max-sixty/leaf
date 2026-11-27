@@ -345,9 +345,10 @@ directly as in a terminal").
   meets its frame's edge, as the floating panel's field and a thread card's reply box
   do, takes the frame's rounding at the corners they share and is square at the
   others. A box that stands clear, by `--lf-clear` or more, keeps the corners its kind
-  takes (`styles/tokens.css`, at `--lf-r`). So does a thumb that slides along its
-  track, or a mark round by meaning such as a dot, wherever it stands. Boxes joined at
-  seams count as one box.
+  takes (`styles/tokens.css`, at `--lf-r`). A mark round by meaning, such as a dot,
+  stands clear by `--lf-clear` and never touches an edge. A thumb that slides along its
+  track keeps its corners wherever it stands. Boxes joined at seams count as one box.
+  Check: the faults `leaf-dev stills` reports (`dev/leaf_dev/geometry.js`).
 - **A word about shown material stands outside it.** Where the page shows an
   interface rather than says something, as a capture or a quoted sample does, a word
   about it, such as Before and After or a sample's note, stands on the page just above
@@ -814,7 +815,7 @@ only for what Leaf alone holds (`../packages/AGENTS.md`, "A widget's need of Lea
 | What a target draws, its list marker included, and where the marks round it stand                     | `dom/geometry.js` `inkedBox`, `markedBox`                                              |
 | The room the marks round a target take beside it, a named box's round it included                     | `readings/mark-room.js` `markRoom`                                                     |
 | Which box supplies each edge of what the page shows of an element: its own, a clip's, or the window's | `dom/geometry.js` `shownRectHeld`                                                      |
-| What a node's contents are drawn in; a Range made for it slows every DOM write until it is collected  | `lib/shown-box.js` `contentsRects`, `contentsBox`                                      |
+| What a node's contents are drawn in; a Range made for it slows every DOM write until it is collected  | `lib/shown-box.js` `contentsRects`                                                     |
 | How an element's layout pixels map to the viewport, through every transform, and a box carried by it  | `dom/element-axes.js` `elementMatrix`, `elementBorderFrame`, `carriedBox`              |
 | The size a style writes to hold an element as it stands: its own layout pixels, fraction included     | `dom/element-axes.js` `elementBorderFrame`                                             |
 | Whether a box is stuck, and the band sticky headers cover                                             | `dom/geometry.js` `stuckBox`, `visibleBand`                                            |

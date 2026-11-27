@@ -56,7 +56,7 @@
    undefined and the element draws what its markup and its own properties give it. */
 import { LitElement, render } from "/vendor/lit.js";
 import { SignalWatcher, untracked } from "/vendor/signals-core.js";
-import { COMMANDS, CONNECT, DeferEvent } from "./widget-events.js";
+import { COMMANDS, CONNECT, DeferEvent, sendGesture } from "./widget-events.js";
 import { PendingTaskEvent } from "./pending-task.js";
 import { failSoft, placesFailure } from "./failure.js";
 import { inWindowDocument, once } from "./once.js";
@@ -253,14 +253,9 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     return this.#send("lf-undo", { verb, ...(unit !== undefined && { unit }) });
   }
 
-  /** @param {"lf-action" | "lf-undo"} type @param {Record<string, unknown>} detail
-   *  @returns {Promise<unknown> | null} */
+  /** @param {"lf-action" | "lf-undo"} type @param {Record<string, unknown>} detail */
   #send(type, detail) {
-    const event = /** @type {CustomEvent & {delivery?: Promise<unknown>}} */ (
-      new CustomEvent(type, { detail })
-    );
-    this.dispatchEvent(event);
-    return event.delivery ?? null;
+    return sendGesture(this, type, detail);
   }
 
   /** Hold drawing through a gesture that rewrites the element's nodes, and return the

@@ -1670,7 +1670,7 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
         assert user.evaluate("inspectionView()") == pytest.approx(before, abs=0.003)
         resized(user, 500 if touch else 1000, 900)
         assert user.evaluate("inspectionView()") == pytest.approx(before, abs=0.003)
-        widget.get_by_role("button", name="Image scale", exact=True).click()
+        widget.get_by_role("button", name=re.compile(r"^Image scale, ")).click()
         widget.get_by_role("button", name="Fit image", exact=True).click()
         rendered(user)
         fitted = user.evaluate("inspectionView()")
@@ -2631,7 +2631,7 @@ def test_trace_replaces_captures_without_blank_pixels_or_layout_displacement(
     raster = widget.locator(
         ".lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img"
     )
-    scale = widget.get_by_role("button", name="Image scale", exact=True)
+    scale = widget.get_by_role("button", name=re.compile(r"^Image scale, "))
     expect(scale).to_have_text("Fit")
     scale.focus()
     scale.press("Enter")
@@ -2792,7 +2792,7 @@ def test_trace_overview_shows_every_row_and_preserves_page_scrolling(browser, se
         user.mouse.wheel(0, 300)
         user.wait_for_function("before => scrollY >= before + 250", arg=before_scroll)
         rendered(user)
-        widget.get_by_role("button", name="Image scale", exact=True).click()
+        widget.get_by_role("button", name=re.compile(r"^Image scale, ")).click()
         actual = widget.get_by_role("button", name="Actual size", exact=True)
         assert actual.evaluate("""button => {
           const r = button.getBoundingClientRect();

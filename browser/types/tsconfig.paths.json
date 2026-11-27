@@ -13,6 +13,9 @@
       "/vendor/images.esm.js": [
         "../../build/entries/trace-images/entry.mjs"
       ],
+      "/vendor/effect-ui.js": [
+        "../../build/entries/effect-ui/entry.mjs"
+      ],
       "/vendor/markdown-it.esm.js": [
         "../../build/entries/markdown/entry.mjs"
       ],

@@ -31,6 +31,7 @@ import json
 import mmap
 import os
 import time
+from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from datetime import datetime
 from pathlib import Path
@@ -285,9 +286,11 @@ class Harness:
         while its prompt hooks ran. False where the record can't tell."""
         return False
 
-    def nudge(self, page_dir: Path) -> bool:
+    def nudge(self, page_dir: Path, quoted: Callable[[], str]) -> bool:
         """Put this page's new input in front of the session, and say whether
-        anything took it.
+        anything took it. `quoted` reads what the user said or chose in that input
+        (`delivery.quoted_input`), which a harness reads only where it has a message
+        to put it in.
 
         Only a watcher the session's own turns start stops between turns while
         its session stands, so only such a harness has anywhere to put this. A
@@ -586,10 +589,10 @@ class ClaudeCodeHarness(EnvironmentHarness):
         ).get("name")
         return name if isinstance(name, str) and name else None
 
-    def nudge(self, page_dir: Path) -> bool:
+    def nudge(self, page_dir: Path, quoted: Callable[[], str]) -> bool:
         """The session's socket, or, for a background job no worker hosts, the job
-        itself, resumed with the message as its prompt."""
-        text = f"leaf: {page_dir} {NUDGE_WORDS}"
+        itself, resumed with the message as its prompt, which ends with the quote."""
+        text = " ".join(filter(None, [f"leaf: {page_dir} {NUDGE_WORDS}", quoted()]))
         return message_claude_code_session(self.session, text) or (
             self.job is not None and resume_claude_code_job(self.session, text)
         )

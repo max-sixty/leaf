@@ -8,9 +8,20 @@ import { test } from "node:test";
 
 import { kernelOutputs, runtimeEntries } from "./runtime-bundle.mjs";
 
-// The library's modules, each an entry of the kernel's. A stub stands for each one
-// the bundler lists, so a module that joins the library changes nothing here.
-const library = runtimeEntries.filter((path) => path.startsWith("runtime/lib/"));
+// The entries the fixture below writes a source of its own for, to follow state
+// through them.
+const traced = new Set([
+  "leaf.js",
+  "runtime/transport/layer-client.js",
+  "runtime/records/media.js",
+  "runtime/widget-api.js",
+  "runtime/portable-api.js",
+  "runtime/check-api.js",
+]);
+// Every other entry of the kernel's, such as the library's modules. A stub stands for
+// each one the bundler lists, so a module that joins the public ones changes nothing
+// here.
+const library = runtimeEntries.filter((path) => !traced.has(path));
 const besideLibrary = (paths) => paths.filter((path) => !library.includes(path));
 
 /** The runtime a Leaf serves with the kernel: the source minus what it replaces. */

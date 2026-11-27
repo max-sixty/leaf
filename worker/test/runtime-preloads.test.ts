@@ -91,11 +91,21 @@ it("bundles each document's static graph without fetching optional modules or ch
         "runtime/widget-api.js": "export const api = 1;",
         "runtime/portable-api.js": "export const portable = 1;",
         "runtime/check-api.js": "export const checks = 1;",
-        // The library's modules are entries too, by the bundler's own list, and no
+        // The bundler's other entries, such as the library's modules, and no
         // document's static graph reaches one.
         ...Object.fromEntries(
           runtimeEntries
-            .filter((path) => path.startsWith("runtime/lib/"))
+            .filter(
+              (path) =>
+                path !== "leaf.js" &&
+                ![
+                  "records/media.js",
+                  "transport/layer-client.js",
+                  "widget-api.js",
+                  "portable-api.js",
+                  "check-api.js",
+                ].includes(path.slice("runtime/".length)),
+            )
             .map((path) => [path, "export const shared = 1;"]),
         ),
         "widgets/lf-used.js":

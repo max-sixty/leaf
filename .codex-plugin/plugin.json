@@ -16,6 +16,7 @@
       "cwd": ".",
       "env_vars": [
         "XDG_STATE_HOME",
+        "XDG_CONFIG_HOME",
         "CODEX_HOME",
         "CODEX_INTERNAL_ORIGINATOR_OVERRIDE",
         "LEAF_CODEX_APP_SERVER",

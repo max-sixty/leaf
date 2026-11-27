@@ -13,7 +13,6 @@ from render_cases_interaction import (
     SEATED_OBLIGATION_WIDGETS,
     panel_comment,
 )
-from render_cases_layout import ring_faults, rings_drawn
 from render_cases_navigation import DISCLOSED_PAGE, NOTED_PAGE, TARGETS_PAGE, _publish
 from render_cases_widgets import SQUEEZED_BOARD_PAGE, WHERE_I_STAND_PAGE
 from render_harness import (
@@ -51,6 +50,7 @@ from render_harness import (
 from browser.threads import open_panel_thread
 from leaf.log import event_log as events_model
 from leaf.source.render_checks import rendered
+from leaf_dev.rings import ring_faults, rings_drawn
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -664,10 +664,12 @@ AN_ASK_THEN_READING = leaf_page(
 
 def test_where_c_goes_shows_before_the_press(browser, serve):
     """On a target, the box stands beside it wearing `c`, in the field's own place, so
-    the press moves nothing. Before that, with the ask waiting, the panel's row offers
-    Next On Me and its `m` rather than Comment and `c`. The box at rest goes with the
-    focus that raised it and takes no Escape step: the field's Escape returns to the
-    target, and the target's lets go of everything."""
+    the press moves nothing. It stands over the margin entry it covers, the target's own
+    On Me entry included, though that entry rises at the user's location. Before that,
+    with the ask waiting, the panel's row offers Next On Me and its `m` rather than
+    Comment and `c`. The box at rest goes with the focus that raised it and takes no
+    Escape step: the field's Escape returns to the target, and the target's lets go of
+    everything."""
     page = open_page(browser, serve(AN_ASK_THEN_READING))
     resized(page, *ROOM_IN_THE_MARGIN)
     rest = page.locator(".lf-fab-rest")
@@ -682,6 +684,13 @@ def test_where_c_goes_shows_before_the_press(browser, serve):
     expect(rest.locator("kbd")).to_have_text("c")
     expect(page.locator(".lf-composer[data-lf-open]")).to_have_count(0)
     resting = rest.bounding_box()
+    entry = page.locator('.lf-margin-entry[data-lf-kinds~="on-me"]').bounding_box()
+    met = resting["y"], entry["y"] + entry["height"]
+    assert met[0] < met[1], f"the box {resting} stands clear of the entry {entry}"
+    assert page.evaluate(
+        "([x, y]) => Boolean(document.elementFromPoint(x, y)?.closest('.lf-fab-rest'))",
+        [entry["x"] + entry["width"] / 2, sum(met) / 2],
+    ), "the On Me entry stands over the box"
 
     page.keyboard.press("c")
     field = page.locator(".lf-fab-input")

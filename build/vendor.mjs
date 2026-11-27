@@ -188,6 +188,16 @@ const bundles = {
     ],
   }),
 
+  // Effect and Effect UI, the component model widgets and Leaf's own chrome draw
+  // with (runtime/effect-widget.js). One module, so a page runs one Effect runtime.
+  "effect-ui": () => ({
+    out: `${assets}/vendor/effect-ui.js`,
+    entryPoints: [input("entries/effect-ui/entry.mjs")],
+    banner: {
+      js: `/*! effect ${version("effect")} and @effect/ui ${version("@effect/ui")} — MIT — https://github.com/Effect-TS/ui */`,
+    },
+  }),
+
   // One lazy Markdown parser bundle, including its task-list extension.
   markdown: () => ({
     out: `${assets}/vendor/markdown-it.esm.js`,
@@ -585,6 +595,12 @@ const bundles = {
   // The chart's preview says a point by those decisions, so Plot's published module,
   // `dist/plot.js`, exports them (`tipSources` and `tipRows` in the entry), each line
   // naming the channel it says.
+  //
+  // `build/@observablehq__plot.patch` has Plot's pointer pool rank only the pointers
+  // that picked something. Unpatched, a pointer or facet that picks nothing outranks a
+  // pick farther than its 40px reach, so a faceted chart with `tip: "x"` shows no tip,
+  // and lf-chart's pick (chart-points.js `nearest`) no longer matches Plot's. The hunk
+  // goes once Plot ships the fix (observablehq/plot#2475).
   plot: () => ({
     out: `${packageVendor("default")}/plot.esm.js`,
     entryPoints: [input("entries/plot/entry.mjs")],

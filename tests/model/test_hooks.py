@@ -1096,7 +1096,7 @@ def test_the_server_nudges_a_first_claiming_turn_escape_left_unwatched(
     monkeypatch.setattr(
         harness_model.ClaudeCodeHarness,
         "nudge",
-        lambda harness, page: nudged.append(page) or True,
+        lambda harness, page, quoted: nudged.append(page) or True,
     )
     append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "which ships first?"}

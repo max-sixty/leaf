@@ -240,7 +240,7 @@ page and is interrupted. Input that reaches the page after that has no watcher, 
 the claimant's harness may offer a nudge, the one way to reach such a session.
 
 Admission sends a nudge when an event is appended to a page whose claimant takes no
-input, once per ending of its turn (`presence.nudge_unwatched`). An interrupted turn
+input, once per ending of its turn (`delivery.nudge_unwatched`). An interrupted turn
 runs no hook, so Claude Code also starts the watch as each prompt starts, which waits
 while that turn runs and wakes for what an interrupt leaves (`hooks.cmd_watch`). Where
 no watch holds the lease, the page's server sends for the input an interrupted turn

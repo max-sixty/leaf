@@ -1192,7 +1192,9 @@ def serve_flags(*lifetimes: str):
             "--host",
             metavar="NAME",
             help="bind every interface and put NAME in the URL, for a user the "
-            "derived address can't reach; recorded in service.json",
+            "derived address can't reach; recorded in service.json. A page with "
+            "no service.json takes NAME from `host` in ~/.config/leaf/config.toml "
+            "where that is set",
         )(command)
         return click.option(
             "--lifetime",

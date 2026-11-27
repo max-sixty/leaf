@@ -7,7 +7,7 @@
  * commits it only after arrival succeeds. Failed or canceled routes add no return stop.
  *
  * Only a route the user's gesture began on the entry being left adds an entry: a
- * followed link, a walk's step, a list's row, Undo's trip (features/anchor-travel.js,
+ * followed link, a walk's step, a list's row (features/anchor-travel.js,
  * `prepareNavigationStep`). A return, an arrival, a revision or news never adds one,
  * nor does a view opened, put away or handed to another reader where the user stands,
  * which renames the entry at most (thread views, thread/address.js): each opens its
@@ -212,7 +212,7 @@ import { reloadDocument } from "../transport/layer-client.js";
  * | {thread: string | null, message: string, quote: string, prefix?: string,
  * suffix?: string, ends: [number, number]}} RecordSelection
  * @typedef {{view: string, tab: "you" | "agent" | null, row: string | null,
- * scroll: number}} RecordList
+ * rowTop: number | null, scroll: number}} RecordList
  * @typedef {{page: import("../readings/reading-place.js").ReadingPlace | null,
  * focus: RecordFocus | null, selection: RecordSelection | null,
  * thread: ViewReading | null, list: RecordList | null}} EntryRecord

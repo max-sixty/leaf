@@ -191,7 +191,7 @@ overrides:
 patchedDependencies:
   '@awesome.me/webawesome': fceb7eeb7836acd3f8a507a353484cce187114be8655cde1daacdb904714b653
   '@floating-ui/dom': a4068154e932aa84d9335be05a60e3f9d922fa91a428bb3e166796abb14317d3
-  '@observablehq/plot': f3baed410c15630c2bf68bae12502f1a79d83fb1ad8b373fcf368f3e6cf9a0b3
+  '@observablehq/plot': 287f29a373405c14698250037f75a680273ff96945ca1524f038be1cb42d5c75
   '@pierre/diffs': 3cde8de80968604582f62e01f7c192deacdb0d513653bee4b026b70a226e23f1
   '@types/sortablejs': 8f399c7b8ef692d8358fbf89f41a16df2f1a7c284d442ab8e5e1130904082c60
   pele: 1b3d7ee849278454128d891418578cb19a55925bc2f023e361613ea0f5d59c1d
@@ -240,6 +240,9 @@ importers:
       '@earendil-works/pi-coding-agent':
         specifier: 1.6.0
         version: 1.6.0(@aws-sdk/credential-provider-node@3.972.88)(@modelcontextprotocol/sdk@1.32.2(supports-color@10.2.2)(zod@4.6.7))(@smithy/hash-node@4.5.2)(@smithy/signature-v4@5.7.4)(google-auth-library@11.3.4(supports-color@10.2.2))(supports-color@10.2.2)(ws@8.22.0)(zod@4.6.7)
+      '@effect/ui':
+        specifier: https://pkg.pr.new/Effect-TS/ui/@effect/ui@7bff56b
+        version: https://pkg.pr.new/Effect-TS/ui/@effect/ui@7bff56b(effect@4.1.5)
       '@eslint/js':
         specifier: 10.0.1
         version: 10.0.1(eslint@10.15.0(jiti@2.7.0)(supports-color@10.2.2))
@@ -260,7 +263,7 @@ importers:
         version: 1.0.3
       '@observablehq/plot':
         specifier: 0.6.19
-        version: 0.6.19(patch_hash=f3baed410c15630c2bf68bae12502f1a79d83fb1ad8b373fcf368f3e6cf9a0b3)
+        version: 0.6.19(patch_hash=287f29a373405c14698250037f75a680273ff96945ca1524f038be1cb42d5c75)
       '@openai/codex-sdk':
         specifier: 0.171.0
         version: 0.171.0
@@ -318,6 +321,9 @@ importers:
       dompurify:
         specifier: 3.5.0
         version: 3.5.0
+      effect:
+        specifier: 4.1.5
+        version: 4.1.5
       esbuild:
         specifier: 0.28.2
         version: 0.28.2
@@ -889,6 +895,12 @@ packages:
   '@earendil-works/pi-tui@1.6.0':
     resolution: {integrity: sha512-nVtWZ4rYr3KHDla3skGAWG5XoITEUJCoEx1AsWv1yKxV7+v86ulD2hxVn/P+COI6jsoeQmj3orqHbCHZwAUsUg==}
     engines: {node: '>=22.19.0'}
+
+  '@effect/ui@https://pkg.pr.new/Effect-TS/ui/@effect/ui@7bff56b':
+    resolution: {integrity: sha512-uYecYnIGC/Q15cl914C6Zbr1FOT1ahCjy625xwQyDODgNdq/yPEdxr6UuhkaYp83zWsiL4rVJsz8nFHziOCBDw==, tarball: https://pkg.pr.new/Effect-TS/ui/@effect/ui@7bff56b}
+    version: 0.0.0
+    peerDependencies:
+      effect: ^4.1.4
 
   '@emnapi/core@2.0.0-beta.2':
     resolution: {integrity: sha512-MzCVoWtcg4Pm2B3je5mMvYMvj3MmBKw+fU7vbsJc9/iT8ip6/eYIHo/Dsm/mr+wsHB6SEyJDuxB09Yy6r/8+4A==}
@@ -3246,12 +3258,12 @@ packages:
     resolution: {integrity: sha512-svtcdpS8CgJyqAjEQIXdb3OjhFVVYjzGAPO8WGCmRbrml64SPw/jJD4GoE98aR7r25A0XcgrK3F02yw9R/vhQw==}
     engines: {node: '>=0.3.1'}
 
+  dompurify@3.5.0:
+    resolution: {integrity: sha512-LYC0ZkE8P1V42JsRYTwMdme/2ET8SpOc5AA2eOFjP/IadvRd2fwiT4TVz5vkfy0XUx12aS2UaRkTnfVPNOv9vw==}
+
   dotenv@16.3.1:
     resolution: {integrity: sha512-IPzF4w4/Rd94bA9imS68tZBaYyBWSCE47V1RGuMrB94iyTOIEwRmVL2x/4An+6mETpLrKJ5hQkB8W4kFAadeIQ==}
     engines: {node: '>=12'}
-
-  dompurify@3.5.0:
-    resolution: {integrity: sha512-LYC0ZkE8P1V42JsRYTwMdme/2ET8SpOc5AA2eOFjP/IadvRd2fwiT4TVz5vkfy0XUx12aS2UaRkTnfVPNOv9vw==}
 
   dotenv@17.4.2:
     resolution: {integrity: sha512-nI4U3TottKAcAD9LLud4Cb7b2QztQMUEfHbvhTH09bqXTxnSie8WnjPALV/WMCrJZ6UV/qHJ6L03OqO3LcdYZw==}
@@ -3361,6 +3373,9 @@ packages:
 
   ee-first@1.1.1:
     resolution: {integrity: sha512-WMwm9LhRUo+WUaRN+vRuETqG89IgZphVSNkdFgeb6sS/E4OrDIN7t48CAewSHXc6C8lefD8KKfr5vY61brQlow==}
+
+  effect@4.1.5:
+    resolution: {integrity: sha512-xyR20KhQI0vg2gD8ILUSQRTTESEYJ0JKdP+QD8J37xbwPTqXRxFM/l0+vUVD9fuSvoYruoTqyt33C4FZv1s4TQ==}
 
   emoji-regex@8.0.0:
     resolution: {integrity: sha512-MSjYzcWNOA0ewAHpz0MxpYFvwg6yjy1NG3xteoqz644VCo/RPgnr1/GGt+ic3iJTzQ8Eu3TdM14SawnVUmGE6A==}
@@ -6289,6 +6304,10 @@ snapshots:
       marked: 18.0.11
       marked-cjk-friendly: 0.1.2(marked@18.0.11)
 
+  '@effect/ui@https://pkg.pr.new/Effect-TS/ui/@effect/ui@7bff56b(effect@4.1.5)':
+    dependencies:
+      effect: 4.1.5
+
   '@emnapi/core@2.0.0-beta.2':
     dependencies:
       '@emnapi/wasi-threads': 2.2.0
@@ -6905,7 +6924,7 @@ snapshots:
 
   '@nodable/entities@3.1.0': {}
 
-  '@observablehq/plot@0.6.19(patch_hash=f3baed410c15630c2bf68bae12502f1a79d83fb1ad8b373fcf368f3e6cf9a0b3)':
+  '@observablehq/plot@0.6.19(patch_hash=287f29a373405c14698250037f75a680273ff96945ca1524f038be1cb42d5c75)':
     dependencies:
       d3: 7.9.2
       interval-tree-1d: 1.0.4
@@ -8276,11 +8295,11 @@ snapshots:
 
   diff@9.0.0: {}
 
-  dotenv@16.3.1: {}
-
   dompurify@3.5.0:
     optionalDependencies:
       '@types/trusted-types': 2.0.7
+
+  dotenv@16.3.1: {}
 
   dotenv@17.4.2:
     optional: true
@@ -8303,6 +8322,8 @@ snapshots:
       safe-buffer: 5.2.1
 
   ee-first@1.1.1: {}
+
+  effect@4.1.5: {}
 
   emoji-regex@8.0.0: {}
 

@@ -74,6 +74,18 @@ Chrome, then the first `google-chrome`, `google-chrome-stable`, `chrome`,
 `chromium`, or `chromium-browser` on `PATH`. A render check of a page last shown in
 Firefox uses the installed Firefox instead, where there is one.
 
+Pages are served on loopback, or on the SSH destination in a session you reached
+over SSH. To open them from another device, such as a phone on your tailnet, set
+`host` in `~/.config/leaf/config.toml` to the name that device reaches this machine
+by:
+
+```toml
+host = "laptop.tail1234.ts.net"
+```
+
+Each new page then listens on every interface, behind its access key, and its URL
+names that host wherever you open it.
+
 In Claude Code, a background Stop hook watches the session's pages between turns.
 Leaf's hooks module shows a line above the prompt for each page the session owns,
 with a link, items waiting on you, the number of open threads and how many contain

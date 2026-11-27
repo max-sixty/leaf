@@ -77,7 +77,7 @@
         },
         {
           "id": "place-under-or-over",
-          "says": "Under or over: in the place the card takes at the measure, starting at the quoted words' first character, or, on a whole element, ending at its right edge; further left where the card would otherwise cross the room's right edge, so it keeps its width. A box or card narrower than that stands at the end of the place nearer the quoted words' first character, or nearer the element's right edge on a whole element."
+          "says": "Under or over: in the place the card takes at the measure, starting at the quoted words' first character and running the way they read, or, on a whole element, ending at its right edge; moved in where the card would otherwise cross the room's edge, so it keeps its width. A box or card narrower than that stands at the end of the place nearer the quoted words' first character, or nearer the element's right edge on a whole element."
         },
         {
           "id": "place-carried",

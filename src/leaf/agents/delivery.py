@@ -97,7 +97,6 @@ from leaf.base.state import (
 )
 from leaf.log.event_log import jsonl_line
 from leaf.log.interaction_log import acting_on
-from leaf.records.activity import nudge_due
 from leaf.records.transaction import (
     PageTransaction,
     owned_pages,
@@ -1268,6 +1267,7 @@ def nudge_unwatched(page: PageTransaction) -> None:
     runs under the page's lock, so the mark it leaves is exact: a local socket
     accepts or refuses at once, and input after a refusal tries again."""
     from leaf.agents.presence import claimant_reading, turn_ending
+    from leaf.records.activity import nudge_due
 
     claim, page_dir = page.active_claim, page.page_dir
     if not claim or wait_is_live(page_dir, claim["id"]):

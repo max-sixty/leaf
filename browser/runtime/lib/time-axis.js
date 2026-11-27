@@ -195,10 +195,14 @@ export function elapsed(ms, start) {
 
 /** The ticks between `from` and `to`, clipped to `[0, duration]`: `{time, major,
  * label, flip, step}`. Only a major tick has a label, in the units its step
- * reads in, and only a major tick's label flips. */
+ * reads in, and only a major tick's label flips. A view that draws with another
+ * renderer than Lit, such as an Effect UI component's, draws `timeAxis`'s markup
+ * from these: a ruler tick `.lf-axis-tick`, `data-lf-major` and `data-lf-flip` where
+ * they hold, its label as its words, and a gridline `.lf-axis-gridline` at each major
+ * tick, each keyed by its step and time and standing at `--lf-axis-at`. */
 /** @param {number} from @param {number} to @param {number} duration @param {number} pxPerMs
  * @param {string | null} [start] */
-function axisTicks(from, to, duration, pxPerMs, start) {
+export function axisTicks(from, to, duration, pxPerMs, start) {
   const [step, minor] = tickStep(pxPerMs);
   // How far the origin stands past a multiple of a step on the clock, so that ticks
   // fall on the clock's round times; an axis without a start counts from its origin.

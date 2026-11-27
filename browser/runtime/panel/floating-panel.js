@@ -877,8 +877,8 @@ export function createFloatingPanel({
                 initial
                   ? nothing
                   : repeat(
-                      [...(leaving ? [leaving] : []), ...(top ? [top] : [])],
-                      routeKey,
+                      [...(leaving ? [leaving.route] : []), ...(top ? [top] : [])],
+                      (route) => (route === leaving?.route ? leaving.opening : opening),
                       (route) =>
                         html`<div
                           class="lf-fp-view"
@@ -889,13 +889,19 @@ export function createFloatingPanel({
                           ?data-lf-rises=${Boolean(route.thread)}
                           ${ref(declareView)}
                           style=${
-                            route === top && opening.room !== null
-                              ? `height: ${opening.room}px`
-                              : nothing
+                            route === leaving?.route
+                              ? `height: ${leaving.height}px`
+                              : route === top && opening.room !== null
+                                ? `height: ${opening.room}px`
+                                : nothing
                           }
-                          ?data-lf-leaving=${route === leaving}
+                          ?data-lf-leaving=${route === leaving?.route}
                         >
-                          ${viewOf(route).draw(route)}
+                          ${
+                            route === leaving?.route
+                              ? noChange
+                              : viewOf(route).draw(route)
+                          }
                         </div>`,
                     )
               }
@@ -1187,7 +1193,15 @@ export function createFloatingPanel({
   // other call.
   /** @type {import("@preact/signals-core").Signal<PanelRoute[]>} */
   const trail = signal([]);
-  /** @type {PanelRoute | null} */
+  // The view fading out after a change took it away (`transition`), with the height it
+  // stood at and the opening it was drawn in. It keeps what it last drew, at that
+  // height: its opening has gone to the view replacing it, so a draw now would drop
+  // what the opening held, such as the rows Threads holds behind its notice, news
+  // landing during the fade would move what the user was just reading, and the stage,
+  // sized for the view arriving, would cut it to its own height. Kept whole, it is
+  // carried from where it stood (`followBox`). Each view's node belongs to its opening,
+  // so the same view opened again during the fade draws in a node of its own.
+  /** @type {{ route: PanelRoute, height: number, opening: Opening } | null} */
   let leaving = null;
   let query = "";
   let searching = false;
@@ -1894,7 +1908,7 @@ export function createFloatingPanel({
         const thread = threadOf(route);
         return thread?.title == null && !(thread && titlePending(thread));
       },
-      draw: (route) => threadView(route.thread),
+      draw: () => threadView(),
       presses: (route) => threadPresses(route),
       nominate: (route, collection, parts) => nominateThread(route, collection, parts),
       over: ["threads", "queue", "menu"],
@@ -1997,8 +2011,8 @@ export function createFloatingPanel({
   // closing included, starts a fresh opening, so nothing one view held reaches the
   // next, and a change that keeps the key keeps the opening. Within it, a field goes
   // back only where what it holds lapses while the view stands: the user's turn, a
-  // tab, a list refitting. A view fading out draws beside the opening that replaced
-  // its own. Each field is described where it is used.
+  // tab, a list refitting. A view fading out draws no more (`leaving`), so no opening
+  // reaches it. Each field is described where it is used.
   /**
    * @typedef {{
    *   drawn: boolean,
@@ -2194,9 +2208,13 @@ export function createFloatingPanel({
       before && trail.value.at(-1)?.view === "menu" ? routeKey(before) : null;
     transition(before, { focus: door === null });
     if (door === null) return;
-    const row = shownView()?.querySelector(`[data-lf-row="${CSS.escape(door)}"]`);
-    if (row) focusDestination(row, "return");
-    else focusView(trail.value.at(-1), null);
+    const view = shownView();
+    const row = view?.querySelector(`[data-lf-row="${CSS.escape(door)}"]`);
+    if (row) {
+      // The menu draws afresh at its top, so the row comes into view as focus lands on it.
+      focusDestination(row, "return");
+      scrollIntoView(row, { block: "nearest", within: view });
+    } else focusView(trail.value.at(-1), null);
   }
   // A press that puts the view away, the leaf's or a door's, takes a user standing in
   // it back to the page, as Escape does (the `floating panel` rung), rather than
@@ -2650,8 +2668,13 @@ export function createFloatingPanel({
     const stoodIn = drawnThreadId(closestAcross(focused(), THREAD));
     const reading = [before, after].some((route) => route?.thread);
     if (after?.view !== "queue") seated = null;
+    // On Me, put away under a view opened over it, seats again what still waits on the
+    // user (`seatOnMe`); left for another list, it seats afresh when it opens again.
+    if (before?.view === "queue" && trail.value.at(-2) === before && queueTab === "you")
+      seatOnMe(queueLists());
     const changed =
       (before ? routeKey(before) : null) !== (after ? routeKey(after) : null);
+    const left = opening;
     if (changed) opening = freshOpening();
     // Taking the panel away from a thread ends the editing session of its reply, as a
     // press elsewhere does (records/thread/replies.js), keeping the draft: the field no longer
@@ -2659,11 +2682,17 @@ export function createFloatingPanel({
     // A thread the page takes from the panel takes the session with it (`handedOn`).
     if (changed && before?.thread && !handedOn)
       dismissReply(threadByKey(before.thread)?.key ?? before.thread);
-    // The view going away fades where it stood, closing included, so the box shrinking
-    // under it never shows an empty ground. Where motion doesn't play it goes in the
-    // one paint.
+    // The view going away fades where it stood, so the box shrinking under it never
+    // shows an empty ground; where motion doesn't play it goes in the one paint. One the
+    // reader draws into, a thread or On, goes at once: the reader lets go of what it drew
+    // there as the next view comes (`present`), so its fade would show it emptied.
     const moves = changed && motionPlays();
-    leaving = moves && before && after ? before : null;
+    const height =
+      moves && before && after && !viewOf(before).nominate
+        ? heightOf(shownView())
+        : null;
+    leaving =
+      before && height !== null ? { route: before, height, opening: left } : null;
     if (changed) viewMovingUntil = performance.now() + outMs() + viewResizeMs();
     paint();
     // The reader draws what the view arriving holds, and lets go of what the one
@@ -2695,9 +2724,13 @@ export function createFloatingPanel({
     // so the box moving then moves as the user's change (`followBox`).
     if (fade) {
       const release = holdRendering();
+      const exit = leaving;
       fade.finished.then(() => {
-        leaving = null;
-        paint();
+        // A later change's exit stands until its own fade ends.
+        if (leaving === exit) {
+          leaving = null;
+          paint();
+        }
         release();
       }, release);
     } else leaving = null;
@@ -3045,8 +3078,7 @@ export function createFloatingPanel({
       ...(fold ? [seat(fold)] : []),
     ];
     const now = new Map(offered.map((row) => [row.key, row]));
-    // Only the menu standing holds its seats; a menu leaving draws what it showed.
-    const seats = showing({ view: "menu" }) ? (opening.menuSeats ??= offered) : offered;
+    const seats = (opening.menuSeats ??= offered);
     // Keyed by row, so a row the menu gains or loses moves the others rather than
     // redrawing each in its neighbour's place, the copy shortcut's element included.
     return html`<div class="lf-fp-state" ?data-lf-held-lines=${held !== null}>
@@ -3731,8 +3763,7 @@ export function createFloatingPanel({
   /** @param {HTMLElement} row */
   const rowKey = (row) => row.dataset.lfKey ?? row.dataset.lfRow ?? null;
   /** @returns {HTMLElement | null} */
-  const openView = () =>
-    stage.querySelector(".lf-fp-view[data-lf-thread-view]:not([data-lf-leaving])");
+  const openView = () => stage.querySelector(".lf-fp-view[data-lf-thread-view]");
   const viewContents = () => {
     const view = openView();
     if (!view) return null;
@@ -3751,9 +3782,7 @@ export function createFloatingPanel({
   /** @param {import("../records/thread/primary-reader.js").PrimaryCollection} collection @param {import("../records/thread/primary-reader.js").NominationParts} parts */
   function nominateAsked(collection, parts) {
     /** @type {NodeListOf<HTMLElement>} */
-    const outlets = stage.querySelectorAll(
-      ".lf-fp-view:not([data-lf-leaving]) .lf-fp-asked",
-    );
+    const outlets = stage.querySelectorAll(".lf-fp-asked");
     for (const outlet of outlets) {
       const { lfThread: key, lfMessage: message } = outlet.dataset;
       const thread = collection.threads.find((candidate) => candidate.key === key);
@@ -3814,11 +3843,7 @@ export function createFloatingPanel({
   const openIn = (view) => {
     const top = trail.value.at(-1);
     const thread = threadOf(top);
-    return thread &&
-      !view.hasAttribute("data-lf-leaving") &&
-      drawnThreadId(view) === thread.id
-      ? thread
-      : null;
+    return thread && drawnThreadId(view) === thread.id ? thread : null;
   };
   /** @type {import("../records/thread/selectors.js").ThreadParts} */
   const viewParts = Object.freeze({
@@ -3876,11 +3901,7 @@ export function createFloatingPanel({
   declareView(head);
   declareView(replyOutlet);
 
-  /** @param {string} key */
-  function threadView(key) {
-    // A thread the reading let go of takes its view away before the view draws.
-    const thread = threadByKey(key);
-    if (!thread) return nothing;
+  function threadView() {
     return html`<div
       class="lf-fp-messages lf-fp-outlet"
       data-lf-reflow="append"
@@ -3913,9 +3934,9 @@ export function createFloatingPanel({
   // The opening keeps the item standing open, by its key (`openItem`), and the height
   // each card first stood at, which it keeps while open, so an answer that shortens it
   // moves nothing below (`seatHeights`). The items On Me seats, and what each card
-  // carries, stay out of it: a view opened over On clears them, and On Me fading out
-  // under that view seats again what still waits on the user, so going back to On
-  // keeps those in their seats, one answered in that view included.
+  // carries, stay out of it: a view opened over On Me seats again what still waits on
+  // the user (`seatOnMe`), so going back to On keeps those in their seats, one answered
+  // in that view included.
   /** @type {"you" | "agent"} */
   let queueTab = "you";
   /** @type {PanelQueueItem[] | null} */
@@ -4722,22 +4743,22 @@ export function createFloatingPanel({
     const lists = queueLists();
     return queueTab === "agent" ? workView(lists) : onMeView(lists);
   }
+  // The items On Me seats: those it showed, still in the reading wherever they now
+  // stand, so an answered one stays, and any that joined the list since. They stand in
+  // the walk's groups and order, one joining included, so `m` reaches them down the
+  // list; one joining above the card being read moves nothing on screen, since the
+  // view's scroll anchoring holds that card where it was.
+  // A card carries the records it carried when the view opened or since (`also`)
+  // until the view closes, so where answering a decision leaves a thread's answer
+  // about it on a row of its own, the answer stays on the card the user pressed,
+  // which offers its reply, rather than moving to a card of its own.
+  // A record stays on the card that first carried it, though a later reading moves it
+  // to another, as a thread about two decisions moves to the second once the first is
+  // answered.
   /** @param {ReturnType<typeof queueLists>} lists */
-  function onMeView(lists) {
+  function seatOnMe(lists) {
     const all = [...lists.you, ...lists.agent, ...lists.done];
     const byKey = new Map(all.map((item) => [item.id, item]));
-    // The items this opening of the view holds: those it showed, still in the reading
-    // wherever they now stand, so an answered one stays, and any that joined the list
-    // since. They stand in the walk's groups and order, one joining included, so `m`
-    // reaches them down the list; one joining above the card being read moves nothing
-    // on screen, since the view's scroll anchoring holds that card where it was.
-    // A card carries the records it carried when the view opened or since (`also`)
-    // until the view closes, so where answering a decision leaves a thread's answer
-    // about it on a row of its own, the answer stays on the card the user pressed,
-    // which offers its reply, rather than moving to a card of its own.
-    // A record stays on the card that first carried it, though a later reading moves it
-    // to another, as a thread about two decisions moves to the second once the first is
-    // answered.
     if (seated === null) carrying.clear();
     for (const item of lists.you) {
       const key = item.id;
@@ -4766,6 +4787,11 @@ export function createFloatingPanel({
       ),
     ];
     seated = items;
+    return items;
+  }
+  /** @param {ReturnType<typeof queueLists>} lists */
+  function onMeView(lists) {
+    const items = seatOnMe(lists);
     const seatedKeys = new Set(items.map((item) => item.id));
     /** @type {Set<string>} */
     const drawing = new Set();
@@ -5283,7 +5309,7 @@ export function createFloatingPanel({
     let draw = false;
     /** @type {NodeListOf<HTMLElement>} */
     const cards = stage.querySelectorAll(
-      ".lf-fp-view:not([data-lf-leaving]) .lf-fp-on-item:is([data-lf-card], [data-lf-open])",
+      ".lf-fp-on-item:is([data-lf-card], [data-lf-open])",
     );
     for (const card of cards) {
       const outlet = card.querySelector(".lf-fp-asked:empty");

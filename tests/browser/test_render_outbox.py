@@ -496,8 +496,9 @@ FAR_CHOICE_PAGE = leaf_page(
 
 
 def test_undo_takes_a_choice_out_of_view_then_travels_to_it(browser, serve):
-    """A choice out of view is taken back by one press, which then travels to it as a
-    link to it would, so Back returns the user to where they pressed."""
+    """A choice out of view is taken back by one press, which then brings it into view
+    with the user on it, as no navigation: the address keeps no fragment for it and Back
+    adds no step back to where they pressed."""
     url = serve(FAR_CHOICE_PAGE)
     choice = append_command(
         serve.page_dir,
@@ -514,12 +515,14 @@ def test_undo_takes_a_choice_out_of_view_then_travels_to_it(browser, serve):
     page = open_page(browser, url)
     picks = page.locator("#picks")
     expect(picks).not_to_be_in_viewport()
+    address = "() => [location.hash, history.length]"
+    before = page.evaluate(address)
     undo(page)
     assert _undos(serve.page_dir) == [choice["id"]]
     expect(picks).to_be_in_viewport()
+    expect(picks).to_be_focused()
     expect(page.locator("lf-option[selected]")).to_have_attribute("id", "opt-b")
-    page.go_back()
-    expect(picks).not_to_be_in_viewport()
+    assert page.evaluate(address) == before
 
 
 def test_undo_pressed_as_a_walk_starts_reads_the_page_its_scroll_leaves(browser, serve):
@@ -543,7 +546,7 @@ def test_undo_pressed_as_a_walk_starts_reads_the_page_its_scroll_leaves(browser,
         page.keyboard.press("Shift+t")
         page.keyboard.press("ControlOrMeta+z")
     assert _undos(serve.page_dir) == [choice["id"]]
-    expect(page).to_have_url(re.compile("#picks$"))
+    expect(picks).to_be_focused()
     scroll_settled(page)
     expect(picks).to_be_in_viewport()
 

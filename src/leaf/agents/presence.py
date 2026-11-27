@@ -1,6 +1,5 @@
-"""Page and neighboring-leaf presence readings, the page's work folded with its
-presence (`read_work`), and the one write that follows from them: the message to a
-claimant whose input nothing will carry (`nudge_unwatched`)."""
+"""Page and neighboring-leaf presence readings, and the page's work folded with its
+presence (`read_work`)."""
 
 import hashlib
 import json
@@ -24,7 +23,6 @@ from leaf.records.activity import (
     current_turn,
     declaration,
     declared_at,
-    nudge_due,
     undeclared,
 )
 from leaf.records.transaction import (
@@ -493,38 +491,6 @@ def presence_reading(page_dir: Path, files: str) -> str:
         reading = presence_fingerprint(live_facts(page_dir, claim))
         kept.token = (stamp, now + PRESENCE_CACHE_S, reading)
         return reading
-
-
-def nudge_unwatched(page: PageTransaction) -> None:
-    """Message the claimant of a page holding input nothing will carry, once per
-    ending of its turn.
-
-    Nothing carries it when no wait lease is held and the activity fold reads a
-    nudge as due (`activity.nudge_due`): the claimant takes no input, because its
-    turn was seen to end, closed by the Stop hook or interrupted as its harness's
-    record says. Each ending gets one nudge per page, named by the claim's turn
-    and the stamp that ended or last renewed it, so a user ticking three boxes queues
-    one turn or one approval rather than three, while a turn interrupted again after
-    a new prompt is messaged again. The claimant's harness decides whether its
-    session can be reached at all and what to say; a harness whose watcher is a
-    process of its own has nowhere to put this and answers no.
-
-    Admission calls it, and so does a watch giving up its lease, and the page's
-    server once it reads a turn interrupted (`server_rows.nudge_interrupted`). It
-    runs under the page's lock, so the mark it leaves is exact: a local socket
-    accepts or refuses at once, and input after a refusal tries again."""
-    claim, page_dir = page.active_claim, page.page_dir
-    if not claim or wait_is_live(page_dir, claim["id"]):
-        return
-    present, turn = claimant_reading(page_dir, page.events)
-    mark = turn_ending(claim)
-    if (
-        nudge_due(present, turn)
-        and claim.get("messaged_ending") != mark
-        and (harness := claim_harness(claim)) is not None
-        and harness.nudge(page_dir)
-    ):
-        page.note_messaged(mark)
 
 
 def turn_ending(claim: dict) -> str:

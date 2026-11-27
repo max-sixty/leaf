@@ -51,7 +51,12 @@
  * round spans, such as 15 s, 30 min and 6 h, as a chart's time axis takes them. A
  * step below a second labels its ticks in seconds with the decimals the step needs,
  * and a longer one as `elapsed` writes a time, such as "1 h 30 min", so a sequence of
- * hours doesn't read in thousands of seconds. A major tick's label reads back from its
+ * hours doesn't read in thousands of seconds. An axis given a `start`, the ISO date-time
+ * of its origin, reads as a clock instead: its ticks fall on the clock's round times,
+ * such as 13:00 and 13:30 after a start of 12:56, and read as times of day with the
+ * parts their step needs, or as dates where the step is a day or longer. A clock time
+ * reads as the clock `start` is written in, whatever the reader's own time zone, so
+ * every reader sees the times the author wrote. A major tick's label reads back from its
  * tick (`flip`) where reading on from it would run past the axis's end, and the major
  * tick before it then goes unlabeled where the two labels would meet. Rows are
  * greedy: an extent takes the first row whose last extent ended at or before its
@@ -133,12 +138,49 @@ export function seconds(ms, digits) {
   return `${digits === undefined ? Number(s.toFixed(3)) : s.toFixed(digits)} s`;
 }
 
+/** An ISO date-time's clock reading: the time of day and date it writes, ignoring
+ * any offset it gives, as milliseconds of a UTC clock, so formatting it in UTC writes
+ * the clock it was written in. */
+/** @param {string} start */
+const wallClock = (start) =>
+  Date.parse(`${start.replace(/(Z|[+-]\d{2}:\d{2})$/, "")}Z`);
+
+/** Whether an ISO date-time names a moment on the calendar, so that an axis can read
+ * from it. `Date` carries a date the calendar lacks, such as 30 February, into the
+ * next month, so the clock reading must write back the date and time it was given. */
+/** @param {string} start */
+export const onCalendar = (start) => {
+  const ms = wallClock(start);
+  return (
+    Number.isFinite(ms) && new Date(ms).toISOString().startsWith(start.slice(0, 16))
+  );
+};
+
+/** The clock time `ms` after `start`, such as "15:46": as a date, such as
+ * "2026-11-25", for a `step` of a day or longer, and otherwise with the parts the
+ * step needs, or with as few as show the time where no step is given. */
+/** @param {number} ms @param {string} start @param {number} [step] */
+function clockTime(ms, start, step) {
+  const iso = new Date(wallClock(start) + ms).toISOString();
+  if (step !== undefined && step >= DAY) return iso.slice(0, 10);
+  const [time = "", fraction = ""] = iso.slice(11, -1).split(".");
+  if (step === undefined) {
+    const digits = fraction.replace(/0+$/, "");
+    if (digits) return `${time}.${digits}`;
+    return time.endsWith(":00") ? time.slice(0, 5) : time;
+  }
+  if (step < SECOND) return `${time}.${fraction.slice(0, decimals(step))}`;
+  return step < MINUTE ? time : time.slice(0, 5);
+}
+
 /** A time in milliseconds from an origin, in the units its length reads in: under a
  * minute as `seconds` writes it, such as "1.2 s", and from a minute up in hours,
  * minutes and whole seconds, leaving out a unit that counts none, such as "2 min 5 s"
- * or "1 h 30 min". */
-/** @param {number} ms */
-export function elapsed(ms) {
+ * or "1 h 30 min". Given `start`, the ISO date-time of the origin, it writes the time
+ * of day instead, such as "15:46", or "15:46:30" where the time has seconds. */
+/** @param {number} ms @param {string | null} [start] */
+export function elapsed(ms, start) {
+  if (start) return clockTime(ms, start);
   if (ms < MINUTE) return seconds(ms);
   const total = Math.round(ms / SECOND);
   return /** @type {const} */ ([
@@ -154,19 +196,31 @@ export function elapsed(ms) {
 /** The ticks between `from` and `to`, clipped to `[0, duration]`: `{time, major,
  * label, flip, step}`. Only a major tick has a label, in the units its step
  * reads in, and only a major tick's label flips. */
-/** @param {number} from @param {number} to @param {number} duration @param {number} pxPerMs */
-function axisTicks(from, to, duration, pxPerMs) {
+/** @param {number} from @param {number} to @param {number} duration @param {number} pxPerMs
+ * @param {string | null} [start] */
+function axisTicks(from, to, duration, pxPerMs, start) {
   const [step, minor] = tickStep(pxPerMs);
+  // How far the origin stands past a multiple of a step on the clock, so that ticks
+  // fall on the clock's round times; an axis without a start counts from its origin.
+  const origin = start ? wallClock(start) : 0;
+  const past = (/** @type {number} */ span) => ((origin % span) + span) % span;
   const ticks = [];
-  for (let time = Math.floor(from / minor) * minor; time <= to; time += minor) {
+  for (
+    let time = Math.floor((from + past(minor)) / minor) * minor - past(minor);
+    time <= to;
+    time += minor
+  ) {
     const rounded = Math.round(time * 1000) / 1000;
     if (rounded < 0 || rounded > duration) continue;
-    const major = Math.abs(rounded / step - Math.round(rounded / step)) < 1e-6;
+    const steps = (rounded + past(step)) / step;
+    const major = Math.abs(steps - Math.round(steps)) < 1e-6;
     const label = !major
       ? null
-      : step < SECOND
-        ? seconds(rounded, rounded === 0 ? 0 : decimals(step))
-        : elapsed(rounded);
+      : start
+        ? clockTime(rounded, start, step)
+        : step < SECOND
+          ? seconds(rounded, rounded === 0 ? 0 : decimals(step))
+          : elapsed(rounded);
     ticks.push({
       time: rounded,
       major,
@@ -200,10 +254,12 @@ function axisTicks(from, to, duration, pxPerMs) {
  * whole axis spans, and `pxPerMs` its scale. A widget that shows a window of a longer
  * axis, as a zoomed one does, passes the window's times and draws again when the
  * window moves; a tick or line that both windows hold stays the element it was. Each
- * states its time as `--lf-axis-at`, the time over `duration`. */
-/** @param {number} from @param {number} to @param {number} duration @param {number} pxPerMs */
-export function timeAxis(from, to, duration, pxPerMs) {
-  const ticks = axisTicks(from, to, duration, pxPerMs);
+ * states its time as `--lf-axis-at`, the time over `duration`. `start`, the ISO
+ * date-time of the axis's origin, makes the axis read as a clock. */
+/** @param {number} from @param {number} to @param {number} duration @param {number} pxPerMs
+ * @param {string | null} [start] */
+export function timeAxis(from, to, duration, pxPerMs, start) {
+  const ticks = axisTicks(from, to, duration, pxPerMs, start);
   /** @param {(typeof ticks)[number]} tick */
   const key = (tick) => `${tick.step}:${tick.time}`;
   /** @param {(typeof ticks)[number]} tick */

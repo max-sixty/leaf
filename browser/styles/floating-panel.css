@@ -1281,11 +1281,14 @@
     outline: var(--lf-focus-ring);
     outline-offset: var(--lf-focus-ring-inset);
   }
+  /* A view fading out keeps the height it stood at (panel/floating-panel.js,
+     `leaving`), uncut by the stage the view arriving sizes. */
   .lf-fp-view[data-lf-leaving] {
     pointer-events: none;
     position: absolute;
     inset-inline: 0;
     bottom: 0;
+    max-height: none;
   }
   /* A thread that continues past either edge of its view fades out there rather than
      cutting a line in half. Each fade lies over the view's padding where the thread

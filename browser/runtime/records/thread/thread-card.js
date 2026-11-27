@@ -111,8 +111,8 @@ import {
 } from "./messages.js";
 import { generatedElement } from "../../dom/widget-elements.js";
 import { offeredAction } from "../../lib/controls.js";
-import { contentsBox, measure } from "../../lib/shown-box.js";
-import { keeps, keepsHidden, layoutPx, roomPx } from "../../lib/keeps.js";
+import { measure } from "../../lib/shown-box.js";
+import { keeps, keepsHidden, layoutPx } from "../../lib/keeps.js";
 import { commandsOn } from "../../dom/keyboard/scopes.js";
 import {
   createReplyView,
@@ -471,14 +471,6 @@ export function threadReading(thread, surface, commands) {
   });
 }
 
-// The width `node`'s words take, at the fraction of a pixel they are laid out at,
-// whether or not its box cuts them: a cut name's scrollWidth counts its ellipsis, and a
-// whole one's rounds.
-/** @param {Element | null | undefined} node */
-function wordsWidth(node) {
-  return node ? contentsBox(node).width : 0;
-}
-
 /** @typedef {Omit<ThreadReading, "settlement"> & {
  * settlement: ThreadReading["settlement"] | null,
  * news?: import("./held-news.js").NewsNotice | null}} ThreadViewModel */
@@ -521,7 +513,7 @@ const lastTurn = (model) =>
    Only the margin card says the rest (`CardOutlets`): `line`, its head line, which it
    arranges around the boxes the thread draws its notice and settlement in, and which
    the thread stands after its messages, where it shares their heads' track
-   (annotation-chrome.css) and the notice takes only the room the heads leave
+   (annotation-chrome.css) and the heads give the notice its whole count
    (`#fitLineNews`); `endNewsMoves()`, whether news at the thread's end, which grows the
    floating card away from the line it keeps, would move what the user is on
    (thread-preview.js, `keptLine`), and since the card stands itself, a landing in it
@@ -1204,79 +1196,34 @@ export class ThreadView {
   };
 
   // A notice on a head line standing in the thread, as a margin card's row of presses
-  // does, stands in a track that takes its width from the heads' track
-  // (annotation-chrome.css), so the notice takes only the room the heads leave beside
-  // each one's name and time, its padding and its controls' room included. A head lends
-  // that room to its words while its controls hide, and the controls stand over whatever
-  // runs into it when they show (controls.css), so the fit keeps it, and Edit covers no
-  // name or time beside news. Where the room is short of its count the notice is cut
-  // (held-news.js, `newsNotice`).
-  // The room is the notice's width and the narrowest head's spare width together,
-  // which the two tracks trade one for one, so drawing the notice at it changes nothing
-  // it was read from. A notice at a finger's floor can still leave a head short, and
-  // the head then gives up its parts in their order (surfaces.css): where a name is cut
-  // to less than an em, none of it shows (`data-lf-nameless`), so no sliver of a letter
-  // or an ellipsis stands in the head. The fit reads what of each name the notice
-  // leaves as drawn, and a hidden name keeps its box, so the reading holds.
-  // The tracks can't size this themselves: every head the transcript shows bounds the
-  // room, but only the first message's and the one standing beside the line keep to the
-  // heads' track, and a later head spans both until it scrolls beside the line
-  // (thread-preview.js, `data-lf-beside-actions`), so a track sized by its heads would
-  // widen and narrow the notice as the user scrolls; and no track hides a name its
-  // width cuts below an em.
+  // does, stands whole at its count in a track that takes its width from the heads'
+  // track (annotation-chrome.css), so a head beside it gives up its parts in their order
+  // (surfaces.css), its name last. Where the line leaves less than an em of a name,
+  // none of it shows (`data-lf-nameless`), so no sliver of a letter or an ellipsis
+  // stands in the head. The fit reads what of each name the line leaves as drawn, and a
+  // hidden name keeps its box, so the reading holds. No track hides a name its width
+  // cuts below an em.
   #fitLineNews() {
-    const notice = this.#news.node;
-    const heads = [];
-    for (const head of this.node.querySelectorAll(
-      ".lf-thread-transcript .lf-msg-head",
-    )) {
-      if (!head.checkVisibility()) continue;
-      const style = getComputedStyle(head);
-      const name = head.querySelector(":scope > b");
-      const time = head.querySelector(":scope > .lf-msg-meta > time");
-      // The controls' room is as wide as their group (controls.css).
-      const controls =
-        head
-          .querySelector(":scope > .lf-msg-control-room > .lf-msg-controls")
-          ?.getBoundingClientRect().width ?? 0;
-      const need =
-        parseFloat(style.paddingInlineStart) +
-        parseFloat(style.paddingInlineEnd) +
-        controls +
-        wordsWidth(name) +
-        (name && time ? parseFloat(style.columnGap) : 0) +
-        wordsWidth(time);
-      heads.push({ name, spare: head.getBoundingClientRect().width - need });
-    }
-    if (!heads.length || !notice.isConnected) {
-      this.#clearLineNews();
-      return;
-    }
-    const width = notice.getBoundingClientRect().width;
-    const spare = Math.min(...heads.map((head) => head.spare));
-    notice.style.setProperty("--lf-news-room", roomPx(Math.max(0, width + spare)));
-    const nameless = heads.map(
-      ({ name }) =>
-        !!name &&
+    const names = [
+      ...this.node.querySelectorAll(".lf-thread-transcript .lf-msg-head > b"),
+    ].filter((name) => name.checkVisibility());
+    const nameless = names.map(
+      (name) =>
         name.scrollWidth > name.clientWidth &&
         name.clientWidth < parseFloat(getComputedStyle(name).fontSize),
     );
-    heads.forEach(({ name }, at) => {
-      if (name) keeps(name, "data-lf-nameless", nameless[at] ? "" : null);
-    });
+    names.forEach((name, at) =>
+      keeps(name, "data-lf-nameless", nameless[at] ? "" : null),
+    );
   }
 
-  // A render fits it again, and a head's time changes size while news waits as it
-  // ticks on from "just now". The notice and a name change size
-  // because of the fit itself, so watching them would deliver the fit its own change,
-  // and a time's change fits it in the next frame, since the fit resizes boxes the
-  // observer's delivery has already passed.
+  // A render fits it again, and so does a head whose width changes while news waits, as
+  // a card's does when it resizes or a later head scrolls beside the line. Hiding a name
+  // changes no head's size, so the fit never delivers itself its own change.
   #watchLineNews() {
     this.#lineNews.disconnect();
-    for (const time of this.node.querySelectorAll(
-      ".lf-thread-transcript .lf-msg-head > .lf-msg-meta > time",
-    ))
-      this.#lineNews.observe(time);
+    for (const head of this.node.querySelectorAll(".lf-thread-transcript .lf-msg-head"))
+      this.#lineNews.observe(head);
     this.#fitLineNews();
   }
 
@@ -1285,10 +1232,9 @@ export class ThreadView {
     this.#clearLineNews();
   }
 
-  // The fit writes the notice's room and each name it hides, and a message's head
-  // outlives the notice (each MessageView keeps its own, messages.js), so both go together.
+  // A message's head outlives the notice (each MessageView keeps its own, messages.js),
+  // so each name the fit hid shows again with it.
   #clearLineNews() {
-    this.#news.node.style.removeProperty("--lf-news-room");
     for (const name of this.node.querySelectorAll(
       ".lf-thread-transcript .lf-msg-head > b[data-lf-nameless]",
     ))

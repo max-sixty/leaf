@@ -71,7 +71,8 @@ from collections.abc import Callable
 from datetime import datetime
 from pathlib import Path
 
-from leaf.agents.presence import claimant_reading, nudge_unwatched
+from leaf.agents.delivery import nudge_unwatched
+from leaf.agents.presence import claimant_reading
 from leaf.base.findings import Finding
 from leaf.base.harness import detached_environment
 from leaf.log.event_log import read_events

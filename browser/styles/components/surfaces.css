@@ -639,8 +639,13 @@ summary {
    million times the next one's, so a part gives up all its room before the next gives
    up any visible width. The metadata shrinks as one part at its time's weight, which
    keeps its annotations and time together in the order. A primary reader's notice of
-   news (below) gives way with the metadata, each in proportion to its width. A long
-   name is cut at its cap (below) however much room is left. */
+   news (below) gives way with the metadata, each in proportion to its width. A card's
+   notice, on the line of its actions beside the first head, keeps its whole count
+   (annotation-chrome.css), so that head gives up its parts beside it. A long name is
+   cut at its cap (below) however much room is left. Shown, the controls stand over the
+   words' end (controls.css), so they cover the parts in this order too, and where they
+   are wider than the room the head leaves beside its name, as a message's three are on
+   a card's least-width line beside Previous and Next, they cover the name as well. */
 .lf-msg-head,
 .lf-thread-working-head {
   & > .lf-msg-control-room {

@@ -4677,27 +4677,57 @@ CARRIED_ROW = """<!doctype html><body style="margin:0;height:3000px">
 }
 scrollTo(0, 600);
 place();</script>"""
+# The same row, its words in a shadow tree that a document `::part()` rule names,
+# as the runtime names a widget's box from the document (dom/css-anchors.js).
+CARRIED_ROW_IN_PART = CARRIED_ROW.replace(
+    '<p id="anchor" style="position:absolute;top:1000px;left:40px;width:200px;margin:0;anchor-name:--words">Words the row marks</p>',
+    """<style>::part(words){anchor-name:--words}</style><div id="host"></div>
+<script>host.attachShadow({mode:'open'}).innerHTML = '<p part="words" style="position:absolute;top:1000px;left:40px;width:200px;margin:0">Words the row marks</p>';
+var anchor = host.shadowRoot.firstElementChild;</script>""",
+)
+# The document's row and words, beside a shadow tree whose own style gives a box that
+# exposes a part, for styling alone, a private anchor of the same name.
+CARRIED_ROW_BESIDE_PRIVATE = CARRIED_ROW.replace(
+    '<div id="carrier"',
+    '''<div id="host"></div>
+<script>host.attachShadow({mode:'open'}).innerHTML = '<style>p{anchor-name:--words}</style><p part="label">Private words</p>';</script>
+<div id="carrier"''',
+    1,
+)
 
 
 @pytest.mark.parametrize(
-    ("scroll", "fault"),
+    ("scroll", "fault", "tree"),
     [
-        ("step", ""),
-        ("step", "row"),
-        ("twice", ""),
-        ("twice", "row"),
-        ("smooth", ""),
-        ("smooth", "row"),
+        ("step", "", "document"),
+        ("step", "row", "document"),
+        ("twice", "", "document"),
+        ("twice", "row", "document"),
+        ("smooth", "", "document"),
+        ("smooth", "row", "document"),
+        ("step", "", "part"),
+        ("step", "row", "part"),
+        ("twice", "", "part"),
+        ("twice", "row", "part"),
+        ("step", "", "private"),
+        ("step", "row", "private"),
     ],
 )
-def test_a_carried_row_keeps_its_anchor_s_lagging_scroll(browser, scroll, fault):
+def test_a_carried_row_keeps_its_anchor_s_lagging_scroll(browser, scroll, fault, tree):
     """Chrome carries a box anchored to scrolled words a frame after the scroll, so a
     frame callback can read the words moved and the row not yet. A row its script places
     again in that frame, by the same offset from the words, a row whose words scroll
     again before it catches up, and a row through a smooth scroll no input makes, are
-    credited; a row placed elsewhere still fails."""
+    credited, whether the words stand in the document or in a shadow tree the document
+    names through `::part()`, and beside a shadow tree's private anchor of the same name;
+    a row placed elsewhere still fails."""
     page = browser.new_page()
-    page.goto("data:text/html," + quote(CARRIED_ROW))
+    fixture = {
+        "document": CARRIED_ROW,
+        "part": CARRIED_ROW_IN_PART,
+        "private": CARRIED_ROW_BESIDE_PRIVATE,
+    }[tree]
+    page.goto("data:text/html," + quote(fixture))
     paint(page)
     paint(page)
     moved = "5" if fault else "0"

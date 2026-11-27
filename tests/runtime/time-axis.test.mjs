@@ -5,8 +5,8 @@ import { assignRows, elapsed, timeAxis } from "/runtime/lib/time-axis.js";
 
 // What the axis from `from` to `to` draws: each tick's words and each gridline, with
 // the share of the axis it stands at and whether it reads back from its time.
-const drawn = (from, to, duration, pxPerMs) => {
-  const axis = timeAxis(from, to, duration, pxPerMs);
+const drawn = (from, to, duration, pxPerMs, start) => {
+  const axis = timeAxis(from, to, duration, pxPerMs, start);
   const ruler = document.createElement("div");
   const grid = document.createElement("div");
   render(axis.ruler, ruler);
@@ -128,6 +128,53 @@ test("A time reads in seconds under a minute and in larger units past it", () =>
   assert.equal(elapsed(125_400), "2 min 5 s");
   assert.equal(elapsed(10_200_000), "2 h 50 min");
   assert.equal(elapsed(3_600_000 + 7_000), "1 h 7 s");
+});
+
+test("An axis given a start reads as a clock, its ticks on the clock's round times", () => {
+  // The session from 12:56 to 17:28 again: the first tick is the half hour after
+  // the start, and every label is a time of day on the clock the start is written in.
+  const duration = (4 * 60 + 32) * 60_000;
+  const { major } = drawn(
+    0,
+    duration,
+    duration,
+    800 / duration,
+    "2026-11-25T12:56+09:00",
+  );
+  assert.deepEqual(
+    major.map(({ label }) => label),
+    ["13:00", "13:30", "14:00", "14:30", "15:00", "15:30", "16:00", "16:30", "17:00"],
+  );
+  assert.equal(major[0].at, 4 / (4 * 60 + 32));
+  // A clock of seconds shows them, and a step below a second its decimals.
+  const seconds = drawn(0, 60_000, 60_000, 900 / 60_000, "2026-11-25T23:59:30");
+  assert.deepEqual(
+    seconds.major.map(({ label }) => label),
+    [
+      "23:59:30",
+      "23:59:40",
+      "23:59:50",
+      "00:00:00",
+      "00:00:10",
+      "00:00:20",
+      "00:00:30",
+    ],
+  );
+  const fractions = drawn(0, 2000, 2000, 0.2, "2026-11-25T12:56:00.25Z");
+  assert.deepEqual(fractions.major.map(({ label }) => label).slice(0, 2), [
+    "12:56:00.5",
+    "12:56:01.0",
+  ]);
+});
+
+test("A time from a start reads as the time of day, with as few parts as show it", () => {
+  const start = "2026-11-25T12:56";
+  assert.equal(elapsed(0, start), "12:56");
+  assert.equal(elapsed(10_200_000, start), "15:46");
+  assert.equal(elapsed(30_000, start), "12:56:30");
+  assert.equal(elapsed(1_250, start), "12:56:01.25");
+  assert.equal(elapsed(0, "2026-11-25T12:56:00.000Z"), "12:56");
+  assert.equal(elapsed(0, null), "0 s");
 });
 
 test("Overlapping extents never share a row", () => {

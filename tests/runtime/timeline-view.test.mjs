@@ -21,10 +21,11 @@ const lanes = (list) =>
 
 const run = (label, list) => `<lf-run label="${label}">${lanes(list)}</lf-run>`;
 
-const timeline = (markup) => {
+const timeline = (markup, start) => {
   const host = document.createElement("lf-timeline");
   host.id = `timeline-${Math.random().toString(36).slice(2)}`;
   host.setAttribute("aria-label", "Race");
+  if (start) host.setAttribute("start", start);
   host.innerHTML = markup;
   document.body.append(host);
   const model = timelineModel(host);
@@ -156,6 +157,30 @@ test("A step paints what came before as done and leaves later events open", () =
   assert.equal(drawing.next.getAttribute("aria-disabled"), "true");
 });
 
+test("A timeline given a start shows its steps and position as times of day", () => {
+  const drawing = timeline(
+    lanes([
+      [
+        "User",
+        [
+          ["user-ask", 0],
+          ["user-reply", 10_200_000],
+        ],
+      ],
+      ["Session", [["session-work", 30_000, 16_320_000]]],
+    ]),
+    "2026-11-25T12:56",
+  );
+  const times = drawing.rows.map(
+    (row) => row.querySelector(".lf-timeline-step-time").textContent,
+  );
+  assert.deepEqual(times, ["12:56", "12:56:30", "15:46"]);
+  const host = drawing.controls.closest("lf-timeline");
+  drawing.current = 2;
+  render(drawing.render(), host, { host });
+  assert.match(drawing.controls.textContent, /Step 3 of 3 · 15:46/);
+});
+
 test("Compared runs share one axis and one playhead, each headed by its name", () => {
   const drawing = timeline(
     run("Before", [
@@ -265,6 +290,33 @@ test("A run with no lanes keeps its heading, and a lane beside runs is reported"
   assert.deepEqual(drawing.model.problems, [
     'lf-lane "Reference" stands beside lf-run elements; put it in a run',
   ]);
+});
+
+test("A start off the calendar is reported and the timeline reads elapsed time", () => {
+  const drawing = timeline(
+    lanes([
+      [
+        "A",
+        [
+          ["a-mark", 0],
+          ["a-late", 90_000],
+        ],
+      ],
+    ]),
+    "2026-13-25T12:56",
+  );
+  assert.deepEqual(drawing.model.problems, [
+    'lf-timeline start "2026-13-25T12:56" is not a date and time on the calendar',
+  ]);
+  assert.deepEqual(
+    drawing.rows.map((row) => row.querySelector(".lf-timeline-step-time").textContent),
+    ["0 s", "1 min 30 s"],
+  );
+  assert.equal(timeline("", "2026-02-30T12:56").model.start, null);
+  assert.equal(
+    timeline("", "2026-02-28T12:56+05:00").model.start,
+    "2026-02-28T12:56+05:00",
+  );
 });
 
 test("A span that ends before it starts is reported and drawn as an instant", () => {

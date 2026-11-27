@@ -7,6 +7,7 @@ import {
   assignRows,
   timeAxis,
   elapsed,
+  onCalendar,
   AXIS_EDGE as EDGE,
   AXIS_LABEL_GAP as LABEL_GAP,
   AXIS_LABEL_CHROME as LABEL_CHROME,
@@ -92,6 +93,14 @@ export function timelineModel(host) {
     problems.push(
       `lf-lane "${bare.getAttribute("label")}" stands beside lf-run elements; put it in a run`,
     );
+  // A start off the calendar is reported, and the timeline reads elapsed time.
+  let start = host.getAttribute("start");
+  if (start !== null && !onCalendar(start)) {
+    problems.push(
+      `lf-timeline start "${start}" is not a date and time on the calendar`,
+    );
+    start = null;
+  }
   const events = lanes.flatMap((lane) => lane.events);
   /** @type {TimelineStep[]} */
   const steps = [];
@@ -112,6 +121,7 @@ export function timelineModel(host) {
     events,
     steps,
     problems,
+    start,
     duration: Math.max(1, ...events.map((event) => event.end ?? event.at)),
   };
 }
@@ -146,7 +156,13 @@ export function timelineLayout(model, width, font) {
       placed.set(label.id, { place: label.place, row: rowOf.get(label.id) });
     return 1 + Math.max(0, ...rowOf.values());
   });
-  const axis = timeAxis(0, model.duration, model.duration, span / model.duration);
+  const axis = timeAxis(
+    0,
+    model.duration,
+    model.duration,
+    span / model.duration,
+    model.start,
+  );
   return { rows, placed, axis };
 }
 
@@ -226,7 +242,7 @@ export function render(host, current, model, layout) {
   /** @type {(TimelineRun | null)[]} */
   const columns = model.runs.length ? model.runs : [null];
   const position = model.steps.length
-    ? `Step ${current + 1} of ${model.steps.length} · ${elapsed(now)}`
+    ? `Step ${current + 1} of ${model.steps.length} · ${elapsed(now, model.start)}`
     : "No events";
   return html`<div class="lf-timeline-view" data-lf-gen="1">
     <div
@@ -342,7 +358,7 @@ export function render(host, current, model, layout) {
               .lfPreview=${stepPreview(step)}
             >
               <span class="lf-timeline-step-time lf-row-lead"
-                >${elapsed(step.time)}</span
+                >${elapsed(step.time, model.start)}</span
               >
               ${columns.map((run, column) => {
                 const events = step.events.filter((event) => event.lane.run === run);

@@ -649,7 +649,9 @@ def by_comment(page: Page, case: Case, window: Window, boxes: list) -> float:
         page.mouse.move(x + case.carry[0], y + case.carry[1], steps=8)
         page.mouse.up()
     for stage, typed in (("opened", ""), ("typed", case.typed)):
-        page.keyboard.insert_text(typed)
+        # Firefox refuses to insert empty text.
+        if typed:
+            page.keyboard.insert_text(typed)
         page.mouse.move(0, 0)
         settle(page)
         reading = page.evaluate(READ, [".lf-fab-bar", aim])

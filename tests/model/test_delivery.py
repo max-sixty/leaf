@@ -13,6 +13,7 @@ from interact_support import (
     PICKS_PAGE,
     ROOT,
     SKILL_ROOT,
+    _board,
     _start,
     append_carried_log_record,
     append_command,
@@ -790,6 +791,13 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
     # out because it only encloses the option chosen in it.
     assert shown[0]["says"] == {"m-cap": "Cap retries Bound retry load."}
     assert shown[0]["names"] == {"m-cap": "Cap retries"}
+    # The line that wakes the session quotes the pick in the same words.
+    assert (
+        delivery_model.quoted_input(
+            page_dir, events_model.read_events(page_dir), [chose]
+        )
+        == "The user chose “Cap retries Bound retry load.”"
+    )
 
     # In force, so a later delivery in this thread carries what the user
     # settled. Without it the agent meets the question with no answer under it
@@ -814,7 +822,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
     # Taken back, and the thread stops carrying it — the log keeps the
     # gesture, and no reading of the log stands on it.
     receive_through(page_dir, last_deliverable_seq(page_dir))
-    append_carried_log_record(
+    undone = append_carried_log_record(
         page_dir, {"kind": "undo", "author": "user", "undoes": chose["id"]}
     )
     assert session_model.cmd_wait(page_dir) == 0
@@ -822,6 +830,69 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
     [withdrawn] = withdrawn_batch["threads"]
     assert withdrawn["id"] == asked["id"]
     assert withdrawn["actions"] == []
+
+    # Chosen again: the waking line keeps the order the user acted in, so the
+    # last clause is the decision that stands.
+    rechose = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "gm",
+            "action": "choose",
+            "detail": {"value": ["m-cap"]},
+            "answered": True,
+        },
+    )
+    pick = "“Cap retries Bound retry load.”"
+    assert delivery_model.quoted_input(
+        page_dir, events_model.read_events(page_dir), [chose, undone, rechose]
+    ) == (f"The user chose {pick}; the user took back {pick}; the user chose {pick}")
+
+
+def test_the_waking_line_quotes_a_long_message_whole(page_dir):
+    """Auto mode's classifier reads the waking line and not the delivery, so a
+    message whose last words qualify its request reaches it with those words."""
+    publish(page_dir)
+    request = "Merge the pull request once the checks pass. " * 10
+    text = request + "\n\nActually, don't merge it: I want to read the diff first."
+    wrote = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": text}
+    )
+    assert delivery_model.quoted_input(
+        page_dir, events_model.read_events(page_dir), [wrote]
+    ) == (
+        f"The user wrote “{request}Actually, don't merge it: I want to read the diff"
+        " first.”"
+    )
+
+
+def test_the_waking_line_quotes_no_gesture_that_answers_no_question(page_dir):
+    """A card moved between columns names the card, whose words would read to auto
+    mode's classifier as a pick of them: moving "Merge the pull request" is no
+    request to merge it."""
+    card = ("a", "", "Merge the pull request")
+    (page_dir / "index.html").write_text(
+        PAGE.replace("</main>", _board([card], [("b", "", "B")]) + "</main>")
+    )
+    publish(page_dir)
+    moved = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "b1",
+            "action": "move",
+            "detail": {"unit": "a", "value": "c-done", "rank": "0i"},
+        },
+    )
+    undone = append_command(
+        page_dir, {"kind": "undo", "author": "user", "undoes": moved["id"]}
+    )
+    events = events_model.read_events(page_dir)
+    assert delivery_model.quoted_input(page_dir, events, [moved, undone]) == ""
 
 
 def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(

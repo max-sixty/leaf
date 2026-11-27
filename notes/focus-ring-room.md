@@ -4,32 +4,38 @@ A focus ring is drawn outside its box, and a scroller clips at its padding edge.
 scroller's top and foot a landing keeps the ring's room (`--lf-focus-ring-landing`,
 `browser/styles/components/surfaces.css`), for a vendor control's focused node too. A
 bounded block (`[data-lf-bound]`, `browser/base.css`) has no inline padding and usually
-nothing to scroll sideways, so a box flush with its side loses that side of its ring
-however far the block is scrolled.
+nothing to scroll sideways, so a ring outside a box flush with its side would lose that
+side however far the block is scrolled.
+
+Where it would, the runtime stands the mark inside the box (`[data-lf-flush]`,
+`browser/runtime/dom/geometry.js`, `clipsMarks`), as it does for every mark it draws
+that a clip would cut. Focus on the page's own content is such a mark, so a link, a
+summary or a native field opening a line keeps a whole ring. A ring a widget draws
+itself is no such mark, and stays cut where its control meets the block's side: a
+Web Awesome control's ring stands on a box in its shadow tree, round the node holding
+focus.
 
 At the top and foot, a `wa-select` and a single-thumb `wa-slider` keep under a pixel of
 room, where a diff's file filter keeps 6. The margin is on the node holding focus, and
 their ring stands on a box that reaches further: the select's combobox around its input,
 and the slider's thumb 7px below its rail. No bundled widget uses either control.
 
-On 2026-11-14 the user chose to keep the cut ring for now. Leaf pads nothing, as
-`browser/styles/tokens.css` ("Where it stands") and `browser/AGENTS.md` say, and the
-layout reference (`skills/leaf/references/page-layout.md`, "Bounds and widths") asks an
-author to pad a bounded block that holds a control. The user judged the cut a real
-weakness, too central for another per-case patch (2026-10-25), and #4125 stays open to
-consider the alternatives below.
+Leaf pads nothing, as `browser/styles/tokens.css` ("Where it stands") and
+`browser/AGENTS.md` say. The user judged the cut a real weakness, too central for
+another per-case patch (2026-10-25), and #4125 stays open for the Web Awesome controls'
+rings.
 
 ## Cases
 
-Measured in headless Chromium 156 and Firefox 157 on 2026-11-04, with the same numbers in
-both. "Room" is the space between the ring's outer edge and the block's padding edge;
-negative means cut.
+Measured in headless Chromium and Firefox on 2026-11-26, with the same numbers in both.
+"Room" is the space between the ring's outer edge and the block's padding edge; negative
+means cut. The first three rings stand inside their boxes.
 
 | What stands in the block                      | Room at its start | Room at its end |
 | --------------------------------------------- | ----------------- | --------------- |
-| A link that starts a line                     | −5px              | clear           |
-| A summary, which fills its line               | −5px              | −5px            |
-| A native `input.lf-field` that starts a line  | −2px              | clear           |
+| A link that starts a line                     | 0px               | clear           |
+| A summary, which fills its line               | 0px               | 0px             |
+| A native field that starts a line             | 0px               | clear           |
 | A diff's file filter (`wa-input`), filling it | −3px              | −3px            |
 | A package's `wa-select`, filling it           | −3px              | −3px            |
 
@@ -112,9 +118,10 @@ a box that scrolls on one axis clips both, and `overflow-clip-margin` applies on
   }
   ```
 
-- **Nothing moves, and a ring against a bounded block's side stays cut.** Chosen for
-  now: the `browser/runtime/chrome.css` header covers only the chrome's scroll regions,
-  and the layout reference asks an author to pad a bounded block that holds a control.
+- **Nothing moves, and a mark a clip would cut stands inside its box.** Chosen: the
+  runtime reads whether a clip would cut a mark it draws as it draws it, and stands
+  that mark inside (`clipsMarks`). It reaches only the marks the runtime draws, so a
+  ring a Web Awesome control draws on a box in its own tree stays cut.
 
 ## Reproduction
 
@@ -135,7 +142,7 @@ Save the page as `.tmp/bound.html`:
           <summary id="fold">A summary</summary>
           <p>Inside.</p>
         </details>
-        <p><input id="native" class="lf-field" aria-label="A field" /></p>
+        <p><input id="native" aria-label="A field" /></p>
         <lf-diff id="patch">
           <pre>
 diff --git a/one.py b/one.py

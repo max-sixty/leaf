@@ -352,7 +352,8 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, finger):
     keeping its day, as any narrow head gives up its time before its name, where a cut
     read "25 Sep, …"; a touch screen as wide as 1408 stands that card beside
     its words. The notice says one count, "2 new", on either. Drawn whole, the notice
-    stood over the head."""
+    stood over the head. The desktop comment is long enough to open its card at the
+    measure, the width this case's desktop head is laid out for."""
     url = serve(PANEL_PAGE)
     # Written 51 days ago, so its time names its day, the widest a time reads.
     root = append_carried_log_record(
@@ -361,7 +362,13 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, finger):
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "text": "Keep the logo where it is",
+            "text": "Keep the logo where it is"
+            + (
+                ""
+                if finger
+                else ". The header already names the product, so the mark only"
+                " needs to hold its place beside it." * 8
+            ),
             "anchor": {"section": "h-how"},
             "ts": (datetime.now().astimezone() - timedelta(days=51)).isoformat(),
         },

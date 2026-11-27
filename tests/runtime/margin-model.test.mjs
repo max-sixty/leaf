@@ -333,33 +333,37 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
   });
 });
 
-test("a contributed reading stands for Leaf's On Me marker but never for a thread or a draft", () => {
-  const stands = (id, kind) =>
-    marker(id, kind, { marker: false, represents: true, owner: "widget" });
-  const entry = inventory({
-    items: [
-      stands("for-ask", "on-me"),
-      marker("on-me:ask", "on-me"),
-      stands("for-thread", "comment"),
-      marker("thread", "comment"),
-      stands("for-draft", "draft"),
-      marker("draft:here", "draft"),
-    ],
-  });
-  assert.deepEqual(entry.items.map((item) => item.id).sort(), [
+test("a reading that represents its widget's question folds only Leaf's Waiting on me", () => {
+  const generated = [
+    marker("on-me:ask", "on-me"),
+    marker("thread", "comment"),
+    marker("draft:here", "draft"),
+    marker("change", "change"),
+  ];
+  const ids = (reading) =>
+    inventory({ items: [reading, ...generated] })
+      .items.map((item) => item.id)
+      .sort();
+  const reading = { marker: false, owner: "widget" };
+  assert.deepEqual(ids(marker("answers", "change", { ...reading, represents: true })), [
+    "answers",
+    "change",
     "draft:here",
-    "for-ask",
-    "for-draft",
-    "for-thread",
+    "thread",
+  ]);
+  assert.deepEqual(ids(marker("on-me-face", "on-me", reading)), [
+    "change",
+    "draft:here",
+    "on-me-face",
+    "on-me:ask",
     "thread",
   ]);
 });
 
-test("declared representation and a workflow carrier suppress only duplicate readings", () => {
+test("a workflow carrier suppresses only the reading it carries", () => {
   const workflowReceipt = Object.freeze({ id: "claim" });
   const items = [
-    marker("declared", "change", { marker: false, represents: true, owner: "widget" }),
-    marker("duplicate", "change"),
+    marker("declared", "change", { marker: false, owner: "widget" }),
     marker("receipt", "activity", {
       workflowFace: KINDS.activity,
       carriesWorkflow: true,

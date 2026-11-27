@@ -704,7 +704,9 @@ def test_a_user_preview_in_a_session_another_leaf_runs_serves_for_no_session(
     another Leaf, as an installed copy, acts for no session. It serves the page
     unclaimed and says so in the reading it prints beneath the URL, the line a read
     of the log for the URL meets, and the checkout's own `leaf wait` on the page
-    hears the user."""
+    hears the user. Its row names the session, so the session's band lists the page
+    (`hooks.cmd_pages`)."""
+    from leaf.agents.presence import started_in
     from leaf.base.findings import hold, release
     from leaf.commands.session import cmd_wait
     from leaf.pages.hosting import cmd_stop
@@ -726,6 +728,11 @@ def test_a_user_preview_in_a_session_another_leaf_runs_serves_for_no_session(
             "serves-for-no-session"
         ]
         assert capsys.readouterr().err == ""
+        wait_for(
+            lambda: started_in(os.environ["CLAUDE_CODE_SESSION_ID"]),
+            lambda pages: {page.resolve() for page in pages} == {page_dir.resolve()},
+            failure="the server's row names no session",
+        )
 
         append_carried_log_record(
             page_dir, {"kind": "comment", "author": "user", "text": "for the checkout"}

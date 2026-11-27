@@ -15,10 +15,11 @@
    the icon of its primary contribution's declared `kind`; unfolded, it is More.
    Placement decides whether a pin folds, and the user's gesture opens it.
 
-   A contributed control that represents a kind of generated reading replaces that
-   reading. A target's workflow receipt goes on its primary control, and every other
-   control carries its own (`controlReceipt`). Whether a cluster is expanded and
-   whether a thread is open arrive as arguments. This module reads no DOM and no
+   A widget's reading that sets `represents` says the widget's own entries answer its
+   question, so Leaf leaves out the "Waiting on me" it generates at the same target. A
+   target's workflow receipt goes on its primary control, and every other control
+   carries its own (`controlReceipt`). Whether a cluster is expanded and whether a
+   thread is open arrive as arguments. This module reads no DOM and no
    registrations; layout and the retained controls read its values.
  */
 import {
@@ -514,26 +515,15 @@ export function clusterProjection(
   });
 }
 
-// The kinds of reading that hold the user's own words: their threads and their drafts.
-const USERS_OWN = new Set(["comment", "draft"]);
-
 // Inputs are captured by the browser adapter. DOM targets, registrations, and activation
 // callbacks stay there; an entry owns only values.
 /** @template {Offer} O @param {MarginGroup<O>} group @returns {Readonly<MarginEntry<O>>} */
 export function marginEntry(group) {
-  // A contributed reading stands for Leaf's of its kind at its target, as a suggestion's
-  // stands for its own On Me marker, but never for the user's own threads and drafts.
-  const represented = new Set(
-    group.items
-      .filter((item) => item.marker === false && item.represents)
-      .map((item) => item.kind)
-      .filter((kind) => !USERS_OWN.has(kind)),
+  const represented = group.items.some(
+    (item) => item.marker === false && item.represents,
   );
   let items = group.items
-    .filter(
-      (item) =>
-        item.marker === false || item.workflowFace || !represented.has(item.kind),
-    )
+    .filter((item) => !represented || item.marker === false || item.kind !== "on-me")
     .sort(
       (left, right) =>
         KINDS[left.kind].priority - KINDS[right.kind].priority ||

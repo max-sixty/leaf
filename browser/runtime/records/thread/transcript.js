@@ -119,7 +119,7 @@ const MESSAGE_NAMES = ["data-lf-message", "data-lf-event", "data-lf-attempt"];
 // work runs, as a title being generated is. It is one of the transcript's children, so
 // it stands at the conversation's inset on every surface and scrolls with it. Its head
 // wears a message head's face but not its class, since it is no message: a message
-// head's places (a margin's sticky head, held news) skip it.
+// head's places, such as held news's, skip it.
 function workingView(working, observe) {
   return html`<div class="lf-thread-working-head">
       ${working.who ? html`<b>${working.who}</b>` : nothing}

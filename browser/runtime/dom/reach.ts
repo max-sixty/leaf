@@ -134,18 +134,15 @@ const sideways = new Map<Element, string>();
 // while some of it is scrolled away above, and `data-lf-more-below` while some stands
 // below, for its owner's rules to read, as the rules showing a thread's jumps to its
 // ends do (annotation-chrome.css, floating-panel.css).
-const downwards: Map<Element, ((before: boolean) => void) | undefined> = new Map();
+const downwards: Map<Element, (() => void) | undefined> = new Map();
 watchScrolls((box) => {
   if (!box) return;
   if (downwards.has(box)) paintReadingReach(box);
   if (sideways.has(box)) paintSidewaysReach(box, true);
 });
-export function reachReadingScroller(
-  el: Element,
-  paintContinuation: ((before: boolean) => void) | undefined,
-) {
+export function reachReadingScroller(el: Element, onReach: (() => void) | undefined) {
   el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.scrollSurface, true);
-  downwards.set(el, paintContinuation);
+  downwards.set(el, onReach);
   sweep(el);
   paintReach();
   watchReach(el);
@@ -160,7 +157,6 @@ export function reachReadingScroller(
       if (!downwards.has(el)) {
         keeps(el, PAGE_PAINT_ATTRIBUTE.moreAbove, null);
         keeps(el, PAGE_PAINT_ATTRIBUTE.moreBelow, null);
-        paintContinuation?.(false);
       }
     });
   };
@@ -195,11 +191,14 @@ function paintReadingReachNow() {
     if ([...changing].some((owner) => under(el, owner))) continue;
     const style = getComputedStyle(el);
     const scrolling = userScrollport(style.overflowY);
-    // A region with covering chrome paints its upper continuation at the chrome's
-    // actual edge. Share the scroll/resize pass rather than watch the same body twice.
-    const above = scrolling && el.scrollTop > SCROLL_SLACK;
-    downwards.get(el)?.(above);
-    keeps(el, PAGE_PAINT_ATTRIBUTE.moreAbove, above ? "" : null);
+    // An owner that reads the body on each pass shares it rather than watch the same
+    // body twice (readings/reading-regions.js, `onReach`).
+    downwards.get(el)?.();
+    keeps(
+      el,
+      PAGE_PAINT_ATTRIBUTE.moreAbove,
+      scrolling && el.scrollTop > SCROLL_SLACK ? "" : null,
+    );
     keeps(
       el,
       PAGE_PAINT_ATTRIBUTE.moreBelow,

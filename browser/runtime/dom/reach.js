@@ -132,9 +132,9 @@ watchScrolls((box) => {
   if (downwards.has(box)) paintReadingReach(box);
   if (sideways.has(box)) paintSidewaysReach(box, true);
 });
-export function reachReadingScroller(el, paintContinuation) {
+export function reachReadingScroller(el, onReach) {
   el.toggleAttribute(PAGE_PAINT_ATTRIBUTE.scrollSurface, true);
-  downwards.set(el, paintContinuation);
+  downwards.set(el, onReach);
   sweep(el);
   paintReach();
   watchReach(el);
@@ -149,7 +149,6 @@ export function reachReadingScroller(el, paintContinuation) {
       if (!downwards.has(el)) {
         keeps(el, PAGE_PAINT_ATTRIBUTE.moreAbove, null);
         keeps(el, PAGE_PAINT_ATTRIBUTE.moreBelow, null);
-        paintContinuation?.(false);
       }
     });
   };
@@ -184,11 +183,14 @@ function paintReadingReachNow() {
     if ([...changing].some((owner) => under(el, owner))) continue;
     const style = getComputedStyle(el);
     const scrolling = userScrollport(style.overflowY);
-    // A region with covering chrome paints its upper continuation at the chrome's
-    // actual edge. Share the scroll/resize pass rather than watch the same body twice.
-    const above = scrolling && el.scrollTop > SCROLL_SLACK;
-    downwards.get(el)?.(above);
-    keeps(el, PAGE_PAINT_ATTRIBUTE.moreAbove, above ? "" : null);
+    // An owner that reads the body on each pass shares it rather than watch the same
+    // body twice (readings/reading-regions.js, `onReach`).
+    downwards.get(el)?.();
+    keeps(
+      el,
+      PAGE_PAINT_ATTRIBUTE.moreAbove,
+      scrolling && el.scrollTop > SCROLL_SLACK ? "" : null,
+    );
     keeps(
       el,
       PAGE_PAINT_ATTRIBUTE.moreBelow,

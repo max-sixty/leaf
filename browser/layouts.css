@@ -907,10 +907,12 @@
      * site footer (page-layout.md), leaves only the sidebar's padding. Only a footer
      * counts, since browser extensions append elements of their own to `body`; other
      * content after `main`, which page-layout.md keeps inside it, would stand under the
-     * track at the page's end. A sidebar that is the page's Layout box with no header
-     * in it or before it or its `main`, and no such footer, spans the page
+     * track at the page's end. A sidebar that is the page's `main`, with no header in
+     * it or before it and no footer in it or after it, spans the page
      * (`--lf-sidebar-spans-page: 1`), where the contents map's track stands fixed
-     * (above). The first rule has no specificity, so each condition overrides it. */
+     * (above). A sidebar inside `main` or a part may have blocks beside it, which a
+     * fixed track would stand over. The first rule has no specificity, so each
+     * condition overrides it. */
     :where(.layout-sidebar) {
       --lf-track-end-room: var(--lf-page-pad-end);
       --lf-sidebar-spans-page: 0;
@@ -921,6 +923,8 @@
       main > [data-lf-views="parts"] > * > *
     ).layout-sidebar {
       --lf-track-end-room: calc(var(--lf-page-pad-end) + var(--lf-end-room, 0px));
+    }
+    :where(body > main).layout-sidebar {
       --lf-sidebar-spans-page: 1;
     }
     .layout-sidebar:has(~ footer),
@@ -933,8 +937,7 @@
       --lf-sidebar-spans-page: 0;
     }
     .layout-sidebar:has(> header),
-    header ~ .layout-sidebar,
-    :where(header ~ main) > .layout-sidebar {
+    :where(body > header ~ main).layout-sidebar {
       --lf-sidebar-spans-page: 0;
     }
     @container not style(--lf-track-scroll-behavior: flow) {

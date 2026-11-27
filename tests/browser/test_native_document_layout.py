@@ -426,9 +426,10 @@ def test_a_sidebar_among_a_column_s_blocks_keeps_its_track_off_what_follows(
 def test_a_header_above_a_contents_map_keeps_the_map_below_it(
     request, serve, engine, header
 ):
-    """The contents map's track stands fixed in the window only where nothing stands
-    above its sidebar. A header in the sidebar, before it or before its `main`, as a
-    site header, keeps the map below the header as the page opens."""
+    """The contents map's track stands fixed in the window only where its sidebar is
+    the page's `main` with nothing above it. A header in the sidebar, before the
+    sidebar inside `main`, or before `main` as a site header keeps the map below the
+    header as the page opens."""
     head = '<header id="head"><h1>Release review</h1><p>Three parts.</p></header>'
     regions = (
         '<aside><div class="layout-track" id="track"><lf-toc id="contents"></lf-toc>'

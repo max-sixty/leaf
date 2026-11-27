@@ -5,6 +5,7 @@ export * as Effect from "effect/Effect";
 export * as Equal from "effect/Equal";
 export * as Exit from "effect/Exit";
 export * as Layer from "effect/Layer";
+export * as Queue from "effect/Queue";
 export * as Schema from "effect/Schema";
 export * as Scope from "effect/Scope";
 export * as Stream from "effect/Stream";

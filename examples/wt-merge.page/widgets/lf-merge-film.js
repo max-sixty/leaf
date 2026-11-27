@@ -140,10 +140,15 @@ customElements.define(
         this.#paint();
       });
       this.speedBtn = offer("button", "film-speed", "1×");
-      this.speedBtn.setAttribute("aria-label", "Playback speed");
+      // Named with the speed it shows, so saying what it shows reaches it.
+      const showSpeed = () => {
+        this.speedBtn.textContent = `${this.#speed}×`;
+        this.speedBtn.setAttribute("aria-label", `Playback speed, ${this.#speed}×`);
+      };
+      showSpeed();
       this.speedBtn.addEventListener("click", () => {
         this.#speed = this.#speed === 1 ? 2 : this.#speed === 2 ? 0.5 : 1;
-        this.speedBtn.textContent = `${this.#speed}×`;
+        showSpeed();
       });
       this.previous = offer("button", "film-previous", "Previous");
       this.next = offer("button", "film-next", "Next");

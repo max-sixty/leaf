@@ -2,11 +2,15 @@
    with its host (module-plain-elements.md): properties in, events out.
 
    `defineWidget(tag, component, options)` defines `tag` as a plain custom element that
-   mounts `component` with `BrowserHost.mountEffect` into the element, or into an open
-   shadow root of its own with `shadow: true`, where a `<slot>` the view draws shows
-   the element's authored children in place. The component's Model holds only what the
-   user is doing in the widget, such as an open disclosure; what Leaf knows arrives as
-   props:
+   mounts `component` with `BrowserHost.mountEffect` into a box of its own after the
+   element's authored children, or into an open shadow root of its own with
+   `shadow: true`, where a `<slot>` the view draws shows the element's authored
+   children in place. Either way the authored children stay where the author put them,
+   for Leaf's revisions and for `inputs` to read: the box is a `display: contents`
+   `div` marked as words the source lacks (`data-lf-gen`), and a widget that draws its
+   authored children in their place hides them from its stylesheet. The component's
+   Model holds only what the user is doing in the widget, such as an open disclosure;
+   what Leaf knows arrives as props:
 
    - `state`, the reading Leaf sets on a widget whose tag declares `verbs`, as the
      `state` property every widget gets.
@@ -76,6 +80,8 @@ export function defineWidget(tag, component, { shadow = false, lfPatch, inputs }
     #root = undefined;
     /** @type {Scope.Closeable | undefined} */
     #scope = undefined;
+    /** @type {HTMLElement | undefined} */
+    #box = undefined;
     /** @type {(() => void) | undefined} */
     #unwatch = undefined;
     // Leaf answered `lf-connect`: it sets `state`, and nothing mounts before it has.
@@ -129,7 +135,8 @@ export function defineWidget(tag, component, { shadow = false, lfPatch, inputs }
         if (this.isConnected || !this.#scope) return;
         const scope = this.#scope;
         this.#unwatch?.();
-        this.#root = this.#scope = this.#unwatch = undefined;
+        this.#box?.remove();
+        this.#root = this.#scope = this.#unwatch = this.#box = undefined;
         Effect.runFork(Scope.close(scope, Exit.void));
       });
     }
@@ -180,7 +187,7 @@ export function defineWidget(tag, component, { shadow = false, lfPatch, inputs }
       const element = this;
       // A shadow root is a container as an element is, as `defineElement` mounts one.
       const container = /** @type {Element} */ (
-        /** @type {unknown} */ (this.shadowRoot ?? this)
+        /** @type {unknown} */ (this.shadowRoot ?? this.#stage())
       );
       const mounting = /** @type {Effect.Effect<any, never, Scope.Scope>} */ (
         BrowserHost.mountEffect(component, this.#props(), container, {
@@ -197,6 +204,16 @@ export function defineWidget(tag, component, { shadow = false, lfPatch, inputs }
         mounting.pipe(Effect.provide(leafServices(this)), Scope.provide(scope)),
       );
       this.#drawn();
+    }
+
+    // The box a light widget draws in, since Effect UI empties the container it mounts
+    // into.
+    #stage() {
+      const box = (this.#box = document.createElement("div"));
+      box.setAttribute("data-lf-gen", "1");
+      box.style.display = "contents";
+      this.append(box);
+      return box;
     }
 
     #update() {

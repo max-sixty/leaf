@@ -1501,7 +1501,11 @@ export class Trace extends LeafElement {
     this.#drawInput();
     const percent = `${Math.round((this.#picture?.imageData.ratio ?? 1) * 100)}%`;
     const fitted = !this.#scopeView().image;
-    keepsText(this.#nodes.zoomLabel, fitted ? "Fit" : percent);
+    const shown = fitted ? "Fit" : percent;
+    keepsText(this.#nodes.zoomLabel, shown);
+    // The press is named by what it opens and the scale it shows, so a user who speaks
+    // what they see reaches it (WCAG 2.5.3, Label in Name).
+    keeps(this.#nodes.imageScale, "aria-label", `Image scale, ${shown}`);
     // What the scale stands at, which its preview says beside its name (annotations/preview.js).
     keeps(
       this.#nodes.imageScale,
@@ -2397,7 +2401,6 @@ export class Trace extends LeafElement {
             <button
               ${offeredAction("word", "lf-trace-image-scale")}
               ${ref(this.#imageScale)}
-              aria-label="Image scale"
               aria-controls=${`${this.id}-image-scale-options`}
               popovertarget=${`${this.id}-image-scale-options`}
               aria-expanded="false"

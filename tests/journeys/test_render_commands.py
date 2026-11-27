@@ -848,12 +848,18 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     expect(comparison).to_have_attribute("position", "0")
     comparison.evaluate("node => { node.position = 50; }")
     view = page.locator("lf-shot").get_by_role("radio", name="Slider", exact=True)
-    # A second finger does not replace the primary contact's input destination.
+    # A second finger does not replace the primary contact's input destination. It
+    # lands on the handle, since Web Awesome drags the divider to wherever a press
+    # starts.
     view.focus()
-    handle.evaluate("""handle => handle.dispatchEvent(new PointerEvent('pointerdown', {
-      bubbles: true, composed: true, pointerId: 98, pointerType: 'touch',
-      isPrimary: false, button: 0
-    }))""")
+    handle.evaluate("""handle => {
+      const box = handle.getBoundingClientRect();
+      handle.dispatchEvent(new PointerEvent('pointerdown', {
+        bubbles: true, composed: true, pointerId: 98, pointerType: 'touch',
+        isPrimary: false, button: 0,
+        clientX: box.left + box.width / 2, clientY: box.top + box.height / 2,
+      }));
+    }""")
     expect(view).to_be_focused()
     handle.click()
     expect(handle).to_be_focused()

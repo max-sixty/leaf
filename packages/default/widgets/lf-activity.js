@@ -60,7 +60,7 @@ import {
   readHistory,
   whileConnected,
 } from "/runtime/widget-api.js";
-import { OpenThread, ShowHeld } from "/runtime/widget-services.js";
+import { KeepInTab, OpenThread, ShowHeld } from "/runtime/widget-services.js";
 import { defineWidget, widgetProps } from "/runtime/effect-widget.js";
 import { pressAttributes } from "/runtime/lib/controls.js";
 import { addressableWord } from "/runtime/lib/element-word.js";
@@ -240,14 +240,20 @@ export function reading(model, props) {
   return { rows, news, label };
 }
 
-// Keep the drawn presentation in the tab, for the fresh document that follows.
+// Keep the drawn presentation in the tab (`KeepInTab`), for the fresh document that
+// follows. What it keeps moves with the props as well as the Model, so a mount follows
+// it rather than an update.
 const RememberReading = Mount.make(
   "RememberReading",
   { args: { key: Schema.String, saved: Schema.String } },
   (/** @type {HTMLElement} */ _node, _args, changes) =>
-    Stream.runForEach(changes, ({ key, saved }) =>
-      Effect.sync(() => tabStore.set(key, saved)),
-    ).pipe(Effect.as(Component.noop)),
+    Effect.gen(function* () {
+      const keep = yield* KeepInTab;
+      yield* Stream.runForEach(changes, ({ key, saved }) =>
+        keep({ key, value: saved }),
+      );
+      return Component.noop;
+    }),
 );
 
 // What a row's target previews: when its row happened, as the age at the row's end
@@ -311,7 +317,8 @@ export const Activity = Html.component({
         .prop("lfPreview", rowTime)
         .children(row.label ?? "");
     };
-    const feed = h.div.class("lf-activity-feed").attr("data-lf-gen", "1");
+    // A view has one root: a plain block around the notice, the list and the empty line.
+    const feed = h.div;
     return (
       ready && !printing
         ? feed.onMount(

@@ -245,6 +245,27 @@ test("an owner inside a form that names a control shadowRoot arrives with the fo
   }
 });
 
+test("an owner beside hosts whose shadowRoot answers no root of theirs arrives", async () => {
+  const lazy = document.createElement("div");
+  Object.defineProperty(lazy, "shadowRoot", { get: () => false });
+  const child = document.createElement("div");
+  child.attachShadow({ mode: "open" });
+  const wrapper = document.createElement("div");
+  Object.defineProperty(wrapper, "shadowRoot", { get: () => child.shadowRoot });
+  wrapper.append(child);
+  const owner = document.createElement("p");
+  const holder = document.createElement("div");
+  holder.append(lazy, wrapper, owner);
+  const { log, stop } = connections(owner);
+  try {
+    await mutate(() => document.body.append(holder));
+    assert.deepEqual(log, ["connect"]);
+  } finally {
+    stop();
+    holder.remove();
+  }
+});
+
 test("an owner in a stage inside another stage leaves and returns with the outer host", async () => {
   const outer = document.createElement("div");
   const outerStage = outer.attachShadow({ mode: "open" });

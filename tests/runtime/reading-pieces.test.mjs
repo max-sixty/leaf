@@ -323,6 +323,23 @@ test("a part reads the declared tree of a host one of its slots shows", () => {
   );
 });
 
+// A widget may hold its stage in a closed root and hand that root out as its
+// `shadowRoot`, which is where the stage is built, so the page reads the stage there.
+test("a part reads a closed stage its host hands out", () => {
+  freshVocabulary();
+  document.body.innerHTML = '<main><lf-staged id="closed"></lf-staged></main>';
+  const host = document.getElementById("closed");
+  const root = host.attachShadow({ mode: "closed" });
+  Object.defineProperty(host, "shadowRoot", { get: () => root });
+  const staged = document.createElement("template");
+  staged.innerHTML = datum("a", '<p id="held">Held</p>');
+  shadowStage(host, [...staged.content.childNodes]);
+  assert.deepEqual(
+    readingElements(["p"]).map((element) => element.id),
+    ["held"],
+  );
+});
+
 test("a part's headings join the outline where no heading comes before them", () => {
   freshVocabulary();
   document.body.innerHTML =

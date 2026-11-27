@@ -97,16 +97,14 @@ export const renderedParent = (node) =>
 // node's life once it is asked for. A walk of elements steps over the text between them
 // unasked: handed every node, Tab stops over a long table take Chromium longer.
 //
-// A host's open root, read through the platform's own getter, which answers for an
-// element of any window: a `<form>` answers `shadowRoot` with its control of that name.
-// It is looked up at the first call, since the Worker's tests import this module where
-// no `Element` is defined.
-let shadowRootOf;
-export const openRoot = (host) =>
-  (shadowRootOf ??= Object.getOwnPropertyDescriptor(
-    Element.prototype,
-    "shadowRoot",
-  )?.get).call(host);
+// The root a host shows: its open root, or a closed one its own class hands out as
+// `shadowRoot`, as a widget can for the stage it holds. Whatever else `shadowRoot`
+// answers is no root of the host's, such as a `<form>`'s control of that name or a
+// wrapper forwarding its child's root, and the host reads by its own children.
+export const openRoot = (host) => {
+  const root = host.shadowRoot;
+  return root?.host === host ? root : null;
+};
 // What `node` draws its children from: the nodes a slot draws in their place, or the
 // node or root whose own children they are.
 function drawnFrom(node, rootOf) {

@@ -295,8 +295,7 @@ export const writesIn = (
 export const takesNoWords = (
   ta: (Element & { [INPUT_DRAFT]?: InputSync }) | null | undefined,
 ) => Boolean(ta?.[INPUT_DRAFT]?.closed());
-// A box shows the key that enters it, in the face its placeholder's key wears: in its
-// placeholder while it is empty, and once its words cover the placeholder, as a draft's
+// A box shows the key that enters it: in its placeholder while it is empty, and once its words cover the placeholder, as a draft's
 // do, in its own corner before Send, over the words as Send stands (`.lf-compose-key`,
 // response.css). So a box the user isn't in says how to get back into its words, as a
 // thread card's reply box holding a draft does while `t` stands on the card. The user

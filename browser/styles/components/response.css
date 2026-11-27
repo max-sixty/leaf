@@ -156,13 +156,6 @@ leaf-composition-field {
   gap: 0.25em;
   overflow: visible;
 }
-/* Every key a box says for itself, in its placeholder, its press at rest or its corner
-   (`.lf-compose-key`, below), wears the placeholder's quiet ink. */
-:is(.lf-compose-placeholder, .lf-compose-press) .lf-key-badge,
-.lf-compose-field > .lf-compose-key {
-  background: transparent;
-  color: var(--lf-quiet);
-}
 /* An error about the box stands over its words and its actions, in the danger's ink,
    until the user comes back to them (annotations/composing/input.js). It wraps within the box's
    lines and takes no room of its own, so the box keeps its size when it comes and goes.

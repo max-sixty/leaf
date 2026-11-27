@@ -100,8 +100,10 @@ lf-suggestion:not([data-lf-state]) > :is(lf-old, lf-new) > .lf-quiet {
 }
 /* A key badge has one face in the document, in the chrome, and in declared shadow
    trees: a binding's steps, a transient hint code, and a control's binding seat all
-   wear it. Where it stands is each surface's. A seat a widget builds empty draws
-   nothing until a binding is written into it. */
+   wear it, in a text box, a preview and a menu alike. The user chose this one face
+   over a quiet, unfilled key in a text box and an outlined one in a preview, which
+   set those keys apart from every other. Where it stands is each surface's. A seat a
+   widget builds empty draws nothing until a binding is written into it. */
 .lf-key-badge {
   box-sizing: border-box;
   min-width: var(--lf-key-badge-size);

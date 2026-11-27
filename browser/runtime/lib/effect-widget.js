@@ -29,8 +29,11 @@
 
    The element dispatches `lf-connect` as it connects, so Leaf dresses its shadow root
    and makes its sets first; where Leaf cancels the event, the element mounts once
-   `state` arrives. Moving the element keeps its root (`connectedMoveCallback`), and
-   leaving the document closes it a microtask later, as `defineElement`'s elements do. */
+   `state` arrives. A descendant's `lf-connect` reads `inputs` again, since a revision
+   may have replaced the members they read, as `LeafElement` draws again then.
+   `lfPatch` is the class's static `lfPatch` (module-authoring.md, "Revisions"). Moving
+   the element keeps its root (`connectedMoveCallback`), and leaving the document
+   closes it a microtask later, as `defineElement`'s elements do. */
 import {
   BrowserHost,
   Cause,
@@ -70,150 +73,165 @@ let mounts = 0;
  * @param {string} tag
  * @param {any} component an Effect UI HTML component whose props hold `state` and
  *   what `inputs` returns
- * @param {{shadow?: boolean, inputs?: (element: HTMLElement) => Record<string, unknown>}} [options]
+ * @param {{shadow?: boolean, lfPatch?: "members", inputs?: (element: HTMLElement) => Record<string, unknown>}} [options]
  */
-export function defineWidget(tag, component, { shadow = false, inputs } = {}) {
-  customElements.define(
-    tag,
-    class extends HTMLElement {
-      /** @type {unknown} */
-      #state = undefined;
-      /** @type {Record<string, unknown>} */
-      #inputs = {};
-      /** @type {{setProps: (props: any) => void} | undefined} */
-      #root = undefined;
-      /** @type {Scope.Closeable | undefined} */
-      #scope = undefined;
-      /** @type {(() => void) | undefined} */
-      #unwatch = undefined;
-      // Leaf answered `lf-connect`: it sets `state`, and nothing mounts before it has.
-      #hosted = false;
+export function defineWidget(tag, component, { shadow = false, lfPatch, inputs } = {}) {
+  const Widget = class extends HTMLElement {
+    /** @type {unknown} */
+    #state = undefined;
+    /** @type {Record<string, unknown>} */
+    #inputs = {};
+    /** @type {{setProps: (props: any) => void} | undefined} */
+    #root = undefined;
+    /** @type {Scope.Closeable | undefined} */
+    #scope = undefined;
+    /** @type {(() => void) | undefined} */
+    #unwatch = undefined;
+    // Leaf answered `lf-connect`: it sets `state`, and nothing mounts before it has.
+    #hosted = false;
 
-      constructor() {
-        super();
-        if (shadow) this.attachShadow({ mode: "open" });
-      }
-
-      get state() {
-        return this.#state;
-      }
-      set state(value) {
-        this.#state = value;
-        if (this.#root) this.#update();
-        else this.#mount();
-      }
-
-      connectedCallback() {
-        if (!inWindowDocument(this) || this.#root) return;
-        untracked(() => {
-          this.#hosted ||= !this.dispatchEvent(
-            new Event(CONNECT, { bubbles: true, composed: true, cancelable: true }),
-          );
-          this.#mount();
-        });
-      }
-
-      // With `moveBefore()`, a move calls only this, so the root stays.
-      connectedMoveCallback() {}
-
-      disconnectedCallback() {
-        queueMicrotask(() => {
-          if (this.isConnected || !this.#scope) return;
-          const scope = this.#scope;
-          this.#unwatch?.();
-          this.#root = this.#scope = this.#unwatch = undefined;
-          Effect.runFork(Scope.close(scope, Exit.void));
-        });
-      }
-
-      #props() {
-        return { ...this.#inputs, state: this.#state };
-      }
-
-      #mount() {
-        if (this.#root || !this.isConnected) return;
-        if (this.#hosted && this.#state === undefined) return;
-        if (inputs) {
-          // The first run reads the inputs the mount draws from; later runs are the
-          // signals they read moving. A throw stays on this widget, as
-          // `LeafElement`'s does, rather than aborting the update that moved them.
-          let first = true;
-          this.#unwatch = watch(() => {
-            const seeding = first;
-            first = false;
-            let next;
-            try {
-              next = inputs(this);
-            } catch (error) {
-              untracked(() => failSoft(this, error));
-              return;
-            }
-            if (seeding) this.#inputs = next;
-            else
-              untracked(() => {
-                this.#inputs = next;
-                this.#update();
-              });
+    constructor() {
+      super();
+      if (shadow) this.attachShadow({ mode: "open" });
+      // A listener on a shadow host sees itself as the target of an event from inside
+      // its root, so the element that connected is read off the path.
+      this.addEventListener(CONNECT, (event) => {
+        if (inputs && this.#root && event.composedPath()[0] !== this)
+          untracked(() => {
+            const next = this.#read();
+            if (!next) return;
+            this.#inputs = next;
+            this.#update();
           });
-        }
-        const scope = (this.#scope = Scope.makeUnsafe());
-        const element = this;
-        // A shadow root is a container as an element is, as `defineElement` mounts one.
-        const container = /** @type {Element} */ (
-          /** @type {unknown} */ (this.shadowRoot ?? this)
-        );
-        const mounting = /** @type {Effect.Effect<any, never, Scope.Scope>} */ (
-          BrowserHost.mountEffect(component, this.#props(), container, {
-            head: false,
-            key: `${tag}:${mounts++}`,
-            onEmit: (/** @type {any} */ event) => element.#emit(event),
-            fallback: (/** @type {any} */ failure, /** @type {any} */ h) => {
-              queueMicrotask(() => failSoft(element, Cause.squash(failure.cause)));
-              return h.span;
-            },
-          })
-        );
-        this.#root = Effect.runSync(mounting.pipe(Scope.provide(scope)));
-        this.#drawn();
-      }
+      });
+    }
 
-      #update() {
-        const root = this.#root;
-        if (!root) return;
-        root.setProps(this.#props());
-        // Effect UI's flush is the microtask setProps queued, so a task queued now
-        // runs after it.
-        const drawn = Promise.resolve().then(() => this.#drawn());
-        this.dispatchEvent(new PendingTaskEvent(drawn));
-      }
+    get state() {
+      return this.#state;
+    }
+    set state(value) {
+      this.#state = value;
+      if (this.#root) this.#update();
+      else this.#mount();
+    }
 
-      #drawn() {
-        const root = this.shadowRoot ?? this;
-        root.dispatchEvent(
-          new CustomEvent(COMMANDS, {
+    connectedCallback() {
+      if (!inWindowDocument(this) || this.#root) return;
+      untracked(() => {
+        this.#hosted ||= !this.dispatchEvent(
+          new Event(CONNECT, { bubbles: true, composed: true, cancelable: true }),
+        );
+        this.#mount();
+      });
+    }
+
+    // With `moveBefore()`, a move calls only this, so the root stays.
+    connectedMoveCallback() {}
+
+    disconnectedCallback() {
+      queueMicrotask(() => {
+        if (this.isConnected || !this.#scope) return;
+        const scope = this.#scope;
+        this.#unwatch?.();
+        this.#root = this.#scope = this.#unwatch = undefined;
+        Effect.runFork(Scope.close(scope, Exit.void));
+      });
+    }
+
+    // What `inputs` reads, or nothing where it throws: the failure stays on this
+    // widget, as `LeafElement`'s does, rather than aborting the update that moved a
+    // signal it reads.
+    #read() {
+      try {
+        return inputs?.(this);
+      } catch (error) {
+        untracked(() => failSoft(this, error));
+      }
+    }
+
+    #props() {
+      return { ...this.#inputs, state: this.#state };
+    }
+
+    #mount() {
+      if (this.#root || !this.isConnected) return;
+      if (this.#hosted && this.#state === undefined) return;
+      if (inputs) {
+        // The first run reads the inputs the mount draws from; later runs are the
+        // signals they read moving.
+        let first = true;
+        this.#unwatch = watch(() => {
+          const seeding = first;
+          first = false;
+          const next = this.#read();
+          if (!next) return;
+          if (seeding) this.#inputs = next;
+          else
+            untracked(() => {
+              this.#inputs = next;
+              this.#update();
+            });
+        });
+      }
+      const scope = (this.#scope = Scope.makeUnsafe());
+      const element = this;
+      // A shadow root is a container as an element is, as `defineElement` mounts one.
+      const container = /** @type {Element} */ (
+        /** @type {unknown} */ (this.shadowRoot ?? this)
+      );
+      const mounting = /** @type {Effect.Effect<any, never, Scope.Scope>} */ (
+        BrowserHost.mountEffect(component, this.#props(), container, {
+          head: false,
+          key: `${tag}:${mounts++}`,
+          onEmit: (/** @type {any} */ event) => element.#emit(event),
+          fallback: (/** @type {any} */ failure, /** @type {any} */ h) => {
+            queueMicrotask(() => failSoft(element, Cause.squash(failure.cause)));
+            return h.span;
+          },
+        })
+      );
+      this.#root = Effect.runSync(mounting.pipe(Scope.provide(scope)));
+      this.#drawn();
+    }
+
+    #update() {
+      const root = this.#root;
+      if (!root) return;
+      root.setProps(this.#props());
+      // Effect UI's flush is the microtask setProps queued, so a task queued now
+      // runs after it.
+      const drawn = Promise.resolve().then(() => this.#drawn());
+      this.dispatchEvent(new PendingTaskEvent(drawn));
+    }
+
+    #drawn() {
+      const root = this.shadowRoot ?? this;
+      root.dispatchEvent(
+        new CustomEvent(COMMANDS, {
+          bubbles: true,
+          composed: true,
+          detail: { within: true },
+        }),
+      );
+    }
+
+    /** @param {{_tag: string} & Record<string, unknown>} event */
+    #emit(event) {
+      const { _tag, ...detail } = event;
+      if (_tag === "Recorded" || _tag === "TookBack")
+        this.dispatchEvent(
+          new CustomEvent(_tag === "Recorded" ? "lf-action" : "lf-undo", { detail }),
+        );
+      else
+        this.dispatchEvent(
+          new CustomEvent(_tag.toLowerCase(), {
+            detail: event,
             bubbles: true,
             composed: true,
-            detail: { within: true },
           }),
         );
-      }
-
-      /** @param {{_tag: string} & Record<string, unknown>} event */
-      #emit(event) {
-        const { _tag, ...detail } = event;
-        if (_tag === "Recorded" || _tag === "TookBack")
-          this.dispatchEvent(
-            new CustomEvent(_tag === "Recorded" ? "lf-action" : "lf-undo", { detail }),
-          );
-        else
-          this.dispatchEvent(
-            new CustomEvent(_tag.toLowerCase(), {
-              detail: event,
-              bubbles: true,
-              composed: true,
-            }),
-          );
-      }
-    },
-  );
+    }
+  };
+  if (lfPatch) Object.assign(Widget, { lfPatch });
+  customElements.define(tag, Widget);
 }

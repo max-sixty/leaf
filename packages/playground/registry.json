@@ -16,6 +16,9 @@
     "awaits": {
       "value": "choose"
     },
+    "facts": {
+      "answered": { "type": "boolean" }
+    },
     "verbs": {
       "choose": {
         "contract": {

@@ -8,7 +8,7 @@ referenced element still changes containment without changing an old event.
 from functools import cached_property
 
 from leaf.log.events import event_document, thread_structure
-from leaf.log.obligations import gesture_answers, replayed_attrs
+from leaf.log.obligations import replayed_attrs, widget_facts
 from leaf.log.projection import (
     page_reading,
     thread_markup_reading,
@@ -34,6 +34,7 @@ class AdmissionReadings:
         self.events = events
         self.registry = registry
         self._pages: dict = {}
+        self._facts: dict = {}
 
     @cached_property
     def log(self):
@@ -59,6 +60,19 @@ class AdmissionReadings:
         return thread_markup_reading(
             self.events, self.registry, withdrawn=self.log.withdrawn
         )
+
+    def kept_facts(self, widget: str, revision: int, scope: str) -> dict:
+        """The facts the page keeps of `widget` before this event
+        (`obligations.widget_facts`): in the page's reading through `revision`, or, for
+        a widget in thread markup (`scope` `thread`), in that markup's reading, which no
+        page version bounds."""
+        through = revision if scope == "page" else None
+        if through not in self._facts:
+            reading = self.page(revision) if scope == "page" else self.thread
+            self._facts[through] = widget_facts(
+                self.events, reading.projection, enclosing_of(reading.spoken), through
+            )
+        return self._facts[through].get(widget, {})
 
     def page(self, revision: int):
         if revision not in self._pages:
@@ -118,8 +132,8 @@ def answer_meaning(
 ) -> tuple[bool, str | None]:
     """Whether this admitted action answers its widget's obligation, and the thread it closes.
 
-    The widget says whether its obligation is answered on each gesture
-    (`obligations.gesture_answers`). The answering action is one that says it is while
+    The widget says whether its obligation is answered on each gesture, as its
+    `answered` fact (`obligations.widget_facts`). The answering action is one that says it is while
     the widget asks or keeps an earlier registration, and either records the answer
     itself (its verb is `awaits.value`) or turns the obligation from open to answered,
     as Done on a multiple choice does. So adding an option to a question already
@@ -133,7 +147,11 @@ def answer_meaning(
     asking can close the thread it declares."""
     entry = readings.registry[record["tag"]]
     awaits = entry.get("awaits")
-    if event["kind"] != "action" or not awaits or not event.get("answered"):
+    if (
+        event["kind"] != "action"
+        or not awaits
+        or not event.get("facts", {}).get("answered")
+    ):
         return False, None
     withdrawn = withdrawing_outcome(entry)
     declined = (
@@ -141,11 +159,8 @@ def answer_meaning(
         and withdrawn is not None
         and event["detail"]["outcome"] == withdrawn
     )
-    reading = (
-        readings.page(event["revision"])
-        if event_document(event)["kind"] == "page"
-        else readings.thread
-    )
+    scope = event_document(event)["kind"]
+    reading = readings.page(event["revision"]) if scope == "page" else readings.thread
     candidate = {
         **event,
         "seq": readings.events[-1]["seq"] + 1 if readings.events else 1,
@@ -163,12 +178,9 @@ def answer_meaning(
         )
     ) and (
         event["action"] == awaits["value"]
-        or not gesture_answers(
-            readings.events,
-            reading.projection,
-            enclosing_of(reading.spoken),
-            event["revision"] if event_document(event)["kind"] == "page" else None,
-        ).get(event["widget"], False)
+        or not readings.kept_facts(event["widget"], event["revision"], scope).get(
+            "answered", False
+        )
     )
     return answers, (
         record["attrs"].get("resolves") if answers and not declined and asking else None

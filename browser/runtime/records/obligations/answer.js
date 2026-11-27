@@ -35,16 +35,17 @@ export function obligationWord(item) {
 
 /** A widget class's static `name` and the authored markup Leaf hands it: the widget's
  * element wherever it stands, on the page or in the message that sent it. A class
- * reads only that markup, never what its module draws. `answerWords` and the widget's
- * word on its question (`widgetAnswered`, host/widget-state.js) are read this way.
- * @template {"answerWords" | "answered"} N
- * @param {string} tag @param {string} id @param {N} name
- * @returns {{call: NonNullable<CustomElementConstructor[N]>, element: Element | null} | null} */
+ * reads only that markup, never what its module draws. `answerWords` and each of the
+ * widget's facts (`widgetFacts`, host/widget-state.js) are read this way.
+ * @param {string} tag @param {string} id @param {string} name
+ * @returns {{call: (value: unknown, element: Element) => unknown, element: Element | null} | null} */
 export function widgetStatic(tag, id, name) {
-  const call = customElements.get(tag)?.[name];
+  const call = /** @type {Record<string, unknown> | undefined} */ (
+    /** @type {unknown} */ (customElements.get(tag))
+  )?.[name];
   return typeof call === "function"
     ? {
-        call: /** @type {NonNullable<CustomElementConstructor[N]>} */ (call),
+        call: /** @type {(value: unknown, element: Element) => unknown} */ (call),
         element: addressableAt(id),
       }
     : null;

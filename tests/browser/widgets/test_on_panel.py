@@ -191,7 +191,12 @@ Adds --dry-run to every mutating command.
             False,
         ),
         ("cache", "choose", {"value": ["cache-redis"]}, True),
-        ("tags", "answer", {}, True),
+        (
+            "tags",
+            "answer",
+            {"options": ["tag-alpha", "tag-beta"], "picked": ["tag-alpha"]},
+            True,
+        ),
         # The controls draw the tune in force, which submitting records first.
         ("tone", "tune", {"values": {"format": "strip"}}, False),
         (
@@ -210,7 +215,7 @@ Adds --dry-run to every mutating command.
                 "widget": widget,
                 "action": action,
                 "detail": detail,
-                "answered": answered,
+                "facts": {"answered": answered},
             },
         )
         assert posted.ok, posted.text()

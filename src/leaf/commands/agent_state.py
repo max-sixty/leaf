@@ -392,7 +392,8 @@ def page_state(
     the same reading; doing it in-head over `leaf page events` is how a decision
     in force gets missed. So this holds the active revision's elements, each visual
     with the parts it drew where the page's render reading read that revision with
-    the page's current data (`render_reading.drawn_visuals`), the projection of the
+    the page's current data (`render_reading.drawn_visuals`) and each widget with the
+    facts it worked out (`facts`), the projection of the
     user's current state and the reports in force on the agent channel, authored
     measurements whose live
     source has run again
@@ -495,6 +496,12 @@ def page_state(
         )
         state["reports"] = view["reports"]
         _apply_thread_state(state, reading.thread, registry, facts)
+        # What each widget worked out of its state and markup, as the page keeps it
+        # (`obligations.widget_facts`), on the widget's element.
+        kept = view["facts"]
+        for element in state["elements"]:
+            if element["id"] in kept:
+                element["facts"] = kept[element["id"]]
         served_threads = {thread["id"]: thread for thread in view["thread"]["threads"]}
         # The user's side between their updates: which of your messages they have not
         # taken in yet, at their current content version.

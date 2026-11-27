@@ -165,7 +165,7 @@ def test_render_allows_authored_state_the_log_replays_over(browser, serve):
     url = serve(REPLAYED_PAGE)
     d = serve.page_dir
     for widget, action, detail, word in [
-        ("approach", "choose", {"value": ["opt-shim"]}, {"answered": True}),
+        ("approach", "choose", {"value": ["opt-shim"]}, {"facts": {"answered": True}}),
         (
             "work",
             "move",
@@ -856,7 +856,10 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
         e for e in events_model.read_events(serve.page_dir) if e["kind"] == "action"
     ]
     assert actions[-1]["widget"] == "tq-set" and actions[-1]["action"] == "answer"
-    assert actions[-1]["detail"] == {}
+    assert actions[-1]["detail"] == {
+        "options": ["tq-logs", "tq-metrics"],
+        "picked": ["tq-logs"],
+    }
 
     # And a second tab reads it off the log, which is the only place it is written.
     # A user who made no gesture gets the same pressed press and the same closed

@@ -478,7 +478,7 @@ def test_sample_fixture_anchors_are_captured_in_the_child_reading(
                 "widget": "message-widget",
                 "action": "add",
                 "detail": {"option": "generated-option", "text": "Generated passage"},
-                "answered": False,
+                "facts": {"answered": False},
             },
         )
     source = (

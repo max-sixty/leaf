@@ -59,11 +59,16 @@
  * In a thread the existing reply box already owns those words, so Enter from a mark
  * continues into that box. Every `multiple` group grows a Done press: each toggle
  * reaches the agent as it lands, so the press is the one statement that the set is
- * whole, posted as an `answer` action, and the group says its question is answered
- * while that answer stands (`static answered`). Answered is paint on the press, never a wider word. A
- * second press withdraws that answer through the widget's exact undo, reopening the
- * obligation; the set can still change after either press, and each toggle reaches the
- * agent.
+ * whole, posted as an `answer` action naming the options it covers and the picks among
+ * them, and the group says its question is answered while that answer stands on the set
+ * the group shows (`static answered`). Answered is paint on the press, never a wider
+ * word. A second press withdraws that answer through the widget's exact undo, reopening
+ * the obligation. The set can still change after either press, and each toggle reaches
+ * the agent; a set that changed after Done, by the user's pick, a pick a version
+ * restated away or an option a version added, waits on Done again with its picks kept,
+ * since Done said the set it was pressed on was whole and no other. The alternative,
+ * Done answering whatever set follows it, could not ask again about an option a version
+ * added or rewrote without taking back every pick (`$restated` on the group).
  *
  * That paint goes on the press and nowhere else, which is a rule rather than a
  * preference. A module writes an attribute in the author's namespace only where the
@@ -188,10 +193,38 @@ function additions(state) {
   });
 }
 
-/** @param {import("../../../browser/runtime/host/widget-controller.js").WidgetReading["state"] | null | undefined} state */
-function isAnswered(state) {
+// The set a press of Done answers, which the `answer` action records: the ids of the
+// options the group shows, its authored ones and the user's, and of those picked.
+/** @param {import("../../../browser/runtime/host/widget-controller.js").WidgetReading["state"] | null | undefined} state @param {Element} group */
+function doneSet(state, group) {
+  const shown = new Set([
+    ...[...group.querySelectorAll(":scope > lf-option")].map((option) => option.id),
+    ...additions(state).map(({ id }) => id),
+  ]);
+  const choose = state?.choose;
+  const picked = choose && "value" in choose ? choiceIds(choose.value) : [];
+  return {
+    options: [...shown].sort(),
+    picked: picked.filter((id) => shown.has(id)).toSorted(),
+  };
+}
+
+// Whether Done answers the set the group shows now: pressed on every option it shows,
+// with the same of them picked. An option a version adds, a pick a version restates
+// away, or a pick the user changes after Done leaves it waiting on Done again, with the
+// picks kept; an option a version removes changes nothing.
+/** @param {import("../../../browser/runtime/host/widget-controller.js").WidgetReading["state"] | null | undefined} state @param {Element} group */
+function isAnswered(state, group) {
   const answer = state?.answer;
-  return answer && "action" in answer ? Boolean(answer.action) : false;
+  if (!answer || !("action" in answer) || !answer.action) return false;
+  const now = doneSet(state, group);
+  const covered = new Set(choiceIds(answer.detail.options));
+  const shown = new Set(now.options);
+  const then = choiceIds(answer.detail.picked).filter((id) => shown.has(id));
+  return (
+    now.options.every((id) => covered.has(id)) &&
+    JSON.stringify(then.toSorted()) === JSON.stringify(now.picked)
+  );
 }
 
 const SECTION = "In the options";
@@ -228,14 +261,15 @@ customElements.define(
       );
     }
 
-    // Whether the group's question is answered, which Leaf asks after each of its
-    // gestures (`module-state.md`, "Declared widget state"): Done pressed where the
-    // group takes several options, otherwise a pick the user made. Each reads only the
-    // user's acts in force, never a selection only the markup holds, so a pick the
-    // version writes in answers nothing, as the server reads it.
+    // Whether the group's question is answered, its `answered` fact, which Leaf asks
+    // after each of its gestures and as a version or another tab's act moves it
+    // (`module-state.md`, "Declared widget state"): Done standing on the set the group
+    // shows where it takes several options (`isAnswered`), otherwise a pick the user
+    // made. Each reads only the user's acts in force, never a selection only the markup
+    // holds, so a pick the version writes in answers nothing, as the server reads it.
     /** @param {import("../../../browser/runtime/host/widget-controller.js").WidgetReading["state"]} state @param {Element} group */
     static answered(state, group) {
-      if (group.hasAttribute("multiple")) return isAnswered(state);
+      if (group.hasAttribute("multiple")) return isAnswered(state, group);
       const choose = state.choose;
       return Boolean(
         choose && "action" in choose && choose.action && choiceIds(choose.value).length,
@@ -468,23 +502,24 @@ customElements.define(
 
     #doneAvailable() {
       const answer = this.state?.answer;
-      return isAnswered(this.state)
+      return isAnswered(this.state, this)
         ? Boolean(answer && "undoable" in answer && answer.undoable)
         : this.#available("answer");
     }
 
     // The press paints its result before the log replies, and Done's face derives from
-    // that result, so a second press does what the button then says.
+    // that result, so a second press does what the button then says. A Done that no
+    // longer stands on the set shown answers it again with a Done of its own.
     #answer() {
       if (!this.#doneAvailable()) return;
-      if (isAnswered(this.state)) this.takeBack("answer");
-      else this.#dispatch("answer", {}, null, "Marked answered");
+      if (isAnswered(this.state, this)) this.takeBack("answer");
+      else this.#dispatch("answer", doneSet(this.state, this), null, "Marked answered");
       this.#syncDone();
     }
 
     #syncDone() {
       if (!this.#done) return;
-      const answered = Boolean(isAnswered(this.state));
+      const answered = isAnswered(this.state, this);
       keeps(
         this.#done.control,
         "aria-label",
@@ -615,7 +650,7 @@ customElements.define(
           bindingBadge: done.bindingBadge,
           title: "Done",
           description: () =>
-            isAnswered(this.state)
+            isAnswered(this.state, this)
               ? "Take back Done and keep choosing"
               : "Finish choosing options",
           when: () => this.#doneAvailable(),

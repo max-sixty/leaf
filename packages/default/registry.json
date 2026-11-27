@@ -244,6 +244,9 @@
       },
       "retired": "settled"
     },
+    "facts": {
+      "answered": { "type": "boolean" }
+    },
     "verbs": {
       "choose": {
         "record": {
@@ -269,7 +272,21 @@
         }
       },
       "answer": {
-        "detail": {}
+        "detail": {
+          "properties": {
+            "options": {
+              "type": "array",
+              "items": { "type": "string" },
+              "uniqueItems": true
+            },
+            "picked": {
+              "type": "array",
+              "items": { "type": "string" },
+              "uniqueItems": true
+            }
+          },
+          "required": ["options", "picked"]
+        }
       }
     },
     "outputs": {
@@ -564,6 +581,9 @@
       "when": {
         "required": [true]
       }
+    },
+    "facts": {
+      "answered": { "type": "boolean" }
     },
     "verbs": {
       "edit": {

@@ -147,6 +147,10 @@ def browser_state(
             "document": browser_document(page),
             "thread": thread,
             "obligations": items,
+            # Each widget's facts as the page keeps them, its page's and its thread
+            # markup's, which a tab compares with what it works out
+            # (`obligations.widget_facts`).
+            "facts": {**viewed.thread_facts, **reading.facts},
             "reports": canonical_reports(projection),
             "undo": browser_undo_candidates(
                 events,

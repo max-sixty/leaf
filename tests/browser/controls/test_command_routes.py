@@ -24,6 +24,7 @@ KEYBOARD_HINT_REGISTRY = {
         "content": "empty",
         "verbs": SEATED_OBLIGATION_LAYER["lf-verdict"]["verbs"],
         "awaits": SEATED_OBLIGATION_LAYER["lf-verdict"]["awaits"],
+        "facts": SEATED_OBLIGATION_LAYER["lf-verdict"]["facts"],
     }
 }
 

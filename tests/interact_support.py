@@ -220,6 +220,7 @@ def queue_board_registry(registry: dict) -> dict:
     a position verb whose units are the cards it holds."""
     registry = deepcopy(registry)
     registry["lf-board"]["awaits"] = {"value": "move"}
+    registry["lf-board"]["facts"] = {"answered": {"type": "boolean"}}
     return registry
 
 
@@ -1190,7 +1191,7 @@ def decide(page_dir, outcome, widget="sug-refill"):
             "action": "decide",
             "detail": {"outcome": outcome},
             # A suggestion with a decision in force says its question is answered.
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
 
@@ -1214,7 +1215,7 @@ def _decided(page_dir, words):
             "widget": "d1",
             "action": "edit",
             "detail": {"value": "Cut the flag; backfill first."},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     return lambda words, attrs="": (page_dir / "index.html").write_text(
@@ -1364,7 +1365,7 @@ ACCEPT = {
     "widget": "sug-a",
     "action": "decide",
     "detail": {"outcome": "accept"},
-    "answered": True,
+    "facts": {"answered": True},
     "meaning": {
         "scope": "page",
         "unit": "sug-a",
@@ -2522,7 +2523,7 @@ def edit(page_dir, text, widget="note", version=1):
             "action": "edit",
             "detail": {"value": text},
             # A draft says it holds an answer while the user's words stand in it.
-            "answered": bool(text),
+            "facts": {"answered": bool(text)},
         },
     )
 
@@ -3075,7 +3076,7 @@ SETTLING_ACCEPT = {
     "widget": "sug-refill",
     "action": "decide",
     "detail": {"outcome": "accept"},
-    "answered": True,
+    "facts": {"answered": True},
 }
 
 

@@ -98,7 +98,7 @@ def test_recorded_effect_payloads_are_validated_at_admission(page_dir):
                 {"value": ["first"], "animate": True},
                 {"value": ["missing"]},
             ),
-            {"answered": True},
+            {"facts": {"answered": True}},
         ),
         (
             "draft",
@@ -110,7 +110,7 @@ def test_recorded_effect_payloads_are_validated_at_admission(page_dir):
                 {"value": 1},
                 {"value": "New words", "text": "news"},
             ),
-            {"answered": True},
+            {"facts": {"answered": True}},
         ),
         (
             "board",
@@ -185,7 +185,7 @@ def test_attribute_records_admit_only_sets_of_owned_members(page_dir, writer):
             "action": "add",
             "detail": {"option": "generated", "text": "Another route"},
             # Where the group asks, it says each gesture leaves it open until Done.
-            **({"answered": False} if writer == "user" else {}),
+            **({"facts": {"answered": False}} if writer == "user" else {}),
         },
     )
     log = [{**added, "seq": 1, "ts": "2026-10-06T12:00:00+00:00"}]
@@ -196,7 +196,7 @@ def test_attribute_records_admit_only_sets_of_owned_members(page_dir, writer):
         "widget": "owned",
         "action": "choose",
         # A user's pick on a multiple choice leaves it open until Done.
-        **({"answered": False} if writer == "user" else {}),
+        **({"facts": {"answered": False}} if writer == "user" else {}),
     }
     for value in ([], ["first"], ["first", "second"], ["generated"]):
         admitted = event_contracts_model.admitted_event(

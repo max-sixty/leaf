@@ -236,18 +236,19 @@ package's own lists neither. An element that another widget's verb names by id, 
 `awaits` puts a widget's obligation on the user's list, On Me. Its `value` names
 the verb whose state is the answer: the recorded value, or a recordless verb's latest
 `detail`. A playground's unrecorded `choose` gives its submitted settings.
-Whether the obligation is answered is the widget's own word, which each of its
-gestures carries: its class's `static answered(state, element)`, or, without one,
-whether that verb holds a state ([module-state.md, "Declared widget
+Whether the obligation is answered is the widget's own word, its `answered` fact,
+which the declaration lists under `facts` as `{"type": "boolean"}`: its class's
+`static answered(state, element)`, or, without one, whether that verb holds a state
+([module-state.md, "Declared widget
 state"](module-state.md#declared-widget-state)), counting only the user's acts in
 force: a starting value the page's markup writes answers nothing. So a queue whose
 question is answered once its marked column is empty says so from the positions its
 `state` holds, and a checklist decided step by step says so once its last step is.
-Only a gesture says it, so a version that changes the answer, as one adding a step
-does, says nothing by itself. Marking an element `restated` asks again: it withdraws
-every decision resting on that element, and the question stays open until the
-user's next gesture says otherwise. A version that adds a step can't reopen the ask
-while keeping the decisions on the other steps. If the widget's `when` stops
+The widget says it on each gesture and again as a version or another tab's act moves
+its state or markup, so a version that adds a step to a checklist asks again, with
+the decisions on the other steps kept, once a tab shows it. Marking an element
+`restated` asks again too: it withdraws every decision resting on that element, and
+the question stays open until the widget says otherwise. If the widget's `when` stops
 holding, a complete obligation stays answered and an incomplete one is withdrawn.
 
 `awaits.retired` names the attribute an author sets to close an obligation but

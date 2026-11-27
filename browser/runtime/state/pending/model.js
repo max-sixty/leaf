@@ -11,6 +11,18 @@ import { MESSAGE_KINDS } from "../kernel-facts.js";
  */
 export const isThreadEvent = (event) => MESSAGE_KINDS.has(event.kind);
 
+// The widget an action concerns, or an undo of one: the only gestures that carry what
+// the widget works out of its state (`facts`), its word on whether its obligation is
+// answered among them (`awaits`).
+/** @param {{event: import("../../../types/domain.js").Command, projection?: import("../../../types/domain.js").PendingProjection | null}} entry
+ * @returns {string | null} */
+export const gestureWidget = ({ event, projection }) =>
+  event.kind === "action"
+    ? event.widget
+    : projection?.kind === "undo"
+      ? projection.target.e.widget
+      : null;
+
 // A gesture that speaks in a thread, so hands it to the agent: a message, in words or
 // an emoji, or the user rewriting words of theirs (`events.exchange`).
 // `tests/turn_cases.json` holds this and `turnMessage` to the server's reading.

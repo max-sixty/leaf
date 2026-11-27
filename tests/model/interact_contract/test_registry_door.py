@@ -866,6 +866,7 @@ def test_an_asking_instance_needs_the_id_its_declaration_leaves_optional(page_di
             "when": {"open": [True]},
             "value": "answer",
         },
+        "facts": {"answered": {"type": "boolean"}},
         "verbs": {"answer": {"detail": {}, "unit": "widget"}},
     }
     declare_vocabulary(page_dir, registry)

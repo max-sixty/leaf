@@ -155,7 +155,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
             "widget": "sug",
             "action": "decide",
             "detail": {"outcome": "accept"},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     append_command(
@@ -167,7 +167,7 @@ def test_authored_page_paints_but_durable_controls_wait_for_first_replay(
             "widget": "startup-note",
             "action": "edit",
             "detail": {"value": "Ship on Friday from the green room."},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     held = []
@@ -337,7 +337,7 @@ def test_on_me_claims_nothing_before_the_first_replay(browser, serve):
             "widget": "sug",
             "action": "decide",
             "detail": {"outcome": "accept"},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     held = []
@@ -440,7 +440,7 @@ def test_a_startup_failure_keeps_authored_page_readable(browser, serve):
             "widget": "sug",
             "action": "decide",
             "detail": {"outcome": "accept"},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     page = browser.new_page(viewport={"width": 1200, "height": 900})
@@ -524,7 +524,7 @@ def test_a_malformed_first_state_keeps_interaction_unresolved(browser, serve):
             "widget": "sug",
             "action": "decide",
             "detail": {"outcome": "accept"},
-            "answered": True,
+            "facts": {"answered": True},
         },
     )
     page = browser.new_page(viewport={"width": 1200, "height": 900})

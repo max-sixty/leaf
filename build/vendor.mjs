@@ -648,15 +648,15 @@ const bundles = {
         // lines and point at nothing, so the pair stays two plain rows. The cutoff is
         // delta's `--max-line-distance` default: the share of both lines' characters
         // the word diff removed or added.
-        file: /@pierre\/diffs\/dist\/utils\/renderDiffWithHighlighter\.js$/,
+        file: /@pierre\/diffs\/dist\/utils\/computeLineDiffRanges\.js$/,
         edit: (source) =>
           seam(
             source,
-            '\tif (lineDiffType === "word-line") {',
+            '\tif (lineDiffType === "word-line") return',
             "\tlet leafChanged = 0;\n" +
               "\tfor (const item of lineDiff) if (item.added || item.removed) leafChanged += item.value.length;\n" +
-              "\tif (leafChanged > 0.6 * (deletionLine.length + additionLine.length)) return;\n" +
-              '\tif (lineDiffType === "word-line") {',
+              "\tif (leafChanged > 0.6 * (deletionLine.length + additionLine.length)) return NO_RANGES;\n" +
+              '\tif (lineDiffType === "word-line") return',
             "Pierre changed-word distance",
           ),
       },

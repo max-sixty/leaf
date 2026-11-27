@@ -779,7 +779,7 @@ function fileRecord(file, section, parsePatchFiles) {
       0,
       section.search(/^--- /m) < 0 ? section.length : section.search(/^--- /m),
     );
-    const metadata = parsePatchFiles(header, undefined, true).flatMap(
+    const metadata = parsePatchFiles(header, { throwOnError: true }).flatMap(
       (patch) => patch.files,
     )[0];
     if (metadata?.prevName !== file.prevName || metadata?.name !== file.name)
@@ -835,7 +835,11 @@ async function renderFile(file, overflow) {
   });
   const highlighted = await renderer.asyncRender({ ...file, lang: lang ?? "text" });
   const template = document.createElement("template");
-  template.innerHTML = renderHTML(highlighted.unifiedContentAST);
+  template.innerHTML = renderHTML(
+    (highlighted.columns.unified ?? []).map(
+      (/** @type {import("@pierre/diffs").RowSpec} */ row) => row.content,
+    ),
+  );
   const content = template.content;
   content.querySelector("svg[data-icon-sprite]")?.remove();
   for (const separator of content.querySelectorAll(
@@ -887,7 +891,10 @@ function replacementFile(files, parseDiffFromFile) {
     throw new Error(`unified diff repeats file path ${files[0].name}`);
   const hunkCount = Number(files.some((file) => file.record.hunkCount > 0));
   // A different file type consumes the old object and produces the new one, even
-  // when both carry identical text. The maintained comparator keeps that meaning.
+  // when both carry identical text. jsdiff's comparator keeps that meaning. Pierre
+  // passes it on to jsdiff, though its options type lists only @pierre/patches' keys.
+  /** @type {import("@pierre/diffs").ParseDiffOptions & import("diff").CreatePatchOptionsNonabortable} */
+  const everyLineChanges = { preferredDiffLib: "jsdiff", comparator: () => false };
   /** @param {ParsedFile} file @param {readonly string[]} lines */
   const side = (file, lines) =>
     file.record.binary
@@ -900,7 +907,7 @@ function replacementFile(files, parseDiffFromFile) {
     ? parseDiffFromFile(
         side(deleted, deleted.deletionLines),
         side(added, added.additionLines),
-        { comparator: () => false },
+        everyLineChanges,
         true,
       )
     : { ...added, hunks: [] };
@@ -925,7 +932,7 @@ function replacementFile(files, parseDiffFromFile) {
 /** @param {string} source @returns {Promise<ParsedFile[]>} */
 async function parsedFiles(source) {
   const { parsePatchFiles, parseDiffFromFile } = await parse();
-  const files = parsePatchFiles(source, undefined, true).flatMap(
+  const files = parsePatchFiles(source, { throwOnError: true }).flatMap(
     (patch) => patch.files,
   );
   const sections = source

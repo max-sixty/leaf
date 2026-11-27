@@ -17,7 +17,7 @@ mark of that protocol. A widget that only records state and reads bound data imp
 nothing. One that draws with Lit usually extends `LeafElement`, the Lit element on that
 protocol, and one that draws from a page reading either does (`module-plain-elements.md`,
 "`LeafElement`") or is an Effect UI component that `defineWidget` defines
-(`/runtime/lib/effect-widget.js`, whose header gives its contract): Leaf's reading and
+(`/runtime/effect-widget.js`, whose header gives its contract): Leaf's reading and
 what its `inputs` read arrive as props, and its events record.
 
 Whatever a package leans on Leaf for is one of these kinds, and each kind has its own

@@ -363,6 +363,8 @@ const runtimeLayers = [
       "check-api.js",
       "validation.js",
       "widget-api.js",
+      "effect-widget.js",
+      "widget-services.js",
       "portable-api.js",
       "stage-integration.js",
       "age.js",

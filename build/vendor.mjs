@@ -189,7 +189,7 @@ const bundles = {
   }),
 
   // Effect and Effect UI, the component model widgets and Leaf's own chrome draw
-  // with (lib/effect-widget.js). One module, so a page runs one Effect runtime.
+  // with (runtime/effect-widget.js). One module, so a page runs one Effect runtime.
   "effect-ui": () => ({
     out: `${assets}/vendor/effect-ui.js`,
     entryPoints: [input("entries/effect-ui/entry.mjs")],

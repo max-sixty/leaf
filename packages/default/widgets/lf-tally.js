@@ -11,33 +11,22 @@
  * inventory it has not seen.
  *
  * With `next`, a Next On Me control steps to the next obligation waiting on the user inside
- * the region (`obligationActions.next`), from where the user is, so a press keeps
+ * the region (`NextOnMe`, widget-services.js), from where the user is, so a press keeps
  * them there rather than taking focus onto the control, as the On
  * panel's Next On Me does. It is a native button: Tab and Enter reach it, and a
  * finger taps it. Pressed by keyboard, focus is on the control outside the region, so
  * the walk counts from the obligation the user last went to there, else the first in sight,
  * else the region's start (panel/queue-walk.js says how). With none waiting it is disabled.
  *
- * An Effect UI component (lib/effect-widget.js) draws the server's reading from props, in
+ * An Effect UI component (runtime/effect-widget.js) draws the server's reading from props, in
  * the same nodes each time. Its room holds the widest words, both sides two digits
  * wide and the agent called "the agent", so the words change without moving the control
  * beside them or what follows. A longer count or agent name widens the room once. */
-import {
-  Command,
-  Component,
-  Effect,
-  Html,
-  Schema,
-  UiSchema,
-} from "/vendor/effect-ui.js";
-import {
-  agentName,
-  elementById,
-  obligationActions,
-  readObligations,
-} from "/runtime/widget-api.js";
+import { Html, Schema, UiSchema } from "/vendor/effect-ui.js";
+import { agentName, elementById, readObligations } from "/runtime/widget-api.js";
+import { NextOnMe } from "/runtime/widget-services.js";
 import { pressAttributes } from "/runtime/lib/controls.js";
-import { defineWidget, widgetProps } from "/runtime/lib/effect-widget.js";
+import { defineWidget, widgetProps } from "/runtime/effect-widget.js";
 import { tally, tallyWords } from "/runtime/lib/obligation-tally.js";
 
 const TallyProps = Schema.Struct({
@@ -53,20 +42,11 @@ const TallyProps = Schema.Struct({
 });
 const TallyMessage = UiSchema.TaggedEnum({ ClickedNext: {} });
 
-const StepToNextOnMe = Command.make(
-  "StepToNextOnMe",
-  { args: { region: Schema.Unknown } },
-  ({ region }) =>
-    Effect.sync(() =>
-      obligationActions.next({ within: /** @type {Element} */ (region) }),
-    ).pipe(Effect.as(Component.noop)),
-);
-
 /** @param {any} builder @param {Record<string, string>} attributes */
 const withAttributes = (builder, attributes) =>
   Object.entries(attributes).reduce((b, [name, value]) => b.attr(name, value), builder);
 
-const Tally = Html.component({
+export const Tally = Html.component({
   name: "Tally",
   props: TallyProps,
   model: Schema.Struct({}),
@@ -75,7 +55,7 @@ const Tally = Html.component({
   init: () => ({}),
   update: {
     ClickedNext: ($) =>
-      $.props.region ? $.run(StepToNextOnMe.make({ region: $.props.region })) : $.model,
+      $.props.region ? $.run(NextOnMe.make({ within: $.props.region })) : $.model,
   },
   view: (h) => {
     const { ready, done, generic, named, words, next, onUser } = h.props;

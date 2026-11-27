@@ -1,9 +1,9 @@
-/* The collection's totals, drawn by an Effect UI component (lib/effect-widget.js) from
+/* The collection's totals, drawn by an Effect UI component (runtime/effect-widget.js) from
  * the members' supplied scalars, never their rendered labels or patch text, and read
  * again as a revision's members connect. Unavailable snapshots stay apart from the
  * known totals. */
 import { Html, Schema } from "/vendor/effect-ui.js";
-import { defineWidget, widgetProps } from "/runtime/lib/effect-widget.js";
+import { defineWidget, widgetProps } from "/runtime/effect-widget.js";
 
 const WorktreeDiffsProps = Schema.Struct({
   ...widgetProps,

@@ -1,12 +1,13 @@
-/* An Effect UI component on the widget protocol (lib/effect-widget.js): when it mounts,
+/* An Effect UI component on the widget protocol (runtime/effect-widget.js): when it mounts,
    what a set of `state` draws and when, and what its events say to the host. A Leaf
    page's own answers to the protocol, such as recording an `lf-action`, are the
    browser suite's. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { Html, Schema, UiSchema } from "/vendor/effect-ui.js";
+import { Command, Component, Html, Schema, UiSchema } from "/vendor/effect-ui.js";
 import { signal } from "/vendor/signals-core.js";
-import { defineWidget, WidgetEvents, widgetProps } from "/runtime/lib/effect-widget.js";
+import { defineWidget, widgetProps } from "/runtime/effect-widget.js";
+import { RecordAction } from "/runtime/widget-services.js";
 
 let tags = 0;
 
@@ -19,17 +20,16 @@ const Verdict = Html.component({
   props: Schema.Struct({ ...widgetProps, note: Schema.optional(Schema.String) }),
   model: Schema.Struct({}),
   message: Message,
-  events: WidgetEvents,
 }).make({
   init: () => ({}),
   update: {
     ClickedShip: ($) =>
-      $.emit(
-        WidgetEvents.Recorded({
+      $.run(
+        RecordAction.make({
           verb: "decide",
           detail: { value: "ship" },
           says: "Chose Ship",
-        }),
+        }).pipe(Command.map(() => Component.noop)),
       ),
   },
   view: (h) =>
@@ -83,7 +83,7 @@ test("an element whose lf-connect a host cancels mounts once state is set", () =
   }
 });
 
-test("a Recorded event is an lf-action on the element, in the protocol's shape", () => {
+test("a RecordAction Command is an lf-action on the element, in the protocol's shape", async () => {
   const el = widget();
   document.body.append(el);
   /** @type {unknown[]} */
@@ -92,6 +92,9 @@ test("a Recorded event is an lf-action on the element, in the protocol's shape",
     actions.push(/** @type {CustomEvent} */ (event).detail),
   );
   /** @type {HTMLButtonElement} */ (el.querySelector("button")).click();
+  // A Command runs in a microtask of the task that handled the click, so Leaf records
+  // the gesture before the browser's next frame.
+  await Promise.resolve();
   assert.deepEqual(actions, [
     { verb: "decide", detail: { value: "ship" }, says: "Chose Ship" },
   ]);

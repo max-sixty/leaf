@@ -8,6 +8,7 @@ from render_cases_interaction import live_url
 from render_harness import (
     consume_browser_errors,
     expect_preview_words,
+    holding,
     http_error_console,
     leaf_page,
     open_page,
@@ -326,29 +327,31 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     assert file.read_text() == draft
 
     # When a focused Retry becomes a conflict, the disappearing button returns typing
-    # to the retained editor rather than the document body. A file that moves again
-    # while the reader weighs the conflict is read once they take the file version,
-    # rather than leaving the editor on the compared one.
+    # to the retained editor rather than the document body. A save with no answer may
+    # have reached the file, so Retry reads it first, and that read finds the file
+    # moved. A file that moves again while the reader weighs the conflict is read once
+    # they take the file version, rather than leaving the editor on the compared one.
     page.route("**/api/files/notes", fail_write)
     replace("# Mine\n")
     page.clock.run_for(600)
     expect(retry).to_be_visible()
     page.unroute("**/api/files/notes", fail_write)
-    held.clear()
-    page.evaluate("window.heldFileWrites = 0")
-    page.route("**/api/files/notes", hold_writes)
-    with page.expect_request(file_write):
-        retry.click()
-    page.wait_for_function("window.heldFileWrites === 1")
+    held_reads.clear()
+    page.route("**/api/files/notes", hold_reads)
+    retry.click()
+    holding(page, held_reads, 1, "the retry read")
     expect(retry).to_be_focused()
     file.write_text("# Compared\n")
-    held[0].continue_()
+    held_reads[0].continue_()
     page.clock.run_for(100)
     expect(retry).to_be_hidden()
     expect(conflict).to_be_visible()
     expect(editor).to_be_focused()
     caret_visible()
-    page.unroute("**/api/files/notes", hold_writes)
+    assert file.read_text() == "# Compared\n"
+    page.unroute("**/api/files/notes", hold_reads)
+    for route in held_reads[1:]:
+        route.continue_()
     with page.expect_response(lambda response: response.url.endswith("/api/state")):
         file.write_text("# Newest\n")
     choose("Use file version")

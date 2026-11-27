@@ -2,11 +2,13 @@
 Back and Review step through answered cards, and a new tab opens where a card waits."""
 
 import re
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import HOLD_MOTION, live_url
 from render_harness import (
+    clocked,
     holding,
     leaf_page,
     open_page,
@@ -269,13 +271,26 @@ def test_an_answer_read_back_late_moves_the_card_and_not_the_page(browser, serve
 def test_a_scroll_as_the_card_moves_on_keeps_the_page(browser, serve):
     """An answer by key brings up the next card, and a wheel the user turns while it
     comes up leaves the page where the wheel took it: neither the card's landing nor
-    the focus that follows the answer pulls it back."""
-    page = open_page(browser, serve(TALL_DECK_PAGE))
+    the focus that follows the answer pulls it back. The card's motion and the page's
+    timers are held until the page has read the wheel, so the wheel lands while the
+    card comes up however long the machine takes to deliver it."""
+    page = open_page(clocked(browser), serve(TALL_DECK_PAGE))
     page.emulate_media(reduced_motion="no-preference")
     page.keyboard.press("m")
     expect(page.locator("#store-ask")).to_be_focused()
+    page.evaluate("() => {" + HOLD_MOTION + "}")
+    page.evaluate(
+        "() => { window.__wheeled = new Promise((read) =>"
+        " addEventListener('wheel', read, { once: true, passive: true })); }"
+    )
+    page.clock.pause_at(datetime.now(UTC) + timedelta(seconds=1))
     page.keyboard.press("1")
     page.mouse.wheel(0, -3000)
+    page.evaluate("() => window.__wheeled.then(() => {})")
+    page.evaluate(
+        "() => __lfHeld.filter(a => a.playState !== 'idle').forEach(a => a.finish())"
+    )
+    page.clock.resume()
     open_card(page, "tall-ask")
     page.wait_for_function(LANDED)
     # The arrival an answer by key makes waits as long as the card that came up takes

@@ -6,12 +6,7 @@ from interact_support import append_carried_log_record
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
-from render_cases_layout import (
-    PANEL_DIFF_MARKUP,
-    current_location_ring,
-    rings_drawn,
-    serious_axe_violations,
-)
+from render_cases_layout import PANEL_DIFF_MARKUP, serious_axe_violations
 from render_cases_widgets import SCROLLED, SCROLLING_DIAGRAM_PAGE
 from render_harness import (
     LONG_PAGE,
@@ -39,6 +34,7 @@ from leaf.log import event_log as events_model
 from leaf.source.render_checks import rendered
 from leaf_dev.browser import open_on_me
 from leaf_dev.example_data import named_source
+from leaf_dev.rings import current_location_ring, rings_drawn
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

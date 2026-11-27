@@ -898,12 +898,12 @@ def put_on_me_turned_back(page, built):
     expect(cards).to_have_count(0)
     tabs.filter(has_text="On Me").click()
     expect(cards).to_have_count(ASKS)
-    view = page.locator(".lf-floating-panel .lf-fp-view:not([data-lf-leaving])")
+    view = page.locator(".lf-floating-panel .lf-fp-view")
     box = view.bounding_box()
     page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
     page.mouse.wheel(0, 3 * cards.first.bounding_box()["height"])
     expect(view).not_to_have_js_property("scrollTop", 0)
-    scroll_settled(page, ".lf-floating-panel .lf-fp-view:not([data-lf-leaving])")
+    scroll_settled(page, ".lf-floating-panel .lf-fp-view")
     card = cards.filter(has_text="Ask 6:")
     expect(card).to_be_in_viewport()
     card.hover()
@@ -913,7 +913,7 @@ CARD = ".lf-margin-preview:not([hidden])"
 CARD_REPLY = f"{CARD} .lf-thread-reply leaf-text"
 CARD_RESOLVE = f'{CARD} button[aria-label="Resolve thread"]'
 CARD_SEND = f"{CARD} .lf-thread-reply .lf-compose-submit"
-PANEL_VIEW = '.lf-fp-view[data-lf-route="thread"]:not([data-lf-leaving])'
+PANEL_VIEW = '.lf-fp-view[data-lf-route="thread"]'
 PANEL_REPLY = ".lf-floating-panel .lf-thread-reply leaf-text"
 PANEL_RESOLVE = '.lf-floating-panel .lf-fp-head button[aria-label="Resolve thread"]'
 PANEL_SEND = ".lf-floating-panel .lf-compose-submit"

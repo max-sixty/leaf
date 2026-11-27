@@ -20,7 +20,7 @@
     "test:runtime": "node --import ./tests/runtime/dom.mjs --test tests/runtime/*.test.mjs",
     "fuzz:editor": "LEAF_FUZZ_DRAFTS=${LEAF_FUZZ_DRAFTS:-100000} node --import ./tests/runtime/dom.mjs --test --test-name-pattern='keep their promises' tests/runtime/field-editor.test.mjs",
     "check:framework": "pnpm run check:browser && pnpm run test:browser",
-    "check:worker": "tsc --noEmit --project worker/tsconfig.json && pnpm run test:worker",
+    "check:worker": "tsc --noEmit --project worker/tsconfig.json && tsc --noEmit --project worker/tsconfig.node.json && pnpm run test:worker",
     "check:hooks": "tsc --project hooks/tsconfig.json && claude plugin validate .",
     "check:tools": "tsc --project build/tsconfig.json",
     "check": "pnpm run check:hooks && pnpm run check:tools && pnpm run check:framework && pnpm run test:runtime && pnpm run check:worker",

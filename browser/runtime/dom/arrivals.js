@@ -44,9 +44,14 @@
 
    Present means in the document, the page's body and the chrome after it alike, or in
    a declared shadow stage whose host is connected. No observer crosses a shadow boundary on its own, so shadow-stage.js, the
-   one door a stage is built through, hands each one it fills to `watchArrivalsIn`. No
-   scroll or scroll end crosses one either, so this module hears the document's and
-   every stage's, and those of any other tree a module enrolls (`hearScrollsIn`). A
+   one door a stage is built through, hands each one it fills to `watchArrivalsIn`. A
+   record names the node it moved, and what that node holds is found by walking down
+   from it, through open roots and stages; a closed root is entered only once it is a
+   stage, as `adoptShadowStage` makes one, which `widget-api.js` doesn't export. So a
+   stage inside a page script's or a package's own closed root is heard only by records
+   of its own, and moving that root's host neither arrives nor leaves what the stage
+   holds. No scroll or scroll end crosses a shadow boundary either, so this module hears
+   the document's and every stage's, and those of any other tree a module enrolls (`hearScrollsIn`). A
    protocol event dispatched without the options that carry it to Leaf's listeners is
    lost the same way, in silence, so the document and each stage report one
    (`reportUnheardIn`). Its
@@ -77,7 +82,13 @@
    This module is the stages' one registry (`liveStages`), held weakly: a stage outlives
    its widget only as garbage. A stage built while its host was detached arrives with the
    host. */
-import { isElement, renderedParent, shadowHost, under } from "../lib/shadow-tree.js";
+import {
+  isElement,
+  openRoot,
+  renderedParent,
+  shadowHost,
+  treesUnder,
+} from "../lib/shadow-tree.js";
 import { cancelRender, nextFrame, nextRender } from "../lib/frame-pass.js";
 import { scrollMoves } from "../lib/scroll-range.js";
 import {
@@ -231,14 +242,21 @@ const ownerKind = {
   },
 };
 
-// Every match in what a record names, the stages inside it included.
+// Every match in what a record names, the stages inside it included, found from the
+// node down (`treesUnder`), so a record costs what it names rather than the stages the
+// page holds. The walk passes through every tree this module can see, including open
+// roots that are no stage, since a stage can stand inside one; only the node's own tree
+// and the stages hold matches. A closed root is seen only once it is enrolled as a stage
+// (`adoptShadowStage`, shadow-stage.js), so a stage behind one that isn't is heard only
+// by records of its own.
 function* matching(node, kind) {
   if (!isElement(node)) return;
   if (kind.is(node)) yield node;
-  yield* kind.within(node);
-  for (const stage of liveStages())
-    if (under(stage.host, node)) yield* kind.within(stage);
+  for (const tree of treesUnder(node, seenRoot))
+    if (tree === node || isStage(tree)) yield* kind.within(tree);
 }
+// The tree a host holds that this module can see: its open root, or its closed stage.
+const seenRoot = (host) => openRoot(host) ?? hostStages.get(host) ?? null;
 
 /** @param watcher Each arrival goes to `arriveBatch` where there is one, else to `arrive`. */
 export const watchArrivals = (selector, attributes, watcher) =>

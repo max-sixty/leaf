@@ -248,7 +248,7 @@ layout](/media/051bee487bfb5d13.png)
 # syntax where the editor leaves it unseen.
 DRAFT_AS_DRAWN = """(draft, words) => {
   const box = draft.getBoundingClientRect();
-  const editor = draft.querySelector(':scope > leaf-text');
+  const editor = draft.querySelector('leaf-text');
   const root = editor ? window.marginEditorRoots.get(editor) : draft.querySelector('.lf-draft-body');
   const at = (node) => {
     const r = node.getBoundingClientRect();

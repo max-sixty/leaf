@@ -57,7 +57,8 @@ rubrics:
       presents as current; an On Me item settled elsewhere; work
       the agent promised or set running that no page shows; or an open thread whose
       agent messages the user would misread, since the work overtook its latest one
-      or a later reply corrects an earlier one. An unlabelled item fails
+      or an earlier one still gives an answer a later one shows was wrong. An
+      unlabelled item fails
       if it hedges about what the page may say, if a Leaf message in the
       conversation already passed it on, if it concerns a chat reply rather than the
       page, if an On Me item already holds it, if the user has since answered it, if
@@ -166,6 +167,7 @@ words:
       slowest queries,
       fix first,
     ]
+  merge-812: &merge-812 [merge 812, checks pass, review bot approved, still running]
   production-flag:
     &production-flag [
       env prod,
@@ -1174,6 +1176,77 @@ cases:
       absent:
         - kind: overtaken
           words: *warmup-replies
+    assert:
+      - *items
+  # A reply bringing the news an unanswered question waited on: the question still
+  # reads true, so nothing is misread.
+  overtaken-awaited:
+    fork: turn-end
+    page: turn-end-check/pages/cache-chosen.html
+    log:
+      - kind: comment
+        author: agent
+        agent: Claude
+        revision: 1
+        id: q1
+        ts: "2026-11-03T09:01:00+00:00"
+        title: Merging #812, the LRU result cache
+        text: |-
+          [#812](https://github.com/acme/search/pull/812) puts the LRU cache behind the `search.cache` flag. Its tests pass, and its CI and the review bot were still running when I opened it.
+
+          Shall I merge it once its checks pass?
+
+          <lf-options id="merge-812">
+          <lf-option id="merge-812-yes" label="Merge #812 once its checks pass" recommended><strong>Merge #812 once its checks pass</strong> It squash-merges into <code>main</code>.</lf-option>
+          <lf-option id="merge-812-hold" label="Hold it until you've read it"><strong>Hold it until you've read it</strong> The branch stays open.</lf-option>
+          </lf-options>
+      - kind: reply
+        author: agent
+        agent: Claude
+        revision: 1
+        id: r1
+        parent: q1
+        ts: "2026-11-03T09:02:00+00:00"
+        text: Its checks pass and the review bot approved it.
+    conversation:
+      - from: cache
+      - *cache-reply
+      - from: cache-chosen
+      - user: Open a PR for it.
+      - tool: Bash
+        input:
+          command: gh pr create --fill
+          description: Open the pull request
+        result: https://github.com/acme/search/pull/812
+      - tool: Bash
+        input:
+          command: leaf thread create {page} --title "Merging #812, the LRU result cache" --file .tmp/merge-812.md
+          description: Ask on the page whether to merge
+        result: '{"kind": "comment", "id": "q1", "author": "agent", "title": "Merging #812, the LRU result cache"}'
+      - assistant: >-
+          [#812](https://github.com/acme/search/pull/812) is open, and the page asks
+          whether to merge it once its checks pass.
+      - user: |-
+          <task-notification>
+          <summary>Background command "Wait for #812's checks" completed</summary>
+          </task-notification>
+      - tool: Bash
+        input:
+          command: gh pr checks 812
+          description: Read #812's checks
+        result: |-
+          All checks were successful
+          review-bot  APPROVED
+      - tool: Bash
+        input:
+          command: leaf thread reply {page} q1 --text "Its checks pass and the review bot approved it."
+          description: Post the checks' result in the merge thread
+        result: '{"kind": "reply", "id": "r1", "parent": "q1", "author": "agent"}'
+      - assistant: "#812's checks pass and the review bot approved it. Whether to merge waits on the page."
+    labels:
+      absent:
+        - kind: overtaken
+          words: *merge-812
     assert:
       - *items
   overtaken-question:

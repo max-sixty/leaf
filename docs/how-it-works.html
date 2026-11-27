@@ -3708,13 +3708,14 @@ EOF</code></pre>
               Once a thread is long, Leaf suggests a range to the agent with the user's
               next message. It takes in any earlier summaries and leaves the newest
               exchange outside, so a summary over it leaves the thread one summary; the
-              agent decides whether to summarize. Editing a message inside a written
-              summary's range removes the summary, so an outdated summary cannot hide
-              the correction. A thread shows only the latest progress message an agent
-              posts while working, and the one it left above each message the user has
-              written since. Its next message there replaces the latest, its next reply
-              the ones above the user's messages, and its turn ending does too where
-              nothing before them still waits on an answer.
+              agent decides whether to summarize. A summary stands when a message it
+              folds is edited: Leaf names the summary to the agent, which summarizes
+              again where the edit changes what the summary reports. A thread shows only
+              the latest progress message an agent posts while working, and the one it
+              left above each message the user has written since. Its next message there
+              replaces the latest, its next reply the ones above the user's messages,
+              and its turn ending does too where nothing before them still waits on an
+              answer.
             </p>
           </section></lf-tab
         ><lf-tab id="forks" label="Forks"

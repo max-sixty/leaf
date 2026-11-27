@@ -92,8 +92,8 @@
 
    Shadow trees: only open roots declared through `shadow` join the page reading;
    any other root is opaque, and its host reads by its light children (`walk`).
-   `pageShadowRoots` (dom/shadow.js) enumerates the declared ones. `textNodesUnder` crosses those roots,
-   `pageRange` requests them from `getComposedRanges`, and `upFrom`, `under` (lib/shadow-tree.js),
+   `shadowRootsIn` (dom/shadow.js) finds the declared ones. `textNodesUnder` crosses those roots,
+   `pageRange` hands the ones a selection's ends stand in to `getComposedRanges`, and `upFrom`, `under` (lib/shadow-tree.js),
    and `closestAcross` cross back to the host.
 
    Identity crosses the same boundary. `elementById` searches the document and declared
@@ -123,10 +123,10 @@ import { inChrome, SAID, UI_MARKS, inUi, uiInside } from "../base/ui-marks.js";
 import { keptEach, unkept, version } from "../state/kept.js";
 import { liveStages } from "../dom/arrivals.js";
 import {
+  declaredIn,
   declaredRoot,
   refuseShadowRoot,
   queryAllUnder,
-  shadowRootsIn,
 } from "../dom/shadow.js";
 import {
   alongClimb,
@@ -139,6 +139,7 @@ import {
   isHTML,
   renderedParent,
   skipper,
+  treesUnder,
 } from "../lib/shadow-tree.js";
 import { decisionFor, registry } from "../state/registry.js";
 import {
@@ -422,7 +423,7 @@ export const elementOver = (n: Node): Element => {
 // says the page has a problem, and the page never presents (leaf.js). A page already
 // upgraded keeps running without those words, and without the root: a mark or a
 // projection painted into it is never cleared, and an id inside it stops resolving,
-// since every sweep of declared roots (`shadowRootsIn`) has dropped it.
+// since every sweep of declared roots (`declaredRoot`) has dropped it.
 function refusesBareText(root: ShadowRoot) {
   const bare = [...root.childNodes].filter(isText).find((node) => node.data.trim());
   if (!bare) return false;
@@ -944,7 +945,10 @@ export function textNodesUnder(
 // declared inside it. The first element with the id in `root`'s tree answers where it
 // stands under `root` and is accepted, so a lookup costs a walk of `root`'s elements
 // only where another element with the id stands before the answer, as a message's copy
-// of a page id can.
+// of a page id can. Past the document, each stage is asked for the id and kept only
+// where it is a root declared in `root`'s tree (`declaredIn`), so an id no tree holds,
+// as an obligation's widget in a thread no one has opened, costs the stages rather than
+// a walk of the page on each paint that places it.
 export const elementById = (
   id: string | null | undefined,
   root: Document | Element | null = document,
@@ -963,9 +967,9 @@ export const elementById = (
       ? first
       : [...root.querySelectorAll(`[id="${CSS.escape(id)}"]`)].find(accepts);
   if (found && accepts(found)) return found;
-  for (const shadow of shadowRootsIn(root)) {
-    const inside = shadow.getElementById(id);
-    if (accepts(inside)) return inside;
+  for (const stage of liveStages()) {
+    const inside = stage.getElementById(id);
+    if (inside && declaredIn(root, stage) && accepts(inside)) return inside;
   }
   return null;
 };
@@ -1988,8 +1992,8 @@ function forgetPartsBeneath(nodes: ReadonlySet<Node>) {
   const under = (node: Node) => {
     if (isElement(node)) forgetPart(node);
     else if (!isShadowRoot(node)) return;
-    for (const part of node.querySelectorAll(DATUM)) forgetPart(part);
-    shadowRootsIn(node).forEach(under);
+    for (const tree of treesUnder(node, declaredRoot))
+      for (const part of tree.querySelectorAll(DATUM)) forgetPart(part);
   };
   const tops = new Set<Node>();
   for (let at of nodes) {
@@ -2885,10 +2889,12 @@ const STEP = 32;
 // The letters of raw[lo..end), taken out by the platform's own replace, which keeps every
 // code unit as it stands, and the marks counted after.
 const GAPS = new RegExp(`[${EDGE}${COLLAPSE_CHARS}]+`, "g");
+// A quote's or a reading's spelling: its letters, its words run together. Two quotes
+// spelled alike can stand on the same words.
+export const spellingOf = (text: string) => text.replace(GAPS, "");
 function spell(raw: string, lo: number, end: number): Spelled {
-  const spelling = (lo === 0 && end === raw.length ? raw : raw.slice(lo, end)).replace(
-    GAPS,
-    "",
+  const spelling = spellingOf(
+    lo === 0 && end === raw.length ? raw : raw.slice(lo, end),
   );
   const marks = new Int32Array(Math.ceil(spelling.length / STEP));
   for (let i = lo, n = 0; n < spelling.length; i++) {

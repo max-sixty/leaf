@@ -693,9 +693,8 @@
       }
       // Hit testing sees only boxes that take hits, so paint that takes none passes the
       // reading above: a box shadow, a pseudo-element or a layer with no pointer events,
-      // or a ring never painted at all. A margin card's sticky message head lays paper
-      // over the room above it as a shadow, and the ring on the message under it read
-      // whole with its top run gone. So each run is also read off the screenshot where
+      // or a ring never painted at all: a box shadow laid over a ring reads whole to hit
+      // testing with the run under it gone. So each run is also read off the screenshot where
       // nothing in front of the ring takes hits, which leaves every box hit testing
       // can see to the reading above and its excuses. `rings_drawn` takes the
       // screenshot and reports a run the ring's colour doesn't cover.
@@ -735,8 +734,8 @@
           x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
         // A press of the box's own standing in front is chrome seated on its border on
         // purpose, as a draft's toolbar and a code block's Copy are, so the ring under
-        // it is not read; the box's other contents, such as a card message's sticky
-        // head, are, since nothing makes their cover deliberate.
+        // it is not read; the box's other contents are, since nothing makes their cover
+        // deliberate.
         const exposed = (x, y) => {
           const front = document.elementsFromPoint(x, y)[0];
           if (!front || front === el) return true;

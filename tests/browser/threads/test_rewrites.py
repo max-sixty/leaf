@@ -150,9 +150,9 @@ def test_a_rewrite_at_the_foot_of_a_card_that_scrolls_keeps_its_whole_ring(
     """A rewrite of the user's last turn, at the foot of a card whose transcript
     scrolls, draws its frame's ring into the room the transcript keeps below its turns.
     Firefox leaves a grid scroller's end padding out of its scroll range while a box
-    sticks in it, so a room kept as padding ended the range at the frame's foot and cut
-    the ring's bottom side away with the card scrolled to its end. The ring stands
-    whole there in each engine."""
+    sticks in it, as New reply can, which would end the range at the frame's foot and
+    cut the ring's bottom side away with the card scrolled to its end, so the
+    transcript is a block. The ring stands whole there in each engine."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Opening turn. " + LANDING_WORDS * 3, {"section": "how-store"}
@@ -1086,72 +1086,6 @@ def test_a_cards_message_controls_cover_its_head(browser, serve):
     assert page.screenshot(clip=pair["box"]) == shown, "the head shows under the pair"
     page.keyboard.press("Escape")
     expect(resolve).to_be_visible()
-
-
-@pytest.mark.parametrize("finger", [False, True])
-def test_a_rewrite_keeps_its_pair_while_its_head_sticks_beside_the_actions(
-    browser, serve, finger
-):
-    """A later message's controls stand aside while its head sticks on the line of the
-    card's actions, and standing an open rewrite's Discard and Save aside too would hide
-    them, though the rewrite stands open below them. On a card at its least width under
-    a finger, beside Previous and Next, a pair, two fingers wide, that ran past the head
-    into the actions would turn a tap on Save into a press of Previous. The pair stays,
-    over the head's words."""
-    url = serve(PANEL_PAGE)
-    section = {"section": "how-store"}
-    root = panel_comment(serve.page_dir, "Fit the north bracket.", section)
-    for author, text in (
-        ("agent", "Fitted. " + LANDING_WORDS * 2),
-        ("user", "And the south one? " + LANDING_WORDS * 2),
-        ("agent", "Both fitted. " + LANDING_WORDS * 12),
-    ):
-        mine = append_carried_log_record(
-            serve.page_dir,
-            {"kind": "reply", "author": author, "parent": root, "text": text},
-        )
-        if author == "user":
-            later = mine["id"]
-    if finger:
-        panel_comment(serve.page_dir, "Make the banner quieter", section)
-        context = browser.new_context(
-            viewport={"width": 1400, "height": 844}, has_touch=True, is_mobile=True
-        )
-        page = open_page(browser, url, context=context)
-    else:
-        page = open_page(browser, url)
-        resized(page, 1200, 700)
-    page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
-    card = page.locator(".lf-margin-preview")
-    message = card.locator(f'.lf-msg[data-lf-event="{later}"]')
-    expect(message).to_be_visible()
-    rendered(page)
-    message.locator(".lf-msg-text").dblclick()
-    expect(message.locator(".lf-msg-editor leaf-text")).to_be_focused()
-    # The message's opening stands a line above the transcript's top.
-    card.locator(".lf-thread-transcript").evaluate(
-        """(box, id) => {
-          const message = box.querySelector(`.lf-msg[data-lf-event="${id}"]`);
-          box.scrollTop += message.getBoundingClientRect().top
-            - box.getBoundingClientRect().top + 20;
-        }""",
-        later,
-    )
-    rendered(page)
-    expect(message).to_have_attribute("data-lf-beside-actions", "")
-    for name in ("Discard", "Save"):
-        control = message.get_by_role("button", name=name, exact=True)
-        expect(control).to_be_visible()
-        # A press at its middle reaches it where it stands, with no scroll first.
-        hit = control.evaluate(
-            """node => {
-              const box = node.getBoundingClientRect();
-              const at = node.getRootNode().elementFromPoint(
-                box.left + box.width / 2, box.top + box.height / 2);
-              return node.contains(at) || at?.outerHTML.slice(0, 120);
-            }"""
-        )
-        assert hit is True, (name, hit)
 
 
 @pytest.mark.parametrize("previous", ["reply-after-empty-composer", "drawing"])

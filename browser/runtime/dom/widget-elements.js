@@ -35,7 +35,6 @@ export { generatedElement } from "../base/element-markers.js";
    than recording a choice while the user operates nested evidence. */
 import { pageRange, selectionBackward, selectionEnds } from "./native-selection.js";
 import { overCharacter } from "./geometry.js";
-import { pageShadowRoots } from "./shadow.js";
 
 import { CONTROLS, PRESSES, WORKS } from "./control-selectors.js";
 import { bodyIsData, registry, tagsDeclaring } from "../state/registry.js";
@@ -49,6 +48,7 @@ import {
   closestAcross,
   isElement,
   isNativeLayer,
+  isShadowRoot,
   renderedUnder,
   renderedParent,
   untilFound,
@@ -344,10 +344,13 @@ addEventListener(
   { capture: true, passive: true },
 );
 
-// Whether a point lies over a character `range` holds.
+// Whether a point lies over a character `range` holds. Only the range's own tree can hold
+// one, so that tree alone is handed to the platform, and a point over any other tree
+// comes back outside it.
 function onSelectedWords(range, x, y) {
+  const tree = range.startContainer.getRootNode();
   const caret = document.caretPositionFromPoint(x, y, {
-    shadowRoots: pageShadowRoots(),
+    shadowRoots: isShadowRoot(tree) ? [tree] : [],
   });
   const node = caret?.offsetNode;
   if (!caret || !(node instanceof Text)) return false;

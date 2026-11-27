@@ -176,6 +176,120 @@ test("an owner inside a shadow stage connects, leaves with its host and returns 
   }
 });
 
+test("an owner in a stage inside an open root no stage holds leaves and returns with that root's host", async () => {
+  const outer = document.createElement("div");
+  const unstaged = outer.attachShadow({ mode: "open" });
+  const inner = document.createElement("div");
+  const stage = inner.attachShadow({ mode: "open" });
+  watchArrivalsIn(stage);
+  const owner = document.createElement("span");
+  stage.append(owner);
+  unstaged.append(inner);
+  const { log, stop } = connections(owner);
+  try {
+    await mutate(() => document.body.append(outer));
+    assert.deepEqual(log, ["connect"]);
+    await mutate(() => outer.remove());
+    assert.deepEqual(log, ["connect", "disconnect"]);
+  } finally {
+    stop();
+    outer.remove();
+  }
+});
+
+test("a record naming thousands of nested stages is read through to the innermost", () => {
+  // The shared watch hears the stage below only once it stands.
+  watchOwner(document.createElement("i"), {})();
+  const holder = document.createElement("div");
+  const stage = holder.attachShadow({ mode: "open" });
+  watchArrivalsIn(stage);
+  const outer = document.createElement("div");
+  stage.append(outer);
+  // Each tree is built inside the last and enrolled once all stand, so the record of the
+  // outer host's arrival is read with every stage beneath it.
+  const trees = [outer.attachShadow({ mode: "open" })];
+  for (let depth = 0; depth < 10000; depth++) {
+    const host = document.createElement("div");
+    trees.at(-1).append(host);
+    trees.push(host.attachShadow({ mode: "open" }));
+  }
+  for (const tree of trees) watchArrivalsIn(tree);
+  // A connected owner's registration reads the records already made, that one first.
+  const owner = document.body.appendChild(document.createElement("span"));
+  const { log, stop } = connections(owner);
+  try {
+    assert.deepEqual(log, ["connect"]);
+  } finally {
+    stop();
+    owner.remove();
+  }
+});
+
+test("an owner inside a form that names a control shadowRoot arrives with the form", async () => {
+  const form = document.createElement("form");
+  form.innerHTML = '<input name="shadowRoot"><input name="shadowRoot"><p></p>';
+  // A browser answers a form's `shadowRoot` with its controls of that name, which
+  // happy-dom doesn't, so the form is given that answer as its own.
+  Object.defineProperty(form, "shadowRoot", {
+    get: () => form.elements.namedItem("shadowRoot"),
+  });
+  assert.ok(form.shadowRoot, "the form names its controls");
+  const owner = form.querySelector("p");
+  const { log, stop } = connections(owner);
+  try {
+    await mutate(() => document.body.append(form));
+    assert.deepEqual(log, ["connect"]);
+  } finally {
+    stop();
+    form.remove();
+  }
+});
+
+test("an owner beside hosts whose shadowRoot answers no root of theirs arrives", async () => {
+  const lazy = document.createElement("div");
+  Object.defineProperty(lazy, "shadowRoot", { get: () => false });
+  const child = document.createElement("div");
+  child.attachShadow({ mode: "open" });
+  const wrapper = document.createElement("div");
+  Object.defineProperty(wrapper, "shadowRoot", { get: () => child.shadowRoot });
+  wrapper.append(child);
+  const owner = document.createElement("p");
+  const holder = document.createElement("div");
+  holder.append(lazy, wrapper, owner);
+  const { log, stop } = connections(owner);
+  try {
+    await mutate(() => document.body.append(holder));
+    assert.deepEqual(log, ["connect"]);
+  } finally {
+    stop();
+    holder.remove();
+  }
+});
+
+test("an owner in a stage inside another stage leaves and returns with the outer host", async () => {
+  const outer = document.createElement("div");
+  const outerStage = outer.attachShadow({ mode: "open" });
+  watchArrivalsIn(outerStage);
+  const inner = document.createElement("div");
+  const innerStage = inner.attachShadow({ mode: "open" });
+  watchArrivalsIn(innerStage);
+  const owner = document.createElement("span");
+  innerStage.append(owner);
+  outerStage.append(inner);
+  const { log, stop } = connections(owner);
+  try {
+    await mutate(() => document.body.append(outer));
+    assert.deepEqual(log, ["connect"]);
+    await mutate(() => outer.remove());
+    assert.deepEqual(log, ["connect", "disconnect"]);
+    await mutate(() => document.body.append(outer));
+    assert.deepEqual(log, ["connect", "disconnect", "connect"]);
+  } finally {
+    stop();
+    outer.remove();
+  }
+});
+
 test("connected registration starts synchronously and may own only signal listeners", () => {
   const owner = document.createElement("section");
   document.body.append(owner);

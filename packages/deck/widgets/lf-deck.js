@@ -581,7 +581,7 @@ customElements.define(
       if (event.pointerType !== "touch") return;
       if (
         event.target.closest(
-          "button, a, input, textarea, select, [contenteditable], [role=button], [role=radio], [role=checkbox], [data-lf-offer]",
+          "button, a, input, textarea, select, [contenteditable]:not([contenteditable=false]), [role=button], [role=radio], [role=checkbox], [data-lf-offer]",
         )
       )
         return;

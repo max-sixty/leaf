@@ -135,8 +135,9 @@ export function rangeGeometry(range) {
         : (range.startContainer.childNodes[range.startOffset] ?? range.startContainer),
     box: range.getBoundingClientRect(),
     attachment:
-      segmentLines(segmentsIn(range)).find((rect) => rect.width > 0 && rect.height > 0) ??
-      null,
+      segmentLines(segmentsIn(range)).find(
+        (rect) => rect.width > 0 && rect.height > 0,
+      ) ?? null,
   };
 }
 

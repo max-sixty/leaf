@@ -193,22 +193,6 @@ const bundles = {
   "effect-ui": () => ({
     out: `${assets}/vendor/effect-ui.js`,
     entryPoints: [input("entries/effect-ui/entry.mjs")],
-    adapt: [
-      {
-        file: /@effect\/ui\/dist\/html\/internal\/dom\.js$/,
-        // Writing a focused field's value puts its scroll back where it stood, and
-        // a write that moves nothing still stops a scroll under way there. Only a
-        // scroll the write moved is put back.
-        edit: (source) =>
-          seam(
-            source,
-            "    element.scrollLeft = scrollLeft;\n    element.scrollTop = scrollTop;\n",
-            "    if (element.scrollLeft !== scrollLeft) element.scrollLeft = scrollLeft;\n" +
-              "    if (element.scrollTop !== scrollTop) element.scrollTop = scrollTop;\n",
-            "Effect UI field scroll restore",
-          ),
-      },
-    ],
     banner: {
       js: `/*! effect ${version("effect")} and @effect/ui ${version("@effect/ui")} — MIT — https://github.com/Effect-TS/ui */`,
     },

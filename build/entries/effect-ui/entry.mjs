@@ -10,4 +10,4 @@ export * as Schema from "effect/Schema";
 export * as Scope from "effect/Scope";
 export * as Stream from "effect/Stream";
 export { Command, Component, Mount, UiSchema } from "@effect/ui";
-export { BrowserHost, Html, HtmlCommand, HtmlSubscription } from "@effect/ui/html";
+export { BrowserHost, Html, HtmlSubscription } from "@effect/ui/html";

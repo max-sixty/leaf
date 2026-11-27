@@ -696,7 +696,7 @@ def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
     search.fill("importer")
     row.click()
     expect(search).to_have_value("")
-    expect(row).to_be_focused()
+    expect(search).to_be_focused()
     expect(folds.first).to_have_attribute("open", "")
     expect(folds.first.locator("pre")).to_contain_text("keep_names = True")
     # The same selected file still has an activation route after its patch closes.
@@ -731,7 +731,7 @@ def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
         expect(folds.first).not_to_be_visible()
         expect(folds.last).to_be_visible()
         expect(other).to_have_attribute("aria-selected", "true")
-        # Enter in search chooses its first match's row; the row opens its file.
+        # Trees confirms a search match onto its row; the row opens its file.
         for path, visible in [
             ("src/importer.py", folds.first),
             ("tests/importer.py", folds.last),

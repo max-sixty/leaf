@@ -1,11 +1,9 @@
-/* The file tree's update as stories (`Story`, @effect/ui/testing): what the reader's
-   acts in the search and the rows do to the query, and what opening a file asks of
-   Leaf, with no page or Trees behind it. Trees' rows on a page are the browser
-   suite's. */
-import assert from "node:assert/strict";
+/* The file tree's update as stories (`Story`, @effect/ui/testing): what opening a file
+   asks of Leaf, with no page or Trees behind it. Trees' rows and search on a page are
+   the browser suite's. */
 import test from "node:test";
 import { Story } from "@effect/ui/testing";
-import { Component, Effect, HtmlCommand } from "/vendor/effect-ui.js";
+import { Component, Effect } from "/vendor/effect-ui.js";
 import { NavigateToDatum } from "/runtime/widget-services.js";
 import {
   FileTree,
@@ -21,10 +19,9 @@ const story = (given, body) =>
     body(yield* Story.make(FileTree, { ...props, ...given }));
   }).pipe(Effect.scoped, Effect.runSync);
 
-test("opening a keyed file in a linked tree empties the search and reveals its datum", () => {
+test("opening a keyed file in a linked tree reveals its datum", () => {
   story({}, (s) => {
-    s.send(FileTreeMessage.UpdatedQuery({ value: "main" }))
-      .send(FileTreeMessage.OpenedFile({ path: "src/main.py" }))
+    s.send(FileTreeMessage.OpenedFile({ path: "src/main.py" }))
       .expectExact(
         NavigateToDatum.make({
           reference: "for",
@@ -34,7 +31,6 @@ test("opening a keyed file in a linked tree empties the search and reveals its d
         }),
       )
       .resolve(NavigateToDatum, Component.noop);
-    assert.equal(s.model.query, "");
   });
 });
 
@@ -43,25 +39,4 @@ test("opening a file asks nothing of Leaf without a key or a reference", () => {
   story({ linked: false }, (s) =>
     s.send(FileTreeMessage.OpenedFile({ path: "src/main.py" })),
   );
-});
-
-test("a letter typed on a row types into the search and puts the reader there", () => {
-  story({}, (s) => {
-    s.send(FileTreeMessage.UpdatedQuery({ value: "ma" }))
-      .send(FileTreeMessage.TypedOnRow({ key: "i" }))
-      .resolve(HtmlCommand.Focus, { found: true });
-    assert.equal(s.model.query, "mai");
-  });
-});
-
-test("Escape, a chosen match and Trees closing its search each empty the search", () => {
-  for (const message of [
-    FileTreeMessage.PressedEscape(),
-    FileTreeMessage.ChoseMatch(),
-    FileTreeMessage.ClosedTreeSearch(),
-  ])
-    story({}, (s) => {
-      s.send(FileTreeMessage.UpdatedQuery({ value: "main" })).send(message);
-      assert.equal(s.model.query, "");
-    });
 });

@@ -16,15 +16,15 @@ import {
   contributionHasCurrentLocation,
   forgetContributionControls,
 } from "./contribution-controls.js";
-import { focusDestination } from "../dom/focus.js";
+import { focusDestination, focused } from "../dom/focus.js";
 /** @typedef {import("./contribution-controls.js").ReadingOptions} ReadingOptions
  * @typedef {import("../base/contribution-model.js").ContributionReading} ContributionReading
  * @typedef {import("../base/contribution-model.js").OwnedEntry} OwnedEntry
  * @typedef {import("../base/contribution-model.js").ContributionModel} ContributionModel
  * @typedef {"margin" | "map" | "inline"} ContributionSurface
  * @typedef {{origin?: Element | null, surface?: ContributionSurface | null,
- * input?: "keyboard" | "pointer"}} ActivationRequest
- * @typedef {ActivationRequest & {entry: OwnedEntry}} ActivationContext
+ * input?: "keyboard" | "pointer", focus?: (key: string) => boolean}} ActivationRequest
+ * @typedef {ActivationRequest & {entry: OwnedEntry, focus: (key: string) => boolean}} ActivationContext
  * @typedef {(activation: string, context: ActivationContext) => unknown} Activate
  * @typedef {{entry: Exclude<OwnedEntry, {behavior: "status"}>, activate: Activate}} UnscopedAction
  * @typedef {ContributionModel & {source: () => ContributionSource}} ContributionOffer
@@ -213,12 +213,25 @@ export function registerContribution({ key, target, source = target, read, activ
         current.behavior === "status"
       )
         return false;
+      const originOwnsFocus = context.origin == null || context.origin === focused();
+      /** @param {string} key */
+      const focusCurrentSurface = (key) =>
+        arrive(key, context.surface ?? null, (destination) => {
+          if (context.focus) return context.focus(key);
+          focusDestination(destination, "return");
+          return true;
+        });
+      const activationContext = {
+        ...context,
+        entry: current,
+        focus: originOwnsFocus ? focusCurrentSurface : () => false,
+      };
       const command = contributionCommand(current);
       if (command) commandRun(command.row, command.binding)?.();
       else {
         const action = offered.unscoped.find(({ entry }) => entry === current);
         if (!action) return false;
-        action.activate(action.entry.activation, { ...context, entry: current });
+        action.activate(action.entry.activation, activationContext);
       }
       return true;
     },

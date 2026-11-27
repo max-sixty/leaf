@@ -333,6 +333,44 @@ test("a thread's margin entry and Page Map row say the word Threads gives it", (
   });
 });
 
+test("a widget's on-me reading stands for Leaf's Waiting on me, and no other kind folds Leaf's", () => {
+  const contributed = (id, kind) =>
+    marker(id, kind, { marker: false, owner: "widget" });
+  const generated = [
+    marker("on-me:ask", "on-me"),
+    marker("thread", "comment"),
+    marker("draft:here", "draft"),
+    marker("change", "change"),
+  ];
+  const ids = (items) =>
+    inventory({ items })
+      .items.map((item) => item.id)
+      .sort();
+  assert.deepEqual(ids([contributed("for-ask", "on-me"), ...generated]), [
+    "change",
+    "draft:here",
+    "for-ask",
+    "thread",
+  ]);
+  assert.deepEqual(
+    ids([
+      contributed("for-thread", "comment"),
+      contributed("for-draft", "draft"),
+      contributed("for-change", "change"),
+      ...generated,
+    ]),
+    [
+      "change",
+      "draft:here",
+      "for-change",
+      "for-draft",
+      "for-thread",
+      "on-me:ask",
+      "thread",
+    ],
+  );
+});
+
 test("a workflow carrier suppresses only the reading it carries", () => {
   const workflowReceipt = Object.freeze({ id: "claim" });
   const items = [

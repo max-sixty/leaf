@@ -331,11 +331,7 @@ export function normalizeContributionReading(reading, owner) {
     // that name would paint Leaf's marks.
     readings: Object.freeze(
       readings.map(({ id, text, kind }) =>
-        Object.freeze({
-          id,
-          text,
-          ...(kind !== undefined && { kind }),
-        }),
+        Object.freeze({ id, text, ...(kind !== undefined && { kind }) }),
       ),
     ),
   });

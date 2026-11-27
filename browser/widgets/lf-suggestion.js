@@ -27,7 +27,6 @@ import { foldBlock } from "../runtime/dom/motion.js";
 import { renderRetired, textNodesUnder } from "../runtime/readings/passages.js";
 import { alignText } from "/runtime/lib/text-alignment.js";
 import { shownParts } from "../runtime/dom/geometry.js";
-import { currentLocationIn } from "../runtime/dom/focus.js";
 
 /** @typedef {"accept" | "reject"} Outcome */
 /** @typedef {{decide?: {detail?: {outcome?: Outcome}}}} SuggestionState */
@@ -239,6 +238,14 @@ customElements.define(
             : this.parentElement,
         source: () => this,
         read: () => this.#readMargin(),
+        activate: (
+          /** @type {string} */ activation,
+          /** @type {{focus: (key: string) => boolean}} */ { focus },
+        ) => {
+          if (activation === "accept" || activation === "reject")
+            return this.#decide(activation, focus);
+          if (activation === "undo") return this.#undoOutcome();
+        },
       });
     }
 
@@ -269,7 +276,7 @@ customElements.define(
           label: "Undo",
           accessibleLabel: `Undo ${outcome === "accept" ? "accepting" : "rejecting"} the suggested change: ${change()}`,
           rank: "primary",
-          activation: "suggestion.undo",
+          activation: "undo",
           scope: this.#commands,
         }),
       };
@@ -279,7 +286,8 @@ customElements.define(
         ...FACE[kind],
         label: WORDS[kind],
         accessibleLabel: `${WORDS[kind]} the suggested change: ${change()}`,
-        activation: `suggestion.${kind}`,
+        disabled: !this.state?.decide?.available,
+        activation: kind,
         scope: this.#commands,
       });
       return this.#offered().map((key) =>
@@ -305,10 +313,10 @@ customElements.define(
           ? [
               {
                 id: `suggestion:${this.id}`,
-                // Before settlement Accept and Reject answer the suggestion's question,
-                // so Leaf's own ask stands aside for them
-                // (features/annotation-inventory.js). Afterwards Undo remains without
-                // inventing a second page-map reading.
+                // Before settlement this reading is the suggestion's question, so it is
+                // `on-me` and Leaf leaves out its own "Waiting on me" here
+                // (features/margin-model.js). Afterwards Undo remains without inventing a
+                // second page-map reading.
                 kind: outcome ? "action" : "on-me",
                 text: outcome
                   ? `${outcome === "accept" ? "Accepted" : "Rejected"} suggested change`
@@ -357,11 +365,8 @@ customElements.define(
           bindingBadge: null,
           decision: true,
           title: label,
-          when: () =>
-            this.#offered().includes(key) &&
-            (key === "undo" || Boolean(this.state?.decide?.available)),
-          run: () =>
-            key === "undo" ? this.#undoOutcome() : this.#decide(key, { pressed: true }),
+          when: () => this.#offered().includes(key),
+          run: () => this.#margin?.activate(key),
         })),
       };
       this.lfCommands = this.#commands;
@@ -398,8 +403,8 @@ customElements.define(
     // A press makes the reversible decision locally and the outbox carries that exact
     // projection until the log accounts for it. A refusal removes the local winner, and
     // the reading returns the pending suggestion with Accept and Reject.
-    /** @param {Outcome} outcome @param {{pressed?: boolean}} [options] */
-    #decide(outcome, { pressed = false } = {}) {
+    /** @param {Outcome} outcome @param {((key: string) => void) | null} [focus] */
+    #decide(outcome, focus = null) {
       if (this.#outcome()) return;
       if (!this.state?.decide?.available) return;
       // Read before deciding: deciding retires a slot, a retired slot leaves the page's
@@ -411,11 +416,6 @@ customElements.define(
       // pointer, Enter, Space, or an address route; otherwise later reconciliation can
       // reconstruct the relocated range and raise its Comment field again.
       getSelection()?.removeAllRanges();
-      // Undo takes the pressed control's seat: a user on Accept or Reject, or on the
-      // suggestion as its key decides it, goes on to Undo. The page's blanket answer
-      // moves nobody.
-      const here =
-        pressed && (this.#margin?.hasCurrentLocation() || currentLocationIn(this));
       const dispatched = this.record(
         "decide",
         { outcome },
@@ -425,14 +425,15 @@ customElements.define(
       );
       if (!dispatched) return;
       // The gesture has decided the slot's visible state. Fold it before the
-      // document-wide settlement paint can hide the old words without motion.
+      // document-wide settlement paint can hide the old words without motion. Undo takes
+      // the pressed margin entry's seat, so focus stays where the press was.
       try {
         this.#settle(outcome);
       } catch (error) {
         failSoft(this, error);
       }
-      this.#refreshMargin({ immediate: here });
-      if (here) this.#margin?.focus("undo", "return");
+      this.#refreshMargin({ immediate: Boolean(focus) });
+      focus?.("undo");
     }
 
     #undoOutcome() {

@@ -44,15 +44,16 @@ defaults to its key. An entry for one of the widget's declared commands instead 
 `scope` to the object that declares the command, the one the widget holds as
 `lfCommands` (`module-input.md`, "Commands and keyboard routes"), and `activation` to
 the command's id, and Leaf disables it with the command and runs the command's own
-`run`, so a key and a press do the same thing. Where that command is one of the
-widget's `decision: true` commands, the entry answers the widget's question, and Leaf's
-own "Waiting on me" for that question stands aside at the same target.
+`run`. A command the widget adds for one of
+these entries calls `this.actions.activate(key)`, so a key and a press do the same
+thing.
 
 `kind` says what the whole contribution is: `action` by default, or `change`, `comment`,
 `on-me`, `activity` and the margin's other kinds. `read()` may also return `readings`,
 items each with an `id` unique within the contribution, the `text` the margin shows
 for it, an optional `kind` from the same list, and an optional `activate`, which the
-registration's `activateReading(id)` calls.
+registration's `activateReading(id)` calls. A reading of kind `on-me` is the ask for
+the widget's question, so Leaf leaves out its own "Waiting on me" at the same target.
 
 A widget that shows margin entries inside its own content, as the feature gallery does,
 draws its own control as an entry with

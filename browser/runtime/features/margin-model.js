@@ -15,10 +15,12 @@
    the icon of its primary contribution's declared `kind`; unfolded, it is More.
    Placement decides whether a pin folds, and the user's gesture opens it.
 
-   A target's workflow receipt goes on its primary control, and every other
-   control carries its own (`controlReceipt`). Whether a cluster is expanded and
-   whether a thread is open arrive as arguments. This module reads no DOM and no
-   registrations; layout and the retained controls read its values.
+   A widget's own reading of kind `on-me` is the ask for its question, as a pending
+   suggestion's "Accept or reject" is, so Leaf leaves out its generated "Waiting on
+   me" at the same target. A target's workflow receipt goes on its primary control,
+   and every other control carries its own (`controlReceipt`). Whether a cluster is
+   expanded and whether a thread is open arrive as arguments. This module reads no DOM
+   and no registrations; layout and the retained controls read its values.
  */
 import {
   KINDS,
@@ -517,11 +519,16 @@ export function clusterProjection(
 // callbacks stay there; an entry owns only values.
 /** @template {Offer} O @param {MarginGroup<O>} group @returns {Readonly<MarginEntry<O>>} */
 export function marginEntry(group) {
-  let items = [...group.items].sort(
-    (left, right) =>
-      KINDS[left.kind].priority - KINDS[right.kind].priority ||
-      (left.kind === "comment" ? 0 : left.id.localeCompare(right.id)),
+  const asked = group.items.some(
+    (item) => item.marker === false && item.kind === "on-me",
   );
+  let items = group.items
+    .filter((item) => !asked || item.marker === false || item.kind !== "on-me")
+    .sort(
+      (left, right) =>
+        KINDS[left.kind].priority - KINDS[right.kind].priority ||
+        (left.kind === "comment" ? 0 : left.id.localeCompare(right.id)),
+    );
   const direct = group.offers.filter(
     (offered) => offered.reading.side === "before" || offered.reading.hasReadings,
   );

@@ -788,22 +788,19 @@ class PageEndpoint:
 
     def _file_beside(self, binding: str, name: str) -> Response:
         """A file the bound file `binding` names by a path from its folder, as a README
-        names its pictures (`boundFile(binding).beside`). A live page reads any file
-        the server can this way, as its own scripts already reach any address, but only
-        through its key: a sample's capability and the website's container answer
-        none. Leaf's own state stays unread, since it holds each page's connection
-        credentials, which a page's scripts never receive (http_connections.py). Text
-        answers as plain text, so a linked file shows rather than downloads, and every
-        answer is sandboxed, so an SVG a README names, opened on its own, runs no
-        script as the page."""
-        bound = bound_paths(self.page_dir).get(binding) if self.keyed and name else None
+        names its pictures (`boundFile(binding).beside`). Code the page runs reads any
+        file the user can this way, through the page's key, so a sample's capability
+        and the website's container answer none. The maintainer chose to state that
+        reach (module-state.md, "Editing a bound file") over bounding it at the
+        repository holding the bound file, which one more check would do. Leaf's own
+        state stays unread, since it holds each page's connection credentials, which a
+        page's scripts never receive (http_connections.py). Text answers as plain
+        text, so a linked file shows rather than downloads, and every answer is
+        sandboxed, so an SVG a README names, opened on its own, runs no script as the
+        page."""
+        bound = bound_paths(self.page_dir).get(binding) if self.keyed else None
         file = bound.parent / name if bound else None
-        if (
-            file is None
-            or not self.source.writable
-            or not file.is_file()
-            or path_is_within(file, state_home())
-        ):
+        if file is None or not file.is_file() or path_is_within(file, state_home()):
             return self._not_found()
         media = (
             CONTENT_TYPES.get(file.suffix.lower())

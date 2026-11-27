@@ -50,10 +50,9 @@ one arm, or in another order, each with its sheet, layers, scope and selector
 differ, the element inherits the difference or reads it from a custom property.
 
 It also reads each arm's geometry faults (`leaf_dev.geometry`): Leaf's boxes against
-their frames' edges, and focus rings cut or covered.
-A state whose head adds a fault the base doesn't have counts as changed, and the
-report lists each fault it adds; faults both arms share are the page's already, and
-stay out of it.
+their frames' edges, and focus rings cut or covered. A state whose head adds a fault
+the base doesn't have counts as changed, and the report lists each fault it adds;
+faults both arms share are the page's already, and stay out of it.
 
 Capture and comparison failures are reported per state, with tracebacks in its
 directory; the remaining states still run. A state whose input the engine can't run,

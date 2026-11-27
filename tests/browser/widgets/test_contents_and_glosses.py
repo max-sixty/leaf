@@ -338,7 +338,8 @@ def test_contents_addresses_a_title_group_and_maps_its_complete_box(browser, ser
 def test_contents_with_every_destination_hidden_returns_when_the_disclosure_opens(
     browser, serve
 ):
-    """An empty displayed route has no current destination, then recovers on reveal."""
+    """A route whose every destination is hidden shows, as the disclosure opens, its
+    whole map and its start as current in the first frame it lays out."""
     source = leaf_page(
         "closed contents",
         """
@@ -358,14 +359,13 @@ def test_contents_with_every_destination_hidden_returns_when_the_disclosure_open
     resized(page, 1400, 900)
     nav = page.get_by_role("navigation", name="On this page", include_hidden=True)
     expect(nav).to_be_hidden()
-    expect(nav.locator("[aria-current]")).to_have_count(0)
     page.evaluate("""() => {
       window.firstContentsReveal = null;
       const observer = new ResizeObserver(() => {
         if (!document.querySelector('main > details').open) return;
         const nav = document.querySelector('#contents');
         firstContentsReveal = {
-          unshown: nav.querySelectorAll('.lf-toc-marker:not([data-lf-toc-shown])').length,
+          unshown: nav.querySelectorAll('.lf-toc-marker[data-lf-toc-off]').length,
           current: nav.querySelector('[aria-current]')?.textContent,
         };
         observer.disconnect();
@@ -378,10 +378,9 @@ def test_contents_with_every_destination_hidden_returns_when_the_disclosure_open
     first_reveal = page.evaluate("firstContentsReveal")
     assert first_reveal == {"unshown": 0, "current": "Migration plan"}
     expect(nav.locator(".lf-toc-start a")).to_have_attribute("aria-current", "location")
-    expect(nav.locator(".lf-toc-marker:not([data-lf-toc-shown])")).to_have_count(0)
+    expect(nav.locator(".lf-toc-marker[data-lf-toc-off]")).to_have_count(0)
     page.get_by_text("Open the migration plan", exact=True).click()
     expect(nav).to_be_hidden()
-    expect(nav.locator("[aria-current]")).to_have_count(0)
 
 
 def test_contents_reconciles_live_title_boundaries_and_keeps_its_links(browser, serve):

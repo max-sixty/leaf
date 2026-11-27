@@ -44,7 +44,7 @@ lf-toc:empty {
   font: var(--lf-font-heading);
   min-block-size: max(calc(1lh + 14px), var(--lf-aim-floor));
 }
-lf-toc[data-lf-toc-empty] {
+lf-toc:has(.lf-toc-nav[data-lf-toc-empty]) {
   display: none;
 }
 lf-toc .lf-toc-nav {
@@ -150,7 +150,7 @@ lf-toc a:hover,
 lf-toc a[data-lf-focus] {
   color: var(--lf-accent);
 }
-/* A section's mark (toc-view.js) says it holds an On Me item, in the user's turn's
+/* A section's mark (lf-toc.js) says it holds an On Me item, in the user's turn's
  * colour, or else an open thread, in a thread's (tokens.css, "Leaf's own marks"); its link's
  * preview counts both. It is a small ring of its colour. An On Me item's ring also
  * stands in a soft disc of its colour (`--lf-toc-halo`), so what waits on the user
@@ -351,7 +351,7 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
     }
     /* A section off the map, its heading hidden or no room left for it (lf-toc.js),
        keeps its label's measure, so the next fit reads it without first showing it. */
-    lf-toc :is(.lf-toc-marker, .lf-toc-labels a):not([data-lf-toc-shown]) {
+    lf-toc :is(.lf-toc-marker, .lf-toc-labels a)[data-lf-toc-off] {
       visibility: hidden;
     }
     lf-toc .lf-toc-marker::before {
@@ -397,7 +397,7 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
      * take the pointer. The layer's own setting stays the same, since every label
      * inherits it: switching it would restyle each label, those off the map too, and
      * the reveal would cost more on a route of five hundred sections than of ten
-     * (`data-lf-toc-shown` marks the labels on the map, toc-view.js). Each label stands
+     * (`data-lf-toc-off` marks the labels off the map, lf-toc.js). Each label stands
      * at its marker's place, hanging half a line above it. Go-to shows the labels at once
      * rather than fading them in: it reads which controls show once the frame arming paints
      * is drawn, and a fade begun that frame still stands at opacity 0, so the labels would
@@ -423,7 +423,7 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
       opacity: 1;
     }
     lf-toc:is(:hover, [data-lf-focus-within]) .lf-toc-labels::before,
-    lf-toc:is(:hover, [data-lf-focus-within]) .lf-toc-labels a[data-lf-toc-shown] {
+    lf-toc:is(:hover, [data-lf-focus-within]) .lf-toc-labels a:not([data-lf-toc-off]) {
       pointer-events: auto;
     }
     @scope (body[data-lf-go-to-active] lf-toc) {
@@ -432,7 +432,7 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
         transition: none;
       }
       :scope:is(lf-toc) .lf-toc-labels::before,
-      :scope:is(lf-toc) .lf-toc-labels a[data-lf-toc-shown] {
+      :scope:is(lf-toc) .lf-toc-labels a:not([data-lf-toc-off]) {
         pointer-events: auto;
       }
     }

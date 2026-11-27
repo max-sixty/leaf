@@ -404,9 +404,7 @@ def test_a_contents_spine_fades_its_words_as_one_and_frees_the_prose_at_once(
     resized(page, 1440, 900)
     toc = page.locator("#contents")
     if sections > 3:
-        expect(
-            toc.locator(".lf-toc-labels a:not([data-lf-toc-shown])").first
-        ).to_be_attached()
+        expect(toc.locator(".lf-toc-labels a[data-lf-toc-off]").first).to_be_attached()
     track = toc.bounding_box()
     y = track["y"] + 200
     page.mouse.move(track["x"] + 3, y)

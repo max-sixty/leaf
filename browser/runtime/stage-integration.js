@@ -1,3 +1,4 @@
+// Compiled from stage-integration.ts by build/typescript.mjs; edit that file.
 /* Leaf's augmentation of portable shadow stages. The widget owns its root and
    rendering; this owner adds the page's theme, shared marks and cross-root watches.
    A theme node stays connected while its text is unchanged. Renderer-owned adopted
@@ -15,7 +16,6 @@ installLayerStyleIntegration((root) => {
     root.adoptedStyleSheets = [...root.adoptedStyleSheets, chromeSheet];
 });
 
-/** @type {WeakMap<ShadowRoot, HTMLStyleElement>} */
 const styles = new WeakMap();
 installStageIntegration((root) => {
   root.adoptedStyleSheets = [...new Set([...root.adoptedStyleSheets, marksSheet])];

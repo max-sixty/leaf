@@ -1,3 +1,4 @@
+// Compiled from scrolling.ts by build/typescript.mjs; edit that file.
 /* Scroll positions, and whose each one is.
 
    A box stands where the reader chose, or where layout put it. The reader chooses with
@@ -65,11 +66,8 @@ export const pageScroller = nativeScroller;
 // the browser scrolling decide which: a pointer, a wheel or a touch, or one of those
 // keys. Any other key, such as Leaf's `d`, moves nothing the browser drives, so a `d`
 // pressed during PageDown leaves PageDown's scroll a key's, and a second `d` waits too.
-/** @type {WeakSet<Element>} */
 const started = new WeakSet();
-/** @type {WeakMap<Element, number>} */
 const starts = new WeakMap();
-/** @type {WeakSet<Element>} */
 const keyScrolled = new WeakSet();
 const SCROLL_KEYS = new Set([
   " ",
@@ -92,7 +90,6 @@ inputs.observe((event) => {
 });
 // Whether `event` asks the browser to scroll the boxes on its path: a touch, or an input
 // the browser scrolls for (`scrollsFor`).
-/** @param {Event} event */
 const aimsScroll = (event) => event.type === "touchstart" || scrollsFor(event);
 // Whether the browser scrolls for `event`: a wheel, or one of its scroll keys pressed
 // where focus rests on no control that takes that key. A control takes keys of its own,
@@ -104,7 +101,6 @@ const aimsScroll = (event) => event.type === "touchstart" || scrollsFor(event);
 // for the rest pressed on one: read as no scroll, PageUp on a link, a radio or a
 // button, or an arrow on a button, in a log entries stream into was left to the log's
 // keeper, whose writes cancelled it in Firefox.
-/** @param {Event} event */
 export const scrollsFor = (event) => {
   if (event.type === "wheel") return true;
   if (!(event instanceof KeyboardEvent) || !SCROLL_KEYS.has(event.key)) return false;
@@ -120,31 +116,21 @@ export const scrollsFor = (event) => {
 // extent where its layout last settled. A box is watched from its first scroll, through
 // its own size and its children's, where content grows, so content that grew between
 // sequences doesn't make the next one layout's.
-/** @type {WeakMap<Element, number>} */
 const ended = new WeakMap();
-/** @type {WeakMap<Element, number>} */
 const scrollSteps = new WeakMap();
-/** @type {WeakSet<Element>} */
 const layoutMoved = new WeakSet();
-/** @type {WeakSet<Element>} */
 const watchedLayout = new WeakSet();
-/** @type {WeakMap<Element, number[]>} */
 const extents = new WeakMap();
-/** @param {Element} box */
 const extentOf = (box) => [box.scrollHeight, box.clientWidth, box.clientHeight];
-/** @param {number[] | undefined} before @param {number[]} after */
 const changedExtent = (before, after) =>
   before?.some((value, index) => value !== after[index]);
-/** @param {Element} box */
 function watchLayout(box) {
   if (watchedLayout.has(box)) return;
   watchedLayout.add(box);
   extents.set(box, extentOf(box));
   const root = box === pageScroller ? document.documentElement : box;
-  /** @type {WeakMap<Element, number[] | null>} */
   const sizes = new WeakMap();
   // Observe skipped children too, so revealing them supplies their first reading.
-  /** @param {Element} node */
   const measure = (node) =>
     skipped(node) ? null : [node.clientWidth, node.clientHeight, node.scrollHeight];
   const observer = sizeObserver(
@@ -164,7 +150,6 @@ function watchLayout(box) {
     },
     { counted: false },
   );
-  /** @param {Element} node */
   const observe = (node) => {
     sizes.set(node, measure(node));
     observer.observe(node);
@@ -203,7 +188,6 @@ ended.set(pageScroller, pageScroller.scrollTop);
 // Chromium can deliver one last compositor scroll after that cancellation, so the
 // caller reads geometry and places the new destination once the stop is drawn
 // (arrivals.js, `scrollDrawn`).
-/** @param {Iterable<Element>} boxes */
 export function stopBrowserScroll(boxes) {
   const stopped = [...boxes].filter(browserScrolls);
   for (const box of stopped) stopWhereItStands(box);
@@ -211,24 +195,18 @@ export function stopBrowserScroll(boxes) {
 }
 
 let choices = 0;
-/** @type {WeakMap<Element, number>} */
 const chosen = new WeakMap();
-/** @type {WeakMap<Element, number>} */
 const kept = new WeakMap();
 // How many choices the reader has made so far, for a keeper to note with a reading.
 export const scrollChoices = () => choices;
 // Whether the reader chose where `box` stands after the `count`th choice.
-/** @param {Element} box @param {number} count */
 export const chosenSince = (box, count) => (chosen.get(box) ?? 0) > count;
-/** @param {Element} box */
 const chooseScroll = (box) => chosen.set(box, ++choices);
 // How many moves Leaf has started in `box` (`startScroll`).
-/** @param {Element} box */
 export const scrollStarts = (box) => starts.get(box) ?? 0;
 // Record an explicit landing or a glide before native scroll events: an instant move
 // can coincide with layout, and a new gesture can interrupt a glide before its first
 // frame.
-/** @param {Element} box */
 export function startScroll(box) {
   started.add(box);
   starts.set(box, (starts.get(box) ?? 0) + 1);
@@ -236,7 +214,6 @@ export function startScroll(box) {
 }
 // The browser's travel into hidden content, until the sequence it starts has ended,
 // which is before the second frame after.
-/** @type {object | null} */
 let travel = null;
 document.addEventListener(
   "beforematch",
@@ -260,9 +237,7 @@ document.addEventListener(
 // than from `toggle`, which follows in a task of its own: on a busy main thread the
 // rendering update that ends the travel's sequence can run first, and that end would
 // read as layout's, so continuity would put back the place the travel left.
-/** @type {Element | null} */
 let activated = null;
-/** @type {Element | null} */
 let opened = null;
 document.addEventListener(
   "click",
@@ -294,7 +269,6 @@ new MutationObserver((records) => {
   attributeFilter: ["open"],
   attributeOldValue: true,
 });
-/** @param {EventTarget | null} target */
 const eventScroller = (target) =>
   target === document ? pageScroller : target instanceof Element ? target : null;
 document.addEventListener(
@@ -326,11 +300,9 @@ document.addEventListener(
 const UP_KEYS = new Set(["PageUp", "ArrowUp", "Home"]);
 // The ways an input heads a box, each ranking above the one before: a scroll heads the
 // way the furthest-ranked of its inputs does.
-const HEADINGS = /** @type {const} */ (["down", "across", "up"]);
-/** @typedef {{heads: (typeof HEADINGS)[number], top: number, fromEnd: number, starts: number}} ReaderScroll */
-/** @type {WeakMap<Element, ReaderScroll>} */
+const HEADINGS = ["down", "across", "up"];
+
 const asked = new WeakMap();
-/** @param {Element} box @param {Event} event */
 export function aimScroll(box, event) {
   if (scrollKeyLast) keyScrolled.add(box);
   else keyScrolled.delete(box);
@@ -340,7 +312,6 @@ export function aimScroll(box, event) {
   // scroll down does though it drifts across a little. The keeper's write of the end
   // then costs the reader that drift, and holding the end for it would leave a log
   // entries stream into unfollowed through every such scroll.
-  /** @type {ReaderScroll["heads"]} */
   let heads = "across";
   if (event instanceof WheelEvent) {
     const across = Math.abs(event.deltaX);
@@ -364,13 +335,11 @@ export function aimScroll(box, event) {
 // its end asks this first, as its keeper does (`followEnd`): its write would cancel a
 // scroll up or across, a wheel across a log's long lines as surely as one up it, and
 // takes a reader heading down where they were going.
-/** @param {Element} box */
 export const readerScroll = (box) => (readerScrolls(box) && asked.get(box)) || null;
 // Whether `box` has moved toward its lower end (`down`) or its upper one since its last
 // scroll sequence ended, layout aside. A wheel's sequence ends only when its gesture
 // does, and the browser may scroll before the page hears the wheel, as it does for
 // macOS's precise wheels, so the event that takes a box to its end finds it there.
-/** @param {Element} box @param {boolean} down */
 export function carriedToward(box, down) {
   const from = ended.get(box);
   if (from === undefined || layoutMoved.has(box)) return false;
@@ -378,7 +347,6 @@ export function carriedToward(box, down) {
     ? box.scrollTop > from + SCROLL_SLACK
     : box.scrollTop < from - SCROLL_SLACK;
 }
-/** @param {Element[]} boxes */
 export function placeKept(...boxes) {
   for (const box of boxes) kept.set(box, box.scrollTop);
 }
@@ -416,9 +384,7 @@ watchScrollEnds((box) => {
 // is read from its layout each time it is asked, so its end stays where its layout puts
 // it, content arriving mid-ride included, and a landing at the end doesn't chase the
 // ride.
-/** @type {WeakSet<Element>} */
 const riding = new WeakSet();
-/** @param {Element} box @param {boolean} rides */
 export const contentRides = (box, rides) =>
   rides ? riding.add(box) : riding.delete(box);
 // A box's scroll height as its layout gives it: from where its children stand, which
@@ -426,7 +392,6 @@ export const contentRides = (box, rides) =>
 // and its own end padding. A child placed against something other than the box leaves
 // the browser's reading. It is the height of what the box holds, so a box taller than
 // its content reads its content's height.
-/** @param {Element} box */
 export function laidOutHeight(box) {
   let end = 0;
   for (const child of box.children) {
@@ -451,7 +416,6 @@ export function laidOutHeight(box) {
   return Math.min(box.scrollHeight, end + tail + padding);
 }
 // The furthest a box scrolls down: its scroll height less what its scrollport shows.
-/** @param {Element} box */
 export const scrollLimit = (box) =>
   Math.max(
     0,
@@ -463,7 +427,6 @@ export const scrollLimit = (box) =>
 export const SCROLL_SLACK = 2;
 // The end is a reading destination, rather than the pixel offset it occupies before
 // a box is resized. `top` asks the same of a position the box is headed to.
-/** @param {Element} box @param {number} [top] */
 export const atScrollEnd = (box, top = box.scrollTop) =>
   scrollLimit(box) - top <= SCROLL_SLACK;
 // A glide under way to the end takes the box to the end as it now stands: a move there,
@@ -472,7 +435,6 @@ export const atScrollEnd = (box, top = box.scrollTop) =>
 // and a send's landing (`followEnd`, reply-landing.js), move it there at every fit, and
 // a glide following an answer into sight (thread-card.js, `#fitAnswer`) runs through
 // those fits.
-/** @param {Element} box @param {ScrollBehavior} behavior */
 export const scrollToEnd = (box, behavior = "instant") => {
   const glide = holding(box);
   if (glide?.end && glide.goal === scrollLimit(box)) return;
@@ -483,7 +445,6 @@ export const scrollToEnd = (box, behavior = "instant") => {
 // Whether a move asked for with `behavior` glides: a smooth one, or an `auto` one in a
 // box whose own `scroll-behavior` asks for smooth motion, which the browser would
 // otherwise answer with its own slow smooth scroll.
-/** @param {Element} box @param {ScrollBehavior} behavior */
 export const glides = (box, behavior) =>
   behavior === "smooth" ||
   (behavior === "auto" && getComputedStyle(box).scrollBehavior === "smooth");
@@ -500,9 +461,7 @@ export const glides = (box, behavior) =>
 // A place read there, and a keeper's next correction, start from the aim: started
 // from where the box landed, each move's rounding would add to the last, and a line
 // would creep across the screen revision by revision, or frame by frame of a fold.
-/** @type {WeakMap<Element, {aim: number, at: number}>} */
 const aims = new WeakMap();
-/** @param {Element} box @param {number} top */
 export const moveScrollerBy = (box, top) => {
   const aim = box.scrollTop + top;
   setScroll(box, { top: aim, behavior: "instant" });
@@ -512,7 +471,6 @@ export const moveScrollerBy = (box, top) => {
 // Where Leaf last aimed `box`, while it stands where that move left it, else its offset.
 // A move that landed a pixel or more off was cut off by the box's range, and names no
 // position the box stands at.
-/** @param {Element} box */
 export const aimedTop = (box) => {
   const kept = aims.get(box);
   return kept?.at === box.scrollTop ? kept.aim : box.scrollTop;
@@ -520,7 +478,6 @@ export const aimedTop = (box) => {
 
 // How much of a move a box can make from where it stands, or from `from`: a box at its
 // end moves no further, whatever it is asked.
-/** @param {Element} box @param {number} top @param {number} [from] */
 export const reachable = (box, top, from = box.scrollTop) =>
   Math.max(-from, Math.min(scrollLimit(box) - from, top));
 
@@ -577,11 +534,10 @@ export const reachable = (box, top, from = box.scrollTop) =>
 // browser/AGENTS.md ("What the reader reads stays put") states this exception to
 // keeping anchoring on.
 const SCROLL_MS = 140;
-/** @typedef {{goal: number, base: number, end: boolean, wrote: number | null, aim: (() => number | null) | null, by: (() => number | null) | null, raf: ReturnType<typeof nextFrame>, release: (landed?: boolean) => void}} Glide */
+
 // The glide under way in each box, which holds the box's scroll sequence open from its
 // press to its end, so every frame it writes makes one scroll (arrivals.js,
 // `holdScroll`).
-/** @type {Map<Element, Glide>} */
 const glideIn = new Map();
 // Land every glide under way at its goal at once, for a key's work that measures the
 // page where it stands and can't ask where the glides are headed: the browser's scroll
@@ -603,7 +559,6 @@ export const landGlides = () => {
 // for Tab, and those on its path for a key the browser scrolls for (`scrollsFor`). The
 // keyboard controller asks once its let-go has read where they were headed, since
 // landed first, a card a walk had focused would read as off screen (above).
-/** @param {KeyboardEvent} event */
 export function landForKey(event) {
   if (!glideIn.size) return;
   if (event.key === "Tab") return landGlides();
@@ -618,7 +573,6 @@ export function landForKey(event) {
     if (readerScrolls(box)) startReaderScroll(box);
   }
 }
-/** @param {Element} box */
 function landGlide(box) {
   const glide = holding(box);
   if (glide) setScroll(box, { top: aimed(box, glide), behavior: "instant" });
@@ -627,7 +581,6 @@ function landGlide(box) {
 // A spatial command takes the page where it is now, so it stops a glide in the box even
 // where it moves nothing itself. A glide stops itself `landed` where its last write left
 // the box where it stood (arrivals.js, `holdScroll`).
-/** @param {Element} box @param {boolean} [landed] */
 export function stopGlide(box, landed = false) {
   const glide = glideIn.get(box);
   if (!glide) return;
@@ -646,7 +599,6 @@ export function stopGlide(box, landed = false) {
 // measures from a goal the box has already left. A glide taking over the browser's
 // motion holds the box through whatever that motion does until the glide's own write
 // first moves it (`glideTo`).
-/** @param {Element} box */
 const holding = (box) => {
   const glide = glideIn.get(box);
   if (!glide || glide.wrote === null) return glide ?? null;
@@ -659,7 +611,6 @@ const holding = (box) => {
 // (arrivals.js, `holdScroll`), and scroll anchoring off (see the header). An animation
 // holds `overflow-anchor`, as box-motion.js holds it for a ride, so the hold writes
 // nothing to the author's markup and ends with the glide.
-/** @param {Element} box @returns {(landed?: boolean) => void} */
 function holdBox(box) {
   const scroll = holdScroll(box);
   const none = { overflowAnchor: "none" };
@@ -675,17 +626,14 @@ function holdBox(box) {
   };
 }
 // Whether a glide of Leaf's holds `box`, though it may stand at its goal.
-/** @param {Element} box */
 export const gliding = (box) => holding(box) !== null;
 // Where `box` is headed: the goal of the glide holding it, else where it stands.
-/** @param {Element} box */
 export const scrollGoal = (box) =>
   Math.max(0, Math.min(scrollLimit(box), holding(box)?.goal ?? box.scrollTop));
 // Read `read` with each of `boxes` that a glide is moving at its goal, as the page will
 // stand once the glides under way land, though none has (arrivals.js, `readScrolled`).
 // Only a box a glide holds is written, so no scroll the browser drives is stopped and
 // the write's events fold into those the glide sends every frame.
-/** @template T @param {Iterable<Element>} boxes @param {() => T} read @returns {T} */
 export const whereGlidesLand = (boxes, read) =>
   readScrolled(
     [...boxes].flatMap((box) => {
@@ -698,15 +646,12 @@ export const whereGlidesLand = (boxes, read) =>
 // started may not have moved the box yet, since its first frame can write where the box
 // already stands. A keeper that read that box as following its end would put it back
 // there and stop the glide, and the press would do nothing.
-/** @param {Element} box */
 const followsEnd = (box) => atScrollEnd(box) && atScrollEnd(box, scrollGoal(box));
 // Run `then` once the scroll a key has the browser drive in `box`, as Space's and
 // PageDown's are, has ended, and say whether it waits. A step pressed while others wait
 // on the box joins them, so they run in the order pressed, and none of them runs if Leaf
 // moves the box meanwhile.
-/** @type {WeakMap<Element, {starts: number, steps: (() => void)[]}>} */
 const waiting = new WeakMap();
-/** @param {Element} box @param {() => void} then */
 export function afterBrowserScroll(box, then) {
   const queued = waiting.get(box);
   if (queued) {
@@ -734,7 +679,6 @@ export function afterBrowserScroll(box, then) {
 // from there; once its placement has ended it asks nothing more. The glide asks at each
 // frame and as a key lands it. Anything else that reads the goal between frames, as a
 // step pressed on does, reads the last frame's.
-/** @param {Element} box @param {Glide} glide */
 function aimed(box, glide) {
   glide.goal = goalAt(box, glide.base);
   const top = glide.aim?.();
@@ -748,7 +692,6 @@ function aimed(box, glide) {
 // Give the glide under way in `box`, where one holds it, to the landing whose `aim` says
 // where the box now goes, as a landing takes every box that scrolls its destination
 // (readings/landing-scroll.js, `scrollIntoView`). The landing's destination is the whole goal.
-/** @param {Element} box @param {() => number | null} aim */
 export function steerGlide(box, aim) {
   const glide = holding(box);
   if (!glide) return;
@@ -760,7 +703,6 @@ export function steerGlide(box, aim) {
 // the place of any placement before it in the glide under way, and with none under way
 // glides from where the box stands, where `by`, read there, asks for a move. `by`
 // returns null once its placement has ended, as when its card closes.
-/** @param {Element} box @param {() => number | null} by */
 export function glideBy(box, by) {
   if (!holding(box)) {
     const further = by();
@@ -776,7 +718,6 @@ export function glideBy(box, by) {
   aimed(box, glide);
 }
 // A glide's goal for `top`, clamped to the box and at whole pixels (`glideTo`).
-/** @param {Element} box @param {number} top */
 const goalAt = (box, top) => {
   const limit = scrollLimit(box);
   return top >= limit ? limit : Math.max(0, Math.min(limit, Math.round(top)));
@@ -802,7 +743,6 @@ const goalAt = (box, top) => {
 // frame rather than at the press: Firefox's smooth scroll runs on ahead of a busy page,
 // whose next frame is the first to say where the stop left the box. A landing passes
 // `aim`, which reads where it now puts the box, and its glide heads there (`aimed`).
-/** @param {Element} box @param {number} top @param {(() => number | null) | null} [aim] */
 export function glideTo(box, top, aim = null) {
   const replaced = glideIn.get(box);
   const takesOver = replaced ? replaced.wrote === null : browserScrolls(box);
@@ -820,7 +760,6 @@ export function glideTo(box, top, aim = null) {
   // Where the glide has the box, and how far through the glide its last frame was.
   let at = box.scrollTop;
   let was = 0;
-  /** @param {number} now */
   const tick = (now) => {
     const current = holding(box);
     if (!current) {
@@ -863,8 +802,6 @@ export function glideTo(box, top, aim = null) {
 
 // Watch the size of a box and of each child it holds, as children come and go: what
 // changes a scroller's room, its end or what it holds.
-/** @param {Element} box @param {(entries: ResizeObserverEntry[]) => void} changed
- * @returns {() => void} */
 function watchHeld(box, changed) {
   const observer = sizeObserver(changed);
   observer.observe(box);
@@ -901,12 +838,9 @@ function watchHeld(box, changed) {
 // Home takes it to its top, leaves the reader there, and a move Leaf starts in the box
 // meanwhile (`startScroll`), as `g g` does, takes it somewhere of its own: either
 // cancels the debt, which paid after it took the reader back down from the top.
-/** @param {HTMLElement} box @returns {() => void} */
 export function keepFoot(box) {
-  /** @type {{room: number, top: number} | null} */
   let foot = null;
   // The move the box owes, and how many moves Leaf had started in it when it began to.
-  /** @type {{by: number, starts: number} | null} */
   let owed = null;
   const stopWatching = watchHeld(box, (entries) => {
     const room = box.clientHeight;
@@ -1003,14 +937,8 @@ export function keepFoot(box) {
 // box up or across, as a revision asks of a bounded log to record its place (readings/bounds.js,
 // `followingItsEnd`): a place recorded at the end then put the log back there and
 // cancelled the wheel.
-/** @typedef {{extent: number, limit: number}} BoxExtent */
-/** @typedef {{stop: () => void, check: () => void, standsAtEnd: () => boolean}} EndKeeper */
-/** @param {Element} box @param {(before: BoxExtent) => boolean} [yields]
- * @returns {EndKeeper} */
 export function followEnd(box, yields = () => false) {
-  /** @type {BoxExtent & {top: number, end: boolean} | null} */
   let stood = null;
-  /** @param {BoxExtent} seen */
   const stand = ({ extent, limit }) => {
     const top = box.scrollTop;
     const goal = holding(box)?.goal ?? top;
@@ -1030,7 +958,6 @@ export function followEnd(box, yields = () => false) {
   // The reader's scroll the keeper holds the end back for, with whether the reader stood
   // at the end as it began, kept past the scroll's end until a reading of the drawn box
   // settles it.
-  /** @type {ReaderScroll & {end: boolean} | null} */
   let held = null;
   const holds = () => {
     const asked = readerScroll(box);
@@ -1039,7 +966,6 @@ export function followEnd(box, yields = () => false) {
     return true;
   };
   // Whether the reader's scroll left them at the end the keeper held back (the header).
-  /** @param {ReaderScroll & {end: boolean}} scroll */
   const stayed = ({ end, starts: since, heads, top, fromEnd }) =>
     end &&
     (starts.get(box) ?? 0) === since &&

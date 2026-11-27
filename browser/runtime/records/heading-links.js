@@ -1,3 +1,4 @@
+// Compiled from heading-links.ts by build/typescript.mjs; edit that file.
 /* A heading's link: a control at the start of a heading the page gives an address,
    whose press copies the page's URL ending in that address's fragment, so a reader can
    link to the section they are reading.
@@ -61,21 +62,16 @@ import { upFrom } from "../lib/shadow-tree.js";
 import { contentsRects } from "../lib/shown-box.js";
 import { inChrome } from "../base/ui-marks.js";
 
-/** @typedef {{heading: Element, control: ReturnType<typeof copyControl>, shown: Set<string>, events: AbortController, stop: () => void}} HeadingLink */
-/** @type {Map<Element, HeadingLink>} */
 const links = new Map(); // heading → its link, from the first reveal until it leaves
-/** @type {WeakMap<Element, Element>} */
 const owners = new WeakMap(); // control → its heading
-/** @type {[HeadingLink | null, HeadingLink | null]} */
 const borrowers = [null, null]; // the link each of the two names is lent to
 const LENT = RUNTIME_PAINT_ATTRIBUTE.headingLink;
 
 /** The element `heading`'s link names, or null where it has no address (header). */
-/** @param {Element} heading */
 export function headingAddress(heading) {
   const titled = titledElement(heading);
   let address = null;
-  for (let at = /** @type {Element | null} */ (heading); at; at = at.parentElement) {
+  for (let at = heading; at; at = at.parentElement) {
     if (isAddressable(at)) address = at;
     if (at === titled) break;
   }
@@ -83,7 +79,6 @@ export function headingAddress(heading) {
 }
 
 // The page heading `node` stands in, where a link can stand over it.
-/** @param {Node | null | undefined} node */
 function headingAt(node) {
   const element = node instanceof Element ? node : node?.parentElement;
   const heading = element?.closest(HEADING);
@@ -94,7 +89,6 @@ function headingAt(node) {
 
 // The heading whose link the user is on: the heading itself or the address it names.
 // A control inside the heading, such as a link, is somewhere else, with its own Enter.
-/** @param {Node | null | undefined} node */
 function headingOn(node) {
   if (!(node instanceof Element)) return null;
   if (headingAt(node) === node) return headingAddress(node) ? node : null;
@@ -105,7 +99,6 @@ function headingOn(node) {
 }
 
 // The heading whose link holds `node`, as the button a press focuses does.
-/** @param {Node | null | undefined} node */
 function linkHeading(node) {
   for (let at = node; at; at = upFrom(at)) {
     const heading = at instanceof Element && owners.get(at);
@@ -114,7 +107,6 @@ function linkHeading(node) {
   return null;
 }
 
-/** @param {Element} heading @returns {HeadingLink} */
 function makeLink(heading) {
   const control = copyControl("lf-heading-link", {
     label: "Copy link to section",
@@ -127,7 +119,6 @@ function makeLink(heading) {
   const link = {
     heading,
     control,
-    /** @type {Set<string>} */
     shown: new Set(),
     events: new AbortController(),
     stop: () => {},
@@ -165,7 +156,6 @@ function makeLink(heading) {
 // Where the heading's first line of words stands in its box, so the control centers on
 // it. An anchor offers the box's edges and no line in it, and a heading that wraps
 // would otherwise center the control between its lines.
-/** @param {Element} heading */
 function firstLine(heading) {
   const box = heading.getBoundingClientRect();
   const [line] = contentsRects(heading);
@@ -173,7 +163,6 @@ function firstLine(heading) {
     ? { top: line.top - box.top, height: line.height }
     : { top: 0, height: box.height };
 }
-/** @param {HTMLElement} control @param {{top: number, height: number}} line */
 function writeLine(control, { top, height }) {
   for (const [property, length] of Object.entries({
     "--lf-heading-link-top": top,
@@ -184,7 +173,6 @@ function writeLine(control, { top, height }) {
 }
 
 // Take a link out once its heading leaves, or loses its address to a revision.
-/** @param {HeadingLink} link */
 function retire(link) {
   link.stop();
   link.events.abort();
@@ -197,7 +185,6 @@ function retire(link) {
 // its heading already answers to, or none while the link hides, which leaves the
 // control nowhere near the page. Whether the heading has names is read each time the
 // link starts to show, since a stylesheet or another owner can name it in between.
-/** @param {HeadingLink} link */
 function place(link) {
   const { heading, control } = link;
   let name = "";
@@ -207,7 +194,6 @@ function place(link) {
   else name = nameAnchor(anchorReading(heading));
   if (control.style.positionAnchor !== name) control.style.positionAnchor = name;
 }
-/** @param {HeadingLink} link */
 function lend(link) {
   let held = borrowers.indexOf(link);
   if (held < 0) {
@@ -218,7 +204,6 @@ function lend(link) {
   keeps(link.heading, LENT, held + 1);
   return `--lf-heading-link-${held + 1}`;
 }
-/** @param {HeadingLink} link */
 function giveBack(link) {
   const held = borrowers.indexOf(link);
   if (held < 0) return;
@@ -235,7 +220,6 @@ function giveBack(link) {
 
 // Show or hide the heading's link for one reason; it shows while any reason holds.
 // Returns the link, made on first showing, or null where the heading has no address.
-/** @param {Element} heading @param {string} reason @param {boolean} force */
 function show(heading, reason, force) {
   let link = links.get(heading);
   if (force && !headingAddress(heading)) {
@@ -257,9 +241,7 @@ function show(heading, reason, force) {
 export function watchHeadingLinks() {
   // A live sample's URL is private to the page holding it.
   if (document.documentElement.lfSample) return;
-  /** @type {Element | null | undefined} */
   let hovered = null;
-  /** @param {Element | null | undefined} heading */
   const hover = (heading) => {
     if (heading === hovered) return;
     if (hovered) show(hovered, "hover", false);
@@ -292,9 +274,7 @@ export function watchHeadingLinks() {
     },
     { capture: true },
   );
-  /** @type {Element | null} */
   let current = null;
-  /** @param {Element | null} heading */
   const stand = (heading) => {
     if (heading === current) return heading ? links.get(heading) : null;
     if (current) show(current, "current", false);

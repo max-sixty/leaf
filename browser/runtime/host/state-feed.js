@@ -1,3 +1,4 @@
+// Compiled from state-feed.ts by build/typescript.mjs; edit that file.
 /* The page's ear: the state reads, finite freshness reads that say when to ask, the heartbeat
    that re-applies what the page holds, and the phase the answers leave it in. A
    freshness read also names the reading of the machine's other pages, which it hands to
@@ -54,7 +55,6 @@ import {
 // waits on a frame and on whatever a module does during one — and an ear that waited
 // for that would stop hearing. The page would then go silent for a reason none of its
 // news is about, which is a wedge rather than a delay: nothing else would ever ask.
-/** @returns {Promise<{state: import("../transport/layer-client.js").CompletedState | null, fault: string | null}>} */
 async function readState() {
   countTraffic("asked");
   try {
@@ -101,7 +101,6 @@ async function readState() {
     } catch {
       return NOTHING;
     }
-    /** @type {import("../transport/layer-client.js").StateAnswer} */
     const state = JSON.parse(text);
     return { state: completeState(state, held), fault: null };
   } finally {
@@ -139,13 +138,6 @@ export function beginRead() {
 
 // Failed state reads and crossed freshness observations retry on the clock. Freshness names a changed reading, but
 // cannot guarantee its state read succeeded. Healthy pages read state only on change.
-/** @param {{
- * stateApplying: () => boolean,
- * stateInHand: () => import("../../types/contract.js").ServedState | null,
- * invalidateDom: () => Promise<unknown>,
- * receiveState: (state: import("../transport/layer-client.js").CompletedState) => Promise<unknown>,
- * prepareActivation: ReturnType<typeof import("../features/version.js").createVersionController>["prepareActivation"]
- * }} dependencies */
 export function createStateFeed({
   stateApplying,
   stateInHand,
@@ -159,7 +151,6 @@ export function createStateFeed({
 
   // A read that did not land: the page asks again on the next tick and says why. A fault
   // its producer already reported (a paint, a state application) is reported once.
-  /** @param {unknown} error */
   function failed(error) {
     readAnswered = false;
     reportCarried(error, `read failed`);
@@ -178,7 +169,6 @@ export function createStateFeed({
 
   // What the page does with an answer that brought no state, and the server's `fault`
   // where it said why.
-  /** @param {string | null} fault */
   async function readNothing(fault = null) {
     readAnswered = false;
     if (runtime.statePhase === "waiting") applicationState.setPhase("offline");
@@ -220,7 +210,6 @@ export function createStateFeed({
     }
   }
 
-  /** @param {() => void | Promise<unknown>} present */
   function startFeed(present, initialRead = beginRead()) {
     // Upgrade has already opened reading and commenting. Authoritative presentation
     // waits for an actual answer; elapsed time cannot turn an unanswered read offline.
@@ -258,7 +247,6 @@ export function createStateFeed({
     // What the trailing read is for: the news a look heard while the slot was held,
     // null when a tick or a failed look asked for no reading in particular, and
     // undefined while nothing waits.
-    /** @type {string | null | undefined} */
     let queued;
     let applyingReads = 0;
     // Give the read slot back, and start the trailing read a tick or freshness answer
@@ -320,7 +308,7 @@ export function createStateFeed({
         failed(error);
       }
     };
-    /** @param {string | null} [observed] the news that asks, if a look heard it */
+    /** @param observed the news that asks, if a look heard it */
     const item = (observed = null) => {
       if (reading) {
         queued = queued === null || observed === null ? null : observed;
@@ -335,15 +323,11 @@ export function createStateFeed({
     // this document's visible-page lease; hidden documents cancel it and stop asking.
     const pageIsVisible = () => document.visibilityState !== "hidden";
     let feedStarted = false;
-    /** @type {AbortController | null} */
     let listening = null;
-    /** @type {string | null} */
     let freshness = null;
     // What the page had in hand when the last look heard the news name another
     // reading, or null when the two agreed. The page may hold no reading yet.
-    /** @type {{held: string | null} | null} */
     let crossed = null;
-    /** @type {ReturnType<typeof setTimeout> | undefined} */
     let nextLook;
     const stopListening = () => {
       clearTimeout(nextLook);
@@ -372,7 +356,6 @@ export function createStateFeed({
           if (!admitResponse(response))
             throw new Error("news belongs to another delivery");
           if (!response.ok) throw new Error(`news returned HTTP ${response.status}`);
-          /** @type {import("../../types/contract.js").ServedNewsAnswer} */
           const { reading: observed, pages, drafts } = await response.json();
           if (listening === interval) {
             // The machine's other pages, and the user's drafts, each followed on its own.

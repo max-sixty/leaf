@@ -1,0 +1,346 @@
+/* Accepted external values, mounted-widget outputs, and their typed readers.
+
+   The browser orders data readings by when the server took them, independently of
+   the log sequence, because overlapping poll and POST responses can order the authorities
+   differently. An element's bound input is read through `dataReader`, which yields
+   one copy a delivery of `{source, contract, revision, run, updated, value, origin}`,
+   or `null` while the bound source has no readable value, and hands the widget only its
+   `value` (element-data.js, "Bound values"). A widget-output binding yields
+   `{contract, value, origin}` with derived-widget provenance, without a fabricated
+   source revision or run. Each object value names the snapshot that supplied it
+   (`suppliedSnapshot`), so whoever holds the value can name its revision.
+
+   A widget output is a property its element holds under the output's declared name,
+   as a form control holds `value`. Nothing is published to Leaf: a reader's input
+   names the producer (`reference`) and reads the one output of its contract off the
+   element standing under that id, and resolves the id again whenever a producer
+   arrives or leaves under it, so it follows a replacement. A reader reads the
+   property as the reader first draws, and again (`changeOf`) when the element
+   dispatches `change` on itself, when the element's class is defined, and when
+   `heldMoved` says the property changed with no such `change`, as
+   element-integration.js says for a property a verb records ("Recorded
+   properties"). The definition counts because the element held no output before it
+   and may dispatch no `change` for the first value its class holds. A value the
+   element comes to hold at any other time, with no `change`, reaches no reader.
+   Outputs stay outside the application state: no reading of the log
+   depends on one, so a change runs no fold and no selection, and only the readers of
+   that producer hear it. The proof that a reader has drawn is the one every element
+   Leaf delivers to has: its region is claimed in the stack that moved its reading
+   (`host` in element-integration.js), so the page reads as presented only after the
+   draw.
+
+   What a source shows moves only as state application delivers, and each element that
+   draws data holds the data version until its region has drawn the delivery
+   (`joinDataDelivery`). Modules draw the value into the authored seat; they do not
+   fetch it, mutate the accepted copy, or keep a hidden current-value map of their own.*/
+
+import { computed, signal, untracked } from "/vendor/signals-core.js";
+import { share } from "../base/snapshot.js";
+import { runtime } from "../state/context.js";
+import {
+  applicationState,
+  whenApplicationRegionsPresented,
+} from "../state/semantic-state.js";
+import { PAGE_PAINT_ATTRIBUTE } from "../base/page-paint.js";
+import { setRuntimeRootAttribute } from "../state/root-state.js";
+import { bindingAttributes, registry, tagsDeclaring } from "../state/registry.js";
+import { isElementName } from "../state/registry-contract.js";
+import { watchArrivals } from "../dom/arrivals.js";
+import { authoredElement } from "../readings/references.js";
+import { settledAway } from "../readings/passages.js";
+import { reportPageError } from "../transport/layer-client.js";
+import { tick } from "../state/version-signal.js";
+
+import type { SourceReading } from "../../types/domain.js";
+import type { DataOrigin } from "../records/projection/data.js";
+import type { InputDeclaration } from "../state/registry.js";
+type OutputReading = { contract: string; value: unknown };
+export type DataSnapshot =
+  | (SourceReading & { source: string; origin: DataOrigin })
+  | (OutputReading & { source?: never; revision?: never; origin: DataOrigin });
+export function acceptData(
+  candidate: { version: string | null; sources: Record<string, SourceReading> },
+  taken: number,
+) {
+  return applicationState.acceptData(candidate, taken);
+}
+
+// The regions that hold the data version until they have drawn a delivery.
+const joined = new Set<string>();
+
+export async function notifyDataSubscribers() {
+  const version = runtime.data.version;
+  tick(deliveries);
+  await whenApplicationRegionsPresented(
+    [...joined],
+    () => runtime.data.version === version,
+  );
+  // The version is presented only once every subscriber has settled, and the state
+  // answer carrying it is applied (`markStateApplied`) only after this returns. A
+  // rejected package render is reported at its own boundary rather than turning every
+  // later state read into the same page-wide failure. A data-only page therefore
+  // cannot be read while an asynchronous projection is still pending.
+  if (version !== null && runtime.data.version === version)
+    setRuntimeRootAttribute(document.body, PAGE_PAINT_ATTRIBUTE.dataVersion, version);
+}
+
+const declaredInput = (element: Element, input: string) => {
+  const declaration = registry[element.localName]?.inputs?.[input];
+  if (!declaration)
+    throw new Error(
+      `<${element.localName}> input ${input} is not declared by this widget`,
+    );
+  return declaration;
+};
+
+// A reader binds its producer by id. The id's signal moves when an element that may
+// hold an output arrives or leaves under it, so only the readers of that id resolve it
+// again, and a page of many producers loads without each arrival reaching every
+// reader. One watch covers every such tag, started by the first reader. Each producer
+// a reader has resolved has a signal its `change` moves.
+const standing: Map<string, { peek(): number; value: number }> = new Map();
+function standingUnder(id: string) {
+  let moved = standing.get(id);
+  if (!moved) standing.set(id, (moved = signal(0)));
+  return moved;
+}
+function moveStanding(element: Element) {
+  const moved = element.id ? standing.get(element.id) : undefined;
+  if (moved) tick(moved);
+}
+let producersWatched = "";
+function watchProducers() {
+  // A document adopts its registry once, so this starts one watch.
+  const tags = tagsDeclaring((entry) => Boolean(entry.outputs)).join(",");
+  if (!tags || tags === producersWatched) return;
+  producersWatched = tags;
+  // An arrival is offered again when the nodes beside it change, which is no move.
+  const stood = new WeakSet<Element>();
+  watchArrivals(tags, [], {
+    arrive(element) {
+      if (stood.has(element)) return;
+      stood.add(element);
+      moveStanding(element);
+    },
+    leave(element) {
+      stood.delete(element);
+      moveStanding(element);
+    },
+  });
+}
+const changes: WeakMap<Element, { peek(): number; value: number }> = new WeakMap();
+function changeOf(producer: Element) {
+  let said = changes.get(producer);
+  if (!said) {
+    const moved = (said = signal(0));
+    changes.set(producer, moved);
+    // A control inside the producer says `change` too; only the producer's own counts.
+    producer.addEventListener("change", (event) => {
+      if (event.target === producer) tick(moved);
+    });
+    // A widget's element holds no output until its class is defined, and the class
+    // may dispatch no `change` for the first value it holds, as a form control
+    // dispatches none.
+    const tag = producer.localName;
+    if (isElementName(tag) && !customElements.get(tag))
+      void customElements.whenDefined(tag).then(() => tick(moved));
+  }
+  return said;
+}
+/** Have the readers of `element`'s outputs read them again, after a change the
+ * element may have dispatched no `change` on itself to report. */
+export function heldMoved(element: Element) {
+  const said = changes.get(element);
+  if (said) tick(said);
+}
+
+// The reading of one source, which moves only as state application delivers: the
+// accepted one claims the element's region inside the publication that accepts it, and
+// the delivered one draws, so a reading accepted for a revision still being activated
+// never draws into the document it replaces. The first read takes the accepted reading.
+function deliveredSource(
+  source: string,
+  declaration: InputDeclaration,
+  input: string,
+  accepted: () => void,
+) {
+  const selected = applicationState.select((root): DataSnapshot | null => {
+    const reading = Object.hasOwn(root.data.sources, source)
+      ? root.data.sources[source]
+      : null;
+    return reading
+      ? {
+          ...reading,
+          source,
+          origin: {
+            input,
+            source,
+            contract: declaration.contract,
+            revision: reading.revision,
+          },
+        }
+      : null;
+  });
+  let stopAccepted: (() => void) | null = null;
+  return computed(
+    () => {
+      deliveries.value;
+      return untracked(selected.read);
+    },
+    {
+      watched() {
+        let seen = untracked(selected.read);
+        stopAccepted = selected.subscribe((now) => {
+          if (now === seen) return;
+          seen = now;
+          accepted();
+        });
+      },
+      unwatched() {
+        stopAccepted?.();
+        stopAccepted = null;
+      },
+    },
+  );
+}
+
+// The reading of a bound widget's output of `contract`: what the element under the bound
+// id holds in the property its declaration names for that contract. The id names an
+// element in the reader's own document first, then in the page, and never one a
+// settlement retired, which the reading follows as it changes. Wherever that finds an
+// element, `elementById` from the reader finds the same one, so a reader that asks the
+// widget it reads, as a board card asks its question, reaches the producer of what it
+// shows. `page check` holds that widget to one output of the contract.
+// A producer holds a new value to change one: the object it held at the last reading
+// reads as unchanged at no cost, so a large value held beside one that changes often
+// costs its readers nothing as the other moves. A new value is copied as it is read, so
+// the reading is the reader's own, and an equal one keeps the reading it replaced.
+function heldOutput(element: Element, widget: string, contract: string) {
+  watchProducers();
+  const moved = standingUnder(widget);
+  let held: DataSnapshot | null = null;
+  // What the producer held when `held` was copied from it.
+  let read: unknown;
+  return computed(() => {
+    moved.value;
+    const found = untracked(() => authoredElement(widget, element));
+    const producer = found && !settledAway(found) ? found : null;
+    if (!producer) return (held = null);
+    changeOf(producer).value;
+    return untracked(() => {
+      const outputs = registry[producer.localName]?.outputs ?? {};
+      const name = Object.keys(outputs).find(
+        (key) => outputs[key].contract === contract,
+      );
+      const value = name
+        ? (producer as unknown as Record<string, unknown>)[name]
+        : null;
+      if (value === null || value === undefined) return (held = null);
+      if (value === read && held) return held;
+      let copy;
+      try {
+        copy = structuredClone(value);
+      } catch (error) {
+        const named = producer.id ? `#${producer.id}` : "";
+        throw new Error(
+          `<${producer.localName}${named}> holds a ${contract} value that cannot be copied: ` +
+            (error as Error).message,
+          { cause: error },
+        );
+      }
+      read = value;
+      held = share(held, { contract, value: copy, origin: { derived: [{ widget }] } });
+      return held;
+    });
+  });
+}
+
+// The snapshot each delivered object value came from. An object is one delivery's copy,
+// so the lookup is exact, and it lasts as long as something holds the value.
+const supplied = new WeakMap<object, DataSnapshot>();
+/** The snapshot that supplied a delivered object `value`, or undefined. */
+export const suppliedSnapshot = (value: object) => supplied.get(value);
+
+// Whether the markup binds a declared input, to a source or to a widget's output.
+export const bindsInput = (element: Element, declaration: InputDeclaration) =>
+  bindingAttributes(declaration).some((attribute) => element.getAttribute(attribute));
+
+// Whether `element` binds a page data source while the page has read no data yet.
+// Until the first state answer is accepted, a source has no reading because none has
+// been read, not because it holds none, so an element drawing it then would draw "no
+// data" and move its contents when the data came (lib/leaf-element.js,
+// `shouldUpdate`). An input bound to another widget's output, or a declared source the
+// element doesn't name, waits for nothing. The acceptance draws the element with the accepted reading,
+// as any element's first read takes it. A page whose first read brought no state
+// settles offline, and its elements draw then, saying their sources hold nothing,
+// since no answer is coming to fill them.
+const dataRead = applicationState.select(
+  (root) => root.data.version !== null || root.phase === "offline",
+);
+export function awaitsData(element: Element) {
+  return (
+    Object.values<InputDeclaration>(registry[element.localName]?.inputs ?? {}).some(
+      (declaration) => declaration.source && element.getAttribute(declaration.source),
+    ) && !dataRead.read()
+  );
+}
+
+// An element's reader of one bound input (element-data.js), read through a signal, so a
+// render that reads it is drawn again when its reading moves. Markup owns the binding,
+// captured at the first read, so module code cannot turn a live attribute mutation into
+// an unvalidated rebind; a revision that rebinds mounts a new element.
+export function dataReader(
+  element: Element,
+  input: string,
+  accepted: () => void,
+): () => DataSnapshot | null {
+  const declaration = declaredInput(element, input);
+  const source = declaration.source ? element.getAttribute(declaration.source) : null;
+  const widget = declaration.reference
+    ? element.getAttribute(declaration.reference)
+    : null;
+  if (source && widget)
+    throw new Error(
+      `<${element.localName}> input binds both an external source and widget output`,
+    );
+  const bound = source
+    ? deliveredSource(source, declaration, input, accepted)
+    : widget && declaration.reference
+      ? heldOutput(element, widget, declaration.contract)
+      : null;
+  let reported: DataSnapshot | null = null;
+  let copied: { store: DataSnapshot; value: DataSnapshot } | null = null;
+  return () => {
+    const sourceStore = bound?.value ?? null;
+    const incompatible = sourceStore && sourceStore.contract !== declaration.contract;
+    if (incompatible && reported !== sourceStore) {
+      reported = sourceStore;
+      reportPageError(
+        `data source ${source} carries contract ${sourceStore.contract}; ` +
+          `<${element.localName}> input ${input} requires ${declaration.contract}`,
+      );
+    }
+    if (incompatible || !sourceStore || !Object.hasOwn(sourceStore, "value"))
+      return null;
+    // One copy a delivery: a render that reads it again gets the same value, so a widget
+    // tells a new delivery by identity, and none can mutate the accepted snapshot.
+    if (sourceStore !== copied?.store) {
+      copied = {
+        store: sourceStore,
+        value: structuredClone(sourceStore),
+      };
+      const { value } = copied.value;
+      if (value !== null && typeof value === "object")
+        supplied.set(value, copied.value);
+    }
+    return copied.value;
+  };
+}
+
+// A renderer that draws data as it reads it holds the data version until its region
+// presents; its readers hear the delivery itself.
+const deliveries = signal(0);
+export function joinDataDelivery(region: string) {
+  joined.add(region);
+  return () => joined.delete(region);
+}

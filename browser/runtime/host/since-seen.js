@@ -1,4 +1,4 @@
-// @ts-check
+// Compiled from since-seen.ts by build/typescript.mjs; edit that file.
 /* What changed since the user last saw the page, and the version Versions names for it.
 
    A revision counts as seen when it is on the page while the user is there: the
@@ -78,15 +78,10 @@ import { counted } from "../lib/words.js";
 
 const HANDOFF_KEY = "lf-seen-handoff";
 
-/** @typedef {import("../../types/contract.js").ServedRevision} Seen
- * @typedef {import("../../types/contract.js").ServedReading["versions"][number]} Version */
-
-/** @param {{ markSeen: (revision: number) => unknown }} capabilities */
 export function createSinceSeen({ markSeen }) {
   // A load or a return the user hasn't yet been told about.
   let arriving = true;
   // The newest live revision this tab showed the user, or the one a reload handed over.
-  /** @type {Seen | null} */
   let shown = null;
   try {
     shown = JSON.parse(tabStore.get(HANDOFF_KEY) || "null");
@@ -110,7 +105,6 @@ export function createSinceSeen({ markSeen }) {
     const seen = runtime.seen;
     return !shown || (seen && seen.revision >= shown.revision) ? seen : shown;
   };
-  /** @param {{revision: number} | null} seen */
   const versionAt = (seen) =>
     seen
       ? (runtime.versions.findLast((entry) => entry.revision <= seen.revision) ?? null)
@@ -118,7 +112,6 @@ export function createSinceSeen({ markSeen }) {
   // The notice of what changed since `since`, said once the count of the revision
   // being read is in, and only while no later arrival has come, nothing is marked
   // meanwhile and the page still holds changes since that version.
-  /** @param {Version} since @param {number} mine */
   async function tell(since, mine) {
     const holds = () =>
       mine === arrival.value && !selectedBase() && comparable(since.revision);

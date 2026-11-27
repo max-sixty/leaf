@@ -661,7 +661,12 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
         try:
             user.comment("first-wake")
             cc.until(
-                holding.exists, "boundary: the wake's turn did not answer its comment"
+                lambda: holding.exists() or user.answered("first-wake"),
+                "boundary: the wake's turn did not answer its comment",
+            )
+            require(
+                holding.exists(),
+                "boundary: the wake's turn answered its comment past the answer hold",
             )
             boundary = user.comment("boundary")
             escaped = drop(boundary, release=hold.unlink)
@@ -1135,7 +1140,9 @@ def answering(browser, *, sandbox: bool) -> Generator[tuple[User, Callable]]:
         }
         # And its hook before each shell command, which holds the session's answer to
         # a comment while the `boundary` step asks it to (`answer_hold`). A progress
-        # line, `leaf thread reply --ephemeral`, is no answer and passes.
+        # line, `leaf thread reply --ephemeral`, is no answer, but one command may
+        # post the progress line, make the edit and answer, so the hook holds a
+        # command that runs `thread reply` more often than it passes `--ephemeral`.
         hold, held = (shlex.quote(str(path)) for path in answer_hold(place))
         hooks["PreToolUse"] = [
             {
@@ -1144,9 +1151,14 @@ def answering(browser, *, sandbox: bool) -> Generator[tuple[User, Callable]]:
                     {
                         "type": "command",
                         "command": (
-                            f'if [ -e {hold} ]; then case "$(cat)" in '
-                            f"*--ephemeral*) ;; *'thread reply'*) touch {held}; "
-                            f"while [ -e {hold} ]; do sleep 0.1; done ;; esac; fi"
+                            f"[ -e {hold} ] || exit 0; "
+                            "command=$(jq -r .tool_input.command); "
+                            'replies=$(printf %s "$command" '
+                            "| grep -o 'thread reply' | wc -l); "
+                            'progress=$(printf %s "$command" '
+                            "| grep -o -e --ephemeral | wc -l); "
+                            f'[ "$replies" -gt "$progress" ] || exit 0; '
+                            f"touch {held}; while [ -e {hold} ]; do sleep 0.1; done"
                         ),
                         "timeout": 120,
                     }

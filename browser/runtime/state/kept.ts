@@ -45,7 +45,7 @@ import type { ReadonlySignal } from "@preact/signals-core";
 
 type CatchUp = () => void;
 export type Version = { read(): number; move(): void; [AT]: () => number };
-export type Entry = {
+type Entry = {
   args: readonly unknown[];
   value: ReadonlySignal<unknown>;
   versions: Map<Version, number> | null;

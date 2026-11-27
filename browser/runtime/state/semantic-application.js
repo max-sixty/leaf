@@ -61,7 +61,6 @@ import { kept, keptEach } from "./kept.js";
  * `accepted:presented` and waits there for `release`, which its owner calls once
  * those regions have committed. A signal a state has no edge for leaves it where it
  * is, and `present` moves only actions. */
-
 const LIFECYCLE = {
   sending: {
     accept: "accepted",

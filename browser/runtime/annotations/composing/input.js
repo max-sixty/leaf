@@ -1,3 +1,4 @@
+// Compiled from input.ts by build/typescript.mjs; edit that file.
 // One helper wires every durable composition surface: the general box, each per-thread
 // reply, the compact anchored composer, and composition boxes contributed by widgets.
 // `wireInput` gives every such text field one input contract: persist each edit, keep the
@@ -102,16 +103,12 @@ import { coarsePointer } from "../../base/pointer.js";
 import { PRESS } from "../../lib/keys.js";
 import { restArming } from "../../lib/rest-arming.js";
 
-/** @import { BoxPress, InputField, InputOptions, InputSync } from "../../records/composition-input.js" */
-/** @typedef {import("../../../types/domain.js").DraftDrawing} Drawing
- * @typedef {InputField & {[INPUT_DRAFT]?: InputSync}} WiredInput
- */
-
 const INPUT_DRAFT = Symbol("composition draft");
 // What Shift+Return does in a box that holds lines, as its hint and Send's tooltip say it.
 const NEW_LINE = "New line";
 
-/** @typedef {CompositionField} CompositionFieldElement For its tag. */
+/** For its tag. */
+
 class CompositionField extends SignalWatcher(LitElement) {
   createRenderRoot() {
     return this;
@@ -134,7 +131,6 @@ class CompositionField extends SignalWatcher(LitElement) {
 customElements.define("leaf-composition-field", CompositionField);
 
 // Another tab's copy of a drawing is a different object holding the same strokes.
-/** @param {Drawing | null} a @param {Drawing | null} b */
 const sameDrawing = (a, b) => a === b || JSON.stringify(a) === JSON.stringify(b);
 let thumbnailVersion = 0;
 
@@ -143,7 +139,6 @@ let thumbnailVersion = 0;
 // control, so nothing rides along with a comment unseen or beyond the user's reach. The
 // drawing also takes back its last stroke here: the route a pointer or a finger has to
 // that, wherever the composer stands.
-/** @param {{drawing: {record: Drawing, target: Element | null, undoStroke: () => unknown, removeDrawing: () => unknown} | null, media: {index: number, url: string}[], sent: boolean, removeMedia: (index: number) => unknown}} options */
 function mediaTemplate({ drawing, media, sent, removeMedia }) {
   const strokes = drawing?.record.strokes.length ?? 0;
   return [
@@ -157,29 +152,25 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
               data-lf-media-canvas
               aria-label=${`Inspect drawing, ${counted(strokes, "stroke")}`}
               title="Inspect drawing"
-              @click=${
-                /** @param {MouseEvent & {currentTarget: HTMLButtonElement & {firstElementChild: HTMLCanvasElement}}} event */ (
-                  event,
-                ) => {
-                  const canvas = event.currentTarget.firstElementChild;
-                  keeps(
-                    event.currentTarget,
-                    "data-lf-media-alt",
-                    canvas.dataset.lfDrawingContext === "ready"
-                      ? "Drawing over its frozen page context"
-                      : "Drawing",
-                  );
-                  keeps(
-                    event.currentTarget,
-                    "data-lf-media-caption",
-                    canvas.dataset.lfDrawingContext === "ready"
-                      ? ""
-                      : canvas.dataset.lfDrawingContext === "pending"
-                        ? "Drawing only; page preview was not ready when opened."
-                        : "Drawing only; page preview unavailable.",
-                  );
-                }
-              }
+              @click=${(event) => {
+                const canvas = event.currentTarget.firstElementChild;
+                keeps(
+                  event.currentTarget,
+                  "data-lf-media-alt",
+                  canvas.dataset.lfDrawingContext === "ready"
+                    ? "Drawing over its frozen page context"
+                    : "Drawing",
+                );
+                keeps(
+                  event.currentTarget,
+                  "data-lf-media-caption",
+                  canvas.dataset.lfDrawingContext === "ready"
+                    ? ""
+                    : canvas.dataset.lfDrawingContext === "pending"
+                      ? "Drawing only; page preview was not ready when opened."
+                      : "Drawing only; page preview unavailable.",
+                );
+              }}
             >
               ${guard([JSON.stringify(drawing.record), drawing.target], () => {
                 const canvas = drawingThumbnail(drawing.record, drawing.target);
@@ -194,17 +185,13 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
                 action: "undo",
               })}
               data-lf-corner
-              @mousedown=${
-                /** @param {MouseEvent} event */ (event) => event.preventDefault()
-              }
+              @mousedown=${(event) => event.preventDefault()}
               @click=${drawing.undoStroke}
             ></button>
             <button
               ${offeredAction("mark", "", "Remove drawing", { action: "remove" })}
               data-lf-corner
-              @mousedown=${
-                /** @param {MouseEvent} event */ (event) => event.preventDefault()
-              }
+              @mousedown=${(event) => event.preventDefault()}
               @click=${drawing.removeDrawing}
             ></button>
           </span>
@@ -253,19 +240,15 @@ function mediaTemplate({ drawing, media, sent, removeMedia }) {
 // A wired field's visible value omits generated image Markdown. Readers outside
 // this module ask through this seam for the complete draft; an unwired box keeps
 // its ordinary value.
-/** @param {(Element & {value?: string | null, [INPUT_DRAFT]?: InputSync}) | null | undefined} ta */
 export const draftOf = (ta) => ta?.[INPUT_DRAFT]?.value() ?? ta?.value ?? "";
 // Ask a wired field to paint again, as its own `sync()` does, where what its hint or
 // name reads has changed and the caller holds the field rather than its wiring.
-/** @param {(Element & {[INPUT_DRAFT]?: InputSync}) | null | undefined} ta */
 export const syncInput = (ta) => ta?.[INPUT_DRAFT]?.();
 // Whether the user writes in a wired box (the module header).
-/** @param {(Element & {[INPUT_DRAFT]?: InputSync}) | null | undefined} ta */
 export const writesIn = (ta) => Boolean(ta?.[INPUT_DRAFT]?.writing());
 // Whether a wired box takes no words now (`closed`), as the panel's field while a
 // stance stands. It asks `closed` rather than `readOnly`, which an upload in flight
 // also sets on a box that `c` may still move to another passage.
-/** @param {(Element & {[INPUT_DRAFT]?: InputSync}) | null | undefined} ta */
 export const takesNoWords = (ta) => Boolean(ta?.[INPUT_DRAFT]?.closed());
 // A box shows the key that enters it, in the face its placeholder's key wears: in its
 // placeholder while it is empty, and once its words cover the placeholder, as a draft's
@@ -277,18 +260,15 @@ export const takesNoWords = (ta) => Boolean(ta?.[INPUT_DRAFT]?.closed());
 // the key gives way to words that reach it, leaving the key unsaid until the words
 // leave it room, over a key chip hung on the box's corner, which stood over the page
 // beside the box, and over a column kept for the key beside Send, which wrapped the
-// words sooner. This is the box's frame and the
-// key it lends the key hints, while its words cover its placeholder and the caret isn't
-// in them. The key is the comment key (annotations/composing/surface.js,
-// `coveredEntry`); a box focus stands on lends it `text.enter`'s instead (below).
-/** @param {(Element & {[INPUT_DRAFT]?: InputSync}) | null | undefined} ta */
+// words sooner. This is the box's frame and the key it lends the key hints, while its
+// words cover its placeholder and the caret isn't in them. The key is the comment key
+// (annotations/composing/surface.js, `coveredEntry`); a box focus stands on lends it
+// `text.enter`'s instead (below).
 export const coveredBox = (ta) => ta?.[INPUT_DRAFT]?.covered() ?? null;
 // Whether an error stands at a box, which says it there; the panel's dot marks only
 // those that stand nowhere. A box that stops showing the words passes its errors, so a
 // standing one is always on screen.
-/** @param {import("../../transport/errors.js").RaisedError} error */
 export const standsAtItsBox = (error) => {
-  /** @type {(Element & {[INPUT_DRAFT]?: InputSync}) | null | undefined} */
   const subject = error.subject;
   return Boolean(subject?.[INPUT_DRAFT]) && !error.passed;
 };
@@ -298,7 +278,6 @@ export const standsAtItsBox = (error) => {
 // the caret and focus where they are, and the press keeps the notice that offers it
 // (transport/notifications.js, `keepsNotice`). The keyboard's route is the press's own command
 // and a finger's is this, so it takes no tab stop.
-/** @param {BoxPress} press @param {readonly string[]} keys */
 const pressAtRest = (press, keys) =>
   html`<span
     slot="end"
@@ -306,7 +285,7 @@ const pressAtRest = (press, keys) =>
     data-lf-hint
     tabindex="-1"
     ${keepsNotice()}
-    @mousedown=${(/** @type {MouseEvent} */ event) => event.preventDefault()}
+    @mousedown=${(event) => event.preventDefault()}
     @click=${press.run}
     ><span class="lf-compose-press-word">${press.word}</span>${
       keys.length ? keySequenceTemplate(keySequenceModel(neutralSteps(keys))) : nothing
@@ -316,11 +295,9 @@ const pressAtRest = (press, keys) =>
 // Boot binds one input owner to the app's upload command and contextual-hint
 // reading. Fields keep those capabilities for their lifetime; importing this module
 // never installs or replaces application callbacks.
-/** @param {{uploadMedia: (blob: Blob) => Promise<string | null>, inputHint: () => {box: Element | null, label: string} | null}} options */
 export function createCompositionInputs({ uploadMedia, inputHint }) {
   // Contextual destinations include geometry the application reads in its repaint.
   // Publish those two values; each field reads them with its other reactive inputs.
-  /** @type {import("@preact/signals-core").Signal<Element | null>} */
   const hintedBox = signal(null);
   const hintLabel = signal("");
   // A box's press stands only while a key of its would make it
@@ -328,7 +305,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
   // focus and the keys' liveness rather than from anything a box reads, so this frame
   // reads each offered press again, as it gives every box the comment key's
   // destination, and repaints a box whose press now reads otherwise than it drew.
-  /** @type {Map<CompositionField, () => boolean>} */
   const pressing = new Map();
   const publishInputHint = () => {
     const hint = inputHint();
@@ -342,7 +318,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
   // shows. Composers send by default; a caller whose action differs, such as adding an
   // option, names that action, and one whose action turns on what the box holds, as an
   // emptied rewrite deletes its message, answers both as it stands.
-  /** @param {WiredInput} ta @param {InputOptions} options */
   function wireInput(
     ta,
     {
@@ -387,7 +362,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       altLabel = null,
       // `true` to take an attached image; otherwise the sentence the user is told instead.
       // True, or why the box takes no image.
-      allowsMedia = /** @type {() => true | string} */ (() => true),
+      allowsMedia = () => true,
       busy = () => false,
       hasContent = (raw) => Boolean(raw),
       // A box whose draft can carry a drawing: `read` returns it or null, `replace` puts
@@ -427,16 +402,13 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const sendBindings = () => (oneLine ? ["Enter", "Mod+Enter"] : submitBindings());
     const sendKey = () => sendBindings().slice(0, 1).map(spell).join("");
     // Where Return sends a box that holds lines, Shift+Return makes one.
-    /** @param {string} sendKeys */
     const lineKeyOf = (sendKeys) =>
       sendKeys === spell("Enter") && !oneLine ? spell("Shift+Enter") : "";
     // The editor is kept whole in Lit's Node part. A rewrite's submit root sits
     // beside its existing Discard control, without an extra layout box.
     const submitEnd = document.createComment("");
     if (submitIn) submitIn.append(submitEnd);
-    /** @type {HTMLButtonElement | null} */
     let sendBtn = null;
-    /** @type {HTMLButtonElement | null} */
     let mic = null;
     let composing = false;
     // Firefox lacks speech recognition; WebKit has it only under its prefix.
@@ -446,12 +418,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     const offersDictation = Boolean(
       Recognition && actionWord() === "send" && !submitIn,
     );
-    /** @type {ReturnType<typeof import("./dictation.js").createDictation> | null} */
     let dictation = null;
     let loadingDictation = false;
     let dictationGeneration = 0;
     let loadingFailure = "";
-    /** @type {(() => void) | null} */
     let stopDictationRevision = null;
     const dictationPhase = () =>
       loadingDictation ? "starting" : (dictation?.phase ?? "idle");
@@ -469,12 +439,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       focusDestination(ta, "move", { caret: [end, end] });
     };
     const held = () => busy() || inputError.value !== null;
-    /** @type {Element | undefined} */
     let mediaShelf;
-    /** @type {string[]} */
     let attachedMedia = [];
     const draftValue = () => writeAttachedMedia(ta.value, attachedMedia);
-    /** @param {number} index */
     const removeMedia = (index) => {
       attachedMedia.splice(index, 1);
       draftChanged();
@@ -489,10 +456,8 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // the box from outside is where its history stands rather than a step in it: a draft
     // loaded whole (`hydrate`), or one the box takes up afresh (`sync.arrive`), so no step
     // reaches across drafts or takes back another tab's change.
-    /** @type {{drawing: Drawing | null, media: readonly string[]} | null} */
     let shelfSeen = null;
     let arrivals = 0;
-    /** @type {((drawn: Drawing | null) => void) | null | undefined} */
     const putDrawing =
       drawing &&
       ((drawn) => {
@@ -501,7 +466,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         const strokes = drawn?.strokes.length ?? 0;
         announce(strokes ? `Drawing, ${counted(strokes, "stroke")}.` : "No drawing.");
       });
-    /** @param {readonly string[]} media */
     const putMedia = (media) => {
       shelfSeen = { drawing: drawing?.read() ?? null, media };
       attachedMedia = [...media];
@@ -539,7 +503,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
         focusDestination(ta, "return");
       },
     };
-    /** @param {string} value */
     const hydrate = (value) => {
       cancelDictation();
       const restored = readAttachedMedia(value);
@@ -616,7 +579,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
       const entering = suffix && typeof offered === "string" ? offered : "";
       // What a press says at rest: its word and the keys that would make it now, or
       // nothing where none would (`enters`).
-      /** @param {BoxPress} reading */
       const said = (reading) =>
         reading.keys.length ? [reading.word, ...reading.keys].join(" ") : "";
       const pressText = press ? said(press) : "";
@@ -753,9 +715,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
             data-lf-dictation=${dictationState}
             aria-pressed=${String(live)}
             aria-description=${status || nothing}
-            @mousedown=${
-              /** @param {MouseEvent} event */ (event) => event.preventDefault()
-            }
+            @mousedown=${(event) => event.preventDefault()}
           ></button>`
         : nothing;
       const content = html`
@@ -770,12 +730,10 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
           aria-hidden="true"
           ?hidden=${!error}
           .lfPreview=${() => (error ? { name: error.message } : null)}
-          @pointerdown=${
-            /** @param {PointerEvent} event */ (event) => {
-              event.preventDefault();
-              uncover();
-            }
-          }
+          @pointerdown=${(event) => {
+            event.preventDefault();
+            uncover();
+          }}
         >
           <span>${error?.message ?? ""}</span>
         </p>
@@ -798,11 +756,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
           ?data-lf-words=${hasWords}
           @pointermove=${point}
           @pointerleave=${point}
-          @pointerdown=${
-            /** @param {PointerEvent} event */ (event) => {
-              if (!event.composedPath().some((node) => node === sendBtn)) unpoint();
-            }
-          }
+          @pointerdown=${(event) => {
+            if (!event.composedPath().some((node) => node === sendBtn)) unpoint();
+          }}
         >
           ${content}
         </div>
@@ -835,7 +791,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // Emptying a box that way would leave an image in a box the runtime then reads as
     // still holding something — the box would say "draft kept" over a comment it just
     // sent, and the picture would ride into the next passage's draft.
-    /** @type {InputSync} */
     const sync = () => refresh();
     // Closing belongs to each surface's existing owner, rather than a DOM observer
     // guessing whether a hidden field is merely outside the viewport.
@@ -858,7 +813,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // together, as the store holds it. Writing .value moves a focused caret to its end, so a
     // value the box already holds is left where it is — which is what lets another tab's
     // notification, a reopened composer, and a mirrored panel box all say it unconditionally.
-    sync.load = /** @param {string} value */ (value) => {
+    sync.load = (value) => {
       if (draftValue() !== value) hydrate(value);
       if (!value) ownWords = false;
       refresh();
@@ -870,11 +825,9 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // Wiring needs actual controls for their keyboard declarations. First render is
     // synchronous; subsequent updates use Lit's microtask batching.
     field.performUpdate();
-    /** @type {HTMLElement | null} */
     const visualField = field.querySelector("div.lf-compose-field");
     if (!visualField) throw new Error("Composition template has no field frame");
     sync.composition = () => ({ field: visualField, frame: field });
-    /** @type {HTMLElement | null} */
     const boxKey = visualField.querySelector(":scope > .lf-compose-key");
     if (!boxKey) throw new Error("Composition template has no box key");
     sync.covered = () =>
@@ -1059,7 +1012,7 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     // thumbnail it ends in belong to the rendering of the gesture that attached them
     // (base/rendering.js, `holdRendering`), so the box moves for the thumbnail as for the
     // user's own change rather than for news (dom/box-motion.js, "Whose change it is").
-    sync.addMedia = /** @param {readonly Blob[]} images */ async (images) => {
+    sync.addMedia = async (images) => {
       if (images.length) passErrorsAt(ta);
       if (!images.length || sending || uploading || held()) return false;
       cancelDictation();
@@ -1197,7 +1150,6 @@ export function createCompositionInputs({ uploadMedia, inputHint }) {
     };
     return sync;
 
-    /** @param {MouseEvent} event */
     function keepEditing(event) {
       if (!composing) event.preventDefault();
     }

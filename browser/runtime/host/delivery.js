@@ -1,3 +1,4 @@
+// Compiled from delivery.ts by build/typescript.mjs; edit that file.
 /* Event delivery. Pending records and application effects are supplied by the
    browser application owner; this module owns only POST, retry, and queue progress.
 
@@ -19,31 +20,16 @@ import { holdingError, raiseError } from "../transport/errors.js";
 const RETRY_MS = 2000;
 const retryPause = () => new Promise((resolve) => setTimeout(resolve, RETRY_MS));
 
-/** @typedef {import("../../types/contract.js").ServedEventAnswer & {state?: import("../transport/layer-client.js").StateAnswer}} EventAnswer */
 // What an /api/event answer says, read the same way by both senders: accepted, with
 // the state that shows the event, or refused for good (`final`, event_endpoint.py).
 // An answer that is neither is incomplete.
-/** @param {Response} response @param {EventAnswer} answer
- * @returns {answer is Extract<EventAnswer, { ok: true }>} */
 const acceptedAnswer = (response, answer) =>
   response.ok && "state" in answer && !("final" in answer);
-/** @param {EventAnswer} answer @returns {answer is Extract<EventAnswer, { final: true }>} */
 const refusedAnswer = (answer) => "final" in answer;
-/** @typedef {import("../transport/layer-client.js").CompletedState} State
- * @typedef {import("../records/pending/state.js").DeliveryHandle} Entry
- * @typedef {import("../../types/domain.js").Event} Event
- * @typedef {(state: State) => Promise<unknown>} ApplyState
- * @typedef {{accepted: Event | null, application?: Promise<unknown>, refusal?: string, state?: State}} DeliveryResult
- * @typedef {ReturnType<typeof import("../records/pending/state.js").createPendingLedger>} Ledger
- */
-/** @param {ApplyState} apply @param {State} state */
+
 const applyAnswerState = (apply, state) =>
   apply(state).catch((error) => reportCarried(error, "state in event response"));
 
-/** @param {{ledger: Ledger, applyAcceptedState: ApplyState,
- * settleRejected: (entry: Entry, state: State | undefined) => Promise<ReturnType<Ledger["refuse"]>>,
- * settlementChanged: (entry: Entry, accepted: Event | null) => void,
- * refusedWords: typeof import("../records/drafts.js").keepRefusedWords}} dependencies */
 export function createDelivery({
   ledger,
   applyAcceptedState,
@@ -53,12 +39,10 @@ export function createDelivery({
 }) {
   let draining = false;
 
-  /** @param {Entry} entry */
   async function deliver(entry) {
     // That the change is not through yet stands as an error while the tries go on,
     // and leaves when the change is through or refused.
     const retrying = holdingError();
-    /** @param {string} message */
     const retry = async (message) => {
       retrying(message);
       await retryPause();
@@ -70,7 +54,6 @@ export function createDelivery({
     }
   }
 
-  /** @param {Entry} entry @param {(message: string) => Promise<void>} retry @returns {Promise<DeliveryResult>} */
   async function tries(entry, retry) {
     for (;;) {
       if (!ledger.nameEvents(entry)) return { accepted: null };
@@ -105,7 +88,6 @@ export function createDelivery({
         await retry("Not through yet — trying again…");
         continue;
       }
-      /** @type {EventAnswer} */
       const answer = decoded.answer;
       if (acceptedAnswer(response, answer)) {
         // An accepted answer settles this gesture only once its state holds the receipt:
@@ -144,7 +126,6 @@ export function createDelivery({
         const { accepted, application, refusal, state } = await deliver(entry);
         if (accepted) ledger.accept(entry, accepted);
         // What the refusal took down with this gesture, such as a reply to its message.
-        /** @type {ReturnType<Ledger["refuse"]>} */
         let dependents = [];
         try {
           if (!accepted) {
@@ -195,7 +176,6 @@ export function createDelivery({
 // Send one bookkeeping event and apply the state its answer carries. Resolves
 // "accepted" once that state is applied, "refused" when the server's answer is final,
 // and "unreached" when no complete answer came back, which a later send may still get.
-/** @param {import("../../types/contract.js").BrowserCommand} event @param {ApplyState} applyState */
 export async function deliverBookkeeping(event, applyState) {
   const held = heldReading();
   let answered;
@@ -207,7 +187,6 @@ export async function deliverBookkeeping(event, applyState) {
   if (!answered || answered.response.status === 503 || "error" in answered.decoded)
     return "unreached";
   const { response } = answered;
-  /** @type {EventAnswer} */
   const answer = answered.decoded.answer;
   if (answer.state)
     await applyAnswerState(applyState, completeState(answer.state, held));

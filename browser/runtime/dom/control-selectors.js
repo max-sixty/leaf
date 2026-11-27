@@ -1,3 +1,4 @@
+// Compiled from control-selectors.ts by build/typescript.mjs; edit that file.
 /* The selectors that distinguish controls from informational text.
 
    These platform and Leaf field declarations have one home for gesture routing,
@@ -34,7 +35,6 @@ export const CARET_KEYS = [
   "PageDown",
 ];
 // Select All under either platform's modifier. With Shift also held the key reads "A".
-/** @param {KeyboardEvent} event */
 export const selectsAll = (event) =>
   event.key.toLowerCase() === "a" && (event.metaKey || event.ctrlKey);
 export const TEXT_BOX = inputs.textBox;
@@ -116,7 +116,6 @@ export const PRESSES = PRESS_SELECTORS.join(",");
 // composite widget moves within itself and a field moves its caret. An element's
 // `role` overrides its tag's, so a native tag counts by its tag only without one: a
 // `<button role="treeitem">` is a tree's row, whose arrows the tree takes.
-/** @param {string[]} tags */
 const unroled = (tags) => tags.map((tag) => `${tag}:not([role])`);
 export const LINKS = [...unroled(["a[href]"]), "[role='link']"].join(",");
 export const RADIOS = [...unroled(["input[type='radio']"]), "[role='radio']"].join(",");

@@ -59,7 +59,6 @@ import { saying } from "../dom/keyboard/control-keys.js";
 import type { Words } from "../base/voice.js";
 import type { SemanticNews } from "../../types/domain.js";
 import type { Signal } from "@preact/signals-core";
-export type { SemanticNews, Words };
 
 export type Moment =
   | "notice"
@@ -79,7 +78,7 @@ type SemanticBackground = {
   ) => readonly SemanticNews[];
   format: (value: readonly SemanticNews[]) => Words;
 };
-export type Background =
+type Background =
   | SemanticBackground
   | {
       key: "text";

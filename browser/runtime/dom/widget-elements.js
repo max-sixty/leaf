@@ -1,3 +1,4 @@
+// Compiled from widget-elements.ts by build/typescript.mjs; edit that file.
 export { searchField } from "./control-labels.js";
 import { offerAction } from "../lib/controls.js";
 export { generatedElement } from "../base/element-markers.js";
@@ -75,7 +76,6 @@ import { signal } from "/vendor/signals-core.js";
 // which joins the `updateComplete` of each element holding what was revealed that has
 // one: a Lit widget whose view switch finishes after its listener extends its own
 // `updateComplete`, as Lit elements do.
-/** @param {Element | null} el @param {() => boolean} mayReveal */
 export function reveal(el, mayReveal) {
   const chain = [];
   const settling = new Set();
@@ -131,14 +131,12 @@ export function reveal(el, mayReveal) {
 // signal, so that row's reflection, which reads them, hears them move (keyboard/scopes.js,
 // `reflectKeys`). The widget's own rows move with the grab too, even where it is a press
 // on an already-focused grip and no focus event fires, so its keys are painted here.
-/** @type {import("@preact/signals-core").Signal<Set<Event>>} */
 const hands = signal(new Set());
 
 export const dragHeld = () => hands.value.size > 0;
 
 document.addEventListener(HOLD, (event) => {
   const [origin] = event.composedPath();
-  /** @param {boolean} on */
   const move = (on) => {
     const held = new Set(hands.peek());
     if (on) held.add(event);
@@ -179,7 +177,6 @@ document.addEventListener(HOLD, (event) => {
 // Tab and which would otherwise cast a vote on the way into the thread. It catches the container's
 // own apparatus too, which no rule here could tell from the rest; a container excludes
 // its own, being the only thing that can name them.
-/** @param {Element} node @param {Element} container */
 export function worksInside(node, container) {
   // The closure, not one level: "what this container is made of" includes a
   // part's own parts — a column's cards are the board's, and one level deep a
@@ -220,7 +217,6 @@ export function worksInside(node, container) {
 // answer is null (`reachedForWords`); a click made with Enter or Space never ends one.
 // Any other click is the container's. Asking about the selection first would deaden an
 // option's own pick mark whenever words in the option were selected.
-/** @param {MouseEvent} event @param {Element} container @returns {Element | null} */
 export function aimedAt(event, container) {
   const { target } = event;
   if (!isElement(target)) return null;
@@ -246,8 +242,7 @@ export function aimedAt(event, container) {
  * declares (`verbs`) say what it records, not that a press on its content acts.
  * A thread's words preview the thread only where nothing does, on every route that
  * reads a point (annotations/preview.js, `readingAt`); presses don't ask, so a press on a
- * thread's words acts as it always has.
- * @param {Node | null} node @returns {Element | null} */
+ * thread's words acts as it always has. */
 export function aimableAt(node) {
   for (
     let at = isElement(node) ? node : renderedParent(node);
@@ -264,12 +259,10 @@ export function aimableAt(node) {
   return null;
 }
 // Whether a registered widget draws its content itself, by its entry.
-/** @param {import("../../types/contract.js").WidgetDeclaration | undefined} entry */
 const drawsItsContent = (entry) => bodyIsData(entry) || entry?.content === "empty";
 // Whether a widget drew `node`: a registered widget that draws its content itself
 // stands round it as the page renders it, as an activity list does round its rows.
 // What a widget holds of the author's markup, as a pane's words, it didn't draw.
-/** @param {Node} node */
 export const drawnByWidget = (node) => {
   for (let at = renderedParent(node); at; at = renderedParent(at))
     if (drawsItsContent(registry[at.localName])) return true;
@@ -328,7 +321,6 @@ export const PRESSABLE = '[data-lf-offer]:not([data-lf-offer=""])';
 // So a selection the press made or moved, as a drag or a double-click does, is always
 // the press's, and one it found is the press's where the release stands over one of
 // its characters.
-/** @type {import("./focus.js").PressRecords<{before: unknown[], focus?: Node | null}>} */
 const releases = pressRecords();
 onPress((start) => {
   const sel = getSelection();
@@ -353,7 +345,6 @@ addEventListener(
 );
 
 // Whether a point lies over a character `range` holds.
-/** @param {Range} range @param {number} x @param {number} y */
 function onSelectedWords(range, x, y) {
   const caret = document.caretPositionFromPoint(x, y, {
     shadowRoots: pageShadowRoots(),
@@ -382,7 +373,6 @@ function selectionFocus() {
   return selectionBackward(sel, range) ? range.startContainer : range.endContainer;
 }
 
-/** @param {Element} el */
 function reachedForWords(el) {
   const released = releases.kept()?.focus;
   const focus = released === undefined ? selectionFocus() : released;
@@ -402,8 +392,7 @@ document.addEventListener(
     const control = ev
       .composedPath()
       .find(
-        /** @returns {node is Element} */ (node) =>
-          node instanceof Element && node.matches(`${PRESSES},[data-lf-offer]`),
+        (node) => node instanceof Element && node.matches(`${PRESSES},[data-lf-offer]`),
       );
     if (control && reachedForWords(control)) {
       ev.stopPropagation();
@@ -416,7 +405,6 @@ document.addEventListener(
 // Every surface that closes wears one control for it: the cross, named for what it
 // closes, since the glyph alone says only "close". `name` is the accessible name, such
 // as "Close threads", which its preview says with the keys the register gives it.
-/** @param {{name: string, className?: string}} options */
 export const closeControl = ({ name, className = "" }) =>
   offerAction("symbol", className, name, { action: "close" });
 
@@ -426,8 +414,6 @@ export const closeControl = ({ name, className = "" }) =>
 // change vocabulary without each inventing a button shape. A reaction shows its emoji,
 // and Leaf's own actions their symbol (icon-paths.js, `ACTIONS`). Restating the anatomy
 // a control already wears writes nothing (lib/keeps.js).
-/** @template {HTMLElement} T @param {T} control
- * @param {{glyph?: string | null, action?: string | null, label: string, behavior?: string, collapse?: boolean}} options @returns {T} */
 export function responseAction(
   control,
   { glyph = null, action = null, label, behavior = "action", collapse = false },

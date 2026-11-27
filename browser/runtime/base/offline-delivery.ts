@@ -7,7 +7,7 @@
    addresses and the import map share that allocator and module identity. document.write
    hands the existing composed source to the native parser, including classic scripts,
    import maps and declarative shadow trees; it creates no alternate renderer. */
-export type Resource = { mime: string; base64: string };
+type Resource = { mime: string; base64: string };
 window.setTimeout(() => {
   const packageScript = document.querySelector("script[data-lf-export]");
   if (!packageScript) throw new Error("Offline delivery has no resource package");

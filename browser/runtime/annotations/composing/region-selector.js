@@ -1,3 +1,4 @@
+// Compiled from region-selector.ts by build/typescript.mjs; edit that file.
 /* A bounded area-selection interaction over the current viewport.
  *
  * The page command owner supplies input and registers this controller's rows with the
@@ -49,21 +50,12 @@ import { captured } from "../../readings/anchor-resolution.js";
 const MIN_SIZE = 8;
 const STEP = 10;
 
-/** @typedef {{x: number, y: number, width: number, height: number}} Region
- * @typedef {NonNullable<import("../../../types/contract.js").EventMap["comment"]["anchor"]>} Anchor
- * @typedef {{parent: HTMLElement,
- * visibleTargets: ReturnType<typeof import("./target-picker.js").createTargetPicker>["visibleTargets"],
- * openComposerWithMedia: (anchor: Anchor | null, images: Blob[]) => unknown,
- * returnTo?: Element | null}} RegionSelectorOptions
- */
-/** @param {RegionSelectorOptions} options */
 export function createRegionSelector({
   parent,
   visibleTargets,
   openComposerWithMedia,
   returnTo = null,
 }) {
-  /** @type {PromiseWithResolvers<void>} */
   const { promise: done, resolve: settled } = Promise.withResolvers();
   const currentLocation = focused();
   const origin = currentLocation === document.body ? returnTo : currentLocation;
@@ -77,9 +69,7 @@ export function createRegionSelector({
   status.setAttribute("role", "status");
   overlay.append(selection, status);
   // No area until a drag draws one or an arrow key asks for the preset.
-  /** @type {Region | null} */
   let box = null;
-  /** @type {{id: number, x: number, y: number, from: Region | null} | null} */
   let drag = null;
   let busy = false;
   let attempt = 0;
@@ -111,7 +101,6 @@ export function createRegionSelector({
     paint();
   }
 
-  /** @param {(() => void) | null} [land] */
   function finish(land = null) {
     if (ended) return;
     ended = true;
@@ -130,7 +119,6 @@ export function createRegionSelector({
     fit();
   }
 
-  /** @param {string} binding */
   function move(binding) {
     if (!box) {
       const { right: width, bottom: height } = layoutWindow();
@@ -157,7 +145,6 @@ export function createRegionSelector({
     fit();
   }
 
-  /** @param {Region} selected */
   function anchorForBox(selected) {
     // The passive paint leaves targets exposed to the ordinary visibility reading,
     // including revisions, widget updates and reflow made while the user selected.
@@ -216,7 +203,6 @@ export function createRegionSelector({
     }
   }
 
-  /** @param {PointerEvent} event @param {{x: number, y: number}} origin */
   function dragTo(event, origin) {
     box = {
       x: Math.round(Math.min(origin.x, event.clientX)),
@@ -229,7 +215,6 @@ export function createRegionSelector({
 
   // The command owner filters chrome and suppresses claimed events before authored
   // controls see them. Pointer capture, if needed, belongs to that input owner too.
-  /** @param {PointerEvent} event */
   function pointer(event) {
     if (ended) return false;
     if (event.type === "pointerdown") {
@@ -257,7 +242,6 @@ export function createRegionSelector({
 
   // A native editor taking focus ends selection without taking that focus back.
   const cancel = ({ restore = true } = {}) => finish(restore ? null : () => {});
-  /** @type {import("../../dom/keyboard/bindings.js").Command[]} */
   const rows = [
     {
       id: "capture.region.attach",

@@ -23,9 +23,11 @@
 
    What the component asks of Leaf, such as recording a gesture, it issues as a
    Command of Leaf's services (widget-services.js), which the mount provides for this
-   element. Its events are for the page around it: each is a bubbling, composed
-   `CustomEvent` named by its lowercased tag, with the event as `detail`, as
-   `BrowserHost.defineElement` dispatches one.
+   element. A Command runs in a microtask of the task that issued it, on the
+   scheduler the mount provides, so a gesture's Command lands before the browser's
+   next frame. The component's events are for the page around it: each is a
+   bubbling, composed `CustomEvent` named by its lowercased tag, with the event as
+   `detail`, as `BrowserHost.defineElement` dispatches one.
 
    Drawing follows the protocol's "Drawing" rule. The first mount draws before
    `connectedCallback` returns. A later set draws in Effect UI's flush, a microtask
@@ -50,8 +52,9 @@
      first.
    - `options.members` read and write the component's Model: reading one gives what
      its `get` reads off the Model, and setting one sends the root the message its
-     `set` returns. Out of the document a member reads the Model the closed root
-     ended with. */
+     `set` returns, which draws as a set of props does. Out of the document a member reads the Model the closed root
+     ended with, and a set waits for the next root, as one made before the tag was
+     defined does. */
 import {
   BrowserHost,
   Cause,
@@ -59,6 +62,7 @@ import {
   Equal,
   Exit,
   Schema,
+  Scheduler,
   Scope,
 } from "/vendor/effect-ui.js";
 import { signal, effect as watch, untracked } from "/vendor/signals-core.js";
@@ -73,6 +77,12 @@ import { leafServices } from "./widget-services.js";
 export const widgetProps = { state: Schema.optional(Schema.Unknown) };
 
 let mounts = 0;
+
+// The scheduler a root's Commands and Subscriptions run on: microtasks of the task that
+// asked, so a Command a gesture issues runs before the browser's next frame
+// (AGENTS.md, "Responsiveness"). Without one, Effect UI posts them through its
+// time-sliced HtmlScheduler, as later tasks.
+const microtasks = new Scheduler.MixedScheduler("sync");
 
 /** @typedef {{get?: (model: any) => unknown, set?: (value: any) => unknown}} Member */
 
@@ -114,7 +124,13 @@ export function defineWidget(
           },
           /** @this {InstanceType<typeof Widget>} @param {unknown} value */
           set(value) {
-            if (set) this.#root?.send(set(value));
+            if (!set) return;
+            const message = set(value);
+            if (!this.#root) this.#held.push(message);
+            else {
+              this.#root.send(message);
+              this.#redraws();
+            }
           },
         });
     }
@@ -129,6 +145,9 @@ export function defineWidget(
     // The Model the last root ended with, which `members` read while none stands.
     /** @type {unknown} */
     #ended = undefined;
+    // The messages `members` set while no root stood, which the next root takes.
+    /** @type {unknown[]} */
+    #held = [];
     /** @type {Scope.Closeable | undefined} */
     #scope = undefined;
     /** @type {HTMLElement | undefined} */
@@ -149,7 +168,8 @@ export function defineWidget(
       // A page may set a property before this module defines the tag, which leaves an
       // own property hiding the accessor. Its value moves into the props here, without
       // the accessor's mount: an element upgraded in the document mounts from
-      // `connectedCallback`, once Leaf has answered `lf-connect`.
+      // `connectedCallback`, once Leaf has answered `lf-connect`. A member's value
+      // goes through its accessor, which holds the message for that mount.
       const own = /** @type {Record<string, unknown>} */ (
         /** @type {unknown} */ (this)
       );
@@ -158,6 +178,12 @@ export function defineWidget(
           const value = own[name];
           delete own[name];
           this.#properties = { ...this.#properties, [name]: value };
+        }
+      for (const name of Object.keys(members))
+        if (Object.hasOwn(this, name)) {
+          const value = own[name];
+          delete own[name];
+          own[name] = value;
         }
       // A listener on a shadow host sees itself as the target of an event from inside
       // its root, so the element that connected is read off the path.
@@ -265,10 +291,17 @@ export function defineWidget(
           },
         })
       );
-      this.#root = Effect.runSync(
-        mounting.pipe(Effect.provide(leafServices(this)), Scope.provide(scope)),
-      );
+      const root = (this.#root = Effect.runSync(
+        mounting.pipe(
+          Effect.provide(leafServices(this)),
+          Effect.provideService(Scheduler.Scheduler, microtasks),
+          Scope.provide(scope),
+        ),
+      ));
+      const held = this.#held.splice(0);
+      for (const message of held) root.send(message);
       this.#drawn();
+      if (held.length) this.#redraws();
     }
 
     // The box a light widget draws in, since Effect UI empties the container it mounts
@@ -285,8 +318,12 @@ export function defineWidget(
       const root = this.#root;
       if (!root) return;
       root.setProps(this.#props());
-      // Effect UI's flush is the microtask setProps queued, so a task queued now
-      // runs after it.
+      this.#redraws();
+    }
+
+    // The root draws a change in Effect UI's flush, the microtask that `setProps` or
+    // `send` queued, so a task queued now runs after it.
+    #redraws() {
       const drawn = Promise.resolve().then(() => this.#drawn());
       this.dispatchEvent(new PendingTaskEvent(drawn));
     }

@@ -540,10 +540,20 @@ packages declare, the public modules and the names each exports, and the styling
 names the references declare. The public modules are those `$public-modules` in the
 kernel registry lists outside the library: Leaf's own, such as `widget-api.js` and
 `effect-widget.js`, and the dependencies Leaf serves, such as Lit. Another author's
-package has nothing else, so Leaf's bundled widgets use nothing else. The interface sprawls through names that each look reasonable alone,
-and every later change keeps each name working, so Leaf keeps it small and coherent.
-A change meets a widget's need without a new name where it can, and
-`packages/AGENTS.md`, "A widget's need of Leaf", says how to choose where it can't.
+package has nothing else, so Leaf's bundled widgets use nothing else. The interface
+sprawls through names that each look reasonable alone, and every later change keeps
+each name working, so Leaf keeps it small and coherent. A change meets a widget's
+need without a new name where it can, and `packages/AGENTS.md`, "A widget's need of
+Leaf", says how to choose where it can't.
+
+Leaf is moving its widgets to Effect UI, and until the move ends the interface holds
+two ways to write one. An Effect UI component, which `effect-widget.js` defines, asks
+Leaf for some acts through the Command services of `widget-services.js`, where a Lit
+or plain element dispatches the protocol's event or calls a `widget-api.js` function
+for the same act. A bundled widget Leaf adds or rewrites that draws a view of its own
+is an Effect UI component. A name that only widgets not yet moved use, such as a
+function a service repeats, leaves the interface once the last package or page code
+that calls it has moved.
 
 A smaller interface is worth a small visible difference. Where a name's work is to
 keep a look, a first paint or a behaviour exactly as it was, the name goes, and the

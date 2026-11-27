@@ -131,7 +131,7 @@ rule draws at once is drawn.
   may scroll to open clear of its target, and otherwise only a field in flow scrolls to
   keep its controls in view (`records/thread/reply-landing.js`).
 - **Readable content comes before activation.** Authored HTML paints while browser
-  modules load. Each widget owns one Lit view across its lifetime; native slots retain
+  modules load. Each widget updates one view while it is mounted; native slots retain
   authored children and CSS owns their initial layout. Each control waits only for the
   behavior or state it needs, and nothing holds the whole document behind widget
   readiness (`../skills/leaf/references/module-authoring.md`, "First paint").
@@ -417,11 +417,9 @@ and names the reason in `data-lf-startup-error`.
 `runtime/bootstrap.js` runs in a served page only, stands the floating panel's row from
 the first paint, holds keys pressed before upgrade and shows a startup failure.
 
-Of the runtime, content modules import only `runtime/widget-api.js`, the public helper
-surface, and the modules of the library ("The library of shared web code"). A widget
-that also runs off Leaf imports, in place of `widget-api.js`, only the part of it any
-document loads, `runtime/portable-api.js`.
-`module-authoring.md` defines these boundaries. Owners
+Of the runtime, content modules import only the paths the kernel registry's
+`$public-modules` lists. `module-authoring.md` says which to use, including for a
+widget that also runs off Leaf, and defines these boundaries. Owners
 receive their capabilities when constructed and read other owners in their mounts. The
 projection, thread and pending models import no DOM or application services.
 `../.config/dependency-cruiser.mjs` enforces these boundaries, eslint the runtime's

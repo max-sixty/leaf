@@ -296,8 +296,9 @@ itself, so a widget that holds authored children returns from `createRenderRoot(
 part it generated beside them, or says `static shadow = true` and slots them. The
 module's header is the class's whole contract.
 
-Only the class follows a page reading, so a widget that draws from one extends it or
-is an Effect UI component that `defineWidget` defines (`module-authoring.md`).
+The class's `render()` and an Effect UI component's `inputs` follow a page reading, so
+a widget that draws from one extends the class or is a component that `defineWidget`
+defines (`module-authoring.md`).
 A plain element can still draw its own reports in its `state` setter, since Leaf sets
 `state` again as they turn ready (`module-reading.md`, "Page history and reports").
 A widget that draws with Lit's standalone `render`, as the opening example does, that

@@ -1746,16 +1746,23 @@
     for (const node of nodes)
       if (leaving.has(node)) readDrawn.delete(node);
       else readDrawn.add(node);
+    // An anchor name belongs to the tree whose style declares it. A box in a shadow
+    // tree that exposes a part can take its name from its host's tree, through a
+    // `::part()` rule there, as css-anchors.js names a widget's box from the document,
+    // so its names count in both trees.
     const anchors = new Map();
     for (const node of nodes.filter((node) => node instanceof Element)) {
       const tree = node.getRootNode();
-      if (!anchors.has(tree)) anchors.set(tree, new Map());
-      const names = anchors.get(tree);
-      for (const name of getComputedStyle(node)
-        .anchorName.split(",")
-        .map((name) => name.trim())) {
-        if (!name || name === "none") continue;
-        names.set(name, names.has(name) ? null : node);
+      const outer = node.part.length ? tree.host?.getRootNode() : null;
+      for (const scope of outer ? [tree, outer] : [tree]) {
+        if (!anchors.has(scope)) anchors.set(scope, new Map());
+        const names = anchors.get(scope);
+        for (const name of getComputedStyle(node)
+          .anchorName.split(",")
+          .map((name) => name.trim())) {
+          if (!name || name === "none") continue;
+          names.set(name, names.has(name) ? null : node);
+        }
       }
     }
     const modal = document

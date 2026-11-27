@@ -69,8 +69,10 @@
  * it was pressed on was whole and no other: an option a version added asks again with
  * the picks kept, a pick the user changed asks again with the new picks, and a version
  * that rewrites a picked option (`$restated`) takes that option out of the pick, so the
- * question asks again with the other picks. A version that removes the one option Done
- * didn't cover answers it again, since the set Done covered stands again. The
+ * question asks again with the other picks. Only the user's press answers again: a
+ * version that removes the one option Done didn't cover leaves the question asking
+ * until Done is pressed, though the set Done covered stands again
+ * (`obligations.told_facts`). The
  * alternative, Done answering whatever set follows it, could not ask again about an
  * option a version added without taking back every pick (`$restated` on the group).
  *

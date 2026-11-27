@@ -156,7 +156,8 @@ acts, never a value the markup holds, as lf-options' reads `action` beside its
 `value`, so a version that writes an answer into the markup answers nothing: one that
 settles a question retires it (`awaits.retired`), and one that asks a decided question
 again marks it `restated` (`authoring-revisions.md`), which lapses the word the page
-kept until a tab showing that version works it out again.
+kept. A tab's word on a version can reopen a question but never answer it, so only
+the user's next gesture answers it again.
 
 ## Bound data and projections
 

@@ -287,25 +287,29 @@ no word from it, so the values said before it lapse until the widget says them a
 (`obligations.widget_facts`). A value is therefore stale while no tab shows the
 version that moved it. Leaf gives meaning only to `answered`: the widget's obligation
 is answered while it says so, and one with no `answered` kept stands asked. A `facts`
-event's word stands as a gesture's does, so it may reopen the question or answer it:
-a widget works `answered` out of the user's acts in force, and no version brings back
-a decision the user replaced ("Restated decisions"). The served view (`facts`) and
+event may say the question is open again but never that it is answered, since an
+answer is the user's act and its word travels on that act (`obligations.told_facts`);
+admission counts such a word as changing nothing. The served view (`facts`) and
 `leaf page state` (each element's `facts`) show the kept values.
 
 ### Restated decisions
 
 A version note's `restated` names elements the version rewrote. It reaches each
-action made on an earlier version that rests on one of them (`depends`), whether the
-action lands before the note or after it, and the action then stands as the version
-reads it (`events.restated_reading`). An action with an `attribute` record keeps the
-members the version left alone, so a rewritten option leaves the rest of the pick, and
-a pick of that option alone leaves an empty pick. Any other action no longer applies,
-and neither does any action before it at its key, so a card moved into a rewritten
-column goes back to where the markup puts it, not to the column it left. No key falls
-back to a decision the user replaced. An action the version took members out of
-carries no `answer` and no `facts`, since the widget said nothing of the members left.
-The served entry's `value` is the record as it stands, and the browser folds that
-value rather than the event's detail.
+action made on an earlier version that rests on one of them (`depends`), and the
+action then stands as the version reads it (`events.restated_reading`). An action with
+an `attribute` record keeps the members the version left alone, so a rewritten option
+leaves the rest of the pick, and a pick of that option alone leaves an empty pick. Any
+other action no longer applies, and neither does any action before it at its key, so a
+card moved into a rewritten column goes back to where the markup puts it, not to the
+column it left. No key falls back to a decision the user replaced. An action the
+version took members out of carries no `answer` and no `facts`, since the widget said
+nothing of the members left. The served entry's `value` is the record as it stands,
+and the browser folds that value rather than the event's detail.
+
+An action made on an earlier version that lands after the note, as from a tab still
+showing that version, is read the same way, except that a decision that no longer
+applies never comes into force and takes out nothing, so it leaves the decisions the
+user made on the new version standing.
 
 ## Following the log
 

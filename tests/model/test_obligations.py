@@ -1552,38 +1552,39 @@ def test_restating_a_picked_step_after_done_asks_again_with_the_other_picks():
     assert "choice" not in state["views"]["2"]["facts"]
 
 
-def test_a_tabs_word_answers_once_a_version_leaves_done_covering_the_options_again():
-    """Done covered a and b. A version added c, and the user, picking there, left a
-    picked with c uncovered, so the question asks again. The next version takes c
-    out, and Done covers the options again with the same pick, so a tab showing it
-    works out that the question is answered, and its word answers it."""
-    documents = {1: checklist("a", "b"), 2: checklist("a", "b", "c")}
-    documents[3] = documents[1]
-    events = [
-        chose("a"),
-        done(["a", "b"], ["a"]),
-        {**chose(), "revision": 2},
-        {**chose("a"), "revision": 2},
-    ]
-    [item] = page_obligations(model.reading(documents, events), 3)["all"]
-    assert (item["state"], item["next_actor"]) == ("waiting", "user")
-    state = model.reading(documents, [*events, told(True, through=4, revision=3)])
-    [item] = page_obligations(state, 3)["all"]
-    assert standing_model.answered(item)
-
-
-def test_a_tabs_word_answers_once_two_tabs_acts_cross():
-    """Tab B picks a and presses Done on a and b, while tab A, which has seen neither
-    act, picks a. A's pick lands last, carrying A's word that the question is open.
-    Every tab then works out that it is answered, and the first word to say so
-    answers it."""
-    documents = {1: checklist("a", "b")}
-    events = [chose("a"), done(["a", "b"], ["a"]), chose("a")]
-    [item] = page_obligations(model.reading(documents, events), 1)["all"]
-    assert (item["state"], item["next_actor"]) == ("waiting", "user")
-    state = model.reading(documents, [*events, told(True, through=3, revision=1)])
-    [item] = page_obligations(state, 1)["all"]
-    assert standing_model.answered(item)
+def test_a_tabs_word_reopens_a_question_but_never_answers_it():
+    """Only the user's act answers a question, so the page refuses a tab's word that
+    one is answered, and the question asks until the user presses Done again. A tab
+    works that word out where a version brings back what an earlier Done covered: the
+    user pressed Done on a and b with a picked, then picked b too, and a version
+    rewrote b, which leaves the pick of a that Done covered; or the user took the
+    pick of a back after Done, and a version wrote it into the markup."""
+    rewrote_b = {1: checklist("a", "b"), 2: checklist("a", "b", restated=("b",))}
+    marked = model.leaf_page(
+        "Questions",
+        '<lf-options id="choice" multiple><lf-option id="a" selected>A</lf-option>'
+        '<lf-option id="b">B</lf-option></lf-options>',
+    )
+    for documents, events in (
+        (
+            rewrote_b,
+            [chose("a"), done(["a", "b"], ["a"]), chose("a", "b"), restating("b")],
+        ),
+        (
+            {1: checklist("a", "b"), 2: marked},
+            [
+                chose("a"),
+                done(["a", "b"], ["a"]),
+                {"kind": "undo", "undoes": "e1", "facts": {"answered": False}},
+                {**restating("b"), "restated": []},
+            ],
+        ),
+    ):
+        [item] = page_obligations(model.reading(documents, events), 2)["all"]
+        assert (item["state"], item["next_actor"]) == ("waiting", "user")
+        with pytest.raises(EventRefused) as answering:
+            model.reading(documents, [*events, told(True, through=4)])
+        assert refused_on(answering.value).code == "unchanged-facts"
 
 
 def test_a_word_worked_out_before_a_press_that_lands_after_it_is_refused():

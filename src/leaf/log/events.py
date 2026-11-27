@@ -1055,14 +1055,19 @@ class InForce:
     `withdraw` and version notes to `restate` where they fall. An action stands from
     its admission until an undo withdraws it, and the latest action in force wins, one
     answering nothing included. A note that restates an id reaches each action made on
-    an earlier version that rests on it, and so does the note's floor for such an
-    action arriving after it, as from a tab showing an older version. A reached action
-    stands as the version reads it (`restated_reading`): a set of members without the
-    rewritten ones, or nothing, and then nothing the decision replaced stands either,
-    so every action before it at its coordinate goes too. The coordinate never falls
-    back to a decision the user replaced: a version taking back a pick of b that
-    replaced a pick of a leaves no pick, rather than a again. An undo of a decision
-    still in force brings back the one before it, as the version reads that one.
+    an earlier version that rests on it. A reached action stands as the version reads
+    it (`restated_reading`): a set of members without the rewritten ones, or nothing,
+    and then nothing the decision replaced stands either, so every action before it at
+    its coordinate goes too. The coordinate never falls back to a decision the user
+    replaced: a version taking back a pick of b that replaced a pick of a leaves no
+    pick, rather than a again. An undo of a decision still in force brings back the one
+    before it, as the version reads that one.
+
+    The note's floor reaches an action made on an earlier version that arrives after
+    it, as from a tab still showing that version. A set stands without the rewritten
+    members, as any act from an older tab stands; any other decision never comes into
+    force and changes nothing, so it can't take out a decision the user made on the
+    version that rewrote what it rests on.
 
     A step reports a `Change` only where the winner moved: taking out an action
     that was not winning changes no coordinate's reading. A reached winner that still
@@ -1108,19 +1113,17 @@ class InForce:
     def admit(self, action: dict) -> Change | None:
         """Stand `action` at its coordinate, as the versions since the one it was made
         on read it."""
-        coordinate = event_coordinate(action)
-        before = self.winner(coordinate)
         restated = set(restated_under(action, self.floors, self.within))
         reading = restated_reading(action, restated) if restated else action
         if reading is None:
-            self._cut(coordinate, None)
-        else:
-            self._at.setdefault(coordinate, OrderedDict())[action["id"]] = reading
-            self._coordinate[action["id"]] = coordinate
-            for identity in action_rests_on(reading, self.within):
-                self._resting.setdefault(identity, OrderedDict())[action["id"]] = None
-        after = self.winner(coordinate)
-        return Change(coordinate, before, after) if after is not before else None
+            return None
+        coordinate = event_coordinate(action)
+        before = self.winner(coordinate)
+        self._at.setdefault(coordinate, OrderedDict())[action["id"]] = reading
+        self._coordinate[action["id"]] = coordinate
+        for identity in action_rests_on(reading, self.within):
+            self._resting.setdefault(identity, OrderedDict())[action["id"]] = None
+        return Change(coordinate, before, reading)
 
     def withdraw(self, identity: str) -> Change | None:
         """Take the action `identity` names out, where it stands."""
@@ -1167,10 +1170,10 @@ class InForce:
                 changes.append(Change(coordinate, before, after))
         return changes
 
-    def _cut(self, coordinate: tuple, through: str | None) -> None:
-        """Take out every action at `coordinate` up to `through`, or all of them."""
-        actions = self._at.get(coordinate, {})
-        while actions:
+    def _cut(self, coordinate: tuple, through: str) -> None:
+        """Take out every action at `coordinate` up to and including `through`."""
+        actions = self._at[coordinate]
+        while True:
             identity = next(iter(actions))
             self._remove(identity)
             if identity == through:

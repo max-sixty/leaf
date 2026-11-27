@@ -143,6 +143,29 @@ def test_a_rewritten_option_never_brings_back_an_option_the_user_unpicked():
     assert [entry["event"]["id"] for entry in state["views"]["2"]["undo"]][:1] == ["e3"]
 
 
+def test_a_pick_from_a_tab_on_the_older_version_leaves_the_pick_on_the_new_one():
+    """A version rewrote the whole question, and the user picked c on it. A tab still
+    showing the version before then picks a. That pick rests on the question the
+    version rewrote, so it never comes into force, and the pick of c stands, still the
+    user's to undo."""
+    documents = {
+        1: group(),
+        2: group().replace(
+            '<lf-options id="choice">', '<lf-options id="choice" restated>'
+        ),
+    }
+    state = model.reading(
+        documents,
+        [
+            rewrote("choice"),
+            {**picked("c", answered=True), "revision": 2},
+            picked("a", answered=True),
+        ],
+    )
+    assert standing(state, CHOOSE) == ["c"]
+    assert [entry["event"]["id"] for entry in state["views"]["2"]["undo"]] == ["e2"]
+
+
 BOARD = (
     '<lf-board id="board">'
     '<lf-column id="todo" label="Todo"><lf-card id="k" label="K">K</lf-card>'

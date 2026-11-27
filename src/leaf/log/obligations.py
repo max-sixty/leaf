@@ -264,14 +264,8 @@ def widget_facts(
     or after, so the facts said before lapse until the widget says them again. A
     gesture made on a version older than the newest one the widget's kept facts were
     said on leaves those standing: a tab still showing that older version worked its
-    word out of markup the page has since replaced. A widget whose `answered` is
-    unsaid asks on (`awaits`).
-
-    A tab's word stands as a gesture's does, answering included: since no version
-    brings back a decision the user replaced (`events.InForce`), what a tab works out
-    of the state rests on the user's acts in force, and a question every tab works
-    out answered, as one whose Done covers again the options a version left, reads
-    answered once one tab says so.
+    word out of markup the page has since replaced. A `facts` event's word is
+    `told_facts`. A widget whose `answered` is unsaid asks on (`awaits`).
 
     The widget works each fact out, in the browser, from its state and markup
     (`module-state.md`, "Declared widget state"), and the runtime sends the values on
@@ -327,11 +321,30 @@ def widget_facts(
             if "facts" in event:
                 say(widget, event["facts"], event.get("revision"))
         elif kind == "facts" and event["widget"] in within:
-            say(event["widget"], event["facts"], event["revision"])
+            say(event["widget"], told_facts(event), event["revision"])
         elif kind == "note":
             for change in walk.restate(event):
                 lapse(change.coordinate[0])
     return kept
+
+
+def told_facts(event: dict) -> dict:
+    """The facts of a `facts` event the page keeps: all of them, apart from an
+    `answered` that says the question is answered. A tab's word can reopen a question,
+    as when a version adds a step to a checklist the user called done, but never
+    answer one: an answer is the user's act, and the widget's word on it travels on
+    that act ("Responsiveness" in root `AGENTS.md`). So a version that brings back
+    what an earlier answer covered leaves the question asking until the user acts on
+    it again. A Done rests on its widget alone, so a version taking back a pick made
+    after Done leaves the Done standing on the picks before it. lf-options compares
+    Done with the markup's `selected` where no pick stands, so a version writing the
+    pick Done covered matches it. And a version may take out the one step Done didn't
+    cover."""
+    return {
+        fact: value
+        for fact, value in event["facts"].items()
+        if not (fact == "answered" and value)
+    }
 
 
 def anchors_with_agent(threads: dict, owed: list[dict]) -> list[dict]:

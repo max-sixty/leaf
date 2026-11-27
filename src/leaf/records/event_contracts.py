@@ -28,7 +28,7 @@ from leaf.log.events import (
     undo_error,
     unshown,
 )
-from leaf.log.obligations import questions_in_words
+from leaf.log.obligations import questions_in_words, told_facts
 from leaf.log.projection import (
     AuthoredOrders,
     container_owner,
@@ -797,7 +797,8 @@ def _facts_event_error(view, event: dict, readings: AdmissionReadings):
         event["widget"], event["revision"], "page" if page_rec else "thread"
     )
     if all(
-        fact in kept and kept[fact] == value for fact, value in event["facts"].items()
+        fact in kept and kept[fact] == value
+        for fact, value in told_facts(event).items()
     ):
         return Finding("unchanged-facts", values={"widget": event["widget"]})
     return None

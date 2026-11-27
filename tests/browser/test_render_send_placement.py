@@ -245,21 +245,28 @@ RECT = """(selector) => {
 }"""
 
 
-def card_line(page):
-    """How far a card's first message stands below the card's top (`--lf-card-line`),
-    the line a comment box's frame reserves above where that message will stand."""
-    return page.evaluate(
-        "parseFloat(getComputedStyle(document.documentElement)"
+def first_slot(page, rect):
+    """Where a comment box's card will stand its first message: the box's frame
+    reserves the card's head line above it (`--lf-card-line`)."""
+    return rect["top"] + page.evaluate(
+        "parseFloat(getComputedStyle(document.querySelector('.lf-fab-bar'))"
         ".getPropertyValue('--lf-card-line'))"
     )
 
 
-def stands(side, rect, words, block, line):
+def first_message(page):
+    """The top of the card's first message, as the card draws it."""
+    return page.evaluate(
+        "document.querySelector('.lf-margin-preview .lf-msg').getBoundingClientRect().top"
+    )
+
+
+def stands(side, rect, words, block, first):
     """Whether a box or card on `side` stands where that side puts it: beside the
-    block, its first message, `line` below its top, level with the words' line; or
-    under or over the block, clear of it."""
+    block, its first message, at `first`, level with the words' line; or under or over
+    the block, clear of it."""
     if side in ("right", "left"):
-        off = rect["top"] + line - words["top"]
+        off = first - words["top"]
         if abs(off) <= STILL:
             return "level with the words"
         return f"{distance(off)} {'under' if off > 0 else 'over'} the words"
@@ -351,6 +358,7 @@ def sent(browser, serve, name, shots):
     # Both placement readings describe the complete frame, including the reserved
     # rows around the editor. The glyph test below measures the painted words.
     box = page.evaluate(RECT, ".lf-fab-bar")
+    box_first = first_slot(page, box)
     inline = page.evaluate(HELD_EDGE)
     words, block = on.line(page), page.evaluate(RECT, on.block)
     touch_room = None
@@ -399,9 +407,9 @@ def sent(browser, serve, name, shots):
     def allowed(side):
         return expected if side in expected.split(" or ") else side
 
-    def standing(side, rect):
+    def standing(side, rect, first):
         if touch_room is None:
-            return stands(side, rect, words, block, card_line(page))
+            return stands(side, rect, words, block, first)
         assert side in ("above", "below"), side
         gap = (
             block["top"] - rect["bottom"]
@@ -423,11 +431,11 @@ def sent(browser, serve, name, shots):
         "expected": expected,
         "comment box": {
             "side": allowed(box_side),
-            "stands": standing(box_side, box),
+            "stands": standing(box_side, box, box_first),
         },
         "thread card": {
             "side": allowed(card_side),
-            "stands": standing(card_side, placed),
+            "stands": standing(card_side, placed, first_message(page) + carried),
         },
         "moves": movement(box, placed, card_side, inline),
     }
@@ -1749,7 +1757,8 @@ def test_a_card_on_a_log_row_stands_beside_the_log_and_leaves_with_its_row(
     rows stands in the rail beside it, where the row's margin entry stands, and grows
     past the log's foot. Rows arriving leave it where it stands: held to the log's room,
     a card opened while the log was short moved into the log once the log filled. The
-    log cuts the card only once the row has crossed its top."""
+    log cuts the card only once the card's top, its head line over the row, has
+    crossed the log's top, so the cut grows from nothing as the row scrolls on."""
     rows = "".join(
         f'<p id="row-{n}">The export wrote tenant {n} to its archive.</p>'
         for n in range(2)
@@ -1798,6 +1807,26 @@ def test_a_card_on_a_log_row_stands_beside_the_log_and_leaves_with_its_row(
     for axis in ["x", "y", "height"]:
         assert filled[axis] == pytest.approx(opened[axis], abs=0.5), (opened, filled)
     row = page.locator("#row-1")
+    cut_top = "card => parseFloat(card.style.getPropertyValue('--lf-cut-top') || '0')"
+
+    def scrolled_by(script):
+        log.evaluate(script, card.element_handle())
+        scroll_settled(page, "#log")
+        rendered(page)
+
+    # The card's top 4px under the log's, then 4px over it: no cut, then a 4px one.
+    scrolled_by(
+        "(log, card) => { log.scrollTop += card.getBoundingClientRect().top"
+        " - log.getBoundingClientRect().top - 4; }"
+    )
+    assert card.evaluate(cut_top) == 0, card.bounding_box()
+    scrolled_by("(log) => { log.scrollTop += 8; }")
+    # Placement follows the scroll a frame or more behind it, more under load.
+    page.wait_for_function(
+        "() => document.querySelector('.lf-margin-preview')"
+        ".style.getPropertyValue('--lf-cut-top') !== ''"
+    )
+    assert card.evaluate(cut_top) == pytest.approx(4, abs=1)
     log.evaluate(
         "(log, row) => { log.scrollTop += row.getBoundingClientRect().bottom"
         " - log.getBoundingClientRect().top + 10; }",
@@ -1805,11 +1834,6 @@ def test_a_card_on_a_log_row_stands_beside_the_log_and_leaves_with_its_row(
     )
     scroll_settled(page, "#log")
     rendered(page)
-    # Placement follows the scroll a frame or more behind it, more under load.
-    page.wait_for_function(
-        "() => document.querySelector('.lf-margin-preview')"
-        ".style.getPropertyValue('--lf-cut-top') !== ''"
-    )
     cut = card.evaluate(
         "card => card.getBoundingClientRect().top"
         " + parseFloat(card.style.getPropertyValue('--lf-cut-top'))"
@@ -2720,7 +2744,7 @@ def test_a_box_beside_words_that_start_in_a_padded_element_stands_at_their_line(
     side = SIDES[box.get_attribute("data-lf-placement")]
     assert side == "right", side
     assert (
-        stands(side, rect, words, page.evaluate(RECT, "#prose"), card_line(page))
+        stands(side, rect, words, page.evaluate(RECT, "#prose"), first_slot(page, rect))
         == "level with the words"
     ), (rect, words)
 

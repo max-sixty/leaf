@@ -42,6 +42,7 @@ from browser.threads import (
     paste_image,
 )
 from leaf.agents import thread as thread_model
+from leaf.log import event_log as events_model
 from leaf.source.render_checks import one_frame, rendered
 from leaf_dev.browser import PANEL_THREAD
 
@@ -121,38 +122,34 @@ def test_thread_actions_share_consistently_sized_message_headers(
         assert geometry["bodyLeft"] == geometry["headLeft"], geometry
 
 
-def test_a_card_s_messages_stay_put_while_its_title_comes(browser, serve, request):
-    """A card's head line holds its presses whether or not its thread has a title, so
-    the placeholder that shows while an agent names the thread, and the title once it
-    lands, take that line without moving the card or the messages under it."""
-    url = serve(PANEL_PAGE)
-    root = panel_comment(
-        serve.page_dir, "Is the workshop room accessible?", {"section": "h-how"}
-    )
-    page = open_page(browser, url)
-    resized(page, 1440, 900)
-    page.locator('[data-lf-margin-for="h-how"] .lf-margin-marker').click()
+FIRST_LINE = """root => {
+  const words = document.createRange();
+  words.selectNodeContents(root);
+  return words.getClientRects()[0].top;
+}"""
+
+
+def named_in_place(page, serve, request, root):
+    """Name the open card's thread as an agent holding the page does, through the
+    placeholder that shows while it names it, and assert neither step moves the card
+    or its first message's words."""
     card = page.locator(".lf-margin-preview")
     heading = card.locator(".lf-margin-thread-title")
-    expect(heading).to_be_hidden()
-    rendered(page)
 
     def where():
-        return card.evaluate(
-            """card => {
-              const top = (selector) =>
-                card.querySelector(selector).getBoundingClientRect().top;
-              return {card: top('.lf-margin-thread'), head: top('.lf-msg-head'),
-                      words: top('.lf-msg-text')};
-            }"""
-        )
+        return {
+            "card": card.evaluate("card => card.getBoundingClientRect().top"),
+            "words": card.locator(".lf-msg-text").first.evaluate(FIRST_LINE),
+        }
 
-    untitled = where()
+    expect(heading).to_be_hidden()
+    rendered(page)
+    before = where()
     claim_for_codex(serve.page_dir, request)
     told(page)
     expect(heading.locator(".lf-thread-name-pending")).to_be_visible()
     rendered(page)
-    assert where() == pytest.approx(untitled, abs=0.5), "the placeholder moved it"
+    assert where() == pytest.approx(before, abs=0.5), "the placeholder moved them"
     append_carried_log_record(
         serve.page_dir,
         thread_model.title_event(
@@ -161,8 +158,53 @@ def test_a_card_s_messages_stay_put_while_its_title_comes(browser, serve, reques
     )
     told(page)
     expect(heading).to_have_text("Workshop access")
+    expect(heading).to_be_visible()
     rendered(page)
-    assert where() == pytest.approx(untitled, abs=0.5), "the title moved it"
+    assert where() == pytest.approx(before, abs=0.5), "the title moved them"
+    return before
+
+
+def test_a_comment_s_words_stay_put_from_send_until_its_title_comes(
+    browser, serve, request
+):
+    """A comment's words stand where the box held them once Send makes the box a card,
+    and stay there while the card's head line, which holds the card's presses from the
+    start, takes the placeholder that shows while an agent names the thread and then
+    the title."""
+    page = open_page(browser, serve(PANEL_PAGE))
+    resized(page, 1440, 900)
+    page.locator("#how-store").click(modifiers=["Alt"], position={"x": 30, "y": 8})
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    page.keyboard.insert_text("Is the workshop room accessible?")
+    rendered(page)
+    typed = page.locator(".lf-fab-input").evaluate(FIRST_LINE)
+    page.keyboard.press("Enter")
+    card = page.locator(".lf-margin-preview")
+    expect(card).to_have_attribute("data-lf-thread-placement", re.compile(".+"))
+    round_trip(page)
+    (root,) = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    sent = named_in_place(page, serve, request, root)
+    assert sent["words"] == pytest.approx(typed, abs=0.5), "Send moved the words"
+
+
+def test_a_card_s_head_line_keeps_its_height_in_large_type(browser, serve, request):
+    """Where the reader's font size makes a line of the name face taller than a head's
+    28px, the card's head line takes that height before its title comes, as its
+    messages' heads do, so the placeholder and the title still move nothing."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Is the workshop room accessible?", {"section": "h-how"}
+    )
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    page.evaluate("() => { document.documentElement.style.fontSize = '28px'; }")
+    rendered(page)
+    page.locator('[data-lf-margin-for="h-how"] .lf-margin-marker').click()
+    named_in_place(page, serve, request, root)
 
 
 def test_a_later_message_copies_its_markdown_from_the_card_s_edge(browser, serve):

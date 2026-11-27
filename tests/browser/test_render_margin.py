@@ -432,19 +432,19 @@ def test_a_thread_card_takes_the_room_its_window_gives_it(browser, serve, subtes
         assert geometry["targetTop"] >= 0, geometry
         assert geometry["targetBottom"] <= 900, geometry
 
-        # The card's first message, a head line under the card's top, stands a gap over its
-        # words' first line while the whole card fits under it, as the comment box's
-        # does (comment-placement.js, `place-beside`), and the card holds at
+        # The card's first message stands level with its words' first line while the
+        # whole card fits under it, as the comment box's slot for it does
+        # (comment-placement.js, `place-beside`), and the card holds at
         # the window's foot once the words scroll lower than that. The panel stands beside
         # this margin, so it takes none of the card's height. Read each scroll after rendering
         # settles, including the layout observers that can queue another placement.
         positions = """() => {
             const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
             const panel = document.querySelector('.lf-fp-card').getBoundingClientRect();
-            const line = parseFloat(getComputedStyle(document.documentElement)
-              .getPropertyValue('--lf-card-line'));
+            const first = document.querySelector('.lf-margin-preview .lf-msg')
+              .getBoundingClientRect().top;
             return {
-              first: card.top + line, cardBottom: card.bottom, foot: innerHeight,
+              card: card.top, first, cardBottom: card.bottom, foot: innerHeight,
               besidePanel: card.left >= panel.right || card.right <= panel.left,
               // The words the thread quotes start the paragraph's first line.
               controls: (() => {
@@ -462,14 +462,17 @@ def test_a_thread_card_takes_the_room_its_window_gives_it(browser, serve, subtes
             page.evaluate("distance => scrollBy(0, distance)", distance)
             rendered(page)
             moved[name] = page.evaluate(positions)
-        assert moved["high"]["first"] == pytest.approx(
-            moved["high"]["controls"], abs=0.5
-        )
+        # The card's top stands its head line over `controls`, the words' line less a
+        # gap, so its first message stands the card's border and padding (7px) under
+        # `controls`.
+        assert moved["high"]["first"] - moved["high"]["controls"] == pytest.approx(
+            7, abs=1
+        ), moved
         assert moved["higher"]["scrollY"] - moved["high"]["scrollY"] >= 39
         assert moved["higher"]["first"] - moved["higher"]["controls"] == pytest.approx(
             moved["high"]["first"] - moved["high"]["controls"], abs=0.5
         ), moved
-        assert moved["low"]["controls"] > moved["low"]["first"], moved
+        assert moved["low"]["controls"] > moved["low"]["card"], moved
         assert moved["low"]["besidePanel"], moved
         assert moved["low"]["cardBottom"] == pytest.approx(
             moved["low"]["foot"] - 8, abs=0.5

@@ -29,7 +29,8 @@
      `obligationActions.next` does.
    - `NavigateToDatum` reveals the datum `key` names through the element's reference
      attribute `reference`, as `navigateToDatum` does, announcing `success` or
-     `missing`. Focus stays where the user is.
+     `missing`. Focus stays where the user is, unless `focus` takes it to the datum,
+     as a followed link takes it to its destination.
    - `Announce` is `lf-announce`: words a listener should hear now.
    - `KeepInTab` is `tabStore.set`: how the user looks at the widget, kept for this
      tab, which the widget's inputs read back with `tabStore.get`.
@@ -71,6 +72,7 @@ export class NavigateToDatum extends Command.Service()("leaf/NavigateToDatum", {
     key: Schema.String,
     success: Schema.String,
     missing: Schema.String,
+    focus: Schema.optional(Schema.Boolean),
   },
 }) {}
 
@@ -106,10 +108,10 @@ export const leafServices = (element) =>
         mounted()?.obligationActions.next({ within });
       }),
     ),
-    NavigateToDatum.toLayer(({ reference, key, success, missing }) =>
+    NavigateToDatum.toLayer(({ reference, key, success, missing, focus = false }) =>
       Effect.sync(() => {
         mounted()?.navigateToDatum(element, reference, key, {
-          focus: false,
+          focus,
           success,
           missing,
         });

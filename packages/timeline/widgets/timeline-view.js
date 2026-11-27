@@ -19,6 +19,18 @@ import {
 /** @param {string | null} value */
 const time = (value) => (value == null || value === "" ? null : Number(value));
 
+/** Whether an ISO date-time names a real moment on its clock. The registry's pattern
+ * bounds each part, but admits a 30 February, which `Date` carries into March, so the
+ * clock reading must write back the date and time it was given. */
+/** @param {string} start */
+const onCalendar = (start) => {
+  const written = start.replace(/(Z|[+-]\d{2}:\d{2})$/, "");
+  const ms = Date.parse(`${written}Z`);
+  return (
+    Number.isFinite(ms) && new Date(ms).toISOString().startsWith(written.slice(0, 16))
+  );
+};
+
 /** Authored runs, lanes and events become the timeline's one ordered reading. Every
  * run shares the one axis, scaled to the longest, and the one playhead, so a moment
  * lines up down all of them. A timeline holds either runs or bare lanes: a bare lane
@@ -92,6 +104,14 @@ export function timelineModel(host) {
     problems.push(
       `lf-lane "${bare.getAttribute("label")}" stands beside lf-run elements; put it in a run`,
     );
+  // A start off the calendar is reported, and the timeline reads elapsed time.
+  let start = host.getAttribute("start");
+  if (start !== null && !onCalendar(start)) {
+    problems.push(
+      `lf-timeline start "${start}" is not a date and time on the calendar`,
+    );
+    start = null;
+  }
   const events = lanes.flatMap((lane) => lane.events);
   /** @type {TimelineStep[]} */
   const steps = [];
@@ -112,7 +132,7 @@ export function timelineModel(host) {
     events,
     steps,
     problems,
-    start: host.getAttribute("start"),
+    start,
     duration: Math.max(1, ...events.map((event) => event.end ?? event.at)),
   };
 }

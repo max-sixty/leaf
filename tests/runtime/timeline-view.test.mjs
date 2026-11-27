@@ -292,6 +292,33 @@ test("A run with no lanes keeps its heading, and a lane beside runs is reported"
   ]);
 });
 
+test("A start off the calendar is reported and the timeline reads elapsed time", () => {
+  const drawing = timeline(
+    lanes([
+      [
+        "A",
+        [
+          ["a-mark", 0],
+          ["a-late", 90_000],
+        ],
+      ],
+    ]),
+    "2026-13-25T12:56",
+  );
+  assert.deepEqual(drawing.model.problems, [
+    'lf-timeline start "2026-13-25T12:56" is not a date and time on the calendar',
+  ]);
+  assert.deepEqual(
+    drawing.rows.map((row) => row.querySelector(".lf-timeline-step-time").textContent),
+    ["0 s", "1 min 30 s"],
+  );
+  assert.equal(timeline("", "2026-02-30T12:56").model.start, null);
+  assert.equal(
+    timeline("", "2026-02-28T12:56+05:00").model.start,
+    "2026-02-28T12:56+05:00",
+  );
+});
+
 test("A span that ends before it starts is reported and drawn as an instant", () => {
   const drawing = timeline(lanes([["A", [["bad-span", 500, 100]]]]));
   assert.equal(drawing.model.problems.length, 1);

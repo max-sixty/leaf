@@ -1,13 +1,14 @@
-# Scores threads.md, "Correct a message" with "Summarize a long discussion": a
-# correction the agent already posted as a new reply folds, with the reply it
-# corrects, under one summary that gives the current answer in a few sentences. Both
-# replies wait on the user, as replies that ask them to try a result do. Scores
-# proposed commands, not execution.
-description: thread-summary-folds-a-correction
+# Scores threads.md, "Keeping a thread current", where the agent has already posted
+# a correction as a second reply beside the one it corrects, both waiting on the user,
+# and Leaf's turn-end check has said what the user would misread. The thread should end
+# on one current answer, by whatever route the agent chooses, and any summary it writes
+# should be as short as "Summarize a long discussion" asks. Scores proposed commands,
+# not execution.
+description: correction-pile-ends-on-the-current-answer
 metadata:
   purpose:
-    A reply and the correction posted after it fold into one summary much shorter than
-    the two, giving the answer as it now stands.
+    A reply and the correction posted after it leave the thread ending on the answer as
+    it now stands, with nothing still saying the probe passes unchanged.
   tags:
     - threads
 vars:
@@ -31,24 +32,28 @@ vars:
     So I added one line to the `/healthz` handler on `await-warmup`: it returns 503 until the cache's `warm` flag is set. The branch's tests pass, including a new one for the 503. The staging rollout is still yours to run."
 
     The user hasn't answered either reply. Leaf's turn-end check has just told you:
-    "In thread fix-thread, the reply fix-two says the readiness probe passes as
-    before. You then corrected that in a second, separate reply, fix-three, and the
-    user hasn't answered either. Bring the thread current as Leaf's guidance for
-    threads has you do."
+    "Leaf's turn-end check read your last turn and found a thread of yours the user
+    would misread on ~/.local/state/leaf/pages/flaky-warmup: in fix-thread, fix-two
+    says the readiness probe passes as before, and fix-three, below it, says the probe
+    doesn't wait for the warmup. What's true now: `await-warmup` awaits the warmup in
+    `start()` and `/healthz` returns 503 until the cache is warm; the staging rollout
+    is still the user's to run."
 
     Work out the next turn. Nothing here can execute writes, so give the
     CLI commands you would run, in order,
     with the full text of any replies or other content you would write.
 assert:
   - type: llm-rubric
-    metric: one-short-current-answer
+    metric: ends-on-the-current-answer
     value: |
-      Pass only if the proposed commands write exactly one thread summary on the
-      flaky-warmup page whose range runs from fix-two through fix-three, and post no
-      new reply in fix-thread. The summary's prose must give the answer as it now
-      stands: awaiting the warmup in `start()`, with `/healthz` returning 503 until the
-      cache is warm, on the branch `await-warmup`, and the staging rollout left to
-      the user. It must not say the probe passes unchanged. It must also be much
-      shorter than fix-two and fix-three together, a few sentences or a short list
-      that says where they landed rather than retelling each reply; a summary that
-      restates most of both replies' detail does not pass.
+      Pass only if, after the proposed commands, fix-thread ends on the answer as it
+      now stands: awaiting the warmup in `start()`, with
+      `/healthz` returning 503 until the cache is warm, on the branch `await-warmup`,
+      and the staging rollout left to the user. No message or summary they read may
+      still say the probe passes as before: fix-two must be edited or folded, with or
+      without a summary. Any route or combination passes: editing, folding or
+      replying. Any summary
+      it writes must be much shorter than the messages it folds, a few sentences or a
+      short list saying where they landed rather than retelling each reply. Fail if
+      fix-two still reads as it does now, unedited and unfolded, or if the commands
+      leave the staging rollout off the user's list, as resolving the thread would.

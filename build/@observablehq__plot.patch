@@ -1,3 +1,16 @@
+diff --git a/dist/plot.js b/dist/plot.js
+index f5c8907e312bdadf415303036744f22846cf4a0c..6a88d6dbbde2206d96f288e14127ac95b19c96f8 100644
+--- a/dist/plot.js
++++ b/dist/plot.js
+@@ -4707,7 +4707,7 @@ function pointerK(kx, ky, {x, y, px, py, maxRadius = 40, channels, render, ...op
+         pool.frame = requestAnimationFrame(() => {
+           pool.frame = undefined;
+           let best = null;
+-          for (const c of pool.map.values()) if (!best || c.ri < best.ri) best = c;
++          for (const c of pool.map.values()) if (c.ii != null && (!best || c.ri < best.ri)) best = c;
+           for (const c of pool.map.values()) c.render(c === best ? c.ii : null);
+         });
+       }
 diff --git a/src/marks/axis.d.ts b/src/marks/axis.d.ts
 index db225f5efdbbfe083af2fa08ed7305d1bb598cb6..303c4de68cc70bef600b12023e70af26bc2d175b 100644
 --- a/src/marks/axis.d.ts

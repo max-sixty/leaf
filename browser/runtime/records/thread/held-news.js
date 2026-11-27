@@ -734,6 +734,17 @@ export class HeldNews {
   }
 }
 
+// Each owner's held readings, for `showHeldReadings`.
+/** @type {WeakMap<Element, Set<HeldReading<unknown>>>} */
+const heldBy = new WeakMap();
+
+/** Show what every reading `owner` holds: the reader asked to see the change, as
+ *  `show` does for one reading.
+ *  @param {Element} owner */
+export function showHeldReadings(owner) {
+  for (const reading of heldBy.get(owner) ?? []) reading.show();
+}
+
 /** One region's reading, held while drawing it would move what the reader sees.
  *  `owner` is the widget, `region()` gives the nodes the reading draws, and `changed()`
  *  draws the widget again.
@@ -761,6 +772,9 @@ export class HeldReading {
   constructor(owner, region, changed) {
     this.#region = region;
     this.#changed = changed;
+    let held = heldBy.get(owner);
+    if (!held) heldBy.set(owner, (held = new Set()));
+    held.add(this);
     // A held watch keeps its nodes while the owner is away, with no stop to call.
     watchOwner(owner, {
       connect: () => {

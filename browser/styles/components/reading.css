@@ -507,6 +507,21 @@
         color: var(--lf-ink);
       }
     }
+    /* A bounded block of blocks (base.css, `[data-lf-bound]`) keeps a region mark's room
+       inside the box it scrolls in, on every side, so its words start the room in from
+       its edges and the box keeps its bound. A block at its edge, as a paragraph
+       opening it or the last line of a short log is, then wears its marks outside its
+       words, as in the column. Without the room the clip stood them inside the block's
+       edge (dom/geometry.js, `clipsMarks`), over its first letters (the user's call).
+       Hung past the block's edges, the room would keep its words in line with the
+       column's, but a holder that scrolls, as a workspace's body does, scrolled
+       across by it, and down it met the margins a flow trims and the height a pane
+       gives its only block. At no weight, so a list keeps its own inset and margins,
+       and an author's own frame round the block keeps its edge. */
+    :where(:is(div, section, article, aside, ul, ol, dl)[data-lf-bound]) {
+      box-sizing: border-box;
+      padding: var(--lf-focus-region-room);
+    }
     /* A list keeps the browser's markers at each depth. */
     ul,
     ol {

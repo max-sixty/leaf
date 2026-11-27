@@ -49,7 +49,6 @@ import { clamp, overlaps, overlapsAcross } from "../../dom/rect.js";
 import { chipSeats } from "./chip-seats.js";
 import { coverBoxes, layoutWindow } from "../../dom/geometry.js";
 import { scrollDrawn, scrolling, watchScrollEnds } from "../../dom/arrivals.js";
-import { heldUnseen } from "../../dom/motion.js";
 import { nextFrame } from "../../lib/frame-pass.js";
 import { announce } from "../../transport/notifications.js";
 import { repaint } from "../../dom/repaint.js";
@@ -528,7 +527,6 @@ export function seatHints(faces, { band, viewport, browsed }) {
 // Settles once the scene arming paints has been drawn (`arm`).
 const armingDrawn = () =>
   scrollDrawn() ??
-  heldUnseen() ??
   new Promise((drawn) => nextFrame(() => nextFrame(() => drawn(undefined))));
 
 /* One armed map over a caller's scene.
@@ -660,9 +658,7 @@ export function createHintSession({
   // cover, and Tab would walk to it. Arming changes the scene too, in the frame it
   // paints: a decision's picks show again once their digits go, and a panel view or a
   // thread card that began to fade in as the user pressed shows its controls from that
-  // frame on. A part a motion holds unseen until it plays, as a panel view arriving
-  // once the one leaving has faded, shows once that motion has played
-  // (dom/motion.js, `heldUnseen`). Armed before then, the map is read at once, for a
+  // frame on. Armed before then, the map is read at once, for a
   // key typed meanwhile, and shows no chip (`paint`); it is read again once that scene is drawn,
   // unless a letter typed meanwhile holds it, so no code the user sees changes as the
   // map settles. `then` hears what the map found then, unless the user has typed or

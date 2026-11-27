@@ -1803,11 +1803,13 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
              const c = document.querySelector(
                '.lf-go-to-hints .lf-go-to-hint[data-lf-go-to-target="dsc-head"]')
                         .getBoundingClientRect();
-             const first = document.getElementById('dsc-head').getClientRects()[0];
+             const words = document.createRange();
+             words.selectNodeContents(document.getElementById('dsc-head'));
+             const first = words.getClientRects()[0];
              return Math.abs(c.left + c.width / 2 - first.left) < 2
                  && Math.abs(c.top + c.height / 2 - first.top) < 2;
            }"""
-    ), "the chip is not on the corner the summary starts at"
+    ), "the chip is not on the corner the summary's words start at"
     expect(page.locator("#dsc")).not_to_have_attribute("open", "")
     page.keyboard.type(fold_code)
     expect(page.locator("#dsc-head")).to_be_focused()

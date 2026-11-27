@@ -10,16 +10,7 @@ from interact_support import append_carried_log_record, element_declaration
 from journeys.test_render_controls import seen_stop
 from PIL import Image
 from playwright.sync_api import expect
-from render_cases_layout import (
-    MARK,
-    NAMED,
-    current_location_ring,
-    mark_edges,
-    ring_faults,
-    ring_rule,
-    rings_drawn,
-    token_colour,
-)
+from render_cases_layout import MARK, mark_edges, token_colour
 from render_harness import (
     LONG_PAGE,
     REPLAYED_PAGE,
@@ -40,6 +31,13 @@ from browser.threads import open_panel_thread
 from leaf.records import page_data as page_data_model
 from leaf.source.render_checks import rendered
 from leaf_dev.example_data import named_source
+from leaf_dev.rings import (
+    NAMED,
+    current_location_ring,
+    ring_faults,
+    ring_rule,
+    rings_drawn,
+)
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

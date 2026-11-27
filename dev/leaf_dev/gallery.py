@@ -1,6 +1,6 @@
 """A Leaf page of captures, as the commands that show Leaf's drawing case by case write
-one: `leaf-dev placement pins` and `placement cards`, and `leaf-dev eval report`'s
-before and after.
+one: `leaf-dev placement pins`, `placement cards` and `placement marks`, and
+`leaf-dev eval report`'s before and after.
 
 A capture is cut to the box around what a case is about (`frame`), the same box
 on every arm so a pair lines up, and marks it (`marked`) before it reaches the page. The page

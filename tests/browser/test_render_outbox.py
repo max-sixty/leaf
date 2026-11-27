@@ -2202,6 +2202,7 @@ def test_a_refused_draft_keeps_newer_authoritative_words_under_its_editor(
             "widget": "note-cli",
             "action": "edit",
             "detail": {"value": "Remote B"},
+            "answered": True,
         },
     )
     told(page)
@@ -2256,6 +2257,7 @@ def test_a_draft_commit_stages_before_deferred_projection_retries(browser, serve
             "widget": "note-cli",
             "action": "edit",
             "detail": {"value": "Remote B"},
+            "answered": True,
         },
     )
     told(page)
@@ -3015,6 +3017,7 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
             "widget": "sug-thistle",
             "action": "decide",
             "detail": {"outcome": "accept"},
+            "answered": True,
         },
     )
     holding(page, held_states, 1, "candidate read")

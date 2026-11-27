@@ -187,7 +187,7 @@ test("the runtime asks a widget that asks for its word, and one that asks nothin
   }
 });
 
-test("an answered that throws is the widget's failure, and the default rule speaks", () => {
+test("an answered that throws is the widget's failure, and leaves its question open", () => {
   const Says = /** @type {CustomElementConstructor & {answered: Function}} */ (
     customElements.get("lf-test-says")
   );
@@ -203,6 +203,8 @@ test("an answered that throws is the widget's failure, and the default rule spea
     };
     document.addEventListener("error", heard);
     window.addEventListener("error", heard);
+    // The class would say `ready` answers it; failing, it says nothing, and the
+    // gesture says its question is open, so it stays on On Me.
     assert.equal(widgetAnswered("says", null), false);
     assert.equal(failures.length >= 1, true);
     assert.match(String(failures[0]), /no word/);

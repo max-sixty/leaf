@@ -1570,6 +1570,7 @@ def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
                 "widget": "sug-rewrite",
                 "action": "decide",
                 "detail": {"outcome": "accept"},
+                "answered": True,
                 "meaning": {
                     "scope": "page",
                     "unit": "sug-rewrite",

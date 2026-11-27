@@ -134,6 +134,7 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
                 "widget": "draft-ops",
                 "action": "edit",
                 "detail": {"value": text},
+                "answered": True,
             },
         )
     append_command(

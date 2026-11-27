@@ -15,6 +15,7 @@ from leaf.log.projection import (
     with_action,
 )
 from leaf.log.thread_context import thread_structure
+from leaf.source.passages import enclosing_of
 from leaf.source.registry.contract import (
     deciding_verb,
     matches_when,
@@ -163,9 +164,12 @@ def answer_meaning(
         )
     ) and (
         event["action"] == awaits["value"]
-        or not gesture_answers(readings.events, reading.projection).get(
-            event["widget"], False
-        )
+        or not gesture_answers(
+            readings.events,
+            reading.projection,
+            enclosing_of(reading.spoken),
+            event["revision"] if event_document(event)["kind"] == "page" else None,
+        ).get(event["widget"], False)
     )
     return answers, (
         record["attrs"].get("resolves") if answers and not declined and asking else None

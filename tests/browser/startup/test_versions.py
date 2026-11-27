@@ -524,6 +524,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
             "widget": "sug-fix",
             "action": "decide",
             "detail": {"outcome": "reject"},
+            "answered": True,
         },
     )
     told(page)

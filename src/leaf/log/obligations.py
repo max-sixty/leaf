@@ -68,6 +68,7 @@ from leaf.base import standing
 from leaf.base.page_memory import Slot
 from leaf.base.standing import ended, is_open, on
 from leaf.log.events import (
+    InForce,
     owed_turns,
     report_settled_at,
     taken_back,
@@ -84,6 +85,7 @@ from leaf.log.projection import (
 )
 from leaf.log.thread_context import widget_messages
 from leaf.source.obligation_sources import ObligationSources, obligation_sources
+from leaf.source.passages import enclosing_of
 from leaf.source.reading import SourceReading
 from leaf.source.registry.contract import matches_when
 from leaf.source.registry.kernel import verb_writers
@@ -249,46 +251,51 @@ def previously_requested(
     return False
 
 
-def gesture_answers(events: list, projection: StateProjection) -> dict[str, bool]:
+def gesture_answers(
+    events: list, projection: StateProjection, within: dict, revision: int | None
+) -> dict[str, bool]:
     """Each widget's word on whether its obligation is answered: widget id → what the
-    newest of these says. A gesture that carries a word, an action of the widget still
-    in force or the user's undo of one, says its `answered`. A version note that
-    restates what any of the widget's actions rests on, retracting it, says the
-    question is open again, whichever member the retracted action named, until a later
-    gesture says otherwise.
+    newest of these says. A gesture that carries a word, an action of the widget in
+    force in `projection` or the user's undo of one, says its `answered`. A version
+    note that retracts the winning action at any of the widget's coordinates, by
+    restating what it rests on, says the question is open again, until a later gesture
+    says otherwise.
 
     The widget decides, in the browser, from its state as the gesture left it
     (`module-state.md`, "Declared widget state"), and the runtime sends the word on the
-    gesture's event, so this reads the word and decides nothing again. An action no
-    longer in force says nothing, since the state it left is gone: an undo carries the
-    word for the state after it, and a retraction carries none, so the note speaks for
-    it. A widget with no word is unanswered, whatever its markup holds."""
-    undone = {event["undoes"] for event in events if event["kind"] == "undo"}
-    resting: dict[str, list[dict]] = {}
+    gesture's event, so this reads the word and decides nothing again. A retraction
+    carries no word, so the walk that says which actions stand (`events.InForce`, the
+    fold's own reading of survival) speaks for it: it takes the log in order, through
+    `revision` where a view of one revision reads it, as the fold does, so a note a later
+    version wrote retracts nothing a view of an earlier one holds. `within` is the
+    document's containment (`passages.enclosing_of`). A widget with no word is
+    unanswered, whatever its markup holds."""
+    walk = InForce(within)
     widget_of: dict[str, str] = {}
     said: dict[str, bool] = {}
     for event in events:
-        if event["kind"] == "action":
+        kind = event["kind"]
+        if kind in ("action", "note") and revision is not None:
+            if event["revision"] > revision:
+                continue
+        if kind == "action":
+            # Only the actions this reading's fold classified stand anywhere in it.
+            if event["id"] not in projection.classified:
+                continue
             widget_of[event["id"]] = event["widget"]
-            meaning = event.get("meaning") or {}
-            for identity in {event["widget"], *meaning.get("depends", ())}:
-                resting.setdefault(identity, []).append(event)
-            if "answered" in event and event["id"] in projection.in_force:
+            if (
+                walk.admit(event) is not None
+                and "answered" in event
+                and event["id"] in projection.in_force
+            ):
                 said[event["widget"]] = event["answered"]
-        elif event["kind"] == "undo" and "answered" in event:
-            if (widget := widget_of.get(event["undoes"])) is not None:
+        elif kind == "undo" and (widget := widget_of.get(event["undoes"])):
+            walk.withdraw(event["undoes"])
+            if "answered" in event:
                 said[widget] = event["answered"]
-        elif event["kind"] == "note":
-            for identity in event.get("restated", ()):
-                for action in resting.get(identity, ()):
-                    # Retracted by this note: made on an earlier version, out of force
-                    # at the end, and not taken back by the user.
-                    if (
-                        action["revision"] < event["revision"]
-                        and action["id"] not in projection.in_force
-                        and action["id"] not in undone
-                    ):
-                        said[action["widget"]] = False
+        elif kind == "note":
+            for change in walk.restate(event):
+                said[change.coordinate[0]] = False
     return said
 
 
@@ -465,7 +472,9 @@ class _ObligationReducer:
         self.events = [] if events is None else events
         self.prompts = sources.prompts
         self.records = [record for record, _shown in sources.asking]
-        self.answers = gesture_answers(self.events, projection)
+        self.answers = gesture_answers(
+            self.events, projection, enclosing_of(spk), revision
+        )
 
         self.exists: dict[int, bool] = {}
         self.local: dict[int, bool] = {}

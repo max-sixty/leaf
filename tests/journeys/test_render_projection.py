@@ -164,9 +164,14 @@ def test_render_allows_authored_state_the_log_replays_over(browser, serve):
     """
     url = serve(REPLAYED_PAGE)
     d = serve.page_dir
-    for widget, action, detail in [
-        ("approach", "choose", {"value": ["opt-shim"]}),
-        ("work", "move", {"unit": "card-importer", "value": "col-done", "rank": "0i"}),
+    for widget, action, detail, word in [
+        ("approach", "choose", {"value": ["opt-shim"]}, {"answered": True}),
+        (
+            "work",
+            "move",
+            {"unit": "card-importer", "value": "col-done", "rank": "0i"},
+            {},
+        ),
     ]:
         append_command(
             d,
@@ -177,6 +182,7 @@ def test_render_allows_authored_state_the_log_replays_over(browser, serve):
                 "widget": widget,
                 "action": action,
                 "detail": detail,
+                **word,
             },
         )
 
@@ -266,10 +272,10 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
         packages=(*EXAMPLE_PACKAGES, ROOT / "tests/fixtures/packages/work", "./.leaf"),
     )
     relative_actions = [
-        ("tally-fitted", "step", {"value": "3"}),
-        ("tally-fitted", "caption", {"value": "Two greys at the north feeder."}),
+        ("tally-fitted", "step", {"value": "3"}, {}),
+        ("tally-fitted", "caption", {"value": "Two greys at the north feeder."}, {}),
     ]
-    for widget, action, detail in [*ACTIONS_IN_FORCE, *relative_actions]:
+    for widget, action, detail, word in [*ACTIONS_IN_FORCE, *relative_actions]:
         append_command(
             serve.page_dir,
             {
@@ -279,6 +285,7 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
                 "widget": widget,
                 "action": action,
                 "detail": detail,
+                **word,
             },
         )
     # The agent channel through its own door, which is the only way a report is
@@ -298,7 +305,13 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
 
     page = open_page(browser, url)
     in_force_ids = sorted(
-        {widget for widget, _action, _detail in [*ACTIONS_IN_FORCE, *relative_actions]}
+        {
+            widget
+            for widget, _action, _detail, _word in [
+                *ACTIONS_IN_FORCE,
+                *relative_actions,
+            ]
+        }
         | {"ab-baffles", "ab-wren"}
     )
     in_force = page.evaluate(

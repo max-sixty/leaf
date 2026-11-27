@@ -75,9 +75,10 @@ export const widgetState = ({ state, actions }) =>
 // (`widgetStatic`), so the word needs no drawing of the widget, as one in a thread
 // nobody has open has none; or, where the class says nothing, whether the user's acts
 // hold a state at the verb `awaits.value` names (`holdsState`). A class's `answered`
-// that throws is the widget's failure, reported as one, and the gesture goes with the
-// default rule's word rather than waiting on a widget that can't say; otherwise a
-// class that says never has the default rule speak for it. `tag` names the widget's
+// that throws is the widget's failure, reported as one, and the gesture goes saying
+// the question is open rather than waiting on a widget that can't say, so a failing
+// widget leaves its question on On Me rather than closing it; a class that says never
+// has the default rule speak for it. `tag` names the widget's
 // kind where no captured descriptor does, as for an undo of an action in a message
 // nobody has drawn. A widget that asks always says, and one that asks nothing says
 // nothing.
@@ -107,6 +108,6 @@ export function widgetAnswered(widget, tag) {
     return Boolean(own.call(state, own.element));
   } catch (error) {
     reportFailure(own.element, error);
-    return byDefault();
+    return false;
   }
 }

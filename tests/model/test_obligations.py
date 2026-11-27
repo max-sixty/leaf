@@ -1358,6 +1358,50 @@ def test_restating_a_step_decided_before_the_last_asks_again():
     assert standing([*both, stamp, {**decided("rollback", True), "revision": 2}])
 
 
+def test_a_view_of_an_earlier_version_reads_no_later_restatement():
+    """A note a later version wrote retracts nothing a view of an earlier one holds,
+    as the fold reads it: picks on revisions 1 and 2 and a revision-3 note restating
+    the group leave revision 1's view answered, and revision 3's asking again."""
+    restated = model.leaf_page(
+        "Questions",
+        '<lf-options id="choice" restated><lf-option id="a">A</lf-option>'
+        '<lf-option id="b">B</lf-option></lf-options>',
+    )
+
+    def pick(value, revision):
+        return {
+            "kind": "action",
+            "widget": "choice",
+            "action": "choose",
+            "detail": {"value": [value]},
+            "revision": revision,
+            "answered": True,
+        }
+
+    def note(version, revision, **restating):
+        return {
+            "kind": "note",
+            "author": "agent",
+            "version": version,
+            "revision": revision,
+            "text": "A version.",
+            **restating,
+        }
+
+    events = [
+        pick("a", 1),
+        note(1, 2),
+        pick("b", 2),
+        note(2, 3, restated=["choice"]),
+    ]
+    documents = {1: page(), 2: page(), 3: restated}
+    for revision, answered in ((1, True), (3, False)):
+        [item] = page_obligations(
+            model.reading(documents, events, view_revision=revision), revision
+        )["all"]
+        assert standing_model.answered(item) is answered, revision
+
+
 def test_markup_alone_answers_no_question():
     """A pick the version writes into the markup, with no gesture to carry the
     widget's word, leaves the question asking."""

@@ -429,6 +429,7 @@ def chose(page_dir, value):
             "widget": "plan-choice",
             "action": "choose",
             "detail": {"value": value},
+            "answered": bool(value),
         },
     )
 

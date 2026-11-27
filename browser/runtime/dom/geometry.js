@@ -722,13 +722,14 @@ export const landingBand = (scroller, across = null) => {
 // there or nothing states that room, as on an export. `across` narrows them to the
 // covers in a destination's columns.
 //
-// Reading the covers keeps a landing above a view the panel holds open: a thread opened
-// in the panel landing its passage, `m` with On Me open, a press on words the view opens
-// over. A fixed room above the window's foot would need none of this code, but left each
-// of those landings under the open view; sized at half the window, it still did, and it
-// moved tall boxes the user already saw whole. The maintainer chose this reading, though
-// it may be more than landings need. Once it needs more code than this, replace it with
-// a fixed room and let those landings stand under an open view.
+// Reading the covers keeps a landing above a view the panel holds open, as when a
+// thread opened in the panel lands its passage, `m` walks with On Me open, or a press
+// on words the view opens over brings them clear. A fixed room above the window's foot
+// needs none of this code. Sized to the panel's row, it left each of those landings
+// under the open view; sized at half the window, it still left some under a tall view,
+// and it moved tall boxes the user already saw whole. The maintainer chose to read the
+// covers, though it may be more than landings need. Once it needs more code than this,
+// replace it with a fixed room and let those landings stand under an open view.
 /** @param {CSSStyleDeclaration} rootStyle @param {Box[]} boxes
  * @param {{left: number, right: number} | null} [across] */
 function footCover(rootStyle, boxes, across = null) {

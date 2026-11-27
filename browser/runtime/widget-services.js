@@ -14,9 +14,12 @@
      new `state` before the Command runs to its end, so a component that draws from
      `state` maps the delivery to nothing.
    - `NextOnMe` steps to the next obligation waiting on the user within `within`, as
-     `obligationActions.next` does. */
+     `obligationActions.next` does.
+   - `NavigateToDatum` reveals the datum `key` names through the element's reference
+     attribute `reference`, as `navigateToDatum` does, announcing `success` or
+     `missing`. Focus stays where the user is. */
 import { Command, Effect, Layer, Schema } from "/vendor/effect-ui.js";
-import { obligationActions } from "./host/application.js";
+import { navigateToDatum, obligationActions } from "./host/application.js";
 import { sendGesture } from "./lib/widget-events.js";
 
 /** What became of a recorded gesture. */
@@ -34,6 +37,15 @@ export class RecordAction extends Command.Service()("leaf/RecordAction", {
 
 export class NextOnMe extends Command.Service()("leaf/NextOnMe", {
   args: { within: Schema.Unknown },
+}) {}
+
+export class NavigateToDatum extends Command.Service()("leaf/NavigateToDatum", {
+  args: {
+    reference: Schema.String,
+    key: Schema.String,
+    success: Schema.String,
+    missing: Schema.String,
+  },
 }) {}
 
 /** Record a gesture on `element` and wait for what became of it.
@@ -54,6 +66,11 @@ export const leafServices = (element) =>
     ),
     NextOnMe.toLayer((/** @type {any} */ { within }) =>
       Effect.sync(() => obligationActions.next({ within })),
+    ),
+    NavigateToDatum.toLayer((/** @type {any} */ { reference, key, success, missing }) =>
+      Effect.promise(() =>
+        navigateToDatum(element, reference, key, { focus: false, success, missing }),
+      ),
     ),
   );
 

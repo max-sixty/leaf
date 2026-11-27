@@ -10,6 +10,9 @@
 
    - `state`, the reading Leaf sets on a widget whose tag declares `verbs`, as the
      `state` property every widget gets.
+   - Each property `options.properties` names, such as the `value` a registry input
+     names as its `property`, under its own name: a host sets it as it sets any
+     element's property, and each set gives the component new props.
    - What `options.inputs(element)` returns, called inside a signal effect, so a
      signal-backed reader it calls, such as `readObligations`, gives the component
      new props when it moves. The function reads the element's attributes too, and
@@ -62,12 +65,33 @@ let mounts = 0;
  * @param {string} tag
  * @param {any} component an Effect UI HTML component whose props hold `state` and
  *   what `inputs` returns
- * @param {{shadow?: boolean, lfPatch?: "members", inputs?: (element: HTMLElement) => Record<string, unknown>}} [options]
+ * @param {{shadow?: boolean, lfPatch?: "members", properties?: readonly string[], inputs?: (element: HTMLElement) => Record<string, unknown>}} [options]
  */
-export function defineWidget(tag, component, { shadow = false, lfPatch, inputs } = {}) {
+export function defineWidget(
+  tag,
+  component,
+  { shadow = false, lfPatch, properties = [], inputs } = {},
+) {
   const Widget = class extends HTMLElement {
     /** @type {unknown} */
     #state = undefined;
+    /** @type {Record<string, unknown>} */
+    #set = {};
+
+    static {
+      for (const name of properties)
+        Object.defineProperty(this.prototype, name, {
+          configurable: true,
+          get() {
+            return this.#set[name];
+          },
+          set(value) {
+            this.#set[name] = value;
+            if (this.#root) this.#update();
+            else this.#mount();
+          },
+        });
+    }
     /** @type {Record<string, unknown>} */
     #inputs = {};
     /** @type {{setProps: (props: any) => void} | undefined} */
@@ -81,6 +105,14 @@ export function defineWidget(tag, component, { shadow = false, lfPatch, inputs }
 
     constructor() {
       super();
+      // A value set before the element upgraded shadows the accessor; it passes
+      // through it instead.
+      for (const name of properties)
+        if (Object.hasOwn(this, name)) {
+          const value = /** @type {Record<string, unknown>} */ (this)[name];
+          delete (/** @type {Record<string, unknown>} */ (this)[name]);
+          this.#set[name] = value;
+        }
       if (shadow) this.attachShadow({ mode: "open" });
       // A listener on a shadow host sees itself as the target of an event from inside
       // its root, so the element that connected is read off the path.
@@ -145,7 +177,7 @@ export function defineWidget(tag, component, { shadow = false, lfPatch, inputs }
     }
 
     #props() {
-      return { ...this.#inputs, state: this.#state };
+      return { ...this.#inputs, ...this.#set, state: this.#state };
     }
 
     #mount() {

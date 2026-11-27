@@ -193,6 +193,22 @@ const bundles = {
   "effect-ui": () => ({
     out: `${assets}/vendor/effect-ui.js`,
     entryPoints: [input("entries/effect-ui/entry.mjs")],
+    adapt: [
+      {
+        file: /@effect\/ui\/dist\/html\/internal\/dom\.js$/,
+        // Writing a focused field's value puts its scroll back where it stood, and
+        // a write that moves nothing still stops a scroll under way there. Only a
+        // scroll the write moved is put back.
+        edit: (source) =>
+          seam(
+            source,
+            "    element.scrollLeft = scrollLeft;\n    element.scrollTop = scrollTop;\n",
+            "    if (element.scrollLeft !== scrollLeft) element.scrollLeft = scrollLeft;\n" +
+              "    if (element.scrollTop !== scrollTop) element.scrollTop = scrollTop;\n",
+            "Effect UI field scroll restore",
+          ),
+      },
+    ],
     banner: {
       js: `/*! effect ${version("effect")} and @effect/ui ${version("@effect/ui")} — MIT — https://github.com/Effect-TS/ui */`,
     },
@@ -726,118 +742,6 @@ const bundles = {
         },
       },
     ],
-  }),
-
-  // The optional file navigator uses Trees' vanilla model and its own shadow-DOM
-  // renderer. Upstream includes its styles and Preact runtime; no React wrapper,
-  // external stylesheet, or consumer build reaches the page.
-  trees: () => ({
-    out: `${packageVendor("file-tree")}/pierre-trees.esm.js`,
-    entryPoints: [input("entries/trees/entry.mjs")],
-    platform: "browser",
-    target: "chrome105",
-    // Keep upstream's core/override ordering inside the page's vendor tier, so
-    // authored styles retain the same precedence as every other widget's.
-    adapt: [
-      {
-        file: /@pierre\/trees\/dist\/model\/FileTreeController\.js$/,
-        // beta.6 treats a nonempty query with no matches as unfiltered, exposing
-        // unrelated root rows. The controller must retain an empty filtered set;
-        // its existing empty-query branch remains the route back to all files.
-        edit: (source) =>
-          seam(
-            seam(
-              source,
-              'this.#searchMode === "hide-non-matches" && matchingPaths.length > 0',
-              'this.#searchMode === "hide-non-matches"',
-              "Trees empty search-result set",
-            ),
-            'this.#searchMode !== "hide-non-matches" || this.#searchMatchPathSet.size === 0',
-            'this.#searchMode !== "hide-non-matches"',
-            "Trees empty search-result visibility",
-          ),
-      },
-      {
-        file: /@pierre\/trees\/dist\/render\/scrollTarget\.js$/,
-        // Trees measures its viewport with getBoundingClientRect, so a reveal target
-        // can be fractional (138.16) where the browser holds the box at a device
-        // pixel (138). Compared exactly, the target never equals where the box
-        // stands, so each focus change writes a scroll that moves nothing and stops
-        // one under way. A target within a pixel is where the box already stands.
-        edit: (source) =>
-          seam(
-            seam(
-              source,
-              "return nextScrollTop === currentScrollTop ? null : nextScrollTop;",
-              "return Math.abs(nextScrollTop - currentScrollTop) < 1 ? null : nextScrollTop;",
-              "Trees scroll-target comparison",
-              3,
-            ),
-            "return preservedScrollTop === currentScrollTop ? null : preservedScrollTop;",
-            "return Math.abs(preservedScrollTop - currentScrollTop) < 1 ? null : preservedScrollTop;",
-            "Trees preserved scroll-target comparison",
-          ),
-      },
-      {
-        file: /@pierre\/trees\/dist\/render\/FileTreeView\.js$/,
-        // The viewport's clamp compares the box's scrollTop with a maximum computed
-        // from the same fractional measure. At the list's end Chrome holds the box at
-        // 1039 while the maximum comes out at 1038.94, so every scroll event and
-        // model change there would write a scroll that moves nothing. A box within a
-        // pixel of the maximum already stands at it.
-        //
-        // Upstream (beta.6 and 1.0.0) gives the root `role="tree"`, and the root also
-        // holds the search field. A tree may own only tree items and groups, so the
-        // field breaks the tree's role for assistive technology. The role moves to
-        // the scroller, which holds only the rows; the root keeps the keys and the
-        // layout, which `style.js`'s seam below moves with it.
-        edit: (source) =>
-          seam(
-            seam(
-              seam(
-                source,
-                "if (scrollElement.scrollTop > maxScrollTop) scrollElement.scrollTop = maxScrollTop;",
-                "if (scrollElement.scrollTop - maxScrollTop >= 1) scrollElement.scrollTop = maxScrollTop;",
-                "Trees viewport clamp",
-              ),
-              '\t\trole: "tree",\n\t\ttabIndex: -1,',
-              "\t\ttabIndex: -1,",
-              "Trees root role",
-            ),
-            '\t\t\t\t"data-file-tree-virtualized-scroll": "true",\n',
-            '\t\t\t\t"data-file-tree-virtualized-scroll": "true",\n\t\t\t\trole: "tree",\n',
-            "Trees scroller role",
-          ),
-      },
-      {
-        file: /@pierre\/trees\/dist\/style\.js$/,
-        edit: (source) =>
-          seam(
-            source,
-            '[role=\\"tree\\"] {',
-            '[data-file-tree-virtualized-root=\\"true\\"] {',
-            "Trees root layout",
-          ),
-      },
-      {
-        file: /@pierre\/trees\/dist\/utils\/cssWrappers\.js$/,
-        edit: (source) =>
-          seam(
-            seam(
-              source,
-              "return `${LAYER_ORDER}\n@layer base {\n  ${coreCSS}\n}`;",
-              "return `@layer lf-base {\n${LAYER_ORDER}\n@layer base {\n  ${coreCSS}\n}\n}`;",
-              "Trees core CSS cascade",
-            ),
-            "return `${LAYER_ORDER}\n@layer unsafe {\n  ${unsafeCSS}\n}`;",
-            "return `@layer lf-base {\n${LAYER_ORDER}\n@layer unsafe {\n  ${unsafeCSS}\n}\n}`;",
-            "Trees override CSS cascade",
-          ),
-      },
-    ],
-    banner: {
-      js: `/*! @pierre/trees ${version("@pierre/trees")} — Apache-2.0 — licenses: pierre-trees.LICENSES.txt */`,
-    },
   }),
 
   // Split chrome controls, the controls Leaf's widgets load with themselves (`views`)

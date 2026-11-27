@@ -1,6 +1,6 @@
 /* A bounded navigator keeps the file listing beside the evidence it navigates.
  * Fill a definite allocation; in flow, --lf-file-tree-height chooses the bounded
- * height. Reserve that frame before the optional renderer arrives. */
+ * height. */
 lf-file-tree {
   position: relative;
   display: flex;
@@ -16,19 +16,6 @@ lf-file-tree {
   overflow: clip;
   --lf-block-frame: 1;
   --lf-holds-height: 1;
-  --trees-bg-override: var(--lf-card);
-  --trees-fg-override: var(--lf-ink);
-  --trees-fg-muted-override: var(--lf-muted);
-  --trees-bg-muted-override: var(--lf-chip);
-  --trees-selected-bg-override: var(--lf-accent-tint);
-  --trees-selected-fg-override: var(--lf-ink);
-  --trees-focus-ring-color-override: var(--lf-ok);
-  --trees-font-family-override: var(--lf-mono);
-  --trees-font-size-override: var(--lf-code-size);
-  --trees-git-added-color-override: var(--lf-ok-ink);
-  --trees-git-modified-color-override: var(--lf-warn-ink);
-  --trees-git-deleted-color-override: var(--lf-danger-ink);
-  --trees-git-renamed-color-override: var(--lf-accent);
 }
 /* As a pane's body, the navigator wears the pane's frame rather than a second one
  * inside it, with no inset or margin of its own. */

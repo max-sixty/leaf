@@ -1,6 +1,6 @@
 {
   "lf-file-tree": {
-    "description": "An optional keyboard-accessible file navigator, drawn with Pierre Trees, from a file-list source or another widget's declared files output.",
+    "description": "An optional keyboard-accessible file navigator, with search, from a file-list source or another widget's declared files output.",
     "attributes": {
       "properties": {
         "aria-label": { "type": "string", "minLength": 1 }

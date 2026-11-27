@@ -66,7 +66,7 @@ Practices pattern. Read, and probed in Chromium, on 2026-11-12.
   from its first entry moved nothing; the playground's choice cards put Enlarge buttons
   inside a `radiogroup`; and Pierre's file tree puts its search field inside
   `role="tree"`, which axe-core reports as `aria-required-children` on `@pierre/trees`
-  1.0.0. The first three are fixed (#5948). It also reported problems that weren't
+  1.0.0. The first three are fixed (#5948), and Leaf's file tree no longer uses Pierre's. It also reported problems that weren't
   there. It presses keys with synthetic events, which don't move focus
   between native radios; it reads `aria-controls` as an attribute and misses a
   reference set through `ariaControlsElements`; and it reads focus from

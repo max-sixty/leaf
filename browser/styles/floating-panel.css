@@ -270,6 +270,11 @@
       calc(var(--lf-clear) - var(--lf-thread-pad) - 1px) auto;
     --lf-badge-reach: 0px;
   }
+  /* On a right-to-left page the row's leaf stands at the panel's left edge, so badges
+     wider than the leaf run past its right end, into the panel, rather than its left. */
+  .lf-floating-panel:not([data-lf-rest="mark"]) .lf-fp-leaf:dir(rtl) > .lf-badges {
+    justify-content: flex-start;
+  }
   .lf-badges > .lf-fp-error-dot {
     box-shadow: 0 0 0 2px var(--lf-fp-surface);
   }
@@ -875,6 +880,11 @@
       --lf-badge-corner: var(--lf-r-l);
       inset: calc(-1 * (var(--lf-fp-fold-pad-block) + var(--lf-badge-seat) + 1px))
         calc(-1 * (var(--lf-fp-fold-pad-inline) + var(--lf-badge-seat) + 1px)) auto;
+    }
+    /* An error and news together: the dot beside the corner's stands centred on the
+       tile's top edge. */
+    .lf-fp-leaf > .lf-badges > [data-lf-shown] ~ [data-lf-shown]:not(.lf-fp-badge) {
+      margin-block-start: calc(-1 * var(--lf-badge-arc));
     }
     .lf-fp-row {
       min-height: 0;

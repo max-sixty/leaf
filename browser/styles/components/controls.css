@@ -441,9 +441,11 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
    nearly meets the box's edge (browser/AGENTS.md, "A box inside a frame either meets
    its edge or stands clear of it"). A carrier names the box's rounding
    (`--lf-badge-corner`) and stands the row out from the box's top corners by
-   `--lf-badge-seat`, which centres a dot there; the count reaches past the row's
-   corner by half the difference in their heights (`--lf-badge-reach`), which centres
-   its end there too. A carrier whose frame would clip badges standing past its edge
+   `--lf-badge-seat`, which centres a dot there, `--lf-badge-arc` in from each edge;
+   the count reaches past the row's corner by half the difference in their heights
+   (`--lf-badge-reach`), which centres its end there too. A dot beside another, away
+   from the corner, rises by `--lf-badge-arc` to centre on the box's top edge, as on
+   the folded leaf (floating-panel.css). A carrier whose frame would clip badges standing past its edge
    stands them clear inside it instead, as the panel's row does (floating-panel.css). A
    pin's count takes the left corner (annotation-theme.css). Each badge keeps its size.
    Where the badges together are wider than their carrier, as a two-digit count, news
@@ -459,9 +461,8 @@ wa-input[data-lf-voice="leaf"]::part(input)::placeholder {
 .lf-badges {
   --lf-badge-dot: 8px;
   --lf-badge-count: 17px;
-  --lf-badge-seat: calc(
-    var(--lf-badge-dot) / 2 - var(--lf-badge-corner, 0px) * (1 - sin(45deg))
-  );
+  --lf-badge-arc: calc(var(--lf-badge-corner, 0px) * (1 - sin(45deg)));
+  --lf-badge-seat: calc(var(--lf-badge-dot) / 2 - var(--lf-badge-arc));
   --lf-badge-reach: calc((var(--lf-badge-count) - var(--lf-badge-dot)) / 2);
   display: flex;
   direction: ltr;

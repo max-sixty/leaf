@@ -58,9 +58,13 @@ lf-options {
   --lf-option-line: 1lh;
   --lf-option-pad-min: 5px;
   --lf-option-pad-block: var(--lf-option-pad-min);
-  /* The width a row of its options needs, set only where the group lays them across, so
-   * a group nested in an option does not inherit its holder's. */
+  /* The width a row of its options needs, set only where the group lays them across,
+   * and the rows a reserve holds for the cells the runtime adds, set only where the
+   * group is missing them (below), so a group nested in an option does not inherit its
+   * holder's. */
   --lf-options-row-width: initial;
+  --lf-missing-add: initial;
+  --lf-missing-cells: initial;
   /* A picked row's or cell's ground: the card a step toward the settled colour, deeper
    * than the aim's wash (below), so a pick still shows where the focus ring covers its
    * ring and a digit takes its check, but no deeper than keeps the muted words an

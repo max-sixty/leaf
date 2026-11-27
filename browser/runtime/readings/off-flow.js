@@ -1,3 +1,4 @@
+// Compiled from off-flow.ts by build/typescript.mjs; edit that file.
 /* Surfaces fixed over the page and placed beside what they are about: the thread card by
    its margin cluster, the comment box by its target. A scroll carries each away with what
    it stands by while the user may still be in it, and none of the browser's own
@@ -52,14 +53,9 @@ import { scrollBehavior } from "../dom/motion.js";
 import { onCurrentLocation } from "../dom/focus.js";
 import { isElement, under } from "../lib/shadow-tree.js";
 
-/** @typedef {{surface: Element, floats: () => boolean, away: () => boolean,
- * standing: () => Promise<boolean> | null, box: () => Element,
- * bringBack: (behavior: ScrollBehavior) => unknown}} OffFlowSurface */
-/** @type {Map<Element, OffFlowSurface>} */
 const surfaces = new Map();
 
 // A pixel's slack, so a card the boundary holds flush at the room's edge reads as shown.
-/** @param {Element} node @param {Element} surface */
 const unseen = (node, surface) => {
   const box = node.getBoundingClientRect();
   const bounds = surface.getBoundingClientRect();
@@ -72,7 +68,6 @@ const unseen = (node, surface) => {
   );
 };
 
-/** @param {OffFlowSurface} reading @param {Element} node @param {ScrollBehavior} behavior */
 function follow({ surface, floats, away, standing, bringBack }, node, behavior) {
   const judge = () => {
     if (floats() && (away() || unseen(node, surface))) bringBack(behavior);
@@ -82,9 +77,6 @@ function follow({ surface, floats, away, standing, bringBack }, node, behavior) 
   else judge();
 }
 
-/** @param {Element} surface @param {Omit<OffFlowSurface, "surface" | "floats" |
- * "away" | "standing" | "box"> & {floats?: () => boolean, away?: () => boolean,
- * standing?: () => Promise<boolean> | null, box?: () => Element}} reading */
 export function declareOffFlowSurface(
   surface,
   {
@@ -118,19 +110,16 @@ onCurrentLocation((node, cause, left) => {
 
 // The box the user sees of the surface floating over the page that holds `node`, or
 // null where none does.
-/** @param {Element} node */
 export const floatingBox = (node) =>
   [...surfaces.values()]
     .find(({ surface, floats }) => floats() && under(node, surface))
     ?.box() ?? null;
 
 // Whether `node` stands in a surface floating over the page.
-/** @param {Element} node */
 export const offFlow = (node) => floatingBox(node) !== null;
 
 // Bring back the surface holding `node`, where the window does not show all of it; a
 // node in flow needs nothing.
-/** @param {Element} node @param {ScrollBehavior} [behavior] */
 export function bringBackSurfaceOf(node, behavior = scrollBehavior()) {
   for (const reading of surfaces.values())
     if (under(node, reading.surface)) follow(reading, node, behavior);

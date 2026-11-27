@@ -1,3 +1,4 @@
+// Compiled from current-target.ts by build/typescript.mjs; edit that file.
 /* The current target: the page node represented by the current browser location.
    Every feature reads this interpretation (glossary, Current target).
 
@@ -81,7 +82,6 @@ import { pageReadingBlock, seenWhereRead } from "../readings/reading-place.js";
 import { inChrome } from "../base/ui-marks.js";
 
 // Each side's reading, and whether it shows its target beside the page.
-/** @type {Map<(node: Element) => Element | null, boolean>} */
 const sides = new Map();
 
 // A presentation owner's reading of the source target one of its nodes shows, or null.
@@ -89,7 +89,6 @@ const sides = new Map();
 // each climbs across shadow roots to its own surface. A side `beside` the page, as the
 // floating panel is, shows its target away from it: the user’s current target is that page target
 // but has not arrived at it (`arrivalOf`).
-/** @param {(node: Element) => Element | null} bridge */
 export function declareSide(bridge, { beside = false } = {}) {
   sides.set(bridge, beside);
   return () => sides.delete(bridge);
@@ -108,21 +107,15 @@ export function declareSide(bridge, { beside = false } = {}) {
 // (`namedPlaces`), so a keystroke, which asks this many times, costs the node's depth
 // rather than the inventory. The names are read once per list, so that holds for a
 // list the state keeps, such as the inventory, and not for one built for the call.
-/** @template {import("../state/semantic-application.js").ObligationRecord} T
- * @param {readonly T[]} items @param {Node | null} node
- * @param {readonly import("../state/semantic-application.js").ObligationRecord[]} inventory */
 export function obligationHolding(items, node, inventory = items) {
   if (!node) return null;
   const names = namedPlaces(items);
-  /** @type {Map<T, number>} */
   const near = new Map();
-  for (let at = /** @type {Node | null} */ (node); at; at = composedParentNode(at)) {
+  for (let at = node; at; at = composedParentNode(at)) {
     if (!isElement(at) || !at.id) continue;
     for (const [order, item] of names.get(at.id) || []) near.set(item, order);
   }
-  /** @param {Element | null} element */
   const holds = (element) => element && under(node, element);
-  /** @type {{item: T, at: Element} | null} */
   let held = null;
   for (const [item] of [...near].sort((a, b) => a[1] - b[1])) {
     const { source, node: target } = obligationPlace(item, inventory);
@@ -137,51 +130,38 @@ export function obligationHolding(items, node, inventory = items) {
 // keeps the list's order. Read from the records alone, once per list (state/kept.js), so it
 // holds however the document changes; an id finds candidates, and placing each says
 // whether it stands there.
-const placeNames = keptEach(
-  /** @param {readonly import("../state/semantic-application.js").ObligationRecord[]} items */
-  (items) => {
-    /** @type {Map<string, [number, import("../state/semantic-application.js").ObligationRecord][]>} */
-    const names = new Map();
-    /** @param {string} name @param {number} order
-     * @param {import("../state/semantic-application.js").ObligationRecord} item */
-    const add = (name, order, item) => {
-      const listed = names.get(name);
-      if (!listed) names.set(name, [[order, item]]);
-      else if (listed.at(-1)?.[1] !== item) listed.push([order, item]);
-    };
-    items.forEach((item, order) => {
-      const { source } = item;
-      if (source.kind === "widget") {
-        add(source.id, order, item);
-        if (item.prompt.target) add(item.prompt.target, order, item);
-      }
-    });
-    return names;
-  },
-);
-/** @template {import("../state/semantic-application.js").ObligationRecord} T
- * @param {readonly T[]} items @returns {Map<string, [number, T][]>} */
-const namedPlaces = (items) =>
-  /** @type {Map<string, [number, T][]>} */ (placeNames(items));
+const placeNames = keptEach((items) => {
+  const names = new Map();
+  const add = (name, order, item) => {
+    const listed = names.get(name);
+    if (!listed) names.set(name, [[order, item]]);
+    else if (listed.at(-1)?.[1] !== item) listed.push([order, item]);
+  };
+  items.forEach((item, order) => {
+    const { source } = item;
+    if (source.kind === "widget") {
+      add(source.id, order, item);
+      if (item.prompt.target) add(item.prompt.target, order, item);
+    }
+  });
+  return names;
+});
+const namedPlaces = (items) => placeNames(items);
 
-/** @param {Node | null | undefined} node */
 export const placeOf = (node) => placeFrom(node, new Set(), true);
 // Where the user has arrived on the page: where they are, unless a side beside the
 // page shows the node, which arrives nowhere.
-/** @param {Node | null | undefined} node */
 export const arrivalOf = (node) => placeFrom(node, new Set(), false);
 // The obligation, answered or not, holding the place `node` stands for, read from the
 // inventory the state publishes, which keeps its identity between readings, so the
 // lookup costs the node's depth (`obligationHolding`). DOM containment says where the
 // node is; it never decides whether the obligation belongs to that inventory.
-/** @param {Node | null | undefined} node */
 export const obligationAt = (node) =>
   obligationHolding(readObligations().all, placeOf(node));
 
 // The obligation, answered or not, the user at `node` is in: the question a thread's view
 // asks them (`questionAsked`), else the one holding the place the node stands for
 // (`obligationAt`). The location ring and the digits read it.
-/** @param {Node | null | undefined} node */
 export const obligationIn = (node) => questionAsked(node) ?? obligationAt(node);
 
 // The question a thread asks the user at `node`, where `node` is in a view of the thread
@@ -196,7 +176,6 @@ export const obligationIn = (node) => questionAsked(node) ?? obligationAt(node);
 // a digit there never revises an answer given in the thread; Tab and a click reach the
 // question for that. The thread asks what its newest agent message asks: a question an
 // older message left open stays in On Me, where `m` reaches it.
-/** @param {Node | null | undefined} node */
 export function questionAsked(node) {
   const view = closestAcross(node ?? null, THREAD);
   if (!view) return null;
@@ -215,8 +194,6 @@ export function questionAsked(node) {
   return drawn.find((item) => item.state !== "done") ?? null;
 }
 
-/** @param {Node | null | undefined} node @param {Set<Element>} visited
- * @param {boolean} countBeside @returns {Element | null} */
 function placeFrom(node, visited, countBeside) {
   const at = node instanceof Element ? node : node?.parentElement;
   if (!at || at === document.body || visited.has(at)) return null;
@@ -242,9 +219,7 @@ const PLACELESS = `${THREAD}, ${ON_CARD}`;
 // The page place a surface beside the page holds while the user stands in it, as the
 // floating panel holds where they stepped in from (`readPlace`, history.js). It is still
 // their place on the page, so `z` aligns it and a walk pressed there starts on it.
-/** @type {() => import("../base/held-place.js").WorkingPlace | null} */
 let heldPlace = () => null;
-/** @param {typeof heldPlace} read */
 export function holdPagePlace(read) {
   heldPlace = read;
 }
@@ -257,8 +232,6 @@ export const heldPagePlace = () => heldPlace()?.focus?.deref() ?? null;
 // A selected tab enters its panel instead of being on an obligation it may hold. Each
 // names the element it was read from, `node`, which is in a thread's view where the
 // user is in that thread; `place` is null for a thread with no place on the page.
-/** @typedef {{node: Element | null, place: Element | null, kind: "at" | "view" | "enter" | "current-location"}} WalkOrigin */
-/** @returns {WalkOrigin | null} */
 export function currentLocationOrigin() {
   for (const [node, place] of locations()) {
     // A thread or an obligation with no page place, such as a general thread open in the
@@ -279,7 +252,6 @@ export function currentLocationOrigin() {
 // next (`userCaret`), since a selection names where a reader is as surely as focus does.
 // Last comes the place the panel's hold read as the user stepped in, since what showed
 // it then, such as a margin card, may be put away by the step.
-/** @returns {Generator<[Element, Element | null]>} */
 function* locations() {
   const at = focused();
   for (const node of [at === document.body ? null : at, userCaret()?.element])
@@ -291,7 +263,6 @@ function* locations() {
 
 // What the user let go of, until they go on from it. Chrome holding no page place,
 // such as On Me's list or the comment field, is not somewhere else on the page.
-/** @type {WeakRef<Element> | null} */
 let letGone = null;
 onLetGo((node) => {
   const place = placeOf(node);
@@ -311,7 +282,6 @@ onUserInput((event) => {
 // leave it (readings/scroll-containers.js, `seenAhead`; readings/reading-place.js, `readingBlock`). Only a
 // current location can be on a stop; the others are `at` one, and the viewport's is a
 // `view`.
-/** @returns {WalkOrigin} */
 export function walkOrigin() {
   const here = currentLocationOrigin();
   if (here) return here;
@@ -342,13 +312,9 @@ export function walkOrigin() {
 // block that they see where they read it (readings/reading-place.js, `seenWhereRead`) is where they
 // are, and either press arrives there rather than passing a question in view for the
 // paragraph below it. Only the stops ahead of the block are measured.
-/** @template T @param {readonly T[]} list @param {WalkOrigin} origin
- * @param {import("../dom/keyboard/bindings.js").Step} dir @param {(item: T) => Element | null} placeOfItem
- * @param {T | null} [at] */
 export function stepFrom(list, { place: here, kind }, dir, placeOfItem, at = null) {
   if (kind === "view" && here) {
     const seen = seenWhereRead(here);
-    /** @type {[T, Element] | null} */
     let first = null;
     for (const item of list) {
       const place = placeOfItem(item);

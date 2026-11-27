@@ -98,9 +98,7 @@ export async function syntaxNow(lang: string) {
   };
 }
 
-export type Tokenized = Awaited<
-  ReturnType<typeof import("/vendor/syntax.esm.js").tokenize>
->;
+type Tokenized = Awaited<ReturnType<typeof import("/vendor/syntax.esm.js").tokenize>>;
 type SyntaxState = NonNullable<Tokenized["state"]>;
 type SyntaxToken = Tokenized["tokens"][number];
 

@@ -1,3 +1,4 @@
+// Compiled from address.ts by build/typescript.mjs; edit that file.
 /* A thread's address: the `thread` query parameter of an entry's URL
    (`?thread=<message-id>`, skills/leaf/references/threads.md), the one record of which
    thread an entry shows. It names the thread whose view stands open on the entry, the
@@ -70,7 +71,6 @@ const PARAMETER = "thread";
 
 // The link to the message `id` (the header): this page's address naming it, without
 // a fragment.
-/** @param {string} id */
 export function messageLink(id) {
   const url = new URL(location.href);
   url.searchParams.set(PARAMETER, id);
@@ -78,15 +78,8 @@ export function messageLink(id) {
   return url.href;
 }
 
-/** @typedef {{id: string, reader: "primary" | "card"}} OpenThread */
-
-/** @param {{shown: () => OpenThread | null,
- * putAway: (list: import("../history.js").RecordList | null, from: string | null,
- *   intent: import("../../dom/user-intent.js").UserIntent) => void,
- * openPageThread: ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"]}} options */
 export function createThreadAddress({ shown, putAway, openPageThread }) {
   // The thread an entry's URL names, by its id, or null.
-  /** @param {URL} url */
   const named = (url) => {
     const name = url.searchParams.get(PARAMETER);
     return name ? (threadNamed(name)?.id ?? name) : null;
@@ -94,7 +87,6 @@ export function createThreadAddress({ shown, putAway, openPageThread }) {
 
   // `url` naming the thread that stands open now, or none: the one composition of the
   // parameter, which every entry history writes takes (records/history.js, `nameThread`).
-  /** @param {URL} url */
   function name(url) {
     const open = untracked(shown)?.id ?? null;
     if (named(url) === open) return url;
@@ -105,7 +97,6 @@ export function createThreadAddress({ shown, putAway, openPageThread }) {
   }
   // Each change of the thread that stands open renames the entry the user is on.
   function followOpenThread() {
-    /** @type {string | null | undefined} */
     let last;
     return effect(() => {
       const open = shown()?.id ?? null;
@@ -115,8 +106,7 @@ export function createThreadAddress({ shown, putAway, openPageThread }) {
     });
   }
 
-  /** @type {import("../history.js").ThreadClaim} */
-  function claim(url, record, intent) {
+  const claim = (url, record, intent) => {
     const id = named(url);
     const open = shown();
     const kept = record?.thread ?? null;
@@ -150,14 +140,12 @@ export function createThreadAddress({ shown, putAway, openPageThread }) {
       });
       return false;
     };
-  }
+  };
 
   // The arrival's route to the thread `url` names, under the arrival's intent
   // (records/history.js, `beginRestoration`), or null where it names none. `restored` is an
   // arrival whose place the browser restored, a reload's or a traversal's into the
   // document.
-  /** @param {URL} url @param {import("../../dom/user-intent.js").UserIntent} intent
-   * @param {{restored: boolean}} options */
   function arrive(url, intent, { restored }) {
     const id = url.searchParams.get(PARAMETER);
     if (!id) return null;

@@ -1,3 +1,4 @@
+// Compiled from view-elements.ts by build/typescript.mjs; edit that file.
 /* Stable obligation-view chrome and selectors.
  *
  * These values are safe for composition and current location interpretation to import without

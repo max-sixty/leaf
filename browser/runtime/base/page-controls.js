@@ -60,7 +60,6 @@ export const PAGE_CONTROL_RANK = Object.freeze({
 // preview or Leaf the page runs (`about`) stands in About this page alone, which lists
 // every row that copies (panel/page-inspection.js); the user chose that over
 // each such copy also standing in the menu.
-
 const rows = new Map();
 let sequence = 0;
 const revision = signal(0);

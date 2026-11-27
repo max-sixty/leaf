@@ -82,6 +82,7 @@ export function closestAcross(node, selector) {
 // inside its slot, so the slot is where it is scrolled and ordered, not its light parent.
 export const renderedParent = (node) =>
   (isSlottable(node) ? node.assignedSlot : null) ?? upFrom(node);
+
 // The same step taken down, as the browser draws the tree: `each` is handed each node
 // drawn as `node`'s child, in order, with any comment among them for the caller to pass
 // over, and `eachRenderedElement` each element. A slot in a shadow tree draws what is
@@ -95,7 +96,6 @@ export const renderedParent = (node) =>
 // question"), since Chromium keeps a node's `children` or `childNodes` list for the
 // node's life once it is asked for. A walk of elements steps over the text between them
 // unasked: handed every node, Tab stops over a long table take Chromium longer.
-
 const openRoot = (host) => host.shadowRoot;
 // What `node` draws its children from: the nodes a slot draws in their place, or the
 // node or root whose own children they are.

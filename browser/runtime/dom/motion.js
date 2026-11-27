@@ -1,3 +1,4 @@
+// Compiled from motion.ts by build/typescript.mjs; edit that file.
 // Arrival is not a gesture. Restored design-mode, widget, and
 // reading-position state appears at rest. `motion` plays nothing before
 // `data-lf-presented`, and theme transitions use the same presentation stamp.
@@ -22,13 +23,11 @@ import { motionTime } from "../lib/motion-timing.js";
 // driven from JS — smooth scrolls here, Web-Animations moves in widgets — checks
 // this instead.
 const preference = matchMedia("(prefers-reduced-motion: reduce)");
-/** @type {Set<Animation>} */
 const active = new Set();
 export const reducedMotion = () => preference.matches;
 export const scrollBehavior = () => (preference.matches ? "instant" : "smooth");
-/** @param {(reduced: boolean) => void} listener */
 export function onMotionPreferenceChange(listener) {
-  const changed = (/** @type {MediaQueryListEvent} */ event) => listener(event.matches);
+  const changed = (event) => listener(event.matches);
   preference.addEventListener("change", changed);
   return () => preference.removeEventListener("change", changed);
 }
@@ -55,15 +54,12 @@ export const motionPlays = () => !reducedMotion() && pagePresented();
 // a caller passes in is still a number this module has no reason for; see browser/AGENTS.md's
 // "Motion is brief and keeps the user oriented". `motion` is the packages' door, and its signature is part of what an
 // installed package calls, so it stays as pages know it.
-/** @param {Element} el @param {Keyframe[] | PropertyIndexedKeyframes} keyframes @param {number} ms @param {string | null} [pseudoElement] */
 export const motion = (el, keyframes, ms, pseudoElement = null) =>
   playMotion(el, keyframes, { duration: ms, pseudoElement });
 
 // The same door with the runtime's own surfaces' further timing: the one ease unless
 // the caller names its surface's curve (`easing`, read with lib/motion-timing.js's
 // `motionEasing`).
-/** @param {Element} el @param {Keyframe[] | PropertyIndexedKeyframes} keyframes
- * @param {{duration: number, easing?: string, pseudoElement?: string | null}} options */
 export function playMotion(
   el,
   keyframes,
@@ -103,10 +99,8 @@ export function playMotion(
 // reads as one tinted box. Theirs end with the element's, which is the one returned.
 // A flash lasts as long as the theme sets (`--lf-motion-flash`), whoever asks for it,
 // so the page marks each arrival and change alike.
-/** @param {Element} el */
 export function backgroundFlash(el) {
   const ms = motionTime("--lf-motion-flash");
-  /** @param {Element} box */
   const tint = (box) =>
     motion(box, [{ backgroundColor: "var(--lf-hi-tint)", offset: 0 }], ms);
   const own = tint(el);
@@ -146,13 +140,12 @@ export function backgroundFlash(el) {
 // Unlike trailing margins, this room cannot collapse against a live neighbor's gap.
 // The caller measures only the container before composing; this owner reads the new
 // allocation, so consumers share the geometry rule.
-/** @param {HTMLElement} el @param {{container: Element, priorSize: number} | null} [allocation] */
 export function foldBlock(el, allocation = null) {
   const adjustment = allocation
     ? allocation.priorSize - allocation.container.getBoundingClientRect().height
     : 0;
   const native = CSS.supports("block-size", "calc-size(auto, size)");
-  const frames = (/** @type {string} */ blockSize) => [
+  const frames = (blockSize) => [
     { blockSize, display: "block", overflow: "clip", opacity: 1 },
     {
       blockSize: "0px",

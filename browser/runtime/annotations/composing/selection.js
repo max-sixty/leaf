@@ -1,3 +1,4 @@
+// Compiled from selection.ts by build/typescript.mjs; edit that file.
 /* The selection composer: the response bar's field bound to a passage's draft.
 
    The selection composer keeps its passage painted after an explicit Comment gesture
@@ -168,44 +169,12 @@ composerField.append(composerInput);
 composer.append(composerQuote);
 fabBar.prepend(composer);
 
-/** @typedef {NonNullable<import("../../../types/contract.js").EventMap["comment"]["anchor"]>} Anchor
- * @typedef {import("../../records/drafts.js").ComposerDraft} ComposerDraft
- * @typedef {ComposerDraft & {text: string}} ComposerRecord
- * @typedef {import("../../records/thread/destination.js").SendFrame | null} ComposerFrame
- * @typedef {Object} ComposerOptions
- * @property {(on: boolean) => unknown} setReact
- * @property {typeof import("../reactions.js").reactionEmoji} reactionEmoji
- * @property {typeof import("../reactions.js").reactionAvailable} reactionAvailable
- * @property {() => boolean} designModeActive
- * @property {ReturnType<typeof import("../../records/thread/destination.js").createThreadDestinations>["openPageThread"]} openPageThread
- * @property {(anchor: Anchor | null) => Element | Range | null} anchorTravelAt
- * @property {() => Anchor | null} fabAnchorAt
- * @property {() => string | null} fabHoldAt
- * @property {() => Element | null} fabPointAt
- * @property {() => ComposerFrame} fabFrameAt
- * @property {() => Promise<boolean>} fabPositioned
- * @property {() => import("./surface.js").FabFocusHandoff} beginFabFocus
- * @property {(handoff?: import("./surface.js").FabFocusHandoff | null) => unknown} endFabFocus
- * @property {(handoff: import("./surface.js").FabFocusHandoff, anchor: Anchor | null, stands: () => boolean) => unknown} landFabFocus
- * @property {(anchor: Anchor | null, options?: {point?: Element | null | undefined, reveal?: boolean}) => unknown} showFab
- * @property {() => unknown} letGoOfFab
- * @property {() => () => unknown} takeDownFab
- * @property {(command: import("../../records/thread/actions.js").CreateComment) => NonNullable<ReturnType<ReturnType<typeof import("../../records/thread/actions.js").createThreadActions>["create"]>>["delivery"] | null} createComment
- * @property {(destination: Element) => unknown} landSent
- * @property {() => Promise<unknown>} refreshThread
- * @property {ReturnType<typeof import("./input.js").createCompositionInputs>["wireInput"]} wireInput
- * @property {{target: (anchor: Anchor | null) => Element | null, replace: (anchor: Anchor | null, drawing: import("../../../types/domain.js").DraftDrawing | null) => unknown, undoStroke: (anchor: Anchor | null) => unknown, remove: (anchor: Anchor | null) => unknown}} drawingEdits
- */
-/** @type {Anchor | null} */
 export let pendingAnchor = null;
-/** @type {"design" | null} */
 export let pendingAbout = null;
-/** @type {import("../../../types/domain.js").DraftDrawing | null} */
 export let pendingDrawing = null;
 
 // The words of the element a comment was pointed at, as the passage that finds them
 // again once a re-render has replaced the element (readings/pointed-place.js); null for none.
-/** @param {Element} element */
 function wordsOf(element) {
   const range = document.createRange();
   range.selectNodeContents(element);
@@ -214,7 +183,6 @@ function wordsOf(element) {
 }
 export let composerOpen = false;
 
-/** @param {ComposerOptions} options */
 export function createSelectionComposer({
   setReact,
   reactionEmoji,
@@ -254,7 +222,6 @@ export function createSelectionComposer({
   // draft follows an identified subject across a data replacement as `sameAnchor` does;
   // reopened on the re-minted anchor, it posts that anchor, the rendering last aimed at.
   const COMPOSER_KEY = commentContext("");
-  /** @type {import("../../records/composition-input.js").InputSync} */
   let syncComposer;
   let pendingRevision = applicationState.read().document.revision;
   // The draft owns its mode; the response action and editor hint present it.
@@ -271,7 +238,6 @@ export function createSelectionComposer({
     saveDraft(composerCtx(pendingAnchor), text, composerDraftPayload());
   // Words and their submission metadata belong to the shared draft generation.
   // The draft store parses and caches it once for every reader, including parked ink.
-  /** @param {string} ctx */
   const composerRecord = (ctx) => {
     const draft = loadDraft(ctx);
     return draft && isComposerDraft(draft.payload)
@@ -280,7 +246,6 @@ export function createSelectionComposer({
   };
   // The drawing a passage's draft holds, whether or not its box is up: putting the box
   // away keeps the draft, strokes included.
-  /** @param {Anchor | null} anchor */
   const draftDrawing = (anchor) => {
     return composerRecord(composerCtx(anchor))?.drawing ?? null;
   };
@@ -303,7 +268,6 @@ export function createSelectionComposer({
   // words. The composer on that passage, up or put away, holds the draft's
   // current reading, so it takes the change and saves it; any other draft is rewritten
   // where it is stored, and one left holding nothing is settled.
-  /** @param {Anchor | null} anchor @param {import("../../../types/domain.js").DraftDrawing | null} drawing */
   function setDraftDrawing(anchor, drawing) {
     const ctx = composerCtx(anchor);
     if (ctx === composerCtx(pendingAnchor)) {
@@ -319,7 +283,6 @@ export function createSelectionComposer({
     else saveDraft(ctx, text, { ...payload, drawing });
   }
   // News of any passage's draft, whose ink the page shows whether or not its box is up.
-  /** @param {() => void} callback */
   const watchHeldDrawings = (callback) => watchDrafts(COMPOSER_KEY, callback);
   // An empty open box is not settled, but holds nothing to reopen. The newest draft
   // with words or ink stays recoverable even when its original passage is detached.
@@ -340,7 +303,6 @@ export function createSelectionComposer({
   // hiding box says about what became of the words, and the word Escape's row shows. With
   // a spelling each, the one over the field alone would read a box holding a picture
   // and nothing else as empty.
-  /** @param {string | null | undefined} draft */
   const holdsContent = (draft) => Boolean(draft || pendingDrawing);
   const composerHolds = () => holdsContent(syncComposer.value());
 
@@ -361,7 +323,6 @@ export function createSelectionComposer({
     syncResponseOptions();
     repaint(); // the submit action says which of the two the box will do
   }
-  /** @param {boolean} suggest */
   function setSuggestionMode(suggest) {
     suggestionMode = Boolean(suggest);
     if (suggestionMode && syncComposer.hasMedia()) {
@@ -381,7 +342,6 @@ export function createSelectionComposer({
 
   let responseOptionsOpen = false;
   const availableResponseOptions = () => {
-    /** @type {NodeListOf<HTMLButtonElement>} */
     const controls = fabOptions.querySelectorAll(".lf-response-action:not([hidden])");
     return [...controls];
   };
@@ -396,7 +356,6 @@ export function createSelectionComposer({
     responseOptionButtons().filter((control) => control.classList.contains("lf-react"));
 
   // The options stand whole around the ring, so a step says no position.
-  /** @param {string} binding */
   function stepResponseOptions(binding) {
     const choices = responseOptionButtons();
     if (!hasRows(choices)) return;
@@ -411,7 +370,6 @@ export function createSelectionComposer({
     );
   }
 
-  /** @param {"reaction" | "first"} focus */
   const focusResponseOption = (focus) => {
     // The bar may place a frame or more later; a newer input meanwhile keeps the user
     // where it put them.
@@ -428,7 +386,6 @@ export function createSelectionComposer({
     });
   };
 
-  /** @param {boolean} open @param {{focus?: "reaction" | "first" | null}} [options] */
   function setResponseOptions(open, { focus = null } = {}) {
     const next = Boolean(open && fabAnchorAt() && responseOptionsAvailable());
     if (next === responseOptionsOpen) {
@@ -444,7 +401,6 @@ export function createSelectionComposer({
     return next;
   }
 
-  /** @param {Anchor | null} [anchor] */
   function syncResponseOptions(anchor = fabAnchorAt()) {
     keepsHidden(
       fabSuggest,
@@ -467,7 +423,6 @@ export function createSelectionComposer({
   // doesn't — display is "" before the first open, which is neither "block" nor "none", and
   // a guard testing for one of them ran on every mousedown in the page and swallowed the
   // click. Painting hangs off the same call, so the mark and the box are up together.
-  /** @param {boolean} open */
   function showComposer(open) {
     if (open && composerField.hasChildNodes()) composer.append(composerField);
     if (!open) syncComposer.cancelDictation();
@@ -498,7 +453,6 @@ export function createSelectionComposer({
   // Every view adopts the complete draft here. A fresh capture supplies its own
   // anchor/revision while taking existing words and modes; Resume supplies the saved
   // pair. Mirroring another tab takes that same pair rather than only its new text.
-  /** @param {Omit<ComposerRecord, "format" | "touched">} record */
   function adoptComposerDraft({ anchor, revision, text, suggest, about, drawing }) {
     const retargeted = JSON.stringify(pendingAnchor) !== JSON.stringify(anchor);
     if (syncComposer.value() !== text) {
@@ -516,7 +470,6 @@ export function createSelectionComposer({
   // design mode is about design — and a restored draft passes its saved modes. A pointing
   // gesture passes the row inside the target it landed on (`point`, readings/pointed-place.js),
   // or null; a route that names no point leaves the bar where it stands on this anchor.
-  /** @param {Anchor | null} anchor @param {string | null | undefined} text @param {{suggest?: boolean | undefined, about?: "design" | null | undefined, drawing?: import("../../../types/domain.js").DraftDrawing | null | undefined, focus?: boolean, point?: Element | null | undefined, revision?: number | null}} [options] */
   function openComposer(
     anchor,
     text,
@@ -602,7 +555,6 @@ export function createSelectionComposer({
   // synchronous turn binds delivery to that draft's arrival generation. Upload
   // completion cannot retarget the picture if the user moves this composer to another
   // passage.
-  /** @param {Anchor | null} anchor @param {readonly Blob[]} images @param {Parameters<typeof openComposer>[2]} [options] */
   function openComposerWithMedia(anchor, images, options = {}) {
     openComposer(anchor, "", options);
     return syncComposer.addMedia(images);
@@ -611,7 +563,6 @@ export function createSelectionComposer({
   // boxes' rule with one thing of its own: the composer is chrome as well as a box, so a
   // draft settled in another tab — sent, or discarded — leaves it nothing to be open about
   // and it goes down. The subscription moves with the anchor, because the key does.
-  /** @type {(() => void) | null} */
   let composerWatch = null;
   function watchComposer() {
     composerWatch?.();
@@ -640,7 +591,6 @@ export function createSelectionComposer({
   // Hiding keeps the draft and closing discards it, but the mark goes down with the box
   // either way: a marked passage with no composer on screen points at nothing.
   const hideComposer = () => showComposer(false);
-  /** @param {boolean} discard */
   function leaveComposer(discard) {
     if (discard) clearDraft(composerCtx(pendingAnchor)); // before the anchor goes: the key is the anchor
     composerWatch?.();
@@ -669,7 +619,6 @@ export function createSelectionComposer({
     if (kept) noticeDraftKept();
   }
   // This tab's send, while it settles the composer it sends from (`send` below).
-  /** @type {{letGo: (() => unknown) | null} | null} */
   let sending = null;
   // The composer going down because its draft is spent rather than because the user
   // dropped it: the words are somewhere else now, or on their way back.
@@ -771,11 +720,9 @@ export function createSelectionComposer({
         // A send that lands the user nowhere, its conversation unshown or a later
         // gesture taking over, lets them go from the bar it took down as the
         // settlement would have (`takeDownFab`).
-        /** @type {{letGo: (() => unknown) | null}} */
         const settling = { letGo: null };
         sending = settling;
         const landElsewhere = () => settling.letGo?.();
-        /** @type {ReturnType<typeof sendMessage>} */
         let sent;
         try {
           sent = sendMessage(
@@ -819,9 +766,8 @@ export function createSelectionComposer({
         // write to the live region and would otherwise be all a listener heard. What
         // being held means is the widget's to say, as it labelled the press.
         if (holds) notice("Held until resolved");
-        const revealSent = bindQueuedWork(
-          /** @param {Parameters<typeof openPageThread>[1]} options */ (options) =>
-            openPageThread(sent.id, options),
+        const revealSent = bindQueuedWork((options) =>
+          openPageThread(sent.id, options),
         );
         // The semantic publication is synchronous, while the retained thread list
         // commits its keyed DOM asynchronously. Wait for that presentation before
@@ -860,12 +806,10 @@ export function createSelectionComposer({
     fabOptions.addEventListener("toggle", () => {
       if (!isNativeLayer(fabOptions)) setResponseOptions(false);
     });
-    onCurrentLocation(
-      /** @param {Element | null} node */ (node) => {
-        if (node && responseOptionsOpen && !fabBar.contains(node))
-          setResponseOptions(false);
-      },
-    );
+    onCurrentLocation((node) => {
+      if (node && responseOptionsOpen && !fabBar.contains(node))
+        setResponseOptions(false);
+    });
     fab.onclick = () => {
       if (!fabAnchorAt()) return;
       openComposer(fabAnchorAt(), "");
@@ -878,7 +822,6 @@ export function createSelectionComposer({
   // through the choices themselves. Tab is the browser's: it walks the field and the
   // choices in their order and on out of the bar, which closes them.
   const RESPONSE_OPTIONS_TITLE = "With other responses open";
-  /** @type {import("../../dom/keyboard/bindings.js").Command} */
   const RESPONSE_REACTION = {
     id: "response.reaction.choose",
     touch: false,
@@ -901,10 +844,8 @@ export function createSelectionComposer({
       reactionAvailable() &&
       !takesLetters(focused()) &&
       responseReactionButtons().length > 0,
-    runKey: /** @param {string} binding */ (binding) =>
-      responseReactionButtons()[+binding - 1]?.click(),
+    runKey: (binding) => responseReactionButtons()[+binding - 1]?.click(),
   };
-  /** @type {import("../../dom/keyboard/bindings.js").Command} */
   const RESPONSE_MOVE = {
     id: "response.move",
     touch: false,
@@ -914,7 +855,6 @@ export function createSelectionComposer({
     when: () => focusedResponseOption() !== null,
     runKey: stepResponseOptions,
   };
-  /** @type {import("../../dom/keyboard/bindings.js").Command} */
   const RESPONSE_ACTIVATE = {
     id: "response.activate",
     touch: false,
@@ -929,7 +869,6 @@ export function createSelectionComposer({
     },
     run: () => focusedResponseOption()?.click(),
   };
-  /** @type {import("../../dom/keyboard/bindings.js").Command} */
   const RESPONSE_CLOSE = {
     id: "response.close",
     touch: false,

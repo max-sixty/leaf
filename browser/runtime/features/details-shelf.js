@@ -1,3 +1,4 @@
+// Compiled from details-shelf.ts by build/typescript.mjs; edit that file.
 /* Runtime apparatus about an authored element, kept out of the page's structure.
  *
  * Some of what the runtime says about an element is a control a screen reader must be
@@ -56,20 +57,12 @@ import { offer } from "../lib/controls.js";
 
 // element -> { notes, authored }; a note -> its element and the reading of what a
 // node in it stands for.
-/** @typedef {{notes: Element[], authored: string | null}} ShelfRecord */
-/** @typedef {(node: Element) => Element | null} StandsFor */
-/** @typedef {{element: Element, standsFor: StandsFor, presents: boolean}} ShelfOwner */
-/** @type {Map<Element, ShelfRecord>} */
 const records = new Map();
-/** @type {WeakMap<Node, ShelfOwner>} */
 const owners = new WeakMap();
-/** @type {HTMLDivElement | null} */
 let shelf = null;
 
 // How the note a node on the shelf is in was shelved, or null for a node off the shelf.
-/** @param {Element} node */
 function noteOf(node) {
-  /** @type {Element | null} */
   let at = node;
   for (; at && at !== shelf; at = upFrom(at)) {
     const owner = owners.get(at);
@@ -80,7 +73,6 @@ function noteOf(node) {
 // What a node on the shelf stands for: what its note's owner reads for the node, such as
 // one of a picture's parts for that part's proxy, else the element naming the note.
 // Null for a node off the shelf.
-/** @param {Element} node */
 function standsFor(node) {
   const owner = noteOf(node);
   return owner && (owner.standsFor(node) ?? owner.element);
@@ -90,7 +82,6 @@ declareSide(standsFor);
 standsAt(".lf-details-shelf *", standsFor);
 
 // The element the proxy ring stands round, null while it stands nowhere.
-/** @type {Element | null} */
 let ringed = null;
 // Ring what the focused node on the shelf stands for, or nothing where focus is off
 // it. Asked on each focus move and each shelving, which is where what a focused note
@@ -112,12 +103,10 @@ onCurrentLocation((node) => {
   ring();
 });
 
-/** @template T @param {readonly T[]} left @param {readonly T[]} right */
 const same = (left, right) =>
   left.length === right.length && left.every((node, index) => node === right[index]);
 
 // The elements an authored `aria-details` names, looked up where the element stands.
-/** @param {Element} element @param {string | null} value */
 const authoredDetails = (element, value) => {
   const root = element.getRootNode();
   if (!("getElementById" in root)) return [];
@@ -132,10 +121,8 @@ const authoredDetails = (element, value) => {
 
 // The relation this module wrote still stands where the attribute is the empty value
 // writing it leaves.
-/** @param {Element} element */
 const written = (element) => element.getAttribute("aria-details") === "";
 
-/** @param {Element} element @param {ShelfRecord} record */
 function name(element, record) {
   if (!written(element)) record.authored = element.getAttribute("aria-details");
   const wanted = [...authoredDetails(element, record.authored), ...record.notes];
@@ -148,7 +135,6 @@ function name(element, record) {
 // note stands for where that is not `element` itself, and `presents: false` leaves
 // showing that place on focus to the note's owner. A note shelved under another element
 // moves to it, keeping its node, so a user on it stays there.
-/** @param {Element} element @param {Element} note @param {StandsFor} [standsFor] */
 export function shelve(
   element,
   note,
@@ -172,7 +158,6 @@ export function shelve(
 }
 
 // Take `note` off the shelf and out of `element`'s relation.
-/** @param {Element} element @param {Element} note */
 export function unshelve(element, note) {
   forget(element, note);
   note.remove();
@@ -181,7 +166,6 @@ export function unshelve(element, note) {
 
 // Take `note` out of `element`'s relation. The element's authored `aria-details` comes
 // back with its last note.
-/** @param {Element} element @param {Element} note */
 function forget(element, note) {
   const record = records.get(element);
   if (record?.notes.includes(note)) {

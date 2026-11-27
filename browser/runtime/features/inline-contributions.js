@@ -1,3 +1,4 @@
+// Compiled from inline-contributions.ts by build/typescript.mjs; edit that file.
 /* Contributed controls inside Thread messages' markup.
 
    They belong to the Thread's local flow whichever annotation presentation the
@@ -21,15 +22,10 @@ import { el } from "../lib/elements.js";
 import { keeps } from "../lib/keeps.js";
 import { inChrome } from "../base/ui-marks.js";
 
-/** @typedef {import("./contributions.js").ContributionSource} Source
- * @typedef {{host: HTMLDivElement, offers: Source[]}} Seat */
-/** @param {{targetPath: (element: Element) => string}} options */
 export function createInlineContributions({ targetPath }) {
-  /** @type {Map<Element, Seat>} */
   const hosts = new Map();
 
   function present() {
-    /** @type {Map<Element, Source[]>} */
     const grouped = new Map();
     for (const offered of contributionEntries()) {
       const target = offered.target();
@@ -73,7 +69,7 @@ export function createInlineContributions({ targetPath }) {
         "aria-label",
         `Actions for ${spokenSubject(addressableWord(target))}`,
       );
-      const controls = (/** @type {"before" | "after"} */ side) =>
+      const controls = (side) =>
         offers
           .filter((offered) => offered.reading.side === side)
           .sort((left, right) => compareContributions(left.model, right.model))

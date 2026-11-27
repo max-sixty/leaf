@@ -1,3 +1,4 @@
+// Compiled from data.ts by build/typescript.mjs; edit that file.
 /* Projected data: the third kind of page word, and the seat that holds it.
 
    The page has three kinds of visible words:
@@ -82,13 +83,11 @@ import { PAGE_PAINT_ATTRIBUTE } from "../../base/page-paint.js";
 // words: the ones anchor resolution can find (`pageQueryAll`), so what a replacement
 // clears and what a thread resolves to are one set. A marking widget may already have
 // dropped the key from a node it retired, so this reads Leaf's own stamp.
-/** @param {Element} root */
 const projectedDescendants = (root) =>
   queryAllUnder(root, "[data-lf-projection]").filter(
     (element) => element.getAttribute("data-lf-projection") === root.id,
   );
 
-/** @param {Element} node */
 const markOwner = (node) => {
   for (let at = composedParentNode(node); at; at = composedParentNode(at))
     if (at instanceof Element && registry[at.localName]?.inputs) return at;
@@ -97,7 +96,6 @@ const markOwner = (node) => {
 
 // The items a widget marked under `root`. An attribute is always a string, so the
 // stamp's refusals reduce to emptiness, duplicates and a malformed path.
-/** @param {Element} root */
 const markedDatums = (root) =>
   queryAllUnder(root, "[data-lf-datum]")
     .filter((node) => markOwner(node) === root)
@@ -110,9 +108,7 @@ const markedDatums = (root) =>
     }));
 
 // A mark's origin path, a JSON array of field names and indices.
-/** @param {string} who @param {string} key @param {string} text */
 const originPath = (who, key, text) => {
-  /** @type {unknown} */
   let path;
   try {
     path = JSON.parse(text);
@@ -122,7 +118,6 @@ const originPath = (who, key, text) => {
   if (
     !Array.isArray(path) ||
     !path.every(
-      /** @param {unknown} step @returns {step is string | number} */
       (step) =>
         typeof step === "string" ||
         (typeof step === "number" && Number.isInteger(step) && step >= 0),
@@ -136,31 +131,24 @@ const originPath = (who, key, text) => {
 
 /** Where a drawn value came from, which a stamp writes as `data-lf-origin`: the input,
  * source, contract and revision a source's value came through, or the widgets whose
- * output it is (host/data.js builds it).
- * @typedef {{input: string, source: string, contract: string, revision: string}
- *   | {derived: readonly {widget: string}[]}} DataOrigin */
+ * output it is (host/data.js builds it). */
+
 /** What a stamp reads of the snapshot that supplied a drawn value (host/data.js,
- * `DataSnapshot`): the source and revision it came from, and its origin.
- * @typedef {{source?: string, revision?: string, origin: DataOrigin}} DrawnSnapshot */
-/** @type {{projectMarked: (root: Element, snapshot: DrawnSnapshot | null) => void} | null} */
+ * `DataSnapshot`): the source and revision it came from, and its origin. */
+
 let constructed = null;
-/** Stamp the items a widget marked under `root` (`createDataProjection`).
- * @param {Element} root @param {DrawnSnapshot | null} snapshot */
+/** Stamp the items a widget marked under `root` (`createDataProjection`). */
 export function projectMarked(root, snapshot) {
   if (!constructed) throw new Error("Leaf's data projection has not been constructed");
   constructed.projectMarked(root, snapshot);
 }
 
-/** @param {{invalidateDom: () => void}} options */
 export function createDataProjection({ invalidateDom }) {
   let dataPaintQueued = false;
-  /** @type {Set<Element>} */
   const changedRoots = new Set();
   // The label Leaf last mirrored into each datum's aria-description, so a new label
   // replaces only what Leaf wrote, whoever wrote `data-lf-datum-label`.
-  /** @type {WeakMap<Element, string>} */
   const mirrored = new WeakMap();
-  /** @param {Element} root */
   function applyProjection(root) {
     changedRoots.add(root);
     if (dataPaintQueued) return;
@@ -176,13 +164,11 @@ export function createDataProjection({ invalidateDom }) {
 
   /** Stamp the items a widget marked under `root` with the snapshot that supplied the
    *  value it drew, or null for words no bound value supplied; host/element-data.js has
-   *  matched the value to the snapshot.
-   *  @param {Element} root @param {DrawnSnapshot | null} snapshot */
+   *  matched the value to the snapshot. */
   function projectMarked(root, snapshot) {
     if (!root.id)
       throw new TypeError(`<${root.localName}> needs an id to name its drawn data`);
     const who = `<${root.localName} id=${root.id}>`;
-    /** @param {Element} node */
     const stampBasis = (node) => {
       keeps(node, PAGE_PAINT_ATTRIBUTE.source, snapshot?.source ?? null);
       keeps(node, PAGE_PAINT_ATTRIBUTE.sourceRevision, snapshot?.revision ?? null);
@@ -244,7 +230,6 @@ export function createDataProjection({ invalidateDom }) {
     applyProjection(root);
   }
 
-  /** @param {Element} node */
   function unmirror(node) {
     const label = mirrored.get(node);
     if (label === undefined) return;

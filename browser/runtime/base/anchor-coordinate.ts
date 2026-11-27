@@ -10,7 +10,7 @@
 // record.
 const RENDERING = new Set(["source_revision", "datum"]);
 const PRIMITIVE = new Set(["string", "number", "boolean"]);
-export type Anchor = Readonly<Record<string, unknown>>;
+type Anchor = Readonly<Record<string, unknown>>;
 
 export const anchorKey = (anchor: Anchor | null | undefined) => {
   const identified = typeof anchor?.identity === "string";

@@ -52,6 +52,8 @@ export const PAGE_CONTROL_RANK = Object.freeze({
   exit: 120,
 });
 
+export type PageControlGroup = "page" | "navigate" | "annotate" | "keys" | "about";
+
 // What a row is about, which decides where a menu built from rows puts it: on the menu
 // itself (`page`), behind its Navigate or Annotations entry, or, for a keyboard's
 // convenience for where the reader stands, such as Resume writing (`keys`), behind
@@ -60,8 +62,6 @@ export const PAGE_CONTROL_RANK = Object.freeze({
 // preview or Leaf the page runs (`about`) stands in About this page alone, which lists
 // every row that copies (panel/page-inspection.js); the user chose that over
 // each such copy also standing in the menu.
-export type PageControlGroup = "page" | "navigate" | "annotate" | "keys" | "about";
-
 const rows: Map<string, PageControl & { sequence: number }> = new Map();
 let sequence = 0;
 const revision = signal(0);

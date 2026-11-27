@@ -1,3 +1,4 @@
+// Compiled from design.ts by build/typescript.mjs; edit that file.
 /* This module owns Design mode and legend geometry. Anchor resolution owns the
  * target reading shared by its direct presses, pointer promise, and keyboard picker. */
 import { cancelRender, nextRender, sizeObserver } from "../lib/frame-pass.js";
@@ -56,12 +57,6 @@ legendRoot.setAttribute("aria-hidden", "true");
  * the page's words. The mode owns that state and supplies `active` to every
  * renderer or command that needs the reading. */
 
-/** @param {{pageGeometry: {refreshAim: () => unknown, pageShifted: () => unknown},
- * syncGeneral: () => unknown,
- * composer: Pick<ReturnType<typeof import("./composing/surface.js").createResponseSurface>, "showFab" | "openComposer">,
- * closePreview: () => unknown, marginTargetAt: NonNullable<import("../readings/anchor-resolution.js").AimOptions["marginTargetAt"]>,
- * closeDrawMode: () => unknown, closeTargetPicker: () => unknown, closeReactionMode: () => unknown,
- * announce: typeof import("../transport/notifications.js").announce, repaint: () => unknown}} options */
 export function createDesignMode({
   pageGeometry,
   syncGeneral,
@@ -78,7 +73,6 @@ export function createDesignMode({
   // DESIGN_MODE_KEY; commands and renderers receive `active` rather than sharing mutable state.
   let designModeOn = false;
 
-  /** @param {boolean} on @param {{spoken?: boolean}} [options] */
   function setDesignMode(on, { spoken = true } = {}) {
     // Design mode reinterprets presses on the page and its margin as interface comments,
     // so retire the thread card rather than leave a thread up that no press can work.
@@ -140,12 +134,9 @@ export function createDesignMode({
   // after one is a layout forced per element — the thrash a legend of a few hundred
   // boxes cannot afford. So the box set is settled first, every box is measured and
   // placed (`place` reads them all before it writes), and only the tags are left.
-  /** @typedef {{holder: Element | null, from: number}} LegendCut */
-  /** @typedef {{addressable: Element, box: HTMLDivElement, tag: HTMLSpanElement | null, radius?: string, cuts: LegendCut[], tagW?: number}} LegendEntry */
-  /** @type {Map<Element, LegendEntry>} */
+
   const legendBoxes = new Map(); // addressable → { box, radius, tagW, cuts }
   // The addressables in document order, as the last pass found them.
-  /** @type {LegendEntry[]} */
   let legendOrder = [];
   const legendSizes = sizeObserver(() => pageGeometry.pageShifted());
   const legend = paintSet(legendRoot, { onNear: () => placeTags() });
@@ -157,7 +148,7 @@ export function createDesignMode({
   // and on a page with reactions it didn't, at thousands of mutations a second. Naming
   // the start of a scroller's words (`data-lf-content-start`) or the elements holding
   // marked words moves nothing either.
-  const authoredClasses = (/** @type {string | null} */ value) =>
+  const authoredClasses = (value) =>
     (value ?? "")
       .split(/\s+/)
       .filter((name) => name && !name.startsWith("lf-"))
@@ -184,7 +175,7 @@ export function createDesignMode({
     crosshair,
     markedWords,
   ]);
-  const movesPage = (/** @type {MutationRecord} */ r) =>
+  const movesPage = (r) =>
     !inChrome(r.target) &&
     !unmoving.has(r.attributeName ?? "") &&
     !(
@@ -239,7 +230,6 @@ export function createDesignMode({
     // than what stands inside a widget: a tab holds a whole page, and every heading and
     // paragraph of that page is the author's, and named.
     const parts = new Set(tagsDeclaring((e) => e.owners));
-    /** @type {LegendEntry[]} */
     const entries = [];
     for (const addressable of addressables) {
       let entry = legendBoxes.get(addressable);
@@ -302,7 +292,6 @@ export function createDesignMode({
   // its side changed.
   function placeTags(scrolled = false) {
     const roomTop = 0;
-    /** @type {Map<Element, number>} */
     const holders = new Map();
     const tags = [];
     for (const entry of legendOrder) {
@@ -327,7 +316,6 @@ export function createDesignMode({
       );
       tags.push({ entry, tag, rect, width, inward: rect.top - 1 - legendTagH < room });
     }
-    /** @type {{left: number, top: number, width: number}[]} */
     const said = []; // tag boxes already placed, in viewport coordinates
     for (const { entry, tag, rect, width, inward } of tags) {
       const { box } = entry;
@@ -358,8 +346,7 @@ export function createDesignMode({
   };
 
   const targetOptions = { design: true, marginTargetAt };
-  const designTarget = (/** @type {Node | null} */ node) =>
-    aimTargetAt(node, targetOptions);
+  const designTarget = (node) => aimTargetAt(node, targetOptions);
 
   // Which presses the mode takes at the press, ahead of the page: everything on the page
   // but prose, and whatever in the chrome the agent made. A widget, a control, a picture —
@@ -368,7 +355,6 @@ export function createDesignMode({
   // composer can open; it never gives the activation back to the page. Prose is left to the
   // browser, so a drag still selects, and the click that ends a plain press on it reaches
   // the handler in the entry module rather than being taken here.
-  /** @param {Node | null} target */
   function designPress(target) {
     const at = target instanceof Element ? target : target?.parentElement;
     if (!designModeOn || !at) return false;
@@ -377,7 +363,6 @@ export function createDesignMode({
 
   // The one way a design target becomes the composer's anchor: the element by id, and the
   // control's word where the press landed on one.
-  /** @param {import("../readings/anchor-resolution.js").AimTarget} target */
   function openOnDesign({ anchor }) {
     composer.showFab(null);
     composer.openComposer(anchor, "");
@@ -397,7 +382,6 @@ export function createDesignMode({
   // A page mode the user is in for a batch of design remarks. The press the mode
   // is made of is not a key at all, so that row binds nothing and says nothing on the
   // line, the way the ⌥ aim's row does.
-  /** @type {import("../dom/keyboard/bindings.js").Scope} */
   const DESIGN_MODE = {
     title: "In Design mode",
     says: "Design",

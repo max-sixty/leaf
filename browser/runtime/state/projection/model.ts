@@ -9,7 +9,6 @@ import { keptEach } from "../kept.js";
 import { byRank } from "../../lib/rank.js";
 import type {
   ActionSpec,
-  ActionValue,
   AuthoredMap,
   AuthoredWidget,
   ClassifiedEntry,
@@ -18,18 +17,8 @@ import type {
   ProjectionEntry,
   ProjectionInput,
   StateRecord,
-  UnitValue,
 } from "../../../types/domain.js";
 import type { Immutable } from "../../base/snapshot.js";
-export type {
-  ActionValue,
-  AuthoredMap,
-  ClassifiedEntry,
-  PositionValue,
-  Projection,
-  ProjectionEntry,
-  UnitValue,
-};
 
 // A state coordinate, `[owner, unit, verb]`, as the key the folds index it by. The
 // server sends the tuple (`projection.py`); the browser keys and reads it back here.
@@ -196,6 +185,12 @@ export function projectionOrigins(
   return [...origins.values()];
 }
 
+export type FoldedWidget = {
+  state: AuthoredWidget["state"];
+  entries: ProjectionEntry[];
+  specs: ReadonlyMap<string, ActionSpec>;
+};
+
 // Compose complete verb values in memory. A position record the document has not
 // absorbed places its unit at the rank it names, a coordinate of that unit's own
 // (lib/rank.js), so each container lists its units by rank once every placement in force is
@@ -204,11 +199,6 @@ export function projectionOrigins(
 // Each widget's folded state is kept (`state/kept.js`) by its authored state and the entries
 // in force on it, so every widget nothing touched keeps the very state it had, and a
 // reader of one, such as a thread holding a widget, can tell it unchanged by identity.
-export type FoldedWidget = {
-  state: AuthoredWidget["state"];
-  entries: ProjectionEntry[];
-  specs: ReadonlyMap<string, ActionSpec>;
-};
 export function foldWidgetStates(
   authoredSnapshots: AuthoredMap,
   projection: Projection,

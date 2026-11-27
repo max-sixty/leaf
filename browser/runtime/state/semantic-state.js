@@ -78,6 +78,7 @@ export const PRESENTATION_DOM = Object.freeze({
 // caller reaches for when it has changed something every region may be showing and has
 // no business knowing which those are.
 const documentPresenters = [];
+
 // `applicationPresenter` registers one region of the page, such as `projection:chrome`
 // in records/projection/presentation.js, that repaints when the parts of the application state
 // it reads change.
@@ -108,7 +109,6 @@ const documentPresenters = [];
 // The returned `committed()` is the region's own DOM commit. It settles at once when the
 // region owes no paint; a claimed paint commits only after the DOM `after` names, so its
 // commit waits for everything upstream as well.
-
 export const applicationPresenter = ({ region, after, reading, paint, failSoft }) => {
   // Reading identity decides whether a region needs new content. Preact owns its
   // dependencies, including subscriptions to values outside the application state.

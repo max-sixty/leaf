@@ -1,3 +1,4 @@
+// Compiled from anchor-travel.ts by build/typescript.mjs; edit that file.
 /* Travel to a place on the page: open what hides it, scroll to it, focus it, and
  * record the departure in history.
  *
@@ -39,8 +40,6 @@
  * its departure, and Back or Forward to a place the page has since hidden
  * (`returnToFragment`) is a navigation step that adds no entry.
  */
-
-/** @import { EditorDestination } from "../records/drafts.js" */
 
 import { selectEnds } from "../dom/native-selection.js";
 import { focusElement, focused } from "../dom/focus.js";
@@ -87,7 +86,6 @@ import { notice } from "../transport/notifications.js";
 // applies it where the browser's own landing does not reach the element: at an arrival
 // the page reshapes after the browser landed it (version.js, `aimArrival`), and at a
 // traversal, where the browser restores an offset instead (`returnToFragment`).
-/** @param {Destination} element */
 export function scrollToFragment(element) {
   scrollIntoView(element, { behavior: "auto", block: "start" });
 }
@@ -97,19 +95,9 @@ export function scrollToFragment(element) {
 // part and shows it: a file view keeps an unselected file's node hidden until found,
 // so a node existing is not the widget having drawn it. A traversal and a load ask the
 // widget for the part only where this is false.
-/** @param {ReturnType<typeof fragmentAddress>} address */
 export const fragmentShown = (address) =>
   Boolean(address?.place && showsContents(address.place));
 
-/** @import { Destination, ScrollPlacement, Arrival, NavigationStep, ArrivalOptions } from "../dom/arrival-plan.js" */
-/** @import { UserIntent } from "../dom/user-intent.js" */
-/** @typedef {import("../base/held-place.js").Caret} Caret
- * @typedef {{anchors: Pick<import("../records/thread/placement.js").ThreadPlacements, "placedAt">,
- * refreshThread: () => unknown, focusForNavigation: typeof import("../dom/focus.js").focusDestination,
- * threadFocusTarget: ReturnType<typeof import("../records/thread/destination.js").createThreadDestinations>["threadFocusTarget"],
- * clearFor: (destination: Arrival, landed: DOMRect | null) => unknown, announce: (message: string) => unknown}} TravelOptions
- */
-/** @param {TravelOptions} travel */
 export function createAnchorTravel({
   anchors,
   refreshThread,
@@ -133,7 +121,6 @@ export function createAnchorTravel({
   // closing a view the user stood in hands focus on, which the retained intent carries.
   // An empty scroll list preserves the reader's existing scroll, as a continuation
   // can request. Visibility conditions on a placement are read after cancellation.
-  /** @param {() => Arrival | null | undefined} resolve @param {ArrivalOptions} options */
   async function arrive(resolve, { intent, present = null, departure = null }) {
     if (!intent()) return false;
     const initial = resolve();
@@ -184,9 +171,7 @@ export function createAnchorTravel({
         if (current.selection === null) getSelection()?.removeAllRanges();
         else if (current.selection) {
           const { range, backward } = current.selection;
-          /** @type {[Node, number]} */
           const head = [range.startContainer, range.startOffset];
-          /** @type {[Node, number]} */
           const tail = [range.endContainer, range.endOffset];
           selectEnds(backward ? tail : head, backward ? head : tail);
         }
@@ -206,10 +191,8 @@ export function createAnchorTravel({
   // A remembered passage carries semantic words, never retained DOM endpoints.
   // Resolve on each side of reveal/focus so a revision cannot leave stale nodes in
   // the native selection. Ordinary arrival owns clearance, history and reading band.
-  /** @param {import("../readings/anchor-resolution.js").CapturedAnchor | import("../../types/domain.js").Anchor} anchor @param {{backward: boolean, intent: UserIntent}} options */
   async function restoreSelection(anchor, { backward, intent }) {
     const mayArrive = retainTravel(intent);
-    /** @returns {Arrival | null} */
     const resolve = () => {
       const target = resolveAnchor(anchor);
       const segments = targetSegments(target);
@@ -248,8 +231,6 @@ export function createAnchorTravel({
   // it (`frame`), and answers with that box. Words selected elsewhere go, as focusing
   // the editor drops them (annotations/composing/surface.js, `commentOnTarget`), so the box is
   // where the user is and where `c` writes.
-  /** @param {() => EditorDestination | null | undefined} resolve
-   * @param {{intent: ReturnType<typeof retainUserIntent>, caret: import("../base/held-place.js").Caret | null, onFrame?: boolean, travel?: boolean}} options */
   async function arriveEditor(
     resolve,
     { intent, caret, onFrame = false, travel = true },
@@ -329,15 +310,12 @@ export function createAnchorTravel({
   // yet placed (a datum a widget has yet to hydrate) is somewhere else. `there` is the
   // caller's reading of already being there where it asks more than the destination's
   // own (an obligation's arrival region), built on the reading it is handed.
-  /** @param {URL} [url] @returns {NavigationStep} */
   function prepareNavigationStep(url) {
     // Travel lands a destination at its start or centre, alike for one taller than its
     // room, so it is already there where that landing would move nothing.
-    /** @param {Destination} where */
     const travelShown = (where) => alreadyShown(where, { block: "start" });
     const write = prepareEntry();
     const left = focused();
-    /** @type {boolean | undefined} */
     let moving;
     return {
       plan(where, { there } = {}) {
@@ -369,7 +347,6 @@ export function createAnchorTravel({
   // user's current location, so subsequent commands would still act from the source.
   // Every activation route shares this arrival rather than supplying its own focus. A
   // fragment naming nothing here is not claimed, and the browser keeps it.
-  /** @param {URL} url */
   function followFragment(url) {
     return fragmentTarget(url.hash) && fragmentNavigationStep(url, true);
   }
@@ -386,7 +363,6 @@ export function createAnchorTravel({
   // offset, so travel lands the place by the fragment rule itself (`scrollToFragment`).
   // It runs under the intent of the traversal's restoration (records/history.js), which a
   // later navigation ends.
-  /** @param {URL} url @param {ReturnType<typeof retainUserIntent>} intent */
   function returnToFragment(url, intent) {
     const address = fragmentAddress(url.hash);
     if (!address) return null;
@@ -395,7 +371,6 @@ export function createAnchorTravel({
 
   // A key's part is asked for first, as `navigateToDatum` asks for it, and a key the
   // widget draws nothing for lands on the widget.
-  /** @param {URL} url @param {boolean} focus @param {ReturnType<typeof retainUserIntent>} [intent] */
   function fragmentNavigationStep(url, focus, intent) {
     const mayArrive = retainTravel(intent);
     return async () => {
@@ -425,7 +400,6 @@ export function createAnchorTravel({
     };
   }
 
-  /** @param {Element} owner @param {string} attribute @param {string} key @param {{success?: string, missing?: string, focus?: boolean}} [options] */
   async function navigateToDatum(
     owner,
     attribute,
@@ -503,7 +477,6 @@ export function createAnchorTravel({
   // holds drawn (`drawForLanding`) counts though its style reads `visible`: read from
   // the style alone, a second `t` within those frames, as a held key repeats, glided
   // and left the line 1,220 px out of view.
-  /** @param {Element | Range} at */
   const skippableBox = (at) => {
     for (let box = placeHolder(at); box; box = renderedParent(box))
       if (
@@ -520,9 +493,7 @@ export function createAnchorTravel({
   // text that breaks other than as its estimate assumes, such as base64 in Firefox,
   // that drew lines 26 past the destination. Drawn for the jump, the box lands where
   // it is read; two frames later the browser has found it in view, and it is released.
-  /** @type {Map<Element, string>} */
   const drawnForLanding = new Map();
-  /** @param {Element} box */
   function drawForLanding(box) {
     if (!(box instanceof HTMLElement) || drawnForLanding.has(box)) return;
     drawnForLanding.set(box, box.style.getPropertyValue("content-visibility"));
@@ -537,7 +508,6 @@ export function createAnchorTravel({
     );
   }
 
-  /** @param {ScrollPlacement} place @param {boolean} replacedView */
   function placeScroll(
     { at, align = at, block = "center", behavior = scrollBehavior(), when },
     replacedView,
@@ -556,14 +526,12 @@ export function createAnchorTravel({
   }
 
   // Synchronous: the move is the caller's gesture, so its intent is the current one.
-  /** @param {Element | null} element @param {ScrollBehavior} [behavior] @param {ScrollLogicalPosition} [block] */
   function scrollToElement(element, behavior = scrollBehavior(), block = "center") {
     if (!element) return;
     const { replacedView } = reveal(element, retainUserIntent());
     placeScroll({ at: element, behavior, block }, replacedView);
   }
 
-  /** @param {Range} where @param {ScrollBehavior} [behavior] */
   function scrollToRange(where, behavior = scrollBehavior()) {
     const holder = placeHolder(where);
     if (!holder) return;
@@ -573,7 +541,6 @@ export function createAnchorTravel({
   // A passage is scrolled to where its words start (readings/passages.js, `passageStart`), as a
   // thread is travelled to (`threadDestination`): a search's match, the comment box
   // brought back to its passage.
-  /** @param {readonly import("../readings/passages.js").Segment[]} segments @param {ScrollBehavior} [behavior] */
   function scrollToPassage(segments, behavior = scrollBehavior()) {
     const start = passageStart(segments);
     if (start.length) scrollToRange(rangeOf(start), behavior);
@@ -587,7 +554,6 @@ export function createAnchorTravel({
   // A thread pointed into its target is travelled to at the row its own margin row
   // stands by (readings/pointed-place.js), which a target taller than the window would otherwise
   // leave off screen.
-  /** @param {string} id */
   const threadDestination = (id) => {
     const placement = anchors.placedAt(id);
     const start = passageStart(targetSegments(placement));
@@ -608,13 +574,10 @@ export function createAnchorTravel({
   // element, skips the second landing, since landing the place would scroll the part
   // back out of view. A card stands fixed over the page by its thread's place, so an
   // arrival in it, as `m` reaching a question in an agent's answer, lands here too.
-  /** @param {string} id @param {import("../dom/focus.js").FocusDestination | null} target
-   * @param {"center" | "nearest"} [block] */
   const threadLanding = (id, target, block = "center") => {
     const where = threadDestination(id);
     if (!where) return null;
     const at = target && focusElement(target);
-    /** @type {ScrollPlacement[]} */
     const scroll = [];
     if (at) scroll.push({ at, block: "nearest" });
     const inside =
@@ -632,12 +595,9 @@ export function createAnchorTravel({
   // stands on, and the thread pass then carries them to where it stands (records/thread/focus.js,
   // `holdThreadPlace`); a travel that may still land takes them there instead, as its
   // departure says.
-  /** @type {Map<string, Set<UserIntent>>} */
   const travelling = new Map();
-  /** @param {string} id */
   const travellingTo = (id) =>
     [...(travelling.get(threadNamed(id)?.id ?? id) ?? [])].some((intent) => intent());
-  /** @template T @param {string} id @param {UserIntent} intent @param {() => Promise<T>} work */
   async function travelTo(id, intent, work) {
     const key = threadNamed(id)?.id ?? id;
     const intents = travelling.get(key) ?? new Set();
@@ -657,7 +617,6 @@ export function createAnchorTravel({
   // earlier data asks its widget too. The thread stays on the place the widget now
   // gives that datum (`lfDataDatum`'s `outdated`), and the widget opens what holds it,
   // as a diff opens the file an earlier line was in.
-  /** @param {string} id @param {UserIntent} mayArrive */
   async function drawThread(id, mayArrive) {
     const anchor = threadNamed(id)?.anchor;
     if (!anchor?.visual && !anchor?.datum) return mayArrive();
@@ -671,7 +630,6 @@ export function createAnchorTravel({
 
   // The same, for a route that has yet to choose where the thread shows, since drawing
   // its part can give it a seat on the page (records/thread/destination.js).
-  /** @param {string} id @param {UserIntent | undefined} intent */
   const revealThread = (id, intent) => {
     const mayArrive = retainTravel(intent);
     return travelTo(id, mayArrive, () => drawThread(id, mayArrive));
@@ -679,15 +637,11 @@ export function createAnchorTravel({
 
   // `departure` is the route's, read where the user stood before the route changed
   // anything (records/thread/destination.js), or null for an arrival that adds no entry.
-  /** @param {string} id
-   * @param {{part?: import("../records/thread/destination.js").ThreadPart, focus?: boolean, presented?: PromiseLike<unknown> | null, intent?: UserIntent | undefined, departure: NavigationStep | null, block?: "center" | "nearest", drawn?: boolean}} options */
   const scrollToThread = (id, options) => {
     const mayArrive = retainTravel(options.intent);
     return travelTo(id, mayArrive, () => travelToThread(id, mayArrive, options));
   };
 
-  /** @param {string} id @param {UserIntent} mayArrive
-   * @param {{part?: import("../records/thread/destination.js").ThreadPart, focus?: boolean, presented?: PromiseLike<unknown> | null, departure: NavigationStep | null, block?: "center" | "nearest", drawn?: boolean}} options */
   async function travelToThread(
     id,
     mayArrive,

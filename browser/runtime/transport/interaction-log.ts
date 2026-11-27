@@ -15,7 +15,7 @@ import { objectIds, randomId } from "../base/ids.js";
 const url = PAGE_ROOT !== null ? new URL("api/interaction", PAGE_ROOT).href : null;
 const root = PAGE_ROOT !== null ? new URL(PAGE_ROOT).pathname.replace(/\/$/, "") : "";
 const session = randomId();
-export type Interaction = { type: string; [field: string]: unknown };
+type Interaction = { type: string; [field: string]: unknown };
 type QueuedInteraction = { body: string; bytes: number; repetitive: boolean };
 const queue: QueuedInteraction[] = [];
 // Bound the tab's diagnostic backlog during an outage. Repeated observations

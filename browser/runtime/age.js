@@ -1,3 +1,4 @@
+// Compiled from age.ts by build/typescript.mjs; edit that file.
 /* `lf-age`: how long ago a moment was, in the wording every age on the page has
    (state/presence.js, `ago`), kept current as the page's clock ticks, and previewing the
    clock time behind it as every age does (`agePreview`).
@@ -60,9 +61,8 @@ customElements.define(
   class extends HTMLElement {
     static observedAttributes = ["datetime"];
 
-    #moment = signal(/** @type {string | null} */ (null));
+    #moment = signal(null);
     #words = new Text("");
-    /** @type {(() => void) | null} */
     #following = null;
 
     lfPreview = agePreview;
@@ -74,7 +74,6 @@ customElements.define(
       root.append(this.#words);
     }
 
-    /** @param {string} _name @param {string | null} _was @param {string | null} moment */
     attributeChangedCallback(_name, _was, moment) {
       this.#moment.value = moment;
     }

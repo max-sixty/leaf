@@ -1,3 +1,4 @@
+// Compiled from anchor-resolution.ts by build/typescript.mjs; edit that file.
 /* Durable anchor interpretation.
  *
  * This module reads authored markup and resolves semantic coordinates into the current
@@ -75,32 +76,23 @@ import {
 } from "./addressable-names.js";
 import { addressableWord } from "../lib/element-word.js";
 
-/** @typedef {import("../../types/domain.js").Anchor} Anchor */
-
-/** @typedef {{element: Element, anchor: Anchor, label: string, surface?: Element | null,
- * controlElement?: Element, controlFaces?: Element[], capture?: () => AimTarget}} AimTarget
- * @typedef {{design?: boolean, marginTargetAt?: (element: Element) => Element | null}} AimOptions */
-
 // Every route that mints an anchor starts after the shown document's widgets and
 // selectable words have settled. Private history can still be loading: the gesture
 // names the revision and coordinate the user actually saw. The entry owns the writer.
 let anchoringReady = false;
 export const anchoringIsReady = () => anchoringReady;
-/** @param {boolean} ready */
 export function setAnchoringReady(ready) {
   anchoringReady = ready;
 }
 
 // Which element an anchor names, asked in one place: the element a quoteless anchor
 // resolves to and the subtree a quoted candidate must occupy.
-/** @param {{section?: string | null} | null | undefined} anchor */
 export const sectionOf = (anchor) =>
   anchor?.section ? elementById(anchor.section) : null;
 
 // The data a widget drew for `key`. What says which they are, their source and
 // identity among it, is not what the page's reading hears, so a reader follows the
 // document changing (`documentChanged`), and so does whatever it reads of them after.
-/** @param {Element | null} source @param {string} key @param {string | null} [identity] @param {string | null} [dataSource] */
 function currentDatums(source, key, identity = null, dataSource = null) {
   documentChanged();
   if (!source?.id) return [];
@@ -115,7 +107,6 @@ function currentDatums(source, key, identity = null, dataSource = null) {
   );
 }
 
-/** @param {Element | null} source @param {string} key */
 const projectedDatum = (source, key) => {
   const matches = currentDatums(source, key);
   return matches.length === 1 ? (matches[0] ?? null) : null;
@@ -127,11 +118,9 @@ const projectedDatum = (source, key) => {
 // is named as its row would be. A passage across data is named by its first datum and
 // its last. It reads the page's nodes (`currentDatums`), so a paint that draws it
 // follows the document changing, as a projection relabelling it does.
-/** @param {Anchor | null | undefined} anchor */
 export function datumLabel(anchor) {
   if (!anchor?.datum) return "";
   const source = sectionOf(anchor);
-  /** @param {string} key @param {string | null} identity */
   const labelOf = (key, identity) => {
     const datums = currentDatums(source, key, identity, anchor.source ?? null);
     const [datum] = datums;
@@ -145,7 +134,6 @@ export function datumLabel(anchor) {
   return first && last ? `${first} – ${last}` : last;
 }
 
-/** @param {Element} source @param {string} key */
 function suppliedDatum(source, key) {
   const supplied = source.lfDataDatum?.(key);
   return supplied instanceof Element &&
@@ -160,7 +148,6 @@ function suppliedDatum(source, key) {
 // block's line ranges) answers through `lfElementsFor(key)`; otherwise the key is a
 // visual part's id or a projected datum's key. Only elements under the
 // source count, so a hook cannot point a caller elsewhere in the page.
-/** @param {Element} source @param {string} key */
 export function addressedElements(source, key) {
   if (typeof source.lfElementsFor === "function")
     return [...(source.lfElementsFor(key) ?? [])].filter(
@@ -175,7 +162,6 @@ export function addressedElements(source, key) {
 // Where focus goes for what a key addresses under a widget: a visual part's destination
 // (`visualPartFocus`), which a chart settles on its point only as focus is placed, else
 // the first element the key addresses. Naming it changes nothing.
-/** @param {Element} source @param {string} key */
 export const addressedFocus = (source, key) =>
   (admitsVisualPart(source, key) ? visualPartFocus(source, key) : null) ??
   addressedElements(source, key)[0] ??
@@ -187,7 +173,6 @@ export const addressedFocus = (source, key) =>
 // travel to a part of a widget asks this, for a thread's anchor (`revealAnchor`) and a
 // module's `navigateToDatum` key alike, so neither route reaches a part the other
 // cannot.
-/** @param {Element} source @param {string} key */
 export function revealAddressed(source, key) {
   if (revealVisualPart(source, key)) return null;
   return source.lfRevealDatum?.(key) ?? null;
@@ -195,7 +180,6 @@ export function revealAddressed(source, key) {
 
 // The same for each part of a widget an anchor names: its visual part, or each datum,
 // the one a passage across data starts in (`from`) as well as `datum`.
-/** @param {Element} source @param {Anchor} anchor */
 export function revealAnchor(source, anchor) {
   const asked = [anchor.visual, anchor.from, anchor.datum].flatMap((key) =>
     key ? [revealAddressed(source, key)] : [],
@@ -206,7 +190,6 @@ export function revealAnchor(source, anchor) {
 // Whether a thread stands on what its widget gives in place of a part it hasn't drawn,
 // such as a closed diff file's row for a line in it, or for a line of earlier data
 // (`resolveAnchor`'s `fallback` and `outdated` with no drawn datum).
-/** @param {Anchor | null | undefined} anchor @param {import("./resolved-target.js").ResolvedTarget | null | undefined} placement */
 export const standsIn = (anchor, placement) =>
   Boolean(
     (anchor?.datum || anchor?.visual) &&
@@ -218,7 +201,6 @@ export const standsIn = (anchor, placement) =>
 // Whether the page shows a quote's words more than once where its anchor looks for
 // them, so where no context picks a copy, the words are on the page but no passage of
 // them is the thread's (`resolveAnchor`).
-/** @param {Anchor | null | undefined} anchor */
 export function quoteRepeats(anchor) {
   if (!anchor?.quote || anchor.datum || anchor.visual) return false;
   const section = sectionOf(anchor);
@@ -229,7 +211,6 @@ export function quoteRepeats(anchor) {
 // Whether the part a thread stands in for is yet to be drawn, so drawing it moves the
 // thread there, or gives it a seat beside it. A thread on earlier data stays on the
 // place its widget gives it.
-/** @param {Anchor | null | undefined} anchor @param {import("./resolved-target.js").ResolvedTarget | null | undefined} placement */
 export const awaitsDrawing = (anchor, placement) =>
   standsIn(anchor, placement) && placement?.status === "fallback";
 
@@ -237,38 +218,31 @@ export const awaitsDrawing = (anchor, placement) =>
 declaredVisuals((element) => Boolean(registry[element.localName]?.visual));
 
 // A generated visual part keeps an id its provider's declaration admits.
-/** @param {Element | null} visual */
 const visualAdmission = (visual) =>
   visual ? visualPartAdmission(registry[visual.localName]?.visual ?? null) : null;
 
-/** @param {Element | null} element */
 const wholeVisualSurface = (element) =>
   element && registry[element.localName]?.visual ? element : null;
 
 /** The admitted parts in their registered inventory order. */
-/** @param {Element} visual */
 export function visualParts(visual) {
   const admits = visualAdmission(visual);
   if (!admits) return [];
   return registeredVisualParts(visual).filter((part) => admits(part.id));
 }
 
-/** @param {Element} visual @param {string} part */
 const admitsVisualPart = (visual, part) => visualAdmission(visual)?.(part) ?? false;
 
-/** @param {Element} visual @param {string} part */
 function visualPart(visual, part) {
   return admitsVisualPart(visual, part) ? registeredVisualPart(visual, part) : null;
 }
 
-/** @param {Element} visual @param {string} part */
 function revealVisualPart(visual, part) {
   return admitsVisualPart(visual, part)
     ? revealRegisteredVisualPart(visual, part)
     : null;
 }
 
-/** @param {Element} visual @param {Node | null} target */
 function visualPartAt(visual, target) {
   const admits = visualAdmission(visual);
   return admits
@@ -280,7 +254,6 @@ function visualPartAt(visual, target) {
     : null;
 }
 
-/** @param {Element | null} visual @param {string} part */
 export const visualPartLabel = (visual, part) =>
   visual && admitsVisualPart(visual, part)
     ? registeredVisualPartLabel(visual, part)
@@ -295,7 +268,6 @@ const genericVisualSelector = GENERIC_VISUALS.join(", ");
 // one.
 export const visualTags = () => [...declaredVisualTags(), ...GENERIC_VISUALS];
 
-/** @param {Element} element @param {string} selector */
 const outermostAcross = (element, selector) => {
   for (let parent = upFrom(element); parent;) {
     const outer = closestAcross(parent, selector);
@@ -312,14 +284,12 @@ const outermostAcross = (element, selector) => {
 // pictures (dom/widget-elements.js, PRESSES). What makes a press, such as a role, is not
 // what the page's reading hears, so it follows the document changing
 // (`documentChanged`) and a widget's layout (state/visual-parts.js, `layoutsChanged`).
-/** @param {Element} element */
 const claimsVisualGesture = (element) => {
   documentChanged();
   layoutsChanged();
   return element.matches(`${PRESSES},${PRESSABLE}`);
 };
 
-/** @param {Node | null} target */
 export const unclaimedVisualGesture = (target) => {
   if (inChrome(target) || inUi(target)) return false;
   for (
@@ -333,7 +303,6 @@ export const unclaimedVisualGesture = (target) => {
 
 // A declared provider owns every hit inside it. Outside one, the outermost ordinary
 // picture is the visual reading. The nearest authored id remains the durable seat.
-/** @param {Node | null} target @param {{unclaimed?: boolean}} [options] */
 export function visualAt(target, { unclaimed = true } = {}) {
   if (unclaimed && !unclaimedVisualGesture(target)) return null;
   const declared = declaredVisualSelector();
@@ -357,7 +326,6 @@ const designCandidates = () =>
   [...tagsDeclaring(() => true), WORKS, "[data-lf-offer]", genericVisualSelector].join(
     ",",
   );
-/** @param {Node | null} target */
 export function designPressAt(target) {
   const at = target instanceof Element ? target : target?.parentElement;
   const hit = at && closestAcross(at, designCandidates());
@@ -373,7 +341,6 @@ export const ADDRESSABLE = '[id]:not(.lf-ui):not([id^="lf-"])';
 
 // Generated visual descendants are not authored addressables even when their renderer minted
 // ids. Only the registered visual-part route may turn them into durable coordinates.
-/** @param {Element} at */
 export function isAddressable(at) {
   if (!at.matches(ADDRESSABLE) || inChrome(at) || inUi(at) || settledAway(at))
     return false;
@@ -381,7 +348,6 @@ export function isAddressable(at) {
   return !(visual && at.parentElement && closestAcross(at.parentElement, visual));
 }
 
-/** @param {Node | null} node @returns {Element | null} */
 function addressableAt(node) {
   let at = node instanceof Element ? node : node?.parentElement;
   for (; at; at = upFrom(at)) if (isAddressable(at)) return at;
@@ -395,7 +361,6 @@ function addressableAt(node) {
 // name durably. A resolved passage's `place` is its first segment's seat; a passage in
 // a datum falls back to the datum, where other text falls back to the nearest
 // addressable element.
-/** @param {Node} node @param {(node: Node) => Element | null} [fallback] */
 export function annotationAt(node, fallback = addressableAt) {
   const formatted = tagsDeclaring((entry) => entry.content === "markdown").join(",");
   return (
@@ -404,14 +369,11 @@ export function annotationAt(node, fallback = addressableAt) {
 }
 
 // A seat inside a shadow root stands at its host, where light-DOM chrome can sit.
-/** @param {Element | null} seat */
 export const lightSeat = (seat) => (seat && shadowHost(seat.getRootNode())) ?? seat;
 
-/** @param {Element} addressable @param {string} [says] */
 const aimLabel = (addressable, says = addressableLabel(addressable)) =>
   [addressableWord(addressable), says].filter(Boolean).join(": ");
 
-/** @param {Element} addressable @returns {AimTarget} */
 const addressableAimTarget = (addressable) => ({
   anchor: { section: addressable.id },
   element: addressable,
@@ -422,7 +384,6 @@ const addressableAimTarget = (addressable) => ({
 // The one coordinate minted from a projected datum. Pointer aim, passage capture, and
 // widget-local comment affordances all pass through this function so source provenance
 // cannot disappear merely because the gesture began in generated UI rather than text.
-/** @param {Element} datum @param {{quote?: string, from?: string}} [fields] @returns {Anchor | null} */
 const anchorForDatum = (datum, fields = {}) => {
   const section = datum.getAttribute("data-lf-projection");
   const key = datum.getAttribute("data-lf-datum");
@@ -442,11 +403,9 @@ const anchorForDatum = (datum, fields = {}) => {
 // Whether a widget drew two datums from one value: the same projection, source and
 // revision, which both ends of a passage across its data share.
 const DRAWN = ["data-lf-projection", "data-lf-source", "data-lf-source-revision"];
-/** @param {Element} a @param {Element} b */
 const drawnTogether = (a, b) =>
   DRAWN.every((name) => a.getAttribute(name) === b.getAttribute(name));
 
-/** @param {Node | null} datum @returns {AimTarget | null} */
 export function datumAimTarget(datum) {
   if (!(datum instanceof Element) || !datum.matches(DATUM)) return null;
   const anchor = anchorForDatum(datum);
@@ -466,19 +425,14 @@ export function datumAimTarget(datum) {
 // or the real boundary is exhausted. An unresolved passage remains unresolved.
 // `anchorForPassage` captures segments already taken from the page reading, under
 // `node`, without walking the reading again to find them.
-/** @typedef {Anchor} CapturedAnchor */
-/** @param {Range} range */
 export const anchorForRange = (range) =>
   anchorForPassage(segmentsIn(range), range.commonAncestorContainer);
 // The passage is the selection's words: a drag from a paragraph's end into a
 // document's first line holds the newline between them, which is neither's word.
-/** @param {import("./passages.js").Segment} segment */
 const says = ({ node: text, start, end }) => /\S/.test(text.data.slice(start, end));
 // Whether a capture of the range quotes words, answered without reading the context
 // a capture reads around them.
-/** @param {Range} range */
 export const rangeHoldsWords = (range) => segmentsIn(range).some(says);
-/** @param {import("./passages.js").Segment[]} selected @param {Node} node @returns {CapturedAnchor | null} */
 export function anchorForPassage(selected, node) {
   const from = selected.findIndex(says);
   const to = selected.findLastIndex(says);
@@ -499,7 +453,6 @@ export function anchorForPassage(selected, node) {
   // fences, so a selection's context holds none of the words a module draws beside it,
   // which the module may rewrite or rearrange.
   const { text: quote, units } = readingFrom(segments);
-  /** @param {import("./passages.js").Segment | undefined} seg */
   const datumOf = (seg) => (seg ? closestAcross(seg.node, DATUM) : null);
   const first = datumOf(segments[0]);
   const last = datumOf(segments.at(-1));
@@ -550,7 +503,6 @@ export function anchorForPassage(selected, node) {
 // choosing a route must never change a control's part coordinate.
 // Press faces may name themselves by visible words; content-holding regions use
 // their declared names. A native editor never derives identity from its mutable value.
-/** @param {Element} control */
 const controlName = (control) =>
   control instanceof HTMLElement && control.isContentEditable
     ? accessibleName(control)
@@ -559,10 +511,8 @@ const controlName = (control) =>
         ? labelWords(control instanceof HTMLElement ? control.innerText : "") ||
           addressableWord(control)
         : "");
-/** @param {Element & Partial<Pick<HTMLInputElement, "labels">>} control */
 const controlFaces = (control) => [control, ...(control.labels ?? [])];
 // A native label is a route into its control, not a second control identity.
-/** @param {Element} control */
 const controlIdentity = (control) =>
   (control instanceof HTMLLabelElement ? control.control : null) ?? control;
 // The owner's parts named `name`: the controls whose nearest addressable is `owner`.
@@ -572,11 +522,8 @@ const controlIdentity = (control) =>
 // its owner holds as its own, not what its members hold: a side tab's owner, the tabs
 // widget, holds every tab's document, which a query of the owner read in full on each
 // press on a tab and each picker hint that announced one (#4781).
-/** @param {Element} owner @param {string} name */
 function namedParts(owner, name) {
-  /** @type {Set<Element>} */
   const controls = new Set();
-  /** @param {Element} element */
   const visit = (element) => {
     const root = declaredRoot(element);
     for (const scope of root ? [element, root] : [element])
@@ -597,7 +544,7 @@ function namedParts(owner, name) {
 }
 // What a press in Design mode can take as a part: a control, or a picture.
 const DESIGN_PARTS = `${WORKS},${genericVisualSelector}`;
-/** @typedef {{segments: import("./passages.js").Segment[], at: Map<Element, number>}} BlockWords */
+
 // A control's spoken words: its block's words on each side of it, at most `AROUND`
 // characters a side as every description of what stands around something reads them
 // (`contextAround`), with its own between. Every part's words are left out of its
@@ -608,7 +555,6 @@ const DESIGN_PARTS = `${WORKS},${genericVisualSelector}`;
 // as a label does (`LABEL_WORDS`), less the `part` name the spoken name says before
 // them, as a tab whose words start with its name and go on to a count. A block is read
 // once per inventory, noting where each part stands in it; chosen capture stays lazy.
-/** @param {Element} control @param {Map<Element, BlockWords>} contexts @param {string} part */
 function controlContext(control, contexts, part) {
   const said = control.matches(genericVisualSelector)
     ? ""
@@ -618,7 +564,6 @@ function controlContext(control, contexts, part) {
   if (!block || block === control || closestAcross(block, WORKS)) return own;
   let words = contexts.get(block);
   if (!words) {
-    /** @type {Map<Element, number>} */
     const at = new Map();
     const segments = textNodesUnder(block, "says", (element, count) => {
       if (!element.matches(DESIGN_PARTS)) return false;
@@ -639,13 +584,10 @@ function controlContext(control, contexts, part) {
 }
 // Keep inline emphasis in one label passage, but never cross the nested field's
 // words or native box to pretend its options are part of the visible label.
-/** @param {Element} face @param {Element} control */
 function controlPassages(face, control) {
   const words = textNodesUnder(face);
   const barriers = face === control ? queryAllUnder(face, WORKS) : [control];
-  /** @type {import("./passages.js").Segment[][]} */
   const passages = [];
-  /** @type {import("./passages.js").Segment[]} */
   let run = [];
   const finish = () => {
     if (run.length) passages.push(run);
@@ -671,7 +613,6 @@ function controlPassages(face, control) {
   return passages;
 }
 
-/** @param {import("./passages.js").Segment[]} segments */
 function visiblePassage(segments) {
   const clips = new Map();
   return segments.every((segment) => {
@@ -691,12 +632,13 @@ function visiblePassage(segments) {
   });
 }
 
-/** @param {Node | null} node @param {AimOptions["marginTargetAt"]} marginTargetAt
- * @param {{owners: Map<Element, AimTarget>, contexts: Map<Element, BlockWords>}} [reading] @returns {AimTarget | null} */
 function designTargetAt(
   node,
   marginTargetAt,
-  reading = { owners: new Map(), contexts: new Map() },
+  reading = {
+    owners: new Map(),
+    contexts: new Map(),
+  },
 ) {
   const { owners, contexts } = reading;
   let at = node instanceof Element ? node : node?.parentElement;
@@ -826,7 +768,6 @@ function designTargetAt(
 // supplies its own hint seat, so several controls in one owner keep separate identities.
 // A Design mode target is its inventory reading, as `aimTargets` gives the picker: a
 // control part's quoted passage waits for whoever commits it (`captured`).
-/** @param {Node | null} node @param {AimOptions} [options] @returns {AimTarget | null} */
 export function aimTargetAt(node, { design = false, marginTargetAt } = {}) {
   if (design) return designTargetAt(node, marginTargetAt);
   const visual = visualAt(node, { unclaimed: false });
@@ -837,8 +778,6 @@ export function aimTargetAt(node, { design = false, marginTargetAt } = {}) {
   return addressable ? addressableAimTarget(addressable) : null;
 }
 
-/** @param {NonNullable<ReturnType<typeof visualAt>>} visual
- * @param {import("../state/visual-parts.js").VisualPart} part @returns {AimTarget} */
 const partTarget = (visual, part) => ({
   anchor: { section: visual.id, visual: part.id },
   element: part.element,
@@ -850,7 +789,6 @@ const partTarget = (visual, part) => ({
 // chart on the point its keys reached (`focusedVisualPart`), else the target a press
 // on `node` takes. Only focus asks the visual itself, so a reading of the picture as
 // a whole, as the target picker's, keeps it whole.
-/** @param {Element} node @returns {AimTarget | null} */
 export function focusTargetAt(node) {
   const visual = visualAt(node, { unclaimed: false });
   const admits = visual?.element === node ? visualAdmission(node) : null;
@@ -861,14 +799,12 @@ export function focusTargetAt(node) {
 // A target as a comment takes it: a Design mode control part with its passage
 // captured (`designTargetAt`), and any other target as it is. What a caller added to
 // the target, such as the point a press landed on (pointed-place.js), stays with it.
-/** @template {AimTarget | null | undefined} T @param {T} target @returns {T} */
 export const captured = (target) => {
   if (!target?.capture) return target;
   const { capture, ...added } = target;
-  return /** @type {T} */ ({ ...added, ...capture() });
+  return { ...added, ...capture() };
 };
 
-/** @param {AimOptions} [options] @returns {AimTarget[]} */
 export function aimTargets(options = {}) {
   const candidates = [
     ...pageQueryAll(ADDRESSABLE).filter(isAddressable),
@@ -906,13 +842,11 @@ export function aimTargets(options = {}) {
 
 // The datum a passage across data starts in: the one drawn for `key` from the value
 // `last` was drawn from, or null where none or several are.
-/** @param {Element | null} source @param {string} key @param {Element} last */
 function runStart(source, key, last) {
   const first = projectedDatum(source, key);
   return first && first !== last && drawnTogether(first, last) ? first : null;
 }
 
-/** @param {Anchor} anchor @returns {import("./resolved-target.js").ElementTarget | import("./resolved-target.js").PassageTarget | null} */
 export function resolveAnchor(anchor) {
   // Capture exhausted the selected occurrence's real fences without identifying it.
   // Later uniqueness cannot prove that the survivor was the user's occurrence.
@@ -1109,7 +1043,6 @@ export function resolveAnchor(anchor) {
   });
 }
 
-/** @param {string} id */
 const pageElement = (id) => targetElement(resolveAnchor({ section: id }));
 
 // What a fragment names (base/anchor-coordinate.js, `fragmentKey`): the element whose id it
@@ -1119,9 +1052,6 @@ const pageElement = (id) => targetElement(resolveAnchor({ section: id }));
 // (`addressedElements`) or null until the widget draws it (`revealAddressed`). A fresh
 // load's arrival, a followed link, Back and Forward, and a reply's reference all read
 // their destination through this.
-/** @param {string | null | undefined} fragment
- * @param {(id: string) => Element | null} [named]
- * @returns {{element: Element, key: string | null, place: Element | null} | null} */
 export function fragmentAddress(fragment, named = pageElement) {
   if (!fragment) return null;
   const whole = named(fragmentId(fragment));
@@ -1139,7 +1069,6 @@ export function fragmentAddress(fragment, named = pageElement) {
 // The page element a fragment names: for a widget's key, the part the widget has drawn
 // for it, else the widget itself, so a reader that needs only an element lands on the
 // widget.
-/** @param {string | null | undefined} fragment */
 export function fragmentTarget(fragment) {
   const address = fragmentAddress(fragment);
   return address ? (address.place ?? address.element) : null;
@@ -1154,7 +1083,6 @@ export function fragmentTarget(fragment) {
 // reads it: a widget in a reply Leaf draws, which every count of a region's
 // obligations places where the reply stands (records/obligations/place.js). Content a
 // revision settled away names nothing, as for a fragment.
-/** @param {string | null | undefined} address @param {Node | null} [from] */
 export function elementNamed(address, from = null) {
   if (!address) return null;
   // A bare address is read as the fragment that spells it, each `%` kept.

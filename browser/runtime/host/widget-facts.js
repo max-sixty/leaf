@@ -1,3 +1,4 @@
+// Compiled from widget-facts.ts by build/typescript.mjs; edit that file.
 /* What each widget works out of its state and markup for the page to keep (`facts`),
    said again where that state or markup moved without a gesture of this tab's: a
    version arriving, a version's `restated` mark, or another tab's act reaching the
@@ -43,17 +44,15 @@ import { registry } from "../state/registry.js";
 import { widgetFacts } from "./widget-state.js";
 import { addressableAt } from "../records/thread/messages.js";
 
-/** @typedef {{kind: "facts", widget: string, revision: number, through: number, facts: Record<string, unknown>}} FactsEvent */
+// What the facts rest on is compared by identity only.
 
 // A fact's value as the page keeps it, for comparing: an unsaid `answered` is the
 // question still asked (`awaits`), and any other unsaid fact is none.
-/** @param {Record<string, unknown> | undefined} kept @param {string} name */
 const keptValue = (kept, name) =>
   JSON.stringify(
     kept && name in kept ? kept[name] : name === "answered" ? false : null,
   );
 
-/** @param {(event: FactsEvent) => Promise<"accepted" | "refused" | "unreached">} send */
 export function reportFacts(send) {
   const reading = readPart((root) => root.authoritative);
   const shown = readPart((root) => root.document);
@@ -62,13 +61,10 @@ export function reportFacts(send) {
   const gestures = readPart((root) => root.unresolved);
   // Each widget's facts as this tab last worked them out, with what they rest on and
   // the value the page kept when it last compared them.
-  /** @type {Map<string, {folded: unknown, descriptor: unknown, revision: number | null, kept: unknown, facts: Record<string, unknown>}>} */
   const workedOut = new Map();
   // The word this tab last sent on each widget: the version and facts it worked out,
   // the record of what the widget then rested on, and whether the page refused it.
-  /** @type {Map<string, {said: string, basis: object, refused: boolean}>} */
   const sent = new Map();
-  /** @type {Set<string>} */
   const undefinedTags = new Set();
   const reconcile = () => {
     const root = readApplication();
@@ -121,7 +117,6 @@ export function reportFacts(send) {
         worked = { folded, descriptor, revision, kept: kept[id], facts };
         workedOut.set(id, worked);
       }
-      /** @type {Record<string, unknown>} */
       const changed = {};
       for (const [name, value] of Object.entries(worked.facts))
         if (JSON.stringify(value) !== keptValue(kept[id], name)) changed[name] = value;

@@ -69,6 +69,17 @@ import type { Immutable } from "../base/snapshot.js";
 import type { StampedRegistry } from "./registry-contract.js";
 import type { FoldedWidget } from "./projection/model.js";
 
+type GestureState =
+  | "sending"
+  | "sending:logged"
+  | "sending:presented"
+  | "accepted"
+  | "accepted:logged"
+  | "accepted:presented"
+  | "refused";
+
+type Signal = "accept" | "refuse" | "log" | "present";
+
 /* The lifecycle of one unresolved gesture, from the turn that makes it to the
  * publication that retires it.
  *
@@ -90,17 +101,6 @@ import type { FoldedWidget } from "./projection/model.js";
  * `accepted:presented` and waits there for `release`, which its owner calls once
  * those regions have committed. A signal a state has no edge for leaves it where it
  * is, and `present` moves only actions. */
-type GestureState =
-  | "sending"
-  | "sending:logged"
-  | "sending:presented"
-  | "accepted"
-  | "accepted:logged"
-  | "accepted:presented"
-  | "refused";
-
-export type Signal = "accept" | "refuse" | "log" | "present";
-
 const LIFECYCLE: Record<GestureState, Partial<Record<Signal, GestureState>>> = {
   sending: {
     accept: "accepted",
@@ -204,7 +204,7 @@ type AuthoritativeState = ServedState & {
   data: { version: string; sources: Record<string, SourceReading> };
 };
 /** A server view with its basis, the transport identity, left off. */
-export type PageView = Omit<ServedView, "basis">;
+type PageView = Omit<ServedView, "basis">;
 export type ObligationRecord = ServedObligation;
 /** The selections `readObligations` publishes from a view's one list of obligation
  * records. */

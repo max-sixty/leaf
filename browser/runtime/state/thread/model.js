@@ -398,7 +398,6 @@ const versionKey = ({ message, version }) => `${message}\u0000${version}`;
    hold every message's. */
 
 // The reactions a registry declares none of.
-
 const NO_REACTIONS = Object.freeze([]);
 
 const NONE = Object.freeze([]);

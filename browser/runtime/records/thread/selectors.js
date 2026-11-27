@@ -1,3 +1,4 @@
+// Compiled from selectors.ts by build/typescript.mjs; edit that file.
 /* Stable DOM relations shared by thread views and focus recovery. */
 import { upFrom, closestAcross } from "../../lib/shadow-tree.js";
 import { TEXT_FIELD } from "../../dom/control-selectors.js";
@@ -8,10 +9,8 @@ import { TEXT_FIELD } from "../../dom/control-selectors.js";
 // anywhere in one stands in that thread for every reading of it, `c` included.
 export const THREAD = ".lf-page-thread, [data-lf-thread-view]";
 // The logged id a drawn thread carries. Each reader of the id takes it from here.
-/** @param {Element | null | undefined} node */
 export const drawnThreadId = (node) => node?.getAttribute("data-lf-thread") ?? null;
 // The page threads drawn under `root` that carry the logged id `id`, in tree order.
-/** @param {ParentNode} root @param {string} id */
 export const drawnThreadsWithId = (root, id) =>
   root.querySelectorAll(`.lf-page-thread[data-lf-thread="${CSS.escape(id)}"]`);
 // The row a drawn thread's reply is written in, and the box in it.
@@ -37,25 +36,13 @@ export const SAY_BOX = `:scope > ${SAY_ROW} ${TEXT_FIELD}`;
 // field (`wholeThread`), and `controls`, the element holding the controls it draws for
 // the thread as its own, as the panel's head holds Close, which focus's identity finds
 // by their keys (records/carry.js, `focusedBy`).
-/** @typedef {{
- * reply: (thread: Element) => Element | null,
- * settlement: (thread: Element) => HTMLElement | null,
- * move: (thread: Element) => HTMLElement | null,
- * whole: (thread: Element) => Element | null,
- * controls: (thread: Element) => Element | null,
- * }} ThreadParts */
-/** @type {WeakMap<Element, ThreadParts>} */
 const declaredParts = new WeakMap();
-/** @param {Element} thread @param {ThreadParts} parts */
 export const declareThreadParts = (thread, parts) => declaredParts.set(thread, parts);
 // The control `selector` names that is `thread`'s own, not a thread's inside it.
-/** @param {Element} thread @param {string} selector */
 const ownControl = (thread, selector) => {
-  /** @type {NodeListOf<HTMLElement>} */
   const controls = thread.querySelectorAll(selector);
   return [...controls].find((control) => control.closest(THREAD) === thread) ?? null;
 };
-/** @type {Pick<ThreadParts, "reply" | "settlement" | "move" | "controls">} */
 const ownParts = {
   reply: (thread) => thread.querySelector(SAY_BOX),
   controls: (thread) => thread,
@@ -64,10 +51,8 @@ const ownParts = {
 };
 // The drawings of one thread from `thread` outward: itself, then each drawing of the
 // same thread around it.
-/** @param {Element} thread @returns {Generator<Element>} */
 function* drawingsOf(thread) {
   const id = drawnThreadId(thread);
-  /** @type {Element | null} */
   let at = thread;
   for (
     ;
@@ -79,15 +64,12 @@ function* drawingsOf(thread) {
 // The whole of the thread drawn at `thread`: its outermost drawing, or the element that
 // drawing declares as the whole. It holds the thread's messages, so a reading of them
 // searches it, and it is the thread a keyboard stands on, as a reply box's way back.
-/** @param {Element} thread */
 export function wholeThread(thread) {
   let outer = thread;
   for (const drawing of drawingsOf(thread)) outer = drawing;
   return declaredParts.get(outer)?.whole(outer) ?? outer;
 }
-/** @overload @param {Element} thread @param {"settlement" | "move"} name @returns {HTMLElement | null} */
-/** @overload @param {Element} thread @param {"reply" | "controls"} name @returns {Element | null} */
-/** @param {Element} thread @param {"reply" | "settlement" | "move" | "controls"} name */
+
 export function threadPart(thread, name) {
   for (const at of drawingsOf(thread)) {
     const part = (declaredParts.get(at) ?? ownParts)[name](at);

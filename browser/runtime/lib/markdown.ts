@@ -22,7 +22,6 @@
 import { alignText } from "./text-alignment.js";
 import type { DOMPurify } from "dompurify";
 import type { MarkdownIt, StateCore, StateInline, Token } from "markdown-it";
-export type { MarkdownIt };
 
 /** How a host writes the links and pictures a reading admits. `link(href)` gives
  * attributes for a link's opening tag, an `href` among them taking the written one's

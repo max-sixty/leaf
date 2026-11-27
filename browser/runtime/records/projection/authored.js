@@ -1,4 +1,4 @@
-// @ts-check
+// Compiled from authored.ts by build/typescript.mjs; edit that file.
 /* This module owns typed authored initial values and anchor parentage. It decodes the
  * authored initial condition once from validated source markup, before content modules
  * upgrade or render it. Those values are inputs to the complete widget projection; no
@@ -8,10 +8,6 @@ import { elementReading } from "../../readings/passages.js";
 import { readPart } from "../../state/semantic-state.js";
 import { dataBody } from "../../lib/data-body.js";
 import { authoredRank } from "../../lib/rank.js";
-
-/** @typedef {import("../../../types/domain.js").ActionSpec} ActionSpec */
-/** @typedef {import("../../../types/domain.js").AuthoredWidget} AuthoredWidget */
-/** @typedef {import("../../../types/domain.js").StateRecord} StateRecord */
 
 /* `rememberAuthoredParents` records parent identities before imports for anchor
    ownership. `stageAuthoredStates` decodes source elements while their validated
@@ -43,12 +39,10 @@ import { authoredRank } from "../../lib/rank.js";
 export const authoredStates = readPart((root) => root.document.authored);
 export const authoredParents = new WeakMap();
 
-/** @param {Element} member @param {StateRecord} record */
 const recordedOwner = (member, record) => {
   const selector = recordedWidgetSelector(record);
   return selector ? (member.parentElement?.closest(selector) ?? null) : null;
 };
-/** @param {Element} widget @param {string} selector @param {StateRecord} record */
 const ownedRecordMembers = (widget, selector, record) =>
   [...widget.querySelectorAll(selector)].filter(
     // Only a Leaf element holds recorded state, as the server's index reads it
@@ -58,7 +52,6 @@ const ownedRecordMembers = (widget, selector, record) =>
       member.localName.startsWith("lf-") && recordedOwner(member, record) === widget,
   );
 
-/** @param {Element} el @param {StateRecord} record */
 export function domValue(el, record) {
   if (record.kind === "attribute")
     return ownedRecordMembers(el, `[${record.attr}]`, record)
@@ -73,14 +66,11 @@ export function domValue(el, record) {
 // `parent` states where a root that is not yet in the document will stand, so the
 // readings that ask about its place are right before insertion; a root already in the
 // document answers for itself.
-/** @param {Document | Element | DocumentFragment} [root] @param {Element | null} [parent]
- * @param {(node: Element) => Element} [original] */
 export function rememberAuthoredParents(
   root = document,
   parent = root.parentElement,
   original = (node) => node,
 ) {
-  /** @param {Element} element */
   const remember = (element) => {
     const live = original(element);
     if (authoredParents.has(live)) return;
@@ -91,18 +81,15 @@ export function rememberAuthoredParents(
         : (parent ?? live.parentElement),
     );
   };
-  if (root.nodeType === Node.ELEMENT_NODE) remember(/** @type {Element} */ (root));
+  if (root.nodeType === Node.ELEMENT_NODE) remember(root);
   for (const element of root.querySelectorAll("*")) remember(element);
 }
 
-/** @param {Element} widget @param {ActionSpec} spec @returns {AuthoredWidget["state"][string]} */
 function initialState(widget, spec) {
   const record = spec.record;
   if (spec.unit !== "widget") {
-    /** @type {Record<string, string[]>} */
     const value = {};
     if (record?.kind !== "position") return { value, units: {} };
-    /** @type {Record<string, string>} */
     const ranks = {};
     const containers = [...widget.querySelectorAll(record.within)];
     if (widget.matches(record.within)) containers.unshift(widget);
@@ -130,11 +117,8 @@ function initialState(widget, spec) {
   return { action: null, value, detail: record ? { value } : {} };
 }
 
-/** @param {Document | Element | DocumentFragment} root @returns {Map<string, AuthoredWidget>} */
 export function stageAuthoredStates(root) {
-  /** @type {Map<string, AuthoredWidget>} */
   const captured = new Map();
-  /** @type {Map<string, Map<string, ActionSpec>>} */
   const byTag = new Map();
   for (const { tag, verb, spec } of stateSpecs()) {
     const specs = byTag.get(tag) ?? new Map();

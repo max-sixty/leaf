@@ -1,0 +1,75 @@
+/* Place `node` under `parent` before `before` (`null` appends), keeping the user
+ * in it. Every placement of a node that may already stand somewhere goes through here,
+ * Lit's keyed and child-part insertions included; `architecture/moves` (eslint.config.mjs)
+ * refuses the platform's own insertions where the source shows such a node.
+ *
+ * Within one composed root, `moveBefore` keeps the node's native state where the browser
+ * has it: focus, a field's caret, typed text and an iframe's document. A selection with
+ * an end inside the node is reset all the same, as the DOM's move algorithm resets every
+ * live range there. On Leaf, `setChildLists` (dom-children.js) holds the page's
+ * selection around the moves it makes and puts it back (`holdSelection`), and an editor
+ * in a shadow tree records its own and puts it back as it lands (`connectedMoveCallback`,
+ * as `leaf-text` does). New nodes, nodes from
+ * another root, and WebKit, which lacks the API, use `insertBefore`, which blurs a focused
+ * descendant to the body; an element's hold (`holdFocus`) puts the user back in it, as
+ * it does when a change had dropped them from it and they have not acted since. An
+ * already placed node is left alone. Text, comments and fragments, which Lit inserts
+ * for every new row, hold no one. An iframe still reloads there. The return value
+ * matches insertBefore, including when inserting a fragment. */
+import { isElement } from "../lib/shadow-tree.js";
+import type { holdFocus, watchCurrentLocationIn } from "./focus.js";
+import type { holdSelection as nativeHoldSelection } from "./native-selection.js";
+
+type MoveFocus = {
+  hold: typeof holdFocus;
+  watch: typeof watchCurrentLocationIn;
+};
+
+// Leaf installs its focus accounting; native placement also works without a runtime.
+let focusOwner: MoveFocus | null = null;
+export const installMoveFocus = (owner: MoveFocus) => {
+  focusOwner = owner;
+};
+// Leaf installs its selection writer (native-selection.js) at boot (leaf.js); off
+// Leaf a move leaves a selection inside a moved node reset, as the browser does.
+let selectionOwner: typeof nativeHoldSelection | null = null;
+export const installMoveSelection = (owner: typeof nativeHoldSelection) => {
+  selectionOwner = owner;
+};
+// The page selection where moving `placed` would reset it, and what puts it back.
+export const holdSelection = (placed: Iterable<Node>) =>
+  selectionOwner?.(placed) ?? null;
+// Leaf's keys mark what a renderer painted by its root and read the root's contents
+// at the frame (keyboard/scopes.js, `paintKeysWithin`); a placed node is shown to
+// them before it moves, so a control leaving a painted root keeps its mark.
+let keysOwner: ((node: Node) => void) | null = null;
+export const installMoveKeys = (owner: (node: Node) => void) => {
+  keysOwner = owner;
+};
+
+export function move<T extends Node>(
+  parent: Node & ParentNode,
+  node: T,
+  before: Node | null = null,
+) {
+  if (node.parentNode === parent && (before === node || node.nextSibling === before))
+    return node;
+  if (node.isConnected) keysOwner?.(node);
+  // A retained move can enter another shadow root without a focus event. Subscribe
+  // before placement, so connectedMoveCallback and the caller's next move are heard.
+  if (parent.isConnected) focusOwner?.watch(parent.getRootNode());
+  if (
+    parent.moveBefore &&
+    node.getRootNode({ composed: true }) === parent.getRootNode({ composed: true })
+  )
+    parent.moveBefore(node, before);
+  else {
+    const restore = isElement(node) ? focusOwner?.hold(node) : null;
+    parent.insertBefore(node, before);
+    restore?.();
+  }
+  return node;
+}
+
+// Lit inserts natively off Leaf; the runtime installs its focus-preserving mover.
+window.lfMove = move;

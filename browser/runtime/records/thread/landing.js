@@ -1,3 +1,4 @@
+// Compiled from landing.ts by build/typescript.mjs; edit that file.
 /* Landing the user in a thread: which box a reply lands in, and where focus goes
    coming back out of one.
 
@@ -47,12 +48,9 @@ import {
 } from "./focus.js";
 
 export { scrollThreadIntoView } from "./reply-landing.js";
-/** @typedef {{target: Element, line: string}} ReturnRoute */
-/** @typedef {{held?: Element | null, box: Element | null, route?: ReturnRoute | null}} ThreadLanding */
-/** @type {WeakMap<Element, ReturnRoute>} */
+
 const threadReturns = new WeakMap();
 
-/** @param {Element | null} node */
 export const threadInput = (node) => threadReplyInput(threadIn(node));
 
 // The thread the user writes in from where they are, whole where it is drawn in
@@ -62,7 +60,6 @@ export const currentLocationThread = () => {
   const box = threadReplyInput(held);
   return held && box ? { held: wholeThread(held), box } : null;
 };
-/** @param {Element | null} box */
 const backFromThread = (box) => (box ? (threadReturns.get(box) ?? null) : null);
 
 // Where a box hands the user back, however they reached it. The climb is
@@ -70,7 +67,6 @@ const backFromThread = (box) => (box ? (threadReturns.get(box) ?? null) : null);
 // standing outside any drawn thread hands back along the route the control that sent
 // the user into it supplied (`landInThread`); a visit reached by Tab still falls
 // through to the page's "let go".
-/** @param {Element | null} box @returns {ReturnRoute | null} */
 function backFrom(box) {
   const held = threadIn(box);
   if (held) return { target: wholeThread(held), line: "back to thread" };
@@ -79,7 +75,6 @@ function backFrom(box) {
 }
 const backFromBox = () => backFrom(focused());
 // Put the user where a box hands them back: its thread, or the route's target.
-/** @param {ReturnRoute} back */
 function goBack({ target }) {
   if (!target.matches(THREAD)) {
     focusDestination(target, "return");
@@ -144,7 +139,6 @@ pageScope("text entry", {
 // would carry it, by the room the thread's focus ring asks at its foot or by bringing
 // back a head they scrolled above the window. A box the send gave up, as a seat's does
 // to the thread it starts, leaves nothing there to carry.
-/** @param {Element} thread */
 function returnToThread(thread) {
   focusThread(thread, "return");
   if (!fitsWhole(thread) && seenRect(thread, new Map())) return;
@@ -156,7 +150,6 @@ function returnToThread(thread) {
 // the box sent from or the thread a send started, it hands them back as Escape from the
 // box does, keeping the draft's session, which the send's acceptance ends
 // (replies.js). Leaving the card belongs to navigation, not Send.
-/** @param {Element} node */
 export function landSent(node) {
   const back = backFrom(node);
   if (back) goBack(back);
@@ -165,21 +158,16 @@ export function landSent(node) {
 // The thread whose card the user is on.
 const cardThread = () => focusedThreadTarget();
 // Settlement belongs to the thread, wherever its view places that control.
-/** @param {Element | null} thread */
 const resolutionControl = (thread) =>
   thread ? threadPart(thread, "settlement") : null;
 // So does the press that moves it between its card and the floating panel.
-/** @param {Element | null} thread */
 const movingControl = (thread) => (thread ? threadPart(thread, "move") : null);
 
 // The message the user is in, by focus or by the caret a click on its words leaves
 // (`userCaret`), else the one `otherwise` picks. The messages stand in the whole of
 // the thread (selectors.js, `wholeThread`), apart from controls a view draws on its
 // own lines, as the panel's view draws Resolve on its head.
-/** @param {Element | null} node */
 const messageAt = (node) => closestAcross(node, ".lf-msg");
-/** @param {Element | null} thread
- * @param {(whole: Element) => Element | null | undefined} otherwise */
 function messageIn(thread, otherwise) {
   if (!thread) return null;
   const whole = wholeThread(thread);
@@ -191,14 +179,11 @@ function messageIn(thread, otherwise) {
   );
 }
 // A message's copy control of `kind` (messages.js): `copy` or `link`.
-/** @param {Element | null | undefined} message @param {"copy" | "link"} kind */
 function messageControl(message, kind) {
-  /** @type {HTMLElementTagNameMap["wa-copy-button"] | null | undefined} */
   const control = message?.querySelector(`:scope > .lf-msg-head .lf-msg-${kind}`);
   return copyTrigger(control);
 }
 // The Copy of the message the user is in, else of the thread's latest message.
-/** @param {Element | null} thread */
 const messageCopy = (thread) =>
   messageControl(
     messageIn(thread, (whole) => [...whole.querySelectorAll(".lf-msg")].at(-1)),
@@ -206,7 +191,6 @@ const messageCopy = (thread) =>
   );
 // The Copy link of the message the user is in, else of the thread's opening message,
 // whose link is the thread's.
-/** @param {Element | null} thread */
 const messageLinkCopy = (thread) =>
   messageControl(
     messageIn(thread, (whole) =>
@@ -219,7 +203,6 @@ const messageLinkCopy = (thread) =>
 
 // A box a presentation declares as its thread's reply may stand outside the thread
 // (selectors.js, `threadPart`), so landing in one asks for the box alone.
-/** @param {ThreadLanding} destination */
 export function landIn({ held = null, box, route = null }) {
   if (!box) return false;
   held ??= threadIn(box);
@@ -238,7 +221,6 @@ export function landIn({ held = null, box, route = null }) {
   return true;
 }
 
-/** @param {Element} box @param {ReturnRoute | null} route */
 export const landInThread = (box, route = null) => landIn({ box, route });
 
 /** Declare a thread's own keys, given the reading of the thread the user is at
@@ -258,7 +240,6 @@ export const landInThread = (box, route = null) => landIn({ box, route });
  * user is in, else on the thread's opening message, so on the thread it copies the
  * thread's link. Absent a thread, the reference describes the open state users first
  * meet. */
-/** @param {() => Element | null} threadHere */
 export function declareThreadKeys(threadHere) {
   pageScope("thread", {
     title: "In a thread",

@@ -1,3 +1,4 @@
+// Compiled from views.ts by build/typescript.mjs; edit that file.
 /* The members a widget shows one at a time (`views`), and what Leaf keeps of the one
  * it shows: which it is, its name in the address, and the user's place in it.
  *
@@ -65,21 +66,16 @@ const PLACE_KEY = "lf-view-place:";
 // The member each holder shows, or null where it shows none: what the next switch
 // leaves. A holder absent from it has shown nothing through here, so its first member
 // is an arrival rather than a switch.
-/** @type {WeakMap<Element, Element | null>} */
 const shown = new WeakMap();
 
 // Reading members or the opening choice changes no DOM.
-/** @param {Element} holder */
 const memberSelector = (holder) => registry[holder.localName]?.views?.members;
-/** @param {Element} holder */
 export function viewMembers(holder) {
   return window.lfViews.members(holder, memberSelector(holder));
 }
-/** @param {Element} holder @param {Element | null} [fallback] */
 export function openingView(holder, fallback = undefined) {
   return window.lfViews.opening(holder, fallback, memberSelector(holder));
 }
-/** @param {Element} holder */
 export function markViews(holder) {
   const declaration = registry[holder.localName]?.views;
   if (!declaration) return;
@@ -88,7 +84,6 @@ export function markViews(holder) {
 }
 // Show `member` and remember it, or show none where it is null, without forgetting the
 // last member. `leaving` keeps one outgoing member visible too, for its exit.
-/** @param {Element} holder @param {Element | null} member @param {Element | null} [leaving] */
 export function keepView(holder, member, leaving = null) {
   markViews(holder);
   show(holder, member, leaving, false);
@@ -99,8 +94,6 @@ export function keepView(holder, member, leaving = null) {
 // press, finds it showing and switches nothing.
 window.lfViews.reveal = (holder, member) => show(holder, member, null, true);
 
-/** @param {Element} holder @param {Element | null} member @param {Element | null} leaving
- * @param {boolean} revealed */
 function show(holder, member, leaving, revealed) {
   const previous = shown.get(holder);
   const switched = member !== null && previous !== undefined && member !== previous;
@@ -125,7 +118,6 @@ function show(holder, member, leaving, revealed) {
 // Name `member` in the address (the header): a new entry for the user's step to it,
 // and otherwise a rename of the entry they are on, where that entry names no place, or
 // a reveal took them out of the view its fragment names.
-/** @param {Element} member @param {boolean} stepped @param {boolean} revealed */
 function name(member, stepped, revealed) {
   if (!member.id) return;
   const url = new URL(location.href);
@@ -138,7 +130,6 @@ function name(member, stepped, revealed) {
 
 // Whether `member` holds the place a fragment names, which reaches inside a widget's
 // shadow tree as Leaf's own arrival does.
-/** @param {Element} member @param {string} fragment */
 const holds = (member, fragment) => {
   const target = elementNamed(fragment);
   return Boolean(target) && under(target, member);
@@ -146,23 +137,19 @@ const holds = (member, fragment) => {
 
 // Whether the holder's members stand in the page's flow, each a view with a place of
 // its own (the header).
-/** @param {Element} holder */
 const inPageFlow = (holder) =>
   holder.hasAttribute(marks.flow.attribute) ||
   (holder.getAttribute(marks.views.attribute) === "parts" &&
     holder.hasAttribute(PAGE_VIEWS));
 
-/** @param {Element} holder @param {Element} member */
 const placeKey = (holder, member) => `${PLACE_KEY}${holder.id}:${member.id}`;
 
 // How far the page is scrolled past `member`'s start (the header), negative short of
 // it: how far the member's top stands above the band the headers over it leave.
-/** @param {Element} member */
 const pastStart = (member) =>
   (visibleBand(pageScroller, member)?.top ?? 0) - member.getBoundingClientRect().top;
 
 // A member read past its start keeps that place; one left at its start keeps none.
-/** @param {Element} holder @param {Element} member */
 function leave(holder, member) {
   tabStore.set(
     placeKey(holder, member),
@@ -172,7 +159,6 @@ function leave(holder, member) {
 
 // `from` is where the page stood before the switch, which hiding the member left can
 // clamp.
-/** @param {Element} holder @param {Element} member @param {number} from */
 function open(holder, member, from) {
   let place = null;
   try {
@@ -193,7 +179,6 @@ function open(holder, member, from) {
 // page's views: the handler that reveals that view, as travel reveals one, and leaves
 // the page to the entry's record (history.js, `mountHistory`). Nothing where the entry
 // names no such place, or the view already shows.
-/** @param {URL} url @param {() => boolean} mayReveal */
 export function entryView(url, mayReveal) {
   const holder = document.querySelector(`[${PAGE_VIEWS}]`);
   const target = holder && elementNamed(url.hash);

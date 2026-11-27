@@ -1,3 +1,4 @@
+// Compiled from shadow-stage.ts by build/typescript.mjs; edit that file.
 /* A widget's shadow stage, independent of Leaf's page runtime. Retained nodes stay
    connected; authored light children are removed after the renderer has read them.
    WebKit unloads shadow iframes on replaceChildren(), so children leave individually.
@@ -13,13 +14,10 @@ import { watchArrivalsIn } from "./arrivals.js";
 import { stagesFailure } from "../lib/failure.js";
 import { watchLayers } from "./keyboard/layer-stack.js";
 
-/** @type {((root: ShadowRoot) => Node[]) | null} */
 let integration = null;
-/** @param {(root: ShadowRoot) => Node[]} adopt */
 export const installStageIntegration = (adopt) => {
   integration = adopt;
 };
-/** @param {ShadowRoot} root */
 export function adoptShadowStage(root) {
   watchArrivalsIn(root);
   watchLayers(root);
@@ -27,7 +25,6 @@ export function adoptShadowStage(root) {
   return root;
 }
 
-/** @param {Element} host @param {Iterable<Node>} nodes */
 export function shadowStage(host, nodes) {
   const root = host.shadowRoot ?? stageFor(host);
   watchArrivalsIn(root);
@@ -44,7 +41,6 @@ export function shadowStage(host, nodes) {
 // there, and the widget's next stage replaces it. Page layout can't see into the stage,
 // so `data-lf-failed` says on the host that the stage holds a failure, as a light child
 // `.lf-error` says it for every other widget.
-/** @param {Element} host */
 function stageFor(host) {
   stagesFailure(host, (box) => {
     shadowStage(host, [box]);

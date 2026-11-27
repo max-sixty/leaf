@@ -173,7 +173,6 @@ export function projectionOrigins(authoredSnapshots, projection) {
 // Each widget's folded state is kept (`state/kept.js`) by its authored state and the entries
 // in force on it, so every widget nothing touched keeps the very state it had, and a
 // reader of one, such as a thread holding a widget, can tell it unchanged by identity.
-
 export function foldWidgetStates(authoredSnapshots, projection) {
   const inForce = new Map();
   for (const entry of [...projection.desired.values()].sort(compareProjected)) {

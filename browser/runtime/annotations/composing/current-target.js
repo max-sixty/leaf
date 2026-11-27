@@ -1,3 +1,4 @@
+// Compiled from current-target.ts by build/typescript.mjs; edit that file.
 /* The semantic target a comment or reaction at current browser focus acts on.
 
    Pointer and focus share aimTargetAt, which reads the deepest focus: a datum is in the
@@ -29,7 +30,6 @@ import { inChrome } from "../../base/ui-marks.js";
 
 // The innermost question group holding `node` (`obligationPlace`'s context), or null
 // where none does or `node` is in one of that group's answer widgets.
-/** @param {Element} node */
 function groupHolding(node) {
   const grouped = readObligations()
     .all.map((item) => obligationPlace(item))
@@ -38,7 +38,6 @@ function groupHolding(node) {
         source && context && context !== source && under(node, context),
     );
   const group = grouped.reduce(
-    /** @param {Element | null} inner */
     (inner, { context }) => (inner && under(inner, context) ? inner : context),
     null,
   );
@@ -48,7 +47,6 @@ function groupHolding(node) {
   return answering ? null : group;
 }
 
-/** @param {{currentLocationIn: () => Element | null}} options */
 export function createCurrentTarget({ currentLocationIn }) {
   return function currentTarget() {
     const held = focused();

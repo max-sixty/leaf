@@ -210,7 +210,7 @@ type ScheduledPresenter<Value> = {
 };
 
 /** One value a presenter claimed, awaiting its paint. */
-export type Claim<Value> = {
+type Claim<Value> = {
   readonly claimed: number;
   readonly dom: PromiseWithResolvers<void>;
   readonly value: Value;

@@ -191,8 +191,7 @@ class GestureWords:
         One walk of the log serves every Done of the document, as `InForce` reads
         what each event changed: the fold of the document classifies the actions,
         then undos withdraw and the document's version notes restate where they
-        fall. A message's markup folds without floors, as `thread_markup_reading`
-        does."""
+        fall. No version restates a message's markup (`thread_markup_reading`)."""
         if document.held is None:
             classified = state_projection(
                 self.events,
@@ -200,8 +199,6 @@ class GestureWords:
                 document.spoken,
                 document.registry,
                 document.revision,
-                floors={},
-                withdrawn=set(),
             ).classified
             in_force = InForce(enclosing_of(document.spoken))
             document.held = {}

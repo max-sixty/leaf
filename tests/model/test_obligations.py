@@ -1535,17 +1535,16 @@ def restating(step: str) -> dict:
     }
 
 
-def test_restating_a_picked_step_after_done_asks_again_with_the_earlier_picks():
-    """A version that restates a step the user picked takes back the pick that named
-    it, and the pick before it decides the checklist again. That changes the
-    checklist's state with no word from it, so the word its Done said lapses and the
-    question asks again. The checklist says the same when a tab works it out
-    (lf-options' `answered`: the picks moved since Done), so no tab's word answers it
-    again."""
+def test_restating_a_picked_step_after_done_asks_again_with_the_other_picks():
+    """A version that restates a step the user picked takes it out of the pick and
+    leaves the other picks. That changes the checklist's state with no word from it,
+    so the word its Done said lapses and the question asks again. The checklist says
+    the same when a tab works it out (lf-options' `answered`: the picks moved since
+    Done), so no tab's word answers it again."""
     documents = {1: checklist("a", "b"), 2: checklist("a", "b", restated=("b",))}
     state = model.reading(
         documents,
-        [chose("a"), chose("a", "b"), done(["a", "b"], ["a", "b"]), restating("b")],
+        [chose("a", "b"), done(["a", "b"], ["a", "b"]), restating("b")],
     )
     [item] = page_obligations(state, 2)["all"]
     assert (item["state"], item["next_actor"]) == ("waiting", "user")
@@ -1554,28 +1553,38 @@ def test_restating_a_picked_step_after_done_asks_again_with_the_earlier_picks():
 
 
 def test_a_tabs_word_reopens_a_question_but_never_answers_it():
-    """The user picked a, then b in its place, and a version rewrote b. The rewrite
-    takes back the pick of b, and the pick of a decides the widget again, so a tab
-    showing that version works out that the question is answered. Only the user's act
-    answers a question, so the page refuses that word and the question asks again,
-    where a tab's word that it is open stands."""
-    documents = {
-        1: page(),
-        2: page().replace('<lf-option id="b">', '<lf-option id="b" restated>'),
-    }
-    picks = [
-        {**chose("a"), "facts": {"answered": True}},
-        {**chose("b"), "facts": {"answered": True}},
-        restating("b"),
-    ]
-    [item] = page_obligations(model.reading(documents, picks), 2)["all"]
-    assert (item["state"], item["next_actor"]) == ("waiting", "user")
-    with pytest.raises(EventRefused) as answering:
-        model.reading(documents, [*picks, told(True, through=3)])
-    assert refused_on(answering.value).code == "unchanged-facts"
-    later = {**chose("a"), "revision": 2, "facts": {"answered": True}}
-    [item] = page_obligations(model.reading(documents, [*picks, later]), 2)["all"]
-    assert standing_model.answered(item)
+    """Only the user's act answers a question, so the page refuses a tab's word that
+    one is answered, and the question asks until the user presses Done again. A tab
+    works that word out where a version brings back what an earlier Done covered: the
+    user pressed Done on a and b with a picked, then picked b too, and a version
+    rewrote b, which leaves the pick of a that Done covered; or the user took the
+    pick of a back after Done, and a version wrote it into the markup."""
+    rewrote_b = {1: checklist("a", "b"), 2: checklist("a", "b", restated=("b",))}
+    marked = model.leaf_page(
+        "Questions",
+        '<lf-options id="choice" multiple><lf-option id="a" selected>A</lf-option>'
+        '<lf-option id="b">B</lf-option></lf-options>',
+    )
+    for documents, events in (
+        (
+            rewrote_b,
+            [chose("a"), done(["a", "b"], ["a"]), chose("a", "b"), restating("b")],
+        ),
+        (
+            {1: checklist("a", "b"), 2: marked},
+            [
+                chose("a"),
+                done(["a", "b"], ["a"]),
+                {"kind": "undo", "undoes": "e1", "facts": {"answered": False}},
+                {**restating("b"), "restated": []},
+            ],
+        ),
+    ):
+        [item] = page_obligations(model.reading(documents, events), 2)["all"]
+        assert (item["state"], item["next_actor"]) == ("waiting", "user")
+        with pytest.raises(EventRefused) as answering:
+            model.reading(documents, [*events, told(True, through=4)])
+        assert refused_on(answering.value).code == "unchanged-facts"
 
 
 def test_a_word_worked_out_before_a_press_that_lands_after_it_is_refused():

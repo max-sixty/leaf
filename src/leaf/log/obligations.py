@@ -258,14 +258,14 @@ def widget_facts(
     keeps them: widget id → fact name → the latest value said of it. A gesture says
     the facts it carries, an action of the widget in force in `projection` or the
     user's undo of one, and so does a `facts` event, a tab's word on a widget whose
-    state or markup moved without a gesture of its own. A version note that retracts
-    the winning action at any of the widget's coordinates, by restating what it rests
-    on, changes the widget's state with no word from it, so the facts said before it
-    lapse until the widget says them again. A gesture made on a version older than
-    the newest one the widget's kept facts were said on leaves those standing: a tab
-    still showing that older version worked its word out of markup the page has since
-    replaced. A `facts` event's word is `told_facts`. A widget whose `answered` is
-    unsaid asks on (`awaits`).
+    state or markup moved without a gesture of its own. A version that moves the
+    winner at any of the widget's coordinates, by restating what it rests on, changes
+    the widget's state with no word from it, whether its note lands before the action
+    or after, so the facts said before lapse until the widget says them again. A
+    gesture made on a version older than the newest one the widget's kept facts were
+    said on leaves those standing: a tab still showing that older version worked its
+    word out of markup the page has since replaced. A `facts` event's word is
+    `told_facts`. A widget whose `answered` is unsaid asks on (`awaits`).
 
     The widget works each fact out, in the browser, from its state and markup
     (`module-state.md`, "Declared widget state"), and the runtime sends the values on
@@ -293,6 +293,10 @@ def widget_facts(
         if on is not None:
             said_on[widget] = on
 
+    def lapse(widget: str) -> None:
+        kept.pop(widget, None)
+        said_on.pop(widget, None)
+
     for event in events:
         kind = event["kind"]
         if kind in ("action", "note", "facts") and revision is not None:
@@ -303,11 +307,14 @@ def widget_facts(
             if event["id"] not in projection.classified:
                 continue
             widget_of[event["id"]] = event["widget"]
-            if (
-                walk.admit(event) is not None
-                and "facts" in event
-                and event["id"] in projection.in_force
-            ):
+            change = walk.admit(event)
+            if change is None:
+                continue
+            # A version restated what the action rests on before it arrived, so the
+            # state it leaves is the version's reading, which the widget said nothing of.
+            if change.after is not event:
+                lapse(event["widget"])
+            elif "facts" in event and event["id"] in projection.in_force:
                 say(event["widget"], event["facts"], event["revision"])
         elif kind == "undo" and (widget := widget_of.get(event["undoes"])):
             walk.withdraw(event["undoes"])
@@ -317,8 +324,7 @@ def widget_facts(
             say(event["widget"], told_facts(event), event["revision"])
         elif kind == "note":
             for change in walk.restate(event):
-                kept.pop(change.coordinate[0], None)
-                said_on.pop(change.coordinate[0], None)
+                lapse(change.coordinate[0])
     return kept
 
 
@@ -328,9 +334,12 @@ def told_facts(event: dict) -> dict:
     as when a version adds a step to a checklist the user called done, but never
     answer one: an answer is the user's act, and the widget's word on it travels on
     that act ("Responsiveness" in root `AGENTS.md`). So a version that brings back
-    what an earlier answer covered, as one taking back a pick the user replaced or
-    removing the one step Done didn't cover, leaves the question asking until the
-    user acts on it again."""
+    what an earlier answer covered leaves the question asking until the user acts on
+    it again. A Done rests on its widget alone, so a version taking back a pick made
+    after Done leaves the Done standing on the picks before it. lf-options compares
+    Done with the markup's `selected` where no pick stands, so a version writing the
+    pick Done covered matches it. And a version may take out the one step Done didn't
+    cover."""
     return {
         fact: value
         for fact, value in event["facts"].items()

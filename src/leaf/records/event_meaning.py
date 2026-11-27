@@ -57,9 +57,7 @@ class AdmissionReadings:
 
     @cached_property
     def thread(self):
-        return thread_markup_reading(
-            self.events, self.registry, withdrawn=self.log.withdrawn
-        )
+        return thread_markup_reading(self.events, self.registry)
 
     def kept_facts(self, widget: str, revision: int, scope: str) -> dict:
         """The facts the page keeps of `widget` before this event
@@ -80,7 +78,6 @@ class AdmissionReadings:
                 self.view.reading(revision, self.registry),
                 self.events,
                 revision,
-                withdrawn=self.log.withdrawn,
                 revisions=self.view.revisions,
                 revision_reader=lambda previous: self.view.reading(
                     previous, self.view.registry(previous)

@@ -1000,7 +1000,7 @@ def test_the_position_fold_matches_the_browser_cases(case):
         desired=desired,
         report_settlements={},
         classified={},
-        in_force=frozenset(),
+        in_force={},
         # A move is absorbed where the markup authors its container unlike the
         # revision it was made on.
         absorption=lambda: frozenset(

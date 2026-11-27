@@ -1067,7 +1067,9 @@
                 "description": "The operation the event was admitted under, by the immutable registry of the revision that interpreted it, which may differ from the active document's. Browser folds read this rather than reinterpreting history through whichever registry the current DOM selected.",
                 "$ref": "leaf:verb"
               },
-              "value": true,
+              "value": {
+                "description": "The record of the action as it stands, which the browser folds rather than the event's own detail: a version that rewrote a member of the set an `attribute` record holds leaves the set without that member."
+              },
               "scope": { "enum": ["document", "thread"] },
               "restated": { "type": "array", "items": { "type": "string" } },
               "absorbed": {

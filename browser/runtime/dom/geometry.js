@@ -945,7 +945,7 @@ export function readMarkRoom(boxes) {
     return {
       box,
       side: left ? "left" : right ? "right" : null,
-      flush: clipsMarks(box, clips) ? "" : null,
+      flush: clipsMarks(box, clips, Boolean(left || right)) ? "" : null,
     };
   });
   return () =>
@@ -973,11 +973,15 @@ export function readMarkRoom(boxes) {
 // marks, so it keeps the stamp while a mark shows, standing the mark inside, whole,
 // until it goes. A painter reads before it marks, so a fresh mark reads the box as its
 // kind and layout leave it, and a stamp left on a box no longer marked decides nothing.
-/** @param {Element} box @param {ClipCache} clips */
-function clipsMarks(box, clips) {
+// The stamp stands marks no further in than a box whose kind stands them inside, so
+// such a box takes it only to stop reaching over a list marker (`reaches`).
+/** @param {Element} box @param {ClipCache} clips @param {boolean} reaches */
+function clipsMarks(box, clips, reaches) {
   if (getComputedStyle(box).getPropertyValue("--lf-flush-at")) return true;
+  const room = bandRoom(box);
+  if (room <= 0 && !reaches) return false;
   const scale = scaleOf(box);
-  const marked = markedOf(box, bandRoom(box), scale);
+  const marked = markedOf(box, room, scale);
   const { cuts } = clipWalk(box, clips, false);
   return /** @type {const} */ (["x", "y"]).some((axis) => {
     const cut = cuts.find(({ axes }) => axes[axis]);

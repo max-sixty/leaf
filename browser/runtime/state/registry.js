@@ -99,13 +99,13 @@ const indexedState = perVocabulary(() => {
   return { recordSelectors, specs };
 });
 
-// Whether two verbs' records read their state from markup the same way. A value
-// record's `property` and `event` say how the element keeps the value on the page
-// (host/element-integration.js, "Recorded properties"), so two records that differ only
-// there are one, as Python's `registry.contract.recorded` reads them.
+// Whether two verbs' records read their state from markup the same way. A value or
+// attribute record's `property` and `event` say how the page's elements keep the
+// state (host/element-integration.js, "Recorded properties"), so two records that
+// differ only there are one, as Python's `registry.contract.recorded` reads them.
 /** @param {import("../../types/domain.js").StateRecord | undefined} record */
 const markupRecord = (record) =>
-  record?.kind === "value"
+  record?.kind === "value" || record?.kind === "attribute"
     ? { kind: record.kind, attr: record.attr }
     : (record ?? null);
 /** @param {import("../../types/domain.js").StateRecord | undefined} one

@@ -11,6 +11,7 @@ import { adoptShadowStage } from "/runtime/dom/shadow-stage.js";
 import { adoptRegistry } from "/runtime/state/registry.js";
 import {
   rememberAuthoredParents,
+  setMembers,
   stageAuthoredStates,
 } from "/runtime/records/projection/authored.js";
 import {
@@ -50,22 +51,50 @@ test("capture keeps authored values and parentage when rendering moves members",
   assert.equal(inner.parentElement.localName, "lf-right");
 });
 
-test("an attribute record counts only Leaf elements among its members", () => {
-  document.body.innerHTML =
-    '<main><lf-options id="size"><lf-option id="small" selected>Small <select id="unit"><option id="unit-m" selected>m</option></select></lf-option><lf-option id="large">Large</lf-option></lf-options></main>';
+test("an attribute record counts Leaf elements and the native elements HTML marks with its attribute", () => {
+  // The server reads the same page the same way
+  // (`test_a_set_names_the_native_inputs_html_marks_with_its_attribute`).
+  document.body.innerHTML = `<main>
+    <lf-options id="size">
+      <lf-option id="small" selected>Small
+        <select id="unit"><option id="unit-m" selected>m</option></select>
+        <input type="checkbox" id="small-gift" checked>
+      </lf-option>
+      <lf-option id="large">Large</lf-option>
+    </lf-options>
+    <lf-pick-form id="platforms"><form>
+      <label id="platforms-label" checked><input type="checkbox" id="platforms-mac" checked> macOS</label>
+      <input type="CHECKBOX" id="platforms-linux">
+      <input type="radio" id="platforms-free" checked>
+      <input type="text" id="platforms-other" checked>
+      <lf-pick-form id="arch"><input type="checkbox" id="arch-arm" checked></lf-pick-form>
+    </form></lf-pick-form>
+  </main>`;
+  const checked = { kind: "attribute", attr: "checked", property: "checked" };
   adoptRegistry({
-    $layer: { generation: "native-selected" },
+    $layer: { generation: "native-members" },
     "lf-options": {
       verbs: {
         choose: { unit: "widget", record: { kind: "attribute", attr: "selected" } },
       },
     },
     "lf-option": {},
+    "lf-pick-form": { verbs: { choose: { unit: "widget", record: checked } } },
   });
   const root = document.querySelector("main");
   rememberAuthoredParents(root);
   const states = stageAuthoredStates(root, new Map());
   assert.deepEqual(states.get("size").state.choose.value, ["small"]);
+  assert.deepEqual(states.get("platforms").state.choose.value, [
+    "platforms-free",
+    "platforms-mac",
+  ]);
+  assert.deepEqual(states.get("arch").state.choose.value, ["arch-arm"]);
+  // A form inside this one is a Leaf element, and so a member as any other is.
+  assert.deepEqual(
+    setMembers(document.getElementById("platforms"), checked).map(({ id }) => id),
+    ["platforms-mac", "platforms-linux", "platforms-free", "arch"],
+  );
 });
 
 test("native idioms never become widget descriptors or authored widget ancestors", () => {

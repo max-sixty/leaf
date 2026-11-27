@@ -30,7 +30,9 @@ LAYER_OWNED_EVENTS = frozenset({"handling", "answering"})
 # The facts both runtimes read from the kernel registry, each whole and none from a
 # layer (`registry.kernel`): Python and the browser (`runtime/state/kernel-facts.js`) both
 # read the running Leaf's own copy, so a layer's change would reach neither.
-KERNEL_FACTS = frozenset({"$passages", "$names", "$marks", "$authored"})
+KERNEL_FACTS = frozenset(
+    {"$passages", "$names", "$marks", "$authored", "$native-members"}
+)
 
 
 def merge_layer_declarations(merged: dict, declarations: dict) -> None:

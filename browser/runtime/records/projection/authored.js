@@ -4,6 +4,7 @@
  * upgrade or render it. Those values are inputs to the complete widget projection; no
  * cloned DOM, inverse action, or restoration statement is retained. */
 import { recordedWidgetSelector, stateSpecs } from "../../state/registry.js";
+import { NATIVE_MEMBERS } from "../../state/kernel-facts.js";
 import { elementReading } from "../../readings/passages.js";
 import { readPart } from "../../state/semantic-state.js";
 import { dataBody } from "../../lib/data-body.js";
@@ -26,7 +27,8 @@ import { authoredRank } from "../../lib/rank.js";
 
    The complete initial value, by record kind:
 
-   - `attribute`: sorted owned ids carrying the declared attribute;
+   - `attribute`: the sorted ids of the members carrying the declared attribute
+     (`setMembers`);
    - `value`: the attribute string, or `null` when absent;
    - `position`: ordered id lists for each container the widget orders, itself
      included where `within` names its own tag, and each listed unit's authored
@@ -48,23 +50,36 @@ const recordedOwner = (member, record) => {
   const selector = recordedWidgetSelector(record);
   return selector ? (member.parentElement?.closest(selector) ?? null) : null;
 };
-/** @param {Element} widget @param {string} selector @param {StateRecord} record */
-const ownedRecordMembers = (widget, selector, record) =>
-  [...widget.querySelectorAll(selector)].filter(
-    // Only a Leaf element holds recorded state, as the server's index reads it
-    // (structure.py): a native `<option selected>` inside an option's card is the
-    // author's own control, not a pick.
+/** The members of the set `record` keeps on `widget`, in document order, or with
+ * `marked` those the markup marks as in it: each element with an id whose nearest
+ * ancestor recording the same attribute is `widget`, as the server's index reads them
+ * (`projection.record_members`). A Leaf element is a member, and so is a native
+ * element HTML marks with the record's attribute, as `checked` marks a checkbox
+ * (`$native-members`). Any other native element is the author's own control: an
+ * `<option selected>` inside an option's card is no pick.
+ * @param {Element} widget
+ * @param {Extract<StateRecord, {kind: "attribute"}>} record
+ * @param {boolean} [marked] */
+export const setMembers = (widget, record, marked = false) => {
+  const native = NATIVE_MEMBERS[record.attr];
+  return [...widget.querySelectorAll(marked ? `[${record.attr}]` : "[id]")].filter(
     (member) =>
-      member.localName.startsWith("lf-") && recordedOwner(member, record) === widget,
+      member.id &&
+      (member.localName.startsWith("lf-") ||
+        (member.localName === native?.tag &&
+          native.type.includes((member.getAttribute("type") ?? "").toLowerCase()))) &&
+      recordedOwner(member, record) === widget,
   );
+};
+/** @param {Element} widget @param {Extract<StateRecord, {kind: "attribute"}>} record */
+const markedIds = (widget, record) =>
+  setMembers(widget, record, true)
+    .map((member) => member.id)
+    .sort();
 
 /** @param {Element} el @param {StateRecord} record */
 export function domValue(el, record) {
-  if (record.kind === "attribute")
-    return ownedRecordMembers(el, `[${record.attr}]`, record)
-      .map((o) => o.id)
-      .filter(Boolean)
-      .sort();
+  if (record.kind === "attribute") return markedIds(el, record);
   if (record.kind === "value") return el.getAttribute(record.attr);
   if (record.kind === "position") return el.closest(record.within)?.id ?? null;
   return elementReading(el);
@@ -120,11 +135,7 @@ function initialState(widget, spec) {
     return { value, ranks, units: {} };
   }
   let value = null;
-  if (record?.kind === "attribute")
-    value = ownedRecordMembers(widget, `[${record.attr}]`, record)
-      .map((member) => member.id)
-      .filter(Boolean)
-      .sort();
+  if (record?.kind === "attribute") value = markedIds(widget, record);
   else if (record?.kind === "value") value = widget.getAttribute(record.attr);
   else if (record?.kind === "body") value = dataBody(widget);
   return { action: null, value, detail: record ? { value } : {} };

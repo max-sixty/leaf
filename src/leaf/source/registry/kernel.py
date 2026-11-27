@@ -3,8 +3,9 @@
 Every `$events` member but `handling` and `answering` is the transport contract no
 layer can change (`layer.merge_layer_declarations`), `$passages` is how a page reads
 as text, `$marks` the declarations painted for stylesheets, `$names` the widget and
-attribute name grammars, and `$authored` the page-wide declarations `page check` holds
-an author to. A layer that declares any of these differently is told the layer's
+attribute name grammars, `$authored` the page-wide declarations `page check` holds
+an author to, and `$native-members` the native elements an attribute record takes as
+members. A layer that declares any of these differently is told the layer's
 value has no effect (`layer.kernel_fact_advice`). All are read from the running Leaf's
 kernel registry, which the browser reads too (`runtime/state/kernel-facts.js`), rather
 than from a page's composed vocabulary, which may be another Leaf's at the same
@@ -97,3 +98,15 @@ def kernel_marks() -> dict:
     return {
         key: mark for key, mark in _kernel()["$marks"].items() if key != "description"
     }
+
+
+def native_marks(tag: str, attrs: dict) -> list[str]:
+    """The attributes HTML marks one native element with that make it a member of an
+    attribute record, as `checked` does a checkbox (`$native-members`, whose
+    description owns the table's meaning): empty for every other element."""
+    kind = (attrs.get("type") or "").lower()
+    return [
+        attr
+        for attr, form in _kernel()["$native-members"].items()
+        if attr != "description" and tag == form["tag"] and kind in form["type"]
+    ]

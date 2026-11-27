@@ -5,13 +5,14 @@ sets its `state` and its bound `notes`, hears the `lf-action` a press dispatches
 reads each choice as a comment target from its `data-lf-part` mark
 (module-plain-elements.md). `tests/fixtures/packages/shortlist` holds one with a pick
 for each row, which `test_widget_composition.py` holds to Undo, a revision and an
-export. `tests/fixtures/packages/controls` holds two components with no code written
+export. `tests/fixtures/packages/controls` holds three components with no code written
 for Leaf, each recorded because a declaration's `record` names the property that
-holds its value: Web Awesome's select, which the page writes inside the `lf-select`
-that keeps its value, and `lf-level`, a range that announces every change of its
-value, a script's set included. The select's value is also an output, which
-`lf-chosen` reads. The starter `leaf package init --widget` writes is
-such an element too, tested here as the command writes it.
+holds its state: Web Awesome's select, which the page writes inside the `lf-select`
+that keeps its value, `lf-level`, a range that announces every change of its
+value, a script's set included, and `lf-pick-form`, a form of native radios or
+checkboxes whose attribute record names each input's `checked`. The select's value
+is also an output, which `lf-chosen` reads. The starter `leaf package init --widget`
+writes is such an element too, tested here as the command writes it.
 """
 
 import pytest
@@ -620,6 +621,164 @@ def test_what_an_element_says_from_inside_leaf_s_set_is_not_the_user_s_act(
     with sending(page, "the step"):
         page.keyboard.press("ArrowLeft")
     assert levels(serve.page_dir) == ["70", "9", "9"]
+
+
+PICKS = """
+<h1 id="title">Release 4.2</h1>
+<lf-group id="release-q" label="Ship 4.2 today?">
+  <p id="premise">The fix is ready and the canary is clean.</p>
+  <lf-pick-form id="release">
+    <form>
+      <label><input type="radio" name="release" id="release-ship" /> Ship</label>
+      <label><input type="radio" name="release" id="release-hold" /> Hold</label>
+    </form>
+  </lf-pick-form>
+</lf-group>
+<lf-group id="platforms-q" label="Which platforms?">
+  <p id="platforms-premise">The build passes on all three.</p>
+  <lf-pick-form id="platforms">
+    <form>
+      <label><input type="checkbox" id="platforms-mac" checked /> macOS</label>
+      <label><input type="checkbox" id="platforms-linux" /> Linux</label>
+      <label><input type="checkbox" id="platforms-windows" /> Windows</label>
+    </form>
+  </lf-pick-form>
+</lf-group>
+"""
+QUOTED_PICKS = """
+<lf-sample id="quoted-picks" label="A quoted form">
+  <lf-pick-form id="quoted-form">
+    <form>
+      <label><input type="checkbox" id="quoted-a" checked /> A</label>
+      <label><input type="checkbox" id="quoted-b" /> B</label>
+    </form>
+  </lf-pick-form>
+</lf-sample>
+"""
+MAC, LINUX, WINDOWS = "platforms-mac", "platforms-linux", "platforms-windows"
+
+
+def pick_set(page_dir, widget, *ids):
+    """Record a set of picks as another tab's reaches the log."""
+    return append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": widget,
+            "action": "choose",
+            "detail": {"value": [*ids]},
+            "answered": bool(ids),
+        },
+    )
+
+
+def checked(page, widget):
+    """The ids of the inputs in `widget` whose `checked` reads true, in page order."""
+    return page.locator(f"#{widget} input").evaluate_all(
+        "inputs => inputs.filter((input) => input.checked).map((input) => input.id)"
+    )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_form_of_native_inputs_records_the_set_its_declaration_names(
+    engine, serve, request
+):
+    """The form's inputs hold their own `checked`, and the tag's attribute record
+    names that property. One radio picked and several checkboxes picked are each
+    recorded as the ids of the checked inputs and answer their questions on On Me. A
+    reload shows the recorded sets, over the pick the markup writes. Undo takes the
+    last pick back, and the first back to the markup's own, which answers nothing. A
+    pick by keyboard is recorded as a pointer's is, and a second press on the picked
+    radio records the empty set, which asks again."""
+    url = live_url(serve(leaf_page("Release 4.2", PICKS), packages=(CONTROLS,)))
+    page = open_page(request.getfixturevalue(engine), url)
+    expect_obligations_answered(page, "0/2")
+    assert checked(page, "platforms") == [MAC]
+
+    with sending(page, "the pick"):
+        page.get_by_label("Hold").check()
+    expect_obligations_answered(page, "1/2")
+    with sending(page, "the second platform"):
+        page.get_by_label("Linux").check()
+    with sending(page, "the third platform"):
+        page.get_by_label("Windows").check()
+    picks = [
+        ("release", ["release-hold"]),
+        ("platforms", [MAC, LINUX]),
+        ("platforms", [MAC, LINUX, WINDOWS]),
+    ]
+    assert chosen(serve.page_dir) == picks
+    expect_obligations_answered(page, "2/2")
+
+    navigate(page, url)
+    assert checked(page, "release") == ["release-hold"]
+    assert checked(page, "platforms") == [MAC, LINUX, WINDOWS]
+    expect_obligations_answered(page, "2/2")
+
+    undo(page)
+    assert checked(page, "platforms") == [MAC, LINUX]
+    undo(page)
+    assert checked(page, "platforms") == [MAC]
+    expect_obligations_answered(page, "1/2")
+    undo(page)
+    assert checked(page, "release") == []
+    expect_obligations_answered(page, "0/2")
+
+    tab_onto(page.locator(f"#{LINUX}"))
+    with sending(page, "the platform"):
+        page.keyboard.press("Space")
+    ship = page.locator("#release-ship")
+    tab_onto(ship)
+    with sending(page, "the pick"):
+        page.keyboard.press("Space")
+    expect(ship).to_be_checked()
+    expect_obligations_answered(page, "2/2")
+    with sending(page, "the cleared pick"):
+        page.keyboard.press("Space")
+    expect(ship).not_to_be_checked()
+    expect_obligations_answered(page, "1/2")
+    # The reload's sets and the Undos' recorded nothing of their own.
+    assert chosen(serve.page_dir) == [
+        *picks,
+        ("platforms", [MAC, LINUX]),
+        ("release", ["release-ship"]),
+        ("release", []),
+    ]
+
+
+def test_a_recorded_set_shows_what_the_page_holds(browser, serve):
+    """The inputs show the recorded set whoever wrote it, over the pick the markup
+    writes, and an event the form hears while they read that set records nothing. A
+    change made where the user may not act returns to the recorded set. The server
+    refuses a pick of an input the form lacks, and the inputs return to the set the
+    page holds."""
+    url = live_url(
+        serve(leaf_page("Release 4.2", PICKS + QUOTED_PICKS), packages=(CONTROLS,))
+    )
+    pick_set(serve.page_dir, "platforms", LINUX)
+    page = open_page(browser, url)
+    assert checked(page, "platforms") == [LINUX]
+
+    pick_set(serve.page_dir, "platforms", MAC, WINDOWS)
+    told(page)
+    assert checked(page, "platforms") == [MAC, WINDOWS]
+    page.locator("#platforms").dispatch_event("change")
+
+    page.locator("#quoted-b").click()
+    assert checked(page, "quoted-form") == ["quoted-a"]
+
+    lacking = {"verb": "choose", "detail": {"value": [MAC, "platforms-bsd"]}}
+    refused = send(page, "platforms", "lf-action", lacking)
+    assert (refused["taken"], refused["admitted"]) == (True, None)
+    consume_browser_errors(page, http_error_console(400))
+    round_trip(page)
+    assert checked(page, "platforms") == [MAC, WINDOWS]
+    assert chosen(serve.page_dir) == [
+        ("platforms", [LINUX]),
+        ("platforms", [MAC, WINDOWS]),
+    ]
 
 
 WORKER = {

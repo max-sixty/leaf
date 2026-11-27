@@ -11,7 +11,8 @@
      reading stands, where something the element draws beside its `state` has moved
      (`stateAgain`): setting `state` is how Leaf tells any element to draw;
    - with `state`, the property a verb's record names (`record.property`, the
-     registry's `$verbs.record`), to that verb's value ("Recorded properties" below);
+     registry's `$verbs.record`), to that verb's value: the element's own for a value
+     record, and each member's for a set ("Recorded properties" below);
    - the property each bound input names, and a written data body as its `value`
      (element-data.js, "Bound values").
 
@@ -41,6 +42,17 @@
    which other elements read (data.js). Leaf tells those readers to read it again
    (`heldMoved`) as each of its own sets returns, and at each record event dispatched
    outside a set, after recording what the event reports.
+
+   An attribute record, which keeps a set of the widget's members, names the property
+   each member keeps, which reads true while the member is in the set, as a
+   checkbox's or a radio's `checked` does. The members are the record's
+   (`setMembers`, records/projection/authored.js), read again at each set and each
+   event, so the element needs no property of its own. The set's value is the ids of
+   the members whose property reads true, in document order, and every rule above
+   holds of it as it does of a value, two sets being equal where they hold the same
+   ids. Leaf listens for the record's event on the element, where a member's reaches
+   it by bubbling, and sets a member's property only where it reads otherwise, so
+   radios of one group are a set of at most one by the browser's own doing.
 
    Until that set the element shows the change the user made, because Leaf sets
    nothing on it to stop the change. An element that should take none reads the
@@ -94,6 +106,7 @@ import {
   attachWidgetPresentation,
 } from "../state/semantic-state.js";
 import { widgetDescriptor } from "../records/widget-descriptors.js";
+import { setMembers } from "../records/projection/authored.js";
 import {
   announceDrawing,
   controllerOf,
@@ -124,16 +137,57 @@ import { tick } from "../state/version-signal.js";
 let regions = 0;
 // What `state` holds on an element that only reads data, once its inputs are set.
 const NO_VERBS = Object.freeze({});
-// A recorded property's value as the attribute its record names would read it
-// ("Recorded properties").
+/** @typedef {import("./widget-controller.js").WidgetReading} WidgetReading */
+/** The state of a recorded property ("Recorded properties"): a value record's text,
+ * or the ids of an attribute record's members.
+ * @typedef {string | string[]} Held */
+// A recorded property's value as the attribute its record names would read it.
 /** @param {unknown} value */
 const text = (value) => (value == null ? "" : String(value));
-// The text of the value `reading` gives a verb whose record is a value.
-/** @param {import("./widget-controller.js").WidgetReading | null} reading
- * @param {string} verb */
-const valueOf = (reading, verb) => {
-  const state = reading?.state[verb];
-  return text(state && "value" in state ? state.value : null);
+// Whether two states of a recorded property are one: the same text, or the same ids.
+/** @param {Held} one @param {Held} other */
+const same = (one, other) =>
+  Array.isArray(one) && Array.isArray(other)
+    ? one.length === other.length && one.every((id) => other.includes(id))
+    : one === other;
+// How the page's elements hold the state of a verb whose record names `property`:
+// what they hold now (`held`), what a reading gives the verb in the same form
+// (`stated`), and the set of such a state (`write`). A value record's is the
+// element's own property. An attribute record's is the ids of the members whose
+// property reads true, and its `write` sets only the members that read otherwise.
+/** @param {Element} element @param {string} verb @param {string} property
+ * @param {Extract<import("../../types/domain.js").StateRecord, {kind: "value" | "attribute"}>} record
+ * @returns {{held(): Held, stated(reading: WidgetReading | null): Held, write(state: Held): void}} */
+const holding = (element, verb, property, record) => {
+  /** @param {WidgetReading | null} reading */
+  const value = (reading) => {
+    const state = reading?.state[verb];
+    return state && "value" in state ? state.value : null;
+  };
+  if (record.kind === "value")
+    return {
+      held: () => text(Reflect.get(element, property)),
+      stated: (reading) => text(value(reading)),
+      write: (state) => void Reflect.set(element, property, state),
+    };
+  const members = () => setMembers(element, record);
+  return {
+    held: () =>
+      members()
+        .filter((member) => Reflect.get(member, property))
+        .map((member) => member.id),
+    stated: (reading) => {
+      const ids = value(reading);
+      return Array.isArray(ids) ? ids : [];
+    },
+    write(state) {
+      for (const member of members()) {
+        const within = state.includes(member.id);
+        if (Boolean(Reflect.get(member, property)) !== within)
+          Reflect.set(member, property, within);
+      }
+    },
+  };
 };
 // An arrival offers an element again whenever its children change (dom/arrivals.js).
 /** @type {WeakSet<Element>} */
@@ -173,11 +227,18 @@ function host(element) {
   // (reports.js) finds it.
   const controller = verbs.length ? controllerOf(element) : null;
   if (controller) hearRecords(element);
-  // The verbs whose value the element keeps in a property ("Recorded properties").
+  // The verbs whose state the page's elements keep in a property ("Recorded
+  // properties").
   const properties = Object.entries(descriptor?.declaration.verbs ?? {}).flatMap(
     ([verb, { record }]) =>
-      record?.kind === "value" && record.property
-        ? [{ verb, property: record.property, event: record.event ?? "change" }]
+      (record?.kind === "value" || record?.kind === "attribute") && record.property
+        ? [
+            {
+              verb,
+              event: record.event ?? "change",
+              ...holding(element, verb, record.property, record),
+            },
+          ]
         : [],
   );
   // A tag that declares verbs has a `state` only where the page captured the widget.
@@ -281,11 +342,10 @@ function host(element) {
       const heard = asks;
       untracked(() => {
         Object.assign(element, { state });
-        for (const { verb, property } of properties) {
-          const value = valueOf(reading, verb);
-          if (shown && valueOf(shown, verb) === value) continue;
-          if (text(Reflect.get(element, property)) !== value)
-            setProperty(property, value);
+        for (const { held, stated, write } of properties) {
+          const value = stated(reading);
+          if (shown && same(stated(shown), value)) continue;
+          if (!same(held(), value)) setProperty(write, value);
         }
       });
       shown = reading;
@@ -295,11 +355,11 @@ function host(element) {
   // is its answer to that set. The element may dispatch no `change` for the set, so
   // Leaf tells the property's readers (data.js) as the set returns.
   let setting = false;
-  /** @param {string} property @param {string} value */
-  const setProperty = (property, value) => {
+  /** @param {(state: Held) => void} write @param {Held} value */
+  const setProperty = (write, value) => {
     setting = true;
     try {
-      Reflect.set(element, property, value);
+      write(value);
     } finally {
       setting = false;
     }
@@ -308,16 +368,16 @@ function host(element) {
   // The user's change of a recorded property, recorded as its verb's action. The
   // event may come from a control inside the element, where the property's readers
   // (data.js) don't hear it, so Leaf tells them after recording the change.
-  for (const { verb, property, event } of properties)
+  for (const { verb, event, held, stated, write } of properties)
     element.addEventListener(event, () => {
       if (setting) return;
       const reading = controller?.read() ?? null;
-      const value = text(Reflect.get(element, property));
-      if (value !== valueOf(reading, verb)) {
+      const value = held();
+      if (!same(value, stated(reading))) {
         const sent =
           reading?.actions[verb] &&
           controller?.dispatch({ kind: "action", verb, detail: { value } });
-        if (!sent) setProperty(property, valueOf(reading, verb));
+        if (!sent) setProperty(write, stated(reading));
       }
       heldMoved(element);
     });

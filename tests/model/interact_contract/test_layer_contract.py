@@ -1234,7 +1234,7 @@ def test_the_kernel_event_contract_is_not_a_layer_extension(page_dir, tmp_path, 
     assert vocabulary_model.load_registry(page_dir)["$events"][key] == shipped
 
 
-@pytest.mark.parametrize("fact", ["$passages", "$names", "$marks"])
+@pytest.mark.parametrize("fact", ["$passages", "$names", "$marks", "$native-members"])
 def test_the_kernel_facts_are_not_a_layer_extension(page_dir, tmp_path, fact):
     """Python reads the running Leaf's kernel facts and the browser a copy generated
     from them, so a layer's change to one, even taking a member out, would reach

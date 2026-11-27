@@ -277,25 +277,41 @@ def test_value_records_use_the_string_type_html_attributes_carry(page_dir):
     assert found(findings, "record-type", "<lf-test-worker>", attr="state")
 
 
+_VALUE = {"kind": "value", "attr": "value"}
+_SET = {"kind": "attribute", "attr": "checked"}
+
+
 @pytest.mark.parametrize(
-    "binding",
-    [{"property": "value"}, {"property": "currentValue", "event": "sl-change"}],
+    ("record", "binding", "holds", "value"),
+    [
+        (_VALUE, {"property": "value"}, "Local", "next"),
+        (_VALUE, {"property": "currentValue", "event": "sl-change"}, "Local", "next"),
+        (_SET, {"property": "checked"}, '<input type="checkbox" id="one">', ["one"]),
+        (
+            _SET,
+            {"property": "on", "event": "sl-change"},
+            '<input type="checkbox" id="one">',
+            ["one"],
+        ),
+    ],
 )
-def test_a_value_record_may_name_the_property_and_event_the_element_holds_it_by(
-    page_dir, binding
+def test_a_record_may_name_the_property_and_event_the_page_holds_its_state_by(
+    page_dir, record, binding, holds, value
 ):
-    """The names bind the element in the browser alone: an action admitted under
-    them records the operation of the record without them, so naming another property
-    or event later keeps every decision made before."""
+    """A value record names the element's own property and an attribute record its
+    members'. The names bind the page's elements in the browser alone: an action
+    admitted under them records the operation of the record without them, so naming
+    another property or event later keeps every decision made before."""
     registry = vocabulary(page_dir)
     declaration = _stateful_page_declaration(page_dir)
+    declaration["verbs"]["first"]["record"] = dict(record)
     unbound = registry_contract.state_definition(
         "lf-local", declaration, declaration["verbs"]["first"]
     )
     declaration["verbs"]["first"]["record"].update(binding)
     with_modules(registry, "lf-local")["lf-local"] = declaration
     registry_validation.validate_registry(registry, "test registry")
-    page = ModelPage('<lf-local id="local">Local</lf-local>', registry=registry)
+    page = ModelPage(f'<lf-local id="local">{holds}</lf-local>', registry=registry)
     admitted = event_contracts_model.admitted_event(
         page,
         [],
@@ -305,11 +321,11 @@ def test_a_value_record_may_name_the_property_and_event_the_element_holds_it_by(
             "revision": 1,
             "widget": "local",
             "action": "first",
-            "detail": {"value": "next"},
+            "detail": {"value": value},
         },
     )
     assert admitted["meaning"]["state"] == unbound
-    assert unbound["record"] == {"kind": "value", "attr": "value"}
+    assert unbound["record"] == record
 
 
 @pytest.mark.parametrize(
@@ -317,15 +333,19 @@ def test_a_value_record_may_name_the_property_and_event_the_element_holds_it_by(
     [
         # An event with no property to read on it.
         {"kind": "value", "attr": "value", "event": "change"},
+        {"kind": "attribute", "attr": "checked", "event": "change"},
         # A property is a script's name for it, never an attribute's.
         {"kind": "value", "attr": "value", "property": "aria-valuenow"},
-        # Only a value record is one scalar an element's property can hold.
+        # Words and a place are no state a property of the element holds.
         {"kind": "body", "property": "value"},
+        {"kind": "position", "within": "lf-local", "property": "value"},
         # `state` is the widget's reading, which Leaf sets on the same element.
         {"kind": "value", "attr": "value", "property": "state"},
     ],
 )
-def test_only_a_value_record_names_a_property_and_an_event_needs_one(page_dir, record):
+def test_only_a_value_or_set_record_names_a_property_and_an_event_needs_one(
+    page_dir, record
+):
     registry = vocabulary(page_dir)
     declaration = _stateful_page_declaration(page_dir)
     declaration["verbs"]["first"]["record"] = record

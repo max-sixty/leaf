@@ -333,16 +333,11 @@ test("one widget selection publishes optimistic state without writable access", 
   const seen = [];
   const stop = selected.subscribe((reading) => seen.push(reading));
   assert.equal(selected.read().actions.decide.available, true);
-  assert.equal(selected.read().authored.decide.action, null);
   app.enqueue(action("first"), "now");
-  assert.equal(selected.read().authored.decide.action, null);
   assert.equal(outcomeOf(selected.read().state), "accept");
   assert.equal(seen.at(-1).actions.decide.inForce[0].event.attempt, "first");
   assert.throws(() => {
     selected.read().actions.decide.available = false;
-  }, TypeError);
-  assert.throws(() => {
-    selected.read().authored.decide.value = "corrupt";
   }, TypeError);
   const beforeUnrelated = seen.length;
   app.acceptData({ version: "unrelated", sources: { unrelated: { value: true } } }, 1);
@@ -416,14 +411,12 @@ test("widget undo candidates name only exact attempts currently in force", () =>
   assert.deepEqual(selected.read().actions.decide.undo, []);
 });
 
-test("widget action history excludes an action the view classifies nowhere", () => {
+test("a widget event the view classifies nowhere counts toward the applied stamp", () => {
   const app = setup();
   const terminal = { ...action("old"), id: "e-old", seq: 1 };
   const read = state(2);
   read.events = [terminal];
   app.adopt(read);
-  assert.deepEqual(app.selectWidget(descriptor).read().actions.decide.history, []);
-  // The log's widget events count toward the applied stamp all the same.
   assert.deepEqual(app.read().effective.coverage, [
     { event: terminal, coordinate: null },
   ]);
@@ -449,7 +442,7 @@ test("a publication that adds no widget event keeps the coverage records", () =>
   assert.equal(app.read().effective.coverage.length, 2);
 });
 
-test("the selected revision keeps carried action history from earlier revisions", () => {
+test("the selected revision keeps actions carried from earlier revisions in force", () => {
   const app = setup();
   const current = {
     ...descriptor,
@@ -471,7 +464,7 @@ test("the selected revision keeps carried action history from earlier revisions"
     app
       .selectWidget(current)
       .read()
-      .actions.decide.history.map(({ id }) => id),
+      .actions.decide.inForce.map(({ event }) => event.id),
     ["e-old"],
   );
 });

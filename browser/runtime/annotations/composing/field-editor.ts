@@ -552,12 +552,12 @@ export function readFaces(field: HTMLElement, display: HTMLElement) {
     // A table's rows (\`decorate\`): the head's lower padding is its delimiter row's line.
     `.lf-face-table .lf-md-cell { padding-block: ${td.face.padStart}px ${td.face.padEnd}px; padding-inline: ${td.inline} }`,
     `.lf-face-table .lf-md-cell:first-child { padding-inline-start: ${td.edges[0]} }`,
-    `.lf-face-table .lf-md-cell:last-child { padding-inline-end: ${td.edges[1]} }`,
+    `.lf-face-table .lf-md-cell-end { padding-inline-end: ${td.edges[1]} }`,
     `.lf-face-table.lf-md-table-row:not(.lf-md-table-head, .lf-md-table-rule) { ${td.face.type} }`,
     `.lf-face-table.lf-md-table-head { ${th.face.type} }`,
     `.lf-face-table.lf-md-table-head .lf-md-cell { padding-block: ${th.face.padStart}px 0; padding-inline: ${th.inline} }`,
     `.lf-face-table.lf-md-table-head .lf-md-cell:first-child { padding-inline-start: ${th.edges[0]} }`,
-    `.lf-face-table.lf-md-table-head .lf-md-cell:last-child { padding-inline-end: ${th.edges[1]} }`,
+    `.lf-face-table.lf-md-table-head .lf-md-cell-end { padding-inline-end: ${th.edges[1]} }`,
     `.lf-face-table.lf-md-table-rule { line-height: ${th.face.padEnd}px }`,
     `.lf-face-item { padding-block-start: ${collapsed(li.end, li.start)}px }`,
     `.lf-face-list-lead { padding-block-start: ${collapsed(0, li.start)}px }`,
@@ -809,16 +809,20 @@ function fieldEditor(
   });
   const pipeFaces = { open: pipeFace("open"), close: pipeFace("close") };
   // A table's cell, a grid item of its row (`decorate`), aligned as its column's
-  // delimiter says. It holds every character of its stretch of the row, and the hidden
-  // spaces at its ends, since anything outside every cell would stand in the grid as a
-  // cell of its own.
-  const cellFace = (align: string) =>
-    Decoration.mark({ class: `lf-md-cell lf-md-align-${align}`, inclusive: true });
+  // delimiter says, and marked where it stands in the table's last column, which keeps
+  // the table's edge room after it. It holds every character of its stretch of the
+  // row, and the hidden spaces at its ends, since anything outside every cell would
+  // stand in the grid as a cell of its own.
+  const cellFace = (align: string, end: boolean) =>
+    Decoration.mark({
+      class: `lf-md-cell lf-md-align-${align}${end ? " lf-md-cell-end" : ""}`,
+      inclusive: true,
+    });
   const cellFaces = {
-    start: cellFace("start"),
-    center: cellFace("center"),
-    right: cellFace("right"),
-  };
+    start: [cellFace("start", false), cellFace("start", true)],
+    center: [cellFace("center", false), cellFace("center", true)],
+    right: [cellFace("right", false), cellFace("right", true)],
+  } as const;
   // A column's alignment, as the renderer reads its delimiter: a left one is the
   // start's.
   const alignment = (align: string | undefined) =>
@@ -1202,7 +1206,7 @@ function fieldEditor(
         const surplus = spans[aligns.length];
         const face = shown ? "shown" : "hidden";
         if (!cells.length && row.from < row.to) {
-          runs.push(cellFaces.start.range(row.from, row.to));
+          runs.push(cellFaces.start[0].range(row.from, row.to));
           add(after(row.from, level), row.to, shown ? dim : unseen);
         }
         cells.forEach(([a, b], column) => {
@@ -1212,7 +1216,11 @@ function fieldEditor(
           const cellFrom = column === 0 ? row.from : (pipe ?? a);
           const cellTo = last ? row.to : (cells[column + 1]?.[0] ?? b + 1) - 1;
           if (cellFrom < cellTo)
-            runs.push(cellFaces[alignment(aligns[column])].range(cellFrom, cellTo));
+            runs.push(
+              cellFaces[alignment(aligns[column])][
+                column === aligns.length - 1 ? 1 : 0
+              ].range(cellFrom, cellTo),
+            );
           // White space the parser trims from the row's ends that the spaces the field
           // hides (`leads`) leave, such as a non-breaking space.
           if (column === 0) {

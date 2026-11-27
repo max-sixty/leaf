@@ -371,9 +371,12 @@ sheet.replaceSync(`
   .lf-md-cell { padding: 8px 14px; overflow-wrap: normal; word-break: normal;
     border-block-end: 1px solid var(--lf-rule); }
   .lf-md-cell:first-child { padding-inline-start: var(--lf-table-edge); }
-  .lf-md-cell:last-child { padding-inline-end: var(--lf-table-edge); }
-  .cm-line.lf-md-table-short { border-block-end: 1px solid var(--lf-rule); }
-  .lf-md-table-short .lf-md-cell { border-block-end: 0; }
+  .lf-md-cell-end { padding-inline-end: var(--lf-table-edge); }
+  /* A row short of cells carries its rule on across the columns it lacks, above the
+     room a last row keeps under it. */
+  .cm-line.lf-md-table-short {
+    background: linear-gradient(var(--lf-rule), var(--lf-rule)) 0 100% / 100% 1px
+      no-repeat content-box; }
   .lf-md-cell code { padding: 0; background: none; font-size: 0.9em;
     overflow-wrap: anywhere; }
   .lf-md-align-right { text-align: end; }

@@ -13,7 +13,7 @@
         <p>deck package</p>
         <h1>What's left before Friday's release</h1>
       </hgroup>
-      <p class="lede" id="deck-lede">
+      <p class="lf-lede" id="deck-lede">
         Each card is a different shape a deck holds. Work through the pass, then try
         each scenario listed below the deck.
       </p>
@@ -30,13 +30,13 @@
           </p>
           <lf-options id="deck-store-choice">
             <lf-option id="deck-store-redis" label="Keep Redis for 2.4" recommended>
-              <small class="tag">p99 41 ms</small>
-              <small class="tag">no migration</small>
+              <small class="lf-tag">p99 41 ms</small>
+              <small class="lf-tag">no migration</small>
               <strong>Keep Redis for 2.4</strong>
             </lf-option>
             <lf-option id="deck-store-pg" label="Move sessions to Postgres">
-              <small class="tag">p99 29 ms</small>
-              <small class="tag">migrate Thursday</small>
+              <small class="lf-tag">p99 29 ms</small>
+              <small class="lf-tag">migrate Thursday</small>
               <strong>Move sessions to Postgres</strong>
             </lf-option>
           </lf-options>
@@ -75,15 +75,15 @@
           </p>
           <lf-options id="deck-beta-choice" multiple>
             <lf-option id="deck-beta-mac" label="macOS" recommended>
-              <small class="tag">58% of users</small>
+              <small class="lf-tag">58% of users</small>
               <strong>macOS</strong>
             </lf-option>
             <lf-option id="deck-beta-linux" label="Linux" recommended>
-              <small class="tag">31% of users</small>
+              <small class="lf-tag">31% of users</small>
               <strong>Linux</strong>
             </lf-option>
             <lf-option id="deck-beta-win" label="Windows">
-              <small class="tag">11% of users</small>
+              <small class="lf-tag">11% of users</small>
               <strong>Windows</strong>
             </lf-option>
           </lf-options>
@@ -118,11 +118,11 @@ Thanks for your patience. 2.4 caches the lookups that slowed sign-in down; in ou
           </lf-draft>
           <lf-options id="deck-support-choice">
             <lf-option id="deck-support-hold" label="Keep the reply unsent">
-              <small class="tag">customer waits</small>
+              <small class="lf-tag">customer waits</small>
               <strong>Keep the reply unsent</strong>
             </lf-option>
             <lf-option id="deck-support-send" label="Send the reply" recommended>
-              <small class="tag">names Friday</small>
+              <small class="lf-tag">names Friday</small>
               <strong>Send the reply</strong>
             </lf-option>
           </lf-options>
@@ -142,7 +142,7 @@ Thanks for your patience. 2.4 caches the lookups that slowed sign-in down; in ou
           </p>
           <lf-options id="deck-publish-choice">
             <lf-option id="deck-publish-hold" label="Keep the notes as a draft">
-              <small class="tag">post by hand</small>
+              <small class="lf-tag">post by hand</small>
               <strong>Keep the notes as a draft</strong>
             </lf-option>
             <lf-option
@@ -150,7 +150,7 @@ Thanks for your patience. 2.4 caches the lookups that slowed sign-in down; in ou
               label="Post the notes when 2.4 is tagged"
               recommended
             >
-              <small class="tag">posts at the tag</small>
+              <small class="lf-tag">posts at the tag</small>
               <strong>Post the notes when 2.4 is tagged</strong>
             </lf-option>
           </lf-options>

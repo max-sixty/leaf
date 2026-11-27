@@ -12,7 +12,7 @@ from render_harness import (
     scroll_settled,
 )
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -465,11 +465,7 @@ def test_a_bounded_box_holds_its_place_while_its_layout_settles(browser, serve):
     )
     resized(page, 1200, 800)
     rendered(page)
-    page.evaluate("""async () => {
-      const {registerReadingRegion} = await window.__lfWidgetApi();
-      const body = document.getElementById('log');
-      registerReadingRegion({id: body.id, host: body, body});
-    }""")
+    page.locator("#log").evaluate("body => body.setAttribute('data-lf-scroll', 'log')")
     rendered(page)
     box = page.locator("#log").bounding_box()
     page.mouse.move(box["x"] + 40, box["y"] + 100)

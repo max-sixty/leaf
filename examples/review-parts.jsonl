@@ -1,0 +1,4 @@
+{"kind": "comment", "author": "user", "revision": 1, "text": "The failed badge sits a few pixels above Run #4812's line. Centre it on the title.", "anchor": {"section": "parts-run-page-shot"}, "id": "parts-badge-line", "ts": "2026-11-13T15:51:00-08:00"}
+{"kind":"thread_title","author":"agent","agent":"Claude","session":"review-parts-agent","thread":"parts-badge-line","title":"Failed badge alignment","id":"e4725fa5","ts":"2026-11-13T15:51:01-08:00"}
+{"kind": "reply", "author": "agent", "agent": "Claude", "parent": "parts-badge-line", "responds": "parts-badge-line", "revision": 1, "text": "Centred it in the title's row and re-captured this case at 16:05. The other captures didn't change.", "id": "parts-badge-line-reply", "ts": "2026-11-13T16:06:00-08:00"}
+{"kind": "resolve", "author": "user", "parent": "parts-badge-line", "id": "parts-badge-line-settled", "ts": "2026-11-13T16:09:00-08:00"}

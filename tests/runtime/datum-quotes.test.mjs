@@ -11,10 +11,10 @@ import "/runtime/stage-integration.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { anchorForRange, resolveAnchor } from "/runtime/anchor-resolution.js";
-import { findQuote, pageText, readingPart } from "/runtime/passages.js";
-import { registry } from "/runtime/registry.js";
-import { shadowStage } from "/runtime/shadow-stage.js";
+import { anchorForRange, resolveAnchor } from "/runtime/readings/anchor-resolution.js";
+import { findQuote, pageText, readingPart } from "/runtime/readings/passages.js";
+import { registry } from "/runtime/state/registry.js";
+import { shadowStage } from "/runtime/dom/shadow-stage.js";
 
 /** @param {string} lines the datum's rows, as markup */
 const page = (lines, prose = "<p>Words before the data</p>") => {
@@ -60,7 +60,11 @@ test("a line a datum holds twice is found at the copy the user selected", () => 
 test("a datum's quote is never found outside its datum", () => {
   Object.assign(registry, { $layer: { generation: "datum-quote-within" } });
   const datum = page("<p>Shared line</p>", "<p>Shared line</p>");
-  const resolved = resolveAnchor({ section: "w", datum: "doc", quote: "Shared line" });
+  const resolved = resolveAnchor({
+    section: "w",
+    datum: "doc",
+    quote: "Shared line",
+  });
   assert.equal(resolved?.kind, "passage");
   assert.equal(resolved.segments[0]?.node, datum.querySelector("p").firstChild);
 });
@@ -95,7 +99,11 @@ test("finding a datum's quote reads no words outside the datum", () => {
   const prose = Array.from({ length: 4096 }, (_, i) => `<p>Paragraph ${i}</p>`);
   const datum = page("<p>Alpha</p><p>Beta</p>", prose.join(""));
   const outside = readsOutside(datum, () => {
-    const resolved = resolveAnchor({ section: "w", datum: "doc", quote: "Beta" });
+    const resolved = resolveAnchor({
+      section: "w",
+      datum: "doc",
+      quote: "Beta",
+    });
     assert.equal(resolved?.kind, "passage");
   });
   assert.equal(outside, 0, `${outside} text nodes outside the datum read`);
@@ -131,6 +139,84 @@ test("a selection from the space before a datum into its line is captured on the
   assert.equal(anchor?.datum, "doc");
   assert.equal(anchor?.quote, "Alpha");
   assert.equal(resolveAnchor(anchor)?.exact, true);
+});
+
+// A widget's data drawn as lines, each a datum of its own, as a diff draws its lines.
+/** @param {string[]} lines */
+const linesPage = (lines) => {
+  document.body.innerHTML =
+    '<main><p>Words before the data</p><div id="w">' +
+    lines
+      .map(
+        (line, at) =>
+          `<div data-lf-projection="w" data-lf-datum="${at + 1}">${line}</div>`,
+      )
+      .join("") +
+    "</div><p>Words after the data</p></main>";
+  return lines.map(
+    (_, at) =>
+      /** @type {Text} */ (
+        document.querySelector(`[data-lf-datum="${at + 1}"]`)?.firstChild
+      ),
+  );
+};
+/** @param {Text} from @param {number} start @param {Text} to @param {number} end */
+const spanning = (from, start, to, end) => {
+  const range = document.createRange();
+  range.setStart(from, start);
+  range.setEnd(to, end);
+  return range;
+};
+/** @param {import("/runtime/readings/passages.js").Segment[] | undefined} segments */
+const words = (segments) =>
+  segments?.map(({ node, start, end }) => node.data.slice(start, end));
+
+// A sentence a diff wraps across two lines is one passage: the comment names the line it
+// starts on and the line it ends on, which the thread stands beside, and is found again
+// over the words between.
+test("a selection across two of a widget's data names both and is found again", () => {
+  Object.assign(registry, { $layer: { generation: "datum-run" } });
+  const [first, second] = linesPage([
+    "Text must reach a reader who has only",
+    "that text and the files it points to.",
+  ]);
+  const range = spanning(
+    first,
+    first.data.indexOf("reach"),
+    second,
+    "that text".length,
+  );
+  const anchor = anchorForRange(range);
+  assert.equal(anchor?.detached, undefined);
+  assert.equal(anchor?.datum, "2");
+  assert.equal(anchor?.from, "1");
+  assert.equal(anchor?.quote, "reach a reader who has only that text");
+  const resolved = resolveAnchor(anchor);
+  assert.equal(resolved?.kind, "passage");
+  assert.equal(resolved.exact, true);
+  assert.deepEqual(words(resolved.segments), [
+    "reach a reader who has only",
+    "that text",
+  ]);
+});
+
+// Words a line says once more after a copy of them that ends on the next line are told
+// apart by the words around each copy, read across both lines.
+test("a passage across data whose words repeat is found where it was selected", () => {
+  Object.assign(registry, { $layer: { generation: "datum-run-repeats" } });
+  const [first, second] = linesPage(["one two. one", "two. end"]);
+  const anchor = anchorForRange(spanning(first, 9, second, 4));
+  assert.equal(anchor?.detached, undefined);
+  assert.equal(anchor?.quote, "one two.");
+  const resolved = resolveAnchor(anchor);
+  assert.equal(resolved?.kind, "passage");
+  assert.deepEqual(
+    resolved.segments.map(({ node, start, end }) => [node, start, end]),
+    [
+      [first, 9, 12],
+      [second, 0, 4],
+    ],
+  );
 });
 
 // Words on both sides of a datum's edge name no one passage anything finds again.

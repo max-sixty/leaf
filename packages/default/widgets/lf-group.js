@@ -4,7 +4,7 @@
    own child. This module tells assistive technology it is a group and what its name
    is, as a <fieldset> would, and builds nothing among the authored children, so a
    revision edits inside them in place. */
-import { keeps } from "/runtime/widget-api.js";
+import { keeps } from "/runtime/lib/keeps.js";
 
 customElements.define(
   "lf-group",

@@ -1,16 +1,16 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { effect } from "/runtime/framework.js";
-import { adoptRegistry } from "/runtime/registry.js";
+import { effect } from "/vendor/signals-core.js";
+import { adoptRegistry } from "/runtime/state/registry.js";
 import {
   claimed,
   placePageThreads,
   renderSurfaces,
   watchThreadSurfaces,
-} from "/runtime/thread/surfaces.js";
-import { readThreadRecords } from "/runtime/thread/model.js";
-import { threadSurface } from "/runtime/thread/surface-handles.js";
+} from "/runtime/records/thread/surfaces.js";
+import { readThreadRecords } from "/runtime/state/thread/model.js";
+import { threadSurface } from "/runtime/records/thread/surface-handles.js";
 import { servedThread } from "../served.mjs";
 
 // Every card draws its reply box; this stands in for the box's input wiring, which
@@ -22,6 +22,52 @@ const wireInput = () =>
     load() {},
     cancelDictation() {},
   });
+
+// A thread of one comment about the element `section` names, as the publisher reads it.
+const threadAbout = (id, section) =>
+  readThreadRecords(
+    [
+      servedThread(
+        [
+          {
+            id,
+            kind: "comment",
+            author: "user",
+            text: "Seat me",
+            seq: 1,
+            ts: "2026-03-01T12:00:00Z",
+          },
+        ],
+        { anchor: { section } },
+      ),
+    ],
+    { registry: {}, descriptors: new Map(), messageBodies: new Map() },
+    new Map(),
+    [],
+  )[0];
+
+// What a surface asks of the page: a composer standing in no outlet, but for what
+// `composition` says of it.
+const surfaceCommands = (composition = {}) => ({
+  composition: {
+    active: () => null,
+    outlet: () => null,
+    node: () => null,
+    seat: () => false,
+    restore() {},
+    ...composition,
+  },
+  read: {
+    observeMessage: () => () => {},
+    observeFeedback: () => () => {},
+    observeSummary: () => () => {},
+  },
+  reply: { wireInput },
+  reaction: {},
+  placedAt: () => null,
+  invalidate() {},
+  reveal() {},
+});
 
 test("a surface widget whose constructor threw is not waited for", async () => {
   // A failed upgrade leaves the element undefined while its definition stands, so a
@@ -63,25 +109,74 @@ test("a surface widget whose constructor threw is not waited for", async () => {
   }
 });
 
+test("a surface releases the composer from its own outlet under the node named", async () => {
+  // A widget releases a node before removing it, so the page's one composer leaves
+  // while it is still in the document. The handle answers for the outlets its own
+  // surface seated: the composer standing elsewhere, or under a node the widget is
+  // not removing, stays where it is.
+  const thread = threadAbout("released", "release-target");
+  const owner = document.createElement("section");
+  const target = document.createElement("p");
+  target.id = "release-target";
+  const row = document.createElement("div");
+  const outlet = document.createElement("div");
+  const sibling = document.createElement("div");
+  row.append(outlet);
+  owner.append(row, sibling);
+  const stranger = document.createElement("section");
+  document.body.append(target, owner, stranger);
+  /** @type {Element | null} */
+  let seated = null;
+  let restores = 0;
+  const commands = surfaceCommands({
+    outlet: () => seated,
+    restore: () => void restores++,
+  });
+  const handle = threadSurface(owner);
+  handle.release(owner);
+  assert.equal(restores, 0, "a widget with no surface has nothing to release");
+  const surface = placePageThreads(owner, (batch) => batch.map(() => outlet), commands);
+  try {
+    const seating = renderSurfaces(
+      { phase: "ready", threads: [thread] },
+      {
+        placedAt: (id) =>
+          id === thread.id ? { status: "exact", place: target } : null,
+        pendingAt: () => null,
+      },
+      commands,
+    );
+    await seating.completion;
+    seating.commit();
+    seated = outlet;
+    restores = 0;
+    handle.release(sibling);
+    assert.equal(restores, 0, "the composer stands outside the node");
+    threadSurface(stranger).release(document.body);
+    assert.equal(
+      restores,
+      0,
+      "another element's handle answers for no outlet of this one",
+    );
+    handle.release(row);
+    assert.equal(restores, 1, "the composer leaves the outlet under the node");
+    seated = stranger;
+    handle.release(document.body);
+    assert.equal(restores, 1, "the composer stands in no outlet of this surface");
+  } finally {
+    surface.unregister();
+    owner.remove();
+    target.remove();
+    stranger.remove();
+  }
+});
+
 test("a paint follows a surface's opener lifetime and the threads its seat claims", async () => {
-  // The margin lists a thread no seat draws (annotation-inventory.js), so its paint
+  // The margin lists a thread no seat draws (features/annotation-inventory.js), so its paint
   // reads `claimed`. Nothing else tells it a commit seated or released a thread: the
   // thread pass paints no region but its own, and the margin's presenter repaints
   // when a reading its paint followed moves.
-  const root = {
-    id: "seated",
-    kind: "comment",
-    author: "user",
-    text: "Seat me",
-    seq: 1,
-    ts: "2026-03-01T12:00:00Z",
-  };
-  const [thread] = readThreadRecords(
-    [servedThread([root], { anchor: { section: "target" } })],
-    { registry: {}, descriptors: new Map(), messageBodies: new Map() },
-    new Map(),
-    [],
-  );
+  const thread = threadAbout("seated", "target");
   const owner = document.createElement("section");
   owner.id = "rail";
   const target = document.createElement("p");
@@ -89,22 +184,7 @@ test("a paint follows a surface's opener lifetime and the threads its seat claim
   const outlet = document.createElement("div");
   owner.append(outlet);
   document.body.append(target, owner);
-  const composition = {
-    active: () => null,
-    outlet: () => null,
-    node: () => null,
-    seat: () => false,
-    restore() {},
-  };
-  const read = { observeMessage: () => () => {}, observeFeedback: () => () => {} };
-  const commands = {
-    composition,
-    read,
-    reply: { wireInput },
-    reaction: {},
-    invalidate() {},
-    reveal() {},
-  };
+  const commands = surfaceCommands();
   const portable = threadSurface(owner);
   const openers = [];
   const stopOpeners = effect(() => openers.push(portable.open));
@@ -131,7 +211,7 @@ test("a paint follows a surface's opener lifetime and the threads its seat claim
     );
     await seating.completion;
     assert.deepEqual(readings, [false], "preparation claims nothing");
-    // The thread pass commits inside its own paint (thread/presentation.js), so a
+    // The thread pass commits inside its own paint (records/thread/presentation.js), so a
     // commit that followed what it moves would have the pass claim a second one.
     let passes = 0;
     effect(() => {

@@ -12,7 +12,7 @@ from render_harness import (
     scroll_settled,
 )
 
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.source.render_checks import rendered, wait_until_ready
 
 
 def test_a_side_list_workspace_scrolls_its_list_and_its_item_apart(browser, serve):
@@ -115,8 +115,8 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
     """A tab switch is not fragment travel. The strip stays where it is on screen: a view
     never read opens at its start when the strip is stuck and leaves the shared header
     alone when it is not, and a view read past its start reopens where the user left it.
-    Pointer, keyboard, and Back/Forward agree, and a fresh load of the remembered view
-    shows the page's top.
+    Pointer and keyboard agree. Back and Forward open their entry's view where the user
+    was on that entry, and a fresh load of the remembered view shows the page's top.
 
     A view's place is where the user was reading in it, not a pixel offset: a window
     resized while the view is hidden rewraps everything above that passage, and the view
@@ -253,8 +253,9 @@ def test_parts_switch_without_moving_the_list_and_follow_history(browser, serve)
     """A switch between a page's parts is not fragment travel. The list stays where it is
     on screen under the page's title: a part never read opens at its start, at the top
     of the page level with the title, and a part read past its start reopens where the
-    user left it. Pointer, keyboard, and Back/Forward agree, and a fresh load of the
-    remembered part shows the page's top.
+    user left it. Pointer and keyboard agree. Back and Forward open their entry's part
+    where the user was on that entry, and a fresh load of the remembered part shows the
+    page's top.
 
     A part's place is where the user was reading in it, not a pixel offset: a window
     resized while the part is hidden rewraps everything above that passage, and the part
@@ -321,9 +322,8 @@ def test_parts_switch_without_moving_the_list_and_follow_history(browser, serve)
     plan_start = switch(plan)
     assert plan_start == 0
     at_start("#plan-part")
-    # Summary fits under the title, so it opens with the title and nothing to scroll.
+    # Summary fits under the title, so it opens with the title.
     assert switch(summary) == 0
-    assert page.evaluate("document.scrollingElement.scrollHeight - innerHeight") <= 0
     # Evidence reopens where the user left it, and pressing the open tab moves nothing.
     assert switch(evidence) == pytest.approx(evidence_read, abs=2)
     assert switch(evidence) == pytest.approx(evidence_read, abs=2)
@@ -579,3 +579,85 @@ def test_wide_evidence_in_a_part_takes_the_room_it_would_on_a_page_of_its_own(
     boxed("phone", phone)
     assert root_overflow(page) == 0
     twin(phone, "phone")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_side_list_longer_than_the_window_keeps_its_tab_and_open_item_in_view(
+    request, serve, engine
+):
+    """A side list longer than the window sticks beside the item it opens and scrolls on
+    its own. Each arrow opens the next tab and keeps focus on it in the window, down
+    and, coming round, back up through the list, while the item it opens starts in the
+    window. Running with the page, the walk scrolled each item's start away, and a tab
+    left past the window's foot, or read away from, was out of sight, so the next arrow
+    let go of it (panel/page-keys/controller.js), focus fell to the page and no tab opened.
+    The row the walk heads for shows beside the open tab, so the list doesn't look as
+    though it starts or ends there. Read down an item, the list stays beside it, and the
+    next arrow opens the next item at its start. A list shorter than the window stays
+    beside its item until the item ends. The stuck list reaches the window's foot, so
+    its last rows stand under the floating panel's row, and the arrow onto the first of
+    them folds the panel to the leaf, where focus would otherwise be out of sight."""
+
+    def items(key, count):
+        return "".join(
+            f'<lf-tab id="{key}-{i}" label="{key.title()} {i}">'
+            + "".join(f"<p>{key} {i} reads on, paragraph {n}.</p>" for n in range(30))
+            + "</lf-tab>"
+            for i in range(count)
+        )
+
+    source = leaf_page(
+        "Long queue",
+        f'<h1 id="title">Queue</h1><lf-tabs id="queue" list="side">{items("item", 30)}'
+        f'</lf-tabs><lf-tabs id="brief" list="side">{items("brief", 4)}</lf-tabs>'
+        + "".join(f"<p>What follows, paragraph {n}.</p>" for n in range(20)),
+    )
+    page = open_page(request.getfixturevalue(engine), serve(source))
+    resized(page, 1200, 500)
+    tabs = page.locator("#queue").get_by_role("tab")
+    item_starts_in_view = """id => {
+      const top = document.getElementById(id).getBoundingClientRect().top;
+      return top >= 0 && top < innerHeight / 2;
+    }"""
+    expect(tabs.last).not_to_be_in_viewport()
+    tabs.first.click()
+    expect(tabs.first).to_be_focused()
+    # Down every tab and round to the first, then up round to the last and on up
+    # through the middle of the list; the panel folds off the list's last rows.
+    panel = page.locator(".lf-floating-panel")
+    expect(panel).to_have_attribute("data-lf-rest", "row")
+    for key, landing in [("ArrowDown", i % 30) for i in range(1, 31)] + [
+        ("ArrowUp", i) for i in [29, *range(28, 9, -1)]
+    ]:
+        page.keyboard.press(key)
+        tab = tabs.nth(landing)
+        expect(tab).to_be_focused()
+        expect(tab).to_have_attribute("aria-selected", "true")
+        expect(tab).to_be_in_viewport(ratio=0.99)
+        ahead = landing + 1 if key == "ArrowDown" else landing - 1
+        if 0 <= ahead < 30:
+            expect(tabs.nth(ahead)).to_be_in_viewport(ratio=0.99)
+        page.wait_for_function(item_starts_in_view, arg=f"item-{landing}")
+    expect(panel).to_have_attribute("data-lf-rest", "mark")
+    # Read down the open item, then walk on from the list.
+    item = page.locator("#item-10").bounding_box()
+    assert item is not None
+    page.mouse.move(item["x"] + item["width"] / 2, 300)
+    page.mouse.wheel(0, 400)
+    scroll_settled(page)
+    expect(page.locator("#item-10")).not_to_be_in_viewport(ratio=0.9)
+    expect(tabs.nth(10)).to_be_in_viewport(ratio=0.99)
+    page.keyboard.press("ArrowDown")
+    expect(tabs.nth(11)).to_be_focused()
+    expect(tabs.nth(11)).to_have_attribute("aria-selected", "true")
+    page.wait_for_function(item_starts_in_view, arg="item-11")
+    # Read the short list's item to near its end: the list still stands beside it.
+    page.evaluate("""() => {
+      const item = document.getElementById('brief-0');
+      scrollTo({top: scrollY + item.getBoundingClientRect().bottom - 200,
+        behavior: 'instant'});
+    }""")
+    scroll_settled(page)
+    expect(page.locator("#brief").get_by_role("tab").first).to_be_in_viewport(
+        ratio=0.99
+    )

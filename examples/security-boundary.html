@@ -22,7 +22,7 @@
         <p>implemented security case study · 7 September 2026</p>
         <h1>Make the agent workspace disposable</h1>
       </hgroup>
-      <p class="lede" id="security-decision">
+      <p class="lf-lede" id="security-decision">
         Tend keeps GitHub Actions’ workspace runner-owned and gives the agent a
         disposable checkout under <code>/tmp</code>. Setup and the complete Claude or
         Codex turn share one sandbox lifetime. The invariant is:
@@ -34,7 +34,7 @@
         process boundary.
       </p>
 
-      <aside class="callout" id="security-outcome">
+      <aside class="lf-callout" id="security-outcome">
         <strong>Outcome · implemented</strong>
         <p>
           <a href="https://github.com/max-sixty/tend/pull/1173">Pull request #1173</a>
@@ -57,7 +57,7 @@
           one known consumer while Git, PATH entries, language startup files, action
           manifests, and setup-generated shims remained open paths into runner work.
         </p>
-        <lf-diagram id="security-before-flow" data-height="449" parts="all">
+        <lf-diagram id="security-before-flow" data-height="449">
           <pre>
 flowchart TD
   accTitle: Shared checkout crosses the sandbox boundary
@@ -69,7 +69,7 @@ flowchart TD
   class A1,R2,P1 danger
 </pre>
         </lf-diagram>
-        <aside class="callout" id="security-counterexample">
+        <aside class="lf-callout" id="security-counterexample">
           A setup action that added <code>$GITHUB_WORKSPACE/.venv/bin</code> to PATH was
           enough to show the gap. The sandbox behaved as configured when it let the
           agent replace <code>.venv/bin/git</code>; a later runner step could then
@@ -191,7 +191,7 @@ flowchart TD
             remains untrusted data for a future agent. Any other host service or Unix
             socket is a new B3 gateway; none is admitted initially.
           </p>
-          <aside class="callout" id="security-trust-assumptions">
+          <aside class="lf-callout" id="security-trust-assumptions">
             The trusted computing base is GitHub’s ephemeral runner VM, the runner
             process, Tend’s pinned launcher/policy/collector, and SRT. The separate
             sandbox UID remains: SRT constrains filesystem, network, and descendants;
@@ -204,7 +204,7 @@ flowchart TD
 
         <section id="security-states">
           <h2 id="security-states-heading">Sandbox execution and cleanup</h2>
-          <lf-diagram id="security-proposed-states" parts="all" data-height="1188">
+          <lf-diagram id="security-proposed-states" data-height="1188">
             <pre>
 stateDiagram-v2
   accTitle: Sandbox execution and cleanup states
@@ -461,7 +461,7 @@ stateDiagram-v2
             selected outer boundary makes Codex’s internal Linux enforcement details
             irrelevant.
           </p>
-          <aside class="callout" id="security-srt-contract-gaps">
+          <aside class="lf-callout" id="security-srt-contract-gaps">
             Tend has to tighten SRT’s defaults itself. SRT’s current Linux dependency
             check reports a missing seccomp helper only as a warning and then runs with
             Unix sockets unrestricted. Tend must promote every warning to a launch
@@ -571,7 +571,7 @@ stateDiagram-v2
               copies and multi-user Nix dependency.
             </li>
           </ol>
-          <aside class="callout" id="security-cutover-rule">
+          <aside class="lf-callout" id="security-cutover-rule">
             No compatibility mode. Reject explicit <code>sandbox_path</code> or
             <code>sandbox_env</code> references into forbidden roots with a direct
             message. Arbitrary setup scripts can contain implicit dependencies that

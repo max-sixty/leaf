@@ -1,5 +1,5 @@
 /* A leaf.page document reloads on the first answer from another release
-   (`admitResponse`, layer-client.js), whatever layer that answer names: only the edge
+   (`admitResponse`, transport/layer-client.js), whatever layer that answer names: only the edge
    names a release, so the edge has moved on and has a newer document to give. A
    revision asset the browser cached under the previous release is no such answer. */
 import assert from "node:assert/strict";
@@ -30,7 +30,7 @@ window.BroadcastChannel = class extends window.BroadcastChannel {
 };
 // The previous release's assets are gone once the edge has moved on.
 globalThis.fetch = async () => new Response("gone", { status: 404 });
-const { admitResponse } = await import("/runtime/layer-client.js");
+const { admitResponse } = await import("/runtime/transport/layer-client.js");
 
 // The registry's path is named by its bytes, so after a deploy that leaves them alone
 // the browser answers it from its cache, with the headers the previous release sent.
@@ -45,7 +45,7 @@ test("a cached registry from the previous release doesn't reload the page", asyn
         headers: { "Leaf-Release": "release-0", "Leaf-Layer": "layer-1" },
       }),
   );
-  const { prepareDocument } = await import("/runtime/widget-loader.js");
+  const { prepareDocument } = await import("/runtime/records/widget-loader.js");
   // A document with no authored root stops preparation just past the registry.
   await assert.rejects(prepareDocument({ source: null }), /no authored root/);
   assert.equal(reload.mock.callCount(), 0);

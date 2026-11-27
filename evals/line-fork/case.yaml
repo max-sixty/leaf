@@ -1,11 +1,10 @@
-# The fork that writes the agent's working line on a held thread message and judges
-# whether a fork of the session could take the work (`src/leaf/forks.py`), replayed
-# on a short conversation written for each judgment its prompt asks about. Run every
-# case with `uv run leaf-dev eval run 'line-fork*' --harness claude-code`; inputs,
-# labels and rubrics are in workflows/fork_eval.yaml.
+# The fork that writes the agent's working line on a thread message
+# (`src/leaf/agents/forks.py`), replayed on a short conversation written for each kind of
+# message a session gets. Run every case with `uv run leaf-dev eval run 'line-fork*'
+# --harness claude-code`; inputs and rubrics are in workflows/fork_eval.yaml.
 description: Line fork
 metadata:
-  purpose: A question about why the session's finding holds is work a fork could take.
+  purpose: A question about why the session's finding holds gets a line saying what the agent will check.
   tags: [workflow, forks, threads]
   harnesses: [claude-code]
   conditions: [leaf]
@@ -15,47 +14,39 @@ variants:
   meaning:
     metadata:
       scenario: meaning
-      purpose: A question about what something means is work a fork could take, by reading.
+      purpose: A question about what something means, answered by reading.
   work-request:
     metadata:
       scenario: work-request
-      purpose: A change to the page, however small, belongs with the session.
+      purpose: A change to the page, however small.
   user-decides:
     metadata:
       scenario: user-decides
-      purpose: The user's answer to the session's question belongs with the session, which records it.
+      purpose: The user's answer to the session's question, which the session records.
   still-running:
     metadata:
       scenario: still-running
-      purpose: A question whose answer is a running command's result belongs with the session.
+      purpose: A question whose answer is a running command's result.
   work-out:
     metadata:
       scenario: work-out
-      purpose: A question the session never looked at is work a fork could work out beside it.
+      purpose: A question the session never looked at.
   still-deciding:
     metadata:
       scenario: still-deciding
-      purpose: A question whose answer would settle what the session is still deciding belongs with the session.
+      purpose: A question whose answer would settle what the session is still deciding.
   steer-plan:
     metadata:
       scenario: steer-plan
-      purpose: A message that changes how the session will do the work it said it does next belongs with the session.
+      purpose: A message that changes how the session will do the work it said it does next.
   steer-running:
     metadata:
       scenario: steer-running
-      purpose: A message that changes a command the session is running belongs with the session.
-  # From the claude-code journey's `fork-lookup` step (`leaf-dev journey run
-  # claude-code`), which asks just after the session has added a card to the page's
-  # source and ended its turn. A lookup in the page's source once the session's edit
-  # is done is work a fork could take. The same lookup once the session has started
-  # on a change to that file, even before its first edit, belongs with the session.
-  # A miss answers `hand_over`, with a line such as "counting the cards in this
-  # page's source file".
+      purpose: A message that changes a command the session is running.
+  # The claude-code journey's `fork-busy` question (`leaf-dev journey run
+  # claude-code`), asked just after the session has added a card to the page's
+  # source and ended its turn.
   source-edited:
     metadata:
       scenario: source-edited
-      purpose: A count to look up in the page's source, which the session has finished changing, is work a fork could take.
-  source-editing:
-    metadata:
-      scenario: source-editing
-      purpose: The same count once the session has started changing that file, before its first edit, belongs with the session.
+      purpose: A count to look up in the page's source.

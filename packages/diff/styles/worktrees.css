@@ -84,7 +84,8 @@ lf-worktree-diffs > lf-worktree + lf-worktree {
 
 .lf-worktree-disclosure[open] > .lf-worktree-summary {
   border-block-end: 1px solid var(--lf-rule);
-  border-radius: 0;
+  border-end-start-radius: 0;
+  border-end-end-radius: 0;
 }
 
 .lf-worktree-summary {
@@ -96,8 +97,14 @@ lf-worktree-diffs > lf-worktree + lf-worktree {
   align-items: center;
   min-block-size: max(4rem, var(--lf-aim-floor));
   padding: var(--lf-sp-2) var(--lf-sp-3);
-  border-radius: var(--lf-r);
+  /* The summary runs to the worktree's edges, and closed it is all the worktree
+     shows, so it takes the worktree's rounding inside its hairline, and open it is
+     square where the evidence follows it (above). It stands its ring, and every mark
+     on it, inside its edge (base.css, "Where it stands"), as a row padded inside a
+     frame it fills does. */
+  border-radius: var(--lf-r-in);
   font-weight: 400;
+  --lf-ring-at: var(--lf-focus-ring-inset);
 }
 
 .lf-worktree-summary::before {
@@ -223,7 +230,7 @@ lf-worktree > details > summary {
   font-weight: 500;
 }
 
-/* The snapshot's facts (the reading theme's `dl.facts`) keep their values in ink inside the
+/* The snapshot's facts (`dl.lf-facts`) keep their values in ink inside the
    muted disclosure. */
 lf-worktree dd {
   color: var(--lf-ink);

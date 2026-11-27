@@ -18,14 +18,15 @@ commit message; hold its claims to the standard the diff is held to.
 
 ## Review threshold
 
-Apply `AGENTS.md`'s **Weigh what a change adds**, **Stage** and **Fix the underlying
-issue** to the verdict; most of Tend's own pull requests land on this review alone.
+Apply `AGENTS.md`'s **Weigh what a change adds**, **Stage**, **The maintainer
+decides** and **Fix the underlying issue** to the verdict; most of Tend's own pull
+requests land on this review alone.
 Once a change moves Leaf toward a coherent architecture, its claimed path works and
 what it adds is worth keeping, the review is done. Reserve findings for architectural
-seams, cross-runtime invariants, public surface traps (root `AGENTS.md`, "Where
-instructions live", names those in prose), regressions anywhere the change reaches,
-additions that cost more than they buy, or a central claim or test that is false or
-that nothing has shown.
+seams, cross-runtime invariants, a public interface that misleads its user, the text
+defects root `AGENTS.md`, "Where instructions live", lists, regressions anywhere the
+change reaches, additions that cost more than they buy, or a central claim or test
+that is false or that nothing has shown.
 Omit bounded edge cases, exhaustive same-pattern cleanup, minor simplification, and
 prose or test polish unless they expose one of those problems. Those findings ask a
 change to cover more or read better; a finding that it adds more than it buys is
@@ -34,11 +35,7 @@ none of them.
 The verdict rests on that weighing. Weigh the change before searching it for
 defects, and revisit the weighing when a defect shows a cost it missed: on Tend's own
 pull request a defect found in an addition gets fixed and the addition lands, so for
-an addition the weighing rejects, the rejection is the finding, not its defect. State
-in the session what the change adds that later changes must hold, what that buys, who
-pays its cost and who gains beyond the claimed case, and the cheapest other change
-you can name that buys the same. Where that change keeps what this one must and costs
-materially less, it is the finding: withhold approval and name it.
+an addition the weighing rejects, the rejection is the finding, not its defect.
 
 A diff that settles its symptom without reaching the underlying issue is an
 architectural seam: name the issue, and withhold approval unless the change meets the
@@ -113,16 +110,19 @@ Read back the published body and open its image URLs to verify the evidence.
 When a change turns a test red, merged or still in a pull request, choose the repair
 as `tests/AGENTS.md`, **Failing tests**, says.
 
+The change's intent, read as **Failing tests** says, settles each case it covers. A
+repair that keeps that intent leaves nothing uncertain and needs no issue; ask the
+author only about a case the intent leaves open.
+
 A repair that gives up any of the change's intent, or was chosen where the evidence
 left the choice uncertain, needs an issue so the change can return deliberately.
 Address it to the change's author; when a bot wrote it, to the person who requested
 or merged it, or to the repository's maintainer where no person did. Link the
 originating and repair pull requests, and say what the change intended, what
-conflicted, what the repair gave up and what remains uncertain. Mark the issue as
-awaiting that person's judgment and leave it open until they settle it; later Tend
-runs must not decide on their behalf. The repair's description names each behavior it
-moved. Proceed under **Fixing a CI failure's cause** without waiting for that
-judgment.
+conflicted, what the repair gave up and what remains uncertain. Assign the issue to
+that person and leave it open until they settle it; later Tend runs must not decide
+on their behalf. The repair's description names each behavior it moved. Proceed
+under **Fixing a CI failure's cause** without waiting for that judgment.
 
 Before choosing a fix, read the failing test's record in main's earlier runs: each
 `ci` run uploads its junit results (`gh run download <run> -p 'pytest-results-*'`),
@@ -152,20 +152,30 @@ failed in, with its commit, since that brackets the change that broke it; a
 `journeys` test, like the whole `test-macos` job, runs only nightly, so the pull
 request that broke it usually passed its own CI. Before fixing, check current main:
 the complete suite takes hours, and later changes may have removed the cause. A passing rerun
-alone does not clear a failure that comes and goes.
+alone doesn't show that a failure that comes and goes is fixed.
 
 Establish the conflict before applying **Reading a red suite**'s revert-and-decision
 route. An unresolved diagnosis, or a verification environment you can reach another
-way, remains engineering work, owned by the cause's session through
-`/tend-ci-runner:triage`'s **A cause issue** route.
+way, remains engineering work while the session has a step left to take, owned by the
+cause's session through `/tend-ci-runner:triage`'s **A cause issue** route.
 For a local website gate the sandbox cannot run, `worker/README.md`, **Local
 development**, gives its non-deploying CI route.
 
 A cause waits on the maintainer when its next step is one only they can take, such
-as a decision. Assign it to the maintainer while it waits (`notes/TODO.md`, "Backlog",
-names them), say in it what you found and what their answer should settle, and
-unassign them once they act. A cause that asks them something without
-assigning them is missing from their list of assigned issues.
+as a decision. Say in it what you found and what their answer should settle, and
+assign them (**Issues waiting on a person**).
+
+A failure waits on a recurrence when its next occurrence is the only way left to
+advance its diagnosis, repair or verification. Before concluding that, run copies on
+its runner under the load it failed on, and force each ordering it could depend on
+(`tests/AGENTS.md`, **Races**); where its evidence is too thin to diagnose, merge what
+would capture it first. The maintainer counts such a failure as handled, and an open
+issue for it tells the maintainer and the next session that work remains when none
+does. Close its cause issue, or record the failure in the report's diagnosis
+without filing one, saying what you tried and what its next failure should show; this
+holds over **Retain engineering ownership** in `/tend-ci-runner:fix-a-bug`. The next
+failed run brings it back to triage. An issue that tracks several tests closes once
+each is fixed, owned elsewhere or waiting on a recurrence.
 
 For each durable failure, look for the pull request that introduced it, first
 among those merged since the last run where the failing check passed and then
@@ -247,6 +257,25 @@ An issue labelled `backlog` is an item on the maintainer's prioritised backlog
 (`notes/TODO.md` says how it is kept), not a report awaiting triage. When one reaches
 you, whether through triage or an unread notification, take no action, post
 nothing, and acknowledge the notification.
+
+## Issues waiting on a person
+
+A person learns what waits on them from their list of assigned issues, as
+`notes/TODO.md`, "Backlog", says of the maintainer. So whenever a run stops work on
+an issue because its next step is one only a person can take, such as a decision, a
+review or a go-ahead, it assigns them in the same run, whichever workflow brought it
+to the issue; a later run unassigns them once they act. A comment that asks a person
+something without assigning them is missing from their list.
+
+## Nightly: issues waiting on a person
+
+A pull request that answers an issue Tend assigned to a person sends Tend no event.
+So each nightly run reads every open issue Tend assigned to a person against main.
+Close each issue that a merged change has settled, with a comment naming the change:
+a change the person wrote or merged answered its question, or any change removed its
+cause. This authorizes the closing that `/tend-ci-runner:nightly`'s **Resolved
+issues** leaves to the repository's instructions, cause issues included. Leave
+`backlog` issues alone (**Leave backlog issues to the maintainer**).
 
 ## Nightly: model and harness releases
 
@@ -383,7 +412,7 @@ commit and result in its header, as earlier re-freezes did. Open one pull reques
 the week's cases, naming any whose result fell: the shipped handling regressed there,
 or the case's criterion needs revisiting.
 
-## Weekly: vendored browser dependencies
+## Weekly: dependencies
 
 Dependency automation rebuilds committed browser bundles on Dependabot's PR.
 Read each `*.LICENSES.txt` diff: a package listed at two versions means the bump
@@ -391,3 +420,12 @@ split a closure (Shiki's packages pin each other exactly);
 `pnpm update <package> --no-save` moves a locked dependency within its dependant's
 range. Drop a Lit bump the Web Awesome build refuses. Bump `esbuild` by hand when a
 bundle needs it, and rebuild everything.
+
+Dependabot reports a failed update job only in the run list, so check each
+ecosystem's job each week: `gh run list --event dynamic` names them
+`<ecosystem> in /. - Update`, one each for `npm_and_yarn`, `uv` and
+`github_actions`. When an ecosystem's newest job failed, fix the cause its log
+names. When one ran none in the past week, start a run by merging a pull request
+that edits `.github/dependabot.yml`: any change to that file starts every
+ecosystem's update run. If that starts none either, assign the maintainer, since
+only an admin can see whether Dependabot is paused.

@@ -3,7 +3,8 @@ both. A playground can have just one choice: the candidate to build. Write each
 candidate in the preview with its own radio, so the user selects the actual example
 rather than a second selector elsewhere. `lf-options` remains useful for a fixed choice
 that needs no playground controls or composed preview. To critique a document or
-source, use Leaf's comments, suggestions, `lf-diff` or `lf-visual-review` instead.
+source, use Leaf's comments, suggestions or `lf-diff` instead, and for a visible
+change, before-and-after captures with a question beside each.
 
 Put the playground in the `lf-group` whose label asks its question, with any context that
 lives outside it (`references/authoring-on-me.md`, "On the page"). Keep
@@ -110,11 +111,13 @@ such as hovering a card to show the raised style under review, can be wired on a
 
 The controls are an ordinary form. Each `input`, `select` or `textarea` with a `name`
 in the playground is one field of the configuration, and radios that share a name are
-one field. A range or number input submits a number, a checkbox true or false, and any
-other field its value as a string; a radio group with none checked submits null. Field
+one field. A range or number input submits a number, a checkbox true or false, a
+`<select multiple>` the list of its selected options' values, and any other field its
+value as a string; a radio group with none checked submits null. Field
 names use lowercase letters, digits and hyphens. A control without a `name`, or one
-that belongs to a `<form>` of its own, is no field. On a themed page these plain
-controls wear Leaf's faces, a radio or checkbox inside its `<label>` among them
+that belongs to a `<form>` of its own, is no field. On a page that wears the reading
+face, as a page in the `reading` theme does, these plain controls wear Leaf's faces, a
+radio or checkbox inside its `<label>` among them
 (`references/page-layout.md`, "Page CSS and Leaf's controls"). In the aside, Leaf
 stacks what you write, sets a field's words above it and stands a fieldset's radios
 one per line; in the preview, lay them out yourself.
@@ -218,7 +221,8 @@ one of them, the comment records its id, which tells you which one they mean.
 ```
 
 An `<output for="NAME">` anywhere in the playground shows field NAME's current value,
-such as a range's reading beside its words. A `<label>` names the first control inside
+such as a range's reading beside its words, and a multiple select's values separated
+by commas. A `<label>` names the first control inside
 it, so give a reading its own place beside the label rather than inside it, and place
 it with the page's CSS, such as at the end of the words' line:
 
@@ -243,7 +247,9 @@ beside the selectable alternatives when the decision changes an existing interfa
 Apply shared parameters with page CSS. From first paint, Leaf sets each field's value
 on the `lf-playground` as a custom property, `--playground-NAME`, and an attribute,
 `data-playground-NAME`. A number reaches CSS bare, so give it its unit there; the words
-typed into a text field reach it as a quoted string, for `content`:
+typed into a text field reach it as a quoted string, for `content`; and a multiple
+select's values reach it separated by spaces, so `[data-playground-NAME~="VALUE"]`
+matches one of them:
 
 ```css
 .notification-candidate {
@@ -334,7 +340,8 @@ structured data only subscribes; one without its own instruction keeps
 
 ```html
 <script type="module">
-  import { keepsText, whileInterfaceConnected } from "/runtime/widget-api.js";
+  import { whileInterfaceConnected } from "/runtime/widget-api.js";
+  import { keepsText } from "/runtime/lib/keeps.js";
 
   const FIRED = { 0.5: 31, 1: 12, 2: 4 };
   const playground = document.getElementById("alert-playground");
@@ -397,8 +404,9 @@ what is shown. Apply each add, remove, reorder or edit to that state once, and d
 candidates, with their rows, counts and measurements, from it, so they can't disagree;
 for the same reason a canvas or SVG instrument converts pointer input to model
 coordinates once, and gives the same edits a keyboard route. Give each item a stable
-element id, so the user can point at it in Design mode. Call `layoutChanged` after a
-gesture changes geometry.
+element id, so the user can point at it in Design mode. Dispatch `lf-layout`
+(`references/module-plain-elements.md`, "`lf-layout`") after a gesture changes
+geometry.
 
 Before handoff, exercise the user's comparison and submission journey through the states
 that change its result. Check that the preview and measurements reflect the chosen

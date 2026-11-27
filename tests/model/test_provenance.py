@@ -1,6 +1,6 @@
 """Which of the user's messages waited while a version was saved, and where each
-revision stands in the log (`provenance.py`, `revisioning.py`): what a version says
-it was saved after."""
+revision stands in the log (`provenance.py`, `revision_publication.py`): what a
+version says it was saved after."""
 
 import random
 from copy import deepcopy
@@ -11,18 +11,25 @@ from click.testing import CliRunner
 from interact_support import ModelPage, append_command, model_layer, response_reference
 from model_folds import NOW, leaf_page, served_view
 
-from leaf import cli as cli_model
-from leaf import event_log as event_log_model
-from leaf.event_contracts import admitted_event
-from leaf.event_facts import EventFacts
-from leaf.event_log import EventRefused
-from leaf.events import build_threads, spoken_turns, taken_back, unanswered_turns
-from leaf.passages import SourceReading, enclosing_ids
-from leaf.provenance import revision_places
-from leaf.provenance import saved_after as line_of
-from leaf.registry.kernel import kernel_event_kinds
-from leaf.revisioning import activate_source
-from leaf.structure import SourceDocument
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as event_log_model
+from leaf.log.event_log import EventRefused
+from leaf.log.events import (
+    build_threads,
+    owed_turns,
+    spoken_turns,
+    taken_back,
+    unanswered_turns,
+)
+from leaf.log.provenance import revision_places
+from leaf.log.provenance import saved_after as line_of
+from leaf.records.event_contracts import admitted_event
+from leaf.records.event_facts import EventFacts
+from leaf.records.revisioning import activate_source
+from leaf.source.passages import enclosing_ids
+from leaf.source.reading import SourceReading
+from leaf.source.registry.kernel import kernel_event_kinds
+from leaf.source.structure import SourceDocument
 from model.interact_contract.test_thread_resolution import (
     ASKED,
     CLOSED,
@@ -150,27 +157,40 @@ def test_a_message_reads_as_it_did_at_the_latest_revision_it_waited_at():
     assert saved_after(waited_twice, 1, 2) == [waited("e1")]
 
 
-def test_a_message_waited_where_its_thread_stood_open_at_any_of_the_versions_revisions():
+def test_a_message_waited_where_its_thread_still_owed_it_at_any_of_the_versions_revisions():
     """A version whose revisions went live while a message waited at any of them names
-    it, though it was resolved before the last. Accepting a suggestion closes its
-    thread as a resolution does; taking the accept back while the user's resolution
-    stands leaves it closed, and taking back a reopening closes it again."""
-    resolved = [
-        live(1),
-        {"kind": "comment", "text": "Why?"},
-        live(2),
-        {"kind": "resolve", "parent": "e2"},
-        live(3),
-    ]
-    assert saved_after(resolved, 1, 3) == [waited("e2")]
-    assert saved_after(resolved, 2, 3) == []
+    it, though a closing answered for its thread before the last. The user's own
+    resolve answers for nothing, so the message goes on waiting across it; the agent's
+    resolve ends the wait. Accepting a suggestion answers for its thread as the
+    agent's resolve does; taking the accept back while the user's resolve stands
+    leaves the message waiting again, as taking back a reopening of theirs does."""
+
+    def closed(by):
+        return [
+            live(1),
+            {"kind": "comment", "text": "Why?"},
+            live(2),
+            {"kind": "resolve", "parent": "e2", **by},
+            live(3),
+        ]
+
+    assert saved_after(closed({}), 1, 3) == [waited("e2")]
+    assert saved_after(closed({}), 2, 3) == [waited("e2")]
+    assert saved_after(closed(AGENT), 1, 3) == [waited("e2")]
+    assert saved_after(closed(AGENT), 2, 3) == []
 
     # The suggestions answer `e1`, so the comment comes first.
     pages = {1: SETTLED, 2: SETTLED, 3: SETTLED}
     assert saved_after([ASKED, live(2)], 1, 2, pages) == [waited("e1")]
     assert saved_after([ASKED, PICKED, live(2)], 1, 2, pages) == []
-    overlapping = [ASKED, PICKED, CLOSED, {"kind": "undo", "undoes": "e2"}, live(2)]
-    assert saved_after(overlapping, 1, 2, pages) == []
+    overlapping = [
+        ASKED,
+        PICKED,
+        CLOSED,
+        {"kind": "undo", "undoes": "e2", "answered": False},
+        live(2),
+    ]
+    assert saved_after(overlapping, 1, 2, pages) == [waited("e1")]
     reopened = [
         ASKED,
         CLOSED,
@@ -180,7 +200,7 @@ def test_a_message_waited_where_its_thread_stood_open_at_any_of_the_versions_rev
         live(3),
     ]
     assert saved_after(reopened, 1, 3, pages) == [waited("e1")]
-    assert saved_after(reopened, 2, 3, pages) == []
+    assert saved_after(reopened, 2, 3, pages) == [waited("e1")]
 
 
 def test_each_revision_is_judged_by_the_log_before_it():
@@ -238,6 +258,7 @@ def test_a_version_is_read_under_its_own_document():
             "widget": "picks",
             "action": "choose",
             "detail": {"value": ["option-a"]},
+            "answered": True,
         },
         {
             "kind": "note",
@@ -318,6 +339,8 @@ def test_a_revision_takes_its_place_in_the_log_from_the_event_naming_its_bundle(
             response_reference(page_dir, asked),
             "--text",
             "The rollout flag, off by default.",
+            "--title",
+            "Thread title",
         ],
         catch_exceptions=False,
     )
@@ -381,17 +404,15 @@ def admit(page, log, step, revision=1):
 def folded_at_each_revision(log, within, base, shown):
     """What the line says, read the long way: the log up to each revision of the
     version folded under the containment of the version's last, and the messages its
-    threads still owe an answer where they stand open, in the words they then had."""
+    threads still owe an answer (`owed_turns`), in the words they then had."""
     found = {}
     for revision, place in sorted(revision_places(log).items()):
         if not base < revision <= shown:
             continue
         prefix = [event for event in log if event["seq"] < place]
         for thread in build_threads(prefix, within[shown]).values():
-            if thread["resolved"]:
-                continue
             said = {message["id"]: message for message in thread["msgs"]}
-            for turn in unanswered_turns(thread):
+            for turn in owed_turns(thread):
                 message = said[turn.get("message", turn["id"])]
                 found[message["id"]] = (
                     message["seq"],

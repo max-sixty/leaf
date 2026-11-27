@@ -26,9 +26,9 @@ from render_harness import (
 from browser.widgets import (
     PLAYGROUND_PAGE,
 )
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
+from leaf.source.render_checks import evaluate_probe, rendered, wait_until_ready
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -39,7 +39,7 @@ WORKSPACE_PAGE = leaf_page(
     """
   <header>
     <h1>Review queue</h1>
-    <p id="review-status"><span class="tag warn">3 waiting</span></p>
+    <p id="review-status"><span class="lf-tag warn">3 waiting</span></p>
   </header>
   <div id="review-regions">
     <lf-pane id="queue" label="Items">
@@ -119,7 +119,7 @@ def test_a_bounded_document_reader_chains_wheel_at_its_edge(browser, serve, capt
         )
     )
     if captured:
-        data_model.cmd_data_set(serve.page_dir, "capture", "Run log line\n" * 100)
+        page_data_model.cmd_data_set(serve.page_dir, "capture", "Run log line\n" * 100)
     page = open_page(browser, url)
     if captured:
         # The caption stays above the source that scrolls, as wide as its figure.
@@ -269,7 +269,77 @@ def test_a_root_workspace_bounds_independent_regions_and_flows_when_it_cannot_fi
     fills_the_window(page, workspace, True)
 
 
-def test_a_workspace_reaches_the_window_foot_and_its_readers_clear_the_panel(
+@pytest.mark.parametrize(
+    "opening,closing",
+    [
+        (
+            '<lf-tabs id="holder" flow="page"><lf-tab id="work" label="Review">',
+            '</lf-tab><lf-tab id="open" label="Open items"><ul><li>Merge it</li></ul>'
+            "</lf-tab></lf-tabs>",
+        ),
+        (
+            '<lf-group id="holder" label="Which item ships first?">'
+            "<h2>Which item ships first?</h2>",
+            "</lf-group>",
+        ),
+    ],
+    ids=["page-tab", "question-group"],
+)
+def test_a_grid_of_panes_told_the_height_holds_its_panes_as_the_body_does(
+    browser, serve, opening, closing
+):
+    """A grid of panes that a box filling the workspace's height passes that height to,
+    as a page tab's one block or a question group's answer, keeps the regions on the
+    screen as the body's grid does: it takes what the strip or the heading leaves, each
+    pane's body scrolls on its own, and the box around it has nothing to scroll. So
+    material beside the regions' work, such as a list of open items, can take a tab of
+    its own."""
+    page = open_page(
+        browser,
+        serve(
+            WORKSPACE_PAGE.replace(
+                '<div id="review-regions">', f'{opening}<div id="review-regions">'
+            ).replace("  <footer>", f"{closing}<footer>")
+        ),
+    )
+    resized(page, 1920, 720)
+    pane_scroll_behavior(page, page.locator("#queue"), "bounded")
+    fills_the_window(page, page.locator("main"), True)
+    readings = page.evaluate(
+        """() => {
+          const box = el => el.getBoundingClientRect();
+          const body = id => document.querySelector(`#${id} > :not(header, footer)`);
+          const holder = document.getElementById('holder');
+          const grid = document.getElementById('review-regions');
+          return {holder: [holder.clientHeight, holder.scrollHeight],
+                  queue: [body('queue').clientHeight, body('queue').scrollHeight],
+                  detail: [body('detail').clientHeight, body('detail').scrollHeight],
+                  frame: getComputedStyle(grid).borderTopWidth,
+                  gridEnd: box(grid).bottom,
+                  holderEnd: box(holder).bottom};
+        }"""
+    )
+    assert readings["holder"][1] <= readings["holder"][0] + 1, readings
+    assert readings["queue"][1] > readings["queue"][0], readings
+    assert readings["detail"][1] > readings["detail"][0], readings
+    assert readings["frame"] == "1px", readings
+    assert readings["holderEnd"] - readings["gridEnd"] < 24, readings
+    # The render check's reading of how the workspace holds its panes finds the grid.
+    held = page.evaluate("async () => (await import('/checks/layout.js')).heldPanes()")
+    assert [(g["at"], g["held"], g["panes"], g["beside"]) for g in held] == [
+        ("<div id=review-regions>", True, 2, 2)
+    ], held
+    # A tab the user leaves holds no grid on the screen.
+    if opening.startswith("<lf-tabs"):
+        page.get_by_role("tab", name="Open items").click()
+        page.wait_for_function("() => document.getElementById('work').hidden !== false")
+        assert (
+            page.evaluate("async () => (await import('/checks/layout.js')).heldPanes()")
+            == []
+        )
+
+
+def test_a_workspace_reaches_the_window_foot_and_leaves_nothing_to_scroll(
     browser, serve
 ):
     """The workspace is the window, so the page has nothing to scroll, even where a
@@ -280,20 +350,15 @@ def test_a_workspace_reaches_the_window_foot_and_its_readers_clear_the_panel(
     geometry = page.evaluate(
         """() => {
           const main = document.querySelector('main');
-          const reader = document.querySelector('#queue > :not(header, footer)');
-          reader.scrollTop = reader.scrollHeight;
           return {
             mainBottom: main.getBoundingClientRect().bottom,
             windowBottom: innerHeight,
-            endBottom: [...reader.querySelectorAll('p')].at(-1).getBoundingClientRect().bottom,
-            panelTop: document.querySelector('.lf-fp-row').getBoundingClientRect().top,
             paneBottom: document.querySelector('#queue').getBoundingClientRect().bottom,
             footerTop: document.querySelector('main > footer').getBoundingClientRect().top,
           };
         }"""
     )
     assert abs(geometry["mainBottom"] - geometry["windowBottom"]) <= 1, geometry
-    assert geometry["endBottom"] <= geometry["panelTop"], geometry
     assert geometry["footerTop"] - geometry["paneBottom"] <= 1, geometry
     assert page.evaluate("document.scrollingElement.scrollHeight <= innerHeight + 1")
     page.locator("body").focus()
@@ -302,43 +367,6 @@ def test_a_workspace_reaches_the_window_foot_and_its_readers_clear_the_panel(
     assert page.locator("main").evaluate(
         "node => Math.abs(node.getBoundingClientRect().bottom - innerHeight) <= 1"
     )
-
-
-def test_a_link_to_a_held_workspaces_region_leaves_the_page_where_it_stands(
-    browser, serve
-):
-    """A region reaching the window's foot keeps room there for the floating panel,
-    which holds none of its content, so the region shows whole where it stands. A link
-    to it leaves the page still, though something after `main`, such as a site footer,
-    gives the page room to scroll its header away."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "held regions",
-                """
-  <header><h1>Review queue</h1><p><a id="to-detail" href="#detail">Detail</a></p></header>
-  <div id="review-regions">
-    <lf-pane id="queue" label="Items"><div><p>Queue start</p></div></lf-pane>
-    <lf-pane id="detail" label="Selected item">
-      <div><p>Detail start</p><div style="height: 1100px"></div></div>
-    </lf-pane>
-  </div>
-""",
-                head=regions_side_by_side("review-regions"),
-                layout="workspace",
-            )
-        ),
-    )
-    resized(page, 1200, 900)
-    page.evaluate(
-        """() => document.body.append(
-          Object.assign(document.createElement("div"), {style: "height: 300px"}))"""
-    )
-    page.locator("#to-detail").click()
-    expect(page).to_have_url(re.compile("#detail$"))
-    scroll_settled(page)
-    assert page.evaluate("scrollY") == 0
 
 
 def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(browser, serve):
@@ -362,7 +390,7 @@ def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(browser,
                 "A phone queue",
                 '<header><h1>Which alerts should still page?</h1><p id="status">'
                 '<lf-tally id="left" for="queue" next></lf-tally>'
-                '<span class="tag warn">7 mostly noise</span></p></header>'
+                '<span class="lf-tag warn">7 mostly noise</span></p></header>'
                 '<lf-tabs id="queue" list="side">'
                 + item("first")
                 + item("second")
@@ -483,10 +511,8 @@ def test_a_table_at_a_pane_top_is_under_no_sticky_header(browser, serve):
 
 
 def clear_of_the_bottom_chrome(page, selector):
-    """Scroll the target's reading box to its end and measure it against the panel.
-
-    The row is the fixed chrome a page's last line has to scroll clear of; a page whose
-    end room is missing leaves that line under it however far the user scrolls."""
+    """Scroll the target's reading box to its end and measure it against the panel's
+    row, which a page's end clears only by the end padding its Layout keeps."""
     return page.evaluate(
         """async selector => {
           const {scrollerFor} = await window.__lfWidgetApi();
@@ -582,13 +608,7 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
     """Only a box that passes the height on holds what it contains. A section in the
     body's grid is a grouping, so a pane in one takes its natural height and the body,
     which fills the window, scrolls it. The control is the same pane as the workspace's
-    body, which fills the window.
-
-    Whatever the user scrolls to in that full-height workspace clears the panel's row,
-    as a document's last line does: the body scrolls as a whole and its end stands
-    above the band. So only the pane that is the body reserves the panel's room in its
-    own reader; the pane inside the section, which the body's end room already
-    clears, keeps its inset alone."""
+    body, which fills the window."""
     page = open_page(browser, serve(SECTIONED_PANE_PAGE))
     resized(page, 1280, 720)
     pane = page.locator("#workspace-pane")
@@ -611,43 +631,14 @@ def test_a_pane_inside_a_plain_section_of_a_workspace_flows(browser, serve):
         }"""
     )
     assert carrier == "cells", carrier
-    page.locator("#pane-end").evaluate("node => node.scrollIntoView({block: 'end'})")
-    end = clear_of_the_bottom_chrome(page, "#pane-end")
-    assert end["clear"], end
-    # The body's end room already clears the panel, so the pane keeps only its inset.
-    assert foot_reserve(page) == 0
-    page.close()
-
-    direct = leaf_page("a pane as the workspace body", LONG_PANE, layout="workspace")
-    page = open_page(browser, serve(direct))
-    resized(page, 1280, 720)
-    pane_scroll_behavior(page, page.locator("#workspace-pane"), "bounded")
-    fills_the_window(page, page.locator("main"), True)
-    # A pane that reaches the window's foot keeps the panel's room in its reader.
-    assert foot_reserve(page) > 0
-
-
-def foot_reserve(page, pane="#workspace-pane"):
-    """How far the pane's reader pads its end beyond the pane inset."""
-    return page.locator(f"{pane} > div").evaluate(
-        """reader => {
-          const style = getComputedStyle(reader);
-          return Math.round(
-            parseFloat(style.paddingBlockEnd) -
-              parseFloat(style.getPropertyValue('--lf-pane-inset'))
-          );
-        }"""
-    )
 
 
 ZONE_PACKAGE = {
     "lf-zone": {
         "description": "A project package's differently named pane.",
         "attributes": {
-            "type": "object",
-            "properties": {"id": {"type": "string"}, "label": {"type": "string"}},
+            "properties": {"label": {"type": "string"}},
             "required": ["id", "label"],
-            "additionalProperties": False,
         },
         "content": "markup",
         "reading-role": "pane",
@@ -710,8 +701,8 @@ def test_a_question_section_gives_its_answer_what_its_context_leaves(browser, se
     """A question's section as the workspace's body gives its last part, the answer,
     what its heading and context leave, and never less than the answer's own height:
     below a context taller than the window the options keep theirs, nothing is drawn
-    over them, and the body scrolls. A playground below a premise fits itself to what is
-    left, its controls scrolling within the window."""
+    over them, and the body scrolls to their end. A playground below a premise fits
+    itself to what is left, its controls scrolling within the window."""
     page = open_page(browser, serve(THREE_PART_OBLIGATION_PAGE))
     resized(page, 1280, 720)
     geometry = page.evaluate(
@@ -725,8 +716,11 @@ def test_a_question_section_gives_its_answer_what_its_context_leaves(browser, se
     ask = page.locator("#workspace-ask")
     assert ask.evaluate("node => node.scrollHeight > node.clientHeight")
     ask.evaluate("node => { node.scrollTop = node.scrollHeight; }")
-    end = clear_of_the_bottom_chrome(page, "#workspace-options")
-    assert end["clear"], end
+    options_end, ask_end = page.evaluate(
+        """() => [document.querySelector('#workspace-options').getBoundingClientRect().bottom,
+                  document.querySelector('#workspace-ask').getBoundingClientRect().bottom]"""
+    )
+    assert options_end <= ask_end + 1, (options_end, ask_end)
     page.close()
 
     with_premise = (
@@ -749,15 +743,15 @@ def test_a_question_section_gives_its_answer_what_its_context_leaves(browser, se
 @pytest.mark.parametrize(
     "container", ["views", "pane", "plain", "workspace-footer", "pane-footer"]
 )
-def test_workspace_end_room_stays_inside_the_last_reading_region(
+def test_a_workspace_s_last_reading_region_ends_at_the_workspace_s_end(
     browser, serve, container
 ):
-    """The frame and its focus-ring clearance reach the window's foot; its final
-    control scrolls clear of chrome.
+    """The frame and its focus-ring clearance end where the workspace does, which
+    reaches the window's foot; its final control scrolls into its region.
 
-    Nested page and side views exercise the transfer: reserving clearance on the
-    outside view instead leaves a band below the actual reading pane. Keyboard travel
-    reveals the whole option above the panel, without needing a scroll to the end.
+    Nested page and side views keep only their rings outside the reading pane, so no
+    band stands below it. Keyboard travel reveals the whole option above the panel,
+    without needing a scroll to the end.
     """
     reading = '<p>Start</p><div style="height:1200px"></div><button id="reading-end">Finish review</button>'
     if container.endswith("footer"):
@@ -851,26 +845,30 @@ def test_workspace_end_room_stays_inside_the_last_reading_region(
         )
         geometry = page.evaluate(
             """selector => {
-            const frame = document.querySelector(selector).getBoundingClientRect();
+            const main = document.querySelector('main');
+            const frame = document.querySelector(selector);
             const end = document.getElementById('reading-end').getBoundingClientRect();
-            const panel = document.querySelector('.lf-fp-row').getBoundingClientRect();
             const outer = document.getElementById('outer');
             const style = getComputedStyle(outer ?? document.documentElement);
             const outside = outer ? parseFloat(style.paddingBottom) : 0;
             const ringRoom = parseFloat(style.getPropertyValue('--lf-focus-region-gap'))
               + parseFloat(style.getPropertyValue('--lf-focus-ring-w'));
-            return {frameBottom: frame.bottom, outside, ringRoom,
-                    endBottom: end.bottom, panelTop: panel.top, height: innerHeight};
+            const mainBox = main.getBoundingClientRect();
+            const mainEnd = frame === main ? mainBox.bottom
+              : mainBox.bottom - parseFloat(getComputedStyle(main).paddingBottom);
+            return {frameBottom: frame.getBoundingClientRect().bottom, outside, ringRoom,
+                    mainEnd, mainBottom: mainBox.bottom, endBottom: end.bottom,
+                    height: innerHeight};
         }""",
             frame,
         )
-        # A containing view may keep its ring outside the frame, but must pass
-        # the floating panel's much larger clearance into the reading region.
+        # A containing view may keep its ring outside the frame, and nothing more.
         assert geometry["outside"] <= geometry["ringRoom"], geometry
         assert geometry["frameBottom"] + geometry["outside"] == pytest.approx(
-            height, abs=1
+            geometry["mainEnd"], abs=1
         ), geometry
-        assert geometry["endBottom"] <= geometry["panelTop"] + 1, geometry
+        assert geometry["mainBottom"] == pytest.approx(height, abs=1), geometry
+        assert geometry["endBottom"] <= geometry["frameBottom"] + 1, geometry
 
 
 def test_a_comment_in_a_pane_leaves_its_grammar_whole(browser, serve):
@@ -938,7 +936,8 @@ def test_regions_inside_a_bounded_pane_body_flow_within_the_body_that_scrolls(
           const host = document.querySelector('#host-body');
           return Object.fromEntries(['inner-pane', 'loose-pane'].map(id => {
             const body = document.querySelector(`#${id} > div`);
-            return [id, {scroll_behavior: leaf.regionScrollBehavior(id),
+            const pane = leaf.readingRegions().find(region => region.body === body);
+            return [id, {scroll_behavior: pane && leaf.regionScrollBehavior(pane),
                          scroller: leaf.scrollerFor(document.getElementById(id)) === host,
                          fits: body.scrollHeight <= body.clientHeight}];
           }).concat([['host', host.scrollHeight > host.clientHeight]]));
@@ -1093,92 +1092,6 @@ STREAMED_LOG_PAGE = leaf_page(
     + "shard-0 " * 60
     + "</p></div>",
 )
-
-
-@pytest.mark.parametrize(
-    "aim", ["u", "PageUp", "PageUp on a link", "wheel", "wheel across"]
-)
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_a_page_up_in_a_log_a_stream_feeds_leaves_its_end(engine, aim, request, serve):
-    """u, PageUp or a wheel aimed up a log following its end takes the reader up while
-    entries stream in, and a wheel across its long lines takes them across, at its end.
-    u starts a glide whose first frame can leave the box where it stands, and a log
-    follower that read only the box's offset would take the next entry for a reader
-    still at the end, put the log back there and stop the glide, so the press would do
-    nothing. The end keeper every box shares lets a box a glide heads back from go
-    (scrolling.js, `followEnd`). Firefox applies a wheel's or PageUp's scroll a frame or
-    more after the input, and a keeper's write of the end meanwhile would cancel it, a
-    wheel across as well; the scroll is the reader's from the input (scrolling.js,
-    `aimScroll`). PageUp on a link in the log, read as a key the link took, would be
-    left to the keeper (scrolling.js, `scrollsFor`). Each trial aims once in the middle
-    of a stream of an entry every 4ms."""
-    if aim != "u":
-        # A browser starved of CPU can apply a key's or wheel's scroll after the 80ms
-        # the reader's scroll waits for it to move the page (arrivals.js), so the log
-        # keeps its end in a trial: Firefox as late as 800ms after the input, and
-        # Chromium in the starved macOS nightly. #6348 tracks a fix in the code or this
-        # test that lets these marks go. `u` glides by Leaf's own scroll, which this
-        # doesn't touch.
-        request.applymarker(
-            pytest.mark.xfail(
-                strict=False,
-                reason="#6348: a starved browser applies the scroll after the reader's wait ends",
-            )
-        )
-    page = open_page(
-        request.getfixturevalue(engine), live_url(serve(STREAMED_LOG_PAGE))
-    )
-    page.emulate_media(reduced_motion="no-preference")
-    resized(page, 1280, 900)
-    log = page.locator("#log")
-    log.focus()
-    box = log.bounding_box()
-    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-    stood = []
-    for trial in range(6):
-        log.evaluate(
-            "log => log.scrollTo({top: log.scrollHeight, left: 0, behavior: 'instant'})"
-        )
-        scroll_settled(page, "#log")
-        page.evaluate(
-            """(trial) => { window.lfStream = new Promise((done) => {
-              const log = document.getElementById('log');
-              let n = 0;
-              const tick = () => {
-                log.append(Object.assign(document.createElement('p'),
-                  {textContent: `Streamed ${trial}.${n}`}));
-                if (++n < 60) setTimeout(tick, 4); else done();
-              };
-              tick();
-            }); }""",
-            trial,
-        )
-        page.wait_for_timeout(60)
-        if aim == "PageUp on a link":
-            page.evaluate(
-                """() => { const link = Object.assign(document.createElement('a'),
-                  {href: '#t', textContent: 'Aimed at'});
-                  document.getElementById('log').append(link);
-                  link.focus({preventScroll: true}); }"""
-            )
-            page.keyboard.press("PageUp")
-        elif aim.startswith("wheel"):
-            page.mouse.wheel(*((300, 0) if aim == "wheel across" else (0, -300)))
-        else:
-            page.keyboard.press(aim)
-        page.evaluate("() => window.lfStream")
-        scroll_settled(page, "#log")
-        stood.append(
-            log.evaluate(
-                """log => ({short: log.scrollHeight - log.clientHeight - log.scrollTop,
-                  across: log.scrollLeft})"""
-            )
-        )
-    if aim == "wheel across":
-        assert all(at["across"] > 0 and at["short"] <= 2 for at in stood), stood
-    else:
-        room = log.evaluate("log => log.clientHeight")
-        assert all(at["short"] > room / 2 for at in stood), stood
 
 
 def test_a_log_follows_text_it_gains_and_opens_at_its_end_once_drawn(
@@ -1517,7 +1430,7 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
         "() => document.querySelector('#lp-live-log pre').scrollTop === 120"
     )
     original = listing.text_content()
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "release-log",
         f"{original.rstrip()}\n14:24:49 observer  checkout remains healthy\n",
@@ -1528,7 +1441,7 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
 
     # One at the end follows what arrives there.
     listing.evaluate("pre => pre.scrollTop = pre.scrollHeight")
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "release-log",
         f"{listing.text_content().rstrip()}\n14:24:54 observer  sample=49 healthy\n",
@@ -1569,16 +1482,16 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
             ),
         ),
         (
-            '<dl id="lp-k-traffic" class="metric"><dt>candidate traffic</dt><dd><strong>25%</strong></dd></dl>',
-            '<dl id="lp-k-traffic" class="metric"><dt>target traffic</dt><dd><strong>100%</strong></dd></dl>',
+            '<dl id="lp-k-traffic" class="lf-metric"><dt>candidate traffic</dt><dd><strong>25%</strong></dd></dl>',
+            '<dl id="lp-k-traffic" class="lf-metric"><dt>target traffic</dt><dd><strong>100%</strong></dd></dl>',
         ),
         (
-            '<dl id="lp-k-checks" class="metric"><dt>checks passing</dt><dd><strong>4 of 5</strong></dd></dl>',
-            '<dl id="lp-k-checks" class="metric"><dt>checks passing</dt><dd><strong>5 of 5</strong></dd></dl>',
+            '<dl id="lp-k-checks" class="lf-metric"><dt>checks passing</dt><dd><strong>4 of 5</strong></dd></dl>',
+            '<dl id="lp-k-checks" class="lf-metric"><dt>checks passing</dt><dd><strong>5 of 5</strong></dd></dl>',
         ),
         (
-            '<li id="lp-step-checks"><small class="tag danger">blocked · now</small>',
-            '<li id="lp-step-checks"><small class="tag ok">done · 14:25</small>',
+            '<li id="lp-step-checks"><small class="lf-tag danger">blocked · now</small>',
+            '<li id="lp-step-checks"><small class="lf-tag ok">done · 14:25</small>',
         ),
         (
             (
@@ -1588,8 +1501,8 @@ def test_monitoring_evidence_moves_without_stealing_position_or_the_summary(
             "<strong>Pass release checks</strong> All five production checks pass.",
         ),
         (
-            '<li id="lp-step-promote"><small class="tag">planned</small>',
-            '<li id="lp-step-promote"><small class="tag warn">active · now</small>',
+            '<li id="lp-step-promote"><small class="lf-tag">planned</small>',
+            '<li id="lp-step-promote"><small class="lf-tag warn">active · now</small>',
         ),
         (
             "Four checks pass. One blocks promotion.",

@@ -16,10 +16,10 @@ from process.test_interact_pi import (  # noqa: F401 (fixtures)
     start_pi_fixture,
 )
 
-from leaf import event_log as events_model
-from leaf import leases as leases_model
-from leaf import service as service_model
-from leaf import state as cleanup_model
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.log import event_log as events_model
 
 
 @pytest.mark.parametrize(("role", "cancelled"), [("custom", False), ("user", True)])
@@ -127,7 +127,7 @@ def test_the_pi_extension_carries_a_comment_into_a_new_run(
     assert [event["id"] for event in batch["events"]] == [comment["id"]]
     assert page_state(page_dir)["pending"] == 0
     [workflow] = page_state(page_dir)["workflows"]
-    assert workflow["stage"] == "picked_up"
+    assert (workflow["state"], workflow["seen"]) == ("waiting", True)
 
     pi.quit()
     turn_record_3 = cleanup_model.session_record("pi-s1")
@@ -158,18 +158,18 @@ def test_input_during_a_run_is_picked_up_only_once_pi_takes_it(page_dir, pi):
         failure="the watch notification did not finish",
     )
 
-    def stage() -> str:
+    def seen() -> bool:
         [workflow] = page_state(page_dir)["workflows"]
-        return workflow["stage"]
+        return workflow["seen"]
 
     turn_record_4 = cleanup_model.session_record("pi-s1")
     assert turn_record_4 is not None
     interrupted_turn = turn_record_4["turn"]
-    assert stage() != "picked_up"
+    assert not seen()
     # Pi emits a turn boundary for the cancelled tool before agent_settled.
     # That boundary still has the old aborted signal and cannot take input.
     assert pi.emit("turn_end", aborted=True) is None
-    assert stage() != "picked_up"
+    assert not seen()
     turn_record_5 = cleanup_model.session_record("pi-s1")
     assert turn_record_5 is not None
     assert turn_record_5["turn"] == interrupted_turn
@@ -178,7 +178,7 @@ def test_input_during_a_run_is_picked_up_only_once_pi_takes_it(page_dir, pi):
     turn_record_6 = cleanup_model.session_record("pi-s1")
     assert turn_record_6 is not None
     assert turn_record_6["turn"] != interrupted_turn
-    assert stage() == "picked_up"
+    assert seen()
 
 
 def test_a_reload_keeps_the_pi_session_and_its_watch(page_dir, pi):
@@ -200,7 +200,7 @@ from interact_support import (
     write_record,
 )
 
-from leaf import server as server_model
+from leaf.base import server as server_model
 
 
 def test_the_pi_watch_restarts_a_session_server_that_died(page_dir, pi):

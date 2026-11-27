@@ -1,17 +1,22 @@
 import { link, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 
 import { expect, it } from "vitest";
 import { Window } from "happy-dom";
 
+import { runtimeEntries } from "../../build/runtime-bundle.mjs";
 import { bundleSite } from "../bundle-runtime.mjs";
-import { registeredTags, widgetImports } from "../../browser/runtime/widget-imports.js";
+import {
+  registeredTags,
+  widgetImports,
+} from "../../browser/runtime/state/widget-imports.js";
 
 it("an arriving widget scope requires its own upgrade while template contents stay inert", async () => {
   const window = new Window();
   try {
-    const scope = window.document.createElement("lf-arrival");
+    // happy-dom's element, which the runtime reads as the DOM's.
+    const scope = window.document.createElement("lf-arrival") as unknown as Element;
     scope.innerHTML =
       "<p>Prose</p><table></table><lf-unregistered></lf-unregistered><template><lf-unused></lf-unused></template>";
     const registry = {
@@ -27,7 +32,7 @@ it("an arriving widget scope requires its own upgrade while template contents st
       "lf-arrival.selected": {
         example: '<lf-arrival class="selected"></lf-arrival>',
       },
-    } as unknown as import("../../browser/runtime/widget-imports.js").Registry;
+    } as unknown as import("../../browser/runtime/state/widget-imports.js").Registry;
     expect(registeredTags(scope, registry)).toEqual(["lf-arrival"]);
     expect(widgetImports(scope, registry)).toMatchObject({
       modules: ["lf-arrival"],
@@ -71,21 +76,39 @@ it("bundles each document's static graph without fetching optional modules or ch
         }),
       );
       const sources = {
-        "leaf.js": `import "./runtime/document-inputs.js"; import "./runtime/bundle-common.js"; export * from "${root}/vendor/framework.js"; export * from "${root}/page/app.mjs"; export const optional = () => import("./runtime/optional.js");`,
+        "leaf.js": `import "./runtime/base/document-inputs.js"; import "./runtime/bundle-common.js"; export * from "${root}/vendor/framework.js"; export * from "${root}/page/app.mjs"; export const optional = () => import("./runtime/optional.js");`,
         "runtime/bundle-common.js":
           'import "./bundle-cycle.js"; export const state = 1;',
-        "runtime/document-inputs.js": "(() => { window.inputsInstalled = true; })();",
+        "runtime/base/document-inputs.js":
+          "(() => { window.inputsInstalled = true; })();",
         "runtime/bundle-cycle.js": 'export * from "./bundle-common.js";',
         "vendor/framework.js":
-          'export * from "/vendor/lit.js"; export * from "../runtime/media.js";',
+          'export * from "/vendor/lit.js"; export * from "../runtime/records/media.js";',
         "vendor/lit.js": `import "./framework.js"; export * from "./revision-${revision}.js"; export const html = 1;`,
         [`vendor/revision-${revision}.js`]: `export const revision = ${revision};`,
         "runtime/optional.js": "window.optionalLoaded = true;",
-        "runtime/media.js": "export const media = 1;",
-        "runtime/layer-client.js": "export const client = 1;",
+        "runtime/records/media.js": "export const media = 1;",
+        "runtime/transport/layer-client.js": "export const client = 1;",
         "runtime/widget-api.js": "export const api = 1;",
         "runtime/portable-api.js": "export const portable = 1;",
         "runtime/check-api.js": "export const checks = 1;",
+        // The bundler's other entries, such as the library's modules, and no
+        // document's static graph reaches one.
+        ...Object.fromEntries(
+          runtimeEntries
+            .filter(
+              (path) =>
+                path !== "leaf.js" &&
+                ![
+                  "records/media.js",
+                  "transport/layer-client.js",
+                  "widget-api.js",
+                  "portable-api.js",
+                  "check-api.js",
+                ].includes(path.slice("runtime/".length)),
+            )
+            .map((path) => [path, "export const shared = 1;"]),
+        ),
         "widgets/lf-used.js":
           'import "../runtime/bundle-common.js"; import "/vendor/widget.js"; export const optional = () => import("../runtime/optional.js");',
         "vendor/widget.js": "export const widget = 1;",
@@ -99,6 +122,7 @@ it("bundles each document's static graph without fetching optional modules or ch
       };
       for (const [name, source] of Object.entries(sources)) {
         const path = join(layer, name);
+        await mkdir(dirname(path), { recursive: true });
         await writeFile(path, source);
         modules.set(path, source);
       }
@@ -142,8 +166,8 @@ it("bundles each document's static graph without fetching optional modules or ch
         expect(preloads.sort()).toEqual(
           [
             `${root}/leaf.js`,
-            `${root}/runtime/media.js`,
-            `${root}/runtime/document-inputs.js`,
+            `${root}/runtime/records/media.js`,
+            `${root}/runtime/base/document-inputs.js`,
             `${root}/vendor/framework.js`,
             `${root}/vendor/lit.js`,
             `${root}/vendor/revision-${revision}.js`,
@@ -165,7 +189,7 @@ it("bundles each document's static graph without fetching optional modules or ch
       if (
         !path.includes("/vendor/") &&
         !path.includes("/page/") &&
-        !path.endsWith("/runtime/document-inputs.js")
+        !path.endsWith("/runtime/base/document-inputs.js")
       )
         continue;
       expect(await readFile(path, "utf8")).toBe(source);

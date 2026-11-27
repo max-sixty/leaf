@@ -7,14 +7,13 @@
  * that rule forbids: a quotation's gutter marks provenance, an accent bar demands
  * attention. The content itself renders at full fidelity
  * (an exhibit must show the real thing), so the gutter alone says "mention, not
- * use". Input never leaves one: the interactive widgets check quoted() before
+ * use". Input never leaves one: the interactive widgets check the exhibit's mark before
  * wiring (lf-options.js, lf-board.js), so a quoted group shows its options and takes
  * no pick, and a quoted board stays the static board the theme already renders.
  *
- * The gutter runs beside the exhibit and nothing else. The note over a quoted sample,
- * this theme's "quoted", is a word *about* the quoted region rather than a word in it.
- * Opening the gutter from inside, the marking would take in a line the quoted page
- * never said, and the exhibit would read as though it came with a heading of its own.
+ * The gutter runs beside the exhibit and nothing else, and the note over a quoted
+ * sample, this theme's "quoted", stands outside it (browser/AGENTS.md, "A word about
+ * shown material stands outside it").
  *
  * The word over it is the user's; `lf-sample` is the author's. A tag names a member
  * of a vocabulary its author picks from and can afford a word to learn, where the note's
@@ -71,7 +70,7 @@
  *
  * A child that generates no box hands its own margins to the flow and the trim lands on
  * nothing. A box that stands in that position and has one declares the frame itself,
- * one level in, which is the answer `.facts` takes. Reaching a level further from out
+ * one level in, which is the answer `.lf-facts` takes. Reaching a level further from out
  * here is the fix that suggests itself, and it trades a silent failure for a worse one:
  * the grandchild whose margin shows is the grandchild of a *boxless* parent, and the
  * same selector over a padded one — a callout leading a sample — closes up that box's
@@ -98,7 +97,7 @@ lf-sample > * {
   --lf-box-cap: 100%;
 }
 /* A quoted sample's note, "quoted", says it takes no input. It takes the label font
- * (base.css, `.lf-label`), stated here since a pseudo-element can't wear the class. A
+ * (elements.css, `.lf-label`), stated here since a pseudo-element can't wear the class. A
  * sample that works, interactive or live, wears none, since its gutter or frame already
  * marks it a sample. The user chose that over opening with "interactive sample" or
  * "live sample", a word whose one distinction, this page's log or the sample's own, the
@@ -108,7 +107,7 @@ lf-sample:not([interactive], :has(> template[data-sample]))::before {
   content: "quoted";
   display: table-caption;
   margin-bottom: var(--lf-sp-1);
-  font: var(--lf-font-label);
+  font: var(--lf-font-heading);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--lf-muted);
@@ -207,12 +206,12 @@ lf-sample:has(> template[data-sample]) {
  * put them there. The frame wears the ring itself only where a ring belongs, after a
  * Tab: a press rings no control, and a ring round the frame would ring the whole
  * sample. A sandboxed frame matches neither :focus nor :focus-visible on its host, so
- * both read the runtime's marks (focus.js, `inputInFrame`). */
+ * both read the runtime's marks (dom/focus.js, `inputInFrame`). */
 .lf-sample-exhibit > .lf-sample-frame {
   --lf-focus-box: .lf-sample-exhibit;
 }
 .lf-sample-exhibit[data-lf-control-focus] {
-  border-left-color: var(--lf-accent);
+  border-left-color: var(--lf-ok);
 }
 @media (forced-colors: active) {
   .lf-sample-exhibit[data-lf-control-focus] {

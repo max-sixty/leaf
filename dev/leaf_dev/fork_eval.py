@@ -1,7 +1,7 @@
 """Replay Leaf's conversation forks on short constructed conversations, and score
-each answer: the turn-end check (`leaf.clerk`), the fork that writes the agent's
-working line on a thread message before Leaf hands it to the session (`leaf.forks`),
-and the fork beside it that summarizes a long thread (`leaf.summary_fork`). Claude
+each answer: the turn-end check (`leaf.agents.clerk`), the line fork that writes the agent's
+working line on a thread message (`leaf.agents.forks`), and the fork beside it that
+summarizes a long thread (`leaf.agents.summary_fork`). Claude
 Code makes every fork, so every case runs on that harness alone.
 
 A case in `workflows/fork_eval.yaml` is a conversation written for one decision a
@@ -15,13 +15,13 @@ Claude Code environment runs it: its launcher, and its Python for what has no
 command (`Leaf`). The executor builds the page in a throwaway state home, opens a
 turn for a fresh session id and claims the page as that session
 (`CLAUDE_CODE_SESSION_ID`, with this process as `CLAUDE_PID`). It reports to `leaf
-hook --fork` as the hooks module does (`leaf.carrier`): a turn's end, or the report
-the pages follower lists for a kept-back thread, whose answer is the fork to make, and
-then that fork's answer. For a line or summary fork, a process of the arm's holds the session's
-forks lane (`forks.take_lane`) from before the user's waiting messages are admitted,
-as the event endpoint admits them (`KEEP`), until the answer is taken, as the pages
-follower holds it, and asks about the thread the follower would list
-(`forks.look`). A turn-end case's Leaf line
+hook --fork` as the hooks module does (`leaf.agents.carrier`): a turn's end, or the report
+the pages follower lists for a round that awaits a line, whose answer is the fork to
+make, and then that fork's answer. For a line or summary fork, a process of the arm's
+holds the session's forks lane (`leases.take_lane`) while the user's waiting messages
+are admitted, as the event endpoint admits them, and until the answer is taken, as the
+pages follower holds it, and reports the round the follower would list (`forks.look`,
+`LOOK`). A turn-end case's Leaf line
 (`found`) is rendered by the arm's `clerk._found`, so a change to its wording
 reaches the conversation; an arm without it passes no findings on and gets no line.
 
@@ -33,12 +33,17 @@ as a live fork runs, so `--base` scores a change of effort as it scores one of
 wording. The records keep the shapes Claude Code writes, without thinking blocks. A
 background command's result records no task id: Claude Code tells a resumed session
 that a task it recorded has stopped, which a live fork never hears, so the replay
-needs no sentence of its own in the prompt. The request keeps Claude Code's tool definitions, as a live fork
-resends the session's, with its per-machine sections moved out of the system prompt
-so the prefix is cached across cases. One `PreToolUse` hook (`BLOCKED`), the fresh
-home's only one, refuses every call, and `--max-turns 1` then ends the fork without
-an answer, which fails every check of the case rather than raising a provider
-error. Plugins, skills and MCP servers are off.
+needs no sentence of its own in the prompt. After its first prompt, where a live
+session records it, the transcript carries the prompt snapshot of the newest
+interactive Claude Code session on the machine, pinned for the run (`live_prefix`):
+the system prompt and tool definitions that session's requests send, which a resume
+sends again verbatim. So the fork's request opens as a live fork's does, with Claude
+Code's interactive identity line, system prompt and tools, where `claude -p` would
+send its headless ones, and it follows each Claude Code update as the sessions do,
+which a snapshot kept in the tree would not. One `PreToolUse` hook (`BLOCKED`), the
+fresh home's only one, refuses every call, and `--max-turns 1` then ends the fork
+without an answer, which fails every check of the case rather than raising a
+provider error. Plugins, skills and MCP servers are off.
 
 A live fork's request ends with its prompt, since `$.model.fork` appends the prompt
 to the session's last request. A resume instead reads its environment afresh (its
@@ -48,18 +53,33 @@ thousand tokens that change how the fork judges the prompt. So a first resume, s
 to an address no API listens on (`UNREACHABLE`), writes those records without a
 request, and the transcript carries them after its first prompt, where a live
 session's are (`announced`). Today's date stays out of them: a case's conversation
-is written on its own date, and the fork reads a date at the session's start as the
-day the conversation took place. The second resume then adds only the line giving
-today's date after the prompt. Skills are off because the listing a resume reads
+is written on its own dates, some a day apart, and a fork that reads today's date at
+the session's start takes the conversation as today's and flags its dates as stale.
+The second resume then adds only the line giving today's date after the prompt, which
+a live fork's request lacks. Skills are off because the listing a resume reads
 offline differs from the one it reads online, which would put a listing after the
 prompt.
+
+The replay resumes a transcript because a resume is the only way Claude Code, run as
+`claude -p` or by the Agent SDK, takes prewritten turns of both sides; otherwise it
+takes a system prompt and the user's messages and writes the assistant's turns
+itself. A fork asked in one user message, with the conversation quoted above its
+prompt and no tools, passes the same deterministic checks for less, but misses a
+judgment live forks make: under a line fork prompt that live forks and the replay
+both sometimes answered by handing a read of the page's source to the session, it
+took the read every time. Claude Code sends the replay's request itself, on the
+login the evals bill (`commands/eval/run.py`). A Messages API client, such as
+Promptfoo's `anthropic:messages`, could send the same request only on an API key,
+which the runner keeps out of evals, or on the login's token read from Claude Code's
+keychain entry, a token Anthropic's terms forbid developers to "collect, store, or
+intermediate".
 
 What the arm's Leaf took is what gets scored. A turn-end answer it refuses fails
 `answered`. Its asks are the records it wrote (`wrote`), as the user reads them; its
 findings are those its `turn_end_check` note lists for the page, which leaves out
 anything named for a page the session doesn't hold. A line fork's line is what
 its `fork_outcome` note says Leaf posted. An answer or line Leaf refused fails
-`answered` where the note says so (`refused`).
+`answered` where the note's outcome says so (`refused`).
 
 An item is matched to a label by the words it rests on: one of the label's `words`
 stands in its quote, passage, title, text or edit words. An `expect` label needs an
@@ -92,7 +112,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from leaf.harness import ClaudeCodeHarness
+from leaf.base.harness import ClaudeCodeHarness, claude_code_config
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     MODELS,
@@ -106,7 +126,8 @@ from leaf_dev.arms import (
     trace_result,
 )
 from leaf_dev.eval_cases import definition
-from leaf_dev.page_fixtures import ADMIT, fixture_environment
+from leaf_dev.page_fixtures import ADMIT
+from leaf_dev.reply_phases import transcript_records
 
 DEFINITION = definition("fork_eval")
 CASES = DEFINITION["cases"]
@@ -141,6 +162,10 @@ BLOCKED = {
 # An API address nothing listens on, which ends a resume before its first request.
 UNREACHABLE = "http://127.0.0.1:9"
 
+# The identity line an interactive session's prompt snapshot names, where `claude -p`'s
+# names the Agent SDK.
+INTERACTIVE = "You are Claude Code, Anthropic's official CLI for Claude."
+
 # List prices by model, dollars per million tokens.
 PRICES = {
     "claude-opus-5-5": {
@@ -155,35 +180,35 @@ PRICES = {
 # Holds the session's forks lane until stdin closes.
 LANE = """
 import sys
-from leaf.forks import take_lane
+from leaf.base.leases import take_lane
 lane = take_lane(sys.argv[1])
 print("held", flush=True)
 sys.stdin.read()
 """
 
-# Admits the user's waiting messages as the event endpoint does, which opens the line
-# turn (`forks.kept_from_main_at_admission`), and prints the thread the pages follower
-# would list (`forks.look`).
-KEEP = """
+# Admits the user's waiting messages as the event endpoint does, and prints the
+# reports the pages follower would list for them (`forks.look`), which lists only
+# rounds newer than its first look at the page.
+LOOK = """
 import json, sys
 from pathlib import Path
-from leaf.event_contracts import append_admitted
-from leaf.forks import kept_from_main_at_admission, look
-from leaf.service import PageTransaction
+from leaf.records.event_contracts import append_admitted
+from leaf.agents.forks import look
+from leaf.records.transaction import PageTransaction
 
 page, session = Path(sys.argv[1]), sys.argv[2]
+_, after = look(session, page, None)
 with PageTransaction(page) as transaction:
     for event in json.load(sys.stdin):
-        admitted, _ = append_admitted(transaction, event)
-        kept_from_main_at_admission(transaction, admitted)
-print(json.dumps([kept.basis(page) for kept in look(session, page)]))
+        append_admitted(transaction, event)
+print(json.dumps(look(session, page, after)[0]))
 """
 
 # The page's newest diagnostics note of one type, or null.
 NOTE = """
 import json, sys
 from pathlib import Path
-from leaf.interaction_log import read_interactions
+from leaf.log.interaction_log import read_interactions
 notes = read_interactions(Path(sys.argv[1]), types=(sys.argv[2],))
 print(json.dumps(notes[-1] if notes else None))
 """
@@ -192,24 +217,25 @@ print(json.dumps(notes[-1] if notes else None))
 SUMMARY = """
 import json, sys
 from pathlib import Path
-from leaf.event_log import read_events
+from leaf.log.event_log import read_events
 found = [e for e in read_events(Path(sys.argv[1])) if e["id"] == sys.argv[2]]
 print(json.dumps(found[0]["text"] if found else None))
 """
 
-# The page's words as the user reads them, as the turn-end check reads them.
+# The words of the session's one page as the user reads them, as the turn-end check
+# is shown them.
 PAGE_TEXT = """
 import json, sys
-from pathlib import Path
-from leaf.clerk import _facts
-print(json.dumps(_facts(Path(sys.argv[1]))["text"]))
+from leaf.commands.agent_state import turn_end_facts
+[facts] = turn_end_facts(sys.argv[1])
+print(json.dumps(facts["text"]))
 """
 
 # The line Leaf's clerk queues for a finding, or null on an arm that queues none.
 FOUND = """
 import json, sys
 try:
-    from leaf.clerk import _found
+    from leaf.agents.clerk import _found
 except ImportError:
     print("null")
 else:
@@ -220,7 +246,7 @@ else:
 def expected_checks(case: str, *, condition: str = "leaf") -> list[str]:
     scenario = CASES[case]
     if scenario["fork"] == "line":
-        return ["answered", "lined", "judged"]
+        return ["answered", "lined"]
     if scenario["fork"] == "summary":
         return ["answered", "declined" if scenario.get("declines") else "summarized"]
     expect = scenario.get("labels", {}).get("expect", [])
@@ -254,7 +280,7 @@ def execute_scenario(
     source = work / "source" / "index.html"
     source.parent.mkdir()
     shutil.copy(ROOT / "evals" / scenario["page"], source)
-    (source.parent / "layer.json").write_text("[]")
+    (source.parent / "layer.json").write_text('["reading"]')
     build_source(payload, work / "state", source, page)
     # After the build, whose closing `page open` writes a status event that would
     # end a start in the log (`todos.item_starts`).
@@ -269,15 +295,14 @@ def execute_scenario(
     metadata: dict = {"fork": scenario["fork"], "session": session, "harness": harness}
     if scenario["fork"] in ("line", "summary"):
         with leaf.lane():
-            [thread] = leaf.python(
-                KEEP, str(page), session, stdin=json.dumps(scenario["waiting"])
+            [listed] = leaf.python(
+                LOOK, str(page), session, stdin=json.dumps(scenario["waiting"])
             )
-            listed = {"kind": "line", "thread": thread}
             reported = leaf.fork(
                 {
-                    "done": "line",
-                    "do": "report",
-                    "basis": listed,
+                    "done": listed["id"],
+                    "do": listed["do"],
+                    "basis": listed["basis"],
                     "running": scenario.get("running", []),
                 }
             )
@@ -296,7 +321,7 @@ def execute_scenario(
         run = fork(asked, session, turns, work)
     (work / "prompt.txt").write_text(asked["request"]["prompt"])
     metadata.update(
-        {key: run[key] for key in ("usage", "cost", "wall_s", "tool_calls")}
+        {key: run[key] for key in ("usage", "cost", "wall_s", "tool_calls", "prefix")}
     )
     response = {
         "output": run["text"] or f"(no answer: {run['failed']})",
@@ -326,12 +351,10 @@ class Leaf:
 
     def __init__(self, payload: Path, state: Path, session: str):
         self.payload, self.session = payload, session
-        self.env = fixture_environment(
-            environment(
-                XDG_STATE_HOME=str(state),
-                CLAUDE_CODE_SESSION_ID=session,
-                CLAUDE_PID=str(os.getpid()),
-            )
+        self.env = environment(
+            XDG_STATE_HOME=str(state),
+            CLAUDE_CODE_SESSION_ID=session,
+            CLAUDE_PID=str(os.getpid()),
         )
 
     def run(self, *args: str, stdin: dict | None = None, check: bool = True):
@@ -349,7 +372,7 @@ class Leaf:
 
     def fork(self, payload: dict):
         """One report to the arm's Leaf, as the hooks module makes it
-        (`leaf.carrier`), and what Leaf answered."""
+        (`leaf.agents.carrier`), and what Leaf answered."""
         ran = self.run(
             *("hook", "--harness", "claude-code", "--if-claimed", "--fork"),
             stdin={"hook_event_name": "Fork", "running": [], **payload},
@@ -440,12 +463,56 @@ def substitute(value, values: dict):
     return value
 
 
-def transcript(turns: list[dict], session: str, cwd: Path, start: datetime) -> list:
+def live_prefix(run: Path) -> dict:
+    """The prompt snapshot record the run's forks resend (`newest_snapshot`), pinned
+    in `run`, the samples directory every arm's samples share (`scenario_provider`),
+    by the first fork to ask, so that every arm resends the same one."""
+    pinned = run / "live-prefix.json"
+    if not pinned.exists():
+        candidate = run / f"live-prefix-{uuid.uuid4().hex}.json"
+        candidate.write_text(json.dumps(newest_snapshot()))
+        try:
+            os.link(candidate, pinned)
+        except FileExistsError:
+            pass
+        candidate.unlink()
+    return json.loads(pinned.read_text())
+
+
+def newest_snapshot() -> dict:
+    """The last prompt snapshot record of the newest Claude Code session whose last
+    snapshot an interactive session recorded with its tools, as its requests resend
+    it."""
+    transcripts = sorted(
+        (claude_code_config() / "projects").glob("*/*.jsonl"),
+        key=lambda path: path.stat().st_mtime,
+        reverse=True,
+    )
+    for path in transcripts:
+        snapshots = [
+            record
+            for record in transcript_records(path)
+            if record.get("type") == "attachment"
+            and record["attachment"].get("type") == "prompt_snapshot"
+        ]
+        last = snapshots[-1]["attachment"] if snapshots else {}
+        if last.get("cliPrefix") == INTERACTIVE and "tools" in last:
+            return snapshots[-1]
+    raise RuntimeError(
+        "no interactive Claude Code session on this machine recorded a prompt "
+        "snapshot for the fork to resend"
+    )
+
+
+def transcript(
+    turns: list[dict], session: str, cwd: Path, start: datetime, snapshot: dict
+) -> list:
     """The conversation as Claude Code's transcript records: a user's prompt, Leaf's
     hook line (`leaf`, in the context of the prompt or tool result it follows), the
     assistant's text, and a tool call (`tool`, `input`) with its `result`. A
     response's blocks share a message id and its stop reason, from the first block
-    after a prompt or tool result to the last."""
+    after a prompt or tool result to the last. The prompt `snapshot` follows the first
+    prompt."""
     records: list[dict] = []
     clock = (start + timedelta(seconds=7 * n) for n in range(10_000))
     common = {
@@ -508,10 +575,15 @@ def transcript(turns: list[dict], session: str, cwd: Path, start: datetime) -> l
                     "message": {"role": "user", "content": turn["user"]},
                 }
             )
+            if len(records) == 1:
+                add({"type": "attachment", "attachment": snapshot})
         elif "leaf" in turn:
+            follows = next(
+                record for record in reversed(records) if "message" in record
+            )
             event = (
                 "UserPromptSubmit"
-                if isinstance(records[-1]["message"]["content"], str)
+                if isinstance(follows["message"]["content"], str)
                 else "PostToolBatch"
             )
             add(
@@ -570,11 +642,12 @@ def transcript(turns: list[dict], session: str, cwd: Path, start: datetime) -> l
 
 
 def fork(asked: dict, session: str, turns: list, work: Path) -> dict:
-    """Resume the rendered conversation with the prompt the arm's Leaf `asked` for,
-    at the effort it names or the session's, as `$.model.fork` forks it, in a home
-    and cwd of its own outside the repository, once a resume that reaches no API has
-    written the environment the transcript carries (the module header says why),
-    keeping its stream and transcript under `work`; its answer, or why it gave none."""
+    """Resume the rendered conversation, under a live session's prompt snapshot
+    (`live_prefix`), with the prompt the arm's Leaf `asked` for, at the effort it
+    names or the session's, as `$.model.fork` forks it, in a home and cwd of its own
+    outside the repository, once a resume that reaches no API has written the
+    environment the transcript carries (the module header says why), keeping its
+    stream and transcript under `work`; its answer, or why it gave none."""
     stream = work / "fork.jsonl"
     effort = asked["request"].get("effort", SESSION_EFFORT)
     with tempfile.TemporaryDirectory(prefix="leaf-fork-") as directory:
@@ -585,11 +658,7 @@ def fork(asked: dict, session: str, turns: list, work: Path) -> dict:
             return claude_child(
                 cwd,
                 *("--resume", session, "--effort", effort, "--max-turns", "1"),
-                *(
-                    "--exclude-dynamic-system-prompt-sections",
-                    "--disable-slash-commands",
-                ),
-                *("--settings", json.dumps(BLOCKED)),
+                *("--disable-slash-commands", "--settings", json.dumps(BLOCKED)),
                 env=env,
                 model=MODEL,
                 sandbox=False,
@@ -600,8 +669,13 @@ def fork(asked: dict, session: str, turns: list, work: Path) -> dict:
         project /= re.sub(r"[^A-Za-z0-9]", "-", str(cwd))
         project.mkdir(parents=True)
         kept = project / f"{session}.jsonl"
+        prefix = live_prefix(work.parent)
         records = transcript(
-            turns, session, cwd, datetime.fromisoformat(DEFINITION["start"])
+            turns,
+            session,
+            cwd,
+            datetime.fromisoformat(DEFINITION["start"]),
+            prefix["attachment"],
         )
         kept.write_text("".join(json.dumps(record) + "\n" for record in records))
         # The environment a resume announces, written by one that reaches no API.
@@ -662,6 +736,7 @@ def fork(asked: dict, session: str, turns: list, work: Path) -> dict:
         "wall_s": round(wall, 1),
         "elapsed_ms": result.get("duration_ms"),
         "tool_calls": calls,
+        "prefix": {key: prefix[key] for key in ("sessionId", "version")},
     }
 
 
@@ -793,7 +868,7 @@ def score_turn_end(
     labels = scenario.get("labels", {})
     matched = match(items, labels)
     found, changed = matched["found"], applied.get("changed", [])
-    shown = words_of(leaf.python(PAGE_TEXT, str(page))) if changed else ""
+    shown = words_of(leaf.python(PAGE_TEXT, leaf.session)) if changed else ""
 
     def landed(label: dict, item: dict) -> bool:
         if label["edit"] is None:
@@ -906,8 +981,8 @@ def score_line(leaf: Leaf, page: Path, scenario: dict, turns: list) -> dict:
     """Score the working line the arm's Leaf posted from a line fork's answer, as its
     `fork_outcome` note records it."""
     note = leaf.python(NOTE, str(page), "fork_outcome") or {}
-    if note.get("refused") or not note:
-        return {"checks": {"answered": False}, "refused": note.get("refused")}
+    if not note or note["outcome"] == "refused":
+        return {"checks": {"answered": False}, "refused": note.get("why")}
     thread = json.dumps(scenario["waiting"], indent=1, ensure_ascii=False)
     conversation = f"<conversation>\n{conversation_text(turns)}\n</conversation>\n\n"
     running = json.dumps(scenario.get("running", []), indent=1, ensure_ascii=False)
@@ -916,9 +991,6 @@ def score_line(leaf: Leaf, page: Path, scenario: dict, turns: list) -> dict:
         "checks": {
             "answered": True,
             "lined": line is not None,
-            # Who should do the work: `take` where a fork of the session could do it
-            # beside the session, the case's label.
-            "judged": note.get("work") == scenario["labels"]["work"],
         },
         "outcome": note["outcome"],
         "note": note,

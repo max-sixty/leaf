@@ -434,7 +434,7 @@ CLOSE_BOX = """<!doctype html><body>
 
 @pytest.mark.parametrize("on", ["close-keeps", "close-discards"])
 def test_words_a_close_request_puts_away_only_words_it_keeps(browser, on):
-    """Escape may throw words away, but back may not (keyboard/close-requests.js), so a
+    """Escape may throw words away, but back may not (dom/keyboard/close-requests.js), so a
     close watcher's close puts words away only where the page still stores them. A
     close that discards them fails, which makes every browser test check that back
     never loses words; counting every close as the user's put-away hid exactly that."""
@@ -1362,10 +1362,10 @@ def test_coalesced_rendering_jobs_keep_their_own_input_source(
     )
     page.evaluate(
         """async ({scheduler,order}) => {
-          const module={...await window.__lfWidgetApi(),...await window.__lfCheckApi()};
+          const module={...await window.__lfLibImport('frame-pass.js'),...await window.__lfCheckApi()};
           let schedule=module[scheduler];
           if(scheduler==='presenter') {
-            const {bindQueuedWork}=await window.__lfCheckApi();
+            const {bindQueuedWork}=await window.__lfLibImport('queued-work.js');
             const {createPresentationSchedule}=await window.__lfCheckApi();
             const presentations=createPresentationSchedule(bindQueuedWork);
             // This test observes scheduling, so a ticket that accepts the paint is enough.
@@ -1408,10 +1408,10 @@ def test_a_rendering_jobs_returned_async_tail_stays_passive(browser, serve, sche
     )
     page.evaluate(
         """async scheduler => {
-      const {nextRender}=await window.__lfWidgetApi();
+      const {nextRender}=await window.__lfLibImport('frame-pass.js');
       let schedule=nextRender;
       if(scheduler==='presenter') {
-        const {bindQueuedWork}=await window.__lfCheckApi();
+        const {bindQueuedWork}=await window.__lfLibImport('queued-work.js');
         const {createPresentationSchedule}=await window.__lfCheckApi();
         const presentations=createPresentationSchedule(bindQueuedWork);
         // This test observes scheduling, so a ticket that accepts the paint is enough.

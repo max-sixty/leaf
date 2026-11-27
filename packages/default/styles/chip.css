@@ -1,11 +1,13 @@
-/* The chip, the compact face a small fact rides in (tokens.css, `--lf-chip-r`), on the
- * labels this package's widgets draw (`.lf-chip`), on the chips an author writes in an
- * option (`small.tag`), and on the `recommended` chip options.css draws. The package
- * states it itself, so its widgets keep their chips on a page that takes no theme. At a class's
- * weight, as the reading theme's `.tag` is, so the two agree wherever both apply, and
- * first in the package, so a widget's own rule for where its chip sits wins a tie. */
+/* The chip, the compact face a small fact rides in (tokens.css, `--lf-chip-pad`), on the
+ * labels this package's widgets draw (`.lf-chip`) and on the `recommended` chip
+ * options.css draws. An author's chip is Leaf's tag (`.lf-tag`, idioms.css), which
+ * reads the same chip tokens, so the two stand alike wherever both apply. This face
+ * stays the package's own because the recommended chip is a pseudo-element of a widget
+ * the kernel's rules can't name, and a widget's chip takes its tone from
+ * `data-lf-tone`, since a module writes no bare class such as `ok`. At a class's
+ * weight, first in the package, so a widget's own rule for where its chip sits wins a
+ * tie. */
 .lf-chip,
-:where(lf-option) > .tag,
 :where(lf-option[recommended])::before {
   display: inline-block;
   font: var(--lf-font-chip);
@@ -13,7 +15,7 @@
   box-sizing: border-box;
   max-width: 100%;
   overflow-wrap: break-word;
-  border-radius: var(--lf-chip-r);
+  border-radius: var(--lf-r-s);
   background: var(--lf-chip);
   color: var(--lf-ink-2);
   font-variant-numeric: tabular-nums;
@@ -21,30 +23,21 @@
   align-self: center;
 }
 .lf-chip[data-lf-tone="ok"],
-:where(lf-option) > .tag.ok,
 :where(lf-option[recommended])::before {
-  --lf-tone-tint: var(--lf-ok-tint);
-  --lf-tone-ink: var(--lf-ok-ink);
+  background: var(--lf-ok-tint);
+  color: var(--lf-ok-ink);
 }
-.lf-chip[data-lf-tone="warn"],
-:where(lf-option) > .tag.warn {
-  --lf-tone-tint: var(--lf-warn-tint);
-  --lf-tone-ink: var(--lf-warn-ink);
+.lf-chip[data-lf-tone="warn"] {
+  background: var(--lf-warn-tint);
+  color: var(--lf-warn-ink);
 }
-.lf-chip[data-lf-tone="danger"],
-:where(lf-option) > .tag.danger {
-  --lf-tone-tint: var(--lf-danger-tint);
-  --lf-tone-ink: var(--lf-danger-ink);
-}
-.lf-chip[data-lf-tone],
-:where(lf-option) > .tag:is(.ok, .warn, .danger),
-:where(lf-option[recommended])::before {
-  background: var(--lf-tone-tint);
-  color: var(--lf-tone-ink);
+.lf-chip[data-lf-tone="danger"] {
+  background: var(--lf-danger-tint);
+  color: var(--lf-danger-ink);
 }
 /* How many passages a version changed, counted on what holds them (a tab, a settled
  * decision): a chip in the tint the changed words wear. */
 .lf-chip.lf-change-count {
-  background: var(--lf-add-tint);
+  background: var(--lf-ok-tint);
   color: var(--lf-ok-ink);
 }

@@ -4,14 +4,8 @@ user."""
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
-from render_cases_interaction import OBLIGATIONS_PAGE, panel_comment
-from render_cases_layout import (
-    SHOT_SRC,
-    SHOTS,
-    current_location_ring,
-    ring_faults,
-    rings_drawn,
-)
+from render_cases_interaction import panel_comment, serve_obligations
+from render_cases_layout import SHOT_SRC, SHOTS
 from render_cases_navigation import (
     ADDRESSED_PAGE,
     BINDING_BADGE_PAGE,
@@ -56,9 +50,10 @@ from render_harness import (
 from browser.navigation import offered_routes
 from browser.threads import open_panel_thread
 from browser.threads.test_rewrites import _rewrite_surface
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
-from leaf_dev.browser import PANEL_THREAD
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD, open_on_me
+from leaf_dev.rings import current_location_ring, ring_faults, rings_drawn
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -201,7 +196,7 @@ def test_the_thread_walk_goes_on_from_the_place_the_panel_holds(browser, serve):
 
 def test_the_thread_walk_goes_on_from_a_card_still_carried_in(browser, serve):
     """A walk that changes the card's thread carries the card's list from where the last
-    thread's card stood to the new one's place (box-motion.js), drawn above the window
+    thread's card stood to the new one's place (dom/box-motion.js), drawn above the window
     while the page has scrolled down to it. A key pressed meanwhile is meant for the card
     the walk reached, so `T` steps back from it rather than letting go of it and opening
     it again. The card's tween is held long, so the key lands once the glide has ended
@@ -261,7 +256,7 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
     page.set_viewport_size({"width": 1200, "height": 844})
     on_body = "() => document.activeElement === document.body"
     preview = page.locator(".lf-margin-preview")
-    toggle = page.locator(".lf-fp-on-user")
+    toggle = page.locator(".lf-fp-leaf")
     marker = page.locator('[data-lf-margin-for="p"] > .lf-margin-marker')
     threads = [
         page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]')
@@ -277,7 +272,7 @@ def test_a_layer_is_left_the_same_way_however_it_was_reached(browser, serve):
         assert page.evaluate(on_body)
 
     # On Me by pointer: out with the panel's view.
-    toggle.click()
+    open_on_me(page)
     panel_settled(page, view="queue")
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
@@ -369,7 +364,7 @@ def test_a_view_reached_from_another_view_leaves_both_of_them_shut(browser, serv
 
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
-    row = page.locator(".lf-fp-on-item[data-lf-key*='\"widget:second-options\"']")
+    row = page.locator(".lf-fp-on-item[data-lf-key='widget:second-options']")
     expect(row).to_be_visible()
     row.focus()
     expect(row).to_be_focused()
@@ -453,12 +448,9 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
     through the element's own click either way, so the keyboard leaves the page in the
     state the pointer would have left it in.
 
-    The word follows either spelling within the press, not within the poll. Neither
-    reports itself — an aria-expanded write fires no event at all — so what the
-    dispatcher offers for the key under the user's finger rests on the attribute watch
-    rather than on the two-second poll behind it. Both readings of it are taken once:
-    an assertion that retries cannot tell the watch from a poll that lands inside its
-    budget.
+    The offer follows either spelling within the press: the dispatcher reads which way
+    the disclosure stands as it is asked, so the arrow it offers once a press returns
+    is the one that now changes something.
 
     Shift+← is the last thing this holds to: a summary's words are the page's, and
     extending a selection through them must not shut the section they are in."""
@@ -515,30 +507,18 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
     page.keyboard.press("ArrowRight")
     expect(row).to_have_attribute("aria-expanded", "true")
     expect(page.locator("#st-keep")).to_be_visible()
-    # Nothing reports this one at all — an aria-expanded write fires no event anywhere —
-    # so read once: the word is the attribute watch's answer by the time the press
-    # returns, or it is the poll's two seconds later, and only an assertion that refuses
-    # to retry can tell those apart.
+    # An aria-expanded write fires no event anywhere, and the offer has still turned
+    # over: the dispatcher reads the attribute as it is asked.
     said = offered(page)
     assert "ArrowLeft" in said and "ArrowRight" not in said, said
-    # The dispatcher is one of two surfaces naming this row's keys, and the other is read by
-    # somebody who cannot see the first. A row whose bindings answer from its own state
-    # has to repaint both when the state moves; with only the line watched, the
-    # attribute keeps whichever way the row was set when the scope was declared, so
-    # it goes on promising the arrow that no longer moves this section and withholding
-    # the one that does.
-    #
-    # Read once for the reason the line is, and by the same clock: the heartbeat repaints
-    # scopes too, so a retrying assertion goes green on the tick that lands inside its
-    # budget and the fix it is meant to hold has nothing to fail against.
-    assert row.get_attribute("aria-keyshortcuts") == "Enter Space ArrowLeft"
     page.keyboard.press("ArrowRight")
     expect(row).to_have_attribute("aria-expanded", "true")
     page.keyboard.press("ArrowLeft")
     expect(row).to_have_attribute("aria-expanded", "false")
     expect(page.locator("#st-keep")).to_be_hidden()
-    rendered(page)
-    assert row.get_attribute("aria-keyshortcuts") == "Enter Space ArrowRight"
+    # And back again on the return leg.
+    said = offered(page)
+    assert "ArrowRight" in said and "ArrowLeft" not in said, said
     # Enter and Space toggle it once each. The span presses as a button does, and the
     # disclosure's row runs the same press here, which must replace the span's own as
     # it replaces a native button's, rather than toggle it back.
@@ -548,12 +528,10 @@ def test_the_arrows_say_which_way_the_section_under_the_user_goes(browser, serve
     expect(row).to_have_attribute("aria-expanded", "false")
 
     # A disclosure in a message, where the disclosure scope does not reach: thread markup
-    # is a second document beside the version, and the arrows are the page's. A diff,
-    # because what is being asked is what a widget's own row names — a widget re-wording
-    # this press reads its bindings from DISCLOSE, which answers for where the element
-    # stands as well as which way it is set, so the row cannot offer a key that
-    # nothing there runs. The platform's pair still works it, so what differs is the
-    # offer rather than the capability.
+    # is a second document beside the version, and the arrows are the page's. A diff's
+    # file row, a widget's own disclosure, is offered no key that nothing there runs.
+    # The platform's pair still works it, so what differs is the offer rather than the
+    # capability.
     append_carried_log_record(
         serve.page_dir,
         {
@@ -605,7 +583,6 @@ def test_a_native_modal_escapes_inherited_inertness_for_its_commands(browser, se
     """
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate("""async () => {
-      const {commandsChanged} = await window.__lfWidgetApi();
       const region = document.createElement('section');
       region.inert = true;
       const dialog = document.createElement('dialog');
@@ -616,10 +593,10 @@ def test_a_native_modal_escapes_inherited_inertness_for_its_commands(browser, se
       button.lfCommands = { title: 'Inside the native modal', rows: [{id:'test.inert-modal', keys:['v'],
         title:'Run the modal command',
         run:() => { button.dataset.runs = String(Number(button.dataset.runs || 0) + 1); }}] };
-      commandsChanged(button);
       dialog.append(button);
       region.append(dialog);
       document.querySelector('main').append(region);
+      button.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
       dialog.showModal();
       button.focus();
     }""")
@@ -752,12 +729,9 @@ def test_a_popover_its_control_opens_hands_the_user_back_to_the_control(browser,
 
     outside = page.locator("#outside")
     outside.focus()
-    page.evaluate("""async () => {
-      const {showNativeLayer} = await window.__lfWidgetApi();
-      showNativeLayer(document.querySelector('#scripted-list'), {
-        source: document.querySelector('#scripted-control'),
-      });
-    }""")
+    page.evaluate("""() => document.querySelector('#scripted-list').showPopover({
+      source: document.querySelector('#scripted-control'),
+    })""")
     opener = page.locator("#scripted-control")
     expect(page.locator("#scripted-list")).to_be_visible()
     expect(opener).to_have_attribute("aria-expanded", "true")
@@ -778,13 +752,17 @@ def test_a_key_the_page_answers_takes_no_step_of_leaf_s(browser, serve):
     letting go of a control is what Leaf does with an Escape nothing else took, read
     after every listener the page has.
 
-    Every other key Leaf reads on the root element, after a listener on any element and
-    before the page's on the document and the window. So a command declared on a
-    focused element runs before a page-wide shortcut for the same key, which hears only
-    what Leaf leaves; Escape leaves Design mode before a page listener that prevents
-    every Escape hears it, from a focused page control too, and that listener hears the
-    next Escape. Go-to owns the keyboard while it is armed, so its Escape closes it before
-    that listener hears the key."""
+    Every other key, printed letters included, Leaf reads on the root element, after a
+    listener on any element and before the page's on the document and the window. So a
+    page widget that answers a letter Leaf's page also uses, as a film plays on `k`,
+    keeps it while focus is in the widget, and a letter it leaves unprevented goes on to
+    Leaf's page command. With nothing focused, a key is aimed at the page itself, and
+    Leaf's command for it runs first, so a listener on `body` that prevents the letter
+    neither hears it nor acts beside Leaf. A command declared on a focused element runs before a page-wide
+    shortcut for the same key, which hears only what Leaf leaves; Escape leaves Design
+    mode before a page listener that prevents every Escape hears it, from a focused page
+    control too, and that listener hears the next Escape. Go-to owns the keyboard while it
+    is armed, so its Escape closes it before that listener hears the key."""
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate("""() => {
       const trigger = document.createElement('button');
@@ -891,7 +869,6 @@ def test_a_key_the_page_answers_takes_no_step_of_leaf_s(browser, serve):
     # A command declared on an element, as a Leaf widget's are, and a page-wide
     # listener for the same key that prevents it.
     page.evaluate("""async () => {
-      const { commandsChanged } = await window.__lfWidgetApi();
       const stepper = document.createElement('section');
       stepper.id = 'stepper';
       stepper.tabIndex = 0;
@@ -901,7 +878,7 @@ def test_a_key_the_page_answers_takes_no_step_of_leaf_s(browser, serve):
          run: () => stepper.dataset.steps = String(Number(stepper.dataset.steps ?? 0) + 1)},
       ] };
       document.querySelector('main').append(stepper);
-      commandsChanged(stepper);
+      stepper.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
       window.arrows = 0;
       document.addEventListener('keydown', (event) => {
         if (!event.key.startsWith('Arrow')) return;
@@ -915,6 +892,94 @@ def test_a_key_the_page_answers_takes_no_step_of_leaf_s(browser, serve):
     assert page.evaluate("() => window.arrows") == 0
     page.keyboard.press("ArrowLeft")
     assert page.evaluate("() => window.arrows") == 1
+
+    # A page widget's own listener, declaring nothing.
+    page.evaluate("""() => {
+      const film = document.createElement('section');
+      film.id = 'film';
+      film.tabIndex = 0;
+      film.textContent = 'A film';
+      window.played = 0;
+      film.addEventListener('keydown', (event) => {
+        if (event.key !== 'k') return;
+        event.preventDefault();
+        window.played += 1;
+      });
+      document.querySelector('main').append(film);
+      window.ran = [];
+      document.addEventListener('lf-command-invoked', (e) => window.ran.push(e.detail.id));
+      film.focus();
+    }""")
+    page.keyboard.press("k")
+    assert page.evaluate("() => [window.played, window.ran]") == [1, []]
+    page.keyboard.press("j")
+    assert page.evaluate("() => [window.played, window.ran]") == [1, ["scroll.down"]]
+
+    # With nothing focused, a listener on `body` that prevents the letter.
+    page.evaluate("""() => {
+      window.heard = 0;
+      document.body.addEventListener('keydown', (event) => {
+        if (event.key !== 'k') return;
+        event.preventDefault();
+        window.heard += 1;
+      });
+      window.ran = [];
+      document.activeElement.blur();
+    }""")
+    page.keyboard.press("k")
+    assert page.evaluate("() => [window.heard, window.ran]") == [0, ["scroll.up"]]
+
+
+def test_a_widget_in_a_message_keeps_a_key_it_answers(browser, serve):
+    """A message's markup is a document its writer authored, though the panel showing
+    it stands outside `body`, so a widget there keeps a key its own listener answers
+    and prevents, as it would on the page, and Leaf's command for the key doesn't act
+    beside it. Where the key was aimed is read as it is pressed, so the widget keeps it
+    even where its answer redraws the element the key was aimed at."""
+    url = serve(LONG_PAGE)
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "id": "c-film",
+            "author": "user",
+            "revision": 1,
+            "text": "Show me the film.",
+        },
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": "c-film",
+            "revision": 1,
+            "text": "Here it is.",
+        },
+    )
+    page = open_page(browser, url)
+    view = open_panel_thread(page, "c-film")
+    view.locator(".lf-msg-body").last.evaluate("""(body) => {
+      const film = document.createElement('section');
+      film.tabIndex = 0;
+      film.textContent = 'A film';
+      window.played = 0;
+      film.addEventListener('keydown', (event) => {
+        if (event.key !== 'k') return;
+        event.preventDefault();
+        window.played += 1;
+        const redrawn = film.cloneNode();
+        redrawn.textContent = 'A film, playing';
+        film.replaceWith(redrawn);
+        redrawn.focus();
+      });
+      body.append(film);
+      window.ran = [];
+      document.addEventListener('lf-command-invoked', (e) => window.ran.push(e.detail.id));
+      film.focus();
+    }""")
+    page.keyboard.press("k")
+    assert page.evaluate("() => [window.played, window.ran]") == [1, []]
 
 
 def test_a_native_control_keeps_its_keys_from_the_widget_around_it(
@@ -935,7 +1000,6 @@ def test_a_native_control_keeps_its_keys_from_the_widget_around_it(
     with subtests.test(control="text box"):
         page.evaluate(
             """async () => {
-              const { commandsChanged } = await window.__lfWidgetApi();
               const host = document.createElement('section');
               host.id = 'key-owning-widget';
               const box = document.createElement('textarea');
@@ -947,7 +1011,7 @@ def test_a_native_control_keeps_its_keys_from_the_widget_around_it(
                  title: 'Work the widget', line: 'work widget',
                  runKey: (binding) => host.dataset.fired = binding},
               ] };
-              commandsChanged(host);
+              host.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
               box.focus();
             }"""
         )
@@ -970,7 +1034,6 @@ def test_a_native_control_keeps_its_keys_from_the_widget_around_it(
     with subtests.test(control="radio and slider"):
         page.evaluate(
             """async () => {
-              const { commandsChanged } = await window.__lfWidgetApi();
               const dialog = document.createElement('dialog');
               dialog.id = 'control-key-owner';
               dialog.innerHTML = '<label>First<input type="radio" name="choice" value="one" checked></label>' +
@@ -981,7 +1044,7 @@ def test_a_native_control_keeps_its_keys_from_the_widget_around_it(
                 keys: ['ArrowDown', 'Shift+ArrowRight', 'Home'],
                 title: 'Work the widget', line: 'work widget',
                 runKey: (binding) => dialog.dataset.fired = binding}] };
-              commandsChanged(dialog);
+              dialog.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
               dialog.showModal();
             }"""
         )
@@ -999,12 +1062,11 @@ def test_a_native_control_keeps_its_keys_from_the_widget_around_it(
         expect(host).not_to_have_attribute("data-fired")
         page.evaluate(
             """async () => {
-              const { commandsChanged } = await window.__lfWidgetApi();
               const slider = document.querySelector('#control-key-owner input[type="range"]');
               slider.lfCommands = { title: 'Exact control', rows: [{id: 'test.control', keys: ['ArrowDown'],
                 title: 'Work this control', line: 'work control',
                 run: () => slider.value = 75}] };
-              commandsChanged(slider);
+              slider.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
             }"""
         )
         page.keyboard.press("ArrowDown")
@@ -1079,8 +1141,8 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
     page = open_page(browser, url)
     page.evaluate(
         """async () => {
-          const { showNativeLayer, commandsChanged } = await window.__lfWidgetApi();
           const { shadowStage } = await window.__lfWidgetApi();
+          const { showNativeLayer } = await window.__lfCheckApi();
           const host = document.createElement('section');
           host.id = 'around-native-layer';
           const dialog = document.createElement('dialog');
@@ -1109,7 +1171,7 @@ def test_native_top_layers_bound_the_keyboard_stack(browser, serve):
             {id: 'test.outer-escape', keys: ['Escape'], title: 'Work the outer widget',
              line: 'work outer', run: () => { host.dataset.fired = 'Escape'; }},
           ] };
-          commandsChanged(host);
+          host.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
           const opener = document.createElement('button');
           opener.id = 'open-native-layer';
           opener.textContent = 'Open the modal';
@@ -1262,7 +1324,6 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
     page = open_page(browser, serve(NOTED_PAGE))
     answers = page.evaluate(
         """async () => {
-          const { commandsChanged } = await window.__lfWidgetApi();
           const {commandDeclarationsWithin, renderingState} = await window.__lfCheckApi();
           const registeredOn = element => commandDeclarationsWithin(element)
             .some(({source}) => source === element);
@@ -1281,7 +1342,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
           // Read after all repaint work has settled; the second paint finds the
           // refused scope gone rather than refusing it again.
           const painted = async (button) => {
-            commandsChanged(document.body);
+            document.body.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
             await settled();
             return button.getAttribute('aria-keyshortcuts');
           };
@@ -1290,12 +1351,11 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
             button.id = id;
             document.querySelector('main').append(button);
             let declaration = 'declared';
-            try {
-              button.lfCommands = { title: id, rows: rows, when: when };
-              commandsChanged(button);
-            } catch (error) {
-              declaration = error.message;
-            }
+            const refused = (event) => { declaration = event.error.message; };
+            button.addEventListener('error', refused);
+            button.lfCommands = { title: id, rows: rows, when: when };
+            button.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
+            button.removeEventListener('error', refused);
             const declared = button.getAttribute('aria-keyshortcuts');
             const first = await painted(button);
             const registered = registeredOn(button);
@@ -1308,7 +1368,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
             button.id = id;
             document.querySelector('main').append(button);
             button.lfCommands = { title: id, rows: rows };
-            commandsChanged(button);
+            button.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
             const declared = button.getAttribute('aria-keyshortcuts');
             await settled();
             const framed = button.getAttribute('aria-keyshortcuts');
@@ -1323,9 +1383,9 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
             button.id = id;
             document.querySelector('main').append(button);
             button.lfCommands = { title: id, rows: first };
-            commandsChanged(button);
+            button.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
             button.lfCommands = { title: id, rows: second };
-            commandsChanged(button);
+            button.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
             await settled();
             const framed = button.getAttribute('aria-keyshortcuts');
             const registered = registeredOn(button);
@@ -1398,7 +1458,6 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
     # belong to separate focus locations, so they are not a conflict in either scope.
     page.evaluate(
         """async () => {
-          const { commandsChanged } = await window.__lfWidgetApi();
           let first;
           for (const label of ['First', 'Second']) {
             const button = document.createElement('button');
@@ -1414,7 +1473,7 @@ def test_a_scope_cannot_give_one_live_key_two_meanings(browser, serve):
                 run: () => button.dataset.secondFired = '1',
               }] : []),
             ] };
-            commandsChanged(button);
+            button.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
           }
           first.focus();
         }"""
@@ -1458,7 +1517,6 @@ def test_an_inner_scope_shadows_an_outer_one_binding_by_binding(
     with subtests.test(case="a partly shadowed row keeps its other binding"):
         page.evaluate(
             """async () => {
-              const { commandsChanged } = await window.__lfWidgetApi();
               const target = document.createElement('button');
               target.id = 'local-down';
               target.textContent = 'Local down';
@@ -1467,7 +1525,7 @@ def test_an_inner_scope_shadows_an_outer_one_binding_by_binding(
                 id: 'test.local-down', keys: ['d'], title: 'Local down', line: 'local down',
                 run: () => { target.dataset.pressed = '1'; },
               }] };
-              commandsChanged(target);
+              target.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
               target.focus();
             }"""
         )
@@ -1485,7 +1543,6 @@ def test_an_inner_scope_shadows_an_outer_one_binding_by_binding(
     with subtests.test(case="a dead inner Escape leaves the outer unwind"):
         page.evaluate(
             """async () => {
-              const { commandsChanged } = await window.__lfWidgetApi();
               const outer = document.createElement('div');
               outer.id = 'outer-escape-scope';
               const inner = document.createElement('button');
@@ -1496,13 +1553,13 @@ def test_an_inner_scope_shadows_an_outer_one_binding_by_binding(
                 { id: 'test.outer-escape', keys: ['Escape'], title: 'Leave outer scope',
                   line: 'leave outer scope', run: () => { outer.dataset.escaped = '1'; } },
               ] };
-              commandsChanged(outer);
+              outer.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
               inner.lfCommands = { title: 'Inner scope', rows: [
                 { id: 'test.inner-escape', keys: ['Escape'], title: 'Leave inner scope',
                   line: 'leave inner scope', when: () => false,
                   run: () => { inner.dataset.escaped = '1'; } },
               ] };
-              commandsChanged(inner);
+              inner.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
               inner.focus();
             }"""
         )
@@ -1518,7 +1575,6 @@ def test_an_inner_scope_shadows_an_outer_one_binding_by_binding(
     with subtests.test(case="a dead inner key suppresses the outer command"):
         page.evaluate(
             """async () => {
-              const { commandsChanged } = await window.__lfWidgetApi();
               const outer = document.createElement('div');
               outer.id = 'outer-scope';
               const inner = document.createElement('button');
@@ -1531,13 +1587,13 @@ def test_an_inner_scope_shadows_an_outer_one_binding_by_binding(
                 { id: 'test.outer-f3', keys: ['F3'], title: 'Run outer F3',
                   line: 'outer F3', run: () => { outer.dataset.f3 = '1'; } },
               ] };
-              commandsChanged(outer);
+              outer.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
               inner.lfCommands = { title: 'Inner scope', rows: [
                 { id: 'test.inner-f2', keys: ['F2'], title: 'Run inner F2',
                   line: 'inner F2', when: () => false,
                   run: () => { inner.dataset.f2 = '1'; } },
               ] };
-              commandsChanged(inner);
+              inner.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
               inner.focus();
             }"""
         )
@@ -1602,12 +1658,14 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     says whether it repeats and the default is no.
 
     No gesture Playwright makes carries the repeat flag, so the press is dispatched with
-    it set. That is the event a held key sends and the handler under test is the one the
-    page installed; the tap below it, dispatched the same way and answered, is what says
-    so rather than leaving the held press to pass for want of reaching anything."""
+    it set, at the focused element as a real key is. That is the event a held key sends
+    and the handler under test is the one the page installed; the tap below it,
+    dispatched the same way and answered, is what says so rather than leaving the held
+    press to pass for want of reaching anything."""
     live_leaf("second", "A second leaf")
-    page = open_page(browser, serve(OBLIGATIONS_PAGE, comments=3))
-    press = """([key, repeat, shiftKey = false]) => document.dispatchEvent(
+    page = open_page(browser, serve_obligations(serve, comments=3))
+    press = """([key, repeat, shiftKey = false]) =>
+      (document.activeElement ?? document.body).dispatchEvent(
         new KeyboardEvent('keydown',
           {key, repeat, shiftKey, bubbles: true, cancelable: true}))"""
 
@@ -1636,7 +1694,7 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
 def test_a_walk_with_nothing_to_step_through_says_so(browser, serve):
     """Each page walk's letter is live on every page: on a page with no open thread,
     nothing on the user, no comparison and no search, a press says so in the panel
-    rather than doing nothing (keyboard/AGENTS.md, "Page grammar"), and Shift's
+    rather than doing nothing (dom/keyboard/AGENTS.md, "Page grammar"), and Shift's
     reverse says the same."""
     page = open_page(
         browser, serve(leaf_page("Quiet", "<h1>Quiet</h1><p>Nothing to answer.</p>"))
@@ -1877,7 +1935,7 @@ def test_a_back_gesture_takes_the_step_escape_would(browser, serve):
     page.evaluate(BROWSER_BACK)
 
     page.locator(".lf-fp-leaf").tap()
-    panel_settled(page, view="menu")
+    panel_settled(page)
     back_gesture(page)
     panel_settled(page, open=False)
 
@@ -1909,7 +1967,6 @@ def test_a_close_request_takes_one_step_at_a_time(browser, serve, subtests):
         open_threads(page)
         page.evaluate(
             """async () => {
-              const { commandsChanged } = await window.__lfWidgetApi();
               const dialog = document.createElement('dialog');
               dialog.id = 'inner-step';
               const button = document.createElement('button');
@@ -1919,7 +1976,7 @@ def test_a_close_request_takes_one_step_at_a_time(browser, serve, subtests):
               button.lfCommands = { title: 'Inside the dialog', rows: [{id: 'test.inner', keys: ['Escape'],
                 title: 'Take the inner step', when: () => !button.dataset.fired,
                 run: () => (button.dataset.fired = 'Escape')}] };
-              commandsChanged(button);
+              button.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
               dialog.showModal();
               button.focus();
             }"""
@@ -2429,7 +2486,6 @@ def test_a_command_button_owns_activation_and_the_native_form_default(browser, s
     page = open_page(browser, serve(NOTED_PAGE))
     page.evaluate(
         """async () => {
-          const {commandsChanged} = await window.__lfWidgetApi();
           const form = document.createElement('form');
           const button = document.createElement('button');
           button.id = 'command-form-button';
@@ -2437,7 +2493,7 @@ def test_a_command_button_owns_activation_and_the_native_form_default(browser, s
           form.append(button);
           document.querySelector('main').prepend(form);
           window.commandForm = {runs: 0, submits: 0, available: true,
-            invalidate: () => commandsChanged(form)};
+            invalidate: () => form.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }))};
           form.addEventListener('submit', event => {
             event.preventDefault();
             window.commandForm.submits++;
@@ -2447,7 +2503,7 @@ def test_a_command_button_owns_activation_and_the_native_form_default(browser, s
             when: () => window.commandForm.available,
             run: () => window.commandForm.runs++,
           }] };
-          commandsChanged(form);
+          form.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
         }"""
     )
     button = page.locator("#command-form-button")
@@ -2494,7 +2550,6 @@ def test_a_command_button_owns_activation_and_the_native_form_default(browser, s
     assert page.evaluate("() => [commandForm.runs, commandForm.submits]") == [6, 0]
     page.evaluate(
         """async () => {
-          const {commandsChanged} = await window.__lfWidgetApi();
           document.querySelector('fieldset').disabled = false;
           const one = document.querySelector('#command-form-button');
           const two = document.createElement('button');
@@ -2510,7 +2565,7 @@ def test_a_command_button_owns_activation_and_the_native_form_default(browser, s
               {id: 'test.form-two', title: 'Second', binding: '2', control: two}],
             runKey: binding => commandForm.routes.push(binding),
           }] };
-          commandsChanged(one.form);
+          one.form.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
           commandForm.invalidate();
         }"""
     )

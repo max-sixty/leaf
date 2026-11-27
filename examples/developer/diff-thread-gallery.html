@@ -39,6 +39,13 @@
           <lf-diff id="dfg-patch" source="dfg-patch-source" collapsed></lf-diff>
         </template>
       </lf-sample>
+      <h2 id="dfg-lines-title">Line conversations</h2>
+      <p id="dfg-lines-guide">
+        Each conversation stands as a card under the line it is about, its edge at the
+        code's first column. Press <kbd>t</kbd> to step through them: the one you stand
+        on is ringed, and its line is bracketed. Reply opens where Reply rests.
+      </p>
+      <lf-diff id="dfg-lines" source="dfg-lines-source" data-height="809"></lf-diff>
       <h2>Long lines in a patch</h2>
       <p>
         The prose file wraps by default; this code file asks for the same reading mode.
@@ -81,6 +88,18 @@ diff --git a/src/constant.py b/src/constant.py
           source sideways: the explanation stays within the reader’s width.
         </lf-diff-note>
       </lf-diff>
+      <h2 id="dfg-compared-title">Two texts compared</h2>
+      <p id="dfg-compared-guide">
+        This diff holds no patch. It compares two texts of deploy.toml that the page
+        holds as sources, as committed and as it stands now, and draws the change
+        between them with Git's three lines of context.
+      </p>
+      <lf-diff
+        id="dfg-compared"
+        before="dfg-config-committed"
+        after="dfg-config-current"
+        data-height="253"
+      ></lf-diff>
     </main>
   </body>
 </html>

@@ -6,18 +6,43 @@
       name="description"
       content="Back from a week away, clear the seven notifications only the maintainer can answer, one card at a time: answer one and the next comes up, or leave it for the end."
     />
+    <style>
+      main > * {
+        max-inline-size: var(--lf-col);
+        margin-inline: auto;
+      }
+    </style>
   </head>
   <body>
-    <main class="layout-column">
-      <hgroup id="cu-title">
-        <p>marram · notifications since Nov 7</p>
-        <h1>Seven notifications need your call</h1>
-      </hgroup>
-      <p class="lede" id="cu-lede">
-        I handled 36 of the 43 notifications from your week away, and these seven need
-        you. I post, merge or close nothing on them until you answer, and act on each
-        answer as it comes in.
-      </p>
+    <main class="layout-workspace">
+      <header>
+        <hgroup id="cu-title">
+          <p>marram · notifications since Nov 7</p>
+          <h1>Seven notifications need your call</h1>
+        </hgroup>
+        <p class="lf-lede" id="cu-lede">
+          I handled 36 of the 43 notifications from your week away, and these seven need
+          you. I post, merge or close nothing on them until you answer, and act on each
+          answer as it comes in.
+        </p>
+        <details id="cu-handled">
+          <summary>The 36 I handled without you</summary>
+          <ul>
+            <li>
+              Merged five Dependabot updates whose CI passed: #410, #411, #413, #416 and
+              #420.
+            </li>
+            <li>
+              Closed four issues that 1.7.2 fixed or the docs answer, each with a reply
+              linking the fix or the page.
+            </li>
+            <li>
+              Marked 27 read: CI runs on main, release notices, and threads someone else
+              had already answered.
+            </li>
+          </ul>
+        </details>
+      </header>
 
       <lf-deck id="cu-deck">
         <lf-group
@@ -40,7 +65,7 @@ Thanks for the clear report! This is #397: from 1.7.3, marram reads `%APPDATA%\m
           <p>I'd close it: #397 tracks the fix, and the reply names the release.</p>
           <lf-options id="cu-windows-choice">
             <lf-option id="cu-windows-open" label="Leave #423 open until 1.7.3 ships">
-              <small class="tag">Rhea hears at 1.7.3</small>
+              <small class="lf-tag">Rhea hears at 1.7.3</small>
               <strong>Leave #423 open until 1.7.3 ships</strong>
             </lf-option>
             <lf-option
@@ -48,7 +73,7 @@ Thanks for the clear report! This is #397: from 1.7.3, marram reads `%APPDATA%\m
               label="Close #423 as a duplicate of #397"
               recommended
             >
-              <small class="tag">Rhea follows #397</small>
+              <small class="lf-tag">Rhea follows #397</small>
               <strong>Close #423 as a duplicate of #397</strong>
             </lf-option>
           </lf-options>
@@ -77,7 +102,7 @@ Thanks for the clear report! This is #397: from 1.7.3, marram reads `%APPDATA%\m
           </p>
           <lf-options id="cu-reqwest-choice">
             <lf-option id="cu-reqwest-close" label="Close #421 and stay on 0.12">
-              <small class="tag">reopens at 0.13.2</small>
+              <small class="lf-tag">reopens at 0.13.2</small>
               <strong>Close #421 and stay on 0.12</strong>
             </lf-option>
             <lf-option
@@ -85,8 +110,8 @@ Thanks for the clear report! This is #397: from 1.7.3, marram reads `%APPDATA%\m
               label="Push the rename to #421 and merge it"
               recommended
             >
-              <small class="tag">1 line</small>
-              <small class="tag">1,212 links pass</small>
+              <small class="lf-tag">1 line</small>
+              <small class="lf-tag">1,212 links pass</small>
               <strong>Push the rename to #421 and merge it</strong>
             </lf-option>
           </lf-options>
@@ -101,7 +126,7 @@ Thanks for the clear report! This is #397: from 1.7.3, marram reads `%APPDATA%\m
             #419 runs the suite with cargo-nextest, which runs each test in its own
             process, in parallel.
           </p>
-          <dl class="facts">
+          <dl class="lf-facts">
             <dt>CI per push</dt>
             <dd>6 min 40 s → 3 min 10 s</dd>
             <dt>Flaky test</dt>
@@ -124,14 +149,14 @@ Thanks for the clear report! This is #397: from 1.7.3, marram reads `%APPDATA%\m
               id="cu-nextest-port"
               label="Ask Tomasz to give each test a free port first"
             >
-              <small class="tag">CI 6m 40s</small>
-              <small class="tag">no workaround</small>
+              <small class="lf-tag">CI 6m 40s</small>
+              <small class="lf-tag">no workaround</small>
               <strong>Ask Tomasz to give each test a free port first</strong> #419 waits
               for that change.
             </lf-option>
             <lf-option id="cu-nextest-approve" label="Approve #419" recommended>
-              <small class="tag">CI 3m 10s</small>
-              <small class="tag">1 serial test</small>
+              <small class="lf-tag">CI 3m 10s</small>
+              <small class="lf-tag">1 serial test</small>
               <strong>Approve #419</strong> I'll open an issue for the free ports.
             </lf-option>
           </lf-options>
@@ -162,11 +187,11 @@ Thanks for the clear report! This is #397: from 1.7.3, marram reads `%APPDATA%\m
               label="Post it without the date"
               recommended
             >
-              <small class="tag">promises the format</small>
+              <small class="lf-tag">promises the format</small>
               <strong>Post it without the date</strong> I'll drop the first sentence.
             </lf-option>
             <lf-option id="cu-roadmap-dated" label="Post it as written">
-              <small class="tag">promises Q1 too</small>
+              <small class="lf-tag">promises Q1 too</small>
               <strong>Post it as written</strong>
             </lf-option>
           </lf-options>
@@ -203,13 +228,13 @@ Thanks, this is a clean change and the tests cover it well. Before I merge, coul
               label="Post the review asking for -0"
               recommended
             >
-              <small class="tag">1 more round</small>
-              <small class="tag">all paths open</small>
+              <small class="lf-tag">1 more round</small>
+              <small class="lf-tag">all paths open</small>
               <strong>Post the review asking for <code>-0</code></strong>
             </lf-option>
             <lf-option id="cu-stdin-merge" label="Approve and merge #418">
-              <small class="tag">merged today</small>
-              <small class="tag">ASCII paths only</small>
+              <small class="lf-tag">merged today</small>
+              <small class="lf-tag">ASCII paths only</small>
               <strong>Approve and merge #418</strong> I'll open an issue for
               NUL-separated input.
             </lf-option>
@@ -234,14 +259,14 @@ Thanks, this is a clean change and the tests cover it well. Before I merge, coul
           </p>
           <lf-options id="cu-anchors-choice">
             <lf-option id="cu-anchors-decline" label="Decline it as out of scope">
-              <small class="tag">0 days</small>
-              <small class="tag">never ships</small>
+              <small class="lf-tag">0 days</small>
+              <small class="lf-tag">never ships</small>
               <strong>Decline it as out of scope</strong> Close #424 and point to anchor
               checking in a site generator's build.
             </lf-option>
             <lf-option id="cu-anchors-help" label="Label it help wanted">
-              <small class="tag">0 days</small>
-              <small class="tag">if contributed</small>
+              <small class="lf-tag">0 days</small>
+              <small class="lf-tag">if contributed</small>
               <strong>Label it help wanted</strong> With a note on where the parser
               would hook in.
             </lf-option>
@@ -250,8 +275,8 @@ Thanks, this is a clean change and the tests cover it well. Before I merge, coul
               label="Put it on the 1.8 milestone"
               recommended
             >
-              <small class="tag">3 days</small>
-              <small class="tag">ships in 1.8</small>
+              <small class="lf-tag">3 days</small>
+              <small class="lf-tag">ships in 1.8</small>
               <strong>Put it on the 1.8 milestone</strong>
             </lf-option>
           </lf-options>
@@ -271,7 +296,7 @@ Thanks, this is a clean change and the tests cover it well. Before I merge, coul
             and log its status. The body never reaches the log: an attacker learns which
             internal hosts answer, not what they hold.
           </p>
-          <dl class="facts">
+          <dl class="lf-facts">
             <dt>Reproduced</dt>
             <dd>1.7.2 on a self-hosted EC2 runner logged <code>200 OK</code></dd>
             <dt>Nadia asks</dt>
@@ -292,8 +317,8 @@ Thanks, this is a clean change and the tests cover it well. Before I merge, coul
               id="cu-ssrf-expected"
               label="Reply that this is expected behavior"
             >
-              <small class="tag">0 days</small>
-              <small class="tag">still probeable</small>
+              <small class="lf-tag">0 days</small>
+              <small class="lf-tag">still probeable</small>
               <strong>Reply that this is expected behavior</strong> Document that marram
               follows redirects, and leave CI runners to restrict their network.
             </lf-option>
@@ -302,32 +327,14 @@ Thanks, this is a clean change and the tests cover it well. Before I merge, coul
               label="Open a private advisory and fix it in 1.7.3"
               recommended
             >
-              <small class="tag">1 day</small>
-              <small class="tag">SSO needs flag</small>
+              <small class="lf-tag">1 day</small>
+              <small class="lf-tag">SSO needs flag</small>
               <strong>Open a private advisory and fix it in 1.7.3</strong> Request a
               CVE, credit Nadia, and publish the advisory with the release.
             </lf-option>
           </lf-options>
         </lf-group>
       </lf-deck>
-
-      <details id="cu-handled">
-        <summary>The 36 I handled without you</summary>
-        <ul>
-          <li>
-            Merged five Dependabot updates whose CI passed: #410, #411, #413, #416 and
-            #420.
-          </li>
-          <li>
-            Closed four issues that 1.7.2 fixed or the docs answer, each with a reply
-            linking the fix or the page.
-          </li>
-          <li>
-            Marked 27 read: CI runs on main, release notices, and threads someone else
-            had already answered.
-          </li>
-        </ul>
-      </details>
     </main>
   </body>
 </html>

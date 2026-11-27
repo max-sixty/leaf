@@ -3,16 +3,21 @@
 Python remains the sole owner of activation, event admission and projection. A
 successful page transaction publishes its canonical record and asleep responses
 together to the container's Durable Object before acknowledging the write. The
-record is the page's whole directory as the session left it, every revision it reads
-included, and replaces the image's copy of the page on startup. So a later release at
-the same page protocol serves the visitor's page as they left it, as a local Leaf
-serves a page an earlier Leaf wrote, rather than reading their log against the
-revisions it publishes itself. Captured responses are disposable delivery output and
-never an input to a fold. Responses retain their exact bytes: the separately bundled
-public assets are a different module graph.
+record is the page's whole directory as the session left it (`_record_files`): every
+revision it reads, each file it binds from inside the directory, and each file the
+hosted agent writes there, since the agent works in that directory. The record
+replaces the image's copy of the page on startup. So a later release at the same
+page protocol serves the visitor's page as they left it, as a local Leaf serves a
+page an earlier Leaf wrote, rather than reading their log against the revisions it
+publishes itself.
+A commit publishes only once the page's reading has moved (`record_reading`), so a
+change to a file no reading stamps, such as the agent's notes, reaches the record
+with the next commit that does. Captured responses are disposable delivery output
+and never an input to a fold. Responses retain their exact bytes: the separately
+bundled public assets are a different module graph.
 
 The user's drafts change with every keystroke and move no page reading
-(`reading.UNWATCHED`), so they take a path of their own. Each write of a page's drafts
+(`page_inputs.UNWATCHED`), so they take a path of their own. Each write of a page's drafts
 store replaces the Durable Object's copy of the store before the container replaces
 its file or answers the write (`publish_drafts`), so a replacement container restores
 every write a tab was answered for. The object's copy is the store of record: it
@@ -52,23 +57,33 @@ import anyio
 from starlette.datastructures import Headers
 from starlette.requests import Request
 
-from leaf.drafts import DRAFTS, read_drafts
-from leaf.files import latest_revision, revision_path
-from leaf.http import assets_path
-from leaf.page_snapshot import capture_page_snapshot
-from leaf.revision_artifact import read_revision
-from leaf.revisioning import activate_source
-from leaf.runtime_selection import executing, execution_identity
-from leaf.schema import (
+from leaf.base.files import STAGED, latest_revision, revision_path
+from leaf.base.schema import (
+    DATA_DIR,
     DRAFTS_FILE,
+    FILE_BINDINGS_FILE,
     MEDIA_DIR,
-    PAGE_OWNED_DIRS,
-    PAGE_OWNED_FILES,
     PAGE_PROCESS_FILES,
 )
-from leaf.served_state.reading import record_reading
-from leaf.service import PageTransaction
-from leaf.state import STRING, Record, described, object_schema, page_key, state_home
+from leaf.base.state import (
+    STRING,
+    Record,
+    described,
+    object_schema,
+    page_key,
+    record_name,
+    state_home,
+)
+from leaf.pages.page_snapshot import capture_page_snapshot
+from leaf.records.revisioning import activate_source
+from leaf.records.transaction import PageTransaction
+from leaf.serving.drafts import DRAFTS, read_drafts
+from leaf.serving.http import assets_path
+from leaf.source.data import PUBLICATION
+from leaf.source.file_bindings import BINDINGS
+from leaf.source.page_inputs import record_reading
+from leaf.source.revision_artifact import read_revision
+from leaf.source.runtime_selection import executing, execution_identity
 
 CHUNK_BYTES = 1024 * 1024
 # Chunk uploads in flight at once.
@@ -205,13 +220,12 @@ def restore(site_root: Path) -> bool:
                 if not target.is_relative_to(directory) or target == directory:
                     raise ValueError("invalid stored page record path")
                 targets.append((content, target))
-            # These trees are complete inputs, not patches over the release.
-            # Replacing them also preserves deletion of a published input.
-            for name in PAGE_OWNED_DIRS:
-                if (directory / name).exists():
-                    shutil.rmtree(directory / name)
-            for name in PAGE_OWNED_FILES:
-                (directory / name).unlink(missing_ok=True)
+            # The record is the whole directory, so it replaces the release's copy
+            # rather than patching it: a file the session deleted stays deleted, and
+            # no write lands in a file the site build hard-linked to another page's.
+            # A release may not have the page's directory yet.
+            if directory.exists():
+                shutil.rmtree(directory)
             for content, target in targets:
                 target.parent.mkdir(parents=True, exist_ok=True)
                 with target.open("wb") as output:
@@ -219,6 +233,8 @@ def restore(site_root: Path) -> bool:
                         output.write(blobs.body(digest))
                 os.utime(target, (content["modified"], content["modified"]))
                 files += 1
+        # The store sends only the drafts stores written at this release's drafts
+        # shape (the manifest's `drafts_format`, `worker/src/storage.ts`).
         for root, drafts in snapshot["drafts"].items():
             if root not in manifest["pages"]:
                 continue
@@ -248,25 +264,48 @@ def _upload(blobs: _BlobSet, release: str, digest: str) -> None:
 
 
 def _record_files(page_dir: Path) -> list[Path]:
-    # The drafts store is published on its own (`publish_drafts`).
-    files = [
-        page_dir / name
-        for name in PAGE_OWNED_FILES
-        if name not in PAGE_PROCESS_FILES and name != DRAFTS_FILE
-    ]
-    for name in PAGE_OWNED_DIRS:
-        files.extend(path for path in (page_dir / name).rglob("*") if path.is_file())
-    return sorted(path for path in files if path.is_file())
+    """Every regular file in the page directory, whoever wrote it, but those that
+    belong to the serving process and the drafts store, which is published on its
+    own (`publish_drafts`). So the record holds Leaf's files, the author's and the
+    agent's, and each file the page binds from inside its directory, where a reader's
+    saves land."""
+    # A record of another shape is no part of this release's page (`state.Record`),
+    # and a staged file is a write still under way (`files.STAGED`).
+    stale = {
+        *BINDINGS.others(page_dir / FILE_BINDINGS_FILE),
+        *PUBLICATION.others(page_dir / DATA_DIR / "*.json"),
+    }
+    files = []
+    for directory, _subdirectories, names in os.walk(page_dir):
+        for name in names:
+            path = Path(directory, name)
+            if (
+                not STAGED.fullmatch(name)
+                and path not in stale
+                and path.is_file()
+                and not path.is_symlink()
+                and record_name(path.relative_to(page_dir).parts[0])
+                not in (*PAGE_PROCESS_FILES, DRAFTS_FILE)
+            ):
+                files.append(path)
+    return sorted(files)
 
 
 def _record(page_dir: Path, files: list[Path], blobs: _BlobSet) -> dict:
-    return {
-        path.relative_to(page_dir).as_posix(): {
-            **blobs.chunks(path.read_bytes()),
-            "modified": path.stat().st_mtime,
+    record = {}
+    for path in files:
+        # The agent works in the page directory, and may remove or replace a file of
+        # its own while the record is taken.
+        try:
+            with path.open("rb") as file:
+                data, modified = file.read(), os.fstat(file.fileno()).st_mtime
+        except (FileNotFoundError, IsADirectoryError):
+            continue
+        record[path.relative_to(page_dir).as_posix()] = {
+            **blobs.chunks(data),
+            "modified": modified,
         }
-        for path in files
-    }
+    return record
 
 
 def _responses(
@@ -406,7 +445,7 @@ PUBLISHED = Record(
 )
 
 
-# The page commit provider (`service.commit_provider`) a container declares once it
+# The page commit provider (`transaction.commit_provider`) a container declares once it
 # has restored its pages, so every transaction its leaf processes finish publishes its
 # record (`publish`), and every write of a page's drafts its drafts (`publish_drafts`).
 PUBLISHER = "leaf_website.storage"

@@ -1,11 +1,14 @@
 """One native contents route across in-flow and margin presentations."""
 
+import io
+
 import pytest
+from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
-from render_harness import leaf_page, open_page, resized, told
+from render_harness import leaf_page, open_page, resized, rgb_pixels, told
 
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.source.render_checks import rendered, wait_until_ready
 
 
 @pytest.mark.parametrize("initially_open", [False, True])
@@ -152,7 +155,7 @@ def test_a_sidebar_page_track_beside_the_body_stands_its_outline_open(browser, s
     source = leaf_page(
         "sidebar contents",
         '<header><h1>Review</h1></header><aside id="rail">'
-        '<div class="layout-track"><section class="panel">'
+        '<div class="layout-track"><section class="lf-panel">'
         '<lf-toc id="contents"></lf-toc></section></div></aside>'
         f'<div id="body">{sections}</div>',
         layout="sidebar",
@@ -202,7 +205,7 @@ def test_a_spine_sidebar_draws_its_map_only_beside_the_body(browser, serve):
         main.style.inlineSize = `${width}px`;
         readings.push({width,
           stacked: rail.getBoundingClientRect().bottom <= body.getBoundingClientRect().top,
-          map: getComputedStyle(toc.querySelector('.lf-toc-rows')).display === 'flex'});
+          map: getComputedStyle(toc.querySelector('.lf-toc-markers')).display === 'block'});
       }
       main.style.inlineSize = '';
       return readings;
@@ -332,7 +335,7 @@ def test_a_contents_spine_rests_beside_the_prose_and_reveals_its_labels_over_it(
 
     page.mouse.move(spine_x, geometry["rowsY"])
     label = page.locator("#contents").get_by_role("link", name="Section 2", exact=True)
-    expect(label).to_have_css("opacity", "1")
+    expect(page.locator("#contents .lf-toc-labels")).to_have_css("opacity", "1")
     revealed = label.evaluate(
         """(link, asideEnd) => {
           const box = link.getBoundingClientRect();
@@ -350,6 +353,141 @@ def test_a_contents_spine_rests_beside_the_prose_and_reveals_its_labels_over_it(
     page.emulate_media(media="print")
     assert page.locator("#route").evaluate("node => node.offsetWidth") >= 200
     expect(page.locator("#contents .lf-toc-start")).to_be_visible()
+
+
+# Pauses each CSS transition the next gesture starts, in the frame the browser starts
+# it, and collects them in `window.heldFades` until `window.stopHolding()`. A
+# transition's `transitionrun` event is dispatched in the frame after the style change
+# that created it, well inside a fade, and before the third frame after the gesture,
+# when FADES_HELD counts them.
+HOLD_FADES = """() => {
+  window.heldFades = new Set();
+  const holding = new AbortController();
+  window.stopHolding = () => holding.abort();
+  document.addEventListener('transitionrun', () => {
+    for (const fade of document.getAnimations()) {
+      if (!(fade instanceof CSSTransition) || window.heldFades.has(fade)) continue;
+      fade.pause();
+      window.heldFades.add(fade);
+    }
+  }, {capture: true, signal: holding.signal});
+}"""
+FADES_HELD = """async () => {
+  for (let frame = 0; frame < 3; frame++)
+    await new Promise(requestAnimationFrame);
+  return window.heldFades.size;
+}"""
+
+
+@pytest.mark.parametrize("sections", [3, 80], ids=["map", "long"])
+def test_a_contents_spine_fades_its_words_as_one_and_frees_the_prose_at_once(
+    browser, serve, sections
+):
+    """Leaving the revealed map fades all its words at one pace: the part of each word
+    over the prose fades with the part in the spine's track. From the first frame of the fade, the prose past
+    the track takes the pointer, so a pointer that returns there reaches the page
+    rather than reopening the map, while a pointer on the track at rest stands on its
+    row's link, so the link's hover and preview need no further move. Mid-fade, a label
+    past the track still shows."""
+    body = "".join(
+        f'<section><h2 id="s{n}">Section {n}</h2><p>{"Words. " * 20}</p>'
+        f'<h3 id="s{n}-detail">Detail {n}</h3><p>{"Words. " * 20}</p></section>'
+        for n in range(1, sections + 1)
+    )
+    source = leaf_page(
+        "contents spine fade",
+        f'<aside id="route">{MAP_TRACK}</aside><div class="layout-column" id="body">'
+        f"<h1>Review</h1>{body}</div>",
+        layout="sidebar",
+    )
+    page = open_page(browser, live_url(serve(source)))
+    resized(page, 1440, 900)
+    toc = page.locator("#contents")
+    if sections > 3:
+        expect(
+            toc.locator(".lf-toc-labels a:not([data-lf-toc-shown])").first
+        ).to_be_attached()
+    track = toc.bounding_box()
+    y = track["y"] + 200
+    page.mouse.move(track["x"] + 3, y)
+    expect(toc.locator(".lf-toc-labels")).to_have_css("opacity", "1")
+    # The browser holds each transition the gesture starts as it starts, so a driver
+    # that pauses between the gesture and its next call can't let the fade finish
+    # before it is read at its start, midway and its end.
+    page.evaluate(HOLD_FADES)
+    page.mouse.move(track["x"] + 900, y)
+    assert page.evaluate(FADES_HELD) > 0, "leaving the map started no transition"
+    frames = page.evaluate(
+        """([x, y]) => {
+          window.stopHolding();
+          const toc = document.getElementById('contents');
+          const words = [...toc.querySelectorAll('.lf-toc-link')]
+            .filter(node => node.checkVisibility({visibilityProperty: true}));
+          return [0, 120, 240].map(time => {
+            for (const fade of window.heldFades) fade.currentTime = time;
+            // What the reader sees of a word is its opacity times its ancestors'.
+            const opacities = words.map(node => {
+              let seen = 1;
+              for (let at = node; at && at !== toc; at = at.parentElement)
+                seen *= Number(getComputedStyle(at).opacity);
+              return seen;
+            });
+            return {
+              time,
+              least: Math.min(...opacities),
+              most: Math.max(...opacities),
+              mapTakesProse: toc.contains(document.elementFromPoint(x, y)),
+            };
+          });
+        }""",
+        [track["x"] + track["width"] + 150, y],
+    )
+    start, middle, end = frames
+    assert start["most"] == 1 and 0 < middle["most"] < 1 and end["most"] == 0, frames
+    wrong = [f for f in frames if f["most"] > f["least"] or f["mapTakesProse"]]
+    assert wrong == [], frames
+    page.evaluate("window.heldFades.forEach(fade => fade.finish())")
+    in_track = page.evaluate(
+        """trackEnd => {
+          const nav = document.querySelector('#contents .lf-toc-nav');
+          const shown = nav.getBoundingClientRect();
+          return [...nav.querySelectorAll('li .lf-toc-link')].flatMap(link => {
+            const box = link.getBoundingClientRect();
+            if (!link.checkVisibility({visibilityProperty: true}) || box.left >= trackEnd - 4
+              || box.top < shown.top || box.bottom > shown.bottom)
+              return [];
+            const y = box.top + Math.min(box.height, 16) / 2;
+            const hit = document.elementFromPoint(trackEnd - 4, y);
+            return [{depth: link.parentElement.dataset.lfDepth, lands: hit === link}];
+          });
+        }""",
+        track["x"] + track["width"],
+    )
+    # A long route leaves its subsections off the map.
+    depths = {"0", "1"} if sections == 3 else {"0"}
+    assert {row["depth"] for row in in_track} == depths, in_track
+    assert all(row["lands"] for row in in_track), in_track
+
+    page.mouse.move(track["x"] + 3, y)
+    expect(toc.locator(".lf-toc-labels")).to_have_css("opacity", "1")
+    page.evaluate(HOLD_FADES)
+    page.mouse.move(track["x"] + 900, y)
+    assert page.evaluate(FADES_HELD) > 0, "leaving the map started no transition"
+    label = page.evaluate(
+        """trackEnd => {
+          window.stopHolding();
+          for (const fade of window.heldFades) fade.currentTime = 100;
+          const range = document.createRange();
+          range.selectNodeContents(document.querySelector('#contents li .lf-toc-link'));
+          const text = range.getClientRects()[0];
+          const start = Math.max(text.left, trackEnd + 2);
+          return {x: start, y: text.top, width: text.right - start, height: text.height};
+        }""",
+        track["x"] + track["width"],
+    )
+    assert label["width"] > 10, label
+    past_track = Image.open(io.BytesIO(page.screenshot(clip=label))).convert("RGB")
+    assert len(set(rgb_pixels(past_track))) > 1, label
 
 
 def test_the_revealed_contents_spine_covers_every_box_the_body_paints(browser, serve):
@@ -376,12 +514,9 @@ def test_the_revealed_contents_spine_covers_every_box_the_body_paints(browser, s
     )
     page = open_page(browser, live_url(serve(source)))
     resized(page, 960, 900)
-    nav = page.locator("#contents .lf-toc-nav")
     rows = page.locator("#contents .lf-toc-rows").bounding_box()
     page.mouse.move(rows["x"] + 2, rows["y"] + rows["height"] / 2)
-    expect(nav.get_by_role("link", name="Steps", exact=True)).to_have_css(
-        "opacity", "1"
-    )
+    expect(page.locator("#contents .lf-toc-labels")).to_have_css("opacity", "1")
     uncovered = page.evaluate("""() => {
       const toc = document.getElementById('contents');
       const nav = toc.querySelector('.lf-toc-nav').getBoundingClientRect();

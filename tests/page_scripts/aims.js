@@ -34,8 +34,13 @@
   const overlay = (el, over) =>
     !!closestAcross(over, ".lf-chrome") !== !!closestAcross(el, ".lf-chrome") ||
     closestAcross(over, TOP) !== closestAcross(el, TOP);
+  // A press that lands on a surface of another layer, as on a message's reaction list
+  // open in the top layer over the panel's row, is that surface's to take, though the
+  // message holding the list stands in the row's own layer.
   const reachedBy = (el, x, y) => {
-    for (let at = pressed(x, y); at; at = at.parentNode || at.host) {
+    const hit = pressed(x, y);
+    if (overlay(el, hit)) return false;
+    for (let at = hit; at; at = at.parentNode || at.host) {
       if (at === el) return false;
       if (at.nodeType !== 1 || !at.matches(PRESS)) continue;
       return !overlay(el, at);
@@ -47,20 +52,44 @@
   // scrolling the page, so a press is judged only inside the view of every scroller that
   // holds the control: its scrollport, less the `scroll-padding` it keeps for what
   // stands over its edges on each side it can still scroll toward, such as a tab
-  // strip's paging edge or a page's sticky header.
+  // strip's paging edge or a page's sticky header. At the page's foot that is the room
+  // Leaf's landings keep over the floating panel's cover, which no padding states
+  // (`landingInsets`, dom/geometry.js), so each sweep reads it before it measures.
+  // The boxes around a fixed box don't scroll it, so the walk ends at the first one, with
+  // the scrollers the runtime says carry it (`carriersOf`, readings/scroll-containers.js). None
+  // carry a box stuck in the window, so the panel's own controls are pressed where they
+  // stand, whether or not the page behind them scrolls. A box Leaf anchors, as a margin
+  // row's carrier is, rides the scrollers carrying its anchor, so the page's scroll
+  // brings it out from under the panel.
+  let rootFoot = 0;
+  let carriersOf;
+  const readPage = async () => {
+    const { landingInsets } = await window.__lfWidgetApi();
+    ({ carriersOf } = await window.__lfCheckApi());
+    rootFoot = landingInsets(document.scrollingElement).bottom;
+  };
   function viewOf(el) {
     const root = document.scrollingElement;
     let [left, top, right, bottom] = [0, 0, innerWidth, innerHeight];
     const up = (at) => at.assignedSlot || at.parentNode || at.host;
-    for (let at = up(el); at; at = up(at)) {
+    for (let at = el; at; at = up(at)) {
       if (at.nodeType !== 1) continue;
+      const style = getComputedStyle(at);
+      if (at !== el) narrow(at, style);
+      if (style.position !== "fixed") continue;
+      for (const box of carriersOf(at)) narrow(box, getComputedStyle(box));
+      break;
+    }
+    return { left, top, right, bottom };
+
+    function narrow(at, style) {
       const overX = at.scrollWidth - at.clientWidth;
       const overY = at.scrollHeight - at.clientHeight;
-      if (overX < 1 && overY < 1) continue;
-      const style = getComputedStyle(at);
+      if (overX < 1 && overY < 1) return;
       const box = at === root ? new DOMRect() : at.getBoundingClientRect();
       const [x0, y0] = [box.left + at.clientLeft, box.top + at.clientTop];
       const pad = (side, size) => {
+        if (at === root && side === "Bottom") return rootFoot;
         const value = style[`scrollPadding${side}`];
         return (parseFloat(value) || 0) * (value.endsWith("%") ? size / 100 : 1);
       };
@@ -86,7 +115,6 @@
         );
       }
     }
-    return { left, top, right, bottom };
   }
   // Whether a reach that takes a press at a point lies over a field there, which then
   // loses that press: a control's reach is for room nothing else uses. What would take
@@ -237,7 +265,8 @@
   // so by setting its own `--lf-aim-floor` to 0px. Only the control's own declaration
   // lowers its floor; one it inherits from a container holds it to the document's, and
   // an aim another box covers to nothing is short under any floor.
-  function flooredAims(roots, selectors) {
+  async function flooredAims(roots, selectors) {
+    await readPage();
     const floor = parseFloat(
       getComputedStyle(document.documentElement).getPropertyValue("--lf-aim-floor"),
     );
@@ -280,7 +309,8 @@
   // Inline boxes are out, and that is the target-size exception rather than an excuse: a
   // link inside a sentence is sized by the words around it, and nothing can be done
   // about that which does not damage the sentence.
-  function offeredAims(floor) {
+  async function offeredAims(floor) {
+    await readPage();
     const found = [];
     const seen = new Set();
     for (const el of document.querySelectorAll(
@@ -316,7 +346,8 @@
 
   // The aim as a box in the page: the control's box grown by its reach, which stands
   // out the same distance on either side of its face.
-  function aimRect(el) {
+  async function aimRect(el) {
+    await readPage();
     const { box, w, h } = aim(el);
     return {
       x: box.x - (w - box.width) / 2,

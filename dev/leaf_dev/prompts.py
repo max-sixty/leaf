@@ -4,9 +4,9 @@ prose that describes each (`docs.compose`, `lf-text-document[data-prompt]`).
 Each entry of `PROMPTS` calls the function that writes its prompt, so the page shows
 Leaf's text, and the references it quotes, as the code has them now. This module
 supplies only the values a prompt is written around. The messages of a fork journey
-(`line`, `work`, `follow-up`, `resume`, `told`), which How it works' "Anatomy of a fork
-journey" shows beside the timings and Claude Code's text of one recorded run, are
-written around that run's own values (`JOURNEY`). The rest come from one
+(`line`, `delivery`), which How it works' "Anatomy of a fork journey" shows
+beside the timings and Claude Code's text of one recorded run, are written around that
+run's own values (`JOURNEY`). The rest come from one
 illustrative scenario: a page, a thread on it, the user's newest message there and a
 page's facts. A delivery's handling clauses and envelope are derived from its batch
 (`delivery`). The values take the shapes Leaf gives them, and
@@ -20,16 +20,16 @@ instructions (`llm.py`), which the page leaves out.
 import json
 from pathlib import Path
 
-from leaf import clerk, forks, inference, summary_fork, thread_titles
-from leaf.delivery import DELIVERY, envelope, handled
-from leaf.hook_transport import inline_context
-from leaf.state import kernel_registry
+from leaf.agents import clerk, forks, inference, summary_fork, thread_titles
+from leaf.agents.delivery import DELIVERY, envelope, handled, inline_context
+from leaf.base.state import kernel_registry
 
-# The values Leaf wrote each of its messages around in the 19:38 PT run of the
-# claude-code agent journey on 18 November 2026 (`leaf-dev journey run claude-code`),
-# under Claude Code 2.1.328: the batch the line fork read, and for each delivery its
-# id, time and batch, the turn Leaf opened for the fork's run, and the fork's agent id.
-# Each batch is the page's events as `delivery.batch_data` captured them, with no
+# The values Leaf wrote each of its messages around in the 10:55 PT run of the
+# claude-code agent journey on 20 November 2026 (`leaf-dev journey run claude-code`),
+# under Claude Code 2.1.329: the batch the line fork read and what the session was
+# running (`line`), and the id, time and batch of the delivery that gave the session
+# the message, with the line already among its thread's messages (`delivery`). Each
+# batch is the page's events as `delivery.batch_data` captured them, with no
 # handling, which `delivery` derives.
 JOURNEY = json.loads(Path(__file__).with_name("fork-journey.json").read_text())
 
@@ -52,7 +52,7 @@ def message(seq: int, identity: str, author: str, text: str, **more) -> dict:
 
 
 # A thread, in log order: the user's question, the agent's answer, the user's
-# follow-up and the working line a line fork wrote for it, the working fork's answer,
+# follow-up and the working line a line fork wrote for it, the agent's answer to it,
 # and the user's next message, with its own working line.
 SAID = [
     message(1, THREAD, "user", "Why does the importer poll every 2 seconds?"),
@@ -108,6 +108,7 @@ def batch(earlier: list[dict], newest: dict) -> dict:
                 "title": "Poll interval",
                 "anchor": None,
                 "detached_from": None,
+                "rewritten_from": None,
                 "resolved": None,
                 "elided": {"messages": 0, "actions": 0},
                 "messages": earlier,
@@ -145,10 +146,11 @@ def delivery(identity: str, captured: dict, created: float = 1795050000.0) -> di
     return DELIVERY.stored(envelope(identity, created, [handling]))
 
 
-def journey_delivery(name: str) -> dict:
-    """The delivery the recorded journey's `name` step handed its fork (`JOURNEY`)."""
-    step = JOURNEY[name]
-    return delivery(step["delivery"], step["batch"], step["created_at"])
+def journey_delivery() -> dict:
+    """The delivery that gave the recorded journey's session its message
+    (`JOURNEY`)."""
+    step = JOURNEY["delivery"]
+    return delivery(step["id"], step["batch"], step["created_at"])
 
 
 # The batch the summary fork reads.
@@ -156,35 +158,13 @@ FOLDED = batch(LONG[:-1], LONG[-1])
 
 
 def line() -> str:
-    return forks.line_prompt(JOURNEY["line"]["batch"], JOURNEY["line"]["running"])
-
-
-def work() -> str:
-    return forks.work_prompt(journey_delivery("work"), JOURNEY["work"]["turn"])
-
-
-def follow_up() -> str:
-    return inline_context(journey_delivery("follow-up"))
-
-
-def resumed() -> str:
-    return forks.resume_prompt(journey_delivery("resume"), JOURNEY["resume"]["turn"])
-
-
-def told() -> str:
-    """The lines Leaf queued for the main session that reached it when Claude Code's
-    notice of the resumed run's end woke it: the first run's answer, and the resumed
-    run's take, which Leaf had not yet heard end."""
-    batch = JOURNEY["work"]["batch"]
-    thread, page, fork = batch["threads"][0]["id"], batch["page"], JOURNEY["fork"]
-    answered = forks._answered(
-        f"Your fork {fork}",
-        f"thread {thread} on {page}",
-        [],
-        owing=False,
-        waiting=False,
+    return forks.line_prompt(
+        forks.thread_json(JOURNEY["line"]["batch"]), JOURNEY["line"]["running"]
     )
-    return "\n".join([answered, forks._given_line(thread, page, fork)])
+
+
+def delivery_context() -> str:
+    return inline_context(journey_delivery())
 
 
 def summary() -> str:
@@ -244,10 +224,7 @@ def references() -> list[Path]:
 # Each prompt by the name its slot on How it works gives (`data-prompt`).
 PROMPTS = {
     "line": line,
-    "work": work,
-    "follow-up": follow_up,
-    "resume": resumed,
-    "told": told,
+    "delivery": delivery_context,
     "summary": summary,
     "turn-end": turn_end,
     "title-system": title_system,

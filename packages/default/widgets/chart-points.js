@@ -6,7 +6,7 @@
  * each mark that says its values gets the tip Plot would give it (`inferTips`), built
  * from Plot's own `tip`, `pointer` and `initializer`, except that Plot's pointer gives
  * it no listener and it draws nothing: the mark itself has no `tip`, so Plot draws
- * none, and the page's preview says the point (preview.js). Plot hands that tip what
+ * none, and the page's preview says the point (annotations/preview.js). Plot hands that tip what
  * it hands its own: the mark's index and channels, scaled and raw (`values.channels`),
  * and its tip's `px` and `py` channels with every transform their scale applies. This
  * reads them once per drawing and keeps one point per datum under the name Plot gives
@@ -209,7 +209,7 @@ export function readPoints({ Plot, tipSources, tipRows }, marks) {
     const reach = Number(options.maxRadius ?? RADIUS) ** 2;
     const derived = Plot.initializer(
       { ...options, x: null, y: null },
-      (data, facets, channels, scales, dimensions, context) =>
+      (_data, _facets, _channels, _scales, _dimensions, context) =>
         /** @type {any} */ (context).getMarkState(mark),
     );
     const {

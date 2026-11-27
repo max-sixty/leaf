@@ -16,10 +16,12 @@ from interact_support import (
     with_modules,
 )
 
-from leaf import event_contracts as event_contracts_model
-from leaf import event_log as events_model
-from leaf.registry import contract as registry_contract
-from leaf.registry import validation as registry_validation
+from leaf.log import event_log as events_model
+from leaf.records import event_contracts as event_contracts_model
+from leaf.records.authored_checks.declarations import declaration_advice
+from leaf.source.registry import contract as registry_contract
+from leaf.source.registry import layer as registry_layer
+from leaf.source.registry import validation as registry_validation
 from model.interact_contract import (
     _stateful_page_declaration,
     _value_verb,
@@ -82,7 +84,8 @@ def test_recorded_effect_payloads_are_validated_at_admission(page_dir):
         '<lf-column id="done" label="Done"></lf-column></lf-board>'
     )
     page = ModelPage(source, registry=registry)
-    for widget, action, valid, invalid in (
+    # The group and the draft ask, so each gesture of theirs carries their word.
+    for widget, action, valid, invalid, word in (
         (
             "picks",
             "choose",
@@ -95,6 +98,7 @@ def test_recorded_effect_payloads_are_validated_at_admission(page_dir):
                 {"value": ["first"], "animate": True},
                 {"value": ["missing"]},
             ),
+            {"answered": True},
         ),
         (
             "draft",
@@ -106,6 +110,7 @@ def test_recorded_effect_payloads_are_validated_at_admission(page_dir):
                 {"value": 1},
                 {"value": "New words", "text": "news"},
             ),
+            {"answered": True},
         ),
         (
             "board",
@@ -121,6 +126,7 @@ def test_recorded_effect_payloads_are_validated_at_admission(page_dir):
                 {"unit": "missing", "value": "done", "rank": "0i"},
                 {"unit": "card", "value": "missing", "rank": "0i"},
             ),
+            {},
         ),
     ):
         command = {
@@ -129,6 +135,7 @@ def test_recorded_effect_payloads_are_validated_at_admission(page_dir):
             "revision": 1,
             "widget": widget,
             "action": action,
+            **word,
         }
         admitted = event_contracts_model.admitted_event(
             page, [], {**command, "detail": valid}
@@ -157,7 +164,6 @@ def test_attribute_records_admit_only_sets_of_owned_members(page_dir, writer):
     options = registry["lf-options"]
     if writer == "agent":
         options.pop("awaits")
-        options["attributes"]["properties"]["overruled"] = {"type": "boolean"}
         options["verbs"]["choose"]["writer"] = "agent"
     registry_validation.validate_registry(registry, "test registry")
     page = ModelPage(
@@ -178,6 +184,8 @@ def test_attribute_records_admit_only_sets_of_owned_members(page_dir, writer):
             "widget": "owned",
             "action": "add",
             "detail": {"option": "generated", "text": "Another route"},
+            # Where the group asks, it says each gesture leaves it open until Done.
+            **({"answered": False} if writer == "user" else {}),
         },
     )
     log = [{**added, "seq": 1, "ts": "2026-10-06T12:00:00+00:00"}]
@@ -187,6 +195,8 @@ def test_attribute_records_admit_only_sets_of_owned_members(page_dir, writer):
         "revision": 1,
         "widget": "owned",
         "action": "choose",
+        # A user's pick on a multiple choice leaves it open until Done.
+        **({"answered": False} if writer == "user" else {}),
     }
     for value in ([], ["first"], ["first", "second"], ["generated"]):
         admitted = event_contracts_model.admitted_event(
@@ -267,6 +277,64 @@ def test_value_records_use_the_string_type_html_attributes_carry(page_dir):
     assert found(findings, "record-type", "<lf-test-worker>", attr="state")
 
 
+@pytest.mark.parametrize(
+    "binding",
+    [{"property": "value"}, {"property": "currentValue", "event": "sl-change"}],
+)
+def test_a_value_record_may_name_the_property_and_event_the_element_holds_it_by(
+    page_dir, binding
+):
+    """The names bind the element in the browser alone: an action admitted under
+    them records the operation of the record without them, so naming another property
+    or event later keeps every decision made before."""
+    registry = vocabulary(page_dir)
+    declaration = _stateful_page_declaration(page_dir)
+    unbound = registry_contract.state_definition(
+        "lf-local", declaration, declaration["verbs"]["first"]
+    )
+    declaration["verbs"]["first"]["record"].update(binding)
+    with_modules(registry, "lf-local")["lf-local"] = declaration
+    registry_validation.validate_registry(registry, "test registry")
+    page = ModelPage('<lf-local id="local">Local</lf-local>', registry=registry)
+    admitted = event_contracts_model.admitted_event(
+        page,
+        [],
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "local",
+            "action": "first",
+            "detail": {"value": "next"},
+        },
+    )
+    assert admitted["meaning"]["state"] == unbound
+    assert unbound["record"] == {"kind": "value", "attr": "value"}
+
+
+@pytest.mark.parametrize(
+    "record",
+    [
+        # An event with no property to read on it.
+        {"kind": "value", "attr": "value", "event": "change"},
+        # A property is a script's name for it, never an attribute's.
+        {"kind": "value", "attr": "value", "property": "aria-valuenow"},
+        # Only a value record is one scalar an element's property can hold.
+        {"kind": "body", "property": "value"},
+        # `state` is the widget's reading, which Leaf sets on the same element.
+        {"kind": "value", "attr": "value", "property": "state"},
+    ],
+)
+def test_only_a_value_record_names_a_property_and_an_event_needs_one(page_dir, record):
+    registry = vocabulary(page_dir)
+    declaration = _stateful_page_declaration(page_dir)
+    declaration["verbs"]["first"]["record"] = record
+    with_modules(registry, "lf-local")["lf-local"] = declaration
+    with pytest.raises(registry_contract.RegistryError) as refused:
+        registry_validation.validate_registry(registry, "test registry")
+    assert refused.value.findings[0].code == "invalid-declaration"
+
+
 def test_report_text_is_required_only_when_declared(page_dir):
     """`text: true` requires non-empty text; reports without it carry just their value."""
     registry = vocabulary(page_dir)
@@ -313,23 +381,29 @@ def test_report_text_is_required_only_when_declared(page_dir):
         event_contracts_model.admitted_event(page, [], {**command, "detail": detail})
 
 
-@pytest.mark.parametrize(
-    ("tag", "verb", "field"),
-    [
-        ("lf-suggestion", "decide", "unit"),
-        ("lf-test-task", "status", "unit"),
-    ],
-)
-def test_every_fold_verb_declares_its_coordinate(page_dir, tag, verb, field):
-    registry = vocabulary(page_dir)
-    del registry[tag]["verbs"][verb][field]
+def test_a_declaration_leaves_out_what_its_record_and_value_decide(page_dir):
+    """A verb keeps one state for the whole widget unless it names a detail field as
+    its `unit`, and a position record's verb keeps one for each member it moves. A
+    record that names no `kind` is one value in its attribute. A declaration that
+    leaves these out composes to the one that writes them, so the
+    fold, admission and each event's stored state definition read the same entry."""
+    written = vocabulary(page_dir)
+    registry = deepcopy(written)
+    del registry["lf-suggestion"]["verbs"]["decide"]["unit"]
+    del registry["lf-test-task"]["verbs"]["status"]["unit"]
+    del registry["lf-test-task"]["verbs"]["status"]["record"]["kind"]
+    del registry["lf-board"]["verbs"]["move"]["unit"]
     declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
 
-    assert status != 0
-    [refused] = found(findings, "invalid-declaration", f"<{tag}>", keyword="required")
-    assert field in refused.values["reason"]
+    assert status == 0, findings
+    composed = vocabulary(page_dir)
+    for tag in ("lf-suggestion", "lf-test-task", "lf-board"):
+        assert composed[tag] == written[tag], tag
+    assert written["lf-suggestion"]["verbs"]["decide"]["unit"] == "widget"
+    assert written["lf-test-task"]["verbs"]["status"]["record"]["kind"] == "value"
+    assert written["lf-board"]["verbs"]["move"]["unit"] == "unit"
 
 
 @pytest.mark.parametrize(
@@ -387,6 +461,196 @@ def test_a_position_record_places_a_part_and_never_the_widget(page_dir):
     )
 
 
+def test_a_widget_orders_its_own_members():
+    """A list the user reorders is its own position container, so it needs no
+    element between it and its members: the check takes `within` naming the
+    widget's own tag, admission places a move in the widget, the fold reads the
+    widget's own children, and the move's words name the list once, as the widget."""
+    from leaf.log.projection import AuthoredOrders, folded_positions, page_reading
+
+    registry = deepcopy(model_layer())
+    for tag in ("lf-audit-list", "lf-audit-entry"):
+        with_modules(registry, tag)[tag] = element_declaration(tag, upgrade=True)
+        registry[tag]["attributes"]["properties"]["restated"] = {"type": "boolean"}
+        registry[tag].pop("example", None)
+    record = {"kind": "position", "within": "lf-audit-list"}
+    registry["lf-audit-list"] |= {
+        "content": "members",
+        "verbs": {"move": {"unit": "unit", "record": record}},
+    }
+    registry["lf-audit-entry"]["owners"] = ["lf-audit-list"]
+    registry_layer.stamp_composition(
+        registry_validation.validate_registry(registry, "own container")
+    )
+    page = ModelPage(
+        '<lf-audit-list id="list"><lf-audit-entry id="a">A</lf-audit-entry>'
+        '<lf-audit-entry id="b">B</lf-audit-entry></lf-audit-list>'
+        '<lf-activity id="feed"></lf-activity>',
+        registry=registry,
+    )
+    reading = page.reading(1, page.registry(1))
+    move = {
+        "kind": "action",
+        "widget": "list",
+        "action": "move",
+        "detail": {"unit": "a", "value": "list", "rank": "3"},
+    }
+    served = model.served_reading(
+        reading.document.html, [move], registry=reading.registry
+    )
+    events = served["events"]
+
+    assert [row["gesture"] for row in served["browser"]["history"]] == [
+        {"form": "move", "unit": "A"}
+    ]
+    assert folded_positions(
+        "list",
+        "move",
+        record,
+        AuthoredOrders.read(reading),
+        page_reading(reading, events, 1).projection,
+    ) == {"list": ["b", "a"]}
+
+
+def test_a_position_record_names_a_declared_container(page_dir):
+    """A container the layer doesn't declare is one no reader can find, so the check
+    refuses it."""
+    registry = vocabulary(page_dir)
+    registry["lf-board"]["verbs"]["move"]["record"]["within"] = "lf-nowhere"
+    declare_vocabulary(page_dir, registry)
+
+    status, findings = check_findings(page_dir)
+
+    assert status != 0
+    assert found(
+        findings, "record-within", "<lf-board>", verb="move", within="lf-nowhere"
+    )
+
+
+def test_a_container_belongs_to_the_nearest_widget_recording_positions():
+    """A zone inside a lane that records positions belongs to the lane, as the cards
+    in it do, though the lane orders its zones rather than cards, so the board can't
+    drop its own card there: a container and its units never answer to two
+    widgets."""
+    registry = deepcopy(model_layer())
+    tags = ("lf-audit-board", "lf-audit-lane", "lf-audit-zone", "lf-audit-card")
+    for tag in tags:
+        with_modules(registry, tag)[tag] = element_declaration(tag, upgrade=True)
+        registry[tag]["attributes"]["properties"]["restated"] = {"type": "boolean"}
+        registry[tag].pop("example", None)
+    board, lane, zone, card = (registry[tag] for tag in tags)
+    position = {
+        "unit": "unit",
+        "record": {"kind": "position", "within": "lf-audit-zone"},
+    }
+    board |= {"content": "members", "verbs": {"move": position}}
+    lane |= {"content": "members", "owners": ["lf-audit-board"]}
+    # The lane orders its own zones, a different container from the board's.
+    lane["verbs"] = {
+        "sort": {**position, "record": {"kind": "position", "within": "lf-audit-lane"}}
+    }
+    zone |= {"content": "members", "owners": ["lf-audit-board", "lf-audit-lane"]}
+    card["owners"] = ["lf-audit-zone"]
+    registry_layer.stamp_composition(
+        registry_validation.validate_registry(registry, "nested recorders")
+    )
+    page = ModelPage(
+        '<lf-audit-board id="board"><lf-audit-zone id="near">'
+        '<lf-audit-card id="card">Card</lf-audit-card></lf-audit-zone>'
+        '<lf-audit-lane id="lane"><lf-audit-zone id="far"></lf-audit-zone>'
+        "</lf-audit-lane></lf-audit-board>",
+        registry=registry,
+    )
+    with pytest.raises(events_model.EventRefused) as refused:
+        event_contracts_model.admitted_event(
+            page,
+            [],
+            {
+                "kind": "action",
+                "author": "user",
+                "revision": 1,
+                "widget": "board",
+                "action": "move",
+                "detail": {"unit": "card", "value": "far", "rank": "1"},
+            },
+        )
+    assert refused_on(refused.value).code == "outside-destination"
+
+
+def _column_records_positions(registry):
+    with_modules(registry, "lf-column")["lf-column"]["verbs"] = {
+        "sort": {"unit": "unit", "record": {"kind": "position", "within": "lf-card"}}
+    }
+
+
+def _card_records_positions(registry):
+    with_modules(registry, "lf-card")["lf-card"]["verbs"] = {
+        "sort": {"unit": "unit", "record": {"kind": "position", "within": "lf-column"}}
+    }
+
+
+@pytest.mark.parametrize(
+    ("tag", "within", "change", "containers", "says"),
+    [
+        # A holder the board's structure never reaches: an <lf-options> could stand
+        # only in a card's markup, so the board's own drops all fail.
+        (
+            "lf-board",
+            "lf-options",
+            None,
+            ["lf-board", "lf-column"],
+            "set `verbs.move.record.within` to <lf-board> or <lf-column>",
+        ),
+        # The moved units' tag, which holds no members.
+        (
+            "lf-board",
+            "lf-card",
+            None,
+            ["lf-board", "lf-column"],
+            "set `verbs.move.record.within` to <lf-board> or <lf-column>",
+        ),
+        # A column that records positions itself is the nearer owner of its cards.
+        (
+            "lf-board",
+            "lf-column",
+            _column_records_positions,
+            ["lf-board"],
+            "set `verbs.move.record.within` to <lf-board>",
+        ),
+        # A widget no declaration gives members.
+        (
+            "lf-card",
+            "lf-column",
+            _card_records_positions,
+            [],
+            "set `verbs.sort.record.within` to this widget's own tag, and give the"
+            " elements it reorders `owners` naming this widget",
+        ),
+    ],
+)
+def test_a_position_container_the_declarations_never_place_is_advice(
+    tag, within, change, containers, says
+):
+    """A `within` that no declared membership places at or inside the widget leaves
+    a drop of the widget's own members refused at admission, where nothing tells the
+    agent. Another package could still declare the membership, so the registry
+    advises, saying what to write instead."""
+    registry = deepcopy(model_layer())
+    registry["lf-board"]["verbs"]["move"]["record"]["within"] = within
+    if change:
+        change(registry)
+    registry_validation.validate_registry(registry, "test registry")
+    [said] = declaration_advice({tag: registry[tag]}, registry, "test")
+    verb = next(iter(registry[tag]["verbs"]))
+    assert (said.code, said.at, said.severity, said.values) == (
+        "position-container",
+        f"<{tag}>",
+        "advice",
+        {"verb": verb, "within": within, "containers": containers, "registry": "test"},
+    )
+    assert said.said.endswith(says)
+
+
 def _independent_member_records():
     """An unfamiliar package composes selection, positions and scalar member state."""
     registry = deepcopy(model_layer())
@@ -419,7 +683,9 @@ def _independent_member_records():
     card["verbs"] = {
         "phase": {"unit": "widget", "record": {"kind": "value", "attr": "phase"}}
     }
-    registry_validation.validate_registry(registry, "independent member records")
+    registry_layer.stamp_composition(
+        registry_validation.validate_registry(registry, "independent member records")
+    )
     markup = """<lf-audit-board id="outer">
 <lf-audit-zone id="one"><lf-audit-card id="card" selected phase="idle">
 <lf-audit-board id="inner"><lf-audit-zone id="inner-zone">
@@ -430,8 +696,8 @@ def _independent_member_records():
 
 
 def test_member_records_compose_without_claiming_each_others_state(tmp_path):
-    from leaf.construction import constructed_content
-    from leaf.projection import page_reading, retirement_outcomes
+    from leaf.log.construction import constructed_content
+    from leaf.log.projection import page_reading, retirement_outcomes
 
     page = _independent_member_records()
     reading = page.reading(1, page.registry(1))
@@ -468,6 +734,7 @@ def test_member_records_compose_without_claiming_each_others_state(tmp_path):
             reading.registry,
             {"sources": {}},
             tmp_path,
+            files={},
             outcomes=retirement_outcomes(projection.actions),
             retired=set(),
             thread="thread",
@@ -526,7 +793,7 @@ def test_nested_member_records_refuse_foreign_selection_and_position():
 
 
 def test_member_scalar_and_parent_selection_cannot_share_an_attribute():
-    from leaf.validation.instances import widget_errors
+    from leaf.records.markup_checks.instances import widget_errors
 
     page = _independent_member_records()
     registry = page.registry(1)
@@ -549,7 +816,9 @@ def test_member_scalar_and_parent_selection_cannot_share_an_attribute():
             "choose": {"unit": "widget", "record": {"kind": "attribute", "attr": attr}}
         }
         with_modules(registry, tag)[tag] = holder
-    registry_validation.validate_registry(registry, "movable record compositions")
+    registry_layer.stamp_composition(
+        registry_validation.validate_registry(registry, "movable record compositions")
+    )
     page = ModelPage(
         '<lf-audit-board id="board"><lf-audit-left id="left">'
         '<lf-audit-zone id="one"><lf-audit-card id="card" phase="idle">Card</lf-audit-card>'

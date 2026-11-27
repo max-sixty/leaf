@@ -6,24 +6,33 @@ import re
 from itertools import pairwise
 
 import pytest
-from interact_support import stamp
+from interact_support import append_command, stamp
 from playwright.sync_api import expect
 from render_cases_interaction import HOLD_MOTION, live_url
+from render_cases_navigation import actions
 from render_cases_widgets import SQUEEZED_BOARD_PAGE
 from render_harness import (
     BOARD_PAGE,
+    PREVIEW,
+    clocked,
     consume_browser_errors,
+    holding,
     http_error_console,
     leaf_page,
     open_page,
     resized,
     scroll_settled,
     sending,
+    stamp_page,
+    tab_onto,
     told,
     undo,
+    wait_for_check_api,
+    wait_for_revision,
 )
 
-from leaf import event_log as events_model
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -44,6 +53,58 @@ TALL_BOARD_PAGE = leaf_page(
 </lf-board>
 """,
 )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("hand", ["pointer", "keyboard"])
+def test_a_revision_waits_for_a_held_card(engine, hand, request, serve):
+    """A revision that rewords a card replaces the board. One that arrives while the user
+    holds a card, by the pointer or by the keyboard, waits until the card is put down:
+    the board under the hand stays, the move is recorded, and the revision then arrives
+    with the card where the user put it."""
+    page = open_page(request.getfixturevalue(engine), live_url(serve(BOARD_PAGE)))
+    page.locator("#sprint").evaluate("board => { window.heldBoard = board; }")
+    grip = page.locator("#card-heater .lf-grip")
+    if hand == "pointer":
+        box = grip.bounding_box()
+        page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        page.mouse.down()
+        done = page.locator("#col-done").bounding_box()
+        page.mouse.move(
+            done["x"] + done["width"] / 2, done["y"] + done["height"] / 2, steps=8
+        )
+    else:
+        grip.focus()
+        page.keyboard.press("Enter")
+        page.keyboard.press("ArrowRight")
+    wait_for_check_api(page, "(api) => api.dragHeld()")
+
+    stamp_page(
+        serve.page_dir,
+        BOARD_PAGE.replace(
+            "<strong>Squirrel baffle</strong>",
+            "<strong>Squirrel baffle, reworded</strong>",
+        ),
+        "reword a card",
+    )
+    told(page)
+    assert page.evaluate(
+        "() => window.heldBoard.isConnected"
+        " && document.querySelector('meta[name=lf-revision][data-lf-runtime]')"
+        ".content === '1'"
+    ), "the revision replaced the board under the user's hand"
+
+    if hand == "pointer":
+        page.mouse.up()
+    else:
+        page.keyboard.press("Enter")
+    wait_for_revision(page, 2)
+    expect(page.locator("#col-done #card-heater")).to_have_count(1)
+    expect(page.locator("#card-baffle")).to_contain_text("reworded")
+    moves = [e for e in actions(serve.page_dir) if e["action"] == "move"]
+    assert [(m["detail"]["unit"], m["detail"]["value"]) for m in moves] == [
+        ("card-heater", "col-done")
+    ]
 
 
 def test_a_detached_board_releases_and_restores_its_lifecycle(browser, serve):
@@ -175,9 +236,16 @@ def test_a_board_says_which_column_each_card_is_in(browser, serve):
         '- list "Done"'  # empty, and still announced: it is a drop target
     )
 
-    # Grab the second card and push it into the next column, the keyboard's path.
-    board.get_by_role("button", name="Move: Squirrel baffle — Todo").focus()
+    # Grab the second card and push it into the next column, the keyboard's path. The
+    # grip's own Enter and Space grab it, which its preview names, and the grab tells a
+    # listener where the card starts and which keys act on it now.
+    tab_onto(board.get_by_role("button", name="Move: Squirrel baffle — Todo"))
+    expect(page.locator(f"{PREVIEW} .lf-preview-keys")).to_have_text(["⏎", "space"])
     page.keyboard.press("Enter")
+    expect(page.locator(".lf-live")).to_have_text(
+        "Squirrel baffle grabbed — Todo, position 2 of 2 — "
+        "arrows move, Enter or Space drop, Escape cancel the move"
+    )
     page.keyboard.press("ArrowRight")
     page.keyboard.press("Enter")
     page.wait_for_selector("#col-done #card-baffle")
@@ -520,11 +588,11 @@ def test_reversing_a_move_continues_from_the_painted_card(browser, serve, route)
             page.keyboard.press(key)
         else:
             card.evaluate(
-                """(el, column) => el.closest('lf-board').controller.dispatch({
-                  kind: 'action', verb: 'move',
-                  detail: {unit: el.id, value: column, rank: '0i'},
-                  says: 'Moved card',
-                })""",
+                """(el, column) => void el.closest('lf-board').record(
+                  'move',
+                  {unit: el.id, value: column, rank: '0i'},
+                  {says: 'Moved card'},
+                )""",
                 column,
             )
         expect(page.locator(f"#{column} #card-heater")).to_have_count(1)
@@ -822,7 +890,7 @@ ANSWERS_BOARD_PAGE = leaf_page(
 def test_a_section_and_a_board_answer_one_decision(browser, serve):
     """The card shows the section's answer and changes it through the section's own
     command, so a pick and a drop are one fact at one coordinate, and both views follow
-    its undo, its refusal and a version's retraction (`shown_answers.py`)."""
+    its undo, its refusal and a version's retraction."""
     page = open_page(browser, live_url(serve(ANSWERS_BOARD_PAGE)))
     grip = page.locator("#card-rail .lf-grip")
 
@@ -860,6 +928,10 @@ def test_a_section_and_a_board_answer_one_decision(browser, serve):
     page.locator("#rail-section").scroll_into_view_if_needed()
     undo(page)
     stands("col-next", "rail-next")
+    # The options record the drop under the card's words, so Undo names the move.
+    expect(page.locator(".lf-live")).to_have_text(
+        "Undone: Moved “Keep the rail” to Undecided just now"
+    )
 
     (serve.page_dir / "index.html").write_text(
         ANSWERS_BOARD_PAGE.replace(
@@ -883,3 +955,337 @@ def test_a_section_and_a_board_answer_one_decision(browser, serve):
     page.unroute("**/api/event")
     consume_browser_errors(page, http_error_console(400))
     assert len(picks()) == 2
+
+
+def test_a_card_offers_the_columns_its_choice_takes_once_the_choice_arrives(
+    browser, serve
+):
+    """A board can set up before the question's choice reaches its card, as when the
+    options' module loads last. A card the markup already stands in its choice's
+    column then still offers a button for each other column the choice takes, once
+    the choice arrives."""
+    page = open_page(browser, live_url(serve(ANSWERS_BOARD_PAGE)))
+    held = []
+    page.route("**/widgets/lf-options.js", lambda route: held.append(route))
+    page.reload(wait_until="commit")
+    holding(page, held, 1, "the options module")
+    expect(page.locator("#card-rail .lf-grip")).to_be_attached()
+    held[0].continue_()
+    page.unroute("**/widgets/lf-options.js")
+    wait_until_ready(page)
+    expect(page.locator("#col-later > #card-rail")).to_have_count(1)
+    for column, offered in (
+        ("col-open", True),
+        ("col-next", True),
+        ("col-later", False),
+    ):
+        expect(
+            page.locator(f'#card-rail [data-lf-board-target="{column}"]')
+        ).to_have_js_property("hidden", not offered)
+
+
+@pytest.mark.parametrize(
+    ("rewritten", "step", "asked"),
+    [
+        # Leaf has bound the card to `rail`, so the drop asks `rail`.
+        ("once the card has drawn", "ArrowLeft", "rail"),
+        # Leaf binds the card to `other`, so the drop asks `other`.
+        ("as the card's class is defined", "ArrowRight", "other"),
+    ],
+)
+def test_a_drop_asks_the_widget_whose_choice_the_card_shows(
+    browser, serve, rewritten, step, asked
+):
+    """The card's binding names both the choice it shows and the widget its drop asks,
+    whenever a script rewrites `shows`: the drop asks the widget whose choice the card
+    stands by."""
+    source = ANSWERS_BOARD_PAGE.replace(
+        '<lf-board id="plan">',
+        '<lf-group id="other-section" label="Keep the other rail?">'
+        '<h2 id="other-section-h">Keep the other rail?</h2><lf-options id="other">'
+        '<lf-option id="other-next" value="next">Next</lf-option>'
+        '<lf-option id="other-later" value="later">Later</lf-option>'
+        '</lf-options></lf-group><lf-board id="plan">',
+    )
+    rewrite = "document.getElementById('card-rail').setAttribute('shows', 'other')"
+    context = browser.new_context()
+    if rewritten.startswith("as"):
+        context.add_init_script(
+            f"customElements.whenDefined('lf-card').then(() => {rewrite});"
+        )
+    page = open_page(browser, live_url(serve(source)), context=context)
+    if rewritten.startswith("once"):
+        expect(page.locator("#col-later > #card-rail")).to_have_count(1)
+        page.evaluate(rewrite)
+
+    with sending(page, "the drop"):
+        page.locator("#card-rail .lf-grip").focus()
+        for press in ("Enter", step, "Enter"):
+            page.keyboard.press(press)
+    expect(page.locator("#col-next > #card-rail")).to_have_count(1)
+    assert [
+        (event["widget"], event["action"], event["detail"])
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "action"
+    ] == [(asked, "choose", {"value": [f"{asked}-next"]})]
+
+
+def test_a_card_with_shows_never_stands_by_a_board_move(browser, serve):
+    """The append door admits a board move of a card with `shows`, which the board's
+    module never sends. Such a move in the log leaves the card in the column its
+    choice names."""
+    page = open_page(browser, live_url(serve(ANSWERS_BOARD_PAGE)))
+    expect(page.locator("#col-later > #card-rail")).to_have_count(1)
+
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "plan",
+            "action": "move",
+            "detail": {"unit": "card-rail", "value": "col-next", "rank": "i"},
+        },
+    )
+    told(page)
+    expect(page.locator("#col-later > #card-rail")).to_have_count(1)
+
+
+def test_an_answer_naming_no_one_column_stands_with_the_undecided(browser, serve):
+    """A card stands in the first column without a `value` while its answer names no
+    one column: a pick whose value no column holds, or the picks of a `multiple`
+    question that name different values."""
+    source = (
+        ANSWERS_BOARD_PAGE.replace(
+            '<lf-option id="rail-later" value="later" selected>Later</lf-option>',
+            '<lf-option id="rail-later" value="later" selected>Later</lf-option>'
+            '<lf-option id="rail-someday" value="someday">Someday</lf-option>',
+        )
+        .replace(
+            '<lf-board id="plan">',
+            '<lf-group id="pager-section" label="Page the on-call">'
+            '<h2 id="pager-section-h">Page the on-call</h2>'
+            '<lf-options id="pager" multiple>'
+            '<lf-option id="pager-next" value="next">Next</lf-option>'
+            '<lf-option id="pager-later" value="later">Later</lf-option>'
+            '</lf-options></lf-group><lf-board id="plan">',
+        )
+        .replace(
+            '<lf-column id="col-open" label="Undecided"></lf-column>',
+            '<lf-column id="col-open" label="Undecided">'
+            '<lf-card id="card-pager" label="Page the on-call" shows="pager">'
+            "<strong>Page the on-call</strong></lf-card></lf-column>",
+        )
+    )
+    page = open_page(browser, live_url(serve(source)))
+    expect(page.locator("#col-later > #card-rail")).to_have_count(1)
+    with sending(page, "the pick"):
+        page.locator("#rail-someday").click()
+    expect(page.locator("#col-open > #card-rail")).to_have_count(1)
+
+    with sending(page, "the pick"):
+        page.locator("#pager-next").click()
+    expect(page.locator("#col-next > #card-pager")).to_have_count(1)
+    with sending(page, "the pick"):
+        page.locator("#pager-later").click()
+    expect(page.locator("#col-open > #card-pager")).to_have_count(1)
+
+
+def test_an_option_without_a_value_answers_with_its_id(browser, serve):
+    """An option that carries no `value` answers with its id, so a column whose `value`
+    is that id holds the card while the option is picked, and a drop there picks it. A
+    card whose `shows` is empty shows no answer, and is the board's own to move."""
+    source = (
+        ANSWERS_BOARD_PAGE.replace(' value="next">Next<', ">Next<")
+        .replace(' value="later" selected>Later<', " selected>Later<")
+        .replace('label="Next" value="next"', 'label="Next" value="rail-next"')
+        .replace('label="Later" value="later"', 'label="Later" value="rail-later"')
+        .replace(
+            '<lf-column id="col-open" label="Undecided"></lf-column>',
+            '<lf-column id="col-open" label="Undecided">'
+            '<lf-card id="card-own" label="Own" shows="">'
+            "<strong>Own</strong></lf-card></lf-column>",
+        )
+    )
+    assert source.count(' value="rail-') == 2
+    page = open_page(browser, live_url(serve(source)))
+    expect(page.locator("#col-later > #card-rail")).to_have_count(1)
+
+    with sending(page, "the drop"):
+        page.locator("#card-rail .lf-grip").focus()
+        for press in ("Enter", "ArrowLeft", "Enter"):
+            page.keyboard.press(press)
+    expect(page.locator("#col-next > #card-rail")).to_have_count(1)
+    expect(page.locator("#rail-next")).to_have_attribute("selected", "")
+
+    with sending(page, "the move"):
+        page.locator("#card-own .lf-grip").focus()
+        for press in ("Enter", "ArrowRight", "Enter"):
+            page.keyboard.press(press)
+    expect(page.locator("#col-next > #card-own")).to_have_count(1)
+    assert [
+        (event["widget"], event["action"], event["detail"].get("unit"))
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "action"
+    ] == [("rail", "choose", None), ("plan", "move", "card-own")]
+
+
+def centre(locator):
+    box = locator.bounding_box()
+    return box["x"] + box["width"] / 2, box["y"] + box["height"] / 2
+
+
+def test_a_column_two_options_name_takes_no_drop(browser, serve, subtests):
+    """Two options carrying one `value` land a card in the same column, and a pick of
+    either stands it there. A drop names only the value, not which of the two the user
+    picks, so the column takes no drop of that card: it offers no button, a pointer
+    drag opens no slot in it, the grip's arrow passes over it, and no pick of both
+    options reaches the log. A card that no other column takes has nothing to offer:
+    its grip is disabled and it shows no destinations."""
+    source = (
+        ANSWERS_BOARD_PAGE.replace(
+            '<lf-option id="rail-next" value="next">Next</lf-option>',
+            '<lf-option id="rail-next" value="next">Next</lf-option>'
+            '<lf-option id="rail-soon" value="next">Soon</lf-option>',
+        )
+        .replace(
+            '<lf-board id="plan">',
+            '<lf-group id="pager-section" label="Page the on-call">'
+            '<h2 id="pager-section-h">Page the on-call</h2>'
+            '<lf-options id="pager">'
+            '<lf-option id="pager-now" value="next">Now</lf-option>'
+            '<lf-option id="pager-soon" value="next">Soon</lf-option>'
+            '<lf-option id="pager-q3" value="later">Third quarter</lf-option>'
+            '<lf-option id="pager-q4" value="later">Fourth quarter</lf-option>'
+            '</lf-options></lf-group><lf-board id="plan">',
+        )
+        .replace(
+            '<lf-column id="col-open" label="Undecided"></lf-column>',
+            '<lf-column id="col-open" label="Undecided">'
+            '<lf-card id="card-pager" label="Page the on-call" shows="pager">'
+            "<strong>Page the on-call</strong></lf-card></lf-column>",
+        )
+    )
+    assert source.count(' value="next"') == 5 and 'shows="pager"' in source
+    # Sortable asks a column whether it takes the card on a 50 ms loop, which the test
+    # runs forward itself.
+    page = open_page(clocked(browser), live_url(serve(source)))
+
+    def picks():
+        return [
+            (event["widget"], event["action"], event["detail"])
+            for event in events_model.read_events(serve.page_dir)
+            if event["kind"] == "action"
+        ]
+
+    with subtests.test(card="one no other column takes"):
+        # Each column with a value is named by two of the question's options, and the
+        # card stands with the undecided.
+        pager = page.locator("#card-pager")
+        expect(page.locator("#col-open > #card-pager")).to_have_count(1)
+        expect(pager.locator(".lf-grip")).to_have_attribute("aria-disabled", "true")
+        expect(pager.locator(".lf-board-destinations")).to_have_js_property(
+            "hidden", True
+        )
+        # Once a pick stands it in a column, the undecided column takes it back.
+        with sending(page, "the pick"):
+            page.locator("#pager-now").click()
+        expect(page.locator("#col-next > #card-pager")).to_have_count(1)
+        expect(pager.locator(".lf-grip")).to_have_attribute("aria-disabled", "false")
+        expect(pager.locator(".lf-board-destinations")).to_have_js_property(
+            "hidden", False
+        )
+        expect(pager.locator('[data-lf-board-target="col-open"]')).to_have_js_property(
+            "hidden", False
+        )
+        assert picks() == [("pager", "choose", {"value": ["pager-now"]})]
+
+    with subtests.test(card="one a column two options name"):
+        card = page.locator("#card-rail")
+        expect(page.locator("#col-later > #card-rail")).to_have_count(1)
+        expect(card.locator('[data-lf-board-target="col-open"]')).to_have_js_property(
+            "hidden", False
+        )
+        expect(card.locator('[data-lf-board-target="col-next"]')).to_have_js_property(
+            "hidden", True
+        )
+
+        # A pointer drag resting over the column opens no slot there. The drag is live
+        # once the card wears the slot's class, and the loop reads the pointer's last
+        # move after that.
+        page.mouse.move(*centre(card.locator(".lf-grip")))
+        page.mouse.down()
+        over_next = centre(page.locator("#col-next"))
+        page.mouse.move(*over_next, steps=5)
+        expect(card).to_have_class(re.compile(r"\blf-ghost\b"))
+        page.mouse.move(over_next[0] + 2, over_next[1])
+        page.clock.run_for(120)
+        assert card.evaluate("card => card.parentElement.id") == "col-later"
+        # The same drag still drops where a column takes the card.
+        page.mouse.move(*centre(page.locator("#col-open")), steps=5)
+        page.clock.run_for(120)
+        expect(page.locator("#col-open > #card-rail")).to_have_count(1)
+        with sending(page, "the pointer drop"):
+            page.mouse.up()
+        expect(page.locator("#col-open > #card-rail")).to_have_count(1)
+        expect(page.locator("#rail > lf-option[selected]")).to_have_count(0)
+
+        # The grip's arrow passes over the column on its way to the next that takes it.
+        with sending(page, "the keyboard drop"):
+            card.locator(".lf-grip").focus()
+            for press in ("Enter", "ArrowRight", "Enter"):
+                page.keyboard.press(press)
+        expect(page.locator("#col-later > #card-rail")).to_have_count(1)
+        with sending(page, "the pick"):
+            page.locator("#rail-soon").click()
+        expect(page.locator("#col-next > #card-rail")).to_have_count(1)
+        assert picks()[1:] == [
+            ("rail", "choose", {"value": []}),
+            ("rail", "choose", {"value": ["rail-later"]}),
+            ("rail", "choose", {"value": ["rail-soon"]}),
+        ]
+
+
+TWO_BOARDS_PAGE = leaf_page(
+    "two boards",
+    """
+<h1 id="t">Two sprints</h1>
+<lf-board id="a">
+  <lf-column id="a-todo" label="Todo">
+    <lf-card id="card-a" label="Heated perch"><strong>Heated perch</strong></lf-card>
+  </lf-column>
+  <lf-column id="a-done" label="Done"></lf-column>
+</lf-board>
+<lf-board id="b">
+  <lf-column id="b-todo" label="Todo">
+    <lf-card id="card-b" label="Squirrel baffle"><strong>Squirrel baffle</strong></lf-card>
+  </lf-column>
+  <lf-column id="b-done" label="Done"></lf-column>
+</lf-board>
+""",
+)
+
+
+def test_a_card_stays_in_its_own_board(browser, serve):
+    """A pointer drag resting over another board's column opens no slot there, and the
+    same drag still drops in a column of the card's own board."""
+    page = open_page(clocked(browser), live_url(serve(TWO_BOARDS_PAGE)))
+    card = page.locator("#card-a")
+
+    page.mouse.move(*centre(card.locator(".lf-grip")))
+    page.mouse.down()
+    over_other = centre(page.locator("#b-todo"))
+    page.mouse.move(*over_other, steps=5)
+    expect(card).to_have_class(re.compile(r"\blf-ghost\b"))
+    page.mouse.move(over_other[0] + 2, over_other[1])
+    page.clock.run_for(120)
+    assert card.evaluate("card => card.parentElement.id") == "a-todo"
+
+    page.mouse.move(*centre(page.locator("#a-done")), steps=5)
+    page.clock.run_for(120)
+    expect(page.locator("#a-done > #card-a")).to_have_count(1)
+    with sending(page, "the pointer drop"):
+        page.mouse.up()
+    expect(page.locator("#a-done > #card-a")).to_have_count(1)
+    expect(page.locator("lf-board#b lf-card")).to_have_count(1)

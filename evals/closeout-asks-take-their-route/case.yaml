@@ -45,3 +45,116 @@ assert:
       thread message that says what to run, asking for its outcome with options or
       `--obligation`. Fail if any of the
       three is left only in the closing reply or a status line.
+
+variants:
+  # A question that depends on another's answer but can be answered at a glance
+  # beside it: whether to delete a branch once it merges. Holding it until the merge
+  # is answered costs the user a second round for a question they could answer in
+  # the first.
+  branch-after-merge:
+    metadata:
+      purpose:
+        "Asks: a dependent question the user can answer at a glance beside the one it
+        depends on is asked with it, rather than in a later round."
+    vars:
+      prompt: |
+        You are a Claude Code session driving a live Leaf page at
+        ~/.local/state/leaf/pages/upload-retry, served with `leaf server start`. The
+        page, "Retrying dropped uploads", explains the retry you built for uploads that
+        drop mid-transfer. You have just finished the turn's work:
+
+        - The retry is pull request #431 on branch `upload-retry`, and CI passes.
+          Merging it needs the user's go-ahead.
+        - Once it merges, the branch can be deleted. The repository doesn't delete
+          merged branches by itself, and the user sometimes keeps a branch for
+          follow-up work; the follow-up on resumable uploads could start from it or
+          from main.
+
+        The page has nothing on the user's On Me list yet. Only Skill and Read run
+        here, so write out, in order, each command you would run on the page to put
+        what you need from the user in front of them, then your closing reply.
+    assert:
+      - type: llm-rubric
+        metric: branch-asked-with-merge
+        value: |
+          Pass only if what happens to the `upload-retry` branch after the merge
+          reaches the user in this turn, alongside the merge permission: as options of
+          the merge question (such as merge and delete the branch, merge and keep it,
+          don't merge yet) or as a second question asked with it. Fail if the branch
+          question is left for a later turn, such as once the merge is answered, or if
+          the agent decides it for the user.
+  # The same shape for an action that follows a permission: how to announce a report
+  # matters only once the user lets it be published, and they can say how at a glance.
+  announce-after-publish:
+    metadata:
+      purpose:
+        "Asks: an action that follows a permission, and that the user can settle at a
+        glance beside it, is asked with that permission rather than in a later round."
+    vars:
+      prompt: |
+        You are a Claude Code session driving a live Leaf page at
+        ~/.local/state/leaf/pages/q3-latency, served with `leaf server start`. The
+        page is your report on the API's latency in the third quarter. You have just
+        finished the turn's work:
+
+        - The report is done. Publishing it to the team workspace, where the whole
+          engineering organisation reads it, needs the user's go-ahead.
+        - Once it is published, it should be announced. You could post a short
+          summary with the link in #eng-updates, or the user may rather present it
+          themselves at Monday's engineering sync; they have done both before.
+
+        The page has nothing on the user's On Me list yet. Only Skill and Read run
+        here, so write out, in order, each command you would run on the page to put
+        what you need from the user in front of them, then your closing reply.
+    assert:
+      - type: llm-rubric
+        metric: announcement-asked-with-publish
+        value: |
+          Pass only if how the report is announced reaches the user in this turn,
+          alongside the permission to publish it: as options of the publish question
+          (such as publish and post in #eng-updates, publish and present it Monday,
+          keep it private) or as a second question asked with it. Fail if the
+          announcement question is left for a later turn, such as once publishing is
+          answered, or if the agent decides it for the user.
+  # Guardrail for branch-after-merge: the dependent question's options differ with
+  # the open answer, so asking it now has the user read the branch they won't take.
+  # Its evidence is already in hand, so nothing but that reading cost argues for
+  # waiting.
+  layout-after-backend:
+    metadata:
+      purpose:
+        "Asks: a question whose options would differ with an open answer waits for that
+        answer rather than being written for every branch."
+    vars:
+      prompt: |
+        You are a Claude Code session driving a live Leaf page at
+        ~/.local/state/leaf/pages/event-store, served with `leaf server start`. The
+        page compares two backends for our event store. You have just finished the
+        turn's work:
+
+        - The comparison is on the page: keep Postgres and partition the events table
+          on the current cluster, or move to DynamoDB, managed and billed per request.
+          The user must pick one; you'd keep Postgres.
+        - Whichever they pick, the next decision is the key layout, and its options
+          differ by backend. You have load-tested all four, and the figures are in
+          your notes. For Postgres, partitioning by tenant keeps a tenant's reads on
+          one partition (p95 9 ms) but makes dropping a month of old events a delete
+          across all 1,200 partitions; partitioning by month makes that drop one
+          `DROP TABLE` but spreads a tenant's reads over 36 partitions (p95 31 ms).
+          For DynamoDB, one table keyed `tenant#stream` with the sequence as sort key
+          throttled its three largest tenants at peak; a table per tenant didn't, but
+          needs the account's table limit raised from 2,500 for the 4,000 tenants
+          planned next year.
+
+        The page has nothing on the user's On Me list yet. Only Skill and Read run
+        here, so write out, in order, each command you would run on the page to put
+        what you need from the user in front of them, then your closing reply.
+    assert:
+      - type: llm-rubric
+        metric: layout-waits
+        value: |
+          Pass only if the backend choice reaches the user's On Me list this turn and
+          the key layout does not: the closing reply or the page may say the layout
+          comes next, but no question asks the user to choose a key layout now. Fail
+          if the user is asked now to choose a key layout, for one backend or for
+          both.

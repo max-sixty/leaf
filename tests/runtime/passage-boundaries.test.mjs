@@ -15,17 +15,16 @@ import "/runtime/stage-integration.js";
    and the last cases hold it to where a climb would have answered: at a shadow root, at
    a slot, and on the way back from a position in the reading to its node. */
 
-import { programmaticSelection, selectEnds } from "/runtime/native-selection.js";
+import { programmaticSelection, selectEnds } from "/runtime/dom/native-selection.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 import v8 from "node:v8";
 import vm from "node:vm";
 
-import { registry } from "/runtime/registry.js";
-import { kept } from "/runtime/kept.js";
+import { registry } from "/runtime/state/registry.js";
+import { kept } from "/runtime/state/kept.js";
 import {
   blockAt,
-  closestAcross,
   contextAround,
   documentOutline,
   elementById,
@@ -33,7 +32,6 @@ import {
   fencePassageParts,
   findEach,
   findQuote,
-  inChrome,
   neighbourhood,
   pageReadingVersion,
   pageText,
@@ -47,10 +45,11 @@ import {
   says,
   segmentsIn,
   trackQuotes,
-} from "/runtime/passages.js";
-import { declaredRoot } from "/runtime/shadow.js";
-import { upFrom } from "/runtime/shadow-tree.js";
-import { adoptShadowStage, shadowStage } from "/runtime/shadow-stage.js";
+} from "/runtime/readings/passages.js";
+import { declaredRoot } from "/runtime/dom/shadow.js";
+import { closestAcross, upFrom } from "/runtime/lib/shadow-tree.js";
+import { inChrome } from "/runtime/base/ui-marks.js";
+import { adoptShadowStage, shadowStage } from "/runtime/dom/shadow-stage.js";
 
 // The elements the page reading treats as blocks, each once, in reading order.
 const blocksRead = () => [
@@ -90,9 +89,9 @@ test("an edge outside prose shows a space, but none before closing or after open
   document.body.innerHTML =
     '<main><lf-option id="punctuated"><strong>Leave it</strong>; the send keeps ' +
     "<code>Foo</code>'s place (<code>beta</code>).</lf-option>" +
-    '<lf-option id="chipped"><small class="tag">recommended</small><strong>Apply</strong>' +
+    '<lf-option id="chipped"><small class="lf-tag">recommended</small><strong>Apply</strong>' +
     "Ship it.</lf-option>" +
-    '<lf-option id="quoted"><small class="tag">recommended</small>' +
+    '<lf-option id="quoted"><small class="lf-tag">recommended</small>' +
     '<strong>"Update" for mixed input</strong></lf-option></main>';
   assert.equal(
     says(document.querySelector("main")),
@@ -298,7 +297,7 @@ test("a label declared inside the chrome is the page's, arriving and leaving", (
 
 // The two inputs the document reports nothing about. An observer sees neither a set the
 // runtime marks a widget's parts into nor a tree behind a shadow boundary, so each has a
-// door in passages.js, and a door that stopped forgetting would leave the reading unchanged
+// door in readings/passages.js, and a door that stopped forgetting would leave the reading unchanged
 // over words the page no longer says — with nothing else to catch it.
 test("a widget fenced after a reading was taken is in the next one", () => {
   document.body.innerHTML =
@@ -385,7 +384,7 @@ test("a forgotten reading is held by no key or kept answer that outlives it", as
 
 // A reading of the page's nodes finds an element by its id and names a part by its
 // label, though neither changes the page's words, so a reading kept from the page
-// (kept.js) is made again at either, in the task that made it. What is kept with the
+// (state/kept.js) is made again at either, in the task that made it. What is kept with the
 // words, as their layout on screen is, stays. A class that isn't Leaf's moves neither.
 test("a reading kept from the page is made again when an id or a part's name changes", () => {
   document.body.innerHTML =

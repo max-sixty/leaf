@@ -1,16 +1,18 @@
-/** Opt-in smoke of the UI review config's setup on its real fixtures; no model is invoked. */
+/**
+ * Smoke of the UI review config's candidate capture on its real fixtures. It runs
+ * without a model, a Codex CLI or a login, so it leaves out the judge's seed.
+ */
 const assert = require("node:assert/strict");
 const { readFile, stat } = require("node:fs/promises");
 const { join } = require("node:path");
 const { test } = require("node:test");
 
-test("setup captures every candidate's frozen contrast into a packet", async (t) => {
+test("setup captures every candidate's frozen contrast into a packet", async () => {
   const { default: config } =
     await import("../../../evals/ui-review-detection/promptfooconfig.mjs");
-  const { afterAll, beforeAll } =
+  const { prepareCandidates } =
     await import("../../../evals/ui-review-detection/hooks.mjs");
-  t.after(() => afterAll({ results: [], suite: config }));
-  await beforeAll({ suite: config });
+  await prepareCandidates(config);
   for (const { vars, description } of config.tests) {
     const packet = join(config.defaultTest.metadata.run, "candidates", vars.candidate);
     const { site, ...evidence } = JSON.parse(

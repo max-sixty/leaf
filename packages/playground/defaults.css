@@ -10,7 +10,7 @@
  *
  * Each region is drawn once. The playground itself is no card: the stage is the
  * preview's own well, and each rail pane is a panel as a sidebar page draws its regions
- * (the reading theme's section.panel), so a candidate the page draws on the stage is the only
+ * (`section.lf-panel`), so a candidate the page draws on the stage is the only
  * surface inside the well rather than a card in a well in a card. */
 lf-playground {
   --lf-block-frame: 1;
@@ -133,17 +133,15 @@ lf-playground:has(> .lf-playground-split) {
     /* Each box passes the height on, so the panes in the split are told they have one
        (`--lf-full-height`, layouts.css) and scroll their bodies. The playground keeps
        the minimum its rows set, so the box that scrolls round it, such as its
-       question's group as the workspace's body, scrolls to its bar and keeps the
-       panel's room after it. A minimum of zero would let it shrink below its rows
-       there, where its rows overflow its box and the panel's room falls outside the
-       scroll. */
+       question's group as the workspace's body, scrolls to its bar. A minimum of zero
+       would let it shrink below its rows there, where its rows overflow its box and the
+       bar falls outside the scroll. */
     lf-playground {
       margin-block: 0;
       --lf-full-height: inherit;
     }
 
-    /* The outer scroller must include the stage's minimum and the whole action bar,
-     * leaving its reserved panel room after both (layouts.css, the workspace's body).
+    /* The outer scroller must include the stage's minimum and the whole action bar.
      * Only scrolling bodies contribute no intrinsic size: presets and actions still
      * set their tracks' minimum. */
     lf-playground:has(> .lf-playground-split) {

@@ -22,14 +22,15 @@ from interact_support import append_carried_log_record as append_event
 from websockets.exceptions import ConnectionClosedError
 
 import leaf_website as website_server
-from leaf import codex as leaf_codex
-from leaf.codex import AppServerRequestRejected, delivery_records
-from leaf.event_log import read_events
-from leaf.hosting import LeafHTTPServer
-from leaf.refusals import Refused
-from leaf.registry.storage import layer_record
-from leaf.state import session_record
-from leaf.thread import post_reply
+from leaf.agents import codex as leaf_codex
+from leaf.agents.codex import AppServerRequestRejected, delivery_records
+from leaf.agents.thread import post_reply
+from leaf.base.refusals import Refused
+from leaf.base.state import session_record
+from leaf.commands.session import set_status
+from leaf.log.event_log import read_events
+from leaf.pages.hosting import LeafHTTPServer
+from leaf.source.registry.storage import layer_record
 from process.website_server import (
     FakeCodexHarness,
     accept_in_turn,
@@ -55,7 +56,7 @@ def test_the_website_harness_delivers_into_the_existing_codex_thread(
     )
     reserved = []
     monkeypatch.setattr(
-        "leaf.thread.reserve_delivery_reply",
+        "leaf.agents.thread.reserve_delivery_reply",
         lambda *args: reserved.append(args),
     )
     requests = []
@@ -596,7 +597,9 @@ def test_a_start_that_names_no_turn_gives_the_user_their_message_back(
     assert website_server.page_claim(page_dir) is None
     activity = activity_reading(page_dir)
     assert activity["observed_kind"] is None
-    assert [item["stage"] for item in activity["obligations"]] == ["sent"]
+    assert [(item["state"], item["seen"]) for item in activity["obligations"]] == [
+        ("waiting", False)
+    ]
     # The reply reservation is released, so the Worker's own receipt reaches the user.
     assert (
         website_server.write_failure_receipt(page_dir, comment["id"], "startup_failed")
@@ -688,7 +691,11 @@ def test_an_acknowledged_start_answers_a_user_with_no_turn_started_notification(
     claim_record = website_server.page_claim(page_dir)
     assert claim_record is not None
     assert claim_record["turn_closed"] is not None
-    assert (activity["kind"], activity["obligations"]) == ("listening", [])
+    assert (activity["presence"], activity["state"], activity["obligations"]) == (
+        "here",
+        "done",
+        [],
+    )
     assert socket.closed
 
 
@@ -732,7 +739,9 @@ def test_a_prewarm_composes_the_page_layer(page_dir, tmp_path, monkeypatch):
     write_manifest(site, {"/examples/decision": ("examples/decision", "example")})
     composed = []
     monkeypatch.setattr(
-        website_server, "selected", lambda record, page: composed.append((record, page))
+        website_server,
+        "selected_layer",
+        lambda record, page: composed.append((record, page)),
     )
     httpd = LeafHTTPServer(
         ("127.0.0.1", 0), website_server.site_endpoint(site, FakeCodexHarness())
@@ -755,7 +764,7 @@ def test_a_prewarm_composes_the_page_layer(page_dir, tmp_path, monkeypatch):
 def test_hosted_start_retains_its_admitted_epoch_until_it_begins(
     page_dir, monkeypatch, replacement
 ):
-    from leaf.state import end_session, prompt_turn
+    from leaf.base.state import end_session, prompt_turn
 
     append_event(
         page_dir, {"kind": "comment", "author": "user", "text": "An old request"}
@@ -778,7 +787,7 @@ def test_hosted_start_retains_its_admitted_epoch_until_it_begins(
             page.take_claim(
                 website_server.website_harness("hosted-thread", os.getpid())
             )
-            page.set_status("waiting")
+            set_status(page, "waiting")
         current = session_record("hosted-thread")
         assert current is not None
         leaf_codex.set_stream_activity(

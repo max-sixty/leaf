@@ -9,14 +9,14 @@ or follow live work in a page you can comment on and change. The agent responds 
 revising the page.
 
 <picture>
-  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/d9258186016c47ddf8302b0dcf6d4b47cb9a6746/demo/session-dark.png">
-  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/d9258186016c47ddf8302b0dcf6d4b47cb9a6746/demo/session-light.png">
+  <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/max-sixty/leaf-assets/e90c4e9edd21ae691861a6a53d418a7d2eea9625/demo/session-dark.png">
+  <img alt="A Leaf page with an anchored comment, the agent's reply, and a revised plan" src="https://raw.githubusercontent.com/max-sixty/leaf-assets/e90c4e9edd21ae691861a6a53d418a7d2eea9625/demo/session-light.png">
 </picture>
 
 <details>
 <summary>Watch the comment-and-revision loop</summary>
 
-![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/d9258186016c47ddf8302b0dcf6d4b47cb9a6746/demo/demo.gif)
+![A Leaf page receiving a comment, revising the work, and preserving a moved card](https://raw.githubusercontent.com/max-sixty/leaf-assets/e90c4e9edd21ae691861a6a53d418a7d2eea9625/demo/demo.gif)
 
 </details>
 
@@ -25,7 +25,7 @@ private copy, or [explore the examples](https://leaf.page/examples/).
 
 ## Install
 
-You need [`uv`](https://docs.astral.sh/uv/),
+You need [`uv`](https://docs.astral.sh/uv/) 0.9.17 or newer,
 [`jq`](https://jqlang.github.io/jq/download/) 1.6 or newer on `PATH`, and a
 browser that can reach the machine the agent runs on. No Leaf account or
 configuration is required.
@@ -74,9 +74,17 @@ Chrome, then the first `google-chrome`, `google-chrome-stable`, `chrome`,
 `chromium`, or `chromium-browser` on `PATH`. A render check of a page last shown in
 Firefox uses the installed Firefox instead, where there is one.
 
-Leaf needs Claude Code 2.1.196 or later, the first release whose hooks name the
-turn they run in. On an earlier one, an update handed into a prompt you interrupt
-waits until that turn ends before it is offered again.
+Pages are served on loopback, or on the SSH destination in a session you reached
+over SSH. To open them from another device, such as a phone on your tailnet, set
+`host` in `~/.config/leaf/config.toml` to the name that device reaches this machine
+by:
+
+```toml
+host = "laptop.tail1234.ts.net"
+```
+
+Each new page then listens on every interface, behind its access key, and its URL
+names that host wherever you open it.
 
 In Claude Code, a background Stop hook watches the session's pages between turns.
 Leaf's hooks module shows a line above the prompt for each page the session owns,

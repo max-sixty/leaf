@@ -2,18 +2,13 @@
   "lf-trend": {
     "description": "A line chart of measures over a shared axis, such as weeks, drawn from the table inside it in the team's house style: one line per series, with the table's exact values a click away.",
     "attributes": {
-      "type": "object",
       "properties": {
-        "id": {
-          "type": "string"
-        },
         "label": {
           "type": "string",
           "minLength": 1
         }
       },
-      "required": ["id", "label"],
-      "additionalProperties": false
+      "required": ["id", "label"]
     },
     "instructions": "Write one `<table>` inside it: a header row naming the axis and then each series, and a row per point on the axis, its first cell the axis value and each other cell that series' number. `label` says what the chart shows. The chart draws a line per column after the first; the table stays in the page for readers who look up a value.",
     "example": "<lf-trend id=\"latency\" label=\"p95 latency by week\">\n  <table>\n    <tr><th>week</th><th>api</th><th>web</th></tr>\n    <tr><td>1</td><td>120</td><td>210</td></tr>\n    <tr><td>2</td><td>118</td><td>190</td></tr>\n  </table>\n</lf-trend>",

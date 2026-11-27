@@ -17,13 +17,13 @@ import json
 import tempfile
 from pathlib import Path
 
-from leaf.event_log import read_events
-from leaf.registry.contract import is_element_name
-from leaf.registry.kernel import kernel_event_ownership
-from leaf.registry.layer import merge_layer_declarations
-from leaf.state import flocked, replace_bytes
-from leaf.structure import SourceDocument, rel_tokens
-from leaf.thread_context import sample_events, thread_ids
+from leaf.base.state import flocked, replace_bytes
+from leaf.log.event_log import read_events
+from leaf.log.thread_context import sample_events, thread_ids
+from leaf.source.registry.contract import is_element_name
+from leaf.source.registry.kernel import kernel_event_ownership
+from leaf.source.registry.layer import merge_layer_declarations
+from leaf.source.structure import SourceDocument, rel_tokens
 from leaf_dev import ROOT
 from leaf_dev.example_data import (
     CORPUS,
@@ -100,7 +100,7 @@ HEAD = """\
 <p>internal page corpus</p>
 <h1>Every Leaf page fixture, composed</h1>
 </hgroup>
-<p class="lede" id="corpus-lede">This internal stress surface puts every
+<p class="lf-lede" id="corpus-lede">This internal stress surface puts every
 authored page in one document so the browser suite can exercise their combined
 weight and distributed controls. It is a test fixture, not the public examples
 catalog.</p>

@@ -110,10 +110,13 @@
 .lf-diff-head :is(.lf-diff-source-path, .lf-diff-destination-path) .lf-diff-dir {
   flex: 1 1 0;
 }
-/* The path observer reads this font's native ellipsis width without adding words
-   or allocating another column. It paints the folder only where that glyph fits. */
+/* The path observer reads the width of a wide letter and this font's native ellipsis
+   without adding words or allocating another column. It paints the folder only where
+   both fit, since a box's first character is clipped rather than ellipsed (CSS
+   Overflow, `text-overflow`), as Firefox draws it: a box with room for the ellipsis
+   alone shows a cut letter and no ellipsis there. */
 .lf-diff-head .lf-diff-dir::before {
-  content: "…" / "";
+  content: "m…" / "";
   position: absolute;
   visibility: hidden;
   inline-size: max-content;
@@ -253,10 +256,11 @@
 }
 /* An auxiliary control of the filter field, like its Clear: the field's frame carries
    the focus band for the group, and the press shows it is the one focused by its fill.
-   It is no taller than the count, so the field keeps the height it has without it,
-   and a finger's floor is its reach, as it is every other press's. */
+   Its face stands clear of the field's frame above and below (`--lf-clear`), inside
+   the field's line less its 1px border, so the field keeps the height it has without
+   it, and a finger's floor is its reach, as it is every other press's. */
 .lf-diff-fold-all {
-  --lf-icon-action-face: 24px;
+  --lf-icon-action-face: calc(var(--lf-line) - 2px - 2 * var(--lf-clear));
   margin-inline-end: -3px;
 }
 .lf-diff-fold-all[data-lf-focus-visible] {
@@ -420,6 +424,11 @@ span.lf-diff-line-number {
 }
 /* Highlighted tokens use Leaf's syntax palette. Native blocks own layout, so
    source rows and conversations need no synchronized columns or measurements. */
+/* The code's canvas is the ground anything Leaf draws on it stands on, such as a
+   conversation's card (surfaces.css), and its quiet grey border frames what stands
+   there; a field on it is the canvas, since nothing stands lighter than white. The
+   user chose this over the author notes' grey, which made a conversation look like a
+   note. */
 :host(lf-diff.lf-rendered) .lf-diff-fold > pre {
   position: relative;
   margin: 0;
@@ -429,7 +438,10 @@ span.lf-diff-line-number {
   border-radius: 0;
   overflow: visible;
   color: var(--lf-code-ink);
-  background: var(--lf-pre-bg);
+  --lf-ground: var(--lf-pre-bg);
+  --lf-card: var(--lf-pre-bg);
+  --lf-border: var(--lf-code-border);
+  background: var(--lf-ground);
 }
 :host(lf-diff.lf-rendered) code[data-code] {
   isolation: isolate;
@@ -504,14 +516,13 @@ pre[data-overflow="wrap"] .lf-diff-rows {
 /* Container units are the visible reader width, while max-content lets source rows
    extend horizontally. Inline-size containment keeps a long remark from widening
    the source; sticky positioning keeps the conversation in view while it scrolls.
-   The conversation stands on the paper among the code's rows, a solid surface naming
-   its ground (package-themes.md). */
+   The outlet is a row of the code's own ground, and each thread in it stands as a
+   card filling it (surfaces.css). Under a line, the card spans from the code's first
+   column to a gap short of the rows' end, as an author's note does (styles/notes.css),
+   so the line numbers run on past it; a diff too narrow to give the card its least
+   width there starts it that gap from the rows' edge instead. */
 .lf-diff-thread-outlet {
   min-width: 0;
-  border-block: 1px solid var(--lf-rule);
-  --lf-ground: var(--lf-paper);
-  background: var(--lf-ground);
-  padding: 10px clamp(10px, 2vw, 18px);
   white-space: normal;
   font: var(--lf-font-message);
   contain: inline-size;
@@ -521,63 +532,26 @@ pre[data-overflow="wrap"] .lf-diff-rows {
   position: sticky;
   inset-inline-start: 0;
   inline-size: 100cqw;
+  padding-block: var(--lf-sp-2);
+  padding-inline: clamp(
+      var(--lf-sp-2),
+      100cqw - var(--lf-thread-card-min) - var(--lf-sp-2),
+      var(--lf-diff-code-at)
+    )
+    var(--lf-sp-2);
 }
 .lf-diff-file-thread-outlet {
-  padding: 0;
-  margin-top: 8px;
-  border: 1px solid var(--lf-rule);
-  border-radius: var(--lf-r);
+  margin-top: var(--lf-diff-gap);
 }
-/* The boundary has no padding: its disclosure is a full-width row like the file's.
-   The disclosure and conversation cards each own their inset once; message layout
-   remains with the shared thread renderer. */
+/* The file's Resolved disclosure is a full-width row like the file's own, its marker
+   where the file's stands inside the file's one-pixel border, and its focus ring inset
+   on its edge. */
 :host(lf-diff.lf-rendered)
   .lf-diff-file-thread-outlet
   > .lf-resolved-threads
   > .lf-resolved-summary {
   --lf-ring-at: var(--lf-focus-ring-inset);
-}
-/* The outlet owns the review row's boundary. Shared conversation separators and
-   focus treatment distinguish its threads without another card around each one. */
-.lf-diff-thread-outlet > :is(.lf-page-thread, .lf-resolved-threads) {
-  max-width: 760px;
-}
-.lf-diff-thread-outlet .lf-page-thread {
-  padding: var(--lf-sp-2) 0;
-}
-.lf-diff-file-thread-outlet :is(.lf-resolved-summary, .lf-page-thread) {
-  padding-inline: var(--lf-diff-head-inset);
-}
-/* A conversation's reply field rests as a Reply press: its hint alone, in the place of
-   the words, with no frame and no microphone, one control high. Going into it, by a
-   press, Tab or `c`, opens it as the field it is, and it rests again once the user
-   leaves it holding nothing: no words or picture, no dictation, no error. The field
-   stays the one control, so every route to the reply reaches it. The user chose that
-   over a Reply field open under every conversation, which takes much of the height of
-   the conversations under a file. */
-.lf-diff-thread-outlet
-  .lf-thread-reply:not(
-    :focus-within,
-    :has(
-      > leaf-composition-field > .lf-composer-media:not([hidden]),
-      > leaf-composition-field > .lf-compose-field[data-lf-words],
-      .lf-compose-dictate[aria-pressed="true"],
-      .lf-compose-error:not([hidden])
-    )
-  ) {
-  margin-top: var(--lf-sp-1);
-  > leaf-composition-field > .lf-compose-field {
-    border-color: transparent;
-    background: transparent;
-  }
-  > leaf-composition-field > .lf-compose-field > leaf-text {
-    min-height: var(--lf-aim-floor);
-    padding-block: 0;
-    cursor: pointer;
-  }
-  > leaf-composition-field > .lf-compose-field > .lf-compose-dictate {
-    display: none;
-  }
+  padding-inline: calc(var(--lf-diff-head-inset) + 1px);
 }
 /* Paper has no sideways scroll; wrap evidence within the printed sheet. */
 @media print {

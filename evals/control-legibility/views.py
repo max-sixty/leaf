@@ -29,7 +29,7 @@ ACTIONS = json.loads(
             "-e",
             "const { ACTIONS } = await import(process.argv[1]);"
             " console.log(JSON.stringify(ACTIONS));",
-            str((HERE / "../../browser/runtime/icon-paths.js").resolve()),
+            str((HERE / "../../browser/runtime/lib/icon-paths.js").resolve()),
         ],
         check=True,
         capture_output=True,
@@ -46,7 +46,7 @@ VOCABULARY = [{"name": ACTIONS[a]["name"], "does": DOES[a]} for a in ACTIONS]
 # Each icon once, as the symbol press of the first action that shows it, in a grid.
 SYMBOL_SHEET = """async (actions) => {
   const entry = document.querySelector("script[data-lf-entry]").dataset.lfEntry;
-  const api = new URL("runtime/widget-api.js", new URL(entry, location.href));
+  const api = new URL("runtime/lib/controls.js", new URL(entry, location.href));
   const { offerAction } = await import(api);
   const byIcon = new Map();
   for (const [action, { icon }] of Object.entries(actions))

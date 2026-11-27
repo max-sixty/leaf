@@ -401,17 +401,13 @@
   "lf-trace": {
     "description": "A commentable Playwright recording with action phases, native captured frames and saved accessibility elements.",
     "attributes": {
-      "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "source": { "type": "string" },
         "label": {
           "type": "string",
           "minLength": 1
         }
       },
-      "required": ["id", "source"],
-      "additionalProperties": false
+      "required": ["id", "source"]
     },
     "content": "members",
     "inputs": {
@@ -431,7 +427,6 @@
   "lf-trace-bookmark": {
     "description": "A labeled link to one captured image or action phase in its trace.",
     "attributes": {
-      "type": "object",
       "properties": {
         "label": {
           "type": "string",
@@ -446,8 +441,7 @@
           "pattern": "^[a-z][a-z0-9-]*$"
         }
       },
-      "required": ["label", "target"],
-      "additionalProperties": false
+      "required": ["label", "target"]
     },
     "content": "empty",
     "owners": ["lf-trace"],
@@ -456,14 +450,7 @@
   },
   "lf-trace-compare": {
     "description": "Several Playwright recordings inspected together, with their results paired by key.",
-    "attributes": {
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" }
-      },
-      "required": ["id"],
-      "additionalProperties": false
-    },
+    "attributes": { "required": ["id"] },
     "views": { "members": ":not(script, style, template)" },
     "space": "available",
     "instructions": "Each direct child is one recording view: a labeled `lf-trace`, or any wrapper holding one with its caption. Put shared introductory text outside the comparison.",

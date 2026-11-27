@@ -17,7 +17,7 @@
           <p>how it works</p>
           <h1>The leaf.page website</h1>
         </hgroup>
-        <p class="lede" id="lede">
+        <p class="lf-lede" id="lede">
           leaf.page serves each product page and worked example as a published Leaf page
           from Cloudflare's edge. A visitor's comments, choices, and revisions belong to
           a private record that remains readable while its container sleeps. A comment
@@ -52,7 +52,7 @@
           derived from that id. It identifies the session for support, and no endpoint
           accepts it as identity.
         </p>
-        <lf-diagram id="request-path" data-height="690" parts="all">
+        <lf-diagram id="request-path" data-height="690">
           <pre>
 sequenceDiagram
   participant Browser as browser
@@ -239,10 +239,11 @@ sequenceDiagram
           unsent draft is saved in the session's record before the container confirms
           it, so a replacement container restores every confirmed draft, even when the
           container before it was lost without stopping. A new page protocol or store
-          format starts its session record with no drafts, and a tab still holding
-          drafts from before saves them into it once the visitor next acts on the page.
-          Running agent turns belong to the container process, so saving page content
-          does not preserve a running turn.
+          format starts its session record with no drafts, and a release that changes
+          the shape of Leaf's drafts record starts each page with no saved drafts. In
+          both cases, a tab still holding drafts from before saves them once the visitor
+          next acts on the page. Running agent turns belong to the container process, so
+          saving page content does not preserve a running turn.
         </p>
         <p id="state-records">
           The site counts accepted events in Analytics Engine without their content,

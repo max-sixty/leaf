@@ -12,13 +12,13 @@ import threading
 import time
 
 import pytest
-from conftest import LEAF_COMMAND
+from conftest import hooks_run_this_tree
 from interact_support import ROOT, STATED_TIMEOUT
 
-from leaf import bridge as bridge_model
-from leaf import hooks as hooks_model
-from leaf import service as service_model
-from leaf import state as state_model
+from leaf.base import bridge as bridge_model
+from leaf.base import service as service_model
+from leaf.base import state as state_model
+from leaf.commands import hooks as hooks_model
 
 LAUNCHER = str(ROOT / "bin" / "leaf")
 
@@ -40,6 +40,7 @@ def bridged(monkeypatch):
     """A Claude Code session whose hook before a `leaf` command ran and whose
     shell is sandboxed."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "bridged")
+    hooks_run_this_tree("bridged")
     before_leaf_command(monkeypatch, "bridged")
     monkeypatch.setenv("SANDBOX_RUNTIME", "1")
     # The bridge is reached directly here, not through a proxy the host may name.
@@ -148,6 +149,7 @@ def test_a_background_job_keeps_the_bridge_while_the_job_stands(
     job.mkdir()
     (job / "state.json").write_text('{"sessionId": "bg-job"}')
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "bg-job")
+    hooks_run_this_tree("bg-job")
     monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
     monkeypatch.setenv("CLAUDE_JOB_DIR", str(job))
     before_leaf_command(monkeypatch, "bg-job")
@@ -156,31 +158,31 @@ def test_a_background_job_keeps_the_bridge_while_the_job_stands(
     assert not bridge_model.live_sessions()
 
 
-def test_a_hook_starts_the_bridge_before_handing_itself_on(tmp_path):
-    """A session's hooks hand themselves to the Leaf delivering for it, a copy
-    installed since or a checkout (`session_runtime.py`), while its sandboxed bare
-    `leaf` runs the bridge client of the copy Claude Code loaded. So the copy the
-    hook ran in registers the session before handing the hook on, whatever the
-    Leaf it hands to does."""
-    from leaf.session_runtime import select_launcher
-
-    session = os.environ["CLAUDE_CODE_SESSION_ID"]
-    selected = tmp_path / "selected" / "bin" / "leaf"
-    selected.parent.mkdir(parents=True)
-    selected.write_text("#!/bin/sh\necho handed\n")
-    selected.chmod(0o755)
-    state_model.ensure_session(session, {"pid": os.getpid()})
-    select_launcher(session, selected)
-    hooked = subprocess.run(
-        [*LEAF_COMMAND, "hook", "--harness", "claude-code"],
-        input=json.dumps({"hook_event_name": "PreToolUse", "session_id": session}),
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
-    )
-    assert (hooked.returncode, hooked.stdout) == (0, "handed\n"), hooked.stderr
-    assert bridge_model.live_sessions()
+@pytest.mark.parametrize(
+    "ending", ["live", "a later kind", "record ends", "session ends"]
+)
+def test_the_bridge_lets_a_session_go_once_it_ends(ending):
+    """A registered session keeps the bridge until it ends: until its record says
+    so, or until its end retires its files, record and registration among them. So
+    the bridge can retire and free its port. A registration's lifetime of a kind this
+    Leaf can't check, as a later Leaf sharing this bridge may register, keeps it
+    too, since the registration's shape doesn't name its lifetime's keys."""
+    lifetime = {"window": "w-1"} if ending == "a later kind" else {"pid": os.getpid()}
+    registration = state_model.session_file("later", f"{bridge_model.KEY}-1.bridge")
+    bridge_model.REGISTRATION.write(registration, {"id": "later", **lifetime})
+    if ending != "a later kind":
+        started = state_model.new_session("later", lifetime)
+        if ending == "record ends":
+            started["ended"] = state_model.now_iso()
+        state_model.SESSION.write(
+            state_model.session_file("later", state_model.SESSION_SUFFIX),
+            {**started, "revision": 1},
+        )
+    if ending == "session ends":
+        state_model.end_session("later")
+    live = ending in {"live", "a later kind"}
+    assert bridge_model.live_sessions() is live
+    assert bridge_model.REGISTRATION.file(registration).exists() is live
 
 
 def test_every_copy_that_ships_this_bridge_reaches_the_same_one(tmp_path):
@@ -188,16 +190,20 @@ def test_every_copy_that_ships_this_bridge_reaches_the_same_one(tmp_path):
     keeps the copy it loaded, so a bridge keyed by its copy would start again with
     every update and serve each session for its whole lifetime. A copy elsewhere
     with this `bridge.py` addresses this checkout's bridge."""
-    copy = tmp_path / "copy" / "leaf"
+    copy = tmp_path / "copy" / "leaf" / "base"
     copy.mkdir(parents=True)
     shutil.copy(bridge_model.__file__, copy / "bridge.py")
     # The copy's own `bridge.py`, beside this checkout's other modules.
-    (copy / "__init__.py").write_text(
-        f"__path__.append({str(ROOT / 'src' / 'leaf')!r})\n"
-    )
+    for package in (copy.parent, copy):
+        checkout = ROOT / "src" / package.relative_to(copy.parent.parent)
+        (package / "__init__.py").write_text(f"__path__.append({str(checkout)!r})\n")
     addressed = subprocess.run(
-        [sys.executable, "-c", "import leaf.bridge as b; print(b.__file__, b.KEY)"],
-        cwd=copy.parent,
+        [
+            sys.executable,
+            "-c",
+            "import leaf.base.bridge as b; print(b.__file__, b.KEY)",
+        ],
+        cwd=copy.parent.parent,
         capture_output=True,
         text=True,
         timeout=STATED_TIMEOUT,
@@ -325,9 +331,9 @@ def test_a_session_registered_as_the_bridge_retires_keeps_its_lease_held(
     bridge's sweep found no session left, the bridge goes on serving with its lease
     held, so that client is never told no bridge runs while this one serves it.
     Once the session ends, the bridge releases its lease."""
-    from leaf.leases import take_lease
+    from leaf.base.leases import take_lease
 
-    bridge_model.bridge_path("sessions").mkdir(parents=True)
+    bridge_model.bridge_path("lock").parent.mkdir(parents=True)
     lock = bridge_model.bridge_path("lock")
     lease = take_lease(lock)
     assert lease is not None
@@ -348,8 +354,7 @@ def test_a_session_registered_as_the_bridge_retires_keeps_its_lease_held(
             return False
         if sweeps == 3:
             # The late session ends, so the bridge may retire.
-            for entry in bridge_model.bridge_path("sessions").glob("*.json"):
-                entry.unlink()
+            state_model.end_session("late")
         return sweep()
 
     def release_unserved(held) -> None:
@@ -363,6 +368,81 @@ def test_a_session_registered_as_the_bridge_retires_keeps_its_lease_held(
     bridge_model.retire(lease, set())
     assert released
     assert not bridge_model.lock_is_held(lock)
+
+
+@pytest.mark.parametrize("cause", ["state home removed", "sweep raises"])
+def test_a_bridge_ends_once_its_sweep_cannot_retire_it(tmp_path, monkeypatch, cause):
+    """An eval removes a sample's scratch state home, with the bridge's lease and
+    registrations in it, once the sample's session ends, so no hook or client can
+    find that bridge again. A sweep that raises, as a bug can make it, can no
+    longer retire the bridge. Either way the bridge ends rather than serving for
+    good, though a session registered with it still lives, and a removed state
+    home stays removed."""
+    from leaf.base.leases import take_lease
+
+    bridge_model.bridge_path("lock").parent.mkdir(parents=True)
+    lease = take_lease(bridge_model.bridge_path("lock"))
+    assert lease is not None
+    bridge_model.ensure("evaluated", {"pid": os.getpid()})
+    monkeypatch.setattr(bridge_model, "SWEEP_SECONDS", 0)
+    home = state_model.state_home()
+    sweep = bridge_model.live_sessions
+
+    def sweeping() -> bool:
+        if cause == "sweep raises":
+            raise RuntimeError("the sweep broke")
+        alive = sweep()
+        # The eval removes the state home between two sweeps.
+        if home.exists():
+            home.rename(tmp_path / "removed")
+        return alive
+
+    monkeypatch.setattr(bridge_model, "live_sessions", sweeping)
+    ended = threading.Event()
+
+    def serve() -> None:
+        with contextlib.suppress(RuntimeError):
+            bridge_model.serve(os.dup(lease.fileno()))
+        ended.set()
+
+    threading.Thread(target=serve, daemon=True).start()
+    # The bridge's address names this process, which the test's teardown would
+    # end for a bridge that still holds its lease.
+    try:
+        assert ended.wait(STATED_TIMEOUT), (
+            "the bridge serves on with no sweep to end it"
+        )
+    finally:
+        bridge_model.release_lease(lease)
+    if cause == "state home removed":
+        assert not home.exists(), "the bridge made its removed state home again"
+
+
+def test_a_bridge_whose_lease_file_was_replaced_as_it_started_leaves_the_next(
+    tmp_path,
+):
+    """The state home can be removed while a bridge starts, and a hook in the home
+    made again then starts the next bridge on a new lease file. Once the first
+    bridge has loaded, it leaves the next one's address standing and ends."""
+    from leaf.base.leases import take_lease
+
+    lock = bridge_model.bridge_path("lock")
+    lock.parent.mkdir(parents=True)
+    first = take_lease(lock)
+    assert first is not None
+    lock.rename(tmp_path / "removed.lock")
+    second = take_lease(lock)
+    assert second is not None
+    address = {"port": 1, "token": "t", "pid": 1}
+    bridge_model.ADDRESS.write(bridge_model.bridge_path("json"), address)
+    # An address the first bridge wrote would name this process, which the
+    # test's teardown ends for a bridge that still holds its lease.
+    try:
+        bridge_model.serve(os.dup(first.fileno()))
+        assert bridge_model.ADDRESS.read(bridge_model.bridge_path("json")) == address
+    finally:
+        first.close()
+        bridge_model.release_lease(second)
 
 
 def test_a_hook_that_finds_a_new_bridge_starting_gets_no_gone_bridges_address(

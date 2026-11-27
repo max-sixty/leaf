@@ -15,7 +15,7 @@ const filename = fileURLToPath(
 const reports = (code, file = filename) =>
   ruleReports(movesRule, code, {
     filename: file,
-    options: [["browser/runtime/dom-move.js"]],
+    options: [["browser/runtime/dom/dom-move.js"]],
   }).length;
 
 test("placing a node that may stand elsewhere is refused", () => {
@@ -47,7 +47,7 @@ test("placing a new node, or one the condition does not place, is admitted", () 
 
 test("the mover itself may call the platform's movers", () => {
   const mover = fileURLToPath(
-    new URL("../../browser/runtime/dom-move.js", import.meta.url),
+    new URL("../../browser/runtime/dom/dom-move.js", import.meta.url),
   );
   assert.equal(reports("parent.moveBefore(node, before);", mover), 0);
 });

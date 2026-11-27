@@ -1,5 +1,5 @@
-"""Threads a page or package places itself: page annotation views, thread surfaces and
-their required readers, and the fallback when a surface fails."""
+"""Threads a page or package places itself: thread surfaces and their required readers,
+and the fallback when a surface fails."""
 
 import pytest
 from interact_support import append_carried_log_record, wait_for
@@ -10,7 +10,6 @@ from render_harness import (
     comment_note,
     consume_browser_errors,
     expect_preview_words,
-    holding,
     leaf_page,
     open_page,
     panel_field,
@@ -18,14 +17,14 @@ from render_harness import (
     round_trip,
     stored_draft_text,
     told,
-    undo,
     write,
 )
 
 from browser.threads import open_panel_thread
-from leaf import event_log as events_model
-from leaf.findings import Finding
-from leaf.render_checks import rendered
+from leaf.base.findings import Finding
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
+from leaf_dev.browser import text_field
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -75,13 +74,10 @@ def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
     entry = {
         "description": "A project-supplied thread surface.",
         "attributes": {
-            "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "source": {"type": "string"},
             },
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "inputs": {
@@ -94,7 +90,9 @@ def _exercise_failed_thread_surface(browser, serve, failure, *, activation):
         "example": '<lf-test-surface id="surface-example"></lf-test-surface>',
     }
     module = """
-import {LeafElement, setChildren, threadSurface} from '/runtime/widget-api.js';
+import {setChildren} from '/runtime/widget-api.js';
+import {LeafElement} from '/runtime/lib/leaf-element.js';
+const layout = () => new CustomEvent('lf-layout', {bubbles: true, composed: true});
 customElements.define('lf-test-surface', class extends LeafElement {
   setup() {
     const datums = ['first', 'second'].map(key => {
@@ -140,9 +138,9 @@ customElements.define('lf-test-surface', class extends LeafElement {
     this.failure = phase;
     if (phase === 'disconnect') {
       this.remove();
-      threadSurface(document.querySelector('#healthy')).update();
+      document.querySelector('#healthy').dispatchEvent(layout());
     }
-    else threadSurface(this).update();
+    else this.dispatchEvent(layout());
   }
 });
 """
@@ -283,7 +281,7 @@ customElements.define('lf-test-surface', class extends LeafElement {
     assert not [
         event
         for event in events_model.read_events(serve.page_dir)
-        if event.get("token")
+        if event.get("emoji")
     ]
     page.keyboard.press("Escape")  # out of the panel's field
     expect(panel_field(page)).not_to_be_focused()
@@ -355,17 +353,14 @@ def test_a_thread_surface_without_an_id_reports_its_failure(browser, serve):
     shows, and the instance beside it, which has an id, opens its box."""
     entry = {
         "description": "A card that seats the threads about it.",
-        "attributes": {
-            "type": "object",
-            "properties": {"id": {"type": "string"}},
-            "additionalProperties": False,
-        },
+        "attributes": {"properties": {}},
         "example": '<lf-test-card id="card-example">A card.</lf-test-card>',
     }
     module = """
 import {nothing} from '/vendor/lit.js';
-import {keepsHidden, LeafElement, offer, offerAction, threadSurface}
-  from '/runtime/widget-api.js';
+import {threadSurface} from '/runtime/widget-api.js';
+import {LeafElement} from '/runtime/lib/leaf-element.js';
+import {offer, offerAction} from '/runtime/lib/controls.js';
 customElements.define('lf-test-card', class extends LeafElement {
   setup() {
     this.threads = offer('div', 'lf-test-threads');
@@ -379,7 +374,7 @@ customElements.define('lf-test-card', class extends LeafElement {
     return targets.map(() => this.threads);
   }
   render() {
-    keepsHidden(this.comment, !threadSurface(this).open);
+    this.comment.toggleAttribute('hidden', !threadSurface(this).open);
     return nothing;
   }
 });
@@ -418,82 +413,6 @@ customElements.define('lf-test-card', class extends LeafElement {
     expect(named.locator(":scope > .lf-test-threads .lf-fab-input")).to_be_focused()
 
 
-def test_page_annotation_view_seats_obligations_and_contributed_controls(
-    browser, serve
-):
-    """A page that owns its annotations shows its obligations and contributed actions in its
-    own box: Leaf hands the consumer each entry's items and native controls, and the
-    page only arranges them. Activating an obligation reaches its obligation, and a seated
-    control still runs its contribution's action. The view follows the log: an answered
-    obligation leaves once the server holds the answer, and Undo brings it back."""
-    url = serve(
-        leaf_page(
-            "Page annotation view",
-            """
-      <h1 id="title">Review</h1>
-      <lf-group id="choice-question" label="Which route?"><h2 id="choice-question-h">Which route?</h2>
-        <lf-options id="routes"><lf-option id="route-a">Route A</lf-option>
-        <lf-option id="route-b">Route B</lf-option></lf-options>
-      </lf-group>
-      <p id="subject">The export keeps one file per tenant.</p>
-      <aside id="review" aria-label="Review"></aside>
-    """,
-        ).replace("<body>", '<body data-annotations="page">')
-    )
-    page = open_page(browser, url)
-    page.evaluate("""async () => {
-      const {contributionEntry, registerContribution} =
-        await window.__lfWidgetApi();
-      registerContribution({key: 'review', target: document.getElementById('subject'),
-        read: () => ({entries: [contributionEntry({key: 'reviewed', behavior: 'action',
-          icon: 'dot', label: 'Mark reviewed'})]}),
-        activate: (key) => { window.activated = key; }});
-      const {consumeAnnotations} = await window.__lfWidgetApi();
-      const box = document.querySelector('#review');
-      consumeAnnotations(box, (entries, view) => {
-        box.replaceChildren();
-        for (const entry of entries) {
-          const row = document.createElement('div');
-          row.dataset.lfGen = '1';
-          box.append(row);
-          for (const item of view.items(entry)) {
-            const button = document.createElement('button');
-            button.type = 'button';
-            button.textContent = [item.label, item.text].filter(Boolean).join(' · ');
-            button.addEventListener('click', () => view.activate(item));
-            row.append(button);
-          }
-          row.append(...view.controls(entry));
-          view.place(entry, row);
-        }
-      });
-    }""")
-    review = page.locator("#review")
-    question = review.get_by_role(
-        "button", name="Which route? · Waiting on me", exact=True
-    )
-    expect(question).to_be_visible()
-    question.click()
-    page.wait_for_function("!!document.activeElement?.closest('#choice-question')")
-    contributed = review.get_by_role("button", name="Mark reviewed", exact=True)
-    expect(contributed).to_be_visible()
-    contributed.click()
-    page.wait_for_function("window.activated === 'reviewed'")
-
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    page.locator("#route-a .lf-pick").click()
-    expect(page.locator("#route-a")).to_have_attribute("selected", "")
-    expect(question).to_be_visible()
-    holding(page, held, 1, "the optimistic choice")
-    held[0].continue_()
-    page.unroute("**/api/event")
-    expect(question).to_have_count(0)
-    undo(page)
-    expect(page.locator("#route-a")).not_to_have_attribute("selected", "")
-    expect(question).to_be_visible()
-
-
 def test_page_thread_surface_owns_exact_source_elsewhere_in_main(browser, serve):
     url = serve(
         leaf_page(
@@ -528,7 +447,7 @@ def test_page_thread_surface_owns_exact_source_elsewhere_in_main(browser, serve)
       const {claimed} = await __lfCheckApi();
       return claimed(document.querySelector('#review .lf-page-thread').dataset.lfThread);
     }""")
-    reply = thread.get_by_role("textbox", name="Reply", exact=True)
+    reply = text_field(thread, name="Reply", exact=True)
     write(reply, "Can the archive keep that naming?")
     reply.press("Enter")
     expect(thread).to_contain_text("Can the archive keep that naming?")
@@ -576,14 +495,11 @@ def test_widgets_claim_before_page_and_only_required_page_failures_fail_proof(
     entry = {
         "description": "An exact source seat.",
         "attributes": {
-            "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "style": {"type": "string"},
                 "source": {"type": "string"},
             },
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "inputs": {
@@ -596,7 +512,8 @@ def test_widgets_claim_before_page_and_only_required_page_failures_fail_proof(
         "example": '<lf-test-seat id="sample"></lf-test-seat>',
     }
     module = """
-import {LeafElement, setChildren, threadSurface} from '/runtime/widget-api.js';
+import {setChildren} from '/runtime/widget-api.js';
+import {LeafElement} from '/runtime/lib/leaf-element.js';
 customElements.define('lf-test-seat', class extends LeafElement {
   setup() {
     const row = document.createElement('section');
@@ -614,7 +531,7 @@ customElements.define('lf-test-seat', class extends LeafElement {
   }
   start() {
     this.started = true;
-    threadSurface(this).update();
+    this.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true, composed: true}));
   }
 });
 """
@@ -680,8 +597,8 @@ customElements.define('lf-test-seat', class extends LeafElement {
     expect(page.locator("#review .lf-page-thread")).to_have_count(1)
     expect(page.locator("#review")).to_contain_text("Passage conversation")
     # An actual page-presented reply stands at its source, not its authored rail.
-    reply = page.locator("#review .lf-page-thread").get_by_role(
-        "textbox", name="Reply", exact=True
+    reply = text_field(
+        page.locator("#review .lf-page-thread"), name="Reply", exact=True
     )
     reply.click()
     assert (
@@ -734,13 +651,10 @@ def test_required_page_failure_retains_composer_seat_focus_and_caret(browser, se
     entry = {
         "description": "An exact datum seat.",
         "attributes": {
-            "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "source": {"type": "string"},
             },
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "inputs": {
@@ -753,7 +667,8 @@ def test_required_page_failure_retains_composer_seat_focus_and_caret(browser, se
         "example": '<lf-test-seat id="seat"></lf-test-seat>',
     }
     module = """
-import {LeafElement,setChildren} from '/runtime/widget-api.js';
+import {setChildren} from '/runtime/widget-api.js';
+import {LeafElement} from '/runtime/lib/leaf-element.js';
 customElements.define('lf-test-seat',class extends LeafElement{
   setup(){
     this.style.cssText='display:block;height:360px;overflow:auto';
@@ -975,9 +890,9 @@ customElements.define('lf-test-seat',class extends LeafElement{
         == current
     )
     # The widget stops offering its seat, so the page keeps presenting both threads.
-    page.evaluate("""async()=>{
-      const {threadSurface}=await window.__lfWidgetApi();
-      const seat=document.querySelector('#seat');seat.side=null;threadSurface(seat).update();
+    page.evaluate("""()=>{
+      const seat=document.querySelector('#seat');seat.side=null;
+      seat.dispatchEvent(new CustomEvent('lf-layout', {bubbles: true, composed: true}));
     }""")
     expect(page.locator("#rail .lf-page-thread")).to_have_count(2)
     assert len(state_readings) == 1

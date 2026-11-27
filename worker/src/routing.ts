@@ -24,8 +24,9 @@ interface SitePage {
   layer: string;
   /** The current revision's entry in `states`. */
   state: string;
-  /** Each revision's published projection, keyed by revision number. */
-  states: Record<string, string>;
+  /** Each revision's published projection, keyed by revision number. A request may
+   * name a revision the page lacks. */
+  states: Partial<Record<string, string>>;
   title: string;
 }
 
@@ -45,6 +46,9 @@ export interface SiteManifest {
   release: string;
   /** The page protocol this release's Leaf serves and writes (`kernel_protocol`). */
   protocol: number;
+  /** The `format` of the drafts record this release's Leaf keeps (`DRAFTS` in
+   * `src/leaf/serving/drafts.py`), which keys a page's drafts store (`storage.ts`). */
+  drafts_format: string;
   /** The header policy every HTML response adds, since a document's own <meta>
    * policy cannot govern its ancestors (`structure.FRAME_ANCESTORS_CSP`). */
   frame_ancestors: string;
@@ -176,8 +180,10 @@ function pageCookieName(prefix: string, pageRoot: string): string {
   return `${prefix}-${suffix}`;
 }
 
-export function newSessionId(random: Uint8Array): string {
-  return Array.from(random, (byte) => byte.toString(16).padStart(2, "0")).join("");
+// The lowercase hex of `bytes`, which names a session minted from random bytes and a
+// stored chunk by its digest.
+export function hex(bytes: Uint8Array): string {
+  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 // A support handle, not a credential: project a random identity into a short numeric

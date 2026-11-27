@@ -25,12 +25,12 @@ test("Screenshot drawing retains controls, frames and images across updates and 
       return image;
     });
   const shown = {
-    view: "flip",
+    view: "slider",
     position: 100,
     actual: false,
     full: false,
     outlines: true,
-    metadata: { labels: { before: "Base", after: "Candidate" }, focus: {} },
+    metadata: { focus: { x: 0, y: 0, width: 200, height: 100 } },
     reading: {
       width: 200,
       height: 100,
@@ -56,10 +56,10 @@ test("Screenshot drawing retains controls, frames and images across updates and 
     assert.equal(document.activeElement, options);
     // The views are a radio group, which says the view chosen in its change.
     const views = host.querySelector(".lf-shot-views");
-    views.value = "flip";
+    views.value = "slider";
     views.dispatchEvent(new Event("change"));
-    assert.deepEqual(clicked, ["flip"]);
-    assert.equal(beforeLabel.textContent, "Base");
+    assert.deepEqual(clicked, ["slider"]);
+    assert.equal(beforeLabel.textContent, "Before");
     assert.equal(afterLabel.hasAttribute("data-lf-shot-hidden"), true);
     assert.equal(beforeLabel.hasAttribute("data-lf-said"), true);
     assert.equal(images[0].src, shown.images[0].src);
@@ -81,7 +81,7 @@ test("Screenshot drawing retains controls, frames and images across updates and 
     host.setAttribute("alt", "New capture");
     paint({
       ...shown,
-      view: "compare",
+      view: "pair",
       geometry: { layout: "stack", fitScale: 0.25 },
       pixels: true,
       pixelUrl: "blob:mask",
@@ -91,7 +91,7 @@ test("Screenshot drawing retains controls, frames and images across updates and 
       frames[0].querySelector(".lf-shotcap").hasAttribute("data-lf-said"),
       true,
     );
-    assert.equal(viewports[0].getAttribute("aria-label"), "Base — New capture");
+    assert.equal(viewports[0].getAttribute("aria-label"), "Before — New capture");
     assert.equal(
       frames[0].querySelector("a").getAttribute("href"),
       shown.images[0].src,

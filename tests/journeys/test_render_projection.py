@@ -34,7 +34,6 @@ from render_cases_interaction import (
 )
 from render_cases_navigation import (
     painted,
-    source_revision,
 )
 from render_harness import (
     EXAMPLE_PACKAGES,
@@ -42,23 +41,18 @@ from render_harness import (
     REPLAYED_PAGE,
     REPLY_HOST_PAGE,
     TOKEN,
-    consume_browser_errors,
-    example_media,
     expect_obligations_answered,
     expect_on_me,
-    expect_panel_offers,
     holding,
     leaf_page,
     names,
     nudge,
+    open_latest,
     open_page,
     page_comment,
     page_declarations,
-    panel_control,
     panel_field,
     panel_view,
-    resized,
-    root_overflow,
     round_trip,
     sending,
     stamp_page,
@@ -68,21 +62,19 @@ from render_harness import (
     write,
 )
 
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import hosting as hosting_model
-from leaf import http as http_model
-from leaf import render_checks as render_checks_model
-from leaf import structure as structure_model
-from leaf.page_snapshot import capture_page_snapshot
-from leaf.registry import storage as registry_storage
-from leaf.registry.storage import layer_record
-from leaf.render_checks import rendered, wait_until_ready
-from leaf.render_gate import scheme as scheme_model
-from leaf.render_gate import version as render_gate_model
-from leaf.render_gate.preview import preview_server
+from leaf.base import files as files_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.pages import hosting as hosting_model
+from leaf.pages.page_snapshot import capture_page_snapshot
+from leaf.pages.render_gate import version as render_gate_model
+from leaf.pages.render_gate.preview import preview_server
+from leaf.serving import http as http_model
+from leaf.source import render_checks as render_checks_model
+from leaf.source import structure as structure_model
+from leaf.source import vocabulary as vocabulary_model
+from leaf.source.registry.storage import layer_record
+from leaf.source.render_checks import wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -90,225 +82,6 @@ pytestmark = pytest.mark.shifts_unsurveyed
 from browser.threads import open_panel_thread
 
 from journeys import first_thread_head
-
-
-def test_visual_review_guides_one_typed_still_run(browser, serve):
-    authored = leaf_page(
-        "visual review run",
-        """
-<h1 id="title">Visual review</h1>
-<p id="claim">The candidate makes run status visible without changing navigation.</p>
-<lf-visual-review id="visual-run" source="docs-run"></lf-visual-review>
-""",
-    )
-    media = {
-        "/media/051bee487bfb5d13.png": (
-            example_media() / "051bee487bfb5d13.png"
-        ).read_bytes(),
-        "/media/a99a1b63048502d0.png": (
-            example_media() / "a99a1b63048502d0.png"
-        ).read_bytes(),
-        "/media/3cf0e3efe80c6b01.png": (
-            example_media() / "3cf0e3efe80c6b01.png"
-        ).read_bytes(),
-    }
-    url = live_url(serve(authored, packages=("visual-review",), media=media))
-    capture = {
-        "observedAt": "2026-09-10T10:30:00-07:00",
-        "browser": "Chrome",
-        "browserVersion": "140.0.7339.80",
-        "viewport": {"width": 900, "height": 373},
-        "deviceScaleFactor": 2,
-        "colorScheme": "light",
-        "locale": "en-US",
-        "timezone": "America/Los_Angeles",
-    }
-    record: dict = {
-        "title": "Docs navigation · candidate 7b921ac",
-        "base": {"revision": "4c118aa", "url": "https://base.example/rev/"},
-        "candidate": {
-            "revision": "7b921ac",
-            "url": "https://candidate.example/rev",
-        },
-        "cases": [
-            {
-                "id": "run-list",
-                "title": "Run list status",
-                "path": "/runs?owner=max",
-                "action": "Open the run list.",
-                "result": "Each row exposes its current status.",
-                "classification": "changed",
-                "capture": capture,
-                "focus": {"x": 120, "y": 80, "width": 640, "height": 220},
-                "before": "/media/051bee487bfb5d13.png",
-                "after": "/media/a99a1b63048502d0.png",
-                "traceUrl": "https://trace.example/runs/17",
-            },
-            {
-                "id": "run-detail",
-                "title": "Run detail navigation",
-                "path": "/runs/17",
-                "action": "Open the first run.",
-                "result": "The detail link and surrounding layout stay stable.",
-                "classification": "clean",
-                "capture": capture,
-                "before": "/media/051bee487bfb5d13.png",
-                "after": "/media/a99a1b63048502d0.png",
-            },
-        ],
-    }
-    data_model.cmd_data_set(serve.page_dir, "docs-run", record)
-    source = serve.page_dir / "index.html"
-    source.write_text(
-        source.read_text().replace(
-            "</main>",
-            '<lf-visual-review id="visual-pinned" source="docs-run-reviewed">'
-            "</lf-visual-review></main>",
-        )
-    )
-    # The pinned run is a second source that nothing rewrites.
-    data_model.cmd_data_set(serve.page_dir, "docs-run-reviewed", record)
-    page = open_page(browser, url)
-    case_thread = append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 2,
-            "text": "Keep this note beside the run-list evidence.",
-            "anchor": {
-                "section": "visual-run",
-                "datum": "run-list",
-                "source": "docs-run",
-                "source_revision": source_revision(serve.page_dir, "docs-run"),
-            },
-        },
-    )
-    told(page)
-    widget = page.locator("#visual-run")
-    cases = widget.locator(".lf-vr-case")
-    first = cases.filter(has=page.locator(".lf-vr-title", has_text="Run list"))
-    second = cases.filter(has=page.locator(".lf-vr-title", has_text="Run detail"))
-
-    expect(widget.locator(".lf-vr-heading h2")).to_have_text(record["title"])
-    expect(widget.locator(".lf-vr-case-button")).to_have_count(2)
-    expect(first).to_be_visible()
-    expect(second).to_be_hidden()
-    expect(first).to_have_attribute("data-lf-projection", "visual-run")
-    origin = first.evaluate("node => JSON.parse(node.dataset.lfOrigin)")
-    assert origin["source"] == "docs-run"
-    assert origin["path"] == ["cases", 0]
-    expect(first.locator("lf-shot img")).to_have_count(2)
-    expect(
-        first.locator(f'.lf-page-thread[data-lf-thread="{case_thread["id"]}"]')
-    ).to_have_count(1)
-    first.get_by_role("button", name="Capture details").click()
-    for label, href in (
-        ("Open before page", "https://base.example/rev/runs?owner=max"),
-        ("Open after page", "https://candidate.example/rev/runs?owner=max"),
-        ("Capture trace", "https://trace.example/runs/17"),
-    ):
-        expect(first.get_by_role("link", name=label)).to_have_attribute("href", href)
-    expect(first.locator(".lf-facts")).to_contain_text("Chrome 140.0.7339.80")
-    expect(first.locator(".lf-facts")).to_contain_text("120, 80 · 640 × 220 CSS px")
-    page.keyboard.press("Escape")
-    first.get_by_role("button", name="Image options").click()
-    first.get_by_role("checkbox", name="Full frame").check()
-    first.get_by_role("button", name="100%", exact=True).click()
-    rendered(page)
-    width = first.locator("lf-shot img").first.evaluate(
-        "node => node.getBoundingClientRect().width"
-    )
-    assert width == pytest.approx(900, abs=1), "Actual size is captured CSS pixels"
-    with sending(page, "approve the first visual case"):
-        first.get_by_role("checkbox", name="Looks right").check()
-    expect(widget.locator(".lf-vr-progress")).to_contain_text("1 of 2")
-    widget.locator(".lf-vr-case-button").nth(1).click()
-    expect(first).to_be_hidden()
-    expect(second).to_be_visible()
-    second.get_by_role("radio", name="Slider").click()
-
-    inserted = record["cases"][1] | {"id": "run-middle", "title": "Inserted run case"}
-    changed: dict = record | {
-        "base": {"revision": record["base"]["revision"]},
-        "cases": [
-            record["cases"][0],
-            inserted,
-            record["cases"][1]
-            | {
-                "result": "The detail route remains stable after the rerun.",
-                "capture": capture | {"observedAt": "2026-10-08T10:00:00-07:00"},
-            },
-        ],
-    }
-    original = second.element_handle()
-    data_model.cmd_data_set(serve.page_dir, "docs-run", changed)
-    told(page)
-    expect(second.locator(".lf-vr-result")).to_have_text(
-        "The detail route remains stable after the rerun."
-    )
-    assert original.evaluate(
-        "node => node === document.querySelector('.lf-vr-case[data-lf-datum=\"run-detail\"]')"
-    )
-    expect(second).to_be_visible()
-    expect(second.get_by_role("radio", name="Slider")).to_have_attribute(
-        "aria-checked", "true"
-    )
-    expect(
-        first.get_by_role("checkbox", name="Looks right", include_hidden=True)
-    ).to_be_checked()
-    expect(
-        page.locator("#visual-pinned .lf-vr-result").filter(
-            has_text=record["cases"][1]["result"]
-        )
-    ).to_have_count(1)
-    second.get_by_role("button", name="Capture details").click()
-    expect(second.locator(".lf-facts")).to_contain_text("2026-10-08T10:00:00-07:00")
-    expect(second.get_by_role("link", name="Open before page")).to_have_count(0)
-    expect(second.get_by_role("link", name="Open after page")).to_have_attribute(
-        "href", "https://candidate.example/rev/runs/17"
-    )
-    page.keyboard.press("Escape")
-    resized(page, 390, 900)
-    assert root_overflow(page) == 0
-
-    widget.locator(".lf-vr-case-button").first.click()
-    invalid_focus = changed | {
-        "cases": [
-            changed["cases"][0]
-            | {
-                "focus": {"x": 120, "y": 300, "width": 640, "height": 220},
-            },
-            *changed["cases"][1:],
-        ]
-    }
-    data_model.cmd_data_set(serve.page_dir, "docs-run", invalid_focus)
-    told(page)
-    error = "focus 120,300 640×220 CSS px falls outside its captured images"
-    expect(first.locator(".lf-error")).to_contain_text(error)
-    consume_browser_errors(page, error)
-    unequal_pair = changed | {
-        "cases": [
-            changed["cases"][0]
-            | {
-                "focus": {"x": 20, "y": 80, "width": 300, "height": 150},
-                "after": "/media/3cf0e3efe80c6b01.png",
-            },
-            *changed["cases"][1:],
-        ]
-    }
-    data_model.cmd_data_set(serve.page_dir, "docs-run", unequal_pair)
-    told(page)
-    error = "before is 1800px wide and after is 780px"
-    expect(first.locator(".lf-error")).to_contain_text(error)
-    consume_browser_errors(page, error)
-    data_model.cmd_data_set(serve.page_dir, "docs-run", changed)
-    told(page)
-    expect(first.locator(".lf-error")).to_have_count(0)
-    expect(first.locator("lf-shot img")).to_have_count(2)
-    with sending(page, "withdraw the approval"):
-        first.get_by_role("checkbox", name="Looks right").uncheck()
-    expect(first.get_by_role("checkbox", name="Looks right")).not_to_be_checked()
 
 
 def test_the_render_gate_reports_a_server_that_stops_answering(
@@ -330,7 +103,7 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
     read and probe keeps the suite's deadline, so a slow machine still renders.
     """
     monkeypatch.chdir(tmp_path)
-    bounded = scheme_model.served
+    bounded = render_gate_model.served
     shortened = []
 
     def served(page, url, path, timeout_ms=None):
@@ -339,7 +112,7 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
             timeout_ms = 1500
         return bounded(page, url, path, timeout_ms)
 
-    monkeypatch.setattr(scheme_model, "served", served)
+    monkeypatch.setattr(render_gate_model, "served", served)
     d = tmp_path / "page"
     assert CliRunner().invoke(cli_model.cli, ["page", "init", str(d)]).exit_code == 0
     for _ in (1, 2):
@@ -373,13 +146,13 @@ def test_the_render_gate_reports_a_server_that_stops_answering(
             failures = render_gate_model.render_version(
                 browser,
                 f"http://127.0.0.1:{httpd.server_address[1]}/versions/v2.html?t={TOKEN}",
-            ).failures
+            ).findings
         finally:
             release.set()
 
     assert asked.is_set(), "nothing ever asked for the stalled file, so nothing stalled"
     assert failures and all(f.code == "server-stopped" for f in failures), (
-        f"a wedged server has to come back as a failure, and this came back as {failures}"
+        f"a wedged server has to come back as its finding, and this came back as {failures}"
     )
 
 
@@ -391,9 +164,14 @@ def test_render_allows_authored_state_the_log_replays_over(browser, serve):
     """
     url = serve(REPLAYED_PAGE)
     d = serve.page_dir
-    for widget, action, detail in [
-        ("approach", "choose", {"value": ["opt-shim"]}),
-        ("work", "move", {"unit": "card-importer", "value": "col-done", "rank": "0i"}),
+    for widget, action, detail, word in [
+        ("approach", "choose", {"value": ["opt-shim"]}, {"answered": True}),
+        (
+            "work",
+            "move",
+            {"unit": "card-importer", "value": "col-done", "rank": "0i"},
+            {},
+        ),
     ]:
         append_command(
             d,
@@ -404,6 +182,7 @@ def test_render_allows_authored_state_the_log_replays_over(browser, serve):
                 "widget": widget,
                 "action": action,
                 "detail": detail,
+                **word,
             },
         )
 
@@ -493,10 +272,10 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
         packages=(*EXAMPLE_PACKAGES, ROOT / "tests/fixtures/packages/work", "./.leaf"),
     )
     relative_actions = [
-        ("tally-fitted", "step", {"value": "3"}),
-        ("tally-fitted", "caption", {"value": "Two greys at the north feeder."}),
+        ("tally-fitted", "step", {"value": "3"}, {}),
+        ("tally-fitted", "caption", {"value": "Two greys at the north feeder."}, {}),
     ]
-    for widget, action, detail in [*ACTIONS_IN_FORCE, *relative_actions]:
+    for widget, action, detail, word in [*ACTIONS_IN_FORCE, *relative_actions]:
         append_command(
             serve.page_dir,
             {
@@ -506,6 +285,7 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
                 "widget": widget,
                 "action": action,
                 "detail": detail,
+                **word,
             },
         )
     # The agent channel through its own door, which is the only way a report is
@@ -525,15 +305,21 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
 
     page = open_page(browser, url)
     in_force_ids = sorted(
-        {widget for widget, _action, _detail in [*ACTIONS_IN_FORCE, *relative_actions]}
+        {
+            widget
+            for widget, _action, _detail, _word in [
+                *ACTIONS_IN_FORCE,
+                *relative_actions,
+            ]
+        }
         | {"ab-baffles", "ab-wren"}
     )
     in_force = page.evaluate(
         """async ids => {
-          const {widgetController} = await window.__lfWidgetApi();
+          const {controllerOf} = await window.__lfCheckApi();
           return ids.flatMap(id => {
             const widget = document.getElementById(id);
-            const state = widgetController(widget).read().state;
+            const state = controllerOf(widget).read().state;
             return Object.entries(state).flatMap(([verb, value]) =>
               (value.units ? Object.values(value.units) : [value])
                 .filter(({action}) => action)
@@ -543,7 +329,7 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
         in_force_ids,
     )
     page.close()
-    registry = registry_storage.load_registry(serve.page_dir)
+    registry = vocabulary_model.load_registry(serve.page_dir)
     declared = {
         (tag, verb)
         for tag, entry in registry.items()
@@ -762,7 +548,7 @@ def test_a_settled_third_party_holder_wears_the_layers_mark(
     browser, serve, tmp_path, monkeypatch
 ):
     """A settlement is the layer's rendering of the log's decision, never a module
-    obligation: the trial's module is the product's starter, which only defines the
+    obligation: the trial's module is the test wrapper's, which only defines the
     element — a `LeafElement` with no `render()` of its own — and
     once its decision replays the holder wears
     data-lf-state, the retired slot is marked and hidden by the theme's one generic
@@ -878,11 +664,12 @@ def test_the_render_gate_holds_a_settled_slot_to_the_logs_decision(
     module.parent.mkdir(parents=True, exist_ok=True)
     module.write_text(
         """\
-import {keeps, LeafElement} from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { keeps } from "/runtime/lib/keeps.js";
 customElements.define("lf-trial", class extends LeafElement {
   #presented;
   render() {
-    if (!this.reading.state) return;
+    if (!this.state) return;
     if (document.body.dataset.lfPresented === "1") {
       keeps(this, "data-lf-state", "shelve");
       return;
@@ -976,7 +763,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
         wherever it stands — and `m` reaches it. A single-answer group
     is answered by its pick, as on the page; a `multiple` group's toggles each reach the
     agent live, so only its Done press closes it, as an `answer` action
-    `awaits.answered` names for a `multiple` group. The thread's own reply box is
+    the group says answers a `multiple` group. The thread's own reply box is
     the words'
         home, so the group brings no box of its own. `g T` leaves option-digit scope for
     Threads, while `t` reaches a particular thread and `c` reaches its reply box.
@@ -1091,9 +878,10 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     # Taking back a recordless chrome answer rebuilds its authored controls at once —
     # the withdrawal is the user's own gesture on their own widget. The selection is
     # another verb, so it survives that rebuild. Whether the decision is open again is
-    # the log's reading, so the count moves when the withdrawal reaches it and not while
-    # it is held at the wire. In particular, the surviving `choose` action cannot answer
-    # a `multiple` set, whose `awaits.answered` condition is an `answer` in force.
+    # the group's own word, which the withdrawal carries, so the count moves at once,
+    # while the withdrawal is still held at the wire, and the log's reading agrees. In
+    # particular, the surviving `choose` action cannot answer a `multiple` set, which
+    # says it is answered only while its Done stands.
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
@@ -1101,7 +889,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "false")
     expect(page.locator("#tq-logs")).to_have_attribute("selected", "")
     expect(page.locator("#tq-set-decision > h3")).to_have_text("Which extras apply?")
-    expect_obligations_answered(page, "2/2")
+    expect_obligations_answered(page, "1/2")
     holding(page, held, 1, "the thread answer's withdrawal")
     held[0].continue_()
     page.unroute("**/api/event")
@@ -1207,12 +995,13 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
     write(general, "Do not replace the page under these words.")
 
     # Let the page learn that the second revision exists before holding a read. The
-    # open draft keeps the first revision shown and leaves the direct activation
-    # route available through the leaf's menu row for the latest version.
+    # draft, with the caret in it, keeps the first revision shown. It holds only while
+    # the caret stays: opening the leaf's menu moves focus to its search, and the next
+    # heartbeat then installs the second revision under the menu. So every press below
+    # leaves the caret where it is.
     (serve.page_dir / "index.html").write_text(executable_revision(LIVE_V2, "two"))
     told(page)
     expect(page).to_have_title("Live first")
-    expect_panel_offers(page, "latest")
 
     # One read, held open while it still names the first revision. Releasing it below is
     # what sends it, so the server answers it against the log and versions of that
@@ -1240,10 +1029,10 @@ def test_an_old_document_state_request_cannot_update_the_new_revision(browser, s
         working(serve.page_dir, "exercising the held state request")
         holding(page, held, 1, "the read from revision 1")
 
-        # The row's own read remains independent of the background read held above.
-        # It moves the page to the second revision, then the third revision is
+        # Open latest's own read remains independent of the background read held
+        # above. It moves the page to the second revision, then the third revision is
         # written before the held request is released.
-        panel_control(page, "latest").click()
+        open_latest(page)
         expect(page).to_have_title("Live second")
         page_comment(page)
         (serve.page_dir / "index.html").write_text(

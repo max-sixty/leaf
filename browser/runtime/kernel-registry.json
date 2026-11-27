@@ -1,11 +1,48 @@
 {
   "$public-modules": {
-    "description": "The module paths a page or package may import. Admission, linting and bundling read this list; module-authoring.md describes their capabilities.",
+    "description": "The module paths a page or package may import. Admission, linting and bundling read this list. module-authoring.md describes the capabilities of Leaf's own modules. The paths under `/runtime/lib/` are the library of shared web code, every module of that directory, each described in its own header (browser/AGENTS.md, \"The library of shared web code\").",
     "paths": [
       "/vendor/lit.js",
+      "/vendor/effect-ui.js",
       "/runtime/widget-api.js",
       "/runtime/portable-api.js",
-      "/vendor/floating-ui.esm.js"
+      "/vendor/floating-ui.esm.js",
+      "/runtime/lib/canvas.js",
+      "/runtime/lib/control-faces.js",
+      "/runtime/lib/controls.js",
+      "/runtime/lib/data-body.js",
+      "/runtime/lib/element-word.js",
+      "/runtime/effect-widget.js",
+      "/runtime/widget-services.js",
+      "/runtime/lib/elements.js",
+      "/runtime/lib/exception.js",
+      "/runtime/lib/failure.js",
+      "/runtime/lib/frame-pass.js",
+      "/runtime/lib/icon-paths.js",
+      "/runtime/lib/icons.js",
+      "/runtime/lib/keeps.js",
+      "/runtime/lib/keys.js",
+      "/runtime/lib/leaf-element.js",
+      "/runtime/lib/markdown.js",
+      "/runtime/lib/motion-timing.js",
+      "/runtime/lib/obligation-tally.js",
+      "/runtime/lib/once.js",
+      "/runtime/lib/pending-task.js",
+      "/runtime/lib/queued-work.js",
+      "/runtime/lib/rank.js",
+      "/runtime/lib/rest-arming.js",
+      "/runtime/lib/role-button-press.js",
+      "/runtime/lib/roving.js",
+      "/runtime/lib/scroll-range.js",
+      "/runtime/lib/shadow-tree.js",
+      "/runtime/lib/shown-box.js",
+      "/runtime/lib/syntax-languages.js",
+      "/runtime/lib/syntax-tokens.js",
+      "/runtime/lib/text-alignment.js",
+      "/runtime/lib/text-width.js",
+      "/runtime/lib/time-axis.js",
+      "/runtime/lib/widget-events.js",
+      "/runtime/lib/words.js"
     ]
   },
   "$authored": {
@@ -16,12 +53,12 @@
     }
   },
   "$names": {
-    "description": "The name grammars a layer is held to, as ECMAScript patterns without anchors. `widget` is a widget's tag, `lf-` followed by hyphen-separated words of lowercase letters and digits: a vocabulary key of exactly that shape declares a widget, and any other key is an idiom selector. `html` is an attribute, verb, package or data source name. Python's layer schemas (`schema.py`) and the browser (`runtime/kernel-facts.js`) both read the serving Leaf's copy.",
+    "description": "The name grammars a layer is held to, as ECMAScript patterns without anchors. `widget` is a widget's tag, `lf-` followed by hyphen-separated words of lowercase letters and digits: a vocabulary key of exactly that shape declares a widget, and any other key is an idiom selector. `html` is an attribute, verb, package or data source name. Python's layer schemas (`schema.py`) and the browser (`runtime/state/kernel-facts.js`) both read the serving Leaf's copy.",
     "html": "[a-z][a-z0-9-]*",
     "widget": "lf-[a-z0-9]+(?:-[a-z0-9]+)*"
   },
   "$marks": {
-    "description": "The declarations a stylesheet reads, each named by its fact (`$keys`) and painted on the element as the attribute `attribute` names, because neither a stylesheet nor the prepaint, which runs before the registry has loaded (`runtime/prepaint.js`), can read the registry: the room it takes (`space`), whether its blocks stand in the page's flow (`flow`), whether it rests as a spine beside a document (`spine`), whether it sets inline among words (`inline`), quotes what it holds (`exhibit`), holds its own height (`bound`), draws into a box of a stated height (`height`), the reading structure it supplies (`reading-role`), whether it shows one member at a time (`views`), and whether it draws a picture (`visual`). The room is only ever past the measure: a widget read as lines of text keeps to the measure in its own stylesheet (`max-inline-size: var(--lf-measure)`), so `space` names a breakout and nothing else. `authored` is the attribute an occurrence writes to override its tag's declaration, and `authored_on` where that override means something, so elsewhere it is inert: `content`, a block inside `body` other than `main`, since the room and the bound size a block in the page's flow and on `main` or `body` would size the page itself; `declared`, an element whose tag declares the mark, since a stated height reserves room for a module's drawing and a block no module draws into would be clipped to it for good. `message` says whether the mark holds in a thread's message too: each is the element's own fact wherever it renders, except the room, which is the document's to hand out; a message renders in the panel, whose width bounds it and which has no margin. `presence` paints only whether a declaration exists, without serializing its rules. A declaration that holds only for some occurrences, `{when: {attribute: [values]}}` where its fact admits that form, is painted only on an occurrence whose attributes match. Delivery paints a page's document from this table (`revision_delivery.mark_declared`), and a layer that declares a different table is refused (`registry.layer.merge_layer_declarations`), so every composed vocabulary carries the kernel's table, from which the runtime paints a message it renders and tells the paint from the author's attributes (`isPagePaint`). Those attribute names are also the theme's contract: runtime modules import them from `runtime/kernel-facts.js`, which reads this table, and `build/registry.test.mjs` holds every stylesheet, the prepaint and every package module that spells one out to this table.",
+    "description": "The declarations a stylesheet reads, each named by its fact (`$keys`) and painted on the element as the attribute `attribute` names, because neither a stylesheet nor the prepaint, which runs before the registry has loaded (`runtime/prepaint.js`), can read the registry: the room it takes (`space`), whether its blocks stand in the page's flow (`flow`), whether it rests as a spine beside a document (`spine`), whether it sets inline among words (`inline`), quotes what it holds (`exhibit`), holds its own height (`bound`), draws into a box of a stated height (`height`), the reading structure it supplies (`reading-role`), whether it shows one member at a time (`views`), and whether it draws a picture (`visual`). The room is only ever past the measure: a widget read as lines of text keeps to the measure in its own stylesheet (`max-inline-size: var(--lf-measure)`), so `space` names a breakout and nothing else. `authored` is the attribute an occurrence writes to override its tag's declaration, and `authored_on` where that override means something, so elsewhere it is inert: `content`, a block inside `body` other than `main`, since the room and the bound size a block in the page's flow and on `main` or `body` would size the page itself; `declared`, an element whose tag declares the mark, since a stated height reserves room for a module's drawing and a block no module draws into would be clipped to it for good. `message` says whether the mark holds in a thread's message too: each is the element's own fact wherever it renders, except the room, which is the document's to hand out; a message renders in the panel, whose width bounds it and which has no margin. `presence` paints only whether a declaration exists, without serializing its rules. A declaration that holds only for some occurrences, `{when: {attribute: [values]}}` where its fact admits that form, is painted only on an occurrence whose attributes match. Delivery paints a page's document from this table (`revision_delivery.mark_declared`), and a layer that declares a different table is told it has no effect (`registry.layer.kernel_fact_advice`), so every composed vocabulary carries the kernel's table, from which the runtime paints a message it renders and tells the paint from the author's attributes (`isPagePaint`). Those attribute names are also the theme's contract: runtime modules import them from `runtime/state/kernel-facts.js`, which reads this table, and `build/registry.test.mjs` holds every stylesheet, the prepaint and every package module that spells one out to this table.",
     "content": { "attribute": "data-lf-content", "message": true },
     "verbatim": { "attribute": "data-lf-verbatim", "message": true },
     "space": {
@@ -56,7 +93,7 @@
     "awaits": { "attribute": "data-lf-awaits", "presence": true, "message": true }
   },
   "$passages": {
-    "description": "How Python (`leaf/passages.py`, `leaf/anchor_capture.py`) and the browser (`runtime/kernel-facts.js`) turn a page into text, so `leaf thread create` can confirm any quote the browser captures. Both read the serving Leaf's copy.",
+    "description": "How the browser (`runtime/state/kernel-facts.js`) turns a page into text, which Python (`leaf/source/passages.py`) reads the page's files by too, so the words Leaf tells the agent a page says read as the page shows them. Both read the serving Leaf's copy.",
     "collapse": "\t\n\u000b\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff",
     "why-collapse-is-spelled-out": "`collapse` lists the characters both readings fold to one space. JavaScript's \\s and Python's str.isspace() disagree on a few: U+FEFF is whitespace only to JavaScript, U+0085 only to Python. The browser captures every quote, so the list is JavaScript's set.",
     "blocks": [
@@ -136,18 +173,18 @@
       "video",
       "wbr"
     ],
-    "why-phrasing": "HTML's phrasing content, the elements a line of words runs through, less the autonomous custom elements, which stand in a line only where their widget declares `inline`. A suggestion's slot holding an element outside it is a block (`base.css`, held to this list by `build/registry.test.mjs`). Both readings read it (`enter` in passages.js, `passages.py`): an element outside it, a text block or a widget among them, starts words of its own, parted from those around it by a space, while two runs of words that meet where an element in it starts or ends meet at an edge, a place a word may end, so `<span>one</span><span>two</span>` reads as one word or as two. So it decides the words a capture writes to the log and whether a logged quote still resolves.",
+    "why-phrasing": "HTML's phrasing content, the elements a line of words runs through, less the autonomous custom elements, which stand in a line only where their widget declares `inline`. A suggestion's slot holding an element outside it is a block (`base.css`, held to this list by `build/registry.test.mjs`). Both readings read it (`enter` in readings/passages.js, `passages.py`): an element outside it, a text block or a widget among them, starts words of its own, parted from those around it by a space, while two runs of words that meet where an element in it starts or ends meet at an edge, a place a word may end, so the browser finds `<span>one</span><span>two</span>` quoted as one word or as two. So it decides the words a capture writes to the log and whether a logged quote still resolves.",
     "context": 24,
-    "why-context": "How many characters of context a captured anchor keeps on each side of its quote. A quote read from the file must be unique. The browser knows which occurrence the user selected, and widens the context until the shared resolver finds that one.",
+    "why-context": "How many characters of context a selection's anchor keeps on each side of its quote at first. The browser knows which occurrence the user selected, and widens the context until the resolver finds that one. An agent's quote carries the context around the one copy the page's files hold, and none where they hold the words zero or several times, so then only a sole copy answers it.",
     "closing": ".,;:!?…)]}'’”»",
     "opening": "([{\"‘“«",
-    "why-closing-and-opening": "Outside a text block, where two elements' words meet with nothing between them, the words a reading shows put a space (`shownApart` in passages.js, `_write` in passages.py), since a page most often draws such words apart, as a chip beside its title or a title above its description. No space goes before a mark that closes what precedes it or after one that opens what follows, so `<strong>Leave it</strong>; the send` reads \"Leave it; the send\" and `(<code>beta</code>)` reads \"(beta)\". A straight `'` only closes, as a possessive after code does (`<code>Foo</code>'s`), and a straight `\"` only opens, so a chip before a quoted title (`<small class=\"tag\">recommended</small><strong>\"Update\" …`) still reads apart. A capture logs the words beside an anchor's quote with these spaces."
+    "why-closing-and-opening": "Outside a text block, where two elements' words meet with nothing between them, the words a reading shows put a space (`shownApart` in readings/passages.js, `_write` in passages.py), since a page most often draws such words apart, as a chip beside its title or a title above its description. No space goes before a mark that closes what precedes it or after one that opens what follows, so `<strong>Leave it</strong>; the send` reads \"Leave it; the send\" and `(<code>beta</code>)` reads \"(beta)\". A straight `'` only closes, as a possessive after code does (`<code>Foo</code>'s`), and a straight `\"` only opens, so a chip before a quoted title (`<small class=\"lf-tag\">recommended</small><strong>\"Update\" …`) still reads apart. A capture logs the words beside an anchor's quote with these spaces."
   },
   "$events": {
-    "protocol": 51,
+    "protocol": 62,
     "draft": {
-      "description": "The selection composer's submission payload, kept beside its words in the shared draft generation (`runtime/drafts.js`): the anchor and the revision it was captured on, whether it is a suggestion or about design, its drawing, and when it was last touched. A draft's drawing adds `at`, the matrix that stands it in its anchor's section, which the comment leaves out: here `properties` beside a `leaf:` reference add to the object it names, as the build writes it in for the protocol baseline (`build/browser/contract-types.mjs`). Its `format`, `leaf-draft/<since>`, names the protocol at which this payload's shape last changed; the composer reads only its current format.",
-      "since": 17,
+      "description": "The selection composer's submission payload, kept beside its words in the shared draft generation (`runtime/records/drafts.js`): the anchor and the revision it was captured on, whether it is a suggestion or about design, its drawing, and when it was last touched. A draft's drawing adds `at`, the matrix that stands it in its anchor's section, which the comment leaves out: here `properties` beside a `leaf:` reference add to the object it names, as the build writes it in for the protocol baseline (`build/browser/contract-types.mjs`). Its `format`, `leaf-draft/<since>`, names the protocol at which this payload's shape last changed; the composer reads only its current format.",
+      "since": 52,
       "schema": {
         "type": "object",
         "properties": {
@@ -199,7 +236,7 @@
       "derived": ["meaning", "attention"],
       "browser_discard": ["id", "author", "agent", "session", "ts", "seq", "attention"]
     },
-    "description": "The kernel's event kinds. Each kind's `record` is the closed schema of the event as the log stores it, and a kind with a `browser` schema can also be posted to POST /api/event. Admission fills in the fields `ownership.derived` names; browser ingress drops those `ownership.browser_discard` names before validating. A layer extends widget behavior through `verbs`, but cannot add kinds or change who owns a field. Admission sets the boolean `attention`. Every report and error has it, and the agent's other events and the user's bookkeeping never do. The user's other input has it when it changes what is owed: an answer, an obligation on the user, work the agent has started and its inputs, or widget input whose active verb declares `$verbs.attention`. Code that asks whether an event needs attention reads this field instead of switching on the kind. `protocol` is the page protocol, Leaf's only version number (`layer-registry.md`, \"Page protocol\"). A `bookkeeping` kind (`read`, `reanchor`) records a fact about the user's view, never asks the agent for anything, and travels outside the queue of the user's updates. A `skippable` kind feeds only readings that came with it, so a Leaf that does not know it reads the rest of the log rightly without it (`layer-registry.md`, \"Page protocol\"). A `message` kind (`comment`, `reply`) is said in a thread. An `undoable` kind is a gesture of the user's own that an `undo` may withdraw (`events.md`, \"Undo\"). A kind with a `verb_writer` carries a widget's verb (`verbs`), which only that side writes: an `action` the user's, a `report` the agent's. Python and the browser both read these classifications from here (`registry.kernel` and `runtime/kernel-facts.js`). A `pickup` records that inputs reached their reader, or, with phase `failed`, that the harness gave up on them; it never means work has begun. A `receipt` confirms that the complete delivery of the log through `through` reached its durable consumer; the acknowledgement cursor is the greatest `through` the log holds. A `comment` or `reply` with `token` instead of `text` is a reaction ($reactions). `handling` and `answering` hold the instructions delivered with each event, and a later layer may restate them one kind at a time. Each maps a kind (of event, or of the answer it owes: `reply` or `markup`) to an ordered list of clauses: a `text`, and an optional `when` JSON Schema matched against the event's record, the `answer` it owes and its thread's entry in the batch's `threads`. A delivered event carries its kind's matching clauses, then its answer's, so it is told only its own case. Instructions that differ by route are not clauses: the delivery says once who confirms receipt, and sets the answer's `writer` to `turn` where the turn carrying it writes the reply.",
+    "description": "The kernel's event kinds. Each kind's `record` is the closed schema of the event as the log stores it, and a kind with a `browser` schema can also be posted to POST /api/event. Admission fills in the fields `ownership.derived` names; browser ingress drops those `ownership.browser_discard` names before validating. A layer extends widget behavior through `verbs`, but cannot add kinds or change who owns a field. Admission sets the boolean `attention`. Every report and error has it, and the agent's other events and the user's bookkeeping never do. The user's other input has it when it changes what is owed: an answer, an obligation on the user, work the agent has started and its inputs, or widget input whose active verb declares `$verbs.attention`. Code that asks whether an event needs attention reads this field instead of switching on the kind. `protocol` is the page protocol, Leaf's only version number (`layer-registry.md`, \"Page protocol\"). A `bookkeeping` kind (`read`, `reanchor`) records a fact about the user's view, never asks the agent for anything, and travels outside the queue of the user's updates. A `skippable` kind feeds only readings that came with it, so a Leaf that does not know it reads the rest of the log rightly without it (`layer-registry.md`, \"Page protocol\"). A `message` kind (`comment`, `reply`) is said in a thread. An `undoable` kind is a gesture of the user's own that an `undo` may withdraw (`events.md`, \"Undo\"). A kind with a `verb_writer` carries a widget's verb (`verbs`), which only that side writes: an `action` the user's, a `report` the agent's. Python and the browser both read these classifications from here (`registry.kernel` and `runtime/state/kernel-facts.js`). A `pickup` records that inputs reached their reader, or, with phase `failed`, that the harness gave up on them; it never means work has begun. A `receipt` confirms that the complete delivery of the log through `through` reached its durable consumer; the acknowledgement cursor is the greatest `through` the log holds. A `comment` or `reply` with `emoji` instead of `text` is a reaction: a message whose content is one emoji, which takes its turn as words do (`events.md`, \"Reactions\"). `handling` and `answering` hold the instructions delivered with each event, and a later layer may restate them one kind at a time. Each maps a kind (of event, or of the answer it owes: `reply` or `markup`) to an ordered list of clauses: a `text`, and an optional `when` JSON Schema matched against the event's record, the `answer` it owes and its thread's entry in the batch's `threads`. A delivered event carries its kind's matching clauses, then its answer's, so it is told only its own case. Instructions that differ by route are not clauses: the delivery says once who confirms receipt, and sets the answer's `writer` to `turn` where the turn carrying it writes the reply.",
     "handling": {
       "comment": [
         {
@@ -272,21 +309,10 @@
             }
           },
           "text": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply."
-        },
-        {
-          "when": {
-            "required": ["token"]
-          },
-          "text": "A reaction owes no answer. Act on the token if it calls for a change, and reply only if its meaning is unclear. Once the page reflects it, close it with `leaf thread resolve <page> <message>`."
         }
       ],
       "reply": [
         {
-          "when": {
-            "not": {
-              "required": ["token"]
-            }
-          },
           "text": "The batch's `threads` holds the thread's context; `leaf page state <page> <message>` reads its full history."
         },
         {
@@ -333,18 +359,9 @@
               "thread": {
                 "required": ["summary_hint"]
               }
-            },
-            "not": {
-              "required": ["token"]
             }
           },
           "text": "This thread's entry in the batch's `threads` has a `summary_hint`: an earlier range of messages worth summarizing. As you answer, follow the Leaf skill's `references/threads.md`, \"Summarize a long discussion\". The hint needs no separate answer."
-        },
-        {
-          "when": {
-            "required": ["token"]
-          },
-          "text": "A reaction to your message. It needs no reply; Leaf already records whether it answers your question."
         },
         {
           "when": {
@@ -370,6 +387,18 @@
         },
         {
           "when": {
+            "required": ["thread"],
+            "properties": {
+              "thread": {
+                "required": ["summaries"],
+                "properties": { "summaries": { "minItems": 1 } }
+              }
+            }
+          },
+          "text": "Where a summary in this thread's `summaries` lists `message` in its `covers`, the thread shows that summary in the message's place, as you wrote it before this change. If the change alters what the summary reports, summarize its range again with `leaf thread summarize <page> --from <from> --through <through> --file summary.md`, which replaces it; if not, leave it."
+        },
+        {
+          "when": {
             "required": ["suggestion"],
             "properties": {
               "suggestion": { "const": true },
@@ -381,7 +410,7 @@
       ],
       "resolve": [
         {
-          "text": "The user resolved the thread."
+          "text": "The user resolved the thread, which takes it off their list and retires any question you asked in it. A message or a pick of theirs there you have not answered stays owed: answer it as usual. What you say in the thread goes into it without reopening it, unless it asks them something. `leaf thread reopen <page> <message>` brings the thread back to their list, for news they would want to stop and read, such as that you could not do what they asked (`references/threads.md`)."
         }
       ],
       "unresolve": [
@@ -518,7 +547,7 @@
     "answering": {
       "reply": [
         {
-          "text": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn. `--done` when it leaves nobody a move.",
+          "text": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn, with `--waiting-on \"<what>\"` where it can't start until something you don't control happens. `--done` when it leaves nobody a move.",
           "when": {
             "properties": {
               "answer": {
@@ -532,7 +561,7 @@
           }
         },
         {
-          "text": "Leaf posts your opening message in the thread as your progress line and your final message as the reply, unless an explicit reply already answered this input. Before your first tool call, tell the user briefly the answer or what you are about to do; later working messages stay in Codex. End with the answer, or what changed and where it shows. A final message leaves the user no move, so where your answer leaves them one, such as a decision or something to try or review before making one, answer with `leaf thread reply <answer.ref> --obligation` instead: it puts the answer on their On Me list even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in a `leaf thread reply` in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer, so the user answers with a press (`references/threads.md`, \"Ask for a pick\"). Reply explicitly too for work promised beyond this turn (`--todo`), a title or moving the thread (`references/threads.md`); an explicit reply posts at once, and your final message is then not posted.",
+          "text": "Leaf posts your opening message in the thread as your progress line and your final message as the reply, unless an explicit reply already answered this input. Before your first tool call, tell the user briefly the answer or what you are about to do; later working messages stay in Codex. End with the answer, or what changed and where it shows. A final message leaves the user no move, so where your answer leaves them one, such as a decision or something to try or review before making one, answer with `leaf thread reply <answer.ref> --obligation` instead: it puts the answer on their On Me list even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in a `leaf thread reply` in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer, so the user answers with a press (`references/threads.md`, \"Ask for a pick\"). Reply explicitly too for work promised beyond this turn (`--todo`), a title or moving the thread (`references/threads.md`), and for news the user would want to stop and read, such as that you could not do what they asked: they may have resolved the thread by then, and only that command's record says so. An explicit reply posts at once, and your final message is then not posted.",
           "when": {
             "properties": {
               "answer": {
@@ -544,6 +573,12 @@
               }
             }
           }
+        },
+        {
+          "when": {
+            "required": ["emoji"]
+          },
+          "text": "The user's message is an emoji, a reaction to what it is on: the passage or element its `anchor` names, or the page where it has none, or, as a reply, the message its `parent` names. Answer it as you would their words: act on it where it asks for a change, ask what they meant where you can't tell, and otherwise answer in a line saying how you read it, so they see what their reaction did."
         },
         {
           "text": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply."
@@ -563,11 +598,19 @@
             }
           },
           "text": "The widget is in a thread message: continue the work the user's answer selects or unblocks, and answer in that thread."
+        },
+        {
+          "when": { "required": ["held"] },
+          "text": "Your to-dos in the batch's `held` wait on what each one's `waiting_on` names. Where this input is what one waits on, or ends it, it frees that to-do: take its work up now, starting the to-do as well as this input with `leaf task start <page> <id> --text \"<the work, in a line>\"`, which ends its wait, and once the work is done end it with `leaf task end <page> <id> done --text \"<where the result is>\"`. Leave held a to-do this input doesn't free."
         }
       ],
       "markup": [
         {
           "text": "It answers the page's obligation, which waits on you until the markup records the answer. Before starting the work it selects or unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it and write the answer into the markup. Once the work is done, make the question a record of the decision (`references/authoring-revisions.md`, \"Keep the current page current\"), such as an `lf-options` marked `settled` with what came of it beside it, and stamp a version. An option the user added needs no writing in; the page keeps it where the user put it."
+        },
+        {
+          "when": { "required": ["held"] },
+          "text": "Your to-dos in the batch's `held` wait on what each one's `waiting_on` names. Where this input is what one waits on, or ends it, it frees that to-do: take its work up now, starting the to-do as well as this input with `leaf task start <page> <id> --text \"<the work, in a line>\"`, which ends its wait, and once the work is done end it with `leaf task end <page> <id> done --text \"<where the result is>\"`. Leave held a to-do this input doesn't free."
         }
       ]
     },
@@ -586,13 +629,17 @@
             "seq": { "type": "integer", "minimum": 1 },
             "revision": { "type": "integer", "minimum": 1 },
             "text": { "type": "string", "minLength": 1 },
-            "token": { "type": "string", "minLength": 1 },
+            "emoji": {
+              "type": "string",
+              "pattern": "^(?:\\p{RI}\\p{RI}|[#*0-9]\\uFE0F?\\u20E3|\\p{Extended_Pictographic}(?:\\uFE0F|\\p{Emoji_Modifier})?(?:[\\u{E0020}-\\u{E007E}]+\\u{E007F})?(?:\\u200D\\p{Extended_Pictographic}(?:\\uFE0F|\\p{Emoji_Modifier})?)*)$"
+            },
             "anchor": {
               "type": "object",
               "properties": {
                 "section": { "type": ["string", "null"] },
                 "quote": { "type": "string" },
                 "datum": { "type": "string", "minLength": 1 },
+                "from": { "type": "string", "minLength": 1 },
                 "source": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
                 "source_revision": { "type": "string", "pattern": "^[0-9a-f]{16}$" },
                 "identity": { "type": "string", "minLength": 1 },
@@ -621,6 +668,7 @@
                 "source": ["datum", "source_revision"],
                 "source_revision": ["datum", "source"],
                 "identity": ["datum"],
+                "from": ["datum", "quote"],
                 "part": ["section"],
                 "detached": ["quote"],
                 "visual": ["section"]
@@ -740,12 +788,12 @@
           "additionalProperties": false,
           "oneOf": [
             { "required": ["text"] },
-            { "required": ["token"] },
+            { "required": ["emoji"] },
             { "required": ["drawing"], "not": { "required": ["text"] } }
           ],
           "dependentSchemas": {
             "title": { "properties": { "author": { "const": "agent" } } },
-            "token": {
+            "emoji": {
               "not": {
                 "anyOf": [{ "required": ["suggestion"] }, { "required": ["holds"] }]
               }
@@ -804,13 +852,17 @@
               "pattern": "^r[1-9][0-9]*-[a-f0-9]{16}$"
             },
             "text": { "type": "string", "minLength": 1 },
-            "token": { "type": "string", "minLength": 1 },
+            "emoji": {
+              "type": "string",
+              "pattern": "^(?:\\p{RI}\\p{RI}|[#*0-9]\\uFE0F?\\u20E3|\\p{Extended_Pictographic}(?:\\uFE0F|\\p{Emoji_Modifier})?(?:[\\u{E0020}-\\u{E007E}]+\\u{E007F})?(?:\\u200D\\p{Extended_Pictographic}(?:\\uFE0F|\\p{Emoji_Modifier})?)*)$"
+            },
             "anchor": {
               "type": ["object", "null"],
               "properties": {
                 "section": { "type": ["string", "null"] },
                 "quote": { "type": "string" },
                 "datum": { "type": "string", "minLength": 1 },
+                "from": { "type": "string", "minLength": 1 },
                 "source": { "type": "string", "pattern": "^[a-z][a-z0-9-]*$" },
                 "source_revision": { "type": "string", "pattern": "^[0-9a-f]{16}$" },
                 "identity": { "type": "string", "minLength": 1 },
@@ -839,6 +891,7 @@
                 "source": ["datum", "source_revision"],
                 "source_revision": ["datum", "source"],
                 "identity": ["datum"],
+                "from": ["datum", "quote"],
                 "part": ["section"],
                 "detached": ["quote"],
                 "visual": ["section"]
@@ -861,7 +914,15 @@
               "pattern": "\\S",
               "not": { "pattern": "[\\r\\n]" }
             },
+            "waiting_on": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 30,
+              "pattern": "\\S",
+              "not": { "pattern": "[\\r\\n]" }
+            },
             "ephemeral": { "const": true },
+            "unannounced": { "const": true },
             "start": {
               "type": "object",
               "properties": {
@@ -888,7 +949,7 @@
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "parent"],
           "additionalProperties": false,
-          "oneOf": [{ "required": ["text"] }, { "required": ["token"] }],
+          "oneOf": [{ "required": ["text"] }, { "required": ["emoji"] }],
           "dependentSchemas": {
             "start": {
               "required": ["ephemeral", "text"],
@@ -917,11 +978,21 @@
                 ]
               }
             },
+            "unannounced": {
+              "properties": { "author": { "const": "agent" } },
+              "not": {
+                "anyOf": [
+                  { "required": ["ephemeral"] },
+                  { "required": ["failure"] },
+                  { "required": ["obligation"] }
+                ]
+              }
+            },
             "todo": {
-              "required": ["text"],
               "properties": { "author": { "const": "agent" } },
               "not": { "required": ["failure"] }
             },
+            "waiting_on": { "required": ["todo"] },
             "failure": {
               "required": ["text", "responds"],
               "properties": { "author": { "const": "agent" } }
@@ -951,6 +1022,9 @@
                 "required": ["todo"]
               },
               {
+                "required": ["waiting_on"]
+              },
+              {
                 "required": ["anchor"]
               },
               {
@@ -973,6 +1047,9 @@
               },
               {
                 "required": ["obligation"]
+              },
+              {
+                "required": ["unannounced"]
               }
             ]
           }
@@ -1191,7 +1268,14 @@
               "not": { "pattern": "[\\r\\n]" }
             },
             "agent": { "type": "string", "minLength": 1 },
-            "session": { "type": "string", "minLength": 1 }
+            "session": { "type": "string", "minLength": 1 },
+            "waiting_on": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 30,
+              "pattern": "\\S",
+              "not": { "pattern": "[\\r\\n]" }
+            }
           },
           "required": [
             "attention",
@@ -1282,10 +1366,9 @@
                         "maxLength": 80,
                         "pattern": "\\S",
                         "not": { "pattern": "[\\r\\n]" }
-                      },
-                      "state": { "enum": ["open", "working", "done", "dropped"] }
+                      }
                     },
-                    "required": ["depth", "title", "state"],
+                    "required": ["depth", "title"],
                     "additionalProperties": false
                   },
                   {
@@ -1482,6 +1565,8 @@
             "kind": { "const": "unresolve" },
             "seq": { "type": "integer", "minimum": 1 },
             "parent": { "type": "string", "minLength": 1 },
+            "agent": { "type": "string", "minLength": 1 },
+            "session": { "type": "string", "minLength": 1 },
             "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" }
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "parent"],
@@ -1547,6 +1632,7 @@
               "additionalProperties": false
             },
             "revision": { "type": "integer", "minimum": 1 },
+            "answered": { "type": "boolean" },
             "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" }
           },
           "required": [
@@ -1582,7 +1668,7 @@
               "minItems": 1,
               "uniqueItems": true
             },
-            "phase": { "enum": ["queued", "opened", "held", "failed"] },
+            "phase": { "enum": ["queued", "opened", "failed"] },
             "session": { "type": ["string", "null"], "minLength": 1 },
             "turn": { "type": ["string", "null"], "minLength": 1 },
             "failure": { "type": "string", "minLength": 1 },
@@ -1645,6 +1731,7 @@
             "kind": { "const": "undo" },
             "seq": { "type": "integer", "minimum": 1 },
             "undoes": { "type": "string", "minLength": 1 },
+            "answered": { "type": "boolean" },
             "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" }
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "undoes"],

@@ -1,6 +1,6 @@
 """The press check over the panel's views, on every corpus page.
 
-`browser/widgets/test_pressed_controls.py` holds the rule and presses each bundled
+`journeys/widgets/test_pressed_controls.py` holds the rule and presses each bundled
 package's widgets. Leaf's own controls that send a reader's gestures stand in the
 floating panel's views: in On Me, where a reader answers a question, and in a
 thread's view, where they resolve and reopen the thread and react to its
@@ -10,7 +10,6 @@ control in the view. A thread's card in the margin offers the same gestures, but
 takes away the control it was pressed on, so it leaves nothing to check."""
 
 import pytest
-from browser.widgets.test_pressed_controls import open_served, press_each_control
 from render_harness import (
     open_threads,
     panel_settled,
@@ -18,6 +17,8 @@ from render_harness import (
     show_resolved,
 )
 
+from journeys.widgets.test_pressed_controls import open_served, press_each_control
+from leaf_dev.browser import choose_threads_in_panel
 from leaf_dev.example_data import authored_sources
 
 # A view of the panel and the actions on what it shows, such as a thread's Resolve,
@@ -37,7 +38,8 @@ def open_on_me(page):
 
 def open_thread(page, key):
     """The thread `key`'s view, from its row in Threads, folded under Resolved once it
-    is resolved."""
+    is resolved, with the panel chosen for threads about a passage."""
+    choose_threads_in_panel(page)
     open_threads(page)
     row = page.locator(f'{panel_view("threads")} .lf-fp-thread[data-lf-key="{key}"]')
     if not row.count():

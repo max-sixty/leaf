@@ -2,29 +2,28 @@
  * draft generation, and the option nodes each `add` in force puts in the group. */
 import { guard, html, render, repeat } from "/vendor/lit.js";
 import {
-  loadDraft,
+  draft,
+  move,
+  whileConnected,
+  wireInput,
+  pageLinks,
+} from "/runtime/widget-api.js";
+import { offer } from "/runtime/lib/controls.js";
+import {
   inlineMarkdownFragment,
   loadMarkdown,
   markdownReady,
-  move,
-  offer,
-  saveDraft,
-  sendDraft,
-  TEXT_FIELD,
-  watchDraft,
-  whileConnected,
-  wireInput,
-} from "/runtime/widget-api.js";
+} from "/runtime/lib/markdown.js";
 
 const ANOTHER = "Another option";
 
-/** @typedef {{form: HTMLFormElement, input: HTMLElementTagNameMap[typeof TEXT_FIELD], bindingBadge: HTMLSpanElement, sync: ReturnType<typeof wireInput>}} OptionEditor */
+/** @typedef {{form: HTMLFormElement, input: HTMLElementTagNameMap["leaf-text"], bindingBadge: HTMLSpanElement, sync: ReturnType<typeof wireInput>}} OptionEditor */
 
 export class OptionAddition {
   #host;
   #offered;
   #commit;
-  #context;
+  #draft;
   /** @type {OptionEditor | null} */
   #ui = null;
   /** @type {Set<string>} */
@@ -32,14 +31,14 @@ export class OptionAddition {
   /** @type {Comment | null} */
   #end = null;
 
-  /** @param {import("/runtime/widget-api.js").LeafElement} host
+  /** @param {import("/runtime/lib/leaf-element.js").LeafElement} host
    * @param {{offered: boolean, available: () => boolean, commit: (added: {option: string, text: string}, choice: {value: string[]}, attempt: string) => unknown}} options */
   constructor(host, { offered, available, commit }) {
     this.#host = host;
     this.#offered = offered;
     this.available = available;
     this.#commit = commit;
-    this.#context = `option:${host.id}`;
+    this.#draft = draft(`option:${host.id}`);
   }
 
   /** Whether the group takes an unlisted answer at all, so its group reserves the
@@ -53,15 +52,12 @@ export class OptionAddition {
     if (this.#ui) return;
     const ui = (this.#ui = this.#buildForm());
     whileConnected(this.#host, () =>
-      watchDraft(
-        this.#context,
-        (/** @type {string | null} */ value) => ui.sync.load(value ?? ""),
-        {
-          input: ui.input,
-          // Resume writing (`g i`) comes back to the field, which stands in the group.
-          resume: () => ({ where: ui.input, input: () => ui.input }),
-        },
-      ),
+      this.#draft.watch((value) => ui.sync.load(value ?? ""), {
+        input: ui.input,
+        box: () => ui.sync.composition().frame,
+        // Resume writing (`g i`) comes back to the field, which stands in the group.
+        resume: () => ({ where: ui.input, input: () => ui.input }),
+      }),
     );
   }
 
@@ -80,19 +76,20 @@ export class OptionAddition {
   /** @returns {OptionEditor} */
   #buildForm() {
     const form = offer("form", "lf-another");
-    const input = offer(TEXT_FIELD);
+    const input = offer("leaf-text");
     input.name = "option";
     input.setAttribute("aria-label", ANOTHER);
-    // Its hint is Leaf's words, as every empty box's is (voice.js).
+    // Its hint is Leaf's words, as every empty box's is (base/voice.js).
     input.setAttribute("data-lf-voice", "leaf");
     // An option's title is one line, so Return adds it from a phone's keyboard too.
-    input.setAttribute("aria-multiline", "false");
+    input.toggleAttribute("one-line", true);
     const bindingBadge = offer("span", "lf-key-badge");
     bindingBadge.setAttribute("aria-hidden", "true");
-    input.value = loadDraft(this.#context)?.text ?? "";
+    input.value = this.#draft.read()?.text ?? "";
     form.append(bindingBadge, input);
     const sync = wireInput(input, {
       hint: "Add another option…",
+      sendClass: "lf-option-add",
       sends: "add and select option",
       action: "add",
       allowsMedia: () => "Images can be added to comments, not options",
@@ -114,8 +111,8 @@ export class OptionAddition {
   remember(picked) {
     const input = this.input;
     if (!input) return;
-    if (!input.value && loadDraft(this.#context) === null) return;
-    saveDraft(this.#context, input.value, this.detailFor(picked));
+    if (!input.value && this.#draft.read() === null) return;
+    this.#draft.save(input.value, this.detailFor(picked));
   }
 
   /* The choice the generation recorded, less any option the group no longer holds:
@@ -153,17 +150,13 @@ export class OptionAddition {
    * such identity. */
   /** @param {string} text @param {() => boolean} owns */
   async #submit(text, owns) {
-    await sendDraft(
-      this.#context,
-      owns,
-      (/** @type {string} */ attempt, /** @type {unknown} */ payload) => {
-        const id = `${this.#host.id}-option-${attempt}`;
-        const choice = this.#draftChoice(payload);
-        const picked = new Set(this.#host.hasAttribute("multiple") ? choice.value : []);
-        picked.add(id);
-        return this.#commit({ option: id, text }, { value: [...picked] }, attempt);
-      },
-    );
+    await this.#draft.send(owns, (attempt, payload) => {
+      const id = `${this.#host.id}-option-${attempt}`;
+      const choice = this.#draftChoice(payload);
+      const picked = new Set(this.#host.hasAttribute("multiple") ? choice.value : []);
+      picked.add(id);
+      return this.#commit({ option: id, text }, { value: [...picked] }, attempt);
+    });
   }
 
   /** @param {Iterable<Element>} picked */
@@ -192,7 +185,7 @@ export class OptionAddition {
         options,
         ([id]) => id,
         ([id, text]) => {
-          const words = inlineMarkdownFragment(text);
+          const words = inlineMarkdownFragment(text, pageLinks);
           const typed = !words.firstElementChild && words.textContent === text;
           return html`<lf-option id=${id} data-lf-added>
             <span class="lf-option-words" data-lf-markdown-words

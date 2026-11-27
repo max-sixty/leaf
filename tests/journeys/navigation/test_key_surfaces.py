@@ -1,4 +1,5 @@
-"The surfaces that name keys, the command reference and ARIA, and the passing words\nthe panel says: every key a surface names is one that works, every key the runtime\nbinds is named somewhere, news keeps its order, and a page at rest repaints nothing."
+"""The passing words the panel says: news from the user's own act takes the seat from
+background news, which comes back once the user's has passed."""
 
 import re
 
@@ -11,7 +12,7 @@ from render_harness import (
     panel_field,
 )
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -21,7 +22,7 @@ def test_user_news_interrupts_and_then_restores_background_news(browser, serve):
     comes back after it without being announced twice; the live region is retained
     through every change, and the user stays where they stood."""
     page = open_page(browser, serve(NOTED_PAGE))
-    page.locator(".lf-fp-on-user").focus()
+    page.locator(".lf-fp-leaf").focus()
     page.evaluate(
         """async () => {
           window.__lfStatusNodes = {'.lf-live': document.querySelector('.lf-live')};

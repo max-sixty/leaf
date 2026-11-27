@@ -29,9 +29,10 @@ ask whether Leaf should provide the behavior itself, so the author needn't work 
 incidental markup restrictions.
 
 Refuse input only when proceeding would break a guarantee whatever the author meant
-(root `AGENTS.md`, "Leaf's role"), and say how to fix it where the author can act. Use the owning parser or validator rather than repeating its rules,
+(root `AGENTS.md`, "Leaf's role"), and say how to fix it where the author can act;
+`findings.py`'s header says where a code declares that it refuses. Use the owning parser or validator rather than repeating its rules,
 and let its message reach the author: `patch_manifest.py` stores a patch as given, and
-`lf-diff` reports a file it can't draw with `reportFailure`. A reader's current
+`lf-diff` reports a file it can't draw with an `error` event. A reader's current
 limitation alone doesn't justify a restriction. Where the author must judge the
 evidence, report the observation without making it a requirement, and say what was
 checked and what was not. When a markup contract changes, update its reader,

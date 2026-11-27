@@ -6,6 +6,8 @@
       "ES2022",
       "ES2023.Array",
       "ES2024.Promise",
+      "ES2024.Collection",
+      "ES2025.Collection",
       "ESNext.TypedArrays",
       "DOM",
       "DOM.Iterable",
@@ -19,6 +21,7 @@
     "exactOptionalPropertyTypes": true,
     "noEmit": true,
     "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "noUncheckedSideEffectImports": true,
     "verbatimModuleSyntax": true,
     "erasableSyntaxOnly": true,
@@ -33,8 +36,10 @@
     "../runtime/**/*.js",
     "../widgets/*.js",
     "../../packages/*/widgets/**/*.js",
-    "../../src/leaf/render-checks/*.js",
-    "../../src/leaf/static-export.js",
+    "../**/*.ts",
+    "../../packages/*/**/*.ts",
+    "../../src/leaf/source/render-checks/*.js",
+    "../../src/leaf/pages/static-export.js",
     "../../build/entries/**/*.mjs"
   ]
 }

@@ -1,5 +1,5 @@
 # The fork that summarizes a long thread's earlier discussion beside the line fork
-# (`src/leaf/summary_fork.py`), replayed on a short conversation and a thread whose
+# (`src/leaf/agents/summary_fork.py`), replayed on a short conversation and a thread whose
 # range takes in an earlier summary. Run it with `uv run leaf-dev eval run
 # summary-fork --harness claude-code`; the thread and rubric are in
 # workflows/fork_eval.yaml.
@@ -16,3 +16,7 @@ variants:
     metadata:
       scenario: summary-keeps
       purpose: A thread whose earlier claims the user's newest message asks the agent to walk through keeps them in full.
+  long-replies:
+    metadata:
+      scenario: summary-long
+      purpose: A thread of the agent's long replies, a correction among them, folds into a summary much shorter than the replies it replaces.

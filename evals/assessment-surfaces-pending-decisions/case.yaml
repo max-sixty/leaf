@@ -66,7 +66,7 @@ variants:
             <p>Branch briefing · 12 October 2026 · source 05a5008b3</p>
             <h1>What remains on the UI branch</h1>
           </hgroup>
-          <p class="lede">The small landed fixes are done. What remains is a set of independent fixes, larger work blocked by known problems, and the draft and discussion proposals you deferred. I recommend the touch-selection fix (#59) next: tapping a discussion should select that discussion even when an older message still has focus.</p>
+          <p class="lf-lede">The small landed fixes are done. What remains is a set of independent fixes, larger work blocked by known problems, and the draft and discussion proposals you deferred. I recommend the touch-selection fix (#59) next: tapping a discussion should select that discussion even when an older message still has focus.</p>
           <details id="branch-snapshot"><summary>Branch snapshot and sync status</summary>
           <p><strong>Current state:</strong> the runtime changes on <code>codex/simplify-diff-controls</code> are committed at <code>05a5008b3</code>, with main included through <code>3fe3eb0af</code>. The committed diff against that main snapshot is <strong>105 files, +9,086 / −1,782 lines</strong>; including the two TODO additions, the working diff is <strong>+9,094 / −1,782</strong>. Local main has advanced to <code>f69a287d2</code>, so these are merge-base counts, not a freshly reconciled list of everything still absent from main. The draft-annotation requirement and inline-discussion reading problem are recorded in <code>TODO.md</code> as uncommitted planning changes. The parent branch has no remote branch or open PR; refresh it from current main before extracting.</p>
           </details>
@@ -128,9 +128,9 @@ variants:
 
         <details id="deferred-draft-plan"><summary>Deferred: draft recovery waits for visible annotations</summary>
         <section id="draft-sequence">
-          <h2>Deferred: drafts need a visible route back <span class="tag">updated</span></h2>
+          <h2>Deferred: drafts need a visible route back <span class="lf-tag">updated</span></h2>
           <p>Keep <strong>#47</strong> and <strong>#48</strong> in TODO until unfinished drafts have visible annotations at their source elements. The user must be able to find the exact element, reopen its draft and continue the saved edit. Preserving separate drafts is useful only when returning to them is straightforward.</p>
-          <lf-diagram id="next-order" parts="all" data-height="300"><pre>
+          <lf-diagram id="next-order" data-height="300"><pre>
         ---
         config:
           flowchart:

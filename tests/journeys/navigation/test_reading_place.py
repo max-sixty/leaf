@@ -4,7 +4,7 @@ acts where the glide lands."""
 import pytest
 from render_harness import LONG_PAGE, held_frames, open_page, scroll_settled
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -68,9 +68,30 @@ OUTCOME = """() => {
 }"""
 
 # The page's scroll as each key arrives, recorded before any of the page's own listeners
-# hear it.
-AT_EACH_KEY = """addEventListener("keydown", () => { globalThis.__lfAtKey = scrollY; },
-  {capture: true});"""
+# hear it. `__lfLog` keeps each key, scroll, scroll end and focus with its time and the
+# page's scroll, and each but a scroll with the focused node's box, so a failure that only
+# the macOS nightly shows carries its own sequence in the assertion's message.
+AT_EACH_KEY = """globalThis.__lfLog = [];
+{
+const focused = () => {
+  let node = document.activeElement;
+  while (node?.shadowRoot?.activeElement) node = node.shadowRoot.activeElement;
+  const box = node?.getBoundingClientRect();
+  return `${node?.id || node?.localName}@${Math.round(box?.top)}..${Math.round(box?.bottom)}`;
+};
+const note = (...entry) =>
+  __lfLog.push([...entry, Math.round(performance.now()), Math.round(scrollY)]);
+addEventListener("keydown", (event) => {
+  globalThis.__lfAtKey = scrollY;
+  note("key", event.key, focused());
+}, {capture: true});
+addEventListener("keydown", (event) =>
+  note("handled", event.key, event.defaultPrevented, focused()));
+addEventListener("scroll", () => note("scroll"), {capture: true});
+for (const kind of ["scrollend", "focusin"]) {
+  addEventListener(kind, () => note(kind, focused()), {capture: true});
+}
+}"""
 
 
 # Daily, by the user's choice: each case fits the browser tier's budget,
@@ -83,7 +104,7 @@ def test_a_key_pressed_during_a_glide_acts_where_the_glide_lands(
     engine, glide, follow, when, request, serve
 ):
     """A key pressed while one of Leaf's glides runs acts as it would once the glide had
-    landed (user-place.js, `focusPlace`). Every glide here sets off from a link in the
+    landed (readings/user-place.js, `focusPlace`). Every glide here sets off from a link in the
     middle of the page and carries it away, and the key that follows ends the same way
     pressed during the glide as after its landing: focus on the same control, as seen,
     and the page at the same scroll. During it is at once, before the glide's first
@@ -125,10 +146,15 @@ def test_a_key_pressed_during_a_glide_acts_where_the_glide_lands(
             page.keyboard.press(follow)
         scroll_settled(page)
         rendered(page)
-        return page.evaluate("__lfAtKey"), page.evaluate(OUTCOME)
+        return (
+            page.evaluate("__lfAtKey"),
+            page.evaluate(OUTCOME),
+            page.evaluate("__lfLog"),
+        )
 
-    landing, settled = run("after")
-    pressed_at, during = run(when)
-    assert abs(pressed_at - landing) > 2, "the glide had landed before the key"
-    assert (during["focus"], during["seen"]) == (settled["focus"], settled["seen"])
-    assert during["top"] == pytest.approx(settled["top"], abs=2)
+    landing, settled, after = run("after")
+    pressed_at, during, sequence = run(when)
+    log = f"\nafter the landing: {after}\nduring the glide: {sequence}"
+    assert abs(pressed_at - landing) > 2, "the glide had landed before the key" + log
+    assert (during["focus"], during["seen"]) == (settled["focus"], settled["seen"]), log
+    assert during["top"] == pytest.approx(settled["top"], abs=2), log

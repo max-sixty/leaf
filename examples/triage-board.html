@@ -14,7 +14,7 @@
           <p>triage · v2.4 release · cut Thursday</p>
           <h1>Release triage</h1>
         </hgroup>
-        <p class="lede" id="triage-lede">
+        <p class="lf-lede" id="triage-lede">
           Migration 0041 reruns on every deploy. Today that is harmless. Once 0042
           ships, the same failure will apply account credits twice. It is the only
           release blocker. Move a card if you would ship differently.
@@ -64,16 +64,16 @@
       <aside id="triage-status">
         <div class="layout-track">
           <div class="layout-tiles" id="triage-counts">
-            <dl id="count-cut" class="metric">
+            <dl id="count-cut" class="lf-metric">
               <dt>to the Thursday cut</dt>
               <dd><strong>2 days</strong></dd>
             </dl>
-            <dl id="count-open" class="metric">
+            <dl id="count-open" class="lf-metric">
               <dt>open since Monday</dt>
               <dd><strong>7</strong> <small>change: -3</small></dd>
             </dl>
           </div>
-          <section class="panel" id="triage-why">
+          <section class="lf-panel" id="triage-why">
             <h2>Why only the migration blocks</h2>
             <p>
               The deploy script writes the schema version after the post-deploy hook,
@@ -87,7 +87,7 @@
               most users, safe to retry, has a manual workaround, or has few reports.
             </p>
           </section>
-          <section class="panel" id="triage-moves">
+          <section class="lf-panel" id="triage-moves">
             <h2>Recent moves</h2>
             <lf-activity id="triage-activity"></lf-activity>
           </section>

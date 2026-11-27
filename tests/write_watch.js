@@ -27,7 +27,7 @@
   // A step with neither id nor class is followed by its parent, and the last step in a
   // shadow tree by `#shadow-root` and the tree's host, so `div.cm-line` in a
   // `leaf-text#field` is `["div.cm-line", "#shadow-root", "leaf-text#field"]`.
-  // Findings carry the steps; `leaf/findings.py` writes their words.
+  // Findings carry the steps; `leaf/base/findings.py` writes their words.
   const place = (node) => {
     const element = node.nodeType === 1;
     const step = element
@@ -240,6 +240,12 @@
       what === "class" &&
       is(node, "div.cm-line") &&
       hosts(node)[0]?.localName === "leaf-text",
+    // CodeMirror's Tile.sync writes a line's style whenever any of the line's attributes
+    // change, as its class does when the caret arrives or a write from elsewhere marks
+    // it, and its style is the same: a code line states its indent there (marks.css,
+    // `[data-lf-pre-line]`).
+    (what, node) =>
+      what === "style" && is(node, "div.cm-line") && hosts(node).length > 0,
     // CodeMirror's CompositeTile.sync replaces the children of a line, or of a mark in a
     // line, with equal nodes it reuses from elsewhere in the same update, in either
     // editor host. A line can get another line's break, and as the caret moves between
@@ -273,10 +279,9 @@
     (what, node) =>
       ["class", "style", "title", "aria-hidden", "children"].includes(what) &&
       is(node, ":is(div, img):is([class^='viewer-'], [class*=' viewer-'])"),
-    // The contents map decides which face it needs, roomy, compact or an open outline,
-    // by measuring its labels in each; a label's height is where it wraps in that face.
-    (what, node) =>
-      ["data-lf-compact", "data-lf-outline"].includes(what) && is(node, "lf-toc"),
+    // The contents map decides which face it needs, roomy or compact, by measuring its
+    // labels in each; a label's height is where it wraps in that face.
+    (what, node) => what === "data-lf-compact" && is(node, "lf-toc"),
     // Sortable takes a dragged card's ghost class off and puts it back as the drag
     // crosses into another lane.
     (what, node) => what === "class" && is(node, ".lf-ghost"),
@@ -303,7 +308,7 @@
       : record.target.data;
   // Writes that take a value away and put it back for a reason of their own, by the
   // values they passed through. An arrival lends an element a tab stop to move where the
-  // next Tab starts, and gives it back on the blur (focus.js, `lendStop`), at once where
+  // next Tab starts, and gives it back on the blur (dom/focus.js, `lendStop`), at once where
   // the element will not take the focus. And the margin shows a withheld row for the
   // moment it takes to measure where the row would stand, which a row withheld as
   // `display: none` cannot answer, and withholds it again where that is outside what
@@ -447,7 +452,9 @@
           attribute: record.attributeName,
           target: place(record.target),
           ...(record.type === "childList"
-            ? { nodes: [...record.removedNodes, ...record.addedNodes].map(number) }
+            ? {
+                nodes: [...record.removedNodes, ...record.addedNodes].map(number),
+              }
             : {}),
         });
     }
@@ -506,10 +513,19 @@
   // end at every scroll's end. A write is the page's when a frame of the page's own
   // scripts made it; one the test makes through Playwright's evaluate is the test's
   // setup. A smooth write moves the box later, so only an instant one is judged.
+  //
+  // On a Leaf page every write passes through the runtime's hearing of it (dom/arrivals.js,
+  // `heardWrite`), the test's own included, and the runtime's own through their door
+  // past it (`unheardWrite`). Neither frame made the write, so neither is one of the
+  // page's.
+  const HEARING = /\b(?:un)?heardWrite\b.*\bruntime\/dom\/arrivals\.js:/;
   const pageFrames = () =>
     new Error().stack
       .split("\n")
-      .filter((line) => /\b(?:https?|file|blob):\/\/|\bdata:/.test(line))
+      .filter(
+        (line) =>
+          /\b(?:https?|file|blob):\/\/|\bdata:/.test(line) && !HEARING.test(line),
+      )
       .slice(0, 4)
       .map((line) =>
         line
@@ -520,10 +536,10 @@
   // Scroll writes that move nothing on purpose, as `EXPECTED` lists DOM writes:
   // CodeMirror's measure puts back the scroll its height map anchors, which the browser
   // clamps at the editor's end, and a landing or a glide stops a scroll the browser
-  // drives, which this watch can't see (arrivals.js, `stopWhereItStands`).
+  // drives, which this watch can't see (dom/arrivals.js, `stopWhereItStands`).
   const EXPECTED_SCROLLS = [
     (by) => by[0].includes("vendor/codemirror."),
-    (by) => /^stopWhereItStands\b.*\bruntime\/arrivals\.js:/.test(by[0]),
+    (by) => /^stopWhereItStands\b.*\bruntime\/dom\/arrivals\.js:/.test(by[0]),
   ];
   // Run one scroll write to `box`, `options` saying how it moves.
   const scrollWrite = (box, how, options, write) => {

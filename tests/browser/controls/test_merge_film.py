@@ -3,7 +3,7 @@ terminal seek, and its outcomes on a phone."""
 
 import pytest
 from playwright.sync_api import expect
-from render_harness import open_page, resized
+from render_harness import open_page, resized, scroll_settled
 
 from leaf_dev.example_data import named_source
 
@@ -153,11 +153,31 @@ def test_merge_film_steps_have_a_keyboard_route(browser, serve):
     ).to_be_visible()
 
 
+def test_a_step_pressed_on_a_phone_brings_the_film_into_view(browser, serve):
+    """Narrow, the film stands above its steps, so holding a step glides the page to
+    it. The glide sets off as the press lands, and the film and its step list then draw
+    the new moment as the glide runs, which changes the heights of the film's parts and
+    of the steps by different amounts: the step told before shrinks and the one pressed
+    grows."""
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, serve(named_source("wt-merge")), context=context)
+    for step in ("merge", "setup"):
+        button = page.locator(f"#step-{step} button")
+        button.scroll_into_view_if_needed()
+        scroll_settled(page)
+        button.tap()
+        scroll_settled(page)
+        expect(page.locator(f"#step-{step}")).to_have_attribute("data-now", "")
+        assert 0 <= page.locator("#merge-film").bounding_box()["y"] < 200, step
+
+
 def test_merge_film_shows_its_whole_phone_stage_in_a_laptop_height_pane(browser, serve):
     """Where the film's pane is narrow enough for its phone layout but the workspace
     still fills an 800x720 window, the stage keeps its content's height and the pane
-    scrolls to its end: the terminal below the drawing stays reachable and clear of
-    Leaf's panel rather than clipped inside a squeezed stage."""
+    scrolls to its end: the terminal below the drawing stays reachable in the window
+    rather than clipped inside a squeezed stage."""
     source = named_source("wt-merge")
     page = open_page(browser, serve(source))
     resized(page, 800, 720)
@@ -172,10 +192,12 @@ def test_merge_film_shows_its_whole_phone_stage_in_a_laptop_height_pane(browser,
             clipped: stage.scrollHeight - stage.clientHeight,
             terminalBottom: terminal.getBoundingClientRect().bottom,
             stageBottom: stage.getBoundingClientRect().bottom,
-            panelTop: document.querySelector('.lf-fp-row').getBoundingClientRect().top,
+            shownBottom: Math.min(
+              film.getBoundingClientRect().top + film.clientTop + film.clientHeight,
+              innerHeight),
           };
         }"""
     )
     assert geometry["clipped"] <= 1, geometry
     assert geometry["terminalBottom"] <= geometry["stageBottom"], geometry
-    assert geometry["stageBottom"] <= geometry["panelTop"], geometry
+    assert geometry["stageBottom"] <= geometry["shownBottom"], geometry

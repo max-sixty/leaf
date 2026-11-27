@@ -81,49 +81,29 @@
   },
   "lf-test-roster": {
     "description": "A view of multiple workers, their durable remits, and their current activity.",
-    "attributes": {
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" }
-      },
-      "additionalProperties": false
-    },
     "content": "members",
     "space": "wide"
   },
   "lf-test-worker": {
     "description": "One worker\u2019s identity, durable remit, current state, and reported activity.",
     "attributes": {
-      "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "state": {
           "enum": ["working", "waiting", "blocked", "idle", "reaped", "done"]
         },
-        "on": { "type": "string" },
-        "overruled": {
-          "type": "boolean"
-        }
+        "on": { "type": "string" }
       },
-      "required": ["id", "state"],
-      "additionalProperties": false
+      "required": ["id", "state"]
     },
     "owners": ["lf-test-roster", "lf-test-plan", "lf-test-task"],
     "refers": {
-      "on": {
-        "via": "$work.widgets",
-        "where": {
-          "role": "goal"
-        }
-      }
+      "on": {}
     },
     "verbs": {
       "state": {
         "writer": "agent",
-        "unit": "widget",
         "text": true,
         "record": {
-          "kind": "value",
           "attr": "state"
         }
       }
@@ -131,51 +111,27 @@
   },
   "lf-test-tasks": {
     "description": "A hierarchy of work with ownership, status, and progress derived from its tasks.",
-    "attributes": {
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" }
-      },
-      "additionalProperties": false
-    },
     "content": "members"
   },
   "lf-test-plan": {
     "description": "A goal-first command surface combining a work tree, its workers, and shared progress readings.",
     "attributes": {
-      "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "label": {
           "type": "string"
         },
         "phase": {
           "type": "string"
-        },
-        "readings": {
-          "type": "string"
         }
       },
-      "required": ["id"],
-      "additionalProperties": false
+      "required": ["id"]
     },
-    "content": "members",
-    "refers": {
-      "readings": {
-        "via": "$work.widgets",
-        "where": {
-          "role": "readings"
-        },
-        "owns": true
-      }
-    }
+    "content": "members"
   },
   "lf-test-task": {
     "description": "One goal or piece of work, with ownership, status, and optional nested subgoals.",
     "attributes": {
-      "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "label": {
           "type": "string"
         },
@@ -202,21 +158,15 @@
         },
         "talk": {
           "type": "boolean"
-        },
-        "overruled": {
-          "type": "boolean"
         }
       },
-      "required": ["id", "status"],
-      "additionalProperties": false
+      "required": ["id", "status"]
     },
     "owners": ["lf-test-tasks", "lf-test-plan", "lf-test-task"],
     "verbs": {
       "status": {
         "writer": "agent",
-        "unit": "widget",
         "record": {
-          "kind": "value",
           "attr": "status"
         }
       }
@@ -225,13 +175,7 @@
   "lf-test-tree": {
     "description": "A stable, commentable address for observed worktree evidence supplied by the harness.",
     "attributes": {
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "source": { "type": "string" }
-      },
-      "required": ["id", "source"],
-      "additionalProperties": false
+      "required": ["id", "source"]
     },
     "content": "empty",
     "inputs": {
@@ -245,7 +189,7 @@
     "space": "wide"
   },
   "$work": {
-    "description": "The optional Command Hub projection. Each widget names the general role it plays and the attributes that carry that role's state. A goal or worker state attribute is backed by exactly one widget-unit value record in `verbs`, which is also the role's report verb when it declares `writer: \"agent\"`, and its module presents the widgetController reading, so the projection consumes one immutable application epoch rather than rendered attributes. Later packages may add their own tag entries under widgets without teaching Leaf's kernel their names.",
+    "description": "The optional Command Hub projection. Each widget names the general role it plays and the attributes that carry that role's state. A goal or worker state attribute is backed by exactly one widget-unit value record in `verbs`, which is also the role's report verb when it declares `writer: \"agent\"`, and its module presents the widget's `state`, so the projection consumes one immutable application epoch rather than rendered attributes. Later packages may add their own tag entries under widgets without teaching Leaf's kernel their names.",
     "widgets": {
       "lf-test-plan": {
         "role": "scope"
@@ -272,24 +216,7 @@
       },
       "lf-test-roster": {
         "role": "scope"
-      },
-      "lf-test-summary": {
-        "role": "readings"
       }
     }
-  },
-  "lf-test-summary": {
-    "description": "A local exclusive-reference target.",
-    "attributes": {
-      "type": "object",
-      "properties": {
-        "id": {
-          "type": "string"
-        }
-      },
-      "required": ["id"],
-      "additionalProperties": false
-    },
-    "content": "empty"
   }
 }

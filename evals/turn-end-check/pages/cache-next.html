@@ -6,7 +6,7 @@
   <body>
     <main class="layout-column">
       <h1 id="cache-title">The search API now caches its results by LRU</h1>
-      <p class="lede" id="cache-lede">
+      <p class="lf-lede" id="cache-lede">
         You picked LRU over TTL, since memory is the constraint on the search hosts. The
         cache evicts at 50,000 entries, merged in #812, and staging and production both
         serve it behind the search.cache flag.

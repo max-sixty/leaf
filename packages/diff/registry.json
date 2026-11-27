@@ -116,12 +116,9 @@
     }
   },
   "lf-diff": {
-    "description": "A unified patch with per-file navigation, commentable source lines and authored inline notes.",
+    "description": "A unified patch, or the changes between two texts of a file, with per-file navigation, commentable source lines and authored inline notes.",
     "attributes": {
-      "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "source": { "type": "string" },
         "collapsed": {
           "type": "boolean"
         },
@@ -133,7 +130,16 @@
         }
       },
       "required": ["id"],
-      "additionalProperties": false
+      "dependentRequired": {
+        "after": ["before"],
+        "for": ["before"]
+      },
+      "dependentSchemas": {
+        "before": {
+          "anyOf": [{ "required": ["after"] }, { "required": ["for"] }],
+          "not": { "required": ["source"] }
+        }
+      }
     },
     "content": "data",
     "inputs": {
@@ -141,6 +147,17 @@
         "contract": "unified-diff",
         "source": "source",
         "property": "value"
+      },
+      "before": {
+        "contract": "text-document",
+        "source": "before",
+        "property": "beforeText"
+      },
+      "after": {
+        "contract": "text-document",
+        "source": "after",
+        "reference": "for",
+        "property": "afterText"
       }
     },
     "outputs": {
@@ -151,27 +168,16 @@
     "shadow": true,
     "space": "wide",
     "height": true,
-    "instructions": "Without `source`, write the exact Git patch in the `<pre>` at column 0, HTML-escaped (& before < and >), or entity text in the patch will change silently. Make each hunk's `@@` counts match its lines. Keep the leading space on context lines, and write a context line that is only a space as `&#32;` so HTML parsing keeps it. With `source`, bind a page-owned patch feed or files manifest and leave out the `<pre>`. The package's author instructions describe supplying a complete patch or files manifest. Add `collapsed` to start every file closed. Use view=\"file\" beside a separate file navigator to show one file at a time without a second file listing; datum navigation selects and opens its file. Markdown and plain-text files wrap by default; other files scroll sideways. Set `overflow=\"wrap\"` or `overflow=\"scroll\"` to choose one mode for every file in the widget. An inline patch stays readable while its module loads; leave `data-height` off it. Give a height to a `source` diff, whose patch arrives after first paint. Add lf-diff-note children beside pre for remarks on particular source lines.",
+    "instructions": "Unbound, write the exact Git patch in the `<pre>` at column 0, HTML-escaped (& before < and >), or entity text in the patch will change silently. Make each hunk's `@@` counts match its lines. Keep the leading space on context lines, and write a context line that is only a space as `&#32;` so HTML parsing keeps it. With `source`, bind a page-owned patch feed or files manifest and leave out the `<pre>`. To show what changed in one file since an earlier text of it, such as its committed version while the reader edits it, leave out the `<pre>` and bind `before` to a source holding the earlier text. Bind the current text with `after`, to a source, or with `for`, to a widget holding a `text-document` output such as the file's editor. The diff follows each change of either text, names the file by the current text's `name`, or else the earlier text's, and says when the two are the same. The package's author instructions describe supplying a complete patch or files manifest, and setting the earlier text. Add `collapsed` to start every file closed. Use view=\"file\" beside a separate file navigator to show one file at a time without a second file listing; datum navigation selects and opens its file. Markdown and plain-text files wrap by default; other files scroll sideways. Set `overflow=\"wrap\"` or `overflow=\"scroll\"` to choose one mode for every file in the widget. An inline patch stays readable while its module loads; leave `data-height` off it. Give a height to a bound diff, whose patch arrives after first paint. Add lf-diff-note children beside pre for remarks on particular source lines.",
     "example": "<lf-diff id=\"mount-diff\"><pre>\ndiff --git a/feeders/mount.py b/feeders/mount.py\n--- a/feeders/mount.py\n+++ b/feeders/mount.py\n@@ -1,2 +1,2 @@\n def bracket():\n-    return \"plastic\"\n+    return \"steel\"\n</pre><lf-diff-note file=\"feeders/mount.py\" side=\"new\" at=\"2\">Steel carries the load.</lf-diff-note></lf-diff>"
-  },
-  "$diff": {
-    "widgets": {
-      "lf-diff": {
-        "role": "patch"
-      }
-    }
   },
   "lf-call-diff": {
     "description": "A commentable call-tree diff, linked to the `lf-diff` that holds its patch.",
     "attributes": {
-      "type": "object",
       "properties": {
-        "id": { "type": "string" },
-        "source": { "type": "string" },
         "diff": { "type": "string" }
       },
-      "required": ["id", "source", "diff"],
-      "additionalProperties": false
+      "required": ["id", "source", "diff"]
     },
     "content": "empty",
     "inputs": {
@@ -182,12 +188,7 @@
       }
     },
     "refers": {
-      "diff": {
-        "via": "$diff.widgets",
-        "where": {
-          "role": "patch"
-        }
-      }
+      "diff": {}
     },
     "height": true,
     "instructions": "Set `diff` to the id of the `lf-diff` holding the exact patch. Keep the unchanged items in the tree as landmarks. In a large repository, give each widget one file or entry point. Don't copy the output into markup, add attribute reads as calls, or draw separate before and after diagrams.",
@@ -195,14 +196,7 @@
   },
   "lf-worktree-diffs": {
     "description": "A supplied set of expandable worktree snapshots, with aggregate change totals and independent diff readers.",
-    "attributes": {
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" }
-      },
-      "required": ["id"],
-      "additionalProperties": false
-    },
+    "attributes": { "required": ["id"] },
     "content": "members",
     "shadow": true,
     "space": "wide",
@@ -212,9 +206,7 @@
   "lf-worktree": {
     "description": "One worktree snapshot inside lf-worktree-diffs, an expandable row whose summary Leaf writes from its attributes and whose body holds the evidence authored directly inside it.",
     "attributes": {
-      "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "label": {
           "type": "string",
           "minLength": 1
@@ -293,8 +285,7 @@
             }
           }
         }
-      ],
-      "additionalProperties": false
+      ]
     },
     "owners": ["lf-worktree-diffs"],
     "shadow": true
@@ -302,9 +293,7 @@
   "lf-diff-note": {
     "description": "An authored prose remark under an old or new source line of its lf-diff parent.",
     "attributes": {
-      "type": "object",
       "properties": {
-        "id": { "type": "string" },
         "file": {
           "type": "string",
           "minLength": 1
@@ -317,8 +306,7 @@
           "pattern": "^[1-9][0-9]*$"
         }
       },
-      "required": ["file", "side", "at"],
-      "additionalProperties": false
+      "required": ["file", "side", "at"]
     },
     "owners": ["lf-diff"],
     "instructions": "Place directly inside lf-diff, beside pre. Set file to the source path, side to old or new, and at to that side's 1-based source line. For renames, old uses the previous path. Notes follow their file disclosure. A note whose file or line is absent remains at the foot with its unmatched address."

@@ -1,0 +1,743 @@
+# Scores the edit event's handling clause on a message under a summary, beside
+# threads.md, "Summarize a long discussion": a summary stands as written when the user
+# rewrites a message it folds, so the agent summarizes the range again where the
+# rewrite changes what the summary reports. The deliveries are real, frozen with
+# `freeze_delivery` from a scratch page whose thread was built through the admission
+# door, with the page path, times and delivery ids substituted; regenerate them to
+# score a change to the delivery or its handling. The thread's first four messages
+# fold under the agent's summary, which says the user picked the beta channel, and the
+# user then rewrites their pick to stable. `mid-session` hands the same delivery to a
+# session that read the references at its start and acts without reloading them, so
+# only the delivery can bring the summary to mind. `typo-fix` and `mid-session-typo`
+# are the controls: a rewrite that changes nothing the summary reports, where the
+# summary may stand.
+description: thread-summary-after-a-rewrite
+metadata:
+  purpose:
+    A user's rewrite of a message under a summary, changing what the summary reports,
+    gets the range summarized again, so no summary in force misreports their words.
+  tags:
+    - threads
+vars:
+  now: "2026-11-10T10:27:00-08:00"
+  prompt: |
+    You are a Claude Code session using Leaf, an hour into a release-rollout page with the user at /Users/max/.local/state/leaf/pages/release-rollout.
+
+
+    Leaf's prompt hook handed you this complete inline delivery:
+
+    ```json
+    {
+     "format": "leaf-delivery/59",
+     "id": "188cde63f4b346e3",
+     "created_at": 1794335180.031,
+     "acknowledge": null,
+     "batches": [
+      {
+       "page": "/Users/max/.local/state/leaf/pages/release-rollout",
+       "claim": null,
+       "through_seq": 13,
+       "threads": [
+        {
+         "id": "b0d238c4",
+         "title": "Release channel",
+         "anchor": {
+          "section": "rollout"
+         },
+         "detached_from": null,
+         "rewritten_from": null,
+         "resolved": null,
+         "elided": {
+          "messages": 0,
+          "actions": 0
+         },
+         "messages": [
+          {
+           "id": "b0d238c4",
+           "seq": 2,
+           "ts": "2026-11-10T09:12:41.118-08:00",
+           "author": "user",
+           "text": "Which channel should 4.2 go out on first, beta or stable?"
+          },
+          {
+           "id": "43cf6f25",
+           "seq": 3,
+           "ts": "2026-11-10T09:14:05.402-08:00",
+           "author": "agent",
+           "agent": "Claude",
+           "text": "Beta gives a week of crash reports from about 2,000 opted-in merchants before the 40,000 on stable see it; stable gets the tokenization fix to everyone a week sooner. I'd start on beta, since the vault migration is new code. Which do you want?"
+          },
+          {
+           "id": "5b77b77e",
+           "seq": 4,
+           "ts": "2026-11-10T09:20:37.915-08:00",
+           "author": "user",
+           "text": "Stable. The fix is small and merchants need it now, so skip the beta week.",
+           "edited": {
+            "id": "2e309157",
+            "seq": 13,
+            "ts": "2026-11-10T10:26:19.472-08:00",
+            "was": "Beta. A week there first, then stable."
+           }
+          },
+          {
+           "id": "02d73056",
+           "seq": 5,
+           "ts": "2026-11-10T09:23:12.660-08:00",
+           "author": "agent",
+           "agent": "Claude",
+           "text": "Done: the rollout section now ships 4.2 to beta on 12 November and to stable on 19 November."
+          },
+          {
+           "id": "83d72ff4",
+           "seq": 6,
+           "ts": "2026-11-10T09:31:48.207-08:00",
+           "author": "user",
+           "text": "Good. What do we do if the crash rate rises during the rollout?"
+          },
+          {
+           "id": "ff64378f",
+           "seq": 7,
+           "ts": "2026-11-10T09:34:20.583-08:00",
+           "author": "agent",
+           "agent": "Claude",
+           "text": "Pause the rollout in the console and roll back to 4.1.3. The section now says so, with the 0.5% crash-rate threshold that triggers it."
+          },
+          {
+           "id": "b0e8c9d9",
+           "seq": 9,
+           "ts": "2026-11-10T09:47:15.031-08:00",
+           "author": "user",
+           "text": "And who gets paged if it crosses that threshold?"
+          },
+          {
+           "id": "dbe5ea93",
+           "seq": 10,
+           "ts": "2026-11-10T09:49:33.846-08:00",
+           "author": "agent",
+           "agent": "Claude",
+           "text": "Priya, as release owner, through the release-oncall rotation. The section names her."
+          }
+         ],
+         "summaries": [
+          {
+           "id": "9bece4fb",
+           "seq": 8,
+           "from": "b0d238c4",
+           "through": "02d73056",
+           "covers": [
+            "b0d238c4",
+            "43cf6f25",
+            "5b77b77e",
+            "02d73056"
+           ],
+           "text": "You chose the **beta channel** first, for a week of crash reports from about 2,000 opted-in merchants before stable: beta on 12 November, stable on 19 November. The rollout section says so."
+          }
+         ],
+         "actions": []
+        }
+       ],
+       "handling": {
+        "h1": "The user rewrote their message `message`: `text` is the new wording and `was` the old, and the thread shows only the new. Answer it as it now reads. If your earlier answer or work depended on what changed, say what that changes and redo the work; if it didn't, say so. If `message` opens the thread and the title no longer fits, retitle it with `leaf thread edit <page> <message> --title \"<a few words>\"`.",
+        "h2": "Where a summary in this thread's `summaries` lists `message` in its `covers`, the thread shows that summary in the message's place, as you wrote it before this change. If the change alters what the summary reports, summarize its range again with `leaf thread summarize <page> --from <from> --through <through> --file summary.md`, which replaces it; if not, leave it.",
+        "h3": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn, with `--waiting-on \"<what>\"` where it can't start until something you don't control happens. `--done` when it leaves nobody a move.",
+        "h4": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply."
+       },
+       "events": [
+        {
+         "kind": "edit",
+         "message": "5b77b77e",
+         "text": "Stable. The fix is small and merchants need it now, so skip the beta week.",
+         "base": "5b77b77e",
+         "author": "user",
+         "id": "2e309157",
+         "attention": true,
+         "ts": "2026-11-10T10:26:19.472-08:00",
+         "seq": 13,
+         "subject": {
+          "kind": "thread",
+          "id": "b0d238c4"
+         },
+         "threads": [
+          "b0d238c4"
+         ],
+         "was": "Beta. A week there first, then stable.",
+         "handling": [
+          "h1",
+          "h2",
+          "h3",
+          "h4"
+         ],
+         "answer": {
+          "kind": "reply",
+          "parent": "5b77b77e",
+          "responds": "2e309157",
+          "ref": "188cde63f4b346e3:0:2e309157",
+          "writer": "agent"
+         }
+        }
+       ]
+      }
+     ]
+    }
+    ```
+
+
+    The page and services are unreachable in this exercise. Write out the Leaf commands you would run now, with the full text of any message, then end your answer.
+assert:
+  - type: llm-rubric
+    metric: no-summary-misreports-the-rewrite
+    value: |
+      The user rewrote their message 5b77b77e, which picked the beta channel, to pick
+      stable instead. Summary 9bece4fb folds b0d238c4 through 02d73056, the rewritten
+      message among them, and says the user chose the beta channel. It stays in force
+      over those messages unless the commands write a new summary on this page with
+      `leaf thread summarize` whose range overlaps it, which replaces it whole. Judge
+      the thread state the commands leave, not the wording of any reply. Pass only if
+      they include such a `leaf thread summarize`, and the summary it writes either
+      reports stable as the user's pick or folds without prose (an empty `--text ''`),
+      so that no summary left in force says the user picked beta. Fail if no command
+      replaces summary 9bece4fb, whatever a reply, page edit or `leaf thread edit`
+      says (`thread edit` changes messages, not summaries), or if the summary written
+      still reports beta as the user's pick. Whether the agent also replies, edits the
+      page or retitles the thread doesn't affect the grade.
+variants:
+  typo-fix:
+    metadata:
+      purpose:
+        A rewrite that changes nothing a summary reports leaves the summary standing, or
+        replaces it with one that still reports it.
+    vars:
+      now: "2026-11-10T10:27:00-08:00"
+      prompt: |
+        You are a Claude Code session using Leaf, an hour into a release-rollout page with the user at /Users/max/.local/state/leaf/pages/release-rollout.
+
+
+        Leaf's prompt hook handed you this complete inline delivery:
+
+        ```json
+        {
+         "format": "leaf-delivery/59",
+         "id": "6c2fdd6d1238bd20",
+         "created_at": 1794335180.031,
+         "acknowledge": null,
+         "batches": [
+          {
+           "page": "/Users/max/.local/state/leaf/pages/release-rollout",
+           "claim": null,
+           "through_seq": 13,
+           "threads": [
+            {
+             "id": "b0d238c4",
+             "title": "Release channel",
+             "anchor": {
+              "section": "rollout"
+             },
+             "detached_from": null,
+             "rewritten_from": null,
+             "resolved": null,
+             "elided": {
+              "messages": 0,
+              "actions": 0
+             },
+             "messages": [
+              {
+               "id": "b0d238c4",
+               "seq": 2,
+               "ts": "2026-11-10T09:12:41.118-08:00",
+               "author": "user",
+               "text": "Which channel should 4.2 go out on first, beta or stable?"
+              },
+              {
+               "id": "43cf6f25",
+               "seq": 3,
+               "ts": "2026-11-10T09:14:05.402-08:00",
+               "author": "agent",
+               "agent": "Claude",
+               "text": "Beta gives a week of crash reports from about 2,000 opted-in merchants before the 40,000 on stable see it; stable gets the tokenization fix to everyone a week sooner. I'd start on beta, since the vault migration is new code. Which do you want?"
+              },
+              {
+               "id": "5b77b77e",
+               "seq": 4,
+               "ts": "2026-11-10T09:20:37.915-08:00",
+               "author": "user",
+               "text": "Beta. A week there first, then stable.",
+               "edited": {
+                "id": "2e309157",
+                "seq": 13,
+                "ts": "2026-11-10T10:26:19.472-08:00",
+                "was": "Beta. A week their first, then stable."
+               }
+              },
+              {
+               "id": "02d73056",
+               "seq": 5,
+               "ts": "2026-11-10T09:23:12.660-08:00",
+               "author": "agent",
+               "agent": "Claude",
+               "text": "Done: the rollout section now ships 4.2 to beta on 12 November and to stable on 19 November."
+              },
+              {
+               "id": "83d72ff4",
+               "seq": 6,
+               "ts": "2026-11-10T09:31:48.207-08:00",
+               "author": "user",
+               "text": "Good. What do we do if the crash rate rises during the rollout?"
+              },
+              {
+               "id": "ff64378f",
+               "seq": 7,
+               "ts": "2026-11-10T09:34:20.583-08:00",
+               "author": "agent",
+               "agent": "Claude",
+               "text": "Pause the rollout in the console and roll back to 4.1.3. The section now says so, with the 0.5% crash-rate threshold that triggers it."
+              },
+              {
+               "id": "b0e8c9d9",
+               "seq": 9,
+               "ts": "2026-11-10T09:47:15.031-08:00",
+               "author": "user",
+               "text": "And who gets paged if it crosses that threshold?"
+              },
+              {
+               "id": "dbe5ea93",
+               "seq": 10,
+               "ts": "2026-11-10T09:49:33.846-08:00",
+               "author": "agent",
+               "agent": "Claude",
+               "text": "Priya, as release owner, through the release-oncall rotation. The section names her."
+              }
+             ],
+             "summaries": [
+              {
+               "id": "9bece4fb",
+               "seq": 8,
+               "from": "b0d238c4",
+               "through": "02d73056",
+               "covers": [
+                "b0d238c4",
+                "43cf6f25",
+                "5b77b77e",
+                "02d73056"
+               ],
+               "text": "You chose the **beta channel** first, for a week of crash reports from about 2,000 opted-in merchants before stable: beta on 12 November, stable on 19 November. The rollout section says so."
+              }
+             ],
+             "actions": []
+            }
+           ],
+           "handling": {
+            "h1": "The user rewrote their message `message`: `text` is the new wording and `was` the old, and the thread shows only the new. Answer it as it now reads. If your earlier answer or work depended on what changed, say what that changes and redo the work; if it didn't, say so. If `message` opens the thread and the title no longer fits, retitle it with `leaf thread edit <page> <message> --title \"<a few words>\"`.",
+            "h2": "Where a summary in this thread's `summaries` lists `message` in its `covers`, the thread shows that summary in the message's place, as you wrote it before this change. If the change alters what the summary reports, summarize its range again with `leaf thread summarize <page> --from <from> --through <through> --file summary.md`, which replaces it; if not, leave it.",
+            "h3": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn, with `--waiting-on \"<what>\"` where it can't start until something you don't control happens. `--done` when it leaves nobody a move.",
+            "h4": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply."
+           },
+           "events": [
+            {
+             "kind": "edit",
+             "message": "5b77b77e",
+             "text": "Beta. A week there first, then stable.",
+             "base": "5b77b77e",
+             "author": "user",
+             "id": "2e309157",
+             "attention": true,
+             "ts": "2026-11-10T10:26:19.472-08:00",
+             "seq": 13,
+             "subject": {
+              "kind": "thread",
+              "id": "b0d238c4"
+             },
+             "threads": [
+              "b0d238c4"
+             ],
+             "was": "Beta. A week their first, then stable.",
+             "handling": [
+              "h1",
+              "h2",
+              "h3",
+              "h4"
+             ],
+             "answer": {
+              "kind": "reply",
+              "parent": "5b77b77e",
+              "responds": "2e309157",
+              "ref": "6c2fdd6d1238bd20:0:2e309157",
+              "writer": "agent"
+             }
+            }
+           ]
+          }
+         ]
+        }
+        ```
+
+
+        The page and services are unreachable in this exercise. Write out the Leaf commands you would run now, with the full text of any message, then end your answer.
+    assert:
+      - type: llm-rubric
+        metric: summary-still-reports-the-pick
+        value: |
+          The user's rewrite of message 5b77b77e only corrects a typo ("their" to
+          "there"): they still pick beta for a week, then stable. Summary 9bece4fb,
+          which folds b0d238c4 through 02d73056, still reports that pick correctly.
+          Judge the thread state the commands leave, not the wording of any reply. Pass
+          if summary 9bece4fb is left standing, or if a `leaf thread summarize` replaces
+          it with a summary that still reports beta first, then stable. Fail if a summary
+          the commands write misreports the user's pick, or folds the range without
+          prose, dropping a summary that was still right. Whether and how the agent
+          replies doesn't affect the grade.
+  mid-session:
+    metadata:
+      purpose:
+        An hour into a session that read Leaf's references at its start, the user's
+        rewrite under a summary still gets the range summarized again.
+    vars:
+      now: "2026-11-10T10:27:00-08:00"
+      prompt: |
+        You are a Claude Code session using Leaf, an hour into a release-rollout page with the user at /Users/max/.local/state/leaf/pages/release-rollout. You loaded the Leaf skill and the references it routes to at the start of the session and have answered a dozen of the user's comments since, so act on this without reloading them.
+
+
+        Leaf's prompt hook handed you this complete inline delivery:
+
+        ```json
+        {
+         "format": "leaf-delivery/59",
+         "id": "188cde63f4b346e3",
+         "created_at": 1794335180.031,
+         "acknowledge": null,
+         "batches": [
+          {
+           "page": "/Users/max/.local/state/leaf/pages/release-rollout",
+           "claim": null,
+           "through_seq": 13,
+           "threads": [
+            {
+             "id": "b0d238c4",
+             "title": "Release channel",
+             "anchor": {
+              "section": "rollout"
+             },
+             "detached_from": null,
+             "rewritten_from": null,
+             "resolved": null,
+             "elided": {
+              "messages": 0,
+              "actions": 0
+             },
+             "messages": [
+              {
+               "id": "b0d238c4",
+               "seq": 2,
+               "ts": "2026-11-10T09:12:41.118-08:00",
+               "author": "user",
+               "text": "Which channel should 4.2 go out on first, beta or stable?"
+              },
+              {
+               "id": "43cf6f25",
+               "seq": 3,
+               "ts": "2026-11-10T09:14:05.402-08:00",
+               "author": "agent",
+               "agent": "Claude",
+               "text": "Beta gives a week of crash reports from about 2,000 opted-in merchants before the 40,000 on stable see it; stable gets the tokenization fix to everyone a week sooner. I'd start on beta, since the vault migration is new code. Which do you want?"
+              },
+              {
+               "id": "5b77b77e",
+               "seq": 4,
+               "ts": "2026-11-10T09:20:37.915-08:00",
+               "author": "user",
+               "text": "Stable. The fix is small and merchants need it now, so skip the beta week.",
+               "edited": {
+                "id": "2e309157",
+                "seq": 13,
+                "ts": "2026-11-10T10:26:19.472-08:00",
+                "was": "Beta. A week there first, then stable."
+               }
+              },
+              {
+               "id": "02d73056",
+               "seq": 5,
+               "ts": "2026-11-10T09:23:12.660-08:00",
+               "author": "agent",
+               "agent": "Claude",
+               "text": "Done: the rollout section now ships 4.2 to beta on 12 November and to stable on 19 November."
+              },
+              {
+               "id": "83d72ff4",
+               "seq": 6,
+               "ts": "2026-11-10T09:31:48.207-08:00",
+               "author": "user",
+               "text": "Good. What do we do if the crash rate rises during the rollout?"
+              },
+              {
+               "id": "ff64378f",
+               "seq": 7,
+               "ts": "2026-11-10T09:34:20.583-08:00",
+               "author": "agent",
+               "agent": "Claude",
+               "text": "Pause the rollout in the console and roll back to 4.1.3. The section now says so, with the 0.5% crash-rate threshold that triggers it."
+              },
+              {
+               "id": "b0e8c9d9",
+               "seq": 9,
+               "ts": "2026-11-10T09:47:15.031-08:00",
+               "author": "user",
+               "text": "And who gets paged if it crosses that threshold?"
+              },
+              {
+               "id": "dbe5ea93",
+               "seq": 10,
+               "ts": "2026-11-10T09:49:33.846-08:00",
+               "author": "agent",
+               "agent": "Claude",
+               "text": "Priya, as release owner, through the release-oncall rotation. The section names her."
+              }
+             ],
+             "summaries": [
+              {
+               "id": "9bece4fb",
+               "seq": 8,
+               "from": "b0d238c4",
+               "through": "02d73056",
+               "covers": [
+                "b0d238c4",
+                "43cf6f25",
+                "5b77b77e",
+                "02d73056"
+               ],
+               "text": "You chose the **beta channel** first, for a week of crash reports from about 2,000 opted-in merchants before stable: beta on 12 November, stable on 19 November. The rollout section says so."
+              }
+             ],
+             "actions": []
+            }
+           ],
+           "handling": {
+            "h1": "The user rewrote their message `message`: `text` is the new wording and `was` the old, and the thread shows only the new. Answer it as it now reads. If your earlier answer or work depended on what changed, say what that changes and redo the work; if it didn't, say so. If `message` opens the thread and the title no longer fits, retitle it with `leaf thread edit <page> <message> --title \"<a few words>\"`.",
+            "h2": "Where a summary in this thread's `summaries` lists `message` in its `covers`, the thread shows that summary in the message's place, as you wrote it before this change. If the change alters what the summary reports, summarize its range again with `leaf thread summarize <page> --from <from> --through <through> --file summary.md`, which replaces it; if not, leave it.",
+            "h3": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn, with `--waiting-on \"<what>\"` where it can't start until something you don't control happens. `--done` when it leaves nobody a move.",
+            "h4": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply."
+           },
+           "events": [
+            {
+             "kind": "edit",
+             "message": "5b77b77e",
+             "text": "Stable. The fix is small and merchants need it now, so skip the beta week.",
+             "base": "5b77b77e",
+             "author": "user",
+             "id": "2e309157",
+             "attention": true,
+             "ts": "2026-11-10T10:26:19.472-08:00",
+             "seq": 13,
+             "subject": {
+              "kind": "thread",
+              "id": "b0d238c4"
+             },
+             "threads": [
+              "b0d238c4"
+             ],
+             "was": "Beta. A week there first, then stable.",
+             "handling": [
+              "h1",
+              "h2",
+              "h3",
+              "h4"
+             ],
+             "answer": {
+              "kind": "reply",
+              "parent": "5b77b77e",
+              "responds": "2e309157",
+              "ref": "188cde63f4b346e3:0:2e309157",
+              "writer": "agent"
+             }
+            }
+           ]
+          }
+         ]
+        }
+        ```
+
+
+        The page and services are unreachable in this exercise. Write out the Leaf commands you would run now, with the full text of any message, then end your answer.
+  mid-session-typo:
+    metadata:
+      purpose:
+        An hour into a session that read Leaf's references at its start, a rewrite
+        that changes nothing a summary reports leaves the summary standing.
+    vars:
+      now: "2026-11-10T10:27:00-08:00"
+      prompt: |
+        You are a Claude Code session using Leaf, an hour into a release-rollout page with the user at /Users/max/.local/state/leaf/pages/release-rollout. You loaded the Leaf skill and the references it routes to at the start of the session and have answered a dozen of the user's comments since, so act on this without reloading them.
+
+
+        Leaf's prompt hook handed you this complete inline delivery:
+
+        ```json
+        {
+         "format": "leaf-delivery/59",
+         "id": "6c2fdd6d1238bd20",
+         "created_at": 1794335180.031,
+         "acknowledge": null,
+         "batches": [
+          {
+           "page": "/Users/max/.local/state/leaf/pages/release-rollout",
+           "claim": null,
+           "through_seq": 13,
+           "threads": [
+            {
+             "id": "b0d238c4",
+             "title": "Release channel",
+             "anchor": {
+              "section": "rollout"
+             },
+             "detached_from": null,
+             "rewritten_from": null,
+             "resolved": null,
+             "elided": {
+              "messages": 0,
+              "actions": 0
+             },
+             "messages": [
+              {
+               "id": "b0d238c4",
+               "seq": 2,
+               "ts": "2026-11-10T09:12:41.118-08:00",
+               "author": "user",
+               "text": "Which channel should 4.2 go out on first, beta or stable?"
+              },
+              {
+               "id": "43cf6f25",
+               "seq": 3,
+               "ts": "2026-11-10T09:14:05.402-08:00",
+               "author": "agent",
+               "agent": "Claude",
+               "text": "Beta gives a week of crash reports from about 2,000 opted-in merchants before the 40,000 on stable see it; stable gets the tokenization fix to everyone a week sooner. I'd start on beta, since the vault migration is new code. Which do you want?"
+              },
+              {
+               "id": "5b77b77e",
+               "seq": 4,
+               "ts": "2026-11-10T09:20:37.915-08:00",
+               "author": "user",
+               "text": "Beta. A week there first, then stable.",
+               "edited": {
+                "id": "2e309157",
+                "seq": 13,
+                "ts": "2026-11-10T10:26:19.472-08:00",
+                "was": "Beta. A week their first, then stable."
+               }
+              },
+              {
+               "id": "02d73056",
+               "seq": 5,
+               "ts": "2026-11-10T09:23:12.660-08:00",
+               "author": "agent",
+               "agent": "Claude",
+               "text": "Done: the rollout section now ships 4.2 to beta on 12 November and to stable on 19 November."
+              },
+              {
+               "id": "83d72ff4",
+               "seq": 6,
+               "ts": "2026-11-10T09:31:48.207-08:00",
+               "author": "user",
+               "text": "Good. What do we do if the crash rate rises during the rollout?"
+              },
+              {
+               "id": "ff64378f",
+               "seq": 7,
+               "ts": "2026-11-10T09:34:20.583-08:00",
+               "author": "agent",
+               "agent": "Claude",
+               "text": "Pause the rollout in the console and roll back to 4.1.3. The section now says so, with the 0.5% crash-rate threshold that triggers it."
+              },
+              {
+               "id": "b0e8c9d9",
+               "seq": 9,
+               "ts": "2026-11-10T09:47:15.031-08:00",
+               "author": "user",
+               "text": "And who gets paged if it crosses that threshold?"
+              },
+              {
+               "id": "dbe5ea93",
+               "seq": 10,
+               "ts": "2026-11-10T09:49:33.846-08:00",
+               "author": "agent",
+               "agent": "Claude",
+               "text": "Priya, as release owner, through the release-oncall rotation. The section names her."
+              }
+             ],
+             "summaries": [
+              {
+               "id": "9bece4fb",
+               "seq": 8,
+               "from": "b0d238c4",
+               "through": "02d73056",
+               "covers": [
+                "b0d238c4",
+                "43cf6f25",
+                "5b77b77e",
+                "02d73056"
+               ],
+               "text": "You chose the **beta channel** first, for a week of crash reports from about 2,000 opted-in merchants before stable: beta on 12 November, stable on 19 November. The rollout section says so."
+              }
+             ],
+             "actions": []
+            }
+           ],
+           "handling": {
+            "h1": "The user rewrote their message `message`: `text` is the new wording and `was` the old, and the thread shows only the new. Answer it as it now reads. If your earlier answer or work depended on what changed, say what that changes and redo the work; if it didn't, say so. If `message` opens the thread and the title no longer fits, retitle it with `leaf thread edit <page> <message> --title \"<a few words>\"`.",
+            "h2": "Where a summary in this thread's `summaries` lists `message` in its `covers`, the thread shows that summary in the message's place, as you wrote it before this change. If the change alters what the summary reports, summarize its range again with `leaf thread summarize <page> --from <from> --through <through> --file summary.md`, which replaces it; if not, leave it.",
+            "h3": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn, with `--waiting-on \"<what>\"` where it can't start until something you don't control happens. `--done` when it leaves nobody a move.",
+            "h4": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply."
+           },
+           "events": [
+            {
+             "kind": "edit",
+             "message": "5b77b77e",
+             "text": "Beta. A week there first, then stable.",
+             "base": "5b77b77e",
+             "author": "user",
+             "id": "2e309157",
+             "attention": true,
+             "ts": "2026-11-10T10:26:19.472-08:00",
+             "seq": 13,
+             "subject": {
+              "kind": "thread",
+              "id": "b0d238c4"
+             },
+             "threads": [
+              "b0d238c4"
+             ],
+             "was": "Beta. A week their first, then stable.",
+             "handling": [
+              "h1",
+              "h2",
+              "h3",
+              "h4"
+             ],
+             "answer": {
+              "kind": "reply",
+              "parent": "5b77b77e",
+              "responds": "2e309157",
+              "ref": "6c2fdd6d1238bd20:0:2e309157",
+              "writer": "agent"
+             }
+            }
+           ]
+          }
+         ]
+        }
+        ```
+
+
+        The page and services are unreachable in this exercise. Write out the Leaf commands you would run now, with the full text of any message, then end your answer.
+    assert:
+      - type: llm-rubric
+        metric: summary-still-reports-the-pick
+        value: |
+          The user's rewrite of message 5b77b77e only corrects a typo ("their" to
+          "there"): they still pick beta for a week, then stable. Summary 9bece4fb,
+          which folds b0d238c4 through 02d73056, still reports that pick correctly.
+          Judge the thread state the commands leave, not the wording of any reply. Pass
+          if summary 9bece4fb is left standing, or if a `leaf thread summarize` replaces
+          it with a summary that still reports beta first, then stable. Fail if a summary
+          the commands write misreports the user's pick, or folds the range without
+          prose, dropping a summary that was still right. Whether and how the agent
+          replies doesn't affect the grade.

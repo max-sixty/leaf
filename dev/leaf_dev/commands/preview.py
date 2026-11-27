@@ -8,15 +8,15 @@ included) and serves it until stopped. `--export` instead writes one HTML file t
 opens offline.
 
 A plain preview takes no claim: its comments settle in the page's log and nowhere
-else, so a session can drive it. `--user` claims the page for this session, so presses
-arrive through the harness's feedback path, and serves it from the page's durable
-service. Ending the preview stops its service and withdraws its acquisition.
-In Codex it also starts or joins
-the task's delivery adapter, so comments can start a new turn after this one ends.
+else, so a session can drive it. `--user` serves the page from its durable service. In
+a session started normally that serves it unclaimed, since a checkout acts for no
+session (`harness.session_harness`), and the checkout's `bin/leaf wait` hears it, as
+the reading printed beneath the URL says (`serves-for-no-session`). Only where the
+session's hooks run the preview's runtime, as in `leaf-dev journey session`, does it
+claim the page for the session, so presses arrive through the harness's feedback path.
+Ending the preview stops its service and withdraws its acquisition.
 
-A desktop Codex user preview detaches its watcher: the chat's idle instance can
-unload without losing the page, feedback, or source updates. Other previews run
-in the foreground; SIGTERM takes the same cleanup path as Ctrl-C.
+A preview runs in the foreground; SIGTERM takes the same cleanup path as Ctrl-C.
 User previews resume the page in their slot, preserving its feedback and authored
 revisions. Plain previews build fresh from the fixture. A start into a slot another
 preview is serving is refused. The slot is a page directory under
@@ -36,14 +36,13 @@ with `main`, or the commit it names (`leaf_dev.arms.choose_arms`). The head prev
 follows runtime edits as any preview does. Both read the head's authored source,
 following its edits, unless `--authored` has the base read its own copy
 (`leaf_dev.arms.own_source`). Each invocation owns fresh preview slots, named after the
-source and the run. User previews keep their base under `.tmp/preview-base` after startup,
-because detached watchers still need its files. Foreground previews end together.
+source and the run, and the base's files stay under `.tmp/preview-base`. The two
+previews end together.
 
 The preview serves the selected checkout in place, with its runtime's source modules,
-so a runtime edit reaches the page with no build. A `--user` preview's session runs its
-hooks and delivery from the launching checkout's `bin/leaf`.
+so a runtime edit reaches the page with no build.
 
-While it runs, a native subscription (`leaf.file_changes`) reports edits.
+While it runs, a native subscription (`leaf.log.file_changes`) reports edits.
 Initialization decides whether the layer actually changed; identical saves leave the
 browser and server alone. A source or `.page/` companion edit is stamped into the
 live page at the same URL. A package or runtime edit restarts the server, which
@@ -81,12 +80,16 @@ from typing import NamedTuple
 
 import click
 
-from leaf.file_changes import FileChanges
-from leaf.locations import canonical_path
-from leaf.publishing import authored_digest, authored_files, write_authored_files
-from leaf.refusals import Refused
-from leaf.runtime_selection import forget_tree, read_runtime
-from leaf.schema import LAYER_FILE, PACKAGES_DIR
+from leaf.base.locations import canonical_path
+from leaf.base.refusals import Refused
+from leaf.base.schema import LAYER_FILE, PACKAGES_DIR
+from leaf.log.file_changes import FileChanges
+from leaf.records.publishing import (
+    authored_digest,
+    authored_files,
+    write_authored_files,
+)
+from leaf.source.runtime_selection import forget_tree, read_runtime
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     STOP_SIGNALS,
@@ -109,7 +112,6 @@ from leaf_dev.page_fixtures import (
     DEFAULT_PACKAGES,
     authored_markup,
     composition_inputs,
-    fixture_environment,
     import_referenced_media,
     media_source,
     package_selection_args,
@@ -135,7 +137,7 @@ REVIVE_INTERVAL_SECS = 1
 
 def worker_inputs(runtime: Path) -> list[Path]:
     """Inputs loaded by Python, which a server restart alone cannot refresh."""
-    from leaf.layer import payload_python_inputs
+    from leaf.source.layer import payload_python_inputs
 
     return [
         *payload_python_inputs(runtime),
@@ -149,7 +151,7 @@ def worker_inputs(runtime: Path) -> list[Path]:
 
 
 def worker_identity(runtime: Path) -> str:
-    from leaf.layer import files_identity
+    from leaf.source.layer import files_identity
 
     return files_identity(
         {
@@ -176,7 +178,6 @@ def leaf(launcher: Path, runtime: Path, *args, input_text: str | None = None) ->
     result = subprocess.run(
         [str(launcher), *args],
         cwd=runtime,
-        env=fixture_environment(),
         check=False,
         input=input_text,
         stdout=subprocess.PIPE,
@@ -241,7 +242,7 @@ def mark_preview(
     watcher can distinguish source edits from competing page edits. The page's own
     authored files and event log remain authoritative.
     """
-    from leaf.server import PREVIEW
+    from leaf.base.service import PREVIEW
 
     PREVIEW.write(
         page / "preview.json",
@@ -324,7 +325,7 @@ class PreviewService:
     around a layer change. The two modes are told apart here and nowhere else.
     """
 
-    def __init__(self, page: Path, user: bool, prepared_claim: dict | None = None):
+    def __init__(self, page: Path, user: bool):
         self.page = page
         self.user = user
         self.temporary = None
@@ -332,27 +333,30 @@ class PreviewService:
         self.revive_at = 0.0
         self.revive_refusal: str | None = None
         self.claim: dict | None = None
-        self.prepared_claim = prepared_claim
 
     @contextlib.contextmanager
     def starting(self):
         """Prepare serving; claim the page only when the caller accepts on exit."""
-        from leaf.hosting import claim_and_start
+        from leaf.pages.hosting import claim_and_start
 
         if not self.user:
             yield self._serve_temporary()
             return
-        with claim_and_start(self.page, prepared_claim=self.prepared_claim) as started:
+        with claim_and_start(self.page) as started:
             self.claim = started.claim
             yield started.url
 
-    @property
-    def note(self) -> str:
-        """Describe the committed service: a `--user` one as `leaf server start`
-        reads it (`hosting.server_reading`), as one JSON line."""
-        from leaf.hosting import server_reading
+    def reading(self, url: str) -> str:
+        """Describe the committed service at `url`: a `--user` one as one JSON line,
+        as `leaf server start` prints it, with its URL, its reading
+        (`hosting.server_reading`) and what serving it noted (`findings.with_held`),
+        such as that it serves for no session."""
+        from leaf.base.findings import with_held
+        from leaf.pages.hosting import server_reading
 
-        return json.dumps(server_reading(self.page)) if self.user else WATCHER_NOTE
+        if not self.user:
+            return WATCHER_NOTE
+        return json.dumps(with_held({"url": url} | server_reading(self.page)))
 
     def serve_again(self) -> None:
         """Put a `--user` service that is down but still wanted back up.
@@ -362,9 +366,9 @@ class PreviewService:
         closed, and it starts only a service still enabled, so a stop that lands
         first is kept. A refused start is retried on later watcher polls; the same
         refusal is printed once while it stands."""
-        from leaf.detached import StartRefused
-        from leaf.harness import claim_harness
-        from leaf.hosting import start_server
+        from leaf.base.detached import StartRefused
+        from leaf.base.harness import claim_harness
+        from leaf.pages.hosting import start_server
 
         if time.monotonic() < self.revive_at:
             return
@@ -396,8 +400,8 @@ class PreviewService:
             if initializing:
                 yield
                 return
-            from leaf.harness import claim_harness
-            from leaf.hosting import restarting_server
+            from leaf.base.harness import claim_harness
+            from leaf.pages.hosting import restarting_server
 
             with restarting_server(
                 self.page, claim_harness(self.claim) if self.claim else None
@@ -414,7 +418,7 @@ class PreviewService:
         self._serve_temporary()
 
     def _serve_temporary(self) -> str:
-        from leaf.hosting import TemporaryPageServer
+        from leaf.pages.hosting import TemporaryPageServer
 
         self.temporary = TemporaryPageServer(self.page, **self.address).start()
         self.address = {
@@ -430,21 +434,21 @@ class PreviewService:
 
     def stop(self) -> None:
         """Stop serving and withdraw this preview's acquisition, keeping successors."""
-        from leaf.hosting import cmd_stop
-        from leaf.service import PageTransaction
+        from leaf.pages.hosting import cmd_stop
+        from leaf.records.transaction import ClaimTransition, PageTransaction
 
         if self.user:
             cmd_stop(self.page, owner=self.claim)
             if self.claim is not None:
                 with PageTransaction(self.page) as page:
-                    page.restore_claim(self.claim, None)
+                    page.restore_claim(ClaimTransition(None, self.claim, {}))
         else:
             self._close_temporary()
 
     @property
     def running(self) -> bool:
         """Whether the server is up. A `--user` one also ends with its claim."""
-        from leaf.server import running_server
+        from leaf.base.server import running_server
 
         if not self.user:
             return self.temporary is not None and self.temporary.running
@@ -459,8 +463,8 @@ class PreviewService:
         A `--user` service still enabled but down is not ended. That is a server
         that died, or one `page init` restarted but could not start again (the
         recorded port was taken), and the watcher tries it again."""
-        from leaf.server import read_service
-        from leaf.service import claim_is_active, page_claim, same_claim
+        from leaf.base.server import read_service
+        from leaf.base.service import claim_is_active, page_claim, same_claim
 
         if not self.user:
             return not self.running
@@ -473,19 +477,12 @@ class PreviewService:
         )
 
 
-def source_roots(source: Path, page: Path, runtime: Path) -> list[Path]:
+def source_roots(source: Path, runtime: Path) -> list[Path]:
     """The package roots the source's selection names, where `page init` runs from
-    (`leaf`), whose edits reach the page as copies at its next init, with the theme
-    the page captured."""
-    from leaf.layer import layer_inputs
-    from leaf.registry.storage import layer_record
-    from leaf.themes import with_theme
+    (`leaf`), whose edits reach the page as copies at its next init."""
+    from leaf.source.layer import layer_inputs
 
-    layer = layer_record(page)
-    assert layer is not None
-    return layer_inputs(
-        with_theme(tuple(source_packages(source)), layer["theme"]), runtime
-    )
+    return layer_inputs(tuple(source_packages(source, runtime)), runtime)
 
 
 def refresh_preview(
@@ -509,7 +506,7 @@ def refresh_preview(
     """
     try:
         refresh_composition(source)
-        fixture = read_fixture(source, runtime=runtime)
+        fixture = read_fixture(source, runtime=runtime, base=runtime)
         incoming = incoming_files(source)
         incoming_digest = authored_digest(incoming)
         source_changed = incoming_digest != state["authored"]
@@ -523,8 +520,7 @@ def refresh_preview(
                 "both the fixture and the preview's authored files changed; "
                 "reconcile them before retrying"
             )
-        packages = source_packages(source)
-        selection_args = package_selection_args(packages)
+        selection_args = package_selection_args(fixture.packages)
         # Initialization owns the change decision. Ask before a process-owned
         # server is taken down; the actual init checks again before committing.
         planned = json.loads(
@@ -628,7 +624,7 @@ def watch_paths(source: Path, runtime: Path, roots: list[Path]) -> Watched:
     Every path is resolved: `input_paths` answers in resolved paths, so a package
     root reached through a symlink or `..` would otherwise match nothing.
     """
-    from leaf.layer import input_paths, payload_server_inputs
+    from leaf.source.layer import input_paths, payload_server_inputs
 
     runtime = runtime.resolve()
     scripts = runtime / "src"
@@ -752,13 +748,14 @@ def discard_preview(page: Path) -> None:
     service a `--user` preview left behind when it was killed outright is stopped
     first, since its record goes with the page.
     """
-    from leaf.hosting import cmd_stop
-    from leaf.service import claim_path
+    from leaf.base.service import claim_path
+    from leaf.base.state import CLAIM
+    from leaf.pages.hosting import cmd_stop
 
     if page.exists():
         cmd_stop(page)
         shutil.rmtree(page)
-    claim_path(page).unlink(missing_ok=True)
+    CLAIM.remove(claim_path(page))
 
 
 def run_preview(
@@ -767,12 +764,9 @@ def run_preview(
     launcher: Path,
     runtime: Path,
     user: bool,
-    *,
-    prepared_claim: dict | None = None,
-    handshake=None,
 ) -> None:
     """Take the slot, resume a user's page or build a plain preview, then serve."""
-    from leaf.leases import release_lease, take_lease
+    from leaf.base.leases import release_lease, take_lease
 
     lease = take_lease(preview_lease(page))
     if lease is None:
@@ -783,15 +777,7 @@ def run_preview(
     try:
         if not user:
             discard_preview(page)
-        serve_preview(
-            source,
-            page,
-            launcher,
-            runtime,
-            user,
-            prepared_claim=prepared_claim,
-            handshake=handshake,
-        )
+        serve_preview(source, page, launcher, runtime, user)
     finally:
         release_lease(lease)
 
@@ -802,12 +788,10 @@ def serve_preview(
     launcher: Path,
     runtime: Path,
     user: bool,
-    *,
-    prepared_claim: dict | None = None,
-    handshake=None,
 ) -> None:
     """Build this slot's page, serve it, and follow its inputs until stopped."""
-    from leaf.server import PREVIEW
+    from leaf.base.findings import hold, note, release
+    from leaf.base.service import PREVIEW
 
     loaded = worker_identity(runtime)
     # Fixture progress is distinct from the page's own authored inputs: an agent
@@ -834,7 +818,7 @@ def serve_preview(
         state["serving"] = read_runtime().identity
         prepared_page = None
         if resumed:
-            service = PreviewService(page, user, prepared_claim)
+            service = PreviewService(page, user)
             refresh_preview(source, page, launcher, runtime, state, service)
         else:
             # The fixture owner builds all versions, seed history, data and media
@@ -847,34 +831,39 @@ def serve_preview(
                 staged = Path(raw) / "page"
                 prepared_page = prepare_page(
                     staged,
-                    read_fixture(source, runtime=runtime),
+                    read_fixture(source, runtime=runtime, base=runtime),
                     partial(leaf, launcher, runtime),
                 )
                 mark_preview(source, staged, runtime, user, state["authored"])
                 staged.rename(page)
-            service = PreviewService(page, user, prepared_claim)
+            service = PreviewService(page, user)
         record_run_context(
             page,
             purpose="user-review" if user else "author-preview",
             run=page,
             authored_source=source,
         )
-        with service.starting() as url:
-            pass
-        roots = source_roots(source, page, runtime)
-        watched = watch_paths(source, runtime, roots)
-        changes = watch_changes(watched)
-        if handshake is not None and not handshake.announce({"url": url}):
-            return
-        print(
-            preparation_note(source, prepared_page.data_sources, prepared_page.versions)
-            if prepared_page is not None
-            else f"resumed {source.stem}",
-            end="\n\n",
-            flush=True,
-        )
-        print(service.note, file=sys.stderr, flush=True)
-        print(url, flush=True)
+        # What starting notes rides in the reading printed beneath the URL, in the
+        # same write, so a reader of the log who waits for the URL meets it too.
+        hold()
+        try:
+            with service.starting() as url:
+                pass
+            roots = source_roots(source, runtime)
+            watched = watch_paths(source, runtime, roots)
+            changes = watch_changes(watched)
+            print(
+                preparation_note(
+                    source, prepared_page.data_sources, prepared_page.versions
+                )
+                if prepared_page is not None
+                else f"resumed {source.stem}",
+                end="\n\n",
+                flush=True,
+            )
+            print(f"{url}\n{service.reading(url)}", flush=True)
+        finally:
+            note(*release())
         print(f"Watching {source} and {runtime}; feedback stays in {page}", flush=True)
         while True:
             reported = next(changes)
@@ -921,7 +910,7 @@ def serve_preview(
             # Init can commit a selection even when the following source stamp
             # refuses. Follow the installed layer after every attempt, so that
             # its newly selected packages remain observable while source is fixed.
-            roots = source_roots(source, page, runtime)
+            roots = source_roots(source, runtime)
             try:
                 rebuilt = watch_paths(source, runtime, roots)
             except (ValueError, OSError) as error:
@@ -950,12 +939,6 @@ def serve_preview(
             service.stop()
 
 
-def launching_checkout() -> Path:
-    """The developer checkout that launched this preview, which a selected-runtime
-    worker otherwise can't tell from the checkout it runs in."""
-    return Path(os.environ.get("LEAF_PREVIEW_LAUNCHER_ROOT", ROOT)).resolve()
-
-
 def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) -> None:
     """Become the preview, in the selected checkout's uv environment.
 
@@ -982,61 +965,10 @@ def start_preview_worker(source: Path, page: Path, runtime: Path, user: bool) ->
     # the root as this launcher resolved it, rather than reading a relative setting
     # against a directory of its own.
     os.environ["LEAF_PREVIEWS_ROOT"] = str(page.parent)
-    # The selected runtime owns this worker, and the checkout launching it owns the
-    # session's hooks (`launching_checkout`).
-    os.environ["LEAF_PREVIEW_LAUNCHER_ROOT"] = str(ROOT)
     if user:
         command.append("--user")
     os.chdir(runtime)
     os.execvp(command[0], command)
-
-
-def start_desktop_preview(source: Path, page: Path, runtime: Path, harness) -> None:
-    """Hand the prepared task lifetime to a detached watcher before returning.
-
-    The launcher's adapter lock spans the child's claim publication, just as a
-    foreground serve's does. Readiness includes its input subscription, and the
-    existing detached handshake owns refusal and abandoned-start cleanup.
-    """
-    from leaf.detached import starting_detached
-    from leaf.hosting import server_reading
-    from leaf.service import prepare_claim
-    from leaf.session_runtime import select_launcher
-
-    log = page.with_name(f"{page.name}.log")
-    log.parent.mkdir(parents=True, exist_ok=True)
-    # The checkout launching an explicit user review owns this session's hooks
-    # and delivery, including a comparison whose renderers use other runtimes.
-    # Prepare the lifetime before choosing it, and choose before the adapter.
-    claim = prepare_claim(harness, page)
-    select_launcher(harness.session, launching_checkout() / "bin/leaf")
-    with (
-        harness.preparing_delivery(),
-        starting_detached(
-            [
-                "--source",
-                str(source),
-                "--runtime",
-                str(runtime),
-                "--slot",
-                page.name,
-                "--user",
-                "--worker",
-                "--prepared-claim",
-                json.dumps(claim),
-            ],
-            harness=harness,
-            module="leaf_dev.commands.preview",
-            what=f"the preview for {source}",
-            log=log,
-            cwd=runtime,
-            deadline=time.monotonic() + 120,
-        ) as ready,
-    ):
-        pass
-    print(json.dumps(server_reading(page)), file=sys.stderr, flush=True)
-    print(ready["url"], flush=True)
-    print(f"Watching {source}; detached preview log: {log}", flush=True)
 
 
 @click.command()
@@ -1060,7 +992,9 @@ def start_desktop_preview(source: Path, page: Path, runtime: Path, harness) -> N
 @click.option(
     "--user",
     is_flag=True,
-    help="Hand this preview to a user: claim the page so presses arrive as feedback.",
+    help="Hand this preview to a user: serve its page durably, for this checkout's "
+    "`bin/leaf wait PAGE` to hear, or claimed for the session where its hooks run "
+    "this runtime.",
 )
 @click.option(
     "--export",
@@ -1074,8 +1008,6 @@ def start_desktop_preview(source: Path, page: Path, runtime: Path, harness) -> N
 )
 @base_option()
 @click.option("--worker", is_flag=True, hidden=True)
-@click.option("--prepared-claim", hidden=True)
-@click.option("--handshake", type=int, hidden=True)
 def preview(
     example: str | None,
     source: Path | None,
@@ -1086,8 +1018,6 @@ def preview(
     authored: bool,
     base: str | None,
     worker: bool,
-    prepared_claim: str | None,
-    handshake: int | None,
 ) -> None:
     """Serve an example as a live page, or export it as one file.
 
@@ -1110,41 +1040,13 @@ def preview(
     os.environ.pop("LEAF_HOST_LAUNCHER", None)
     try:
         if worker:
-            from leaf.detached import Handshake
-            from leaf.harness import session_harness
-
             for stop_signal in STOP_SIGNALS:
                 signal.signal(stop_signal, terminated)
             assert source is not None
             source = source.resolve()
             runtime = runtime.resolve()
             page = preview_directory(source, slot, user)
-            if handshake is not None:
-                assert prepared_claim is not None
-                with Handshake(handshake) as announcement:
-                    run_preview(
-                        source,
-                        page,
-                        runtime / "bin" / "leaf",
-                        runtime,
-                        user,
-                        prepared_claim=json.loads(prepared_claim),
-                        handshake=announcement,
-                    )
-            else:
-                harness = session_harness() if user else None
-                if harness and harness.lifetime() == {"chat": True}:
-                    start_desktop_preview(source, page, runtime, harness)
-                else:
-                    if harness:
-                        from leaf.service import prepare_claim
-                        from leaf.session_runtime import select_launcher
-
-                        prepare_claim(harness, page)
-                        select_launcher(
-                            harness.session, launching_checkout() / "bin/leaf"
-                        )
-                    run_preview(source, page, runtime / "bin" / "leaf", runtime, user)
+            run_preview(source, page, runtime / "bin" / "leaf", runtime, user)
         elif export:
             export_preview(*checkout(runtime), authored_source(example, source), slot)
         else:
@@ -1166,7 +1068,6 @@ def serve_versions(source: Path, base: str, authored: bool, user: bool) -> None:
     process of its own (`--base`)."""
     from threading import Thread
 
-    from leaf.harness import session_harness
     from leaf_dev.arms import choose_arms, own_source, run_directory
 
     if authored and not source.is_relative_to(ROOT):
@@ -1174,8 +1075,6 @@ def serve_versions(source: Path, base: str, authored: bool, user: bool) -> None:
     directory = run_directory(ROOT / ".tmp" / "preview-base")
     arms = choose_arms(base, directory)
     prefix = f"{source.stem}-{directory.name}"
-    harness = session_harness() if user else None
-    detached = bool(harness and harness.lifetime() == {"chat": True})
     processes = []
     readers = []
 
@@ -1214,19 +1113,15 @@ def serve_versions(source: Path, base: str, authored: bool, user: bool) -> None:
             reader = Thread(target=output, args=(name, process))
             reader.start()
             readers.append(reader)
-        # A failed arm ends the pair; successful detached startup may exit while
-        # the other arm is still preparing. Polling here never inspects page state.
-        while processes:
-            for process in tuple(processes):
+        # Either arm ending ends the pair. Polling here never inspects page state.
+        while True:
+            for process in processes:
                 code = process.poll()
                 if code is not None:
                     if code:
                         raise click.ClickException(f"preview exited {code}")
-                    if not detached:
-                        return
-                    processes.remove(process)
-            if processes:
-                time.sleep(0.1)
+                    return
+            time.sleep(0.1)
     except KeyboardInterrupt:
         raise SystemExit(130) from None
     finally:
@@ -1251,7 +1146,7 @@ def export_preview(
         page = Path(staging) / "page"
         prepared = prepare_page(
             page,
-            read_fixture(source, runtime=runtime),
+            read_fixture(source, runtime=runtime, base=runtime),
             partial(leaf, launcher, runtime),
         )
         suffix = f"-{slot}" if slot else ""

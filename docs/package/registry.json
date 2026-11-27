@@ -5,7 +5,7 @@
   },
   "header.hero": {
     "description": "A product-page opening with extra room and one larger headline.",
-    "example": "<header class=\"hero\" id=\"top\"><h1>Generative UI for your agent.</h1><p class=\"lede\">The agent builds the page your task needs.</p></header>"
+    "example": "<header class=\"hero\" id=\"top\"><h1>Generative UI for your agent.</h1><p class=\"lf-lede\">The agent builds the page your task needs.</p></header>"
   },
   "footer.site-footer": {
     "description": "The product site's quiet route and license colophon.",

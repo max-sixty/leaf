@@ -1,5 +1,5 @@
 """How a floating box moves as the user edits its words: the margin card's reply, the
-comment box beside a passage and the floating panel's field, which box-motion.js moves.
+comment box beside a passage and the floating panel's field, which dom/box-motion.js moves.
 
 Each change the user makes moves what it moves one way: on each axis, from one input to
 the next, every painted part travels toward where it comes to rest, or stands. A part
@@ -28,11 +28,13 @@ from hypothesis import strategies as st
 from render_cases_interaction import HOLD_MOTION
 from render_harness import open_page, resized, scroll_settled, write
 
-from leaf.render_checks import rendered, wait_for_probe
+from leaf.source.render_checks import rendered, wait_for_probe
+from leaf_dev.browser import text_field
+from leaf_dev.frames import SCRIPT as FRAMES_SCRIPT
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
-MOTION_FRAMES = browser_source("motion_frames.js")
+MOTION_FRAMES = FRAMES_SCRIPT.read_text() + browser_source("motion_frames.js")
 
 # Each box, what opens it with the caret in its field, and its parts (`motion_frames.js`).
 COMPOSERS = {
@@ -73,9 +75,7 @@ def at_rest(page, composer):
 def open_composer(page, composer):
     if composer == "card":
         page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
-        page.locator(".lf-margin-preview").get_by_role(
-            "textbox", name="Reply", exact=True
-        ).click()
+        text_field(page.locator(".lf-margin-preview"), name="Reply", exact=True).click()
     elif composer == "comment":
         page.locator("#open").click(modifiers=["Alt"])
     else:
@@ -109,7 +109,7 @@ def jerks(frames, marks):
     travels, or vibrating. `marks` holds the recorder's input count before each input, so
     a frame belongs to the input whose events it has seen. An input landing while a part
     moves starts its new motion from where that frame draws it, which may carry it on as
-    far as it was going (box-motion.js), so that step is not a turn."""
+    far as it was going (dom/box-motion.js), so that step is not a turn."""
     found = []
     for at, start in enumerate(marks):
         end = marks[at + 1] if at + 1 < len(marks) else float("inf")
@@ -137,9 +137,11 @@ def test_every_part_of_a_floating_box_moves_one_way_per_input(engine, request, s
     painted part of the box travels one way per input on each axis: its outline's
     edges, its controls and its words (`motion_frames.js`)."""
     browser = request.getfixturevalue(engine)
-    url = serve(LOW_PASSAGE_PAGE, events=[LONG_THREAD_ROOT])
 
-    # Each example loads a page, so a failure is reported as drawn rather than shrunk.
+    # Each example serves its own page, so a failure is reported as drawn rather than
+    # shrunk, and no example opens on another's leftovers: the page's server keeps a
+    # field's words as its draft, and a comment box reopened with its draft beside the
+    # low passage takes focus under the panel's row, which folds the panel.
     @settings(
         max_examples=20,
         derandomize=True,
@@ -171,12 +173,11 @@ def test_every_part_of_a_floating_box_moves_one_way_per_input(engine, request, s
         quick=False,
     )
     def moves_one_way(composer, gap, draft, edits, quick):
+        url = serve(LOW_PASSAGE_PAGE, events=[LONG_THREAD_ROOT])
         page = open_page(browser, url, init_script=MOTION_FRAMES)
         page.emulate_media(reduced_motion="no-preference")
         resized(page, 1440, 900)
         field = open_composer(page, composer)
-        # The page's server keeps the words an example typed as its draft, and the next
-        # example's field opens with them, so each writes its own, an empty one included.
         write(field, draft)
         at_rest(page, composer)
         stand_foot(page, composer, gap)
@@ -225,12 +226,12 @@ def test_a_line_removed_among_the_words_moves_only_what_layout_moved(
     composer, engine, request, serve
 ):
     """A line a key takes away from among the words moves only what layout moved, each
-    part one way. The panel and a card stand on their foot, so the words before the line
-    travel down with the box's top edge, setting out from where they stood, and the
-    words after it stand. The comment box beside its passage stands on its top, so the
-    words after the line go up with its rising foot, in the frame the key lands, as
+    part one way. The panel stands on its foot, so the words before the line travel down
+    with the box's top edge, setting out from where they stood, and the words after it
+    stand. The comment box beside its passage and a card stand on their top, so the
+    words after the line go up with the rising foot, in the frame the key lands, as
     layout puts them. The line Shift+Enter adds first takes its place in one frame, as
-    every key that adds words does, so nothing travels (box-motion.js). The property
+    every key that adds words does, so nothing travels (dom/box-motion.js). The property
     test never puts words after the caret, so this one adds and takes away a line with
     two after it: by Backspace at the end of a line, where the change ends inside a
     line; at the start of the next, where it ends at a line's start; and, in the panel,
@@ -290,13 +291,14 @@ def test_a_line_removed_among_the_words_moves_only_what_layout_moved(
             "the removed line moved no words"
         )
         # On a box standing on its foot, the removal's first frame draws every word
-        # where it stood.
+        # where it stood; on one standing on its top, where layout puts it to rest.
+        expected = stood if composer == "panel" else last
         jumped = {
-            part: (stood[part], first[part])
+            part: (expected[part], first[part])
             for part in words
-            if abs(first[part] - stood[part]) > SLACK
+            if abs(first[part] - expected[part]) > SLACK
         }
-        assert composer == "comment" or not jumped, jumped
+        assert not jumped, jumped
 
     write(field, "waits waits while while\nwaits\nwaits waits while while\nwaits")
     page.keyboard.press("ControlOrMeta+Home")

@@ -38,7 +38,8 @@ from render_harness import (
     write,
 )
 
-from leaf import event_log as events_model
+from leaf.log import event_log as events_model
+from leaf_dev.browser import text_field
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -76,7 +77,7 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     page = open_page(browser, serve(OBLIGATION_PAGE))
     option = page.locator("#job-camera")
     form = page.locator("#jobs > .lf-another")
-    field = form.get_by_role("textbox", name="Another option", exact=True)
+    field = text_field(form, name="Another option", exact=True)
     add = form.get_by_role(
         "button", name="Add and select option", exact=True, include_hidden=True
     )
@@ -260,7 +261,7 @@ def test_the_add_field_hands_its_words_to_the_option_it_drew(held_events, serve)
     browser, held = held_events
     page = open_page(browser, serve(OBLIGATION_PAGE))
     form = page.locator("#jobs > .lf-another")
-    field = form.get_by_role("textbox", name="Another option", exact=True)
+    field = text_field(form, name="Another option", exact=True)
     words = "Insulate the camera battery"
     write(field, words)
     form.get_by_role("button", name="Add and select option", exact=True).click(
@@ -309,7 +310,7 @@ def test_a_pick_made_while_an_option_is_in_flight_cannot_strand_it(held_events, 
     browser, held = held_events
     page = open_page(browser, serve(OBLIGATION_PAGE))
     form = page.locator("#jobs > .lf-another")
-    field = form.get_by_role("textbox", name="Another option", exact=True)
+    field = text_field(form, name="Another option", exact=True)
     words = "Insulate the camera battery"
     write(field, words)
     form.get_by_role("button", name="Add and select option", exact=True).click(
@@ -343,7 +344,7 @@ def test_an_added_option_keeps_the_row_its_field_held(browser, serve, group):
     """
     page = open_page(browser, live_url(serve(OBLIGATION_PAGE)))
     form = page.locator(f"#{group} > .lf-another")
-    field = form.get_by_role("textbox", name="Another option", exact=True)
+    field = text_field(form, name="Another option", exact=True)
     write(field, "Ask the neighbours first")
     # The row inside the hairline any cell but the last draws under itself.
     inner = """el => { const r = el.getBoundingClientRect();
@@ -381,7 +382,7 @@ def test_a_keyboard_press_on_add_leaves_the_user_in_the_field(browser, serve):
     control, where the next letters would fall on nothing."""
     page = open_page(browser, live_url(serve(OBLIGATION_PAGE)))
     form = page.locator("#jobs > .lf-another")
-    field = form.get_by_role("textbox", name="Another option", exact=True)
+    field = text_field(form, name="Another option", exact=True)
     write(field, "Ask the neighbours first")
     send = form.locator(".lf-compose-submit")
     send.focus()
@@ -421,7 +422,7 @@ def test_the_add_field_says_why_it_will_not_take_a_pasted_image(browser, serve):
         ),
     )
     form = page.locator("#jobs > .lf-another")
-    field = form.get_by_role("textbox", name="Another option", exact=True)
+    field = text_field(form, name="Another option", exact=True)
     pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
     field.evaluate(PASTE_IMAGE, base64.b64encode(pixels).decode())
 
@@ -512,10 +513,10 @@ def test_on_a_phone_options_draw_no_keys_and_return_adds_a_written_one(browser, 
         "aria-keyshortcuts", re.compile(".")
     )
 
-    field = page.locator("#bracket > .lf-another").get_by_role(
-        "textbox", name="Another option", exact=True
+    field = text_field(
+        page.locator("#bracket > .lf-another"), name="Another option", exact=True
     )
-    expect(field).to_have_attribute("aria-multiline", "false")
+    expect(field).to_have_attribute("one-line", "")
     field.tap()
     page.keyboard.type("Ask the neighbours first")
     page.keyboard.press("Enter")
@@ -622,7 +623,7 @@ def test_firefox_s_copy_of_a_group_builds_no_add_field(firefox_browser, serve):
     page.wait_for_function("copies.length")
     assert page.evaluate("copies") == ["HierarchyRequestError"], (
         "Firefox now clones the range alone: drop `inWindowDocument` from "
-        "widget-upgrade.js and leaf-element.js, and this test"
+        "lib/once.js and lib/leaf-element.js, and this test"
     )
     rendered(page)
 
@@ -645,7 +646,7 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
         f"the add-option cell was not rendered: {shown(page.lf_errors)}; "
         f"group={page.locator('#jobs').inner_html()}"
     )
-    field = added.get_by_role("textbox", name="Another option", exact=True)
+    field = text_field(added, name="Another option", exact=True)
     expect(field).to_have_attribute("placeholder", "Add another option…")
     write(field, "Insulate the camera battery")
     add = added.get_by_role("button", name="Add and select option", exact=True)

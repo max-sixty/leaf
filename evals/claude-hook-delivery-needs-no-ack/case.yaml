@@ -4,7 +4,7 @@
 # Claude Code. Opus 5.5's safeguards can refuse a Claude Code run whose prompt asks
 # for each tool call with its full JSON input, so it asks for the commands
 # instead. The envelope is frozen with `freeze_delivery`: answers name `parent` and
-# `responds`, the format is `leaf-delivery/51`, and ids, page, claim and times are
+# `responds`, the format is `leaf-delivery/59`, and ids, page, claim and times are
 # substituted. The handling is left empty. It is written as the hook writes it
 # (`json_block`).
 description: claude-hook-delivery-needs-no-ack
@@ -17,7 +17,7 @@ vars:
 
     ```json
     {
-     "format": "leaf-delivery/51",
+     "format": "leaf-delivery/59",
      "id": "dc81eabb",
      "created_at": 1791448199.576215,
      "acknowledge": null,
@@ -32,6 +32,7 @@ vars:
          "title": null,
          "anchor": null,
          "detached_from": null,
+         "rewritten_from": null,
          "resolved": null,
          "elided": {
           "messages": 0,

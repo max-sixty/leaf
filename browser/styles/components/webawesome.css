@@ -1,5 +1,5 @@
 /* The vendor's native input sits in a shadow
-   root the layer's own field floor (shadow.css) does not reach, so the same floor
+   root the layer's own field floor (surfaces.css) does not reach, so the same floor
    is passed in as the size the vendor sets its value in: never under --lf-entry-floor,
    and never smaller than the type around it. */
 wa-input {
@@ -38,6 +38,13 @@ wa-comparison::part(lf-focus-visible) {
   outline: var(--lf-focus-ring);
   outline-offset: var(--lf-focus-ring-gap);
 }
+/* A Copy that wears the symbol's face stands its ring where every symbol does, inside
+   its edge (controls.css). The host says so in `--lf-ring-at`, which a part in its
+   shadow tree can't read, since the property doesn't inherit. A Copy in the mark's
+   face stands its ring on the mark (controls.css, `.lf-mark-action`). */
+wa-copy-button.lf-icon-action::part(lf-focus-visible) {
+  outline-offset: var(--lf-focus-ring-inset);
+}
 
 /* A choice among a few views, such as a recording's scope, an image pair's view or a
    dial's depth, is a radio group of buttons (`appearance="button"`) that a widget
@@ -73,9 +80,6 @@ wa-radio[appearance="button"] {
   min-inline-size: 0;
   max-inline-size: 100%;
   box-sizing: border-box;
-  /* Padded inside the pill by less than a control's gap, so its marks stand one band
-     inside its edge, where outside they ran over the pill's rule. */
-  --lf-ring-at: var(--lf-focus-ring-inset);
 }
 wa-radio[appearance="button"]::part(label) {
   white-space: normal;
@@ -88,12 +92,15 @@ wa-radio[appearance="button"][data-lf-focus-visible] {
 }
 
 /* Text and select frames cover their editor and auxiliary controls, including Clear.
-   Their native input/button outlines stay off so a group has one focus carrier. */
-wa-input::part(base lf-focus-visible-within) {
-  outline: var(--lf-focus-ring);
-}
+   Their native input/button outlines stay off so a group has one focus carrier. The
+   ring stands one band inside the frame, over its border, as on Leaf's own presses
+   (tokens.css, "Where it stands"): a frame fills the row it is seated in, so a clip at
+   the row's side would cut a ring standing outside, and the runtime's clip read
+   (`clipsMarks`) never reaches a box in the field's own tree. */
+wa-input::part(base lf-focus-visible-within),
 wa-select::part(combobox lf-focus-visible-within) {
   outline: var(--lf-focus-ring);
+  outline-offset: var(--lf-focus-ring-inset);
 }
 /* An open select's options fill its listbox, which clips what it holds, so the ring on
    the option the user is on, the layer's focus floor (surfaces.css), is inset: outside

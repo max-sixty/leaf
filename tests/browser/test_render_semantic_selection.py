@@ -1,6 +1,5 @@
 """Keyboard semantic-selection browser journeys."""
 
-import json
 import re
 
 import pytest
@@ -14,7 +13,6 @@ from render_cases_widgets import (
     PART_DIAGRAM_PAGE,
 )
 from render_harness import (
-    ROOT,
     available_commands,
     expect_panel_says,
     leaf_page,
@@ -30,8 +28,8 @@ from render_harness import (
     write,
 )
 
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -142,7 +140,7 @@ def test_the_target_picker_reads_no_box_in_a_closed_tab(browser, serve):
     """The picker's map names what the window shows, and a closed tab's panel shows
     nothing, so the map reads none of the boxes in it: the browser lays the panel out
     to answer each read, and on a page of thirty 4 MB text documents in tabs the first
-    map took 7 to 15 s in Firefox, about 270 ms a closed tab (geometry.js,
+    map took 7 to 15 s in Firefox, about 270 ms a closed tab (dom/geometry.js,
     `shownParts`). Its words take a hint once their tab opens."""
     page = open_page(
         browser,
@@ -180,7 +178,7 @@ def test_the_target_picker_reads_no_box_in_a_closed_tab(browser, serve):
     expect(closed).to_be_visible()
     page.keyboard.press("s")
     expect(hints).not_to_have_count(0)
-    # A target's hint stands by its upper-left corner (keyboard/hints.js, `seatHints`).
+    # A target's hint stands by its upper-left corner (readings/key-badges/hints.js, `seatHints`).
     assert page.evaluate(
         """() => {
           const words = document.getElementById('closed-words').getBoundingClientRect();
@@ -296,7 +294,7 @@ def test_s_aims_at_the_addressable_element_named_by_its_hint(browser, serve):
     expect(field).to_have_js_property("value", "s")
     write(field, "Keep this draft")
     page.keyboard.press("Tab")
-    expect(bar.locator('[data-lf-token="keep"]')).to_be_focused()
+    expect(bar.locator('[data-lf-emoji="👍"]')).to_be_focused()
     expect(field).to_be_visible()
     page.keyboard.press("Escape")
     expect(field).to_be_focused()
@@ -343,11 +341,9 @@ def test_a_keyboard_comment_gesture_opens_its_targets_own_draft(browser, serve):
 
 def test_a_selected_target_keeps_escape_when_the_layer_has_no_reactions(browser, serve):
     """Without reactions, the focused composer still takes Escape."""
-    registry = json.loads((ROOT / "packages/default/registry.json").read_text())
-    tokens = {name: None for name in registry["$reactions"]["tokens"]}
     page = open_page(
         browser,
-        serve(TARGETS_PAGE, layer_registry={"$reactions": {"tokens": tokens}}),
+        serve(TARGETS_PAGE, layer_registry={"$reactions": {"emoji": []}}),
     )
     page.keyboard.press("s")
     code = (
@@ -392,7 +388,7 @@ def test_the_panel_field_offers_selected_words_to_a_press_alone(browser, serve):
     )
     expect(offered).to_have_attribute("aria-label", "Comment on the selection")
     page.locator(".lf-fp-leaf").focus()
-    page.keyboard.press("Tab")
+    page.keyboard.press("Shift+Tab")
     expect(field).to_be_focused()
     page.keyboard.type("A page note")
     expect(field).to_have_js_property("value", "A page note")
@@ -501,7 +497,7 @@ def test_dense_selection_hints_stay_short_and_reach_an_atomic_visual(browser, se
     expect(page.locator(".lf-live")).to_contain_text("figure: Visual 0")
 
     # A typed letter hides the chips it rules out and moves none
-    # (keyboard/hints.js), so the narrowed map is the chips still shown.
+    # (readings/key-badges/hints.js), so the narrowed map is the chips still shown.
     shown = page.locator(".lf-target-picker-hint:visible")
     held = shown.evaluate_all("nodes => nodes.map(node => node.dataset.lfHintCode)")
     last = codes[-1]
@@ -661,7 +657,7 @@ def test_target_hints_name_only_addressable_elements_shown_by_a_disclosure(
     expect(hints).to_have_count(32)
 
     # A typed letter hides the chips it rules out and moves none
-    # (keyboard/hints.js), so the narrowed map is the chips still shown.
+    # (readings/key-badges/hints.js), so the narrowed map is the chips still shown.
     shown = page.locator(".lf-target-picker-hint:visible")
     held = shown.evaluate_all("nodes => nodes.map(node => node.dataset.lfHintCode)")
     tail = next(code for code in held if len(code) > 1)
@@ -886,7 +882,7 @@ def test_n_repeats_the_last_page_search_in_either_direction(browser, serve):
     )
     page.keyboard.press("Enter")
     expect(page.locator(".lf-live")).to_contain_text(
-        "Press n for next, Shift+n for previous, or c to comment"
+        "Selected. n or Shift+n next / previous match, c comment on the selection"
     )
 
     selected_in = """() => {
@@ -1606,7 +1602,7 @@ def test_page_search_skips_hidden_words_but_reaches_disclosures(browser, serve):
 
 def test_page_search_counts_the_words_an_off_screen_box_skips(browser, serve):
     """A word the browser skips in an off-screen `content-visibility: auto` box, as a
-    long text document's runs are, counts by that box (passages.js,
+    long text document's runs are, counts by that box (readings/passages.js,
     `searchableWords`): every line of the document, and the author's far box's words,
     less those under a `hidden` element in it. A box that is `visibility: hidden`
     still counts a word that restores `visibility: visible`. `leaf-dev bench document

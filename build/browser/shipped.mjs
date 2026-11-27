@@ -17,7 +17,7 @@
  * the served layout rather than of the bundle, and capturing a revision refuses a
  * missing one (`revision_artifact.captured_imports`).
  */
-import { readdirSync, readFileSync, statSync } from "node:fs";
+import { existsSync, readdirSync, readFileSync, realpathSync, statSync } from "node:fs";
 import path from "node:path";
 import { parse } from "acorn";
 
@@ -61,27 +61,71 @@ export function checkModule(source, name = "<module>") {
   visit(parsed);
 }
 
+/** The package directory an input path sits in, or undefined outside `node_modules`. */
+function packageRoot(input, cwd) {
+  const at = input.lastIndexOf("node_modules/");
+  if (at === -1) return undefined;
+  const parts = input.slice(at).split("/");
+  const name = parts.slice(0, parts[1].startsWith("@") ? 3 : 2);
+  return path.resolve(cwd, input.slice(0, at), ...name);
+}
+
+/** The directory Node resolves a dependency `name` of the package at `root` to. */
+function dependencyRoot(root, name) {
+  for (let dir = root; dir !== path.dirname(dir); dir = path.dirname(dir)) {
+    const candidate =
+      path.basename(dir) === "node_modules"
+        ? path.join(dir, name)
+        : path.join(dir, "node_modules", name);
+    if (existsSync(path.join(candidate, "package.json")))
+      return realpathSync(candidate);
+  }
+  return undefined;
+}
+
 /**
  * Each package directory whose code an esbuild metafile says reached an output.
  *
  * The metafile's top-level `inputs` also lists every file the bundler read and then
  * shook out entirely, such as the HTML, CSS, and JavaScript grammars CodeMirror's
  * Markdown package imports; an output's own `inputs` with bytes in it does not.
+ *
+ * A package can also ship a prebuilt file with its dependencies already inlined, as
+ * Plot's `dist/plot.js` carries `interval-tree-1d` and `d3-array`'s carries
+ * `internmap`. The bundler never opens such a dependency, so no input names it, and
+ * nothing in the build tells it apart from a declared dependency that ships nowhere,
+ * such as the server shim `lit-element` declares. So the caller names the inlined
+ * packages in `inlined`, and a package it names counts as reached wherever a reached
+ * package declares it.
  */
-export function bundledPackages(metafile, cwd) {
-  const roots = new Set();
-  const reached = Object.values(metafile.outputs).flatMap((output) =>
-    Object.entries(output.inputs)
-      .filter(([, input]) => input.bytesInOutput > 0)
-      .map(([name]) => name),
+export function bundledPackages(metafile, cwd, inlined = []) {
+  const roots = new Set(
+    Object.values(metafile.outputs).flatMap((output) =>
+      Object.entries(output.inputs)
+        .filter(([, input]) => input.bytesInOutput > 0)
+        .map(([name]) => packageRoot(name, cwd))
+        .filter(Boolean),
+    ),
   );
-  for (const input of reached) {
-    const at = input.lastIndexOf("node_modules/");
-    if (at === -1) continue;
-    const parts = input.slice(at).split("/");
-    const name = parts.slice(0, parts[1].startsWith("@") ? 3 : 2);
-    roots.add(path.resolve(cwd, input.slice(0, at), ...name));
+  const wanted = new Set(inlined);
+  const found = new Set();
+  const pending = wanted.size > 0 ? [...roots] : [];
+  while (pending.length > 0) {
+    const root = pending.pop();
+    const manifest = JSON.parse(readFileSync(path.join(root, "package.json"), "utf8"));
+    for (const name of Object.keys(manifest.dependencies ?? {})) {
+      if (!wanted.has(name)) continue;
+      const dependency = dependencyRoot(root, name);
+      if (dependency === undefined) continue;
+      found.add(name);
+      if (roots.has(dependency)) continue;
+      roots.add(dependency);
+      pending.push(dependency);
+    }
   }
+  const missing = [...wanted].filter((name) => !found.has(name));
+  if (missing.length > 0)
+    throw new Error(`no reached package depends on the inlined ${missing.join(", ")}`);
   return [...roots].sort();
 }
 

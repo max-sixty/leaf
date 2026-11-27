@@ -2,7 +2,7 @@
  * draw Leaf's control faces onto the controls a page writes itself.
  *
  * Leaf's sheets need no build: layer composition and the serving runtime place each
- * `@import` of a file beside them inline (`leaf.layer.stylesheet`). A dependency's
+ * `@import` of a file beside them inline (`leaf.source.layer.stylesheet`). A dependency's
  * sheet lives in `node_modules`, which an install doesn't have, so esbuild resolves its
  * imports here at contributor build time and the result is committed beside the sheet
  * that imports it. The faces of a page's own controls are a projection of Leaf's,
@@ -18,14 +18,14 @@ const root = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
 const NATIVE = "node_modules/@awesome.me/webawesome/dist/styles/native.css";
 
-/** Leaf owns the type and the focus band of every control (surfaces.css), and its
- * motion (`--lf-motion-*`), so the rules taken from a dependency leave these
- * properties out. A transition would also report a control's old colour to whatever
+/** Leaf owns the type and the focus band of every control (control-face.css,
+ * surfaces.css), and its motion (`--lf-motion-*`), so the rules taken from a dependency
+ * leave these properties out. A transition would also report a control's old colour to whatever
  * reads it during the fade, as a test reading a state just set does. */
 const LEAF_OWNS = /^(font|line-height|outline|transition)(-|$)/;
 
 /** A control a page writes itself: one Leaf didn't build (`data-lf-offer`,
- * element-markers.js) and that doesn't stand in Leaf's chrome. */
+ * lib/controls.js) and that doesn't stand in Leaf's chrome. */
 const PAGE_CONTROL = ":not([data-lf-offer], .lf-chrome *)";
 
 /** Leaf's control faces, as a page's own controls wear them: a word is a button, the
@@ -436,7 +436,7 @@ function declared(declaration) {
 /** A dependency's whole sheet, bundled, with only its custom properties: the tokens its
  * components read. Its rules for the document, such as Web Awesome's root colour,
  * colour scheme and sans and its page frame, stay out, so a page without Leaf can
- * take the tokens at its root (`leaf.layer.portable_sheet`) and keep its own look.
+ * take the tokens at its root (`leaf.source.layer.portable_sheet`) and keep its own look.
  * @param {string} source */
 async function sheet(source) {
   const { build } = await import("./esbuild.mjs");

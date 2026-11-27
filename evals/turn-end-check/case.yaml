@@ -1,4 +1,4 @@
-# The turn-end check (`src/leaf/clerk.py`), replayed on a short conversation written
+# The turn-end check (`src/leaf/agents/clerk.py`), replayed on a short conversation written
 # for each decision its prompt asks about, each with a guardrail whose right answer
 # names nothing. Run every case with `uv run leaf-dev eval run 'turn-end-check*'
 # --harness claude-code`; inputs, labels and rubrics are in
@@ -24,6 +24,10 @@ variants:
     metadata:
       scenario: ask-permission
       purpose: A merge the agent's reply leaves to the user, telling them to run a command in the session for it, goes On Me as a choice to merge or hold off, since the agent merges on their word.
+  ask-permission-named:
+    metadata:
+      scenario: ask-permission-named
+      purpose: A merge the agent's closeout names by number and by code is asked by what the change does, so the user can decide from the card alone.
   ask-step:
     metadata:
       scenario: ask-step
@@ -44,6 +48,10 @@ variants:
     metadata:
       scenario: ask-on-me
       purpose: A question the reply asks, which an On Me item already holds, isn't asked again.
+  ask-held:
+    metadata:
+      scenario: ask-held
+      purpose: A choice the user answered with a question, which the agent restates in chat, isn't asked again, since the page still holds it for the agent's answer.
   ask-answered:
     metadata:
       scenario: ask-answered

@@ -1,0 +1,9 @@
+lf-test-review {
+  display: block;
+}
+/* Room below what the outlet holds, as a discussion's own padding gives it, so the
+   outlet's foot can stand under the floating panel's row while the comment box's
+   field stands clear of it. */
+.test-threads {
+  padding-block-end: 4rem;
+}

@@ -10,9 +10,11 @@ from render_cases_interaction import (
 )
 from render_harness import open_page, panel_field, told
 
-from leaf import leases as leases_model
-from leaf import service as service_model
-from leaf import thread as thread_model
+from leaf.agents import thread as thread_model
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.commands.session import set_status
+from leaf.records import transaction as transaction_model
 
 
 def said(page):
@@ -29,7 +31,7 @@ def test_a_reply_asking_the_user_is_heard_whole_and_shown_as_the_question(
     url = serve(PANEL_PAGE)
     root = panel_comment(serve.page_dir, "What should change?")
     page = open_page(browser, url)
-    toggle = page.locator(".lf-fp-on-user")
+    toggle = page.locator(".lf-fp-leaf")
     toggle.focus()
     expect(toggle).to_be_focused()
     said(page).not_to_have_attribute("data-lf-says", "notice")
@@ -53,7 +55,7 @@ def test_a_reply_asking_the_user_is_heard_whole_and_shown_as_the_question(
 def test_a_new_agent_comment_is_announced_without_moving_focus(browser, serve):
     """An agent's new comment is heard, and the panel's seat keeps the agent's status."""
     page = open_page(browser, serve(PANEL_PAGE))
-    toggle = page.locator(".lf-fp-on-user")
+    toggle = page.locator(".lf-fp-leaf")
     toggle.focus()
     expect(toggle).to_be_focused()
     said(page).not_to_have_attribute("data-lf-says", "notice")
@@ -102,8 +104,8 @@ def test_interrupted_live_response_announces_its_exact_attempt(browser, serve, r
     assert lease
     request.addfinalizer(lease.close)
     attempt = service_model.delivery_reply_attempt("delivery-interrupted")
-    with service_model.PageTransaction(serve.page_dir) as transaction:
-        transaction.set_status("waiting")
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
+        set_status(transaction, "waiting")
         transaction.set_stream_reply(
             "codex-thread",
             "leaf-turn",
@@ -116,7 +118,7 @@ def test_interrupted_live_response_announces_its_exact_attempt(browser, serve, r
     page = open_page(browser, url)
     said(page).not_to_have_attribute("data-lf-says", "notice")
 
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         assert transaction.set_stream_reply_state(
             "codex-thread", "leaf-turn", attempt, "Draft", "interrupted"
         )

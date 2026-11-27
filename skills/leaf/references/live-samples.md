@@ -132,23 +132,20 @@ document, then pass a complete HTML document as `source`:
 import { mountSample } from "/runtime/widget-api.js";
 
 const host = await mountSample(frame, { source });
-const fit = ({ height }) => {
-  frame.style.height = `${height}px`;
-};
-host.on("height", fit);
-fit(await host.ready);
+await host.ready;
 ```
 
-The source uses the layer the parent's revision selects and its captured files. Leaf checks it as an ordinary
+The host gives the frame the sample's height, and holds a resize the user didn't ask
+for while it would move what they are reading, so set no height on the frame. The
+source uses the layer the parent's revision selects and its captured files. Leaf checks it as an ordinary
 page before serving it, and its native controls use an independent, temporary event
 log. The iframe has an opaque origin: it cannot read the surrounding page's DOM or
 credentials. Generation happens in the parent; a sample cannot call `generate()`.
 
-`source` and `template` are alternatives. Pass `{template: "authored-template-id"}` to
-mount a declared template through the same API, or `{window: true}` alongside either
-source to keep a fixed viewport. The returned host has `ready`, `reset()`, `destroy()`
-and `on(type, callback)`; the latter returns an unsubscribe function. Reset starts a
-fresh child from the same source, and removing the iframe destroys its child.
+`source` and `template` are alternatives: `{template: "authored-template-id"}` mounts a
+declared template through the same API. `module-authoring.md`, "Contained examples and
+scoped appearance", gives `mountSample`'s `window` option and the host it returns. Reset
+starts a fresh child from the same source, and removing the iframe destroys its child.
 
 `ready` resolves after Leaf upgrades the interface and rejects if startup fails.
 It does not establish that the generated widget meets the user's request.

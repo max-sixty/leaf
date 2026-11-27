@@ -12,9 +12,9 @@ from render_harness import (
     write,
 )
 
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
+from leaf.source.render_checks import rendered
 
 EDITOR_INSPECTION = """(() => {
   const attach = Element.prototype.attachShadow;
@@ -146,8 +146,11 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
     owner = page.locator(selector)
     editor = owner.locator("leaf-text")
     rendered(page)
+    # A seated card's reply box stands at most the margin card's width, so widening the
+    # window sheds only a sixth of the narrow box's lines: the draft is long enough that
+    # this is two lines or more in any platform's fonts.
     draft = (
-        "A stable native draft that wraps at the narrow width. " * 8
+        "A stable native draft that wraps at the narrow width. " * 16
         if edit.startswith("resize")
         else "First line\n\n\n\n"
     )
@@ -276,17 +279,17 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
             # Two tabs writing one draft keep the first write, so the other tab
             # writes over the composing words only once it has heard them.
             other.evaluate(
-                "async () => { window.loadDraft = (await window.__lfWidgetApi()).loadDraft; }"
+                "async () => { window.draft = (await window.__lfWidgetApi()).draft; }"
             )
             other.wait_for_function(
-                "parent => window.loadDraft('reply:' + parent)?.text === 'Composing'",
+                "parent => window.draft('reply:' + parent).read()?.text === 'Composing'",
                 arg=parent,
             )
         # The other tab's words reach this one through the page's server.
         other.evaluate(
             """async parent => {
-              const {saveDraft} = await window.__lfWidgetApi();
-              saveDraft('reply:' + parent, 'First line');
+              const {draft} = await window.__lfWidgetApi();
+              draft('reply:' + parent).save('First line');
             }""",
             parent,
         )
@@ -328,21 +331,23 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
         expect(editor).to_have_js_property("value", "First line")
         if edit == "mirrored":
             # The other tab, still holding the tall draft, mirrors these words in turn.
+            # Its moves are judged once they have painted, so the judgement waits for
+            # the words to reach it.
+            expect(other.locator(selector).locator("leaf-text")).to_have_js_property(
+                "value", "First line"
+            )
             consume_moves_below_the_reply(other)
         return
 
-    # A margin card beside its passage holds its reply's foot while the user types in
-    # it, so the line being edited stays and the first line comes down to it; a seat
-    # holds the first line.
-    def held(box):
-        return box["y"] + box["height"] if place == "margin" else box["y"]
-
+    # A seat holds the reply's first line, and so does a margin card beside its
+    # passage while the user types in it: the lines taken away shorten the box from
+    # its foot.
     before = editor.bounding_box()
     for _ in range(4):
         page.keyboard.press("Backspace")
         rendered(page)
         now = editor.bounding_box()
-        assert held(now) == pytest.approx(held(before), abs=0.5), (before, now)
+        assert now["y"] == pytest.approx(before["y"], abs=0.5), (before, now)
     assert now["height"] < before["height"] - 50, (before, now)
     expect(editor).to_have_js_property("value", "First line")
     expect(editor).to_be_focused()
@@ -465,7 +470,7 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
         selector = "lf-diff .lf-page-thread"
     url = serve(authored)
     if place not in ("margin", "panel"):
-        data_model.cmd_data_set(
+        page_data_model.cmd_data_set(
             serve.page_dir,
             "change",
             'diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-return "old"\n+return "new"\n',
@@ -493,11 +498,9 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     draft = panel_field(page) if place == "panel" else owner.locator("leaf-text")
     expect(draft).to_be_visible()
     if place == "nested-end":
-        page.evaluate("""async () => {
-          const body = document.querySelector('#continuity-scroll');
-          const {registerReadingRegion} = await window.__lfWidgetApi();
-          registerReadingRegion({id: 'continuity-scroll', host: body, body});
-        }""")
+        page.locator("#continuity-scroll").evaluate(
+            "body => body.setAttribute('data-lf-scroll', 'continuity')"
+        )
     held = []
 
     def hold(route):
@@ -526,10 +529,12 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
             const {left, top, bottom} = subject.getBoundingClientRect();
             return {left, top, bottom, centerY: (top + bottom) / 2};
           };
-          // An empty diff reply rests as the Reply field, without a visible button.
-          const action = [...node.querySelectorAll('.lf-compose-submit, .lf-compose-dictate')]
-            .find(button => button.checkVisibility()) ?? node.querySelector('leaf-text');
-          const pose = {action: rect(action),
+          // An empty diff reply rests as the Reply field, without a visible button, and
+          // so does the panel's once its send has landed the user on the thread's view.
+          const press = [...node.querySelectorAll('.lf-compose-submit, .lf-compose-dictate')]
+            .find(button => button.checkVisibility());
+          const action = press ?? node.querySelector('leaf-text');
+          const pose = {action: {...rect(action), press: Boolean(press)},
             tail: rect(document.querySelector('#continuity-tail'))};
           const close = document.querySelector('.lf-margin-preview-close');
           if (close?.checkVisibility()) pose.close = rect(close);
@@ -575,6 +580,11 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
         assert draft.evaluate("node => node.scrollHeight <= node.clientHeight + 0.5")
         restored = pose()
         for node in pending:
+            if node == "action" and not pending[node]["press"]:
+                # The send landed the user on the view, so nothing stood in the
+                # reply's corner, and the words handed back bring no Send until the
+                # user is back in the reply.
+                continue
             # Dictate and Send share an aim, but Send is shorter under a mouse.
             edges = ("left", "centerY") if node == "action" else pending[node]
             for edge in edges:
@@ -585,7 +595,7 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     else:
         # A card gives the refused turn's room back too, and its field grows to show
         # the words whole: the reply box, and the page after it, move. A margin card
-        # holds its top through a send (`heldEdge`, thread-preview.js), so its reply
+        # holds its top through a send (`keptLine`, thread-preview.js), so its reply
         # box rises into that room while its head row stands still.
         def carried_by_card(problem):
             return problem.code == "moved-without-input" and any(

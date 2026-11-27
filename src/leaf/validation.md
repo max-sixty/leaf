@@ -5,13 +5,14 @@ directly:
 
 - an event, whether a browser posted it or a command wrote it, at the append door
   ([events.md, "Admission"](events.md#admission));
-- a page's authored source at `check_source` (`validation/source.py`), which `page
-  check`, activation, `page stamp` and `page init` all run ("Static validation");
-- the HTML in an agent's message at `admission.check_markup`, which applies the same
-  structure and vocabulary checks to the markup the message draws
-  (`passages.message_markup`);
-- a layer at `composition.incoming_registry`, wherever a Leaf composes its files:
-  `page init`, `page check`, serving and export, but not reading the page
+- a page's authored source at `check_source` (`records/authored_checks/source.py`), which
+  `page check`, activation, `page stamp` and `page init` all run ("Static
+  validation");
+- the HTML in an agent's message at `authored_checks.admission.check_markup`, which
+  applies the same structure and vocabulary checks to the markup the message draws
+  (`passages.message_markup`) and notes its advice beside the command's result;
+- a layer at `registry.validation.incoming_registry`, wherever a Leaf composes its
+  files: `page init`, `page check`, serving and export, but not reading the page
   ([layer-registry.md](layer-registry.md));
 - what only a browser can see at `page check --render` ("Browser validation").
 
@@ -20,8 +21,10 @@ directly:
 The static check reads the exact `index.html` with no browser. It is deterministic and
 near-free, which is what makes running it on every save affordable, so keep a new
 check that way and put anything needing a browser in the browser half. The rules live
-in `validation/source.py` and `validation/markup.py`; these are the decisions behind
-them:
+in `records/authored_checks/source.py`, which reads the source and its capture,
+`records/authored_checks/documents.py`, the gate the page's document and each sample's
+child pass, and `records/markup_checks/`, the markup rules either applies; these are
+the decisions behind them:
 
 - Page code may be any script, classic or module, inline or a file, with its literal
   local import graph under `/page/`. Delivery defers a classic script and drops
@@ -35,8 +38,8 @@ them:
 - The runtime's `lf-` and `data-lf-` namespaces are reserved, for names it uses now
   and later, but for the classes the kernel's idioms name
   (`structure.AUTHORED_CLASSES`), which a page writes to take what the idiom offers.
-  No id takes the shape of a logged event id (`schema.EVENT_ID`), since a
-  command's ID names a widget or a message in one address space.
+  No id is one the log already gives an event (`event_log.logged_ids`), since
+  a command's ID names a widget or a message in one address space.
 - Historical references never veto a revision: wording, placement, subjects and
   vocabulary may all change. The check reports the threads that move (events.md,
   "Anchors"), and activation records them in the same page transaction as the
@@ -46,12 +49,12 @@ them:
   Each problem has one owner. The document's markup is the markup rules'. The
   capture owns what delivery can't deliver: each reference, a `/media/` file the
   page won't answer, whether markup or a stylesheet names it, and CSS that
-  delivery's own reader (`revision_artifact._read_css`) can't read, in a file or
+  delivery's own reader (`styles._read_css`) can't read, in a file or
   any sheet delivery rewrites in the document, which the capture finds by
   delivery's own walk (`structure.delivered_elements`), templates and shadow roots
   included. What that reader reads whole but a browser drops, such as `broken;`
-  in a rule, the source check reports as `css-dropped` advice, a severity
-  `styles.DROPPED_SEVERITY` sets alone. A message, which no capture
+  in a rule, the source check reports as `css-dropped` advice
+  (`styles.dropped_css`). A message, which no capture
   reads, asks what the capture would refuse at its own gate
   (`revision_artifact.uncaptured_errors`).
 
@@ -59,35 +62,40 @@ The effective registry is validated only where it differs from the active revisi
 captured copy. A layer's sheets and modules are validated wherever a Leaf composes
 its files (`layer-registry.md` says where).
 
+An authored `commandfor` is checked as a reference is, and its `command` for one the
+browser delivers (`markup_checks.instances.invoker_errors`), since the browser reports
+nothing for a button that reaches no element.
+
 A reference to a thread, such as a widget's `resolves`, is checked against the thread
 ids the log holds (`thread_context.thread_ids`), including a thread whose opening
 comment the log lost. A live sample template's child is checked as a page against its
 initial history wherever the template is declared, in the page or in a message's
-markup (`validation.source.sample_errors`; `sample_content.py` builds that
-history). A `data-sample-threads` thread the parent's log does not hold yet leaves the
-child without it, so a first version may name threads whose seed log is unwritten.
-Corpus generation composes from the shipped log, so there a missing thread is a
-mistake in the declaration and is refused.
+markup (`authored_checks.documents.sample_errors`, which builds that history with
+`initial_sample_events`). A `data-sample-threads` thread the parent's log does not
+hold yet leaves the child without it, so a first version may name threads whose seed
+log is unwritten. Corpus generation composes from the shipped log, so there a missing
+thread is a mistake in the declaration and is refused.
 
 Which writes check and publish the saved source is the writer's: progress and failure
 replies use the active revision, a detach still checks the saved source, and a
 successful reply publishes the source it checked (`thread._compose_and_append`, and
-`revisioning.py`'s header for how a publication and its anchor moves land together).
+`revision_publication.py`'s header for how a publication and its anchor moves land
+together).
 
 ### Page code
 
 Plain `page check` runs one browser reading as well. A page that runs code of its own,
 or places a data widget or a widget naming page media, is run once, and fails on each
 `error` event its runtime posts, the same events `leaf wait` delivers
-(`render_gate/page_code.py`). A thread command runs message markup placing one of those
+(`pages/render_gate/page_code.py`). A thread command runs message markup placing one of those
 widgets the same way before it posts, apart from the page lease, and refuses it on the
-same reports (`render_gate/command.message_check`); markup without one waits on no
+same reports (`pages/render_gate/messages.message_check`); markup without one waits on no
 browser.
 
 Leaf runs without a browser. Where the host has none, every browser gate (this run,
 `--render` and `package check --render`) is skipped with a note and leaves the status
 alone, since the page posts the same `error` events whenever a browser draws it
-(`render_gate/command.run_in_browser`).
+(`pages/render_gate/command.run_in_browser`).
 
 ## Delivery policy
 
@@ -113,12 +121,12 @@ become a script module.
 ## Browser validation
 
 `page check --render` loads the exact current source in the host's browser once
-before a page's URL is first handed over (`render_gate/browser.py` says which browser
+before a page's URL is first handed over (`pages/render_gate/browser.py` says which browser
 and why). It refuses a version only for a fault its author can fix by editing the
 page; a fault in Leaf's own chrome or theme belongs in the suite
-(`render_gate/readings.py`, header). Another live Leaf page the page frames is checked
+(`pages/render_gate/readings.py`, header). Another live Leaf page the page frames is checked
 on its own, so the gate shows a stand-in in its frame
-(`render_gate/scheme.stand_in_other_leaves`). `render_gate/version.render_version` is
+(`pages/render_gate/scheme.stand_in_other_leaves`). `pages/render_gate/version.render_version` is
 the one implementation the command and the `tests/*/test_render_*.py` modules call
 over the shipped examples, and `_render_version_attempt`'s docstring lists what it
 reads. Its desktop is the window of the browser that last reported viewing the page,
@@ -130,7 +138,7 @@ Firefox driven as an installed one; the end-to-end render-check tests cover the 
 the command uses.
 
 The page's server runs the same check on a version the agent hands over, and tells the
-agent what is new in a `render` event (`render_gate/handover_pass.py`).
+agent what is new in a `render` event (`handover_pass.py`).
 
 Every widget output published during the check, including one subsequently withdrawn
 or published by a disposed sample, is validated against its data contract. A failure
@@ -145,8 +153,12 @@ Every check behind `page check` reports a record (`findings.py` owns its fields 
 words), and the browser probes return those records rather than sentences.
 
 A render reading gets screens for its author to read, including when it reports
-findings (`render_gate/screens.py`).
-They are the command's, so the suite takes none.
+findings (`pages/render_gate/screens.py`). A screen is taken of a ready page. A reading that
+stopped early, as at a page that cannot start, or that found the page never got ready,
+gets none, because the page would be no readier for a screen. A page that is not ready
+when the check opens it for a screen, as one whose module fails only on a phone, fails
+the check with a `not-ready` finding, and the check saves no screens. Screens are the
+command's, so the suite takes none.
 
 The gate serves its probe modules and the runtime they import from the Leaf running
 the command (`runtime_selection.py`), so the probes always meet the runtime they were
@@ -154,29 +166,35 @@ written for.
 
 ## Passages
 
-The browser resolves an anchor and records it in the log, so `leaf thread create` reads
-the active revision's file the way the anchor pass reads the DOM. `passages.py`'s
-header comment owns that reading: what the registry's `verbatim` and `retired-when`
-contribute, and where a fence stops a quote. Both runtimes take
-whitespace collapse from the kernel's `$passages`.
+The browser is the one reader of a stored quote's words: it finds them in the page it
+draws (`readings/anchor-resolution.js`, `resolveAnchor`), and stands a quote it can't
+place once on its section, or nowhere without one. A selection's anchor carries the
+context that tells its copy apart, as an agent's does where Leaf's reading of the files
+finds the words once. Without context, only a sole copy answers a quote (`findQuote`).
 
-A quote never spans a fence, so a passage the file cannot read is refused when the
-comment is written rather than detaching later in the user's browser; anchor on the
-widget's element (`--section`) instead. A file-side quote must also be unique in its
-declared section, and widget source, retired text and repeated passages are refused.
-Direct members declared by `owners` with `content: markup` retain their own prose
-reading inside a data widget; the rest of its source body remains withheld. A widget
-preserves those authored member nodes independently of its source rendering.
+`leaf thread create` checks what the files settle, the `--section` it names, and
+stores the quote as given. It also reads the active revision's file the way the anchor
+pass reads the DOM, as evidence: where that reading finds the words once, the anchor
+stores the words beside them and, when the agent named none, their enclosing section,
+and where it finds them zero or several times, the command notes where the page shows
+the thread if it doesn't show them once either (`anchor_capture.capture_anchor`,
+`unplaced-quote`). A revision moves an open thread to its section where that reading
+finds its quote in the predecessor and not in the candidate
+(`source_history.revision_reanchors`). `passages.py`'s header comment owns
+the reading: what the registry's `verbatim` and `retired-when` contribute, and where a
+fence stops a quote. Both runtimes take whitespace collapse from the kernel's
+`$passages`. Direct members declared by `owners` with `content: markup` retain their own
+prose reading inside a data widget; the rest of its source body remains withheld. A
+widget preserves those authored member nodes independently of its source rendering.
 Runtime anchors were resolved against rendered words, so admission does not recapture
 them.
 
-The render gate holds each `verbatim` owner to the file reading
-(`readings._verbatim_findings`). It pairs each owner with its source by document-order
-occurrence, so no authored id is needed, and compares the rendered words with the
-passage a user can point at: user body rewrites in force replace authored words,
-retired slots contribute none, and declared generated children join their owner. Page
-markup is read at the rendered revision, and thread markup over its thread's
-whole action window.
+A visual part an agent names (`thread create --part`) passes where its visual's
+declaration admits the id (`registry.contract.visual_parts`), and is then checked
+against what the page drew of that visual: the page's render reading of the version and
+data it shows (`render_reading.py`), or else a drawing the command makes itself
+(`pages/render_gate/drawn_anchor.py`). `anchor_capture.drawn_part` says which parts each
+drawing admits.
 
 ## Parsed source
 
@@ -190,5 +208,5 @@ Immutable inputs are read once for as long as the process keeps the page's memor
 (`page_memory`): a stored revision through `revision_artifact.read_revision`, a
 candidate through the one `SourceReading` its check takes, which the revision it
 activates adopts, and each logged wording's markup through
-`thread_context.logged_fragment`. Markup a writer hands in is parsed afresh at its
+`events.logged_fragment`. Markup a writer hands in is parsed afresh at its
 gate.

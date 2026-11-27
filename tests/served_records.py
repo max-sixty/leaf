@@ -10,14 +10,15 @@ reading the browser holds, each beside that reading and the whole answer;
 `obligation_values` holds typed values
 folded by Python for comparison with the browser; `state_definitions` holds the
 operation definitions Python records, for the browser's comparison of them; `readings`
-holds whole served readings whose premise is the case under test. `served.mjs` reads this output directly, so its
+holds served readings whose premise is the case under test, each its threads, workflows
+and obligation records. `served.mjs` reads this output directly, so its
 assertions always consume this checkout's server rather than a recorded copy.
 """
 
 import json
 from pathlib import Path
 
-from interact_support import model_layer, served_thread
+from interact_support import model_layer
 from model_folds import (
     NOW,
     UNCLAIMED,
@@ -27,26 +28,30 @@ from model_folds import (
     served_reading,
 )
 
-from leaf.event_log import EventRefused
-from leaf.passages import SourceReading
-from leaf.projection import (
+from leaf.log.event_log import EventRefused
+from leaf.log.projection import (
     AuthoredOrders,
     StateProjection,
     attribute_marks,
     authored_rank,
     obligation_value,
 )
-from leaf.registry.contract import state_definition
-from leaf.structure import SourceDocument
+from leaf.source.reading import SourceReading
+from leaf.source.registry.contract import state_definition
+from leaf.source.structure import SourceDocument
 
 PAGE = leaf_page("Served records", '<h1 id="h">Steps</h1><p id="p">Two steps.</p>')
 
 
 def _served(events: tuple[dict, ...]) -> dict:
+    """The threads, workflows and obligation records one log's reading serves, so a
+    thread's `attention`, the id of the record that speaks for it, joins its record."""
     state = served_reading(PAGE, events)
+    [view] = state["browser"]["views"].values()
     return {
-        "threads": served_thread(state["browser"])["threads"],
+        "threads": view["thread"]["threads"],
         "workflows": state["workflows"],
+        "obligations": view["obligations"],
     }
 
 
@@ -101,6 +106,7 @@ BOTH_SIDES = (
         "widget": "ship",
         "action": "choose",
         "detail": {"value": ["ship-now"]},
+        "answered": True,
     },
     {
         "kind": "pickup",
@@ -149,9 +155,10 @@ REWRITTEN_TWICE = (
     {"kind": "edit", "message": "e1", "text": "Chart 2026."},
 )
 
-# A reaction the agent answered, and the user's own reaction on that answer.
+# A reaction the agent answered, the user's own reaction on that answer, and the
+# agent's answer to it.
 ANSWERED_REACTION = (
-    {"kind": "comment", "token": "change"},
+    {"kind": "comment", "emoji": "❌"},
     {
         "kind": "reply",
         "author": "agent",
@@ -159,7 +166,14 @@ ANSWERED_REACTION = (
         "parent": "e1",
         "text": "Which part?",
     },
-    {"kind": "reply", "parent": "e2", "token": "keep"},
+    {"kind": "reply", "parent": "e2", "emoji": "👍"},
+    {
+        "kind": "reply",
+        "author": "agent",
+        "agent": "Agent",
+        "parent": "e3",
+        "text": "Keeping it.",
+    },
 )
 
 # A reply the user sent in a thread, and the agent's answer to it.
@@ -285,7 +299,7 @@ def build() -> dict:
             **{
                 name: _served(
                     (
-                        {"kind": "comment", "token": "change"},
+                        {"kind": "comment", "emoji": "❌"},
                         {
                             "kind": "todo",
                             "author": "agent",
@@ -309,8 +323,8 @@ def build() -> dict:
             **{
                 name: _served(
                     (
-                        {"kind": "comment", "token": "change"},
-                        {"kind": "reply", "parent": "e1", "token": "keep"},
+                        {"kind": "comment", "emoji": "❌"},
+                        {"kind": "reply", "parent": "e1", "emoji": "👍"},
                         {"kind": "undo", "undoes": "e1"},
                         *tail,
                     )
@@ -325,6 +339,10 @@ def build() -> dict:
             },
             # The agent asked the user a question, the only thing On Me holds.
             "question": served_answer(PAGE, (QUESTION,)),
+            # The user's reaction on the page, which the agent owes an answer.
+            "a reaction waiting": served_answer(
+                PAGE, ({"kind": "comment", "emoji": "✂️"},)
+            ),
             "queues on both sides": served_reading(
                 OBLIGATION_PAGE,
                 BOTH_SIDES,
@@ -377,6 +395,7 @@ def build() -> dict:
                         "widget": "sug-refill",
                         "action": "decide",
                         "detail": {"outcome": "accept"},
+                        "answered": True,
                     },
                 ),
             ),
@@ -390,6 +409,7 @@ def build() -> dict:
                         "widget": "ship",
                         "action": "choose",
                         "detail": {"value": ["ship-now"]},
+                        "answered": True,
                     },
                     {"kind": "comment", "text": "Rebuild the chart."},
                     {
@@ -478,7 +498,6 @@ def obligation_value_cases():
         initial=None,
         actions=(),
         answered=False,
-        selected_unit=None,
     ):
         spec = {"unit": unit, **({"record": record} if record else {})}
         markup = f'<lf-value id="owner" {attrs}>{body}</lf-value>'
@@ -520,7 +539,6 @@ def obligation_value_cases():
             AuthoredOrders(source.document.by_id, registry),
             projection,
             answered=answered,
-            unit=selected_unit,
         )
         state = {"value": initial}
         if unit != "widget":
@@ -538,7 +556,6 @@ def obligation_value_cases():
                 "authored": state,
                 "entries": entries,
                 "answered": answered,
-                **({"unit": selected_unit} if selected_unit is not None else {}),
                 "expected": {"value": value, "present": present},
             }
         )
@@ -609,14 +626,6 @@ def obligation_value_cases():
         body='<lf-container id="left"><lf-part id="a">A</lf-part></lf-container><lf-container id="right"></lf-container>',
         actions=[("a", {"value": "right", "rank": "1"})],
     )
-    for selected_unit in ("a", "b", "missing"):
-        add(
-            f"selected custom unit {selected_unit}",
-            unit="part",
-            initial={},
-            selected_unit=selected_unit,
-            actions=[("a", {"approved": True}), ("b", {"approved": False})],
-        )
     return cases
 
 
@@ -643,11 +652,18 @@ def gesture_sequence() -> dict:
             "widget": "draft-ops",
             "action": "edit",
             "detail": {"value": value},
+            "answered": True,
             "attempt": f"sequence-edit-{index:03}",
         }
         for index, value in enumerate(edits, 1)
     ]
-    withdrawal = {"kind": "undo", "undoes": "e3", "attempt": "sequence-undo-003"}
+    # The earlier edits still stand, so the draft still holds words.
+    withdrawal = {
+        "kind": "undo",
+        "undoes": "e3",
+        "answered": True,
+        "attempt": "sequence-undo-003",
+    }
     commands.append(withdrawal)
     commands.extend(
         {
@@ -714,6 +730,7 @@ TAIL_LOG = (
         "action": "choose",
         "detail": {"value": ["red"]},
         "attempt": "tail-attempt-0001",
+        "answered": False,
     },
     {
         "kind": "action",
@@ -721,6 +738,7 @@ TAIL_LOG = (
         "action": "choose",
         "detail": {"value": ["red", "blue"]},
         "attempt": "tail-attempt-0002",
+        "answered": False,
     },
     {"kind": "comment", "text": "Why both?", "attempt": "tail-attempt-0003"},
     {
@@ -729,8 +747,14 @@ TAIL_LOG = (
         "action": "choose",
         "detail": {"value": ["now"]},
         "attempt": "tail-attempt-0004",
+        "answered": True,
     },
-    {"kind": "undo", "undoes": "e2", "attempt": "tail-attempt-0005"},
+    {
+        "kind": "undo",
+        "undoes": "e2",
+        "answered": False,
+        "attempt": "tail-attempt-0005",
+    },
     {
         "kind": "pickup",
         "author": "page",
@@ -753,6 +777,7 @@ TAIL_LOG = (
         "widget": "kinds",
         "action": "answer",
         "detail": {},
+        "answered": True,
         "attempt": "tail-attempt-0008",
     },
 )
@@ -810,9 +835,7 @@ def tail_cases() -> list[dict]:
         **model_layer(),
         "lf-value-ask": {
             "attributes": {
-                "type": "object",
                 "properties": {
-                    "id": {"type": "string"},
                     "active": {"type": "boolean"},
                     "value": {
                         "type": ["boolean", "integer", "array", "object"],
@@ -820,13 +843,11 @@ def tail_cases() -> list[dict]:
                     },
                 },
                 "required": ["id"],
-                "additionalProperties": False,
             },
             "content": "none",
             "awaits": {
                 "when": {"active": [True]},
                 "value": "set",
-                "answered": {"set": {}},
             },
             "verbs": {
                 "set": {
@@ -848,6 +869,7 @@ def tail_cases() -> list[dict]:
                 "widget": "typed",
                 "action": "set",
                 "detail": {"value": value},
+                "answered": True,
             }
             for value in values
         ]

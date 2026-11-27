@@ -1,4 +1,4 @@
-import { once } from "/runtime/widget-api.js";
+import { once } from "/runtime/lib/once.js";
 
 // The `unfamiliar-package` case's widget: a meter and a label drawn from the
 // element's attributes.

@@ -33,21 +33,20 @@ import json
 import re
 from pathlib import Path
 
-from leaf.media import media_name
-from leaf.schema import MEDIA_DIR
-from leaf.state import KERNEL_REGISTRY
-from leaf.structure import SourceDocument, splice
+from leaf.base.schema import ASSETS, BUNDLED_PACKAGES, MEDIA_DIR
+from leaf.base.state import KERNEL_REGISTRY
+from leaf.serving.media import media_name
+from leaf.source.registry.contract import complete_declarations, is_element_name
+from leaf.source.structure import SourceDocument, splice
 from leaf_dev import ROOT, declared_records, prompts
 from leaf_dev.example_data import PRODUCT_DOCS, WORKED_EXAMPLES, document_metadata
 from leaf_dev.leaf_assets import pinned_assets
 
 DOCS = ROOT / PRODUCT_DOCS
 EXAMPLES = ROOT / WORKED_EXAMPLES
-ASSETS = ROOT / "browser"
-PACKAGES = ROOT / "packages"
 SCRIPTS = ROOT / "src" / "leaf"
-SERVED_SCHEMA = SCRIPTS / "served_state" / "state.schema.json"
-INTERACTION_SCHEMA = SCRIPTS / "interaction-batch.schema.json"
+SERVED_SCHEMA = SCRIPTS / "serving" / "served_state" / "state.schema.json"
+INTERACTION_SCHEMA = SCRIPTS / "log" / "interaction-batch.schema.json"
 # Where each event kind's meaning is written: its row of the kinds table that opens
 # the file, at the anchor `kind-<kind>`.
 EVENTS_REFERENCE = "https://github.com/max-sixty/leaf/blob/main/src/leaf/events.md"
@@ -121,20 +120,24 @@ def markup_record(verb_state: dict) -> str:
 
 def registries() -> list[Path]:
     """The core layer's registry, then each bundled package's."""
-    return [ASSETS / "registry.json", *sorted(PACKAGES.glob("*/registry.json"))]
+    return [ASSETS / "registry.json", *sorted(BUNDLED_PACKAGES.glob("*/registry.json"))]
 
 
 def verb_rows() -> list[str]:
+    """A row for each verb, read as composition completes its declaration, so a verb
+    that names no `unit` shows the one its record decides."""
     rows = []
     for path in registries():
-        for tag, element in json.loads(path.read_text(encoding="utf-8")).items():
-            if not tag.startswith("lf-"):
+        declared = complete_declarations(json.loads(path.read_text(encoding="utf-8")))
+        for tag, element in declared.items():
+            if not is_element_name(tag):
                 continue
             for verb, verb_state in element.get("verbs", {}).items():
+                unit = verb_state["unit"]
                 cells = (
                     f"<code>{tag}</code>",
                     f"<code>{verb}</code>",
-                    verb_state["unit"],
+                    "the widget" if unit == "widget" else f"<code>detail.{unit}</code>",
                     markup_record(verb_state),
                 )
                 rows.append(
@@ -147,11 +150,11 @@ def example_packages(source: Path) -> str:
     """The bundled packages whose elements an example's markup uses."""
     tree = SourceDocument(source.read_text(encoding="utf-8")).tree
     used = []
-    for path in sorted(PACKAGES.glob("*/registry.json")):
+    for path in registries()[1:]:
         tags = [
             key
             for key in json.loads(path.read_text(encoding="utf-8"))
-            if key.startswith("lf-")
+            if is_element_name(key)
         ]
         if any(tree.select(tag) for tag in tags):
             used.append(path.parent.name)
@@ -170,7 +173,8 @@ def registry_keys() -> dict[str, str]:
 KEY_SECTIONS = {
     "attributes": (
         "Element",
-        "What every declaration holds beside its description.",
+        "The element's attributes and its content, each of which a declaration may "
+        "leave to its default.",
     ),
     "verbs": (
         "State",
@@ -184,8 +188,8 @@ KEY_SECTIONS = {
     ),
     "verbatim": (
         "Words",
-        "How the element's words read to the passage reader, the render check and a "
-        "browser that hasn't run its module.",
+        "How the element's words read to the passage reader, a version comparison and "
+        "a browser that hasn't run its module.",
     ),
     "views": (
         "Paint",

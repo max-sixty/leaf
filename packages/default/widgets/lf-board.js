@@ -12,25 +12,43 @@
  * below; there Down past a column's last card continues into the column below and Up
  * past its first into the one above, the next slot the user sees (#step). Escape also
  * cancels a pointer drag.
- * For the whole gesture the board holds
- * the page's drag (`dragging`), so no new revision or undo replaces the cards under it,
- * and defers its own drawing (`defer`), so no foreign move replays mid-gesture; a
- * completed move
+ * For the whole gesture the board says the user holds a card (`lf-hold`), so no new
+ * revision or undo replaces the cards under the hand, and defers its own drawing
+ * (`defer`), so no foreign move replays mid-gesture; a completed move
  * reports through #send as one ranked `move` action, indistinguishable on
  * the wire. Its render receives every column's final ordered card ids. One render
  * preserves native nodes, syncs a second tab, and no-ops on the sender. Presentation is theme CSS; authored content
  * is never replaced, so there is no failSoft.
  *
- * A card with `shows` is the board's view of another widget's answer (`shows`,
- * `shownAnswer`), such as a proposal's pick in its own section. The board draws it in
- * the column whose `value` that answer names, read from the widget's state in this
- * render, so a pick there, an undo, a refusal and a revision's retraction move the card
- * with no state of the board's own. Dropping it in another column sends the widget's
- * own answer for that column's value, the same command the section's control sends;
- * a column the widget has no answer for takes no drop and offers no button. Such a
- * card keeps its authored order: an order of the board's own would be a second fact
- * placed among columns the answer decides (`shown_answers.py`), so the door refuses
- * a move of it and the arrows only change its column.
+ * A card with `shows` is the board's view of another widget's pick, such as a
+ * proposal's answer in its own section, and the pick stays that widget's. The card binds
+ * the widget's `choice` output (lf-card.js), so the board draws the card in the column
+ * whose `value` the pick names, or in the first column without a `value` where the
+ * pick names none or no column holds it. A pick there, an undo, a refusal and a
+ * revision's retraction move the card with no state of the board's own. Dropping the
+ * card in another column asks its owner, the widget whose choice it shows, to pick
+ * that column's value with the invoker command `--choose`, from a button whose words
+ * name the move, so Undo names it. The owner records the pick as its own or refuses
+ * it, and either way the board then draws the card where the owner's choice puts it. A
+ * column without a `value` asks for the empty pick. A column with one takes the card
+ * only where one option carries that value, since a value two options carry doesn't
+ * say which the user picks. A card no other column takes has its grip disabled. The
+ * arrows only change a shown card's column: an order of the board's own would be a
+ * second fact placed among columns the choice decides.
+ *
+ * The user chose this over the board reading the widget's state and recording the
+ * widget's own verb, which tied the board to each widget's verbs, record kinds and
+ * members, and needed a package function that reads any widget's state. An Answer
+ * record, or a value on the question's group, would move the answer off the widget
+ * that owns its words, options and obligation.
+ *
+ * `page check` and message admission refuse a `shows` naming a widget that holds no
+ * `choice`, through the card's input. The user chose that refusal over the board
+ * reporting a bad `shows` as it draws, since a contract-bound input gives it without a
+ * registry map of the widgets a card may show. The append door admits a board move of
+ * a card with `shows`, so the board never sends its own move for one (#movable, #send)
+ * and, once the choice has arrived, draws it by its choice whatever the board's move
+ * state holds.
  *
  * The board also says what it is non-visually: columns are labeled lists and
  * cards their items (#structure), and each grip is named for the column its
@@ -48,40 +66,40 @@
 import Sortable from "/vendor/sortable.esm.js";
 import { nothing } from "/vendor/lit.js";
 import {
-  setScroll,
-  elementById,
-  LeafElement,
   move,
-  offer,
-  offerAction,
-  generatedElement,
-  quoted,
-  announce,
-  labelOf,
-  layoutChanged,
-  previewChanged,
-  saying,
-  dragging,
   motion,
-  motionPreview,
   scrollerFor,
-  PRESS,
-  rowArrows,
-  onMotionPreferenceChange,
-  rankAt,
-  reducedMotion,
-  scrollBehavior,
-  keeps,
-  keepsHidden,
-  keepsText,
   focusDestination,
   scrollIntoView,
   whileConnected,
-  focused,
-  declarationFor,
-  shownAnswer,
-  commandsChanged,
 } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { offer, offerAction } from "/runtime/lib/controls.js";
+import { PRESS, rowArrows } from "/runtime/lib/keys.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
+import { byRank, rankAt } from "/runtime/lib/rank.js";
+
+// The attribute naming the value a column holds for a card that shows a choice.
+const VALUE = "value";
+
+/** A `choice` value, as the registry's `$data.contracts` declares it.
+ * @typedef {{value: string, options: {value: string, label: string}[], disabled: boolean}} Choice */
+
+// The id a card's `shows` names, or null for a card that shows no choice: one without
+// the attribute, or with it empty.
+/** @param {Element} card */
+const showsId = (card) => card.getAttribute("shows") || null;
+
+// The choice a card shows, or null where it shows none or the widget it names holds
+// none yet.
+/** @param {Element} card @returns {Choice | null} */
+const choiceOf = (card) =>
+  (showsId(card) && /** @type {{choice?: Choice | null}} */ (card).choice) || null;
+
+// Whether `--choose` takes `value`: the empty pick, or the one option carrying it.
+/** @param {Choice} choice @param {string} value */
+const takes = (choice, value) =>
+  !value || choice.options.filter((option) => option.value === value).length === 1;
 
 customElements.define(
   "lf-board",
@@ -98,13 +116,16 @@ customElements.define(
     #sortables = new Set();
     /** @type {(() => void) | null} */
     #resumeProjection = null;
+    // The user's hold through the gesture, settled as the card is put down.
+    /** @type {PromiseWithResolvers<void> | null} */
+    #held = null;
 
     setup() {
       this.toggleAttribute("data-lf-scroll", true);
       this.#structure();
       // A quoted board is an exhibit: no grips, no sortable, no grip keys in
       // the command reference dialog — it stays the static board the theme renders anyway.
-      if (quoted(this)) return;
+      if (this.matches("[data-lf-exhibit] *")) return;
       // Own cards only (:scope-deep would double-wire a nested board's cards).
       for (const card of this.#allCards()) {
         this.#grip(card);
@@ -140,7 +161,7 @@ customElements.define(
     //
     // The heading is written here too, because it is two things at once: the words a
     // user selects to comment on the column, and the list's accessible name, so the
-    // tree hears them once, as the name. It is the page speaking (`says: true`) and
+    // tree hears them once, as the name. It is the page speaking (`data-lf-said`) and
     // generated, so the diff looks away, and it isn't .lf-ui, so the anchor pass
     // doesn't.
     #structure() {
@@ -151,7 +172,8 @@ customElements.define(
         if (col.querySelector(":scope > .lf-column-name")) continue;
         const heading = document.createElement("span");
         heading.className = "lf-column-name";
-        generatedElement(heading, { says: true });
+        keeps(heading, "data-lf-gen", "1");
+        heading.toggleAttribute("data-lf-said", true);
         // The column already carries these words as its name, so the heading is
         // the visible half only: the tree hears them once, the user can still
         // select them, and the theme's generated copy is left to the no-script case.
@@ -163,7 +185,7 @@ customElements.define(
         // list already tells a screen reader its length, so it is the visible half only.
         const count = document.createElement("span");
         count.className = "lf-column-count";
-        generatedElement(count, { says: false });
+        keeps(count, "data-lf-gen", "1");
         count.setAttribute("aria-hidden", "true");
         col.prepend(heading);
         heading.after(count);
@@ -184,7 +206,9 @@ customElements.define(
     // one shared reading on the card rather than another suffix in this control's name.
     #names() {
       this.#counts();
-      for (const col of this.#columns()) {
+      const columns = [...this.#columns()];
+      const byId = new Map(columns.map((col) => [col.id, col]));
+      for (const col of columns) {
         const where = col.getAttribute("label");
         for (const card of this.#cards(col)) {
           const name = `Move: ${this.#title(card)} — ${where}`;
@@ -195,14 +219,19 @@ customElements.define(
             ":scope > .lf-board-destinations > .lf-board-destination",
           );
           for (const button of destinations)
-            keepsHidden(
-              button,
+            button.toggleAttribute(
+              "hidden",
               button.getAttribute("data-lf-board-target") === col.id ||
                 !this.#takes(
                   card,
-                  elementById(button.getAttribute("data-lf-board-target")),
+                  byId.get(button.getAttribute("data-lf-board-target") ?? "") ?? null,
                 ),
             );
+          // With no button to show, the group's "Move to" would name no destination.
+          card.querySelector(":scope > .lf-board-destinations")?.toggleAttribute(
+            "hidden",
+            [...destinations].every((button) => button.hidden),
+          );
         }
       }
     }
@@ -221,12 +250,14 @@ customElements.define(
 
     #observeMotion() {
       if (!this.#sortables.size) return;
-      for (const sortable of this.#sortables)
-        sortable.option("animation", reducedMotion() ? 0 : 150);
-      return onMotionPreferenceChange((/** @type {boolean} */ reduced) => {
+      const reduced = matchMedia("(prefers-reduced-motion: reduce)");
+      const animate = () => {
         for (const sortable of this.#sortables)
-          sortable.option("animation", reduced ? 0 : 150);
-      });
+          sortable.option("animation", reduced.matches ? 0 : 150);
+      };
+      animate();
+      reduced.addEventListener("change", animate);
+      return () => reduced.removeEventListener("change", animate);
     }
 
     #paintAvailability = () => {
@@ -248,34 +279,41 @@ customElements.define(
     };
 
     #available() {
-      return Boolean(this.reading?.actions.move?.available);
+      return Boolean(this.state?.move?.available);
     }
 
-    // A card showing another widget's answer (`shows`) moves when that answer can
-    // change, and every other card when the board's own move can.
+    // A card with `shows` moves when the user can change the choice it shows and a
+    // column other than its own takes it, so never where it shows none, and every other
+    // card when the board's own move can. A card no column takes would offer a grip that
+    // grabs and then moves nowhere.
     /** @param {Element} card */
     #movable(card) {
-      const shown = shownAnswer(card);
-      return shown ? shown.available : this.#available();
+      if (!showsId(card)) return this.#available();
+      const choice = choiceOf(card);
+      return Boolean(
+        choice &&
+        !choice.disabled &&
+        [...this.#columns()].some(
+          (column) =>
+            column !== card.parentElement && takes(choice, this.#holds(column)),
+        ),
+      );
     }
 
-    // The value a column holds for a card showing an answer, null for none: the
-    // attribute the card's `shows` names.
-    /** @param {Element} column @param {Element} card */
-    #holds(column, card) {
-      const shows = declarationFor(card)?.shows;
-      if (!shows) throw new Error("Shown-answer card has no declared column value");
-      return column.getAttribute(shows.value) || null;
+    // The value a column holds for a card showing a choice, the empty string for none.
+    /** @param {Element} column */
+    #holds(column) {
+      return column.getAttribute(VALUE) || "";
     }
 
-    // Where a card showing an answer stands: the first column holding the value the
-    // answer names, else the first holding none (shown_answers.py).
-    /** @param {Element} card @param {unknown} value */
-    #columnFor(card, value) {
+    // Where a card showing a choice stands: the first column holding the value the
+    // choice names, else the first holding none.
+    /** @param {string} value */
+    #columnFor(value) {
       const columns = [...this.#columns()];
       return (
-        columns.find((column) => this.#holds(column, card) === value) ??
-        columns.find((column) => this.#holds(column, card) === null) ??
+        columns.find((column) => this.#holds(column) === value) ??
+        columns.find((column) => this.#holds(column) === "") ??
         null
       );
     }
@@ -325,9 +363,9 @@ customElements.define(
     /** @param {BoardCard} card @param {HTMLElement} grip */
     #keys(card, grip) {
       const held = () => this.#grabbed?.grip === grip;
-      // Whether the card is authored to show an answer, read off its markup since the
-      // answer's own state may not have loaded yet.
-      const shows = card.hasAttribute(declarationFor(card)?.shows?.reference ?? "");
+      // Whether the card is authored to show a choice, read off its markup since the
+      // choice may not have arrived yet.
+      const shows = Boolean(showsId(card));
       // Columns run the way the page's words do, so left is the previous column only
       // in left-to-right text; the title names the column, which holds whichever way
       // the board lays them out.
@@ -335,7 +373,7 @@ customElements.define(
       /** @param {string} binding */
       const column = (binding) =>
         `Move it to the ${binding === back ? "previous" : "next"} column`;
-      // A card showing an answer only changes column, so it has no up or down.
+      // A card showing a choice only changes column, so it has no up or down.
       const routes = [
         { id: "board.move-up", binding: "ArrowUp", title: "Move it up" },
         { id: "board.move-down", binding: "ArrowDown", title: "Move it down" },
@@ -359,11 +397,8 @@ customElements.define(
       grip.setAttribute("aria-description", drag);
       // Grabbed, the card is moving, so the grip says nothing over it until it drops.
       grip.lfPreview = () =>
-        !held() && {
-          keys: grab.keys.map((binding) => [labelOf({ ...grab, keys: [binding] })]),
-          detail: [drag],
-        };
-      /** @type {import("/runtime/keyboard/bindings.js").Command[]} */
+        !held() && { keys: grab.keys.map((binding) => [binding]), detail: [drag] };
+      /** @type {import("/runtime/dom/keyboard/bindings.js").Command[]} */
       const rows = [
         grab,
         {
@@ -410,23 +445,31 @@ customElements.define(
         },
       ];
       grip.lfCommands = { title: "On a card grip", rows };
-      commandsChanged(grip);
       return rows;
     }
     /** @param {BoardCard} card */
     #grip(card) {
       const grip = offerAction("symbol", "lf-grip", undefined, { action: "move" });
+      // A revision that rewrites any card replaces the board, and a user on this grip
+      // is on the same card's grip in the replacement (records/carry.js).
+      grip.setAttribute("data-lf-carry", "grip");
       this.#keys(card, grip);
       // Leaving the grip drops the grab: restore the origin. Native moves retain
-      // focus, so only a real departure still lacks focus when this settles.
+      // focus, so only a real departure still lacks focus when this settles. The window
+      // losing system focus blurs the grip but leaves it its tree's active element, so
+      // that is no departure.
       grip.addEventListener("blur", () => {
         if (this.#grabbed?.grip !== grip) return;
         setTimeout(() => {
-          if (this.#grabbed?.grip === grip && focused() !== grip)
+          const root = /** @type {Document | ShadowRoot} */ (grip.getRootNode());
+          if (this.#grabbed?.grip === grip && root.activeElement !== grip)
             this.#cancel(this.#grabbed);
         });
       });
       card.append(grip);
+      grip.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     /** @param {BoardCard} card */
@@ -438,7 +481,7 @@ customElements.define(
       group.setAttribute("aria-label", `Move ${this.#title(card)} to`);
       const label = document.createElement("span");
       label.className = "lf-board-destinations-label";
-      generatedElement(label, { says: false });
+      keeps(label, "data-lf-gen", "1");
       label.textContent = "Move to";
       group.append(label);
       for (const column of columns) {
@@ -470,7 +513,7 @@ customElements.define(
       card.append(group);
     }
 
-    /** @param {BoardCard} card @param {HTMLElement} grip @param {readonly import("/runtime/keyboard/bindings.js").Command[]} rows */
+    /** @param {BoardCard} card @param {HTMLElement} grip @param {readonly import("/runtime/dom/keyboard/bindings.js").Command[]} rows */
     #grab(card, grip, rows) {
       if (!this.#movable(card)) return;
       const from = card.parentElement;
@@ -479,13 +522,16 @@ customElements.define(
       this.#grabbed = { card, grip, from, index };
       this.#beginGesture();
       card.classList.add("lf-lift");
-      previewChanged(grip);
+      grip.dispatchEvent(
+        new CustomEvent("lf-preview", { bubbles: true, composed: true }),
+      );
       // Where the card starts, in the idiom every arrow step announces — a user about to
       // move it needs the position the moves count from.
-      announce(
-        `${this.#title(card)} grabbed — ${from.getAttribute("label")}, position ${
-          index + 1
-        } of ${cards.length} — ${saying(rows)}`,
+      const grabbed = `${this.#title(card)} grabbed — ${from.getAttribute("label")}, position ${
+        index + 1
+      } of ${cards.length}`;
+      window.dispatchEvent(
+        new CustomEvent("lf-announce", { detail: { words: grabbed, rows } }),
       );
     }
 
@@ -515,7 +561,7 @@ customElements.define(
           index = dRow > 0 ? 0 : this.#cards(beside).length;
         }
       } else {
-        // Past any column the card's answer cannot name.
+        // Past any column the card's choice cannot take.
         const cols = [...this.#columns()].filter(
           (column) => column === col || this.#takes(card, column),
         );
@@ -527,10 +573,12 @@ customElements.define(
       this.#place(card, target, index, grip);
       const now = card.parentElement;
       const cards = this.#cards(now);
-      announce(
-        `${this.#title(card)} — ${now.getAttribute("label")}, position ${
-          cards.indexOf(card) + 1
-        } of ${cards.length}`,
+      window.dispatchEvent(
+        new CustomEvent("lf-announce", {
+          detail: `${this.#title(card)} — ${now.getAttribute("label")}, position ${
+            cards.indexOf(card) + 1
+          } of ${cards.length}`,
+        }),
       );
     }
 
@@ -557,16 +605,27 @@ customElements.define(
       // without taking the viewport from the control the user deliberately entered.
       this.#place(card, from, index, refocus ? grip : null);
       this.#finishGesture();
-      announce(`${this.#title(card)} — move cancelled`);
+      window.dispatchEvent(
+        new CustomEvent("lf-announce", {
+          detail: `${this.#title(card)} — move cancelled`,
+        }),
+      );
     }
 
     #beginGesture() {
-      this.#resumeProjection ??= this.controller.defer();
-      dragging(this, true);
+      if (this.#resumeProjection) return;
+      this.#resumeProjection = this.defer();
+      this.#held = Promise.withResolvers();
+      this.dispatchEvent(
+        Object.assign(new Event("lf-hold", { bubbles: true, composed: true }), {
+          complete: this.#held.promise,
+        }),
+      );
     }
 
     #finishGesture() {
-      dragging(this, false);
+      this.#held?.resolve();
+      this.#held = null;
       this.#resumeProjection?.();
       this.#resumeProjection = null;
     }
@@ -577,32 +636,30 @@ customElements.define(
     #release(grab) {
       grab.card.classList.remove("lf-lift");
       this.#grabbed = null;
-      previewChanged(grab.grip);
+      // The grip's rows read the grab, and a drag that takes a grab over keeps the
+      // user's hold, whose start and end are what paint them otherwise.
+      grab.grip.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
+      grab.grip.dispatchEvent(
+        new CustomEvent("lf-preview", { bubbles: true, composed: true }),
+      );
     }
 
     // Arrow steps and a cancelled grab place through one writer. Start from the
     // current paint before cancelling a superseded FLIP, so a reversal continues
-    // where the user sees the card. Cancel smooth reveal before measuring, too.
-    // Keyboard placement refocuses and reveals the final box before FLIP puts its paint
-    // back at the old box; native scrolling and the card's motion then run together.
+    // where the user sees the card. Keyboard placement refocuses and reveals the final
+    // box before FLIP puts its paint back at the old box; the reveal's glide and the
+    // card's motion then run together.
     /** @param {Element} card @param {Element} col @param {number} index @param {HTMLElement | null} [grip] */
     #place(card, col, index, grip = null) {
-      for (const box of [this, scrollerFor(this)])
-        setScroll(box, {
-          left: box.scrollLeft,
-          top: box.scrollTop,
-          behavior: "instant",
-        });
       const first = card.getBoundingClientRect();
       for (const a of card.getAnimations()) a.cancel();
       const rest = this.#cards(col).filter((c) => c !== card);
       move(col, card, rest[index] ?? null);
       if (grip) {
         focusDestination(grip, "return");
-        scrollIntoView(card, {
-          behavior: scrollBehavior(),
-          block: "nearest",
-        });
+        scrollIntoView(card, { behavior: "smooth", block: "nearest" });
       }
       const last = card.getBoundingClientRect();
       const dx = first.left - last.left;
@@ -623,25 +680,29 @@ customElements.define(
     // snapshot: that snapshot may be another queued move the server also refused.
     /** @param {Element} card @param {Element} from @param {Element} to */
     #send(card, from, to) {
-      const shown = shownAnswer(card);
-      if (shown) {
-        // The answer moves the card, through its widget's own command; a move within
-        // its column changes nothing, and the release below puts it back.
-        if (to !== from)
-          shown.answer(
-            this.#holds(to, card),
-            `Moved “${this.#title(card)}” to ${to.getAttribute("label")}`,
-          );
-        this.#finishGesture();
+      if (showsId(card)) {
+        // The choice moves the card, through its widget's `--choose`; a move within its
+        // column asks for nothing. Either way the release below draws the card where
+        // the choice the widget then holds puts it, so a refused or unchanged choice
+        // puts the card back, as does a request that throws.
+        try {
+          if (to !== from)
+            this.#ask(
+              card,
+              this.#holds(to),
+              `Moved “${this.#title(card)}” to ${to.getAttribute("label")}`,
+            );
+        } finally {
+          this.#finishGesture();
+        }
         return;
       }
-      this.controller.dispatch({
-        kind: "action",
-        verb: "move",
-        detail: {
+      this.record(
+        "move",
+        {
           unit: card.id,
           value: to.id,
-          // Among the cards as the board shows them, those standing by an answer
+          // Among the cards as the board shows them, those standing by a choice
           // included.
           rank: rankAt(
             { ...this.#position, value: this.#placement() },
@@ -650,12 +711,31 @@ customElements.define(
             card.id,
           ),
         },
-        says: `${to === from ? "Reordered in" : "Moved to"} ${to.getAttribute("label")}`,
-      });
-      // A gesture can outlive the reading that enabled it. If admission has already
-      // closed by commit time, resuming the deferred controller repaints the moved
-      // native node from current semantic state immediately.
+        {
+          says: `${to === from ? "Reordered in" : "Moved to"} ${to.getAttribute("label")}`,
+        },
+      );
+      // A gesture can outlive the state that enabled it. If admission has already
+      // closed by commit time, releasing the hold repaints the moved native node from
+      // the current state immediately.
       this.#finishGesture();
+    }
+
+    // Ask the card's owner to pick `value`, from a button the board makes and keeps out
+    // of the page, whose words name the move (`package-data.md`, "Asking another widget
+    // to act").
+    /** @param {Element} card @param {string} value @param {string} says */
+    #ask(card, value, says) {
+      /** @type {{owner?: Element | null}} */ (card).owner?.dispatchEvent(
+        new CommandEvent("command", {
+          command: "--choose",
+          source: Object.assign(document.createElement("button"), {
+            value,
+            textContent: says,
+          }),
+          cancelable: true,
+        }),
+      );
     }
 
     // Sortable owns drag teardown; the grip's Cancel command ends it through
@@ -668,20 +748,39 @@ customElements.define(
     /** @param {HTMLElement} col */
     #sortable(col) {
       const scroller = scrollerFor(this);
+      const group = `board-${this.id}`;
       const sortable = new Sortable(col, {
         disabled: !this.#available(),
-        group: `board-${this.id}`, // per board: two boards on a page don't cross-drag
+        // Named per board, so two boards on a page don't cross-drag. A column opens a
+        // slot only for a card it takes (#takes), as the arrows and the destination
+        // buttons offer it. Sortable asks this of every column but the one the drag
+        // began in, which always takes its card back. A column that takes the card
+        // answers with the groups it takes from, which Sortable matches against the
+        // board the drag began in; `true` would take a card from any board.
+        group: {
+          name: group,
+          put: (to, _from, card) => (this.#takes(card, to.el) ? [group] : false),
+        },
         draggable: "lf-card",
         handle: ".lf-grip",
-        // Movability is the card's own where it shows an answer (#movable).
-        filter: (_event, card) => !this.#movable(card),
+        // Movability is the card's own where it shows a choice (#movable). Sortable
+        // passes null for a press on no card, such as a column's heading, which
+        // starts no drag.
+        filter: (_event, card) => !card || !this.#movable(card),
         preventOnFilter: false,
         // Named because a board an agent sent in a reply is scrolled by the panel's list,
         // while one in the page is scrolled by the browser root. Sortable cannot infer
         // that product boundary from the board alone.
         scroll: scroller instanceof HTMLElement ? scroller : false,
         forceFallback: true, // pointer-driven label preview, including touch
-        cloneElement: (card) => motionPreview(this.#title(card)),
+        // The image under the pointer carries the card's label, never a second live
+        // widget tree: no copied form groups, widget lifetimes or iframes.
+        cloneElement: (card) => {
+          const preview = offer("div", "lf-motion-preview", this.#title(card));
+          preview.inert = true;
+          preview.setAttribute("aria-hidden", "true");
+          return preview;
+        },
         fallbackTolerance: 4, // a click on the grip stays a click
         delay: 120,
         delayOnTouchOnly: true, // touch arms by press-hold so scrolling stays free
@@ -734,7 +833,11 @@ customElements.define(
           ) {
             this.#place(card, from, oldIndex, card.querySelector(":scope > .lf-grip"));
             this.#finishGesture();
-            announce(`${this.#title(card)} — move cancelled`);
+            window.dispatchEvent(
+              new CustomEvent("lf-announce", {
+                detail: `${this.#title(card)} — move cancelled`,
+              }),
+            );
             return;
           }
           if (from === to && oldIndex === newIndex) {
@@ -751,32 +854,36 @@ customElements.define(
     // once around that placement so FLIP animates the resulting layout together.
     render() {
       // A quoted board is an exhibit with no reading: the theme draws it as authored.
-      if (!this.reading) return nothing;
+      if (!this.state) return nothing;
       this.#arrange(this.#placement());
+      // The columns a card showing a choice offers follow the choice, which may arrive
+      // after the board has set up and move no card.
+      this.#names();
       this.#paintAvailability();
       return nothing;
     }
 
     get #position() {
-      const state = this.state.move;
+      const state = this.state?.move;
       if (!state || !("ranks" in state))
         throw new Error("Board requires positional move state");
       return state;
     }
 
     // Every column's cards in order: the board's own move state, with each card that
-    // shows an answer moved to the column that answer names. Reading the answer here
-    // follows its widget's state, so a pick in its section, an undo, a refusal and a
-    // revision's retraction all redraw the board. Each column lists its cards by rank,
-    // a shown card keeping its authored one.
+    // shows a choice moved to the column that choice names. Leaf sets each card's
+    // choice as the widget's moves, and the card draws the board again, so a pick in
+    // its section, an undo, a refusal and a revision's retraction all redraw the board.
+    // Each column lists its cards by rank, which the authored order and the board's own
+    // moves set.
     #placement() {
       const { value, ranks } = this.#position;
       const columns = Object.fromEntries(
         Object.entries(value).map(([id, cards]) => [id, [...cards]]),
       );
       for (const card of this.#allCards()) {
-        const shown = shownAnswer(card);
-        const target = shown && this.#columnFor(card, shown.value);
+        const choice = choiceOf(card);
+        const target = choice && this.#columnFor(choice.value);
         if (!target) continue;
         const destination = columns[target.id];
         if (!destination) continue;
@@ -786,24 +893,17 @@ customElements.define(
         }
         destination.push(card.id);
       }
-      // By rank, ties by id, as the position fold orders a column (projection/model.js).
-      /** @param {string} id @returns {[string, string]} */
-      const key = (id) => [ranks[id] ?? "", id];
-      /** @param {string} a @param {string} b */
-      const before = (a, b) => {
-        const [x, y] = [key(a), key(b)];
-        return x[0] !== y[0] ? (x[0] < y[0] ? -1 : 1) : x[1] < y[1] ? -1 : 1;
-      };
-      for (const cards of Object.values(columns)) cards.sort(before);
+      for (const cards of Object.values(columns)) cards.sort(byRank(ranks));
       return columns;
     }
 
     // Whether the card can stand in `column`: any column for a card the board places,
-    // one holding a value its answer can take for a card showing an answer.
+    // and for a card showing a choice one holding a value its `--choose` takes.
     /** @param {Element} card @param {Element | null} column */
     #takes(card, column) {
-      const shown = shownAnswer(card);
-      return !shown || (column && shown.takes(this.#holds(column, card)));
+      if (!showsId(card)) return true;
+      const choice = choiceOf(card);
+      return Boolean(choice && column && takes(choice, this.#holds(column)));
     }
 
     /** @param {Readonly<Record<string, readonly string[]>>} columns */
@@ -850,9 +950,15 @@ customElements.define(
           if (played) movements.push(played.finished);
         }
       }
-      layoutChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
       if (movements.length)
-        void Promise.allSettled(movements).then(() => layoutChanged(this));
+        void Promise.allSettled(movements).then(() =>
+          this.dispatchEvent(
+            new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+          ),
+        );
     }
   },
 );

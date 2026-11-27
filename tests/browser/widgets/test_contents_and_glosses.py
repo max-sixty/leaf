@@ -19,10 +19,12 @@ from render_harness import (
     preview_parts,
     resized,
     scroll_settled,
+    show_changes,
     told,
 )
 
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.source.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import choose_threads_in_panel
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -37,6 +39,30 @@ def contents_page(title, body, *, toc_id="contents"):
         f'<div class="layout-column">{body}</div>',
         layout="sidebar",
     )
+
+
+# The marker on the map's spine for a contents row, the start row's or a heading's.
+MARKER_OF = """(row) => {
+  const toc = row.closest('lf-toc');
+  const rows = [...toc.querySelectorAll('.lf-toc-start, li')];
+  return toc.querySelectorAll('.lf-toc-marker')[rows.indexOf(row)];
+}"""
+# For each label shown on the map, where the middle of its first line stands and where
+# its marker does.
+LABELS_AT_MARKERS = (
+    """(toc) => [...toc.querySelectorAll('.lf-toc-start, li')]
+  .filter((row) => row.querySelector(':scope > a')
+    .checkVisibility({visibilityProperty: true}))
+  .map((row) => {
+    const link = row.querySelector(':scope > a');
+    const marker = ("""
+    + MARKER_OF
+    + """)(row);
+    return [link.getBoundingClientRect().top
+      + parseFloat(getComputedStyle(link).lineHeight) / 2,
+      marker.getBoundingClientRect().top];
+  })"""
+)
 
 
 def test_a_table_of_contents_reads_the_page_outline_and_reveals_its_heading(
@@ -238,7 +264,7 @@ def test_contents_addresses_a_title_group_and_maps_its_complete_box(browser, ser
     geometry = nav.evaluate(
         """nav => {
           const rows = nav.querySelector('.lf-toc-rows');
-          const start = nav.querySelector('.lf-toc-start');
+          const start = nav.querySelector('.lf-toc-marker');
           const marker = getComputedStyle(start, '::before');
           const title = document.querySelector('#page-title');
           return {
@@ -249,15 +275,10 @@ def test_contents_addresses_a_title_group_and_maps_its_complete_box(browser, ser
             lensTop: nav.querySelector('.lf-toc-window').getBoundingClientRect().top,
             titleTop: title.getBoundingClientRect().top,
             headingTop: title.querySelector('h1').getBoundingClientRect().top,
-            nextTitleTop: document.querySelector('#standalone-title').getBoundingClientRect().top,
-            startSpan: Number(start.style.getPropertyValue('--lf-toc-span')),
           };
         }"""
     )
     assert geometry["headingTop"] > geometry["titleTop"], geometry
-    assert geometry["startSpan"] == pytest.approx(
-        geometry["nextTitleTop"] - geometry["titleTop"], abs=1
-    ), geometry
     assert geometry["markerCenter"] == pytest.approx(geometry["trackTop"], abs=1), (
         geometry
     )
@@ -293,7 +314,9 @@ def test_contents_addresses_a_title_group_and_maps_its_complete_box(browser, ser
     scroll_settled(page)
     alignment = standalone.evaluate(
         """link => {
-          const row = link.parentElement;
+          const row = ("""
+        + MARKER_OF
+        + """)(link.parentElement);
           const marker = getComputedStyle(row, '::before');
           return {
             markerCenter: row.getBoundingClientRect().top +
@@ -342,7 +365,7 @@ def test_contents_with_every_destination_hidden_returns_when_the_disclosure_open
         if (!document.querySelector('main > details').open) return;
         const nav = document.querySelector('#contents');
         firstContentsReveal = {
-          hidden: nav.querySelectorAll('[data-lf-toc-hidden]').length,
+          unshown: nav.querySelectorAll('.lf-toc-marker:not([data-lf-toc-shown])').length,
           current: nav.querySelector('[aria-current]')?.textContent,
         };
         observer.disconnect();
@@ -353,26 +376,24 @@ def test_contents_with_every_destination_hidden_returns_when_the_disclosure_open
     expect(nav).to_be_visible()
     page.wait_for_function("firstContentsReveal !== null")
     first_reveal = page.evaluate("firstContentsReveal")
-    assert first_reveal == {"hidden": 0, "current": "Migration plan"}
+    assert first_reveal == {"unshown": 0, "current": "Migration plan"}
     expect(nav.locator(".lf-toc-start a")).to_have_attribute("aria-current", "location")
-    expect(nav.locator("[data-lf-toc-hidden]")).to_have_count(0)
+    expect(nav.locator(".lf-toc-marker:not([data-lf-toc-shown])")).to_have_count(0)
     page.get_by_text("Open the migration plan", exact=True).click()
     expect(nav).to_be_hidden()
     expect(nav.locator("[aria-current]")).to_have_count(0)
 
 
-def test_contents_reconciles_live_title_boundaries_and_preserves_its_reading_position(
-    browser, serve
-):
+def test_contents_reconciles_live_title_boundaries_and_keeps_its_links(browser, serve):
     """A retained ToC follows the current authored outline without replacing its links.
 
     Grouping a title changes its destination, and adding, dropping or renaming a heading
-    changes the route. Surviving links retain focus and the outline's native scroll.
+    changes the route. Surviving links retain focus.
     """
     title = '<p>Stage</p><h1 id="title">Report</h1>'
     sections = [
         f'<section id="part-{index}"><h2 id="label-{index}">Migration part {index}</h2></section>'
-        for index in range(1, 81)
+        for index in range(1, 13)
     ]
     source = contents_page(
         "live contents",
@@ -380,21 +401,17 @@ def test_contents_reconciles_live_title_boundaries_and_preserves_its_reading_pos
     )
     page = open_page(browser, live_url(serve(source)))
     resized(page, 1400, 900)
-    toc = page.locator("#contents")
     nav = page.get_by_role("navigation", name="On this page")
     start = nav.locator(".lf-toc-start a")
     expect(start).to_have_attribute("href", "#title")
-    expect(toc).to_have_attribute("data-lf-outline", "")
-    expect(nav.locator("a")).to_have_count(82)
+    expect(nav.locator("a")).to_have_count(14)
     body = nav.get_by_role("link", name="Body", exact=True)
     expect(body).to_have_attribute("href", "#body-title")
     held_body = body.element_handle()
-    survivor = nav.get_by_role("link", name="Migration part 80", exact=True)
+    survivor = nav.get_by_role("link", name="Migration part 12", exact=True)
     survivor.focus()
     expect(survivor).to_be_focused()
     held_survivor = survivor.element_handle()
-    reading_position = nav.evaluate("node => node.scrollTop")
-    assert reading_position > 0
 
     grouped = source.replace(
         title, f'<hgroup id="title-group">{title}</hgroup>'
@@ -413,19 +430,16 @@ def test_contents_reconciles_live_title_boundaries_and_preserves_its_reading_pos
         "held => held === document.querySelector('#contents a[href=\"#body-group\"]')"
     )
     assert held_survivor.evaluate("held => held === document.activeElement")
-    assert nav.evaluate("node => node.scrollTop") == pytest.approx(
-        reading_position, abs=1
-    )
 
     changed = grouped.replace(
-        sections[39],
+        sections[5],
         '<section id="new-part"><h2>New destination</h2></section>',
-    ).replace("Migration part 41", "Renamed destination")
+    ).replace("Migration part 7", "Renamed destination")
     (serve.page_dir / "index.html").write_text(changed, encoding="utf-8")
     told(page)
     rendered(page)
-    expect(nav.locator("a")).to_have_count(82)
-    expect(nav.get_by_role("link", name="Migration part 40", exact=True)).to_have_count(
+    expect(nav.locator("a")).to_have_count(14)
+    expect(nav.get_by_role("link", name="Migration part 6", exact=True)).to_have_count(
         0
     )
     expect(
@@ -433,17 +447,14 @@ def test_contents_reconciles_live_title_boundaries_and_preserves_its_reading_pos
     ).to_have_attribute("href", "#new-part")
     expect(
         nav.get_by_role("link", name="Renamed destination", exact=True)
-    ).to_have_attribute("href", "#part-41")
+    ).to_have_attribute("href", "#part-7")
     assert held_survivor.evaluate(
         "held => held === document.activeElement && held === "
-        "document.querySelector('#contents a[href=\"#part-80\"]')"
-    )
-    assert nav.evaluate("node => node.scrollTop") == pytest.approx(
-        reading_position, abs=1
+        "document.querySelector('#contents a[href=\"#part-12\"]')"
     )
 
     reordered = changed.replace(
-        sections[78] + sections[79], sections[79] + sections[78]
+        sections[10] + sections[11], sections[11] + sections[10]
     )
     (serve.page_dir / "index.html").write_text(reordered, encoding="utf-8")
     told(page)
@@ -453,7 +464,7 @@ def test_contents_reconciles_live_title_boundaries_and_preserves_its_reading_pos
         survivor.evaluate(
             "link => link.closest('li').nextElementSibling.querySelector('a').hash"
         )
-        == "#part-79"
+        == "#part-11"
     )
 
     replacement = nav.get_by_role("link", name="New destination", exact=True)
@@ -633,6 +644,15 @@ def test_a_table_of_contents_can_stop_at_an_authored_heading_level(browser, serv
     expect(page.locator("h3")).to_have_attribute("id", "lf-contents-section-2")
 
 
+# The stretch of the map's spine from the "Prepare the readers" marker to the next one.
+PREPARE_REACH = """nav => {
+  const link = nav.querySelector('a[href="#prepare"]');
+  const rows = [...nav.querySelectorAll('.lf-toc-labels li')];
+  const marker = nav.querySelectorAll('.lf-toc-marker')[rows.indexOf(link.parentElement) + 1];
+  return parseFloat(marker.style.getPropertyValue('--lf-toc-reach'));
+}"""
+
+
 def test_generated_page_interface_reconciles_before_semantic_interaction(
     browser, serve
 ):
@@ -641,7 +661,7 @@ def test_generated_page_interface_reconciles_before_semantic_interaction(
 
     The recorded draft makes the first section much taller during replay. The contents
     map has already painted the short authored form, so the presentation signal must
-    replace that stale span in the same turn that releases durable interaction."""
+    replace that stale map in the same turn that releases durable interaction."""
     source = contents_page(
         "stable generated interface",
         """
@@ -671,6 +691,7 @@ def test_generated_page_interface_reconciles_before_semantic_interaction(
                     f"Migration checkpoint {number}." for number in range(1, 17)
                 )
             },
+            "answered": True,
         },
     )
     held = []
@@ -680,15 +701,12 @@ def test_generated_page_interface_reconciles_before_semantic_interaction(
         window.__tocFirstPaint = null;
         new MutationObserver((records, observer) => {
           if (document.body?.dataset.lfPresented !== '1') return;
-          const first = document.getElementById('prepare');
-          const second = document.getElementById('verify');
           const nav = document.querySelector('.lf-toc-nav');
-          const row = nav.querySelector('a[href="#prepare"]').parentElement;
           window.__tocFirstPaint = {
             visible: nav.checkVisibility({visibilityProperty: true}),
-            span: Number(row.style.getPropertyValue('--lf-toc-span')),
-            actual: second.getBoundingClientRect().top
-              - first.getBoundingClientRect().top,
+            reach: ("""
+        + PREPARE_REACH
+        + """)(nav),
           };
           observer.disconnect();
         }).observe(document, {
@@ -704,28 +722,24 @@ def test_generated_page_interface_reconciles_before_semantic_interaction(
     assert held, "the positive control did not hold the first state response"
     nav = page.locator(".lf-toc-nav")
     expect(nav).to_be_visible()
-    prepare = nav.locator('a[href="#prepare"]')
     page.wait_for_function(
-        "link => Number(link.parentElement.style"
-        ".getPropertyValue('--lf-toc-span')) > 0",
-        arg=prepare.element_handle(),
+        f"nav => ({PREPARE_REACH})(nav) > 0", arg=nav.element_handle()
     )
-    authored_span = prepare.evaluate(
-        "link => Number(link.parentElement.style.getPropertyValue('--lf-toc-span'))"
-    )
+    authored_reach = nav.evaluate(PREPARE_REACH)
 
     held.pop(0).continue_()
     page.wait_for_function("() => window.__tocFirstPaint !== null")
     first_paint = page.evaluate("() => window.__tocFirstPaint")
     assert first_paint["visible"], first_paint
-    # The replayed draft must move the geometry beyond the span tolerance, or a
-    # stale authored span would pass the reconciliation check below.
-    assert first_paint["actual"] != pytest.approx(authored_span, abs=1), (
-        authored_span,
-        first_paint,
-    )
-    assert first_paint["span"] == pytest.approx(first_paint["actual"], abs=1)
     wait_until_ready(page)
+    settled_reach = nav.evaluate(PREPARE_REACH)
+    # The replayed draft must move the map beyond the tolerance, or a stale authored
+    # map would pass the reconciliation check below.
+    assert settled_reach != pytest.approx(authored_reach, abs=1), (
+        authored_reach,
+        settled_reach,
+    )
+    assert first_paint["reach"] == pytest.approx(settled_reach, abs=1)
 
 
 def test_an_eyebrow_and_heading_keep_one_title_rhythm_through_contents(browser, serve):
@@ -912,13 +926,13 @@ def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve
     heading = nav.locator(".lf-toc-heading")
 
     def rows():
-        return nav.locator("li").evaluate_all(
-            "items => items.filter(item => item.getBoundingClientRect().height > 0)"
-            ".length"
+        return nav.locator(".lf-toc-marker").evaluate_all(
+            "markers => markers.filter(marker => marker.checkVisibility()"
+            " && marker.style.getPropertyValue('--lf-toc-at')).length"
         )
 
-    map_rows = nav.locator(".lf-toc-rows")
-    expect(map_rows).to_have_css("display", "flex")
+    map_rows = nav.locator(".lf-toc-markers")
+    expect(map_rows).to_have_css("display", "block")
     expect(heading).to_be_hidden()
     settled = toc.bounding_box()
     assert settled is not None
@@ -932,7 +946,7 @@ def test_the_reading_map_returns_when_a_hidden_sidebar_comes_back(browser, serve
 
     resized(page, 1200, 900)
     expect(page.locator("#route")).to_be_visible()
-    expect(map_rows).to_have_css("display", "flex")
+    expect(map_rows).to_have_css("display", "block")
     expect(heading).to_be_hidden()
     assert toc.bounding_box() == settled, (
         f"the map came back as {toc.bounding_box()} rather than {settled}"
@@ -971,17 +985,17 @@ def test_a_crowded_document_map_reveals_every_heading_on_one_fitted_scale(
     nav_box = nav.bounding_box()
     assert nav_box is not None
     assert nav.evaluate("node => node.scrollHeight <= node.clientHeight + 1")
-    markers = nav.locator(".lf-toc-start, li").evaluate_all(
-        "items => items.map(item => { const s = getComputedStyle(item, '::before'); "
-        "const r = item.getBoundingClientRect(); return r.y + parseFloat(s.top) "
-        "+ new DOMMatrixReadOnly(s.transform).m42; })"
+    markers = nav.locator(".lf-toc-marker").evaluate_all(
+        "markers => markers.map(marker => marker.getBoundingClientRect().top)"
     )
     assert markers[-1] <= nav_box["y"] + nav_box["height"]
-    shifts = nav.locator(".lf-toc-start, li").evaluate_all(
-        "items => items.map(item => "
-        "parseFloat(item.style.getPropertyValue('--lf-toc-row-shift')) || 0)"
+    # Neighbours less than half a line apart in the document stand a line apart on
+    # the map, which only the fit can have done.
+    line = nav.locator("li a").first.evaluate(
+        "link => link.getBoundingClientRect().height"
     )
-    assert any(abs(shift) > 1 for shift in shifts), shifts
+    gaps = [below - above for above, below in pairwise(markers[1:])]
+    assert min(gaps) >= line - 1, (line, gaps)
 
     page.mouse.move(nav_box["x"] + 2, nav_box["y"] + 100)
     page.wait_for_function(
@@ -1051,7 +1065,8 @@ def test_co_located_headings_share_the_current_title_and_lens_position(browser, 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
 def test_the_lens_follows_the_scroll_in_every_engine(request, serve, engine):
     """The lens shows the reader's place by the browser's own scroll timeline in each
-    engine Leaf supports, at the top, the middle and the foot of the document."""
+    engine Leaf supports, at the top, the middle and the foot of the document, while
+    the map itself stands still in the window, the document's end room included."""
     source = contents_page(
         "contents lens in every engine",
         """
@@ -1066,8 +1081,10 @@ def test_the_lens_follows_the_scroll_in_every_engine(request, serve, engine):
     page = open_page(request.getfixturevalue(engine), serve(source))
     resized(page, 1400, 900)
     lens = page.locator("#lens-contents .lf-toc-window")
+    rows = page.locator("#lens-contents .lf-toc-rows")
     expect(lens).to_be_visible()
     track = []
+    stood = []
     for fraction in (0, 0.5, 1):
         page.evaluate(
             "fraction => { const s = document.scrollingElement; "
@@ -1076,16 +1093,18 @@ def test_the_lens_follows_the_scroll_in_every_engine(request, serve, engine):
             "() => requestAnimationFrame(done))); }",
             fraction,
         )
-        track.append(lens.bounding_box()["y"])
+        stood.append(rows.bounding_box()["y"])
+        track.append(lens.bounding_box()["y"] - stood[-1])
     top, middle, foot = track
     assert top < middle < foot and foot > top + 300, track
+    assert max(stood) - min(stood) < 0.5, stood
 
 
 @pytest.mark.parametrize(
     ("layout", "holder"),
     [
         # A sidebar page's track, as pr-walkthrough holds its contents.
-        ("sidebar", '<section class="panel">{toc}</section>'),
+        ("sidebar", '<section class="lf-panel">{toc}</section>'),
         # A column's margin sidebar holding the map beside other notes.
         ("column", "{toc}<p>Owner: platform.</p>"),
     ],
@@ -1119,81 +1138,168 @@ def test_the_current_entry_follows_the_document_from_a_sticking_track(
         expect(current).to_have_text(name)
 
 
-def test_a_route_taller_than_the_map_returns_to_an_open_outline(
-    browser, serve, subtests
+def test_the_current_section_is_the_one_that_fills_the_window(browser, serve):
+    """A heading risen into the window's top half makes its section current, and one
+    lower leaves the section above it current, whose words fill the window. A short
+    section reached by its link is current though the next heading stands in the top
+    half too."""
+    sections = "".join(
+        f'<section><h2 id="{name.lower()}">{name}</h2>'
+        f'<div style="height: {height}px"></div></section>'
+        for name, height in (("Prepare", 1400), ("Move", 120), ("Verify", 1400))
+    )
+    source = contents_page("current section", f"<h1>A migration</h1>{sections}")
+    page = open_page(browser, serve(source))
+    resized(page, 1728, 999)
+    current = page.locator("#contents a[aria-current='location']")
+    move = page.locator("#move")
+    for top, name in ((147, "Move"), (700, "Prepare")):
+        move.evaluate(
+            "(node, top) => scrollTo({behavior: 'instant', "
+            "top: node.getBoundingClientRect().top + scrollY - top})",
+            top,
+        )
+        expect(current).to_have_text(name)
+
+    page.locator("#contents a[href='#move']").evaluate("node => node.click()")
+    expect(page).to_have_url(re.compile(r"#move$"))
+    expect(current).to_have_text("Move")
+    assert page.locator("#verify").evaluate(
+        "node => node.getBoundingClientRect().top < innerHeight / 2"
+    )
+
+
+def test_a_route_too_long_for_its_labels_leaves_its_deepest_level_off_the_map(
+    browser, serve
 ):
-    """A route that cannot physically fit keeps every heading in one honest form,
-    measuring it leaves the reader's own place in the outline where they put it, and at
-    rest it lays nothing over the document."""
+    """A route whose labels don't fit down the map even a line each leaves its deepest
+    level of sections off the map, then the next, until the rest fit, and each label
+    that stays stands at its marker. While the reader is in a section left off the map,
+    the section above it on the map is current, and a thread in it marks that row, as a
+    thread under a heading in a closed disclosure does. A taller window brings the level
+    back, and at rest the map lays nothing over the document."""
     sections = "\n".join(
-        f"<section><h2 id='part-{index}'>Migration part {index}</h2></section>"
-        for index in range(1, 81)
+        f"<section><h2 id='part-{index}'>Migration part {index}</h2><p>Words.</p>"
+        + "".join(
+            f"<h3 id='part-{index}-{step}'>Step {index}.{step}</h3><p>Words.</p>"
+            for step in range(1, 4)
+        )
+        + (
+            "<details><summary>Rollback</summary>"
+            "<h3 id='part-12-rollback'>Roll back part 12</h3><p>Words.</p></details>"
+            if index == 12
+            else ""
+        )
+        + "</section>"
+        for index in range(1, 21)
     )
     source = contents_page(
         "long contents route",
-        f"""
-<h1>A migration with more steps than the margin can show at once</h1>
-
-{sections}
-""",
+        "<h1>A migration with more steps than the margin can show at once</h1>"
+        + sections,
         toc_id="long-contents",
     )
     page = open_page(browser, serve(source))
-    resized(page, 1400, 1800)
+    resized(page, 1400, 900)
     toc = page.locator("#long-contents")
     nav = page.get_by_role("navigation", name="On this page")
-    links = nav.locator("a")
-    expect(links).to_have_count(81)
-    expect(toc).not_to_have_attribute("data-lf-outline", "")
-    links.last.focus()
-    expect(links.last).to_be_focused()
+    part = nav.get_by_role("link", name="Migration part 7", exact=True)
+    step = nav.locator('a[href="#part-7-2"]')
+    rollback_part = nav.get_by_role("link", name="Migration part 12", exact=True)
+    before_rollback = nav.locator('a[href="#part-12-3"]')
+    expect(step).to_be_hidden()
+    expect(part).to_have_css("visibility", "visible")
+    placed = toc.evaluate(LABELS_AT_MARKERS)
+    assert len(placed) == 21, placed
+    assert all(abs(label - marker) <= 1 for label, marker in placed), placed
 
-    resized(page, 1400, 900)
-    expect(toc).to_have_attribute("data-lf-outline", "")
-    expect(nav.locator(".lf-toc-heading")).to_be_visible()
-    assert nav.evaluate("node => node.scrollHeight > node.clientHeight")
-    for link in (links.first, links.last):
-        expect(link).to_have_css("opacity", "1")
-        expect(link).to_have_css("pointer-events", "auto")
-    expect(links.last).to_be_focused()
-    expect(links.last).to_be_in_viewport()
+    page.locator("#part-7-2").evaluate("node => node.scrollIntoView({block: 'start'})")
+    scroll_settled(page)
+    expect(part).to_have_attribute("aria-current", "location")
 
-    resized(page, 1400, 700)
-    expect(toc).to_have_attribute("data-lf-outline", "")
-    expect(links.last).to_be_focused()
-    expect(links.last).to_be_in_viewport()
+    for anchor, text in [
+        ("part-7-2", "Who runs this step?"),
+        ("part-12-rollback", "When?"),
+    ]:
+        append_command(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": text,
+                "anchor": {"section": anchor},
+            },
+        )
+    told(page)
+    expect(part.locator("xpath=..")).to_have_attribute("data-lf-toc-mark", "thread")
+    expect(rollback_part.locator("xpath=..")).to_have_attribute(
+        "data-lf-toc-mark", "thread"
+    )
+    assert preview_parts(part, route="focus") == ["1 thread"]
+    page.keyboard.press("Escape")
 
-    with subtests.test("measuring keeps the place the reader scrolled to"):
-        resized(page, 1400, 900)
-        links.last.focus()
-        # The reader's own scroll, a wheel over the outline, is what Leaf keeps; a
-        # script's write to scrollTop is no gesture, so a resize may still return the
-        # page to the focused link it last read as their place (reading-place.js).
-        nav_box = nav.bounding_box()
-        page.mouse.move(nav_box["x"] + 50, nav_box["y"] + 200)
-        page.mouse.wheel(0, -nav.evaluate("node => node.scrollHeight"))
-        page.wait_for_function("nav => nav.scrollTop === 0", arg=nav.element_handle())
-        page.evaluate("""async () => {
-          window.dispatchEvent(new Event('resize'));
-          await new Promise(requestAnimationFrame);
-          await new Promise(requestAnimationFrame);
-        }""")
-        assert nav.evaluate("node => node.scrollTop") == 0
-        resized(page, 1400, 700)
-        assert nav.evaluate("node => node.scrollTop") == 0
+    resized(page, 1400, 1800)
+    expect(step).to_be_visible()
+    expect(step.locator("xpath=..")).to_have_attribute("data-lf-toc-mark", "thread")
+    expect(part.locator("xpath=..")).not_to_have_attribute("data-lf-toc-mark", "thread")
+    expect(before_rollback.locator("xpath=..")).to_have_attribute(
+        "data-lf-toc-mark", "thread"
+    )
+    assert len(toc.evaluate(LABELS_AT_MARKERS)) == 81
 
-    # In the narrowed sidebar the outline reveals as the map does, so at rest it lays
+    # In the narrowed sidebar the labels reveal as the map does, so at rest they lay
     # nothing over the document's words.
     resized(page, 1188, 600)
     page.evaluate(RELEASE_FOCUS)
     page.mouse.move(1100, 500)
-    expect(toc).to_have_attribute("data-lf-outline", "")
-    expect(links.first).to_have_css("opacity", "0")
+    expect(nav.locator(".lf-toc-labels")).to_have_css("opacity", "0")
     title = page.locator("h1").bounding_box()
     assert page.evaluate(
         "p => document.elementFromPoint(p.x, p.y)?.closest('h1') !== null",
         {"x": title["x"] + 4, "y": title["y"] + title["height"] / 2},
-    ), "the resting outline covers the document's title"
+    ), "the resting map covers the document's title"
+
+
+def test_a_route_too_long_at_its_top_level_keeps_as_many_sections_as_fit(
+    browser, serve
+):
+    """Where even the top level's labels don't fit down the map, the map keeps as many
+    of its sections as fit, spread from the first to the last, each label at its marker
+    and in the route's order."""
+    source = contents_page(
+        "flat contents route",
+        "<h1>A migration of many single steps</h1>"
+        + "".join(
+            f"<section><h2 id='step-{index}'>Step {index}</h2><p>Words.</p></section>"
+            for index in range(1, 121)
+        ),
+        toc_id="flat-contents",
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1400, 700)
+    toc = page.locator("#flat-contents")
+    placed = toc.evaluate(LABELS_AT_MARKERS)
+    assert 1 < len(placed) < 121, placed
+    assert all(abs(label - marker) <= 1 for label, marker in placed), placed
+    tops = [label for label, _ in placed]
+    assert all(below > above for above, below in pairwise(tops)), tops
+    nav = page.get_by_role("navigation", name="On this page")
+    expect(nav.get_by_role("link", name="Step 120", exact=True)).to_be_visible()
+    # One more label would not fit down the track.
+    room = toc.evaluate("""toc => {
+      const links = [...toc.querySelectorAll('.lf-toc-labels a')]
+        .filter(link => link.checkVisibility({visibilityProperty: true}));
+      const heights = links.map(link => link.getBoundingClientRect().height);
+      return {
+        labels: heights.reduce((sum, height) => sum + height, 0),
+        more: Math.min(...heights),
+        // The first label may stand half its line above the track.
+        above: parseFloat(getComputedStyle(links[0]).lineHeight) / 2,
+        track: toc.querySelector('.lf-toc-rows').getBoundingClientRect().height,
+      };
+    }""")
+    assert room["labels"] + room["more"] > room["track"] + room["above"] + 1, room
 
 
 def test_the_document_map_remeasures_tab_swaps_and_skips_hidden_headings(
@@ -1202,8 +1308,8 @@ def test_the_document_map_remeasures_tab_swaps_and_skips_hidden_headings(
     """An equal-height panel swap changes the map without resizing the document.
 
     Both panels occupy the same outer height but put their heading at a different point.
-    The active panel's heading must own the remaining span and the hidden panel must own
-    none; at the bottom, current location means the last visible heading rather than the
+    The active panel's heading must stand on the map at its own place and the hidden
+    panel's nowhere; at the bottom, current location means the last visible heading rather than the
     last heading in DOM order."""
     source = contents_page(
         "tabbed contents map",
@@ -1230,10 +1336,16 @@ def test_the_document_map_remeasures_tab_swaps_and_skips_hidden_headings(
     nav = page.get_by_role("navigation", name="On this page")
     first = nav.locator('a[href="#first-heading"]')
     second = nav.locator('a[href="#second-heading"]')
-    span = "node => Number(node.parentElement.style.getPropertyValue('--lf-toc-span'))"
+    # Where a heading's marker stands on the map, or None where it stands nowhere.
+    at = (
+        "link => { const marker = (" + MARKER_OF + ")(link.parentElement); "
+        "return marker.checkVisibility({visibilityProperty: true}) "
+        "? parseFloat(marker.style.getPropertyValue('--lf-toc-at')) : null; }"
+    )
     main_height = page.locator("main").evaluate("node => node.scrollHeight")
-    assert first.evaluate(span) > 500
-    assert second.evaluate(span) == 0
+    first_at = first.evaluate(at)
+    assert first_at is not None
+    assert second.evaluate(at) is None
     expect(first).to_be_visible()
     expect(second).to_be_hidden()
 
@@ -1245,12 +1357,12 @@ def test_the_document_map_remeasures_tab_swaps_and_skips_hidden_headings(
 
     page.get_by_role("tab", name="Second route").click()
     page.wait_for_function(
-        "() => Number(document.querySelector('a[href=\"#second-heading\"]')"
-        ".parentElement.style.getPropertyValue('--lf-toc-span')) > 400"
+        f"link => ({at})(link) !== null", arg=second.element_handle()
     )
     assert page.locator("main").evaluate("node => node.scrollHeight") == main_height
-    assert first.evaluate(span) == 0
-    assert second.evaluate(span) > 400
+    assert first.evaluate(at) is None
+    # The second panel's heading stands 420px further down the document.
+    assert second.evaluate(at) > first_at + 100
     expect(first).to_be_hidden()
     expect(second).to_be_visible()
     page.evaluate(
@@ -1272,13 +1384,14 @@ ROW_MARKS = """(toc) => {
     probe.remove();
     return value;
   };
-  const marks = { thread: colour('--lf-thread'), 'on-me': colour('--lf-turn') };
-  return Object.fromEntries([...toc.querySelectorAll('li, .lf-toc-start')]
-    .filter((row) => row.dataset.lfTocMark && (
+  const marks = { thread: colour('--lf-accent'), 'on-me': colour('--lf-ok') };
+  const markers = [...toc.querySelectorAll('.lf-toc-marker')];
+  return Object.fromEntries([...toc.querySelectorAll('.lf-toc-start, li')]
+    .filter((row, index) => row.dataset.lfTocMark && (
       row.querySelector(':scope > .lf-toc-mark')?.checkVisibility()
-      || (row.checkVisibility() && getComputedStyle(row, '::before').display !== 'none'
-        && !row.querySelector(':scope > a[aria-current="location"]')
-        && getComputedStyle(row, '::before').borderTopColor
+      || (markers[index].checkVisibility({visibilityProperty: true})
+        && !markers[index].hasAttribute('data-lf-current')
+        && getComputedStyle(markers[index], '::before').borderTopColor
           === marks[row.dataset.lfTocMark])))
     .map((row) => [row.querySelector('a').textContent.trim(), row.dataset.lfTocMark]));
 }"""
@@ -1303,8 +1416,15 @@ MARKS_IN_WORDS = """(toc) => [...toc.querySelectorAll('.lf-toc-mark')]
   })
   .map(([, link]) => link.textContent.trim())"""
 # Whether a row draws its section as changed.
-CHANGED = """(row) => getComputedStyle(row, '::after').content !== 'none'
-  && parseFloat(getComputedStyle(row, '::after').height) > 0"""
+# Whether a row's section is drawn as changed: on the map, its marker's stretch of the
+# spine; in the column, the stretch of the outline's rule beside the row.
+CHANGED = (
+    """(row) => [("""
+    + MARKER_OF
+    + """)(row), row].some((node) => node.checkVisibility()
+  && getComputedStyle(node, '::after').content !== 'none'
+  && parseFloat(getComputedStyle(node, '::after').height) > 0)"""
+)
 
 
 def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_stand(
@@ -1334,7 +1454,8 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
     }
     # Each row's, the title row's, and the toggle's and the label's, which carry it.
     page.wait_for_function(
-        "(toc) => toc.querySelectorAll('[data-lf-toc-mark]').length === 8",
+        "(toc) => toc.querySelectorAll(':not(.lf-toc-marker)[data-lf-toc-mark]')"
+        ".length === 8",
         arg=toc.element_handle(),
     )
     # The title row is where the reader is, so the map fills its marker, and its thread
@@ -1380,12 +1501,15 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
         "data-lf-toc-mark", "thread"
     )
     assert toc.evaluate(ROW_MARKS) == {**held, "Confirm access": "thread"}
-    page.keyboard.press("v")
-    expect(toc.locator("[data-lf-toc-changed]")).to_have_count(3)
+    show_changes(page)
+    expect(toc.locator(":not(.lf-toc-marker)[data-lf-toc-changed]")).to_have_count(3)
     rendered(page)
     assert toc.evaluate(ROW_BOXES) == boxes, "a mark moved the map"
     verify = toc.locator("li", has_text="Verify")
     assert verify.evaluate(CHANGED)
+    # Versions hands focus to the panel's leaf as its Compare closes it; back on the
+    # map's row, the map stands open under the pointer again.
+    toc.get_by_role("link", name="Ledger").focus()
     assert preview_parts(toc.get_by_role("link", name="Switch the services")) == [
         "1 thread · 1 waiting on me · 1 change"
     ]
@@ -1393,13 +1517,17 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
     # the change's bar in the margin (toc.css).
     page.evaluate(RELEASE_FOCUS)
     chrome = page.locator(CHROME_ROOT)
-    face = "(row) => getComputedStyle(row, '::after').backgroundColor"
+    face = (
+        "(row) => getComputedStyle((" + MARKER_OF + ")(row), '::after').backgroundColor"
+    )
     drawn = verify.evaluate(face)
     assert drawn != "rgba(0, 0, 0, 0)"
-    page.keyboard.press("o")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+H")
     expect(chrome).to_have_attribute("data-lf-annotations-hidden", "")
     assert verify.evaluate(face) == "rgba(0, 0, 0, 0)"
-    page.keyboard.press("o")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+H")
     expect(chrome).not_to_have_attribute("data-lf-annotations-hidden", re.compile(".*"))
     assert verify.evaluate(face) == drawn
 
@@ -1431,7 +1559,7 @@ def test_each_contents_row_marks_where_its_section_s_threads_on_me_and_changes_s
     expect(preview.locator("[data-lf-clamp], [data-lf-cut]")).to_have_count(0)
     page.keyboard.press("Escape")
     with_changes = toc.evaluate(ROW_BOXES)
-    page.keyboard.press("v")
+    show_changes(page)
     expect(toc.locator("[data-lf-toc-changed]")).to_have_count(0)
     rendered(page)
     assert toc.evaluate(ROW_BOXES) == with_changes, "a mark moved the outline"
@@ -1478,7 +1606,7 @@ def test_the_outline_beside_the_body_marks_its_introduction_on_its_label(
 def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, serve):
     """The explanation is a glance, not a mouse-only tooltip: the phrase previews it to
     a resting pointer and to Tab, which reaches its Explain control, in the face every
-    preview wears (preview.js), and a click pins it as the page's card for mouse or
+    preview wears (annotations/preview.js), and a click pins it as the page's card for mouse or
     touch. The preview and the card each stay inside the viewport, Escape puts either
     away, and both the phrase and explanation remain the page's authored words."""
     source = leaf_page(
@@ -1571,6 +1699,22 @@ def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, ser
     page.keyboard.press("Escape")
     expect(preview).to_be_hidden()
 
+    # Enter pins the card while the phrase's words stand selected: a press from the
+    # keyboard ends no selection, so the selected words don't refuse it.
+    gloss.evaluate(
+        """el => {
+          const words = document.createRange();
+          words.selectNodeContents(el.childNodes[0]);
+          getSelection().removeAllRanges();
+          getSelection().addRange(words);
+        }"""
+    )
+    expect(mark).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(bubble).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(bubble).to_be_hidden()
+
     assert gloss.evaluate("el => el.childNodes[0].textContent.trim()") == (
         "walking skeleton"
     )
@@ -1633,6 +1777,7 @@ def test_a_comment_on_a_gloss_reopens_its_explanation(browser, serve):
     bubble = page.locator("#lf-gloss-tip-1")
 
     expect(bubble).to_be_hidden()
+    choose_threads_in_panel(page)
     open_threads(page)
     page.locator(".lf-fp-thread").click()
     page.locator(".lf-fp-head").get_by_role("button", name="Show on page").click()

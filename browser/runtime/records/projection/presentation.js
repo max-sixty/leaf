@@ -1,0 +1,199 @@
+// Compiled from presentation.ts by build/typescript.mjs; edit that file.
+/* The marks Leaf paints on every widget, whatever the widget's own module renders.
+
+   Each widget's module renders its own state. This module's `projection:chrome` region
+   paints the marks the layer derives for every widget: the restated mark, the
+   user-override and reported origin marks (`paintStateOrigins`), and each widget's
+   settlement (`paintSettlements`). It also stamps `document.body` with how many log
+   events the projection covers, once every widget they touch has painted; a waiter
+   outside the page reads that stamp to know the page has caught up. Threads then
+   resolve their passages over the words it writes into authored elements. */
+import { authoredStates } from "./authored.js";
+import { projectionOrigins } from "../../state/projection/model.js";
+import {
+  applicationPresenter,
+  applicationState,
+  projectionRegionsPresented,
+  watchPresentation,
+  readPart,
+} from "../../state/semantic-state.js";
+import { decisionFor } from "../../state/registry.js";
+import { addressableAt } from "../thread/messages.js";
+import { authored, elementById, renderRetired } from "../../readings/passages.js";
+import { isPagePaint, sayQuietFacts } from "../declared-words.js";
+import { PAGE_PAINT_ATTRIBUTE } from "../../base/page-paint.js";
+import { keeps, keepsOnEach } from "../../lib/keeps.js";
+import { inChrome } from "../../base/ui-marks.js";
+
+// Paint each unit's origin mark, through each origin attribute's writer
+// (lib/keeps.js, `keepsOnEach`), and return every element that wears one or just lost
+// one.
+function paintStateOrigins(projection, paint) {
+  const user = new Map();
+  const reported = new Map();
+  for (const { origin, unit } of projectionOrigins(authoredStates(), projection)) {
+    if (origin === "restated") continue;
+    const target = elementById(unit);
+    if (!target || inChrome(target)) continue;
+    (origin === "user" ? user : reported).set(target, "1");
+  }
+  return [...paint.user(user), ...paint.reported(reported)];
+}
+
+// A widget whose tag has a deciding verb (`decisionFor`) is settled when that verb's
+// current outcome is one the registry says retires it. This marks every such widget,
+// whether or not its module renders anything. A module that animates its own settling,
+// as lf-suggestion does, has already run it in the publication before this writes the
+// same mark. A widget in a message's markup is marked before the thread mounts
+// it, so it joins the panel settled and the thread's passages skip what it retired.
+function paintSettlements(widgets) {
+  for (const [widgetId, { state }] of widgets) {
+    const owner = addressableAt(widgetId);
+    const decision = owner && decisionFor(owner.localName);
+    if (!decision) continue;
+    const wanted = state[decision.verb]?.detail?.outcome;
+    const outcome =
+      Object.keys(decision.retires).find((candidate) => candidate === wanted) ?? null;
+    keeps(owner, PAGE_PAINT_ATTRIBUTE.settlement, outcome);
+    renderRetired(owner, outcome);
+  }
+}
+
+const answered = readPart((root) => root.authoritative !== null);
+const phase = readPart((root) => root.phase);
+const currentProjection = readPart((root) => root.effective.projection);
+const widgetStates = readPart((root) => root.effective.widgets);
+
+export function createProjectionPresentation() {
+  // The region claims a paint synchronously as each publication is made, before the
+  // coordinator seals which regions the pass must paint. So its previous paint cannot
+  // stand for a new reading while thread widget markup is still joining the document;
+  // the pass paints it afterwards. Before the server's first answer `reading` returns
+  // null, and there is nothing to paint. The coverage stamp below follows presentation
+  // (`watchPresentation`) rather than this region.
+  applicationPresenter({
+    region: "projection:chrome",
+    reading: () => (answered() ? true : null),
+    paint: paintReading,
+  });
+
+  // The stamp keeps the last complete coverage. It waits only for the widgets whose
+  // events it covers to paint, so another widget's preparation cannot hold it back.
+  // A live revision keeps that reading until its next projection completes. Current
+  // document readiness belongs to the presentation coordinator, whose document:patch
+  // region holds the installation, rather than to erasing and restoring this count.
+  // The fold keeps the coverage records while no event joins the log (`state/kept.js`), so
+  // once the stamp covers them a presentation that moves no widget event, such as a
+  // thread's repaint, returns without walking the log again.
+  let stamped = null;
+  const coverage = () => {
+    const root = applicationState.read();
+    const records = root.effective.coverage;
+    if (
+      records === stamped ||
+      root.phase === "waiting" ||
+      root.authoritative === null ||
+      !projectionRegionsPresented([])
+    )
+      return;
+    const projection = root.effective.projection;
+    const ready = records.every((record) => {
+      if (record.coordinate === null) return true;
+      const e = record.event;
+      const target = projection.classified.get(e.kind === "undo" ? e.undoes : e.id);
+      return (
+        !target ||
+        target.terminal ||
+        projectionRegionsPresented(record.coordinate.slice(0, 1))
+      );
+    });
+    if (!ready) return;
+    keeps(document.body, PAGE_PAINT_ATTRIBUTE.applied, String(records.length));
+    stamped = records;
+  };
+  let coverageQueued = false;
+  const updateCoverage = () => {
+    if (coverageQueued) return;
+    coverageQueued = true;
+    queueMicrotask(() => {
+      coverageQueued = false;
+      coverage();
+    });
+  };
+  watchPresentation(updateCoverage);
+
+  const originPaint = {
+    user: keepsOnEach(PAGE_PAINT_ATTRIBUTE.userOverride),
+    reported: keepsOnEach(PAGE_PAINT_ATTRIBUTE.reported),
+  };
+  function presentCurrent() {
+    const projection = currentProjection();
+    // Until the server's first state or the offline fallback arrives, the page cannot
+    // know which actions are available, so there is no projection to paint; widget
+    // controllers already show each widget's authored state.
+    if (phase() === "waiting" || !answered()) {
+      // Returning here lets document installation finish and start the state feed. The
+      // ready or offline publication that follows claims a new paint before any
+      // widget's paint counts as current.
+      return projection;
+    }
+    // Every element this paint marks, or takes a mark off, says its marks again quietly.
+    const marked = new Set();
+    for (const entry of projection.classified.values())
+      for (const id of entry.restated ?? []) {
+        const target = elementById(id);
+        if (!target) continue;
+        keeps(target, PAGE_PAINT_ATTRIBUTE.restated, "1");
+        marked.add(target);
+      }
+    paintSettlements(widgetStates());
+    for (const target of paintStateOrigins(projection, originPaint)) marked.add(target);
+    sayQuietFacts(marked);
+    return projection;
+  }
+
+  // If painting throws, the region stays unpainted and the error reaches the
+  // application's error boundary; the next claim tries the current state again.
+  function paintReading() {
+    return presentCurrent();
+  }
+
+  // `present` is not returned. The region repaints from its own subscription above, or
+  // from `presentDocument` when a caller has changed the document. Handing one caller
+  // a third way in can leave an owner, such as the obligation inventory, out of a
+  // document-wide repaint.
+}
+
+export function shallowSigs(root) {
+  const sigs = new Map();
+  const siblingPositions = new Map();
+  const isAuthored = (node) => Boolean(node.id) && authored(node)(node);
+  for (const node of [root, ...root.querySelectorAll("[id]")]) {
+    if (!isAuthored(node)) continue;
+    const attrs = Object.fromEntries(
+      [...node.attributes]
+        .filter((attribute) => !isPagePaint(attribute.name))
+        .map((attribute) => ({ name: attribute.name, value: attribute.value }))
+        .sort((left, right) => left.name.localeCompare(right.name))
+        .map(({ name, value }) => [name, value]),
+    );
+    const parent = node.parentElement;
+    let positions = siblingPositions.get(parent);
+    if (!positions) {
+      positions = new Map();
+      for (const sibling of parent?.children ?? [])
+        if (isAuthored(sibling)) positions.set(sibling, positions.size);
+      siblingPositions.set(parent, positions);
+    }
+    sigs.set(
+      node.id,
+      JSON.stringify({
+        tag: node.tagName,
+        attrs,
+        parent: parent && isAuthored(parent) ? parent.id : "",
+        index: positions.get(node) ?? -1,
+      }),
+    );
+  }
+  return sigs;
+}

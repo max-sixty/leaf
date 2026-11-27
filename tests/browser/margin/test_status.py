@@ -41,12 +41,14 @@ from browser.margin import (
     leave_card,
 )
 from browser.threads import open_panel_thread
-from leaf import cli as cli_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import service as service_model
-from leaf.render_checks import rendered
-from leaf.served_state import context as served_context
+from leaf.agents import delivery as delivery_model
+from leaf.base import service as service_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.records import transaction as transaction_model
+from leaf.serving.served_state import context as served_context
+from leaf.source.render_checks import rendered
+from leaf_dev.browser import text_field
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -82,7 +84,7 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
     resized(page, 1440, 900)
     page.evaluate(
         """async () => {
-          const {contributionEntry, registerContribution} =
+          const {registerContribution} =
             await window.__lfWidgetApi();
           const tones = ['neutral', 'positive', 'negative'];
           let currentState = 'idle';
@@ -90,16 +92,16 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
           const registrations = tones.map((tone, index) =>
             registerContribution({
               key: `tone-${tone}`, target: document.querySelector(`#${tone}-target`),
-              read: () => ({entries: [contributionEntry({
+              read: () => ({entries: [{
                 key: tone, icon: 'check', label: tone, tone, state: currentState,
                 disabled: currentState === 'busy', workflowReceipt: stage ? {
                   id: `tone-${index}`,
                   subject: {kind: 'widget', id: `${tone}-target`},
-                  stage,
-                  at_work: stage === 'working',
-                  condition: null,
+                  state: stage === 'working' ? 'running' : 'waiting',
+                  reason: null,
+                  seen: true,
                 } : null
-              })]}), activate: () => {}
+              }]}), activate: () => {}
             })
           );
           window.setToneState = state => {
@@ -170,7 +172,7 @@ def test_margin_entry_tone_stays_distinct_from_control_and_agent_state(
 
             page.evaluate("() => window.setToneState('idle')")
             ordinary = [button.evaluate(read) for button in buttons]
-            page.evaluate("() => window.setToneReceiptPhase('picked_up')")
+            page.evaluate("() => window.setToneReceiptPhase('delivered')")
             picked_up = [button.evaluate(read) for button in buttons]
             assert [reading["shell"] for reading in picked_up] == [
                 reading["shell"] for reading in ordinary
@@ -263,10 +265,10 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     }""")
 
     record_claim(serve.page_dir)
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(transaction, roots)
     told(page)
-    expect(marker).to_have_attribute("data-lf-agent-workflow", "picked_up")
+    expect(marker).to_have_attribute("data-lf-agent-workflow", "delivered")
     picked_up = marker.evaluate("""node => {
       const style = getComputedStyle(node);
       return {border: style.borderTopColor, background: style.backgroundColor,
@@ -368,9 +370,9 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect(preview.locator(".lf-margin-thread")).to_have_count(1)
     expect(preview).to_contain_text("Check the return visit too.")
     expect(preview).not_to_contain_text(COMMENT_ON_OBLIGATION["text"])
-    # A click on › lands in the reply (thread/focus.js, `openingPart`); Escape stands
+    # A click on › lands in the reply (records/thread/focus.js, `openingPart`); Escape stands
     # the user on the thread, from which leaving takes the card down.
-    expect(preview.get_by_role("textbox", name="Reply", exact=True)).to_be_focused()
+    expect(text_field(preview, name="Reply", exact=True)).to_be_focused()
     page.keyboard.press("Escape")
     leave_card(page)
     page.keyboard.press("g")
@@ -392,7 +394,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     working_row.evaluate("node => node.blur()")
     page.mouse.move(0, 0)
     expect(working_row).to_have_css("background-color", "rgba(0, 0, 0, 0)")
-    picked_up_row = dialog.locator('[data-lf-agent-workflow="picked_up"]')
+    picked_up_row = dialog.locator('[data-lf-agent-workflow="delivered"]')
     expect(picked_up_row).to_have_count(1)
     expect(picked_up_row.locator(".lf-margin-kind")).to_have_css(
         "color", colors["--lf-accent"]
@@ -401,16 +403,16 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     # Two contributed actions fold the Thread control behind More. The visible
     # primary must retain the workflow, and its own accessible description survives it.
     page.evaluate("""async () => {
-      const {contributionEntry, registerContribution} =
+      const {registerContribution} =
         await window.__lfWidgetApi();
       let cancelReceipt = null;
       window.agentContribution = registerContribution({
         key: 'carrier-probe', target: document.querySelector('#bracket'),
         read: () => ({entries: [
-          contributionEntry({key: 'edit', icon: 'edit', label: 'Edit',
-            description: 'Edit the proposed bracket', behavior: 'disclosure'}),
-          contributionEntry({key: 'cancel', icon: 'cross', label: 'Cancel',
-            rank: 'secondary', workflowReceipt: cancelReceipt}),
+          {key: 'edit', icon: 'edit', label: 'Edit',
+            description: 'Edit the proposed bracket', behavior: 'disclosure'},
+          {key: 'cancel', icon: 'cross', label: 'Cancel',
+            rank: 'secondary', workflowReceipt: cancelReceipt},
         ]}), activate: () => {}
       });
       window.setAgentCancelReceipt = receipt => {
@@ -433,7 +435,7 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     page.evaluate("""async () => {
       const {readApplication} = await window.__lfCheckApi();
       const receipt = readApplication().effective.workflows.find(
-        item => item.stage === 'working' && !item.condition
+        item => item.state === 'running'
       );
       window.setAgentCancelReceipt(receipt);
     }""")
@@ -453,25 +455,19 @@ def test_agent_progress_stays_on_the_thread_control(browser, serve, reduced_moti
     expect_preview_words(workflow, f"On it · {detail}")
 
 
-@pytest.mark.parametrize("annotations", ["margin", "page"])
-def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(
-    browser, serve, annotations
-):
+def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(browser, serve):
     """A package control's receipt reads the same wherever its target's controls sit.
 
     The target's agent work rides on its primary control, and every other control shows
     the receipt its contribution gave it. The contrast is a control that gives up the
     primary seat: it goes back to its own receipt, and the new primary takes the work,
-    in the margin or a page's own annotation view as in the Page Map.
+    in the margin as in the Page Map.
     """
-    source = OBLIGATION_PAGE
-    if annotations == "page":
-        source = source.replace("<body>", '<body data-annotations="page">')
     page = open_page(
         browser,
         live_url(
             serve(
-                source,
+                OBLIGATION_PAGE,
                 events=[
                     {**COMMENT_ON_OBLIGATION, "id": "1" * 32},
                     {
@@ -490,7 +486,7 @@ def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(
         if event["kind"] == "comment"
     ]
     record_claim(serve.page_dir)
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(transaction, roots)
     claimed = CliRunner().invoke(
         cli_model.cli,
@@ -505,43 +501,25 @@ def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(
     )
     assert claimed.exit_code == 0, claimed.output
     told(page)
-    if annotations == "margin":
-        seat = page.locator('[data-lf-margin-for="bracket"]')
-        expect(seat.locator(":scope > .lf-margin-marker")).to_have_attribute(
-            "data-lf-agent-workflow", "working"
-        )
-    else:
-        seat = page.locator("#receipt-view")
-        page.evaluate("""async () => {
-          const {consumeAnnotations} =
-            await window.__lfWidgetApi();
-          const box = document.createElement('aside');
-          box.id = 'receipt-view';
-          document.querySelector('#bracket').after(box);
-          consumeAnnotations(box, (entries, view) => {
-            box.replaceChildren();
-            for (const entry of entries) {
-              const row = document.createElement('div');
-              row.dataset.lfGen = '1';
-              box.append(row);
-              row.append(...view.controls(entry));
-              view.place(entry, row);
-            }
-          });
-        }""")
+    seat = page.locator('[data-lf-margin-for="bracket"]')
+    expect(seat.locator(":scope > .lf-margin-marker")).to_have_attribute(
+        "data-lf-agent-workflow", "working"
+    )
     page.evaluate("""async () => {
-      const {contributionEntry, registerContribution} =
+      const {registerContribution} =
         await window.__lfWidgetApi();
       const {readApplication} = await window.__lfCheckApi();
-      const ownReceipt = readApplication().effective.workflows.find(item => item.stage === 'picked_up');
+      const ownReceipt = readApplication().effective.workflows.find(
+        item => item.state === 'waiting' && item.seen
+      );
       let approving = false;
       const contribution = registerContribution({
         key: 'receipt-probe', target: document.querySelector('#bracket'),
         read: () => ({entries: [
-          ...(approving ? [contributionEntry({key: 'approve', icon: 'check',
-            label: 'Approve', rank: 'complete'})] : []),
-          contributionEntry({key: 'edit', icon: 'edit', label: 'Edit',
-            workflowReceipt: ownReceipt}),
+          ...(approving ? [{key: 'approve', icon: 'check',
+            label: 'Approve', rank: 'complete'}] : []),
+          {key: 'edit', icon: 'edit', label: 'Edit',
+            workflowReceipt: ownReceipt},
         ]}), activate: () => {}
       });
       window.offerApproval = () => {
@@ -579,7 +557,7 @@ def test_each_seat_agrees_with_the_page_map_on_a_controls_receipt(
     assert receipts() == (carrying, carrying)
     page.evaluate("window.offerApproval()")
     expect(seat.locator('[data-lf-margin-entry-key="approve"]')).to_have_count(1)
-    displaced = {"approve": "working", "edit": "picked_up"}
+    displaced = {"approve": "working", "edit": "delivered"}
     assert receipts() == (displaced, displaced)
 
 
@@ -643,12 +621,12 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     rendered(page)
     assert any("Your turn" in part for part in preview_parts(marker))
     expect(marker).to_have_attribute(
-        "aria-label", re.compile(r"^Threads \(2\), Your turn,")
+        "aria-label", re.compile(r"^Threads 2, Your turn,")
     )
     on_user = _margin_entry_paint(marker)
     assert on_user == {
-        "background": token_colour(page, "--lf-turn-wash"),
-        "icon": token_colour(page, "--lf-turn-ink"),
+        "background": token_colour(page, "--lf-ok-wash"),
+        "icon": token_colour(page, "--lf-ok-ink"),
     }, "the user's turn did not colour the Thread marker's icon and interior"
     assert with_agent["background"] != on_user["background"], with_agent
 
@@ -708,10 +686,10 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
         if event["kind"] == "comment"
     ]
     record_claim(serve.page_dir)
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(transaction, roots)
     told(page)
-    expect(marker).to_have_attribute("data-lf-agent-workflow", "picked_up")
+    expect(marker).to_have_attribute("data-lf-agent-workflow", "delivered")
     expect(marker).to_have_attribute("data-lf-turn", "user")
     assert _margin_entry_paint(marker) == on_user, (
         "pickup hid the user's turn on the shared carrier"
@@ -915,7 +893,7 @@ def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, se
     # Observe pickup separately from the task that made these moves input.
     declare_idle(serve.page_dir)
     record_claim(serve.page_dir)
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(transaction, moves)
     told(page)
     page.keyboard.press("Escape")
@@ -923,7 +901,7 @@ def test_unit_claim_arrivals_share_one_window_with_the_open_page_map(browser, se
     page.keyboard.press("Shift+p")
     dialog = page.locator(".lf-page-map-dialog")
     expect(dialog).to_be_visible()
-    expect(dialog.locator('[data-lf-agent-workflow="picked_up"]')).to_have_count(2)
+    expect(dialog.locator('[data-lf-agent-workflow="delivered"]')).to_have_count(2)
     page.evaluate("""() => {
       window.unitArrivals = [];
       window.unitArrivalEnds = 0;
@@ -1061,8 +1039,8 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     expected_ink = resolved_color("--lf-ink-2")
     expected_paper = resolved_color("--lf-paper")
     expected_rule = resolved_color("--lf-rule")
-    expected_label_ink = resolved_color("--lf-paper")
-    expected_label_background = resolved_color("--lf-ink")
+    expected_label_ink = resolved_color("--lf-ink")
+    expected_label_background = resolved_color("--lf-card")
 
     def words_still():
         """The preview fades in over 90ms, so the frame it opens on is a box drawn at
@@ -1106,6 +1084,9 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         named = re.compile(rf"^{re.escape(phase)}(?:,| for )")
         expect(page.get_by_role("button", name=named)).to_have_count(0)
         expect(page.get_by_role("status", name=named)).to_have_count(1)
+        # Its name says the phase once, then what the receipt is about.
+        name = control.get_attribute("aria-label")
+        assert name.count(phase) == 1 and "choose" in name, name
         # Hover reveals the full-strength label without dimming or lifting the margin entry.
         resting_surface = {
             key: current[key]
@@ -1117,7 +1098,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         label = page.locator(PREVIEW)
         expect(label).to_be_visible()
         words_still()
-        # The face is what fades and is drawn (preview.js).
+        # The face is what fades and is drawn (annotations/preview.js).
         drawn = label.locator(".lf-preview-face")
         expect(drawn).to_have_css("opacity", "1")
         hovered = face(control)
@@ -1207,7 +1188,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
 
     # Pickup belongs to an active agent turn; an unclaimed pickup is stale work.
     record_claim(page_dir)
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         delivery_model.record_pickup(transaction, [logged_action])
     told(page)
     assert_status("Delivered", "just now")
@@ -1216,13 +1197,13 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     # restores the status fallback with the same canonical receipt.
     page.evaluate(
         """async () => {
-          const {contributionEntry, registerContribution} =
+          const {registerContribution} =
             await window.__lfWidgetApi();
           window.lfReceiptSecondary = registerContribution({
             key: 'workflow-primary-probe', target: document.querySelector('#jobs'),
-            read: () => ({entries: [contributionEntry({
+            read: () => ({entries: [{
               key: 'edit', icon: 'edit', label: 'Edit', behavior: 'disclosure'
-            })]}), activate: () => {}
+            }]}), activate: () => {}
           });
         }"""
     )
@@ -1231,7 +1212,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
         '[data-lf-margin-entry-key="edit"]'
     )
     expect(marker).to_be_hidden()
-    expect(carrier).to_have_attribute("data-lf-agent-workflow", "picked_up")
+    expect(carrier).to_have_attribute("data-lf-agent-workflow", "delivered")
     expect(carrier).to_have_attribute("aria-description", "Delivered")
     expect(carrier.locator(".lf-margin-entry-icon")).to_have_attribute(
         "data-lf-icon", "edit"
@@ -1242,7 +1223,7 @@ def test_an_acknowledgment_uses_status_until_an_active_claim_restores_a_disclosu
     carrier.focus()
     page.keyboard.press("g")
     page.keyboard.press("Shift+p")
-    mapped = page.locator('.lf-page-map-action[data-lf-agent-workflow="picked_up"]')
+    mapped = page.locator('.lf-page-map-action[data-lf-agent-workflow="delivered"]')
     expect(mapped).to_have_count(1)
     expect(mapped.locator(".lf-margin-kind")).to_have_attribute("data-lf-icon", "edit")
     # The row is the carrier drawn again, so pickup inks its glyph as it inks the
@@ -1317,13 +1298,13 @@ def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
     reactions = bar.locator(":scope > .lf-response-options")
     expect(reactions).to_be_visible()
 
-    with sending(page, "the keep reaction"):
-        reactions.locator('.lf-react[data-lf-token="keep"]').click()
+    with sending(page, "the 👍 reaction"):
+        reactions.locator('.lf-react[data-lf-emoji="👍"]').click()
     expect(bar).to_be_hidden()
     sent = events_model.read_events(serve.page_dir)[-1]
     assert sent["anchor"]["section"] == "s-how" and sent["anchor"]["quote"]
     receipt = page.locator(".lf-margin-cluster").filter(
-        has=page.get_by_role("button", name="keep reaction actions", exact=True)
+        has=page.get_by_role("button", name="👍 reaction actions", exact=True)
     )
     expect(receipt).to_have_count(1)
     assert abs(receipt.bounding_box()["y"] - paragraph.bounding_box()["y"]) <= 6
@@ -1331,7 +1312,7 @@ def test_a_reaction_receipt_keeps_an_unided_selected_blocks_visual_coordinate(
     # finish replacing it before testing the disclosure gesture.
     told(page)
     assert abs(receipt.bounding_box()["y"] - paragraph.bounding_box()["y"]) <= 6
-    reaction = receipt.get_by_role("button", name="keep reaction actions", exact=True)
+    reaction = receipt.get_by_role("button", name="👍 reaction actions", exact=True)
     reaction.click()
     expect(reaction).to_have_attribute("aria-expanded", "true")
     expect(reaction).to_have_css("border-top-color", token_colour(page, "--lf-accent"))
@@ -1348,13 +1329,13 @@ def test_status_hover_trace_uses_a_registered_visual_surface(browser, serve):
     resized(page, 1280, 720)
     page.evaluate(
         """async () => {
-              const {contributionEntry, registerContribution} =
+              const {registerContribution} =
                 await window.__lfWidgetApi();
           registerContribution({
             key: 'shape-status', target: document.querySelector('#outer'),
-            read: () => ({entries: [contributionEntry({
+            read: () => ({entries: [{
               key: 'shape-status', icon: 'pickup', label: 'Delivered', behavior: 'status'
-            })]}), activate: () => {}
+            }]}), activate: () => {}
           });
         }"""
     )

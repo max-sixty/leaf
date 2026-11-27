@@ -120,12 +120,15 @@ variants:
   # Tool-output reconstruction (#6323): a page whose earlier samples were plain
   # <pre class="sample"> blocks, and a report quoting a tool's JSON rows on one line,
   # cut down with "…". Authors copied the plain samples' class, named no language and
-  # packed several fields onto a line. The plain samples are what pulled them.
+  # packed several fields onto a line. The plain samples are what pulled them. A
+  # reader reads each of these two objects field by field, so its fields go on lines
+  # of their own; records-compared is the sibling where they don't.
   tool-output-json:
     metadata:
       purpose:
-        JSON a tool returned reads as coloured, one-field-per-line code even where the
-        page's other samples are plain text and the report quoted it packed.
+        JSON a tool returned reads as coloured code whose fields the reader can pick out,
+        even where the page's other samples are plain text and the report quoted it
+        packed.
     vars:
       prompt: |
         You are revising a Leaf page. Its lookup section holds a placeholder,
@@ -188,11 +191,52 @@ variants:
         metric: json-reads-as-code
         value: |
           The before and after rows each appear in a pre/code with class="language-json"
-          (natively or inside an lf-code), with at most one field per line and nested
-          objects indented, keeping every given value and each "…" exactly. Fail if
-          either row has no language class, uses the page's plain "sample" class without
-          a language, or keeps several fields on one line. The existing notice samples
-          may stay as they are.
+          (natively or inside an lf-code), keeping every given value and each "…"
+          exactly, and laid out so a reader can pick out each field: every top-level
+          field starts a line of its own, and nested objects are indented. A nested
+          object of two short scalar fields, such as the assignee's, may stay on one
+          line. Fail if either row has no language class, uses the page's plain "sample"
+          class without a language, puts two top-level fields on one line, or keeps a
+          larger nested object, such as the customer, on one line. The existing notice
+          samples may stay as they are.
+  # Sibling of tool-output-json where the reader compares records rather than reading
+  # one: five rows a tool returned with the same fields, where the bug is the type of
+  # one field in some rows. Spread one field per line, the rows stand as five blocks
+  # the reader has to cross-check; one row per line puts the field in a column.
+  records-compared:
+    metadata:
+      purpose:
+        JSON records the reader compares field by field stand one record per line, so
+        each field reads down a column.
+    vars:
+      prompt: |
+        You are writing a Leaf page for the user about a bug in our support agent's
+        `lookup` tool: some rows carry `open_days` as a string rather than a number, so
+        the agent's "older than a week" filter skips them. Tickets imported from the
+        chat and phone systems store it as text; you haven't fixed that yet. Write the
+        page's section that shows the bug in the tool's own output.
+
+        Your subagent's report quoted the tool's result for `tag:refund`, as the tool
+        returned it:
+
+        ```
+        [{"id":"T-48213","status":"waiting-on-customer","channel":"EMAIL","open_days":3},{"id":"T-48217","status":"open","channel":"CHAT","open_days":"1"},{"id":"T-48220","status":"open","channel":"EMAIL","open_days":12},{"id":"T-48231","status":"solved","channel":"PHONE","open_days":"0"},{"id":"T-48236","status":"open","channel":"CHAT","open_days":"9"}]
+        ```
+
+        The page directory is not reachable from here, so reply with the section HTML.
+    assert:
+      - type: llm-rubric
+        metric: records-line-up
+        value: |
+          All five rows appear with every value exact, including the quotes that make
+          three of the `open_days` values strings. Pass only if the reader can compare
+          `open_days` down the rows: each row stands on one line of its own, its fields
+          in the same order as the other rows' and lined up with them in columns, in a
+          code block as a JSON array or one object per line; or the rows form a table
+          with a column per field that keeps each value as the tool wrote it, quotes
+          included. Fail if any row is spread over several lines, such as one field per
+          line, if the rows' fields don't line up, or if a value is changed, dropped or
+          shown without the quotes that mark it a string.
   # Markdown excerpt reconstruction: a session's page principles-survey, whose "Two
   # rules before and after" section showed each rule's Markdown in <pre><code>. The
   # user asked why it wasn't rendered Markdown. Cold, authors can render the rules,
@@ -287,3 +331,234 @@ variants:
           literal too. Showing how either renders beside the source is fine. Fail if the
           typed Markdown appears only rendered, or only inside an lf-text-document whose
           preview tab opens first.
+  # Prompt reconstruction: a session's page sparkjoy-size-in-code showed the prompt a
+  # plugin sends a model, three paragraphs and a ```json fence, in a plain <pre>, every
+  # line wrapping behind a mark and the JSON uncoloured. The user wanted it read as
+  # Markdown with the JSON coloured. page-authoring.md then named "a message as an
+  # agent receives it" among the texts kept literal.
+  prompt-with-schema:
+    metadata:
+      purpose:
+        A prompt written in Markdown reads rendered, its fenced JSON coloured, with its
+        exact text kept.
+    vars:
+      prompt: |
+        You are writing a Leaf page that proposes a change to sparkjoy, a Claude Code
+        plugin that asks a model whether to compact the session when a turn ends.
+        Write the page's section "The question sparkjoy asks": a sentence on when the
+        plugin sends it, then the prompt the model receives, given below exactly as
+        the plugin sends it, so the user can judge its wording and the schema of the
+        answer it asks for.
+
+        <prompt>
+        Estimate what compacting this session now would cost the work ahead. This request comes from the sparkjoy plugin, not from the user, and a program reads your answer.
+
+        Your turn just ended. A compaction would replace the transcript with a summary. A summary drops detail: exact output, what was tried and failed, what the user objected to and why, the state of a design or fix still taking shape. Work that iterates with the user on something just shown, or takes up a half-done fix or design, needs that detail: after a compaction it spends requests re-reading files and re-running commands, and redoes what goes wrong without the rest. Work that only reports a result, or starts something new, needs no more than a summary, so the work's next natural break, such as a change landed or a question answered, is where a compaction loses least.
+
+        Answer with nothing but one JSON object that matches this schema, filling its fields in the order listed:
+
+        ```json
+        {
+          "type": "object",
+          "properties": {
+            "next": {"type": "string", "description": "what most likely comes next, in a few words"},
+            "requests_to_break": {"type": "integer", "description": "how many requests from now the work will most likely reach its next natural break; 0 if it is at one now"},
+            "extra_wasted_requests": {"type": "integer", "description": "how many more requests a compaction now would waste than one at that break would: re-reading, re-running, and redoing what goes wrong without the detail it drops; 0 if the work is at a break now"},
+            "reason": {"type": "string", "description": "one short line saying why"}
+          },
+          "required": ["next", "requests_to_break", "extra_wasted_requests", "reason"],
+          "additionalProperties": false
+        }
+        ```
+        </prompt>
+
+        The page is in the reading theme. The page directory is unavailable here.
+        Reply with the section HTML and any page setup commands it needs.
+    assert:
+      - type: llm-rubric
+        metric: prompt-reads-rendered
+        value: |
+          The prompt is shown through Leaf's Markdown rendering of its exact text: an
+          lf-text-document with preview="markdown" holding the whole prompt, HTML-escaped
+          in its `<pre>` or through a data source the commands supply, so its three
+          paragraphs read as prose and its ```json fence as a JSON code block. Every
+          character of the prompt is kept, the fence and its JSON included. Fail if the
+          prompt is shown only as source, such as in a pre, a pre/code with or without a
+          language class, an lf-code, or an lf-text-document without
+          preview="markdown"; if the author converted it to HTML by hand; or if any of
+          its words or JSON are changed or dropped.
+  # Guardrail for prompt-with-schema: a Markdown preview draws a prompt's own tags as
+  # HTML, so `<instructions>` and `<answer>` vanish and the Markdown inside them shows
+  # as source. A prompt structured by its tags shows its source.
+  prompt-with-tags:
+    metadata:
+      purpose: A prompt whose tags carry its structure keeps the tags visible.
+    vars:
+      prompt: |
+        You are writing a Leaf page that reviews the judge our eval harness uses to
+        grade a support agent's answers. Write the page's section "What the judge is
+        asked": a sentence on when the harness sends it, then the prompt the judge
+        receives, given below exactly as the harness sends it with one real answer
+        filled in, so the user can judge its wording.
+
+        <prompt>
+        Grade the support agent's answer below against the rubric. Reply with nothing but one JSON object.
+
+        <rubric>
+        Pass only if the answer names the order the ticket is about and says what the customer should do next. Fail an answer that asks the customer for something the ticket already holds.
+        </rubric>
+
+        <ticket>
+        Customer cust_9f31 was charged twice for order 77120 and asked for a refund of one charge.
+        </ticket>
+
+        <answer>
+        I've refunded the duplicate charge on **order 77120**. You'll see it on your statement within 5 business days; there's nothing else you need to do.
+        </answer>
+
+        Use this format:
+
+        ```json
+        {"pass": true, "reason": "one short line saying why"}
+        ```
+        </prompt>
+
+        The page is in the reading theme. The page directory is unavailable here.
+        Reply with the section HTML and any page setup commands it needs.
+    assert:
+      - type: llm-rubric
+        metric: tags-stay-visible
+        value: |
+          The prompt appears exactly, with its `<rubric>`, `<ticket>` and `<answer>`
+          tags visible as text where the reader first sees it, HTML-escaped in the
+          markup. Fail if the block that shows the prompt opens on a rendered Markdown
+          preview, as an lf-text-document with preview="markdown" does, since that draws
+          the tags as HTML and hides them; if the author converted the prompt to HTML
+          by hand or dropped its tags; or if any of its words change.
+  # A page-owned stepper stands over the source it walks, and the user asks which line
+  # a step is on. An author who misses the excerpt's input scripts the excerpt from
+  # the stepper's module, which ties the two widgets to each other.
+  lines-follow-a-widget:
+    metadata:
+      purpose: Source that follows another widget's step binds to that widget's declared
+        output, which holds the file's own line numbers.
+      page: []
+    vars:
+      prompt: |
+        You are revising a Leaf page that teaches binary search. The reader steps
+        through one search with the page's own widget, lf-search-steps, and reads the
+        function's source under it. The user commented on the section: "As I step
+        through, I can't tell which line of search() the step is on. Can the source
+        show it as I go?"
+
+        The section as it stands, quoting lines 12-21 of search.py:
+
+        ```html
+        <section id="walk">
+          <h2>One search, step by step</h2>
+          <lf-search-steps id="search-walk"></lf-search-steps>
+          <lf-code id="search-source" lines="12-21"><pre><code class="language-python">def search(items, target):
+            lo, hi = 0, len(items)
+            while lo &lt; hi:
+                mid = (lo + hi) // 2
+                if items[mid] &lt; target:
+                    lo = mid + 1
+                else:
+                    hi = mid
+            found = lo &lt; len(items) and items[lo] == target
+            return lo if found else None
+        </code></pre></lf-code>
+        </section>
+        ```
+
+        The widget's entry in `page/registry.json`:
+
+        ```json
+        {
+          "lf-search-steps": {
+            "description": "One binary search over a fixed list, which the reader steps through.",
+            "attributes": {
+              "type": "object",
+              "properties": { "id": { "type": "string" } },
+              "required": ["id"],
+              "additionalProperties": false
+            },
+            "content": "empty"
+          }
+        }
+        ```
+
+        Its module, `page/widgets/lf-search-steps.js`:
+
+        ```js
+        // <lf-search-steps>: one binary search over a fixed list, a step at a time.
+        import { html } from "/vendor/lit.js";
+        import { LeafElement } from "/runtime/lib/leaf-element.js";
+
+        const ITEMS = [3, 8, 13, 21, 34, 55, 89];
+        // Searching for 34. Each step leaves the bounds [lo, hi) it names.
+        const STEPS = [
+          { lo: 0, hi: 7, says: "Start with the whole list." },
+          { lo: 0, hi: 7, mid: 3, says: "The middle item is 21." },
+          { lo: 4, hi: 7, says: "21 is below 34, so the left half goes." },
+          { lo: 4, hi: 7, mid: 5, says: "The middle item is 55." },
+          { lo: 4, hi: 5, says: "55 is not below 34, so the right half goes." },
+          { lo: 4, hi: 5, mid: 4, says: "The middle item is 34." },
+          { lo: 4, hi: 4, says: "34 is not below 34, so the bounds meet at index 4." },
+          { lo: 4, hi: 4, says: "Index 4 holds 34: found." },
+        ];
+
+        customElements.define(
+          "lf-search-steps",
+          class extends LeafElement {
+            static properties = { step: { state: true } };
+
+            setup() {
+              this.step = 0;
+            }
+
+            go(by) {
+              this.step = Math.min(STEPS.length - 1, Math.max(0, this.step + by));
+            }
+
+            render() {
+              const { lo, hi, mid, says } = STEPS[this.step];
+              const place = (index) =>
+                index === mid ? "mid" : index >= lo && index < hi ? "in" : "out";
+              return html`
+                <ol class="items">
+                  ${ITEMS.map((item, index) => html`<li class=${place(index)}>${item}</li>`)}
+                </ol>
+                <p>${says}</p>
+                <button type="button" ?disabled=${this.step === 0} @click=${() => this.go(-1)}>
+                  Back
+                </button>
+                <button
+                  type="button"
+                  ?disabled=${this.step === STEPS.length - 1}
+                  @click=${() => this.go(1)}
+                >
+                  Next
+                </button>
+              `;
+            }
+          },
+        );
+        ```
+
+        Reply with the revised section, registry entry and module.
+    assert:
+      - type: llm-rubric
+        metric: code-follows-the-widget
+        value: |
+          Pass only if the lf-code names the stepper with for="search-walk", the
+          stepper's registry entry declares an output whose contract is
+          "source-lines" (an `outputs` member such as {"contract": "source-lines"}),
+          and the module assigns the element property that output names and then
+          dispatches a plain `change` event on the element when the step changes.
+          The value assigned is a string in lf-code's range grammar, such as "15" or
+          "20-21" (or null while no line applies), in the numbers search.py gives the
+          lines, 12 to 21. Fail if the stepper's module or a page script reaches the
+          lf-code to mark it, as by querying it or setting its `hi`, a class or a
+          style, if the two talk through a custom event or a callback instead, or if
+          the value is a number or an array or counts from the excerpt's first line.

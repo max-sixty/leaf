@@ -8,11 +8,11 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createGoToSequence } from "/runtime/keyboard/go-to-sequence.js";
-import { dispatchKey } from "/runtime/keyboard/dispatch.js";
-import { pageCommand } from "/runtime/keyboard/register.js";
-import { liveEl } from "/runtime/notifications.js";
-import { applicationState } from "/runtime/semantic-state.js";
+import { createGoToSequence } from "/runtime/panel/page-keys/go-to-sequence.js";
+import { dispatchKey } from "/runtime/dom/keyboard/dispatch.js";
+import { pageCommand } from "/runtime/dom/keyboard/register.js";
+import { liveEl } from "/runtime/transport/notifications.js";
+import { applicationState } from "/runtime/state/semantic-state.js";
 
 applicationState.setPhase("ready");
 
@@ -30,9 +30,14 @@ pageCommand({
 // The floating panel's doors, none standing open.
 const door = { shows: () => false, press: () => {} };
 const goTo = createGoToSequence({
-  doors: { threads: door, queue: door, leaves: door },
+  doors: {
+    threads: door,
+    queue: door,
+    agent: { ...door, name: () => "On Agent" },
+    leaves: door,
+  },
+  heldByStance: () => false,
   openPageMap: () => {},
-  hintChrome: { barriers: () => [] },
   directDestinations: () => [],
   scrollToElement: () => {},
   leavesOffered: () => false,

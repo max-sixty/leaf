@@ -25,7 +25,7 @@ from pathlib import Path
 
 import click
 
-from leaf.server import running_server
+from leaf.base.server import running_server
 from leaf_dev import ROOT
 from leaf_dev.arms import MODELS
 from leaf_dev.commands.journey._claude_code import ClaudeCode, claude_code_environment

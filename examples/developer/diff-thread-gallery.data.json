@@ -1,3 +1,12 @@
 {
-  "dfg-patch-source": "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-return \"old\"\n+return \"new\"\n"
+  "dfg-patch-source": "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-return \"old\"\n+return \"new\"\n",
+  "dfg-lines-source": "diff --git a/src/sync/retry.py b/src/sync/retry.py\n--- a/src/sync/retry.py\n+++ b/src/sync/retry.py\n@@ -10,9 +10,10 @@ class Retry:\n     def __init__(self, attempts: int = 3) -> None:\n         self.attempts = attempts\n-        self.delay = 0.5\n+        self.delay = 0.25\n+        self.backoff = 2.0\n \n     def wait(self, attempt: int) -> float:\n-        return self.delay\n+        return self.delay * self.backoff ** attempt\n \n     def should_retry(self, error: Exception) -> bool:\n         return isinstance(error, ConnectionError)\n",
+  "dfg-config-committed": {
+    "name": "deploy.toml",
+    "text": "[deploy]\nregion = \"us-west-2\"\nreplicas = 2\ntimeout = 30\nstrategy = \"rolling\"\nmax_surge = 1\nmax_unavailable = 0\nhealth_check = \"/healthz\"\nnotify = \"#deploys\"\n"
+  },
+  "dfg-config-current": {
+    "name": "deploy.toml",
+    "text": "[deploy]\nregion = \"us-west-2\"\nreplicas = 2\ntimeout = 30\nstrategy = \"blue-green\"\nwarmup = 45\nmax_surge = 1\nmax_unavailable = 0\nhealth_check = \"/healthz\"\nnotify = \"#deploys\"\n"
+  }
 }

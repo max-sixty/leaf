@@ -178,20 +178,18 @@
     <script type="module">
       import {
         afterPresentation,
-        commandsChanged,
         connection,
         generate,
-        keepsText,
-        once,
-        PAGE_INTERFACE,
-        quoted,
         readObligations,
         whileConnected,
       } from "/runtime/widget-api.js";
+      import { once } from "/runtime/lib/once.js";
+      import { keepsText } from "/runtime/lib/keeps.js";
 
-      document.addEventListener(PAGE_INTERFACE, () => {
+      document.addEventListener("lf-page-interface", () => {
         const section = document.querySelector("#bg-http");
-        if (!section || quoted(section) || !once(section)) return;
+        if (!section || section.matches("[data-lf-exhibit] *") || !once(section))
+          return;
         const button = section.querySelector("button");
         const output = section.querySelector("[role=status]");
         whileConnected(section, (signal) => {
@@ -217,9 +215,10 @@
         });
       });
 
-      document.addEventListener(PAGE_INTERFACE, () => {
+      document.addEventListener("lf-page-interface", () => {
         const section = document.querySelector("#bg-llm");
-        if (!section || quoted(section) || !once(section)) return;
+        if (!section || section.matches("[data-lf-exhibit] *") || !once(section))
+          return;
         const button = section.querySelector("button");
         const output = section.querySelector("[role=status]");
         whileConnected(section, (signal) => {
@@ -274,7 +273,9 @@
           },
         ],
       };
-      commandsChanged(localShortcuts);
+      localShortcuts.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
 
       const pageRoot = document.querySelector(
         'link[rel="canonical"][data-lf-runtime]',
@@ -354,7 +355,7 @@
         <p>Leaf core product</p>
         <h1>Leaf core product gallery</h1>
       </hgroup>
-      <p class="lede" id="bg-lede">
+      <p class="lf-lede" id="bg-lede">
         Try Leaf chrome and the default package on one synthetic page. Optional widgets
         have focused working pages in the package catalog.
       </p>
@@ -392,8 +393,8 @@
                 with reduced motion, there is no glide or highlight.
               </li>
               <li>
-                Look at Leaf's panel at the window's foot: the <strong>On Me</strong>
-                mark beside Threads counts what is on you.
+                Look at Leaf's panel at the window's foot: the leaf at the end of its
+                row counts what is on you.
               </li>
               <li>
                 Press it, or <kbd>g</kbd> then <kbd>Shift+M</kbd>: the On view opens
@@ -652,33 +653,32 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 Press Escape to close it and return to the field.
               </li>
               <li>
-                Press and hold a reaction: its word shows. Slide to another to read that
-                one, then let go on the one you mean, or off the picker to choose none.
+                Press the emoji you mean. It reaches the agent as a message of one
+                emoji, which the agent acts on, asks about, or answers with how it read
+                it.
               </li>
               <li>
-                Press a saved passage reaction, which shows only its emoji: a separate
-                “Remove” control appears. Press it to take the reaction back.
+                Press the same emoji again to take the reaction back. Until anything is
+                said in its thread, its mark beside the passage also offers Undo.
               </li>
             </ul>
             <p id="bg-react-ok">
-              <strong>1 · 👍 · keep.</strong> The spare key is with reception.
+              <strong>1 · 👍.</strong> The spare key is with reception.
             </p>
             <p id="bg-react-no">
-              <strong>2 · ❌ · change.</strong> This sample claims Tuesday follows
-              Thursday.
+              <strong>2 · ❌.</strong> This sample claims Tuesday follows Thursday.
             </p>
             <p id="bg-react-lost">
-              <strong>3 · 🤔 · clarify.</strong> Bring the thing from the other place.
+              <strong>3 · 🤔.</strong> Bring the thing from the other place.
             </p>
             <p id="bg-react-cut">
-              <strong>4 · ✂️ · shorten.</strong> At this point in time, we can now
-              begin.
+              <strong>4 · ✂️.</strong> At this point in time, we can now begin.
             </p>
             <p id="bg-react-more">
-              <strong>5 · 🔎 · support.</strong> The exercise involves a map.
+              <strong>5 · 🔎.</strong> The exercise involves a map.
             </p>
             <p id="bg-react-this">
-              <strong>6 · 🎯 · prioritize.</strong> The side entrance closes early.
+              <strong>6 · 🎯.</strong> The side entrance closes early.
             </p>
           </section>
 
@@ -1700,7 +1700,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               <summary>Inspect the comparison method</summary>
               <p id="bg-theme-method-copy">Both runs use the same input window.</p>
             </details>
-            <div class="callout" id="bg-theme-conclusion">
+            <div class="lf-callout" id="bg-theme-conclusion">
               <p id="bg-theme-conclusion-copy">The comparison is ready for review.</p>
             </div>
           </section>
@@ -1720,15 +1720,17 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <h2><strong>Changes in place</strong></h2>
             <p id="bg-since-seen-guide">
               Coming back after the agent has revised the page, a notice says how much
-              changed since the version you last saw. Press <kbd>v</kbd> to mark those
-              changes, or what changed since the latest version when you've seen them
-              all, or open Versions (<kbd>g</kbd> <kbd>V</kbd>) and press Compare beside
-              an earlier one. Each block changed since then has a green bar beside it
-              and a Change entry; <kbd>h</kbd> and <kbd>Shift</kbd>+<kbd>h</kbd> step
-              through them, <kbd>o</kbd> hides them with the other annotations, and
-              <kbd>v</kbd> again takes them off. A revision that lands while you watch
-              flashes. While the agent is On it for a comment, an accent bar stands
-              beside the comment's block until it answers.
+              changed since the version you last saw. Versions (<kbd>g</kbd>
+              <kbd>V</kbd>) names that version last seen and opens on it, and
+              <kbd>v</kbd> presses its Compare to mark those changes; once you have seen
+              them all it opens on the newest older version's, and Compare beside any
+              earlier version marks what changed since that one. Each block changed
+              since then has a green bar beside it and a Change entry; <kbd>h</kbd> and
+              <kbd>Shift</kbd>+<kbd>h</kbd> step through them, <kbd>g</kbd>
+              <kbd>H</kbd> hides them with the other annotations, and <kbd>g</kbd>
+              <kbd>V</kbd> <kbd>v</kbd> again takes them off. A revision that lands
+              while you watch flashes. While the agent is On it for a comment, an accent
+              bar stands beside the comment's block until it answers.
             </p>
           </section>
 
@@ -1882,7 +1884,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   <strong>Group by owner</strong> A heading over each owner's tickets.
                   <figure id="bg-pictured-group-figure">
                     <svg
-                      class="drawing"
+                      class="lf-drawing"
                       viewBox="0 0 420 150"
                       width="420"
                       height="150"
@@ -1901,7 +1903,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                   <strong>Keep one list</strong> Tickets in arrival order, as today.
                   <figure id="bg-pictured-flat-figure">
                     <svg
-                      class="drawing"
+                      class="lf-drawing"
                       viewBox="0 0 420 150"
                       width="420"
                       height="150"
@@ -2024,7 +2026,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
             <ul id="bg-margin-controls-steps">
               <li>
                 Read the Turn and agent workflow samples, which follow one update:
-                “Saved” means the server recorded it, “Up next” that a later turn will
+                “Saved” means the server recorded it, “Queued” that a later turn will
                 handle it, “Delivered” that a turn accepted it, and “On it” or
                 “Replying” that its answer is in progress. “Stopped” and “Gone quiet”
                 show uncertainty without claiming an interruption.
@@ -2140,11 +2142,11 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               targets.
             </p>
             <p id="bg-margin-layer-visibility">
-              Press <kbd>o</kbd> to hide pins and passage marks while reading the
-              content beneath them. Controls in the rail stay visible, and nothing on
-              the page moves. Press it again to bring the annotations back. On a touch
-              screen, open Annotations in the leaf's menu and choose “Hide annotations”,
-              then “Show annotations”.
+              Press <kbd>g</kbd> <kbd>H</kbd> to hide pins and passage marks while
+              reading the content beneath them. Controls in the rail stay visible, and
+              nothing on the page moves. Press it again to bring the annotations back.
+              On a touch screen, open Annotations in the leaf's menu and choose “Hide
+              annotations”, then “Show annotations”.
             </p>
             <p id="bg-margin-layer-actions-guide">
               <strong>Action pins without a rail.</strong> This practice page has no
@@ -2168,8 +2170,8 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               a recorded card move. The small upward arrow beside “Print the workshop
               map” says “Saved” on hover: the move was recorded, with nothing for you to
               answer. After two minutes undelivered, it becomes “Haven't seen it yet”;
-              Reset starts a fresh example. Up next, Delivered, and On it follow the
-              same placement rule. When a target already has a control, that control can
+              Reset starts a fresh example. Delivered and On it follow the same
+              placement rule. When a target already has a control, that control can
               carry the status instead of adding a separate pin.
             </p>
             <lf-sample
@@ -2257,7 +2259,7 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
                 </h3>
               </hgroup>
               <p id="bg-metrics-guide">
-                Metrics show individual values as <code>metric</code> tiles, in a
+                Metrics show individual values as <code>lf-metric</code> tiles, in a
                 <code>layout-tiles</code> row, and a Chart compares the values across
                 runs. The metric tiles and the run under them keep to the column, and
                 the three charts take the wide width. Narrow the window: the metric
@@ -2267,15 +2269,15 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
               </p>
               <div id="bg-metrics-room">
                 <div id="bg-metrics" class="layout-tiles">
-                  <dl id="bg-metric-complete" class="metric">
+                  <dl id="bg-metric-complete" class="lf-metric">
                     <dt>checks complete</dt>
                     <dd><strong>12</strong> <small>change: +3</small></dd>
                   </dl>
-                  <dl id="bg-metric-open" class="metric">
+                  <dl id="bg-metric-open" class="lf-metric">
                     <dt>open failures</dt>
                     <dd><strong>2</strong> <small>change: -1</small></dd>
                   </dl>
-                  <dl id="bg-metric-neutral" class="metric">
+                  <dl id="bg-metric-neutral" class="lf-metric">
                     <dt>sample duration</dt>
                     <dd><strong>4 min</strong></dd>
                   </dl>
@@ -2430,10 +2432,17 @@ Write a **different invitation** here. Try a few lines to see the editor grow.</
 leaf page stamp ./proposal --text "Ready for review"</code></pre>
               <pre
                 id="bg-javascript-code"
-              ><code class="language-js">const source = referencedElement(card, "for");
-const api = widgetController(source);
-// Read the source widget's current selection.
-const ids = api.read().state.choose.value;</code></pre>
+              ><code class="language-js">// Ask the widget `for` names to pick the option carrying "ship"; it may refuse.
+const taken = elementById(this.getAttribute("for"), this)?.dispatchEvent(
+  new CommandEvent("command", {
+    command: "--choose",
+    source: Object.assign(document.createElement("button"), {
+      value: "ship",
+      textContent: "Move to Ship",
+    }),
+    cancelable: true,
+  }),
+);</code></pre>
               <p id="bg-annotated-code-guide">
                 The marked return value keeps its annotation while the whole block shows
                 Python syntax colors. Line wrappers and the empty link target stay in
@@ -2505,6 +2514,29 @@ gallery/
               </p>
             </section>
 
+            <section id="bg-age">
+              <hgroup>
+                <p class="bg-feature-elements">lf-age</p>
+                <h3>
+                  <strong>Age</strong
+                  ><span class="bg-feature-detail">: how long ago, kept current</span>
+                </h3>
+              </hgroup>
+              <p id="bg-age-line">
+                The sample import last ran
+                <lf-age id="bg-age-ran" datetime="2026-11-20T02:10:00Z"
+                  >20 Nov 2026, 02:10 UTC</lf-age
+                >
+              </p>
+              <p id="bg-age-guide">
+                The line above holds the time its author wrote, and Leaf shows how long
+                ago that was. Rest the pointer on the age: the preview says when, in
+                your own zone. Select the line from “sample” to its end and press
+                <kbd>c</kbd>: the comment quotes the time as written, so it still finds
+                its passage after the age has grown.
+              </p>
+            </section>
+
             <section id="bg-neutral-comparison">
               <hgroup>
                 <p class="bg-feature-elements">section · small</p>
@@ -2519,14 +2551,14 @@ gallery/
                 attributes.
               </p>
               <div id="bg-compare" class="layout-tiles">
-                <section id="bg-variant-paper" class="panel">
-                  <small id="bg-chip-power" class="tag">power: none</small>
-                  <small class="tag ok">weight: low</small>
+                <section id="bg-variant-paper" class="lf-panel">
+                  <small id="bg-chip-power" class="lf-tag">power: none</small>
+                  <small class="lf-tag ok">weight: low</small>
                   <strong>Paper map</strong> Easy to annotate and fold.
                 </section>
-                <section id="bg-variant-screen" class="panel">
-                  <small class="tag">power: daily</small>
-                  <small class="tag warn">weight: medium</small>
+                <section id="bg-variant-screen" class="lf-panel">
+                  <small class="lf-tag">power: daily</small>
+                  <small class="lf-tag warn">weight: medium</small>
                   <strong>Tablet map</strong> Searchable and backlit.
                 </section>
               </div>
@@ -2543,23 +2575,23 @@ gallery/
                 <tbody>
                   <tr>
                     <th scope="row">Courtyard loop</th>
-                    <td class="num">1.4</td>
+                    <td class="lf-numeric">1.4</td>
                   </tr>
                   <tr>
                     <th scope="row">Riverside path</th>
-                    <td class="num">12.6</td>
+                    <td class="lf-numeric">12.6</td>
                   </tr>
                 </tbody>
               </table>
               <div id="bg-compare-prose">
-                <section id="bg-variant-paper-detail" class="panel">
+                <section id="bg-variant-paper-detail" class="lf-panel">
                   <strong>Paper on the trail</strong>
                   <p>
                     Mark the route before leaving. The map stays readable when the
                     battery runs out.
                   </p>
                 </section>
-                <section id="bg-variant-screen-detail" class="panel">
+                <section id="bg-variant-screen-detail" class="lf-panel">
                   <strong>Screen at a junction</strong>
                   <p>
                     Search the nearest stop and update the route. Carry enough power for
@@ -2584,34 +2616,34 @@ gallery/
               <h4 id="bg-work-plan">Planned work</h4>
               <ol id="bg-milestones">
                 <li id="bg-milestone-survey">
-                  <small class="tag ok">done · morning</small>
+                  <small class="lf-tag ok">done · morning</small>
                   <strong>Survey the route</strong> Marked the crossings.
                 </li>
                 <li id="bg-milestone-walk">
-                  <small class="tag warn">active · afternoon · sample · route</small>
+                  <small class="lf-tag warn">active · afternoon · sample · route</small>
                   <strong>Walk the route</strong> Checking the covered section.
                 </li>
                 <li id="bg-milestone-report">
-                  <small class="tag">planned · next</small>
+                  <small class="lf-tag">planned · next</small>
                   <strong>Write the note</strong>
                 </li>
               </ol>
               <h4 id="bg-event-history">Observed events</h4>
               <ol id="bg-chronology">
                 <li id="bg-chronology-alert">
-                  <time>09:14</time> <small class="tag warn">warning</small>
+                  <time>09:14</time> <small class="lf-tag warn">warning</small>
                   <strong>Rain started</strong> The open path became slippery.
                 </li>
                 <li id="bg-chronology-closed">
-                  <time>09:18</time> <small class="tag danger">failure</small>
+                  <time>09:18</time> <small class="lf-tag danger">failure</small>
                   <strong>Path closed</strong> Standing water blocked the crossing.
                 </li>
                 <li id="bg-chronology-switch">
-                  <time>09:20</time> <small class="tag">intervention</small>
+                  <time>09:20</time> <small class="lf-tag">intervention</small>
                   <strong>Route changed</strong> The sample moved under cover.
                 </li>
                 <li id="bg-chronology-clear">
-                  <time>09:42</time> <small class="tag">observation</small>
+                  <time>09:42</time> <small class="lf-tag">observation</small>
                   <strong>Walk resumed</strong>
                 </li>
               </ol>
@@ -2878,7 +2910,7 @@ gallery/
 
             <section id="bg-drawing">
               <hgroup>
-                <p>svg.drawing</p>
+                <p>svg.lf-drawing</p>
                 <h3>
                   <strong>Drawing</strong
                   ><span class="bg-feature-detail">: a schematic in theme colours</span>
@@ -2890,7 +2922,7 @@ gallery/
               </p>
               <figure id="bg-drawing-figure" data-width="wide">
                 <svg
-                  class="drawing"
+                  class="lf-drawing"
                   viewBox="0 0 560 150"
                   role="img"
                   aria-label="A note moves from the column into the right margin"
@@ -3141,15 +3173,47 @@ gallery/
                 before="/media/051bee487bfb5d13.png"
                 after="/media/a99a1b63048502d0.png"
               ></lf-shot>
+              <p id="bg-shot-pair-guide">
+                This pair opens in Pair, which its author chose with
+                <code>view="pair"</code>: the status column sits left of the middle,
+                where Slider's divider would show only Before until a click.
+              </p>
+              <lf-shot
+                id="bg-shot-pair"
+                view="pair"
+                alt="a sample run list with and without a status column"
+                before="/media/051bee487bfb5d13.png"
+                after="/media/a99a1b63048502d0.png"
+              ></lf-shot>
               <p id="bg-shot-same-guide">
-                This pair is one picture twice. The comparison reports identical images
-                in every view.
+                This pair is one picture twice, and opens in Pixels, which paints no
+                changed pixel. The comparison reports identical images in every view.
               </p>
               <lf-shot
                 id="bg-shot-same"
+                view="pixels"
                 alt="the sample run list, twice"
                 before="/media/051bee487bfb5d13.png"
                 after="/media/051bee487bfb5d13.png"
+              ></lf-shot>
+              <p id="bg-shot-focus-guide">
+                This pair opens on the run list's first columns at the size they had in
+                the browser, its divider where the Status column begins:
+                <code>density="2"</code> says the captures were taken at 2×, and
+                <code>focus-x</code>, <code>focus-y</code>, <code>focus-width</code> and
+                <code>focus-height</code> give the region in CSS pixels. Turn on Full
+                frame in the … menu to see the rest of the run list.
+              </p>
+              <lf-shot
+                id="bg-shot-focus"
+                alt="the sample run list's Status column, without and with it"
+                before="/media/051bee487bfb5d13.png"
+                after="/media/a99a1b63048502d0.png"
+                density="2"
+                focus-x="0"
+                focus-y="92"
+                focus-width="264"
+                focus-height="168"
               ></lf-shot>
               <p id="bg-capture-table-guide">
                 Captures that differ by something other than a version, such as the
@@ -3458,12 +3522,13 @@ flag or command it touches, such as `--config`.
 
             <section id="bg-widget-document">
               <hgroup>
-                <p class="bg-feature-elements">lf-text-document</p>
+                <p class="bg-feature-elements">lf-text-document · lf-diff</p>
                 <h3>A document from a widget</h3>
               </hgroup>
               <p>
                 Press Update document to publish a new release note. Preview and Source
-                read the same output; updating it keeps your selected view.
+                read the same output; updating it keeps your selected view. The diff
+                below it compares the same output with the first note.
               </p>
               <lf-document-gallery id="bg-document-producer"></lf-document-gallery>
               <lf-text-document
@@ -3472,6 +3537,11 @@ flag or command it touches, such as `--config`.
                 label="live-release-note.md"
                 preview="markdown"
               ></lf-text-document>
+              <lf-diff
+                id="bg-produced-changes"
+                before="gallery-first-note"
+                for="bg-document-producer"
+              ></lf-diff>
             </section>
 
             <section id="bg-measurement-lag">

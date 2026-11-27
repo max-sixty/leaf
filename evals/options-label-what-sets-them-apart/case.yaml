@@ -28,7 +28,7 @@ vars:
       import html, sys
       E=html.escape
       def opt(i, title, body, rec=False, tags=()):
-          t=''.join(f'<small class="tag">{E(x)}</small>' for x in tags)
+          t=''.join(f'<small class="lf-tag">{E(x)}</small>' for x in tags)
           r=' recommended' if rec else ''
           return f'      <lf-option id="{i}" label="{E(title)}"{r}><strong>{E(title)}</strong> {t} {body}</lf-option>\n'
       def dec(i, q, ctx, opts):
@@ -95,12 +95,12 @@ assert:
     value: |
       The reply is a Python call to the script's `dec` helper, whose options are
       tuples passed to `opt(i, title, body, rec=False, tags=())`; the `tags`
-      argument becomes `small.tag` chips after the option's title. The
+      argument becomes `small.lf-tag` chips after the option's title. The
       alternatives differ in how much work each is and in how far back `z` can
       reach. Pass only if a reader can compare the options on both differences
       from compact titles or labels, such as "effort: small" and "reach: no limit",
       without reading the options' explanatory prose. Labels may use `tags` or
-      literal `<small class="tag">` markup and need not repeat facts supplied by
+      literal `<small class="lf-tag">` markup and need not repeat facts supplied by
       titles. An option that keeps today's behavior may leave a value to the
       context that describes today. Fail if an option leaves its differing effort
       or reach only in its body text, such as a trailing "Small." or "No age limit."
@@ -116,7 +116,7 @@ assert:
   - type: llm-rubric
     metric: labels-fit-one-line
     value: |
-      Find every option's labels: its `tags` values or literal `<small class="tag">`
+      Find every option's labels: its `tags` values or literal `<small class="lf-tag">`
       text, plus "recommended" on the advised option. Pass only if each label is a
       word or two of at most about 16 characters, such as "effort: small" or
       "1 day", so a card's labels could share one line. Fail if any label is a

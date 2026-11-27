@@ -49,15 +49,10 @@ one arm, or in another order, each with its sheet, layers, scope and selector
 (`declaration_changes`): the rule a change added, removed, edited or moved. Where none
 differ, the element inherits the difference or reads it from a custom property.
 
-The command reads, too, where words stand on their lines. Words of two faces centred
-in boxes of their own stand on different baselines, the larger lower, and a reader
-sees the line step by a pixel. In every state both arms completed,
-`stills_baselines.js` reads the words that stand beside each other on a line (its
-header says which), and the run's `baselines.txt` lists each line whose words stand a
-quarter of a CSS pixel or more apart (`baseline_changes`): those only head splits,
-those both arms split, and those only base splits. Words on a box of their own, such
-as a key's letter on its badge, are listed and marked but count toward no split, since
-the eye reads that box rather than their baseline.
+It also reads each arm's geometry faults (`leaf_dev.geometry`): Leaf's boxes against
+their frames' edges, and in Chromium focus rings cut or covered. A state whose head
+adds a fault the base doesn't have counts as changed, and the report lists each fault
+it adds; faults both arms share are the page's already, and stay out of it.
 
 Capture and comparison failures are reported per state, with tracebacks in its
 directory; the remaining states still run. A state whose input the engine can't run,
@@ -83,9 +78,11 @@ from PIL import Image
 from playwright.sync_api import Page, expect
 from selenium.webdriver.remote.webdriver import WebDriver
 
-from leaf.revision_artifact import resource_type
-from leaf.runtime_selection import read_runtime
-from leaf_dev import ROOT, gallery
+from leaf.base.schema import DEFAULT_PACKAGE
+from leaf.source.render_checks import open_render_context, open_render_page
+from leaf.source.revision_artifact import resource_type
+from leaf.source.runtime_selection import read_runtime
+from leaf_dev import ROOT, gallery, geometry
 from leaf_dev.arms import base_option, choose_arms, describe, run_directory
 from leaf_dev.browser import (
     Window,
@@ -102,7 +99,7 @@ from leaf_dev.visits import Visit, said, visits
 
 OUT = ROOT / ".tmp" / "stills"
 CROP_MARGIN = 32
-DIFFERENCE = ROOT / "packages" / "default" / "widgets" / "image-difference.js"
+DIFFERENCE = DEFAULT_PACKAGE / "widgets" / "image-difference.js"
 # Where `differences` serves the stills and the module that compares them.
 ORIGIN = "http://stills.invalid"
 # The computed properties `style_changes` compares: the faces, boxes and flow a rule
@@ -204,12 +201,6 @@ STYLES = """(properties) => {
   walk(document, "");
   return { faces: [...faces.keys()].map((face) => JSON.parse(face)), elements };
 }"""
-# Where the words beside each other on a line stand their baselines
-# (`baseline_changes`), and the gap between two of them that the report names: half a
-# device pixel of the 2x stills, which can round to a whole one. A reader saw a name
-# stand half a CSS pixel below its time.
-BASELINES = Path(__file__).with_name("stills_baselines.js").read_text()
-SPLIT = 0.25
 
 
 # Device pixels to a CSS pixel in each still: the density of the displays its pairs
@@ -220,8 +211,12 @@ SCALE = 2
 def capture(state: State, folder: Path, arm: str, visit: Visit) -> None:
     """Screenshot the tab `visit` brought to `state` to `folder/ARM.png`, and read
     into the visit the state's region in the screenshot, if it names one, its
-    elements' styles (`STYLES`), and the lines whose words stand on baselines `SPLIT`
-    apart (`BASELINES`)."""
+    elements' styles (`STYLES`) and its geometry faults (`leaf_dev.geometry`).
+
+    The styles and geometry are read before the screenshot. The screenshot's style on
+    the root (`browser.HELD`) changes the root's style, and after a change there
+    Chromium can report an auto margin as 0px though the box stands where it did, as
+    `main`'s did on page-comment-photo in some captures and not others."""
     page = visit.page
     if state.region:
         target = page.locator(state.region)
@@ -239,12 +234,12 @@ def capture(state: State, folder: Path, arm: str, visit: Visit) -> None:
             "height": min(window["height"], bounds["y"] + bounds["height"] + room) - y,
         }
         visit.reading["region"] = {key: value * SCALE for key, value in clip.items()}
-    (folder / f"{arm}.png").write_bytes(screenshot(page))
     reading = page.evaluate(STYLES, STYLED)
     visit.reading["styles"] = {
         key: reading["faces"][face] for key, face in reading["elements"].items()
     }
-    visit.reading["splits"] = page.evaluate(BASELINES, SPLIT)
+    visit.reading["geometry"] = geometry.read(page, running=state.activated)
+    (folder / f"{arm}.png").write_bytes(screenshot(page))
 
 
 def style_changes(
@@ -285,51 +280,6 @@ def style_changes(
             lines.extend(f"    {key}" for key in keys[:4])
     count = sum(map(len, groups.values())) + sum(map(len, alone.values()))
     return count, lines, list(firsts)
-
-
-def baseline_changes(split: dict[str, dict[str, list[dict]]]) -> list[str]:
-    """The lines whose words stand on baselines `SPLIT` apart in `split` (each arm's,
-    by state, from `BASELINES`): those only head splits, those both arms split, with
-    how far apart each arm stands them, and those only base splits, each with its
-    words' faces and where each stands against the line's first."""
-
-    def keyed(arm: str) -> dict[tuple, tuple[str, dict]]:
-        # A line is known by its state, row and words, and by which of the lines alike
-        # in those it is (`nth`), so two rows that read alike stay two.
-        return {
-            (
-                state,
-                line["row"],
-                *(item["text"] for item in line["items"]),
-                line["nth"],
-            ): (state, line)
-            for state, lines in split[arm].items()
-            for line in lines
-        }
-
-    head, base = keyed("head"), keyed("base")
-    groups = (
-        ("only head splits", head, head.keys() - base.keys()),
-        ("both arms split", head, head.keys() & base.keys()),
-        ("only base splits", base, base.keys() - head.keys()),
-    )
-    lines = []
-    for title, read, keys in groups:
-        if not keys:
-            continue
-        lines.append(f"lines {title}  x{len(keys)}")
-        for key in sorted(keys):
-            state, line = read[key]
-            spread = f"{line['spread']}px"
-            if key in base and key in head:
-                spread = f"{base[key][1]['spread']} -> {spread}"
-            lines.append(f"  {state}: {line['row']}  {spread} apart")
-            lines.extend(
-                f"      {item['text']!r} {item['face']}"
-                f"{' on a box' if item['boxed'] else ''} {item['offset']:+.2f}"
-                for item in line["items"]
-            )
-    return lines
 
 
 def declarations(page: Page) -> Callable[[str], list[str]]:
@@ -427,13 +377,13 @@ def differences(out: Path, browser):
     so a state's unreadable image or failed crop leaves the other pairs available.
     """
 
-    # The module imports the public package API, as a widget does, so the tab answers
+    # The module imports from the runtime's library, as a widget may, so the tab answers
     # with this tree's runtime under the package's own vendored modules.
     runtime = read_runtime().source
 
     def serve(route) -> None:
         path = route.request.url.removeprefix(ORIGIN)
-        package = ROOT / "packages" / "default" / path.lstrip("/")
+        package = DEFAULT_PACKAGE / path.lstrip("/")
         if path == "/image-difference.js":
             route.fulfill(path=DIFFERENCE, content_type="text/javascript")
         elif path.startswith("/vendor/") and package.is_file():
@@ -448,10 +398,10 @@ def differences(out: Path, browser):
     with (
         headless_shell() if isinstance(browser, WebDriver) else nullcontext(browser)
     ) as browser:
-        context = browser.new_context()
+        context = open_render_context(browser)
         try:
             context.route(f"{ORIGIN}/**", serve)
-            page = context.new_page()
+            page = open_render_page(context)
             page.goto(f"{ORIGIN}/")
             compare_images = page.evaluate_handle(
                 "async () => (await import('/image-difference.js')).compareImages"
@@ -542,7 +492,6 @@ def stills(
     out = run_directory(OUT)
     failed: dict[str, list[str]] = {}
     read: dict[str, dict] = {}
-    split: dict[str, dict[str, list[dict]]] = {"base": {}, "head": {}}
 
     def failure(state: State, phase: str, error: Exception) -> None:
         failed.setdefault(state.name, []).append(f"on {phase}: {said(error)}")
@@ -583,8 +532,6 @@ def stills(
                         failure(state, arm, visit.error)
                 if state.name in failed:
                     continue
-                for arm, visit in found.items():
-                    split[arm][state.name] = visit.reading["splits"]
                 try:
                     difference = compare(state.name)
                     if difference["changed"]:
@@ -607,6 +554,11 @@ def stills(
                         )
                     if lines:
                         (folder / "styles.txt").write_text("\n".join(lines) + "\n")
+                    faults = geometry.added(
+                        found["base"].reading["geometry"],
+                        found["head"].reading["geometry"],
+                    )
+                    difference["faults"] = [geometry.said(f) for f in faults]
                     read[state.name] = difference
                 except Exception as error:
                     failure(state, "comparison", error)
@@ -616,21 +568,20 @@ def stills(
         folder = out / state.name
         if state.name in failed:
             click.echo(f"  failed  {state.name} {'; '.join(failed[state.name])}")
-        elif (difference := read[state.name])["changed"] or difference["styles"]:
+        elif (
+            (difference := read[state.name])["changed"]
+            or difference["styles"]
+            or difference["faults"]
+        ):
             click.echo(
                 f"  changed {state.name}: {difference['changed']} px,"
                 f" {difference['styles']} styles -> {folder}"
             )
+            for fault in difference["faults"]:
+                click.echo(f"    adds {fault}")
         else:
             unchanged += 1
     click.echo(f"{unchanged} of {len(states)} states unchanged")
-    if lines := baseline_changes(split):
-        (out / "baselines.txt").write_text("\n".join(lines) + "\n")
-        click.echo(
-            "lines whose words split their baseline: "
-            + ", ".join(line.strip() for line in lines if line.startswith("lines"))
-            + f" -> {out / 'baselines.txt'}"
-        )
     click.echo(f"files in {out}")
     if failed:
         raise SystemExit(1)

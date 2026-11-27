@@ -1,11 +1,11 @@
-/* What else the user could aim at, at any point of the page (widget-elements.js,
+/* What else the user could aim at, at any point of the page (dom/widget-elements.js,
  * `aimableAt`): the answer the preview's rule for a thread's words reads, at any point,
  * marked words or not. */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { adoptRegistry } from "/runtime/registry.js";
-import { aimableAt } from "/runtime/widget-elements.js";
+import { adoptRegistry } from "/runtime/state/registry.js";
+import { aimableAt } from "/runtime/dom/widget-elements.js";
 
 const entries = (path) =>
   JSON.parse(readFileSync(new URL(`../../${path}`, import.meta.url), "utf8"));

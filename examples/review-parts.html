@@ -1,0 +1,374 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Check a UI change screen by screen</title>
+    <meta
+      name="description"
+      content="Six before-and-after captures of a console change, one screen per part, each with its finding and a question to merge it or send it back."
+    />
+    <style>
+      /* The title column draws its paragraphs' margins as its own inset. */
+      main > header {
+        --lf-block-frame: 1;
+      }
+
+      /* The capture line names how each pair was taken, under the question. */
+      .capture-facts {
+        color: var(--lf-muted);
+        font-family: var(--lf-sans);
+        font-size: 0.875rem;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="density-working">
+      <header>
+        <h1 id="parts-title">Do the run status badges look right?</h1>
+        <p id="parts-lede">
+          Six console screens on <code>main</code> (3f9a0c1e) and the branch (b72d4e85).
+        </p>
+        <p id="parts-progress">
+          <lf-tally id="parts-left" for="parts-cases" next></lf-tally>
+        </p>
+      </header>
+
+      <lf-parts id="parts-cases">
+        <lf-part
+          id="parts-run-list"
+          label="Run list"
+          summary="Status column after Run; the other columns kept their order"
+        >
+          <article id="parts-run-list-case" class="layout-column">
+            <lf-group
+              id="parts-run-list-ask"
+              label="Does the run list's Status column look right?"
+            >
+              <h2>Does the run list's Status column look right?</h2>
+              <p class="capture-facts" id="parts-run-list-facts">
+                <code>/runs</code> · 1280 × 800 at 2× · light · Chromium 158
+              </p>
+              <p id="parts-run-list-result">
+                A Status column after Run shows running, failed, passed and cancelled
+                badges. Trigger, Started and Duration keep their order and alignment.
+              </p>
+              <p id="parts-run-list-check">
+                <strong>Check:</strong> read each badge against its run, and check that
+                the other columns kept their order.
+              </p>
+              <lf-shot
+                id="parts-run-list-shot"
+                data-width="available"
+                alt="The run list on main and on the branch: a Status column after Run with running, failed, passed and cancelled badges; Trigger, Started and Duration keep their order."
+                before="/media/a376980e3d9f4b13.png"
+                after="/media/177ff887342a17b9.png"
+                density="2"
+                focus-x="0"
+                focus-y="176"
+                focus-width="736"
+                focus-height="336"
+              ></lf-shot>
+              <lf-options id="parts-run-list-review" across>
+                <lf-option
+                  id="parts-run-list-merge"
+                  label="Merge the run list as captured"
+                  recommended
+                  ><small class="tag">4 badge states</small>
+                  <strong>Merge the run list as captured</strong></lf-option
+                >
+                <lf-option
+                  id="parts-run-list-change"
+                  label="Change the run list before merging"
+                  ><small class="tag warn">blocks merge</small>
+                  <strong>Change the run list before merging</strong> Say what in a
+                  comment on the capture.</lf-option
+                >
+              </lf-options>
+            </lf-group>
+          </article>
+        </lf-part>
+
+        <lf-part
+          id="parts-run-list-dark"
+          label="Run list, dark"
+          summary="Badges on the dark palette's tints; each word readable"
+        >
+          <article id="parts-run-list-dark-case" class="layout-column">
+            <lf-group
+              id="parts-run-list-dark-ask"
+              label="Do the badges read in the dark scheme?"
+            >
+              <h2>Do the badges read in the dark scheme?</h2>
+              <p class="capture-facts" id="parts-run-list-dark-facts">
+                <code>/runs</code> · 1280 × 800 at 2× · dark · Chromium 158
+              </p>
+              <p id="parts-run-list-dark-result">
+                The badges take the dark palette's tints, and each word stays readable
+                on its fill. The other columns keep their order, as in the light scheme.
+              </p>
+              <p id="parts-run-list-dark-check">
+                <strong>Check:</strong> in the dark scheme, read each badge's word
+                against its fill.
+              </p>
+              <lf-shot
+                id="parts-run-list-dark-shot"
+                data-width="available"
+                alt="The run list in the dark scheme on main and on the branch: the badges take dark tints and each word stays readable on its fill."
+                before="/media/6d4bae3bc6c69859.png"
+                after="/media/c5a3984ae0b13965.png"
+                density="2"
+                focus-x="0"
+                focus-y="176"
+                focus-width="736"
+                focus-height="336"
+              ></lf-shot>
+              <lf-options id="parts-run-list-dark-review" across>
+                <lf-option
+                  id="parts-run-list-dark-merge"
+                  label="Merge the dark badges as captured"
+                  recommended
+                  ><small class="tag">dark tints</small>
+                  <strong>Merge the dark badges as captured</strong></lf-option
+                >
+                <lf-option
+                  id="parts-run-list-dark-change"
+                  label="Change the dark badges before merging"
+                  ><small class="tag warn">blocks merge</small>
+                  <strong>Change the dark badges before merging</strong> Say what in a
+                  comment on the capture.</lf-option
+                >
+              </lf-options>
+            </lf-group>
+          </article>
+        </lf-part>
+
+        <lf-part
+          id="parts-run-page"
+          label="Run page"
+          summary="Failed badge centred on the title since the 16:05 re-capture"
+        >
+          <article id="parts-run-page-case" class="layout-column">
+            <lf-group
+              id="parts-run-page-ask"
+              label="Does the failed badge sit right beside the run's title?"
+            >
+              <h2>Does the failed badge sit right beside the run's title?</h2>
+              <p class="capture-facts" id="parts-run-page-facts">
+                <code>/runs/4812</code> · 1280 × 800 at 2× · light · Chromium 158 ·
+                re-captured 16:05
+              </p>
+              <p id="parts-run-page-result">
+                A failed badge follows the run number, centred on the title's line since
+                the re-capture. The metadata line and the Re-run failed jobs button stay
+                where they were.
+              </p>
+              <p id="parts-run-page-check">
+                <strong>Check:</strong> compare the header of failed run #4812.
+              </p>
+              <lf-shot
+                id="parts-run-page-shot"
+                data-width="available"
+                alt="Run #4812's page on main and on the branch: a failed badge follows the run number, centred on the title's line; the metadata line and the Re-run failed jobs button stay put."
+                before="/media/397a7fe5f3060f39.png"
+                after="/media/cac6b6f1bb294e36.png"
+                density="2"
+                focus-x="0"
+                focus-y="64"
+                focus-width="806"
+                focus-height="180"
+              ></lf-shot>
+              <lf-options id="parts-run-page-review" across>
+                <lf-option
+                  id="parts-run-page-merge"
+                  label="Merge the centred badge"
+                  recommended
+                  ><small class="tag">re-captured</small>
+                  <strong>Merge the centred badge</strong></lf-option
+                >
+                <lf-option
+                  id="parts-run-page-change"
+                  label="Change the run page header before merging"
+                  ><small class="tag warn">blocks merge</small>
+                  <strong>Change the run page header before merging</strong> Say what in
+                  a comment on the capture.</lf-option
+                >
+              </lf-options>
+            </lf-group>
+          </article>
+        </lf-part>
+
+        <lf-part
+          id="parts-run-list-phone"
+          label="Run list at 390 px"
+          summary="Duration cut off at the right edge; choose the fix"
+        >
+          <article id="parts-run-list-phone-case" class="layout-column">
+            <lf-group
+              id="parts-run-list-phone-ask"
+              label="How should the run list fit a 390 px phone?"
+            >
+              <h2>How should the run list fit a 390 px phone?</h2>
+              <p class="capture-facts" id="parts-run-list-phone-facts">
+                <code>/runs</code> · 390 × 844 at 2× · light · Chromium 158
+              </p>
+              <p id="parts-run-list-phone-result">
+                Duration is cut off at the right edge. The Status column keeps its 124
+                px desktop minimum, and the table clips rather than scrolls. I'd let the
+                Status column narrow to its badge on phones, which keeps all four
+                columns in view if they fit; I'll re-capture whichever you pick.
+              </p>
+              <p id="parts-run-list-phone-check">
+                <strong>Check:</strong> at 390 px, read each run's duration.
+              </p>
+              <lf-shot
+                id="parts-run-list-phone-shot"
+                alt="The run list at 390 px on main and on the branch: on the branch the Status column pushes Duration past the right edge, where it is cut off."
+                before="/media/3e43890fae6949be.png"
+                after="/media/d198a13400556edb.png"
+                density="2"
+                focus-x="0"
+                focus-y="112"
+                focus-width="390"
+                focus-height="228"
+              ></lf-shot>
+              <lf-options id="parts-run-list-phone-review" across data-width="wide">
+                <lf-option
+                  id="parts-run-list-phone-merge"
+                  label="Merge the phone layout as captured"
+                  ><small class="tag danger">Duration cut off</small>
+                  <strong>Merge the phone layout as captured</strong></lf-option
+                >
+                <lf-option
+                  id="parts-run-list-phone-narrow"
+                  label="Let Status narrow to its badge on phones"
+                  recommended
+                  ><small class="tag">4 columns</small>
+                  <strong>Let Status narrow to its badge on phones</strong> Drops the
+                  124 px minimum below desktop width.</lf-option
+                >
+                <lf-option
+                  id="parts-run-list-phone-scroll"
+                  label="Scroll the table sideways on phones"
+                  ><small class="tag warn">Duration off-screen</small>
+                  <strong>Scroll the table sideways on phones</strong> Duration is a
+                  swipe away.</lf-option
+                >
+              </lf-options>
+            </lf-group>
+          </article>
+        </lf-part>
+
+        <lf-part
+          id="parts-overview"
+          label="Overview"
+          summary="Recent-run rows 4 px taller through the shared table; I'd keep them"
+        >
+          <article id="parts-overview-case" class="layout-column">
+            <lf-group
+              id="parts-overview-ask"
+              label="Keep Overview's recent-run rows 4 px taller?"
+            >
+              <h2>Keep Overview's recent-run rows 4 px taller?</h2>
+              <p class="capture-facts" id="parts-overview-facts">
+                <code>/</code> · 1280 × 800 at 2× · light · Chromium 158
+              </p>
+              <p id="parts-overview-result">
+                Each row is 4 px taller, because the shared table now leaves room for a
+                badge in every row. The card grows 20 px and View all runs moves down
+                with it; the Schedules card doesn't move. I'd keep it: the rows match
+                the run list's.
+              </p>
+              <p id="parts-overview-check">
+                <strong>Check:</strong> compare the Recent runs card with the Schedules
+                card beside it.
+              </p>
+              <lf-shot
+                id="parts-overview-shot"
+                view="slider"
+                data-width="available"
+                alt="The Overview page on main and on the branch: each Recent runs row is 4 px taller, the card grows 20 px and View all runs moves down; the Schedules card stays put."
+                before="/media/782258c8cf91d32d.png"
+                after="/media/d25c3181e51c6af3.png"
+                density="2"
+                focus-x="256"
+                focus-y="260"
+                focus-width="1000"
+                focus-height="360"
+              ></lf-shot>
+              <lf-options id="parts-overview-review" across>
+                <lf-option
+                  id="parts-overview-keep"
+                  label="Keep the taller rows"
+                  recommended
+                  ><small class="tag">card +20 px</small>
+                  <strong>Keep the taller rows</strong></lf-option
+                >
+                <lf-option
+                  id="parts-overview-restore"
+                  label="Keep Overview's rows at main's height"
+                  ><small class="tag warn">re-capture</small>
+                  <strong>Keep Overview's rows at main's height</strong> Badge room only
+                  in tables that show a badge.</lf-option
+                >
+              </lf-options>
+            </lf-group>
+          </article>
+        </lf-part>
+
+        <lf-part
+          id="parts-notification-settings"
+          label="Notification settings"
+          summary="Unchanged: the two captures are identical"
+        >
+          <article id="parts-notification-settings-case" class="layout-column">
+            <lf-group
+              id="parts-notification-settings-ask"
+              label="Is the notification form really unchanged?"
+            >
+              <h2>Is the notification form really unchanged?</h2>
+              <p class="capture-facts" id="parts-notification-settings-facts">
+                <code>/settings/notifications</code> · 1280 × 800 at 2× · light ·
+                Chromium 158
+              </p>
+              <p id="parts-notification-settings-result">
+                The two captures are identical: the form's rows don't take the table's
+                new badge spacing.
+              </p>
+              <p id="parts-notification-settings-check">
+                <strong>Check:</strong> compare the notification form, whose rows share
+                the table's row styles.
+              </p>
+              <lf-shot
+                id="parts-notification-settings-shot"
+                data-width="available"
+                alt="The notification settings form on main and on the branch, identical."
+                before="/media/eaca2930029c0685.png"
+                after="/media/eaca2930029c0685.png"
+                density="2"
+                focus-x="256"
+                focus-y="140"
+                focus-width="680"
+                focus-height="352"
+              ></lf-shot>
+              <lf-options id="parts-notification-settings-review" across>
+                <lf-option
+                  id="parts-notification-settings-merge"
+                  label="Merge with the form unchanged"
+                  recommended
+                  ><small class="tag">identical</small>
+                  <strong>Merge with the form unchanged</strong></lf-option
+                >
+                <lf-option
+                  id="parts-notification-settings-change"
+                  label="Change the form before merging"
+                  ><small class="tag warn">blocks merge</small>
+                  <strong>Change the form before merging</strong> Say what in a comment
+                  on the capture.</lf-option
+                >
+              </lf-options>
+            </lf-group>
+          </article>
+        </lf-part>
+      </lf-parts>
+    </main>
+  </body>
+</html>

@@ -5,6 +5,8 @@ import pytest
 from playwright.sync_api import expect
 from render_harness import displayed, leaf_page, open_page, resized, wait_until_ready
 
+from browser.margin import _comment_on
+
 DOCUMENT = """
 <aside id="route"><div class="layout-track">
   <p>Read the evidence before deciding.</p><nav><a href="#evidence">Evidence</a></nav>
@@ -51,7 +53,8 @@ def test_a_questions_words_keep_the_column_beside_a_wider_block(browser, serve):
     """A question's section draws no box of its own around its blocks, so they stand
     in the page's flow: its words and its options keep the prose's edge, and a block
     declaring more room takes it. A div keeps what it holds in the column, inside a
-    question or round it."""
+    question or round it. A section in an open disclosure stands in the page's flow
+    as well, so a comment on its heading stands by its words."""
     options = (
         '<lf-options id="{id}-options">'
         '<lf-option id="{id}-yes">Yes</lf-option></lf-options>'
@@ -73,9 +76,13 @@ def test_a_questions_words_keep_the_column_beside_a_wider_block(browser, serve):
         )
         + "</section><div>"
         + question.format(id="kept", held=evidence.format(id="kept"))
-        + "</div>",
+        + "</div>"
+        + '<details open><summary>More</summary><section id="disclosed">'
+        + '<h2 id="disclosed-head">Held in a disclosure</h2>'
+        + evidence.format(id="disclosed")
+        + "</section></details>",
     )
-    page = open_page(browser, serve(source))
+    page = open_page(browser, serve(source, events=[_comment_on("disclosed-head")]))
     resized(page, 1728, 900)
     boxes = page.evaluate("""() => Object.fromEntries(
       [...document.querySelectorAll('[id]')].filter(el => el.closest('main'))
@@ -100,6 +107,10 @@ def test_a_questions_words_keep_the_column_beside_a_wider_block(browser, serve):
     marker = page.locator("[data-lf-margin-for='holds']")
     expect(marker).to_have_attribute("data-lf-place", "rail")
     assert marker.bounding_box()["x"] < column[1] + 100
+    assert boxes["disclosed-evidence"][1] > 1628, boxes
+    expect(page.locator("[data-lf-margin-for='disclosed-head']")).to_have_attribute(
+        "data-lf-place", "rail"
+    )
 
 
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
@@ -278,6 +289,178 @@ def test_growth_above_the_window_moves_nothing_read_in_a_sidebar_track(
     assert moved["moved"] == pytest.approx(0, abs=0.5), moved
 
 
+@pytest.mark.parametrize("shell", ["body", "child", "part"])
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_stuck_sidebar_track_keeps_its_place_to_the_page_end(
+    request, serve, engine, shell
+):
+    """A sidebar page's stuck track stays where it sticks to the page's end, the
+    document's end room included, even one reaching the window's foot, as the contents
+    map does, so its start stays in view through the last of the scroll. That holds for
+    a sidebar that is `main`, the child of a `main` with no Layout, and a part's, and
+    beside the elements browser extensions append to the body. A footer, the sidebar's
+    or one the page writes after the sidebar or after `main`, stops the track, so it
+    never stands over the footer."""
+    follow_ups = "".join(f"<p>Follow-up {n} to check.</p>" for n in range(80))
+    body = "".join(f"<p>Body paragraph {n} of the review.</p>" for n in range(200))
+    regions = (
+        f'<aside id="route"><div class="layout-track" id="track">{follow_ups}</div>'
+        f'</aside><div id="body">{body}</div>'
+    )
+    source = (
+        leaf_page("sidebar track end", regions, layout="sidebar")
+        if shell == "body"
+        else leaf_page(
+            "sidebar track end",
+            f'<div class="layout-sidebar">{regions}</div>',
+            layout=None,
+        )
+        if shell == "child"
+        else leaf_page(
+            "sidebar track end",
+            '<header><h1>Release review</h1></header><lf-parts id="parts">'
+            '<lf-part id="plan" label="Plan">'
+            f'<div class="layout-sidebar">{regions}</div></lf-part></lf-parts>',
+            layout=None,
+        )
+    )
+    page = open_page(request.getfixturevalue(engine), serve(source))
+    resized(page, 1400, 600)
+    stood = page.evaluate(
+        """async (shell) => {
+      const frame = () => new Promise(requestAnimationFrame);
+      const track = document.getElementById('track');
+      const sidebar = track.closest('.layout-sidebar');
+      const atEnd = async () => {
+        scrollTo(0, document.scrollingElement.scrollHeight);
+        await frame();
+        return track.getBoundingClientRect();
+      };
+      const stops = async (place) => {
+        const footer = document.createElement('footer');
+        footer.textContent = 'Reviewed in March.';
+        place(footer);
+        const {bottom} = await atEnd();
+        // Firefox lays the two edges out a rounding error apart.
+        const stopped = bottom <= footer.getBoundingClientRect().top + 0.5;
+        footer.remove();
+        return stopped;
+      };
+      scrollTo(0, 1500);
+      await frame();
+      const {top: mid, bottom} = track.getBoundingClientRect();
+      const end = (await atEnd()).top;
+      // A live region a browser extension appends to the body, as password managers do.
+      const extension = document.createElement('div');
+      extension.setAttribute('aria-live', 'polite');
+      document.body.append(extension);
+      const withExtension = (await atEnd()).top;
+      extension.remove();
+      return {mid, end, withExtension, bottom, window: innerHeight,
+              after: await stops((footer) => sidebar.after(footer)),
+              // A page of parts holds nothing beside `main` (page-layout.md).
+              site: shell === 'part'
+                || await stops((footer) => document.querySelector('main').after(footer)),
+              inSidebar: await stops((footer) => sidebar.append(footer))};
+    }""",
+        shell,
+    )
+    # The track reaches the window's foot, short only by the gap it keeps there.
+    assert stood["bottom"] == pytest.approx(stood["window"] - 24, abs=1), stood
+    assert stood["end"] == pytest.approx(stood["mid"], abs=0.5), stood
+    assert stood["withExtension"] == pytest.approx(stood["mid"], abs=0.5), stood
+    assert stood["after"], stood
+    assert stood["site"], stood
+    assert stood["inSidebar"], stood
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("held", ["follow-ups", "contents map"])
+def test_a_sidebar_among_a_column_s_blocks_keeps_its_track_off_what_follows(
+    request, serve, engine, held
+):
+    """A sidebar among a column page's blocks isn't the page's Layout box, so its stuck
+    track ends with the sidebar rather than hanging through the document's end room
+    over the column's blocks after it. The contents map's track, which stands fixed in
+    the window where its sidebar spans the page, sticks here as any other does."""
+    if held == "contents map":
+        track = '<lf-toc id="contents"></lf-toc>'
+        body = (
+            '<div class="layout-column">'
+            + "".join(
+                f'<h2 id="part-{n}">Part {n}</h2>'
+                + "".join(f"<p>Paragraph {k} of part {n}.</p>" for k in range(20))
+                for n in range(10)
+            )
+            + "</div>"
+        )
+    else:
+        track = "".join(f"<p>Follow-up {n} to check.</p>" for n in range(80))
+        body = (
+            "<div>"
+            + "".join(f"<p>Body paragraph {n} of the review.</p>" for n in range(200))
+            + "</div>"
+        )
+    after = "".join(f"<p>Column paragraph {n}.</p>" for n in range(60))
+    source = leaf_page(
+        "sidebar among a column's blocks",
+        f'<div class="layout-sidebar"><aside><div class="layout-track" id="track">'
+        f'{track}</div></aside>{body}</div><div id="after">{after}</div>',
+    )
+    page = open_page(request.getfixturevalue(engine), serve(source))
+    resized(page, 1400, 600)
+    overlap = page.evaluate("""async () => {
+      const sidebar = document.querySelector('.layout-sidebar');
+      scrollTo(0, scrollY + sidebar.getBoundingClientRect().bottom - 300);
+      await new Promise(requestAnimationFrame);
+      return document.getElementById('track').getBoundingClientRect().bottom
+        - document.getElementById('after').getBoundingClientRect().top;
+    }""")
+    assert overlap <= 0.5, overlap
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize(
+    "header", ["in the sidebar", "before the sidebar", "before main"]
+)
+def test_a_header_above_a_contents_map_keeps_the_map_below_it(
+    request, serve, engine, header
+):
+    """The contents map's track stands fixed in the window only where its sidebar is
+    the page's `main` with nothing above it. A header in the sidebar, before the
+    sidebar inside `main`, or before `main` as a site header keeps the map below the
+    header as the page opens."""
+    head = '<header id="head"><h1>Release review</h1><p>Three parts.</p></header>'
+    regions = (
+        '<aside><div class="layout-track" id="track"><lf-toc id="contents"></lf-toc>'
+        '</div></aside><div class="layout-column">'
+        + "".join(
+            f'<h2 id="part-{n}">Part {n}</h2>'
+            + "".join(f"<p>Paragraph {k} of part {n}.</p>" for k in range(20))
+            for n in range(3)
+        )
+        + "</div>"
+    )
+    if header == "in the sidebar":
+        source = leaf_page("header above a map", head + regions, layout="sidebar")
+    elif header == "before the sidebar":
+        source = leaf_page(
+            "header above a map",
+            f'{head}<div class="layout-sidebar">{regions}</div>',
+            layout=None,
+        )
+    else:
+        source = leaf_page("header above a map", regions, layout="sidebar").replace(
+            "<main", f"{head}<main", 1
+        )
+    page = open_page(request.getfixturevalue(engine), serve(source))
+    resized(page, 1400, 900)
+    gap = page.evaluate("""() =>
+      document.getElementById('track').getBoundingClientRect().top
+        - document.getElementById('head').getBoundingClientRect().bottom""")
+    assert gap >= 0, gap
+
+
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
 def test_annotations_read_the_native_prose_track_with_authored_geometry(
     browser, serve, direction
@@ -291,7 +474,7 @@ def test_annotations_read_the_native_prose_track_with_authored_geometry(
     )
     page = open_page(browser, serve(source))
     reading = page.evaluate("""async () => {
-      const {proseRect}=await import('/runtime/content-layout.js');
+      const {proseRect}=await import('/runtime/readings/content-layout.js');
       const prose=document.querySelector('#prose').getBoundingClientRect();
       return {computed:proseRect(),actual:{left:prose.left,right:prose.right}};
     }""")

@@ -1,23 +1,20 @@
 // <lf-sort-film>: the player around sort.js. It owns playback, the input choice and the
 // narration, and paints with CSS theme tokens that the SVG resolves as the theme changes.
+//
+// It holds the slice.rs lines the step shown runs as `playhead`, its declared output, or
+// null where the step runs none, and says `change` as they change. Each lf-code excerpt
+// whose `for` names the film marks those lines where it quotes them, so one value lights
+// only the block that holds them.
 
-import {
-  frameFor,
-  generatedElement,
-  inlineMarkdownFragment,
-  keeps,
-  keepsText,
-  loadMarkdown,
-  offer,
-  once,
-  onMotionPreferenceChange,
-  reducedMotion,
-  registerVisualParts,
-  sizeObserver,
-  whileConnected,
-} from "/runtime/widget-api.js";
+import { frameFor, whileConnected, pageLinks } from "/runtime/widget-api.js";
+import { offer } from "/runtime/lib/controls.js";
+import { once } from "/runtime/lib/once.js";
+import { sizeObserver } from "/runtime/lib/frame-pass.js";
+import { inlineMarkdownFragment, loadMarkdown } from "/runtime/lib/markdown.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import {
   INPUTS,
+  LINES,
   N,
   Painter,
   PHASE,
@@ -91,6 +88,8 @@ customElements.define(
     #step = -1;
     #autoPlayTimer = 0;
     #laidOut = 0;
+    /** @type {string | null} */
+    playhead = null;
     // The drawing is laid out at the stage's width (sort.js, `geometry`), so a pane
     // that changes width lays it out again. The new layout changes the stage's height,
     // so it waits for the rendering pass after the size delivery rather than feeding
@@ -98,13 +97,16 @@ customElements.define(
     #relayout = frameFor(this, () => {
       this.#layout();
       this.#paint();
-      this.parts?.update();
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
     });
 
     connectedCallback() {
       if (!once(this)) return;
       this.#build();
-      if (!reducedMotion())
+      const reducedMotion = matchMedia("(prefers-reduced-motion: reduce)");
+      if (!reducedMotion.matches)
         this.#autoPlayTimer = setTimeout(() => {
           this.#autoPlayTimer = 0;
           // Shown, not merely laid out: a film in a tab the user has not opened still
@@ -120,15 +122,18 @@ customElements.define(
         loadMarkdown().then((ready) => {
           if (ready && !signal.aborted && this.#step >= 0) this.#renderNote();
         });
-        const stopMotionWatch = onMotionPreferenceChange((reduce) => {
-          if (reduce) this.#pause();
-        });
+        reducedMotion.addEventListener(
+          "change",
+          () => {
+            if (reducedMotion.matches) this.#pause();
+          },
+          { signal },
+        );
         const sized = sizeObserver(() => {
           if (this.#svgWidth() !== this.#laidOut) this.#relayout();
         });
         sized.observe(this.stage);
         return () => {
-          stopMotionWatch();
           sized.disconnect();
           this.#pause();
         };
@@ -159,9 +164,8 @@ customElements.define(
       // Each slot of v, the scratch lane, the run stack and each collapse() clause is a
       // visual part: Leaf's Alt-click targets that part, and the click pauses the sort
       // so the part holds still under the comment.
-      this.parts = registerVisualParts(
-        this,
-        () => [
+      this.lfParts = {
+        read: () => [
           ...this.painter.parts(),
           {
             id: this.momentEl.dataset.part,
@@ -169,8 +173,9 @@ customElements.define(
             label: momentLabel(this.momentEl.dataset.part),
           },
         ],
-        { reveal: (id) => this.#revealMoment(id), label: momentLabel },
-      );
+        reveal: (id) => this.#revealMoment(id),
+        label: momentLabel,
+      };
       stage.addEventListener("click", (e) => {
         if (e.target.closest?.("[data-part]")) this.#pause();
       });
@@ -225,10 +230,15 @@ customElements.define(
         this.#paint();
       });
       this.speedBtn = offer("button", "sort-speed", `${this.#speed}×`);
-      this.speedBtn.setAttribute("aria-label", "Playback speed");
+      // Named with the speed it shows, so saying what it shows reaches it.
+      const showSpeed = () => {
+        this.speedBtn.textContent = `${this.#speed}×`;
+        this.speedBtn.setAttribute("aria-label", `Playback speed, ${this.#speed}×`);
+      };
+      showSpeed();
       this.speedBtn.addEventListener("click", () => {
         this.#speed = SPEEDS[(SPEEDS.indexOf(this.#speed) + 1) % SPEEDS.length];
-        this.speedBtn.textContent = `${this.#speed}×`;
+        showSpeed();
       });
       bar.append(this.playBtn, back, fwd, this.scrub, this.speedBtn);
 
@@ -265,9 +275,11 @@ customElements.define(
       this.addEventListener("keydown", (e) => this.#key(e));
       // The drawing, the narration and the count are the film's words, which a reader
       // can point at; the timeline is a press with none.
-      for (const words of [stage, this.narration, this.stats])
-        generatedElement(words, { says: true });
-      generatedElement(this.timeline, { says: false });
+      for (const words of [stage, this.narration, this.stats]) {
+        keeps(words, "data-lf-gen", "1");
+        words.toggleAttribute("data-lf-said", true);
+      }
+      keeps(this.timeline, "data-lf-gen", "1");
       const controls = document.createElement("div");
       controls.className = "sort-controls";
       controls.append(this.narration, this.timeline, bar, inputs, this.stats);
@@ -298,7 +310,9 @@ customElements.define(
     // its words, or how Markdown renders them, changed.
     #renderNote() {
       const note = document.createElement("span");
-      note.append(inlineMarkdownFragment(this.#film.steps[this.#step].note, false));
+      note.append(
+        inlineMarkdownFragment(this.#film.steps[this.#step].note, pageLinks, false),
+      );
       if (note.innerHTML !== this.noteEl.innerHTML)
         this.noteEl.replaceChildren(...note.childNodes);
     }
@@ -325,11 +339,11 @@ customElements.define(
         r.setAttribute("fill", color[phase] ?? C.muted);
         tl.append(r);
       }
-      this.playhead = document.createElementNS(SVGNS, "rect");
-      this.playhead.setAttribute("width", 3);
-      this.playhead.setAttribute("height", 10);
-      this.playhead.setAttribute("fill", C.ink);
-      tl.append(this.playhead);
+      this.timeHead = document.createElementNS(SVGNS, "rect");
+      this.timeHead.setAttribute("width", 3);
+      this.timeHead.setAttribute("height", 10);
+      this.timeHead.setAttribute("fill", C.ink);
+      tl.append(this.timeHead);
     }
 
     #paint() {
@@ -337,7 +351,7 @@ customElements.define(
       const fr = frame(this.#film, this.#t);
       this.painter.paint(this.#film, fr, C);
       this.scrub.value = this.#t;
-      keeps(this.playhead, "x", (1000 * this.#t) / this.#film.total - 1.5);
+      keeps(this.timeHead, "x", (1000 * this.#t) / this.#film.total - 1.5);
       if (fr.i !== this.#step) {
         this.#step = fr.i;
         const s = fr.step;
@@ -354,8 +368,15 @@ customElements.define(
               ? `. A plain top-down merge sort needs ${this.#plain} comparisons on this input.`
               : `, of ${this.#film.comparisons} in all.`),
         );
+        const lines = s.line ? LINES[s.line] : null;
+        if (lines !== this.playhead) {
+          this.playhead = lines;
+          this.dispatchEvent(new Event("change"));
+        }
         // The stack and the clauses move as runs push and merge; re-read their geometry.
-        this.parts?.update();
+        this.dispatchEvent(
+          new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+        );
       }
     }
 

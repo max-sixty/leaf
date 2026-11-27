@@ -104,7 +104,7 @@
             <p>reference</p>
             <h1>Data structures</h1>
           </hgroup>
-          <p class="lede" id="lede">
+          <p class="lf-lede" id="lede">
             Leaf uses JSON for the state the server sends to the browser, the events in
             a page's log, and the records stored beside the log. Each table below lists
             one structure's fields with their types, whether each is required, and what
@@ -149,8 +149,10 @@
             directory, the machine's state home, or the browser's storage. Each carries
             a
             <code>format</code> naming the protocol at which its shape last changed.
-            <code>delivery</code> is the envelope an agent reads with
-            <code>leaf delivery read</code>.
+            Each file but a page's <code>layer.json</code> carries that number before
+            its suffix, as <code>drafts@51.json</code>, so a Leaf of one shape never
+            reads or replaces another's. <code>delivery</code> is the envelope an agent
+            reads with <code>leaf delivery read</code>.
           </p>
           <div class="schema-list" data-schemas="records"></div>
         </section>

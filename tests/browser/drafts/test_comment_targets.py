@@ -24,8 +24,8 @@ from render_harness import (
 from browser.drafts import (
     choose_comment_target,
 )
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -379,10 +379,12 @@ def test_a_draft_stays_with_its_subject_where_threads_lists_it(browser, serve):
     expect(field).to_be_focused()
     expect(field).to_have_js_property("value", "")
     expect(field).to_have_attribute("aria-label", re.compile("Paragraph 3"))
-    expect_panel_says(page, "Draft kept — g i resumes writing")
+    expect_panel_says(page, "Draft kept")
     write(field, "About the third.")
-    page.keyboard.press("Shift+Tab")
-    page.keyboard.press("t")
+    # On the anchored thread, which a press on its marker opens with the caret in its
+    # reply, and Escape leaves the reply for.
+    page.locator('[data-lf-margin-for="p41"] .lf-margin-marker').click()
+    page.keyboard.press("Escape")
     page.keyboard.press("c")
     reply = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
     expect(reply).to_be_focused()
@@ -417,18 +419,18 @@ def test_a_draft_stays_with_its_subject_where_threads_lists_it(browser, serve):
     )
 
 
-def test_a_put_away_draft_dots_the_on_me_mark_grey(browser, serve):
-    """Where no thread has news, a draft the user put away dots the On Me mark grey,
-    and a press on the mark opens Threads, where Drafts lists it."""
+def test_a_put_away_draft_dots_the_leaf_grey(browser, serve):
+    """Where no thread has news, a draft the user put away dots the leaf grey, and a
+    press on the leaf opens Threads, where Drafts lists it."""
     page = open_page(browser, serve(LONG_PAGE))
     field = page.locator(".lf-fab-input")
-    mark = page.locator(".lf-fp-on-user")
-    dot = mark.locator(".lf-fp-news")
+    mark = page.locator(".lf-fp-leaf")
+    dot = mark.locator(".lf-fp-news-dot")
     expect(dot).to_be_hidden()
     choose_comment_target(page, "#p9")
     write(field, "About the ninth paragraph.")
     page.keyboard.press("Escape")
-    expect_panel_says(page, "Draft kept — g i resumes writing")
+    expect_panel_says(page, "Draft kept")
     expect(dot).to_be_visible()
     expect(dot).to_have_attribute("data-lf-drafts", "")
     expect(mark).to_have_accessible_name(re.compile("1 draft unsent"))
@@ -453,9 +455,7 @@ def test_a_draft_stands_in_the_margin_where_it_is_about(browser, serve):
     page.keyboard.press("Escape")
     expect(drafts).to_have_count(1)
     expect(drafts).to_have_accessible_name(re.compile("^Draft.*Paragraph 9"))
-    page.evaluate("() => document.activeElement?.blur()")
-    page.keyboard.press("t")
-    page.keyboard.press("c")
+    page.locator('[data-lf-margin-for="p41"] .lf-margin-marker').click()
     reply = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
     expect(reply).to_be_focused()
     write(reply, "A reply to the anchored thread.")
@@ -572,7 +572,7 @@ def test_a_delayed_draft_close_yields_to_a_newer_page_selection(browser, serve):
     expect(page.locator("#local leaf-text")).to_be_focused()
     rendered(page)
     page.evaluate("""async()=>{
-      const {observeQueuedWork}=await window.__lfCheckApi();
+      const {observeQueuedWork}=await window.__lfLibImport('queued-work.js');
       window.closeJobs=new Set();window.captureClose=true;
       window.stopCloseObserver=observeQueuedWork((phase,job)=>{
         if(phase==='enqueue'&&captureClose)closeJobs.add(job);
@@ -641,7 +641,7 @@ def datum_draft_url(serve, *, identified=False):
     """Serve a projected subject whose rendering can change independently of its identity."""
     module = """
 import { html } from '/vendor/lit.js';
-import { LeafElement } from '/runtime/widget-api.js';
+import { LeafElement } from '/runtime/lib/leaf-element.js';
 customElements.define('lf-draft-subject', class extends LeafElement {
   static properties = {words: {attribute: false}, key: {attribute: false}};
   constructor() {
@@ -672,13 +672,10 @@ customElements.define('lf-draft-subject', class extends LeafElement {
             "lf-draft-subject": {
                 "description": "A datum whose words can change.",
                 "attributes": {
-                    "type": "object",
                     "properties": {
-                        "id": {"type": "string"},
                         "source": {"type": "string"},
                     },
                     "required": ["id"],
-                    "additionalProperties": False,
                 },
                 "content": "empty",
                 "inputs": {

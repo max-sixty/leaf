@@ -27,16 +27,13 @@ lf-file-editor:state(comparing) {
   }
 }
 /* As a pane's body, the editor wears the pane's frame rather than a second one inside
- * it, with no inset or margin of its own. The room the pane keeps below its body for
- * Leaf's panel (`--lf-end-room`) goes under the file's last line instead, inside the
- * editor's scroller, so that line can still scroll clear of the panel. */
+ * it, with no inset or margin of its own. */
 [data-lf-reading-role="pane"] > lf-file-editor {
   margin: 0;
   padding: 0;
   border: 0;
   border-radius: 0;
   --lf-pane-top: 0px;
-  --lf-file-editor-end-room: var(--lf-end-room);
 }
 /* Told it has a definite height to fill (`--lf-full-height`, layouts.css), as a
  * workspace pane's body is, the editor fills that height. */

@@ -9,7 +9,7 @@
 /* Draw mode and Capture area take presses on the document plane, page-widget controls
    included, while Leaf surfaces keep their gestures. Their crosshair stands on the
    element under the pointer, inside a widget's tree where the pointer is over one, and
-   never on a Leaf surface, which keeps its own cursor (page-geometry.js). It is
+   never on a Leaf surface, which keeps its own cursor (panel/page-geometry.js). It is
    important: it covers whatever cursor the page or a widget states for its own
    controls. This sheet reaches the document and every shadow tree, so one rule serves
    both. Stated on every element, the crosshair restyled the whole page each time a
@@ -30,22 +30,26 @@
   cursor: auto;
 }
 /* A block's marks (Copy, a draft's editing controls) stand on one small toolbar inside
-   the block's top-right corner, `--lf-block-control-inset` from both edges, taking no
+   the block's top-right corner, `--lf-block-control-inset` from both its outer edges:
+   past the block's 1px hairline and standing clear of it (`--lf-clear`). It takes no
    room: a patch of the card ground with a hairline ring, its marks (controls.css,
-   `.lf-mark-action`) 1px inside it. It casts no shadow: it lies on one surface, which
-   the ring alone sets it apart from. Its marks stand a reach apart, so neighbouring
-   reaches meet rather than overlap and the finger's wider reach widens only the
-   toolbar. A code block's Copy is such a toolbar of one mark (`data-lf-bar`,
-   controls.css); a draft's toolbar (draft.css) stands in the same seat, and its Copy
-   is one of its marks. */
+   `.lf-mark-action`) a joined run meeting the ring, so a mark's focus ring lies on it.
+   It casts no shadow: it lies on one surface, which the ring alone sets it apart from.
+   Its marks stand a reach apart, so neighbouring reaches meet rather than overlap and
+   the finger's wider reach widens only the toolbar. A code block's Copy is such a
+   toolbar of one mark (`data-lf-bar`, controls.css), its mark 1px inside its own ring;
+   a draft's toolbar (draft.css) stands in the same seat, and its Copy is one of its
+   marks. */
 :root {
-  --lf-block-control-inset: 4px;
+  --lf-block-control-inset: calc(1px + var(--lf-clear));
 }
 .lf-mark-bar,
 .lf-code-copy {
   box-sizing: border-box;
   display: flex;
   gap: max(2px, var(--lf-aim-floor) - var(--lf-mark-size));
+}
+.lf-code-copy {
   padding: 1px;
 }
 /* Copy stands over its code without changing the block's box or scrolling its text.
@@ -53,7 +57,7 @@
    top border, a pane that clipped the block's surroundings cut it in half or hid it.
    While it shows it covers the first line's last words, which a pointer leaving the
    block uncovers. Hover, keyboard focus, or a tap that stands the user on the source
-   reveals it (code-copy.js). Hidden, it takes no presses, so a finger selecting the
+   reveals it (records/code-copy.js). Hidden, it takes no presses, so a finger selecting the
    words beneath it reaches them. Its toolbar is its mark, its padding and its ring. */
 .lf-code-copy {
   --lf-code-copy-box: calc(var(--lf-mark-size) + 4px);
@@ -85,7 +89,7 @@
    and stack where the control would. A positioned box is the containing block of an
    absolute one, which an anchor outside it cannot position (CSS Anchor Positioning,
    "acceptable anchor element"), and a document control stands in two: Leaf's chrome
-   root (base.css, `:root > .lf-chrome`) and, cut, its frame. So a document control is
+   root (elements.css, `:root > .lf-chrome`) and, cut, its frame. So a document control is
    fixed, with the window for its containing block, and its anchor carries it through
    every scroll. A widget's control, standing in the widget's own tree with its block,
    stays absolute. */
@@ -122,7 +126,7 @@
   pointer-events: auto;
 }
 /* A heading's link stands in the gutter before its first line, centered on that line
-   (heading-links.js writes where the line stands in the heading's box), and at the
+   (records/heading-links.js writes where the line stands in the heading's box), and at the
    heading's far end where the gutter has no room for it. It shows as Copy does, and is
    a symbol (controls.css, `.lf-icon-action`) a line tall. */
 :root {
@@ -165,79 +169,6 @@
 .lf-heading-link:is(.lf-heading-link-shown, :hover, [data-lf-focus-within]) {
   opacity: 1;
   pointer-events: auto;
-}
-/* A recording's bar lies over its foot, inset as Copy is from a code block's corner, in
-   a control's face: paper, a hairline and the theme's radius (video-controls.js). It
-   shows while the recording is paused, under the pointer or under the keyboard, and
-   otherwise leaves the picture whole, taking no presses so a press reaches the
-   picture. */
-:root {
-  --lf-video-bar-h: var(--lf-line);
-}
-.lf-video-controls {
-  position: absolute;
-  top: calc(
-    anchor(bottom, -9999px) - var(--lf-video-bar-h) - var(--lf-block-control-inset) +
-      var(--lf-block-control-dy, 0px) + var(--lf-block-control-dh, 0px)
-  );
-  left: calc(
-    anchor(left, -9999px) + var(--lf-block-control-inset) +
-      var(--lf-block-control-dx, 0px)
-  );
-  width: calc(
-    anchor-size(width, 0px) + var(--lf-block-control-dw, 0px) - 2 *
-      var(--lf-block-control-inset)
-  );
-  height: var(--lf-video-bar-h);
-  box-sizing: border-box;
-  display: flex;
-  align-items: center;
-  gap: var(--lf-sp-1);
-  padding-inline: 0 var(--lf-sp-2);
-  border: 1px solid var(--lf-border);
-  border-radius: var(--lf-r);
-  background: var(--lf-paper);
-  z-index: 1;
-  opacity: 0;
-  pointer-events: none;
-  /* A button at either end sits flush with the bar's edge, as the play button does. */
-  &:has(> .lf-video-full-screen) {
-    padding-inline: 0;
-  }
-}
-.lf-video-controls:is(
-  :not([data-lf-playing]),
-  [data-lf-hovered],
-  [data-lf-keyed],
-  :hover,
-  [data-lf-focus-visible-within]
-) {
-  opacity: 1;
-  pointer-events: auto;
-}
-/* Play and Full screen are symbols (controls.css, `.lf-icon-action`) as tall as the
-   bar inside its border, standing flush with its ends. */
-.lf-video-controls {
-  --lf-icon-action-face: calc(var(--lf-video-bar-h) - 2px);
-}
-.lf-video-play,
-.lf-video-full-screen {
-  flex: none;
-  /* Flush with the bar's edge, the ring stays inside the press. */
-  --lf-ring-at: var(--lf-focus-ring-inset);
-}
-.lf-video-play > .lf-action-icon {
-  grid-area: 1 / 1;
-}
-.lf-video-controls:not([data-lf-playing]) .lf-video-play > [data-lf-icon="pause"],
-.lf-video-controls[data-lf-playing] .lf-video-play > [data-lf-icon="play"] {
-  visibility: hidden;
-}
-.lf-video-time {
-  flex: 1;
-  min-inline-size: 0;
-  margin: 0;
-  accent-color: var(--lf-accent);
 }
 .lf-msg-body a[data-lf-detached] {
   color: var(--lf-muted);

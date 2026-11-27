@@ -8,7 +8,7 @@ from threading import Event
 
 from interact_support import STATED_TIMEOUT
 
-from leaf import data as data_model
+from leaf.source import data as data_model
 
 REGISTRY = {"$data": {"contracts": {"integer": {"schema": {"type": "integer"}}}}}
 
@@ -32,7 +32,7 @@ def publish(source: Path, contract: str, run: str, value) -> None:
 def test_data_delivery_tracks_contract_and_validity_without_revising_the_value(
     tmp_path,
 ):
-    source = data_model.source_file(tmp_path, "numbers")
+    source = data_model.PUBLICATION.file(data_model.source_file(tmp_path, "numbers"))
     source.parent.mkdir()
     publish(source, "integer", "1", 1)
     original = data_model.read_data(tmp_path, REGISTRY)
@@ -71,7 +71,7 @@ def test_data_delivery_tracks_contract_and_validity_without_revising_the_value(
 
 
 def test_a_source_read_keeps_one_complete_publication(tmp_path, monkeypatch):
-    source = data_model.source_file(tmp_path, "numbers")
+    source = data_model.PUBLICATION.file(data_model.source_file(tmp_path, "numbers"))
     source.parent.mkdir()
     source.write_bytes(
         data_model.PUBLICATION.encode(

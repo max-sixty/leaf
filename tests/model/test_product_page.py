@@ -4,32 +4,30 @@ import json
 import re
 import shlex
 from pathlib import Path
-from typing import get_args
 
 import click
 from click.testing import CliRunner
 from unidiff import PatchSet
 
-from leaf import cli as cli_model
-from leaf import event_contracts as event_contracts_model
-from leaf import event_log as events_model
-from leaf import forks as forks_model
-from leaf import service as service_model
-from leaf.registry import validation as registry_validation
-from leaf.registry.contract import complete_declarations
-from leaf.registry.schema import check_schema
-from leaf.registry.storage import load_registry
-from leaf.state import kernel_registry
-from leaf.structure import SourceDocument
-from leaf.validation import composition as validation_model
+from leaf.base.schema import DEFAULT_PACKAGE
+from leaf.base.state import kernel_registry
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.records import event_contracts as event_contracts_model
+from leaf.records import transaction as transaction_model
+from leaf.records.authored_checks.declarations import declaration_advice
+from leaf.source.registry import validation as registry_validation
+from leaf.source.registry.contract import complete_declarations
+from leaf.source.registry.layer import stamp_composition
+from leaf.source.registry.schema import check_schema
+from leaf.source.structure import SourceDocument
+from leaf.source.vocabulary import load_registry
 from leaf_dev import declared_records, docs
 from leaf_dev.docs import EXAMPLES, product_sources
 from leaf_dev.example_data import named_source, published_sources
 from leaf_dev.page_fixtures import authored_markup
 
 ROOT = Path(__file__).parents[2]
-ASSETS = ROOT / "browser"
-DEFAULT_PACKAGE = ROOT / "packages" / "default"
 
 
 def test_kernel_event_contracts_declare_closed_records():
@@ -130,11 +128,13 @@ def test_package_tutorial_registry_entry_is_valid(page_dir):
     select_one_result = tree.select_one("#callout-registry")
     assert select_one_result is not None
     entry = json.loads(select_one_result.text)
-    # As composing the tutorial's package writes each declaration's defaults in.
+    # As composing the tutorial's package completes each declaration.
     registry = complete_declarations(load_registry(page_dir) | entry)
 
-    registry_validation.validate_registry(registry, "package tutorial")
-    validation_model.validate_registry_examples(registry, "package tutorial")
+    stamp_composition(
+        registry_validation.validate_registry(registry, "package tutorial")
+    )
+    assert declaration_advice(entry, registry, "package tutorial") == []
 
 
 # The event log is How it works' "Event log" tab.
@@ -143,11 +143,26 @@ EVENT_LOG = named_source("how-it-works")
 
 def code_block(page: SourceDocument, block_id: str) -> str:
     """The text of one authored `lf-code`'s `<pre>`, as the widget reads it
-    (widget-upgrade.js, `bodyText`): leading blank lines, such as the one after the
+    (lib/data-body.js, `bodyText`): leading blank lines, such as the one after the
     `<code>` naming its language, are the block's layout."""
     select_one_result_2 = page.tree.select_one(f"lf-code#{block_id} > pre")
     assert select_one_result_2 is not None
     return select_one_result_2.text.lstrip("\n")
+
+
+def test_how_it_works_shows_the_example_widget_as_the_page_runs_it():
+    """How it works' "Package interface" tab reads a whole widget line by line and runs
+    that widget beside the reading, from the package `docs/verdict`. Each file the tab
+    shows is the file that runs, so its notes, which name lines, describe that file."""
+    page = SourceDocument(named_source("how-it-works").read_text())
+    package = ROOT / "docs" / "verdict"
+    for block_id, file in {
+        "verdict-declaration": "registry.json",
+        "verdict-module": "widgets/lf-verdict.js",
+        "verdict-stylesheet": "defaults.css",
+    }.items():
+        shown = code_block(page, block_id).rstrip("\n")
+        assert shown == (package / file).read_text().rstrip("\n"), file
 
 
 def test_pr_walkthrough_excerpts_match_the_captured_patch():
@@ -278,9 +293,17 @@ def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
     ]
 
     # The browser's command: what it posts, before the door stamps anything.
-    command_fields = ("kind", "revision", "widget", "action", "detail", "attempt")
+    command_fields = (
+        "kind",
+        "revision",
+        "widget",
+        "action",
+        "detail",
+        "answered",
+        "attempt",
+    )
     ids = {}
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         for record in shown:
             command = {k: record[k] for k in command_fields if k in record}
             if "undoes" in record:
@@ -347,30 +370,34 @@ def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
 
 
 def test_the_event_log_page_quotes_the_registry():
-    """The declaration the page annotates is `lf-options`' own."""
+    """The declaration the page annotates is `lf-options`' own, and each note stands
+    at the line it explains."""
     source = SourceDocument(EVENT_LOG.read_text())
     entry = json.loads((DEFAULT_PACKAGE / "registry.json").read_text())["lf-options"]
-    shown = json.loads("{" + code_block(source, "options-verbs") + "}")
+    block = code_block(source, "options-verbs")
+    shown = json.loads("{" + block + "}")
     assert shown == {
         "verbs": entry["verbs"],
-        "awaits": {
-            "value": entry["awaits"]["value"],
-            "answered": entry["awaits"]["answered"],
-        },
+        "awaits": {"value": entry["awaits"]["value"]},
     }
-
-
-def test_how_it_works_lists_the_judgments_and_endings_forks_keeps():
-    """How it works' Forks tab names each judgment the line fork can answer
-    (`forks.ANSWER`) in its sorting table, and each outcome `forks.ended` gives a
-    thread in its endings table, so a judgment or outcome added to the code fails
-    here until the tab says what it means."""
-    tree = SourceDocument(named_source("how-it-works").read_text()).tree
-    answer: dict = forks_model.ANSWER
-    judgments = {code.text for code in tree.select("table#sorting-table td code")}
-    assert judgments == set(answer["properties"]["work"]["enum"])
-    endings = [code.text for code in tree.select("table#endings tbody th code")]
-    assert sorted(endings) == sorted(get_args(forks_model.Ending))
+    lines = block.splitlines()
+    noted = []
+    for note in source.tree.select("lf-code#options-verbs > lf-note"):
+        position = note.attrs["at"]
+        assert isinstance(position, str)
+        noted.append(lines[int(position) - 1].strip())
+    explained = [
+        '"choose": ',
+        '"record": ',
+        '"unit": "option"',
+        '"creates": ',
+        '"answer": ',
+        '"awaits": ',
+        '"value": ',
+    ]
+    assert [line[: len(key)] for line, key in zip(noted, explained, strict=True)] == (
+        explained
+    ), noted
 
 
 def test_every_command_the_docs_show_is_one_leaf_has():
@@ -403,25 +430,11 @@ def test_every_command_the_docs_show_is_one_leaf_has():
     )
 
     def named(tokens):
-        """The subcommand path these tokens walk from the root Click group, past a
-        group's own options, as `leaf --turn <turn> thread reply` passes `--turn`."""
+        """The subcommand path these tokens walk from the root Click group."""
         command, path = cli_model.cli, []
-        tokens = iter(tokens)
         for token in tokens:
             if not isinstance(command, click.Group):
                 break
-            option = next(
-                (
-                    p
-                    for p in command.params
-                    if isinstance(p, click.Option) and token in p.opts
-                ),
-                None,
-            )
-            if option is not None:
-                if not option.is_flag:
-                    next(tokens, None)
-                continue
             sub = command.get_command(click.Context(command), token)
             if sub is None:
                 break

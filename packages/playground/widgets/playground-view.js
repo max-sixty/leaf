@@ -11,7 +11,12 @@
  * own, and a control that belongs to a form of its own, such as a candidate's or an
  * inspection setting's, is no field, nor is one a widget in the preview generated
  * (`data-lf-gen`), such as a motion study's transport. The browser's value sanitization decides which
- * values a field can hold. An `<output for="NAME">` shows field NAME's value.
+ * values a field can hold. A `<select multiple>` holds the list of the values of the
+ * options it selects, in their order, as its form submits each of them; the select's
+ * own `value` names only the first. An `<output for="NAME">` shows field NAME's
+ * value, a list's as its values separated by commas, as a sentence lists them. The
+ * reflected attribute and a preset's setting separate them by spaces, as a token
+ * list's attribute does, so CSS's `~=` matches one of them.
  * Rejected: Leaf's own control tags, whose kind, bounds, step and unit the view copied
  * into the native inputs it drew, and whose values it checked again itself.
  *
@@ -29,11 +34,12 @@
  * them, not a script's call, because this drawing is the first paint: a bar drawn here
  * and withdrawn once a script handed over its own would move the page as it loads.
  */
-import { offeredAction, generatedElement, keepsText } from "/runtime/widget-api.js";
+import { offeredAction } from "/runtime/lib/controls.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
 import { html, nothing, render } from "/vendor/lit.js";
 
-/** @typedef {string | number | boolean | null} FieldValue */
+/** @typedef {string | number | boolean | null | readonly string[]} FieldValue */
 /** @typedef {HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement} FieldControl */
 /**
  * One field: the controls that share a name, what they hold now, and what they held as
@@ -74,8 +80,28 @@ function requiredAttribute(element, name) {
 /** @param {Element} host @param {Element} member */
 const belongsTo = (host, member) =>
   member.parentElement?.closest("lf-playground, [data-lf-exhibit]") === host;
-/** @param {FieldValue} value */
-const words = (value) => (value === null ? "" : String(value));
+/** @param {FieldValue} value @param {string} [between] what separates a list's values */
+const words = (value, between = " ") =>
+  value === null ? "" : typeof value === "object" ? value.join(between) : String(value);
+
+// Configuration objects have no meaningful key order, including contributor slices.
+/** @param {unknown} value */
+const configurationJSON = (value) =>
+  JSON.stringify(value, (_key, /** @type {unknown} */ item) =>
+    item && typeof item === "object" && !Array.isArray(item)
+      ? Object.fromEntries(
+          Object.entries(item).sort(([left], [right]) =>
+            left < right ? -1 : left > right ? 1 : 0,
+          ),
+        )
+      : item,
+  );
+
+/** Whether two configurations, or two of their values, are the same: a list holds the
+ * same items in the same order, and an object the same entries in any order.
+ * @param {unknown} left @param {unknown} right */
+export const same = (left, right) =>
+  configurationJSON(left) === configurationJSON(right);
 
 /** @param {HTMLInputElement} input */
 const number = (input) =>
@@ -145,6 +171,35 @@ function field(name, controls) {
       },
       parse: (raw) => Number(raw.trim() || NaN),
     };
+  if (control instanceof HTMLSelectElement && control.multiple) {
+    const options = [...control.options];
+    const order = options.map((option) => option.value);
+    /** @param {(option: HTMLOptionElement) => boolean} picked */
+    const selection = (picked) =>
+      Object.freeze(options.filter(picked).map((option) => option.value));
+    return {
+      ...base,
+      initial: selection((option) => option.defaultSelected),
+      read: () => selection((option) => option.selected),
+      holds: (value) =>
+        Array.isArray(value) && value.every((item) => order.includes(item)),
+      write: (value) => {
+        const picked = typeof value === "object" && value !== null ? value : [];
+        for (const option of options) {
+          const selected = picked.includes(option.value);
+          if (option.selected !== selected) option.selected = selected;
+        }
+      },
+      // A setting names the options it selects in any order, and the field holds them
+      // in the options' order, as a press on them reads.
+      parse: (raw) =>
+        Object.freeze(
+          [...new Set(raw.split(/\s+/).filter(Boolean))].sort(
+            (left, right) => order.indexOf(left) - order.indexOf(right),
+          ),
+        ),
+    };
+  }
   const options = control instanceof HTMLSelectElement ? [...control.options] : null;
   return {
     ...base,
@@ -236,7 +291,7 @@ export function createPlayground(host) {
   }
   const edited = Object.freeze(
     Object.fromEntries(
-      [...shown].filter(([name, value]) => !Object.is(value, defaults[name])),
+      [...shown].filter(([name, value]) => !same(value, defaults[name])),
     ),
   );
   /** @param {string} type @returns {HTMLButtonElement | null} */
@@ -253,6 +308,9 @@ export function createPlayground(host) {
     );
   const pageActions = Boolean(pageSubmit);
   const interactive = !host.closest("[data-lf-exhibit]");
+  // Each pane hosts a reading region, whose body is the box in it that may scroll. The
+  // controls pane's is the author's first aside, or the presets where they wrote none.
+  if (interactive) keeps(asides[0], "data-lf-scroll", "controls");
   const authored = [...host.childNodes];
   const kept = new Set([...presets, output, ...asides]);
   const stage = authored.filter((node) => !kept.has(/** @type {HTMLElement} */ (node)));
@@ -317,15 +375,24 @@ export function createPlayground(host) {
   const slots = [...outputs].filter(member).map((slot) => {
     const name = requiredAttribute(slot, "for").trim();
     if (!fields.has(name)) throw new Error(`<output for="${name}"> names no field`);
-    generatedElement(slot, { says: true });
+    keeps(slot, "data-lf-gen", "1");
+    slot.toggleAttribute("data-lf-said", true);
     return { slot, name };
   });
   const presetWords = new Map(
     presets.map((preset) => [preset, [...preset.childNodes]]),
   );
   // Each preset retains its node and has one Lit template, on delivery and live
-  // updates; the controls and outputs keep theirs and take their values in place.
-  for (const preset of presets) preset.replaceChildren();
+  // updates; the controls and outputs keep theirs and take their values in place. A
+  // preset is a group of its words and its press, named by its label, and a screen
+  // reader and Leaf's chrome both call it a preset unless its author named its kind.
+  for (const preset of presets) {
+    preset.replaceChildren();
+    keeps(preset, "role", "group");
+    keeps(preset, "aria-label", preset.getAttribute("label"));
+    if (!preset.hasAttribute("aria-roledescription"))
+      preset.setAttribute("aria-roledescription", "preset");
+  }
   host.replaceChildren();
   const resetOffer = offeredAction("symbol", "lf-playground-reset", undefined, {
     action: "reset",
@@ -347,7 +414,7 @@ export function createPlayground(host) {
     );
   const instructionId = `${host.id}-instruction`;
   const submitLabel =
-    pageSubmit?.textContent?.trim() ||
+    pageSubmit?.textContent.trim() ||
     host.getAttribute("submit-label") ||
     "Use these settings";
   // The submission says what pressing it does: send the working values, or withdraw
@@ -375,6 +442,7 @@ export function createPlayground(host) {
             class="lf-playground-presets"
             role="group"
             aria-label="Starting points"
+            data-lf-scroll="controls"
           >
             ${presets}
           </div>`;
@@ -382,6 +450,7 @@ export function createPlayground(host) {
     html` <div
       class="lf-playground-controls-region"
       data-lf-reading-role="pane"
+      data-lf-scroll-host="controls"
       data-lf-generated
       role="region"
       aria-label="Controls"
@@ -424,34 +493,13 @@ export function createPlayground(host) {
         presets.map((preset) => [preset, preset.querySelector(":scope > button")]),
       );
     },
-    get regions() {
-      /** @type {[string, string, string | null][]} */
-      const regions = [
-        [
-          "controls",
+    /** @returns {HTMLElement | null} */
+    get controls() {
+      return (
+        split()?.querySelector(
           ":scope > .lf-playground-controls-region, :scope > .lf-playground-rail > .lf-playground-controls-region",
-          asides.length ? ":scope > aside" : ".lf-playground-presets",
-        ],
-        [
-          "instruction",
-          ":scope > .lf-playground-rail > .lf-playground-instruction-region",
-          ".lf-playground-actions",
-        ],
-        ["rail", ":scope > .lf-playground-rail", null],
-        [
-          "preview",
-          ":scope > .lf-playground-preview-region",
-          ".lf-playground-preview-body",
-        ],
-      ];
-      return regions.flatMap(([name, selector, body]) => {
-        const region = split()?.querySelector(selector);
-        if (!region) return [];
-        const readingBody = body ? region.querySelector(body) : region;
-        if (!readingBody)
-          throw new Error(`The playground ${name} region needs its reading body`);
-        return [{ name, host: region, body: readingBody }];
-      });
+        ) ?? null
+      );
     },
     /** @param {Element | null} element */
     isField: (element) => Boolean(element && fieldByControl.has(element)),
@@ -513,17 +561,19 @@ export function createPlayground(host) {
       // so the words being typed and a number being cleared stay as they are.
       for (const [name, each] of fields) {
         const value = /** @type {FieldValue} */ (next[name] ?? null);
-        if (shown.has(name) && Object.is(shown.get(name), value)) continue;
+        if (shown.has(name) && same(shown.get(name), value)) continue;
         shown.set(name, value);
         each.write(value);
       }
-      if (instruction === null) {
-        for (const { slot, name } of slots)
-          keepsText(slot, words(/** @type {FieldValue} */ (next[name] ?? null)));
-      } else {
+      for (const { slot, name } of slots)
+        keepsText(slot, words(/** @type {FieldValue} */ (next[name] ?? null), ", "));
+      // A script's instruction takes the place of the output's words, readings
+      // included; a reading anywhere else in the playground stays and follows its field.
+      if (instruction !== null) {
         if (!output.hasAttribute("data-lf-gen")) {
           output.replaceChildren();
-          generatedElement(output, { says: true });
+          keeps(output, "data-lf-gen", "1");
+          output.toggleAttribute("data-lf-said", true);
         }
         render(html`${instruction}`, output);
       }
@@ -533,7 +583,7 @@ export function createPlayground(host) {
           html`${presetWords.get(preset)}<button
               ${presetOffer}
               aria-pressed=${Object.entries(settings).every(([name, value]) =>
-                Object.is(next[name], value),
+                same(next[name], value),
               )}
             >
               ${preset.getAttribute("label")}
@@ -544,11 +594,12 @@ export function createPlayground(host) {
       const instructionPane = html`<div
         class="lf-playground-instruction-region"
         data-lf-reading-role="pane"
+        data-lf-scroll-host="instruction"
         data-lf-generated
         role="region"
         aria-label="Instruction to agent"
       >
-        <footer class="lf-playground-actions">
+        <footer class="lf-playground-actions" data-lf-scroll="instruction">
           <button ${resetOffer}></button>
           <button
             ${revealOffer}
@@ -591,7 +642,7 @@ export function createPlayground(host) {
       // actions and writes no aside leaves it out.
       const rail =
         asides.length || !pageActions
-          ? html`<div class="lf-playground-rail" data-lf-track>
+          ? html`<div class="lf-playground-rail" data-lf-track data-lf-scroll="rail">
               ${asides.length ? controlsPane() : nothing}
               ${pageActions ? nothing : instructionPane}
             </div>`
@@ -601,11 +652,12 @@ export function createPlayground(host) {
           <div
             class="lf-playground-preview-region"
             data-lf-reading-role="pane"
+            data-lf-scroll-host="preview"
             data-lf-generated
             role="region"
             aria-label="Preview"
           >
-            <div class="lf-playground-preview-body">
+            <div class="lf-playground-preview-body" data-lf-scroll="preview">
               <div class="lf-playground-stage">${stage}</div>
             </div>
           </div>

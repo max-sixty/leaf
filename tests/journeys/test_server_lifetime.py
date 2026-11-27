@@ -6,12 +6,13 @@ import json
 import os
 import socket
 import subprocess
+import urllib.error
 import urllib.parse
 import urllib.request
 
 import pytest
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND
+from conftest import LEAF_COMMAND, hooks_run_this_tree
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
@@ -27,17 +28,18 @@ from interact_support import (
     woken,
 )
 
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import hosting as hosting_model
-from leaf import leases as leases_model
-from leaf import presence as presence_model
-from leaf import server as server_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as cleanup_model
-from leaf.registry.storage import layer_record
+from leaf.agents import presence as presence_model
+from leaf.base import files as files_model
+from leaf.base import leases as leases_model
+from leaf.base import server as server_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.commands import cli as cli_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.pages import hosting as hosting_model
+from leaf.records import transaction as transaction_model
+from leaf.source.registry.storage import layer_record
 from leaf_dev.page_fixtures import package_selection_args
 
 
@@ -136,10 +138,10 @@ def test_page_init_leaves_a_service_it_cannot_restart_for_this_session(
 ):
     """Only an enabled service this command may restart comes back.
 
-    A stopped service was stopped on purpose and stays stopped. A session service
-    whose session has ended has nobody to come back for, so the re-vendor stops it
-    and leaves it for the next `server start`. One another live session holds is
-    refused before anything stops, since only that session could start it again.
+    A page another live session holds is refused before anything stops, served or
+    stopped, since only that session's Leaf changes it (`service.refuse_held`). A
+    session service whose session has ended has nobody to come back for, so the
+    re-vendor stops it and leaves it for the next `server start`.
     """
     publish(page_dir)
     started = start_server_command(page_dir, session_id="other")
@@ -159,17 +161,17 @@ def test_page_init_leaves_a_service_it_cannot_restart_for_this_session(
     layer_4 = layer_record(page_dir)
     assert layer_4 is not None
     revendored = layer_4["generation"] != generation
-    if service == "foreign":
+    if service != "orphaned":
         assert result.exit_code == 1
-        assert "served for another session" in result.output
-        assert server_model.running_server(page_dir)
+        assert "is held by session other" in result.output
+        assert bool(server_model.running_server(page_dir)) == (service == "foreign")
         assert not revendored
         return
     assert result.exit_code == 0, result.output
     assert revendored
     assert server_model.running_server(page_dir) is None
     assert not read_record(page_dir / "service.json")["enabled"]
-    assert ("has no live session owner" in result.output) == (service == "orphaned")
+    assert "has no live session owner" in result.output
 
 
 @pytest.mark.parametrize("lifetime", ["persistent", "session"])
@@ -179,7 +181,9 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
     """Re-vendoring a served page restarts its server under the recorded lifetime
     and URL, onto the new layer, and preserves the active revision contract."""
     publish(page_dir)
-    old_plugin = install_payload(page_dir.parent / "old-plugin")
+    old_plugin = install_payload(
+        page_dir.parent / "plugins" / "cache" / "leaf" / "leaf" / "0a0a0a0a0a0a"
+    )
 
     if lifetime == "persistent":
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID")
@@ -252,14 +256,21 @@ def test_init_restarts_a_served_page_onto_the_replacement_contract(
     assert events[2]["revision"] == 2
 
 
+import http.client
+import shutil
+
 from interact_support import (
+    PLUGIN_ROOT,
     command_findings,
     record_claim,
 )
-from model.test_server_lifetime import reaper_retires
+from model.test_server_lifetime import (
+    PROCESS_LISTING_REFUSED,
+    reaper_retires,
+)
 
-from leaf import harness as harness_model
-from leaf import schema as schema_model
+from leaf.base import harness as harness_model
+from leaf.base import schema as schema_model
 
 
 def test_a_refused_revendor_leaves_the_running_server_alone(page_dir):
@@ -340,9 +351,10 @@ def test_a_desktop_app_sessions_server_lives_as_long_as_the_app_session(
     app = {"cliSessionId": "app-session", "isArchived": False}
     cleanup_model.write_json(record, app)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "app-session")
+    hooks_run_this_tree("app-session")
     monkeypatch.setenv("CLAUDE_CODE_HOST_SESSION_ID", "local_one")
     monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     assert hosting_model.start_server(page_dir, harness=harness_model.session_harness())
     claim_record_2 = service_model.page_claim(page_dir)
     assert claim_record_2 is not None
@@ -471,12 +483,13 @@ def test_a_persistent_server_outlives_a_session_that_picks_the_page_up(
 
     # A session picks the page up, the way `leaf wait` does.
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "later")
+    hooks_run_this_tree("later")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     session_model.cmd_waiting(page_dir)
     # Without this the hook would skip the page for the wrong reason and the test
     # would pass with the bug in: the persistent check has to be what spares it.
-    assert page_dir in service_model.owned_pages("later")
+    assert page_dir in transaction_model.owned_pages("later")
 
     # A `server run` of its own finds this one up and reports the lifetime the
     # running server has, not the one this claiming launch would have given it.
@@ -490,7 +503,7 @@ def test_a_persistent_server_outlives_a_session_that_picks_the_page_up(
     assert server_model.running_server(page_dir) == launched
     assert declared(page_dir)["state"] == "waiting"
     assert not service_model.claim_is_active(service_model.page_claim(page_dir))
-    assert page_dir not in service_model.owned_pages("later")
+    assert page_dir not in transaction_model.owned_pages("later")
     # Explicit stop crosses that server's release barrier before returning.
     assert hosting_model.cmd_stop(page_dir) is True
     server.wait(timeout=STATED_TIMEOUT)
@@ -509,9 +522,10 @@ def test_a_background_jobs_server_lives_as_long_as_the_job(
     job.mkdir()
     cleanup_model.write_json(job / "state.json", {"sessionId": "bg-job"})
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "bg-job")
+    hooks_run_this_tree("bg-job")
     monkeypatch.setenv("CLAUDE_PID", str(dead_pid))
     monkeypatch.setenv("CLAUDE_JOB_DIR", str(job))
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     assert hosting_model.start_server(page_dir, harness=harness_model.session_harness())
     assert read_record(page_dir / "service.json")["lifetime"] == "session"
     cleanup_model.end_harness_instance("bg-job")
@@ -520,7 +534,7 @@ def test_a_background_jobs_server_lives_as_long_as_the_job(
     assert turn_record["turn_closed"] is not None
     assert not reaper_retires(page_dir, monkeypatch)
     assert server_model.running_server(page_dir)
-    assert service_model.owned_pages("bg-job") == [page_dir.resolve()]
+    assert transaction_model.owned_pages("bg-job") == [page_dir.resolve()]
     assert presence_model.presence(page_dir, [])["session_alive"] is True
 
     (job / "state.json").unlink()
@@ -530,7 +544,7 @@ def test_a_background_jobs_server_lives_as_long_as_the_job(
         lambda running: not running,
         failure="the background-job server stayed up after its job was deleted",
     )
-    assert service_model.owned_pages("bg-job") == []
+    assert transaction_model.owned_pages("bg-job") == []
     assert presence_model.presence(page_dir, [])["session_alive"] is False
 
 
@@ -583,3 +597,118 @@ def test_an_abandoned_handoff_does_not_disable_the_server_it_reuses(
     output, errors = task.communicate(timeout=STATED_TIMEOUT)
     assert task.returncode == 0, f"{output}{errors}"
     assert server_model.running_server(page) == before
+
+
+@pytest.mark.parametrize(
+    "command",
+    [
+        pytest.param(LEAF_COMMAND, id="module"),
+        pytest.param([str(PLUGIN_ROOT / "bin" / "leaf")], id="launcher"),
+        pytest.param(
+            [
+                "sandbox-exec",
+                "-p",
+                PROCESS_LISTING_REFUSED,
+                str(PLUGIN_ROOT / "bin" / "leaf"),
+            ],
+            id="sandboxed launcher",
+            marks=pytest.mark.skipif(
+                not shutil.which("sandbox-exec"), reason="macOS's sandbox"
+            ),
+        ),
+    ],
+)
+def test_a_temporary_server_ends_when_the_process_that_ran_it_exits(
+    page_dir, spawn, command
+):
+    """A temporary server leaves nothing `server stop` could reach, so a caller
+    that dies without stopping it, as a killed test does, must not leave it serving.
+    The caller here is a shell that starts it in the background and exits. Through
+    the launcher, the server's own parent is the `uv run` that `bin/leaf` execs,
+    which waits on it and so outlives the caller. Codex's macOS sandbox refuses a
+    listing of every process, so finding that caller must not take one."""
+    # The caller hands its stdout and stderr to the server and closes its own, so
+    # they reach their end when the server exits, whether it served or failed.
+    caller = spawn(
+        [
+            "sh",
+            "-c",
+            '"$@" & exec >&- 2>&-; read _',
+            "sh",
+            *command,
+            "server",
+            "run",
+            "--lifetime",
+            "temporary",
+            str(page_dir),
+        ],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+    )
+    started = caller.stdout.readline()
+    assert started, caller.communicate(timeout=STATED_TIMEOUT)[1]
+    state = urllib.parse.urlsplit(json.loads(started)["url"])
+    state = state._replace(path="/api/state").geturl()
+    assert urllib.request.urlopen(state).status == 200
+
+    # Closing its stdin ends the caller, and reading the server's stdout and stderr
+    # to their end waits for the server to exit.
+    _, error = caller.communicate(timeout=STATED_TIMEOUT)
+    assert error == ""
+    with pytest.raises(urllib.error.URLError):
+        urllib.request.urlopen(state)
+
+
+def test_server_stop_closes_accepted_keep_alive_connections(
+    page_dir, persistent_server
+):
+    server = persistent_server(page_dir)
+    service = read_record(page_dir / "service.json")
+    connection = http.client.HTTPConnection(service["host"], service["port"])
+    connection.request("GET", f"/api/state?t={server_model.host_key()}")
+    response = connection.getresponse()
+    assert response.status == 200
+    response.read()
+    accepted = connection.sock
+    accepted.sendall(
+        (
+            f"GET /api/state?t={server_model.host_key()} HTTP/1.1\r\n"
+            f"Host: {service['host']}\r\n"
+        ).encode()
+    )
+
+    assert hosting_model.cmd_stop(page_dir) is True
+    server.wait(timeout=STATED_TIMEOUT)
+
+    # A closed connection reads as end of stream or a reset. A socket still open,
+    # as one a surviving child process inherited would be, times out instead, and
+    # `TimeoutError` is an `OSError` this must not take for a close.
+    accepted.settimeout(STATED_TIMEOUT)
+    try:
+        accepted.sendall(b"\r\n")
+        remainder = accepted.recv(1)
+    except (ConnectionResetError, BrokenPipeError):
+        remainder = b""
+    assert remainder == b""
+
+
+def test_server_stop_reports_a_server_that_exits_as_soon_as_it_is_disabled(
+    page_dir, persistent_server, monkeypatch
+):
+    server = persistent_server(page_dir)
+    write_service = hosting_model.write_service
+
+    def write_and_wait_for_exit(directory, value):
+        write_service(directory, value)
+        if not value["enabled"]:
+            wait_for(
+                lambda: leases_model.lock_is_held(page_dir / "server.lock"),
+                lambda held: not held,
+                failure="server did not release its lease after stop",
+            )
+
+    monkeypatch.setattr(hosting_model, "write_service", write_and_wait_for_exit)
+    assert hosting_model.cmd_stop(page_dir) is True
+    server.wait(timeout=STATED_TIMEOUT)

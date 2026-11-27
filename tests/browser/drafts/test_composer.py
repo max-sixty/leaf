@@ -22,6 +22,7 @@ from render_harness import (
     example_media,
     expect_error_waits_in_menu,
     expect_panel_says,
+    field_press,
     holding,
     leaf_page,
     open_page,
@@ -30,6 +31,7 @@ from render_harness import (
     panel_control,
     panel_field,
     panel_settled,
+    press_draft_control,
     primed,
     refuse,
     resized,
@@ -44,7 +46,8 @@ from render_harness import (
 
 from browser.margin import MARGIN_EDITOR_ROOTS
 from browser.threads import clear_of_the_panel, paste_image
-from leaf import event_log as events_model
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -80,7 +83,7 @@ def test_a_single_space_is_message_content_in_every_composer(browser, serve):
         expect(send).to_have_attribute("aria-disabled", "false")
         if box != "composer":
             # The panel's field shows Send only once its words hold more than space
-            # (floating-panel.js, `typing`), so its keys send the space.
+            # (panel/floating-panel.js, `typing`), so its keys send the space.
             with sending(page, f"the {box} message"):
                 field.press("ControlOrMeta+Enter")
         else:
@@ -137,9 +140,10 @@ def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, se
     reselecting that exact passage. Words a user cannot find again are words they have
     lost, whatever localStorage still holds.
 
-    So the moment says what became of them and names the address that answers — and the
-    address is offered only while there is a draft still there to go to, which is the half
-    that keeps the sentence honest."""
+    So the moment says what became of them, and the panel field's end offers the press
+    that brings them back, Resume writing, with its keys — and only while there is a
+    draft still there to go to, which is the half that keeps the notice honest. The
+    press and its keys each bring the box back."""
     page = open_page(browser, serve(LONG_PAGE))
     kept = "Half a sentence, and then the panel."
 
@@ -149,18 +153,29 @@ def test_a_draft_the_chrome_stands_down_says_so_and_keeps_an_address(browser, se
     compose(page, "#p3", kept)
     assert pending_text(page), "the open box left its own passage unmarked"
 
-    open_threads(page)
-    expect(page.locator(".lf-composer")).to_be_hidden()
-    assert pending_text(page) == "", "a box off screen left its passage marked"
-    expect_panel_says(page, "Draft kept — g i resumes writing")
+    def put_away(gesture):
+        gesture()
+        expect(page.locator(".lf-composer")).to_be_hidden()
+        assert pending_text(page) == "", "a box off screen left its passage marked"
+        expect_panel_says(page, "Draft kept")
+        press = field_press(page)
+        expect(press.locator(".lf-compose-press-word")).to_have_text("Resume writing")
+        expect(press.locator("kbd")).to_have_text(["g", "i"])
+        assert "writing.resume" in available_commands(page)
+        return press
 
-    assert "writing.resume" in available_commands(page)
+    def came_back():
+        expect(page.locator(".lf-composer")).to_be_visible()
+        expect(page.locator(".lf-fab-input")).to_be_focused()
+        expect(page.locator(".lf-fab-input")).to_have_js_property("value", kept)
+        assert pending_text(page), "the box came back on nothing"
+
+    put_away(lambda: open_threads(page)).click()
+    came_back()
+    put_away(lambda: page.keyboard.press("Escape"))
     page.keyboard.press("g")
     page.keyboard.press("i")
-    expect(page.locator(".lf-composer")).to_be_visible()
-    expect(page.locator(".lf-fab-input")).to_be_focused()
-    expect(page.locator(".lf-fab-input")).to_have_js_property("value", kept)
-    assert pending_text(page), "the box came back on nothing"
+    came_back()
 
 
 def test_picture_paste_belongs_to_the_composer_not_the_shared_text_field(
@@ -215,7 +230,7 @@ def test_picture_paste_belongs_to_the_composer_not_the_shared_text_field(
             write(editor, "Keep WORD tail")
             paste(editor, text, picture)
             expect(editor).to_have_js_property("value", expected)
-        draft_control(page, "cancel", "text-only").click()
+        press_draft_control(page, "cancel", "text-only")
 
         compose(page, "#passage")
         composer = page.locator(".lf-fab-input")
@@ -360,7 +375,7 @@ def test_a_pasted_image_is_a_whole_draft_and_leaves_with_the_send_that_took_it(
     # Put away: the picture is words enough to keep, and to be told about.
     open_threads(page)
     expect(page.locator(".lf-composer")).to_be_hidden()
-    expect_panel_says(page, "Draft kept — g i resumes writing")
+    expect_panel_says(page, "Draft kept")
     assert "writing.resume" in available_commands(page)
     page.keyboard.press("g")
     page.keyboard.press("i")
@@ -523,6 +538,58 @@ def test_resume_writing_reveals_page_editor_from_a_covering_panel_and_keeps_back
     page.keyboard.press("i")
     expect(edit).to_be_focused()
     expect(edit).to_have_js_property("value", "")
+
+
+def test_resume_writing_beside_the_window_s_side_leaves_the_page_still(browser, serve):
+    """A draft whose comment box its placement stands against the window's side,
+    closer than the ring's room a focused box asks a landing for, reopens where the
+    user left it, its paragraph in view, and the page stays where it stood. No landing
+    would bring that room in: the page doesn't scroll toward that side, and a scroll of
+    the page moves no fixed box."""
+    prose = "".join(
+        f"<p>Paragraph {index} of the page, long enough to wrap across the column so "
+        "the page reads as prose and scrolls well past the window.</p>"
+        for index in range(30)
+    )
+    source = leaf_page(
+        "Resume beside the side",
+        prose + '<h2 id="head">The part with the draft</h2>'
+        '<p id="target">The paragraph the draft is about.</p>' + prose,
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1440, 900)
+    page.evaluate(
+        """() => scrollBy({top: document.querySelector('#head').getBoundingClientRect().top
+                           - 125, behavior: 'instant'})"""
+    )
+    page.keyboard.down("Alt")
+    page.locator("#target").click()
+    page.keyboard.up("Alt")
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    # A line long enough to widen the box until its placement stands it at the side.
+    page.keyboard.type("These work, so keep them and cut the options further from them")
+    page.keyboard.press("Shift+Enter")
+    page.keyboard.type("but riff a bit more from here")
+    page.keyboard.press("Escape")
+    expect(field).not_to_be_focused()
+    rendered(page)
+    before = page.evaluate("scrollY")
+    page.keyboard.press("g")
+    page.keyboard.press("i")
+    expect(field).to_be_focused()
+    rendered(page)
+    reading = page.evaluate("""() => {
+      const field = document.querySelector('.lf-fab-input').getBoundingClientRect();
+      const target = document.querySelector('#target').getBoundingClientRect();
+      return {y: scrollY, gap: document.documentElement.clientWidth - field.right,
+              room: parseFloat(getComputedStyle(document.querySelector('.lf-fab-input'))
+                .scrollMarginRight),
+              target: target.top > 0 && target.bottom < innerHeight};
+    }""")
+    assert reading["gap"] < reading["room"], reading
+    assert reading["target"], reading
+    assert reading["y"] == before, reading
 
 
 def test_resume_writing_opens_words_whose_box_is_gone_as_a_comment_on_the_page(
@@ -803,7 +870,8 @@ def test_markdown_decoration_keeps_source_editable(browser, serve):
     assert reading()[0]["heading"]
 
     # Continuing a list already shows its bullet. Typing the first letter must not
-    # be what changes the marker, and moving into its source must still expose it.
+    # be what changes the marker, and moving into its source must still expose it,
+    # so a marker typed over it changes the item's.
     write(field, "- First")
     field.press("Shift+Enter")
     expect(field).to_have_js_property("value", "- First\n- ")
@@ -812,8 +880,7 @@ def test_markdown_decoration_keeps_source_editable(browser, serve):
     assert all(line["listed"] and not line["shownMarkers"] for line in lines), lines
     field.press("ArrowLeft")
     assert reading()[-1]["shownMarkers"] == ["- "]
-    field.press("Backspace")
-    expect(field).to_have_js_property("value", "- First\n ")
+    field.press("Shift+ArrowLeft")
     page.keyboard.type("*")
     expect(field).to_have_js_property("value", "- First\n* ")
     assert reading()[-1]["shownMarkers"] == ["* "]

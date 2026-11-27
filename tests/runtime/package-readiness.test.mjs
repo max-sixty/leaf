@@ -1,9 +1,9 @@
 /* Reading a package's own document does not depend on the private event log. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { applicationState } from "../../browser/runtime/semantic-state.js";
-import { dispatchKey } from "../../browser/runtime/keyboard/dispatch.js";
-import { adoptRegistry } from "../../browser/runtime/registry.js";
+import { applicationState } from "../../browser/runtime/state/semantic-state.js";
+import { dispatchKey } from "../../browser/runtime/dom/keyboard/dispatch.js";
+import { adoptRegistry } from "../../browser/runtime/state/registry.js";
 import "../../packages/default/widgets/lf-tabs.js";
 
 adoptRegistry({
@@ -38,7 +38,7 @@ for (const phase of ["waiting", "offline"])
 
 test("view reads leave generated holders untouched and keeping a choice paints them", async () => {
   const { openingView, keepView, viewMembers } =
-    await import("../../browser/runtime/storage.js");
+    await import("../../browser/runtime/records/views.js");
   adoptRegistry({
     "lf-package-views": {
       views: { members: ".view", parts: true },

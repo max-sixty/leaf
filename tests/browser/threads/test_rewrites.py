@@ -38,8 +38,9 @@ from browser.threads import (
     PANEL_REPLY,
     open_panel_thread,
 )
-from leaf import event_log as events_model
-from leaf.render_checks import one_frame, rendered, wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import one_frame, rendered, wait_until_ready
+from leaf_dev.browser import text_field
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -76,10 +77,11 @@ def _ring_gaps(page, target):
 
 
 def test_a_rewrite_of_a_comment_just_sent_is_the_reply_box(browser, serve):
-    """A rewrite of a comment just sent is as wide as the reply box, its words where
-    the message's stood.
+    """A rewrite of a comment just sent stands at the card's padding, as far inside
+    the reply box, which runs to the card's sides, as the box reaches past it, its
+    words where the message's stood.
 
-    The field's ring, drawn outside it as the reply box's is, can lose its left and
+    The field's ring, drawn outside it, can lose its left and
     bottom sides to a transcript that scrolls it and keeps no room past its edges, and
     the card's actions can paint their ground over the right side of a focused Edit's
     or Save's ring. Each ring stands whole."""
@@ -117,8 +119,15 @@ def test_a_rewrite_of_a_comment_just_sent_is_the_reply_box(browser, serve):
     field = editor.locator(".lf-compose-field")
     reply = card.locator(".lf-thread-reply .lf-compose-field")
     box, reply_box = field.bounding_box(), reply.bounding_box()
-    for side in ("x", "width"):
-        assert abs(box[side] - reply_box[side]) < 0.5, (side, box, reply_box)
+    padding = card.locator(".lf-margin-preview-card").evaluate(
+        "face => parseFloat(getComputedStyle(face).paddingInlineStart)"
+    )
+    starts, ends = (
+        box["x"] - reply_box["x"],
+        reply_box["x"] + reply_box["width"] - box["x"] - box["width"],
+    )
+    for inside in (starts, ends):
+        assert abs(inside - padding) < 0.5, (padding, box, reply_box)
     # Its words keep the lines the comment wrapped to, and the message its height.
     opened = message.bounding_box()
     for side in ("y", "height"):
@@ -132,6 +141,54 @@ def test_a_rewrite_of_a_comment_just_sent_is_the_reply_box(browser, serve):
     save.focus()
     one_frame(page)
     assert _ring_gaps(page, save) == []
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_rewrite_at_the_foot_of_a_card_that_scrolls_keeps_its_whole_ring(
+    engine, request, serve
+):
+    """A rewrite of the user's last turn, at the foot of a card whose transcript
+    scrolls, draws its frame's ring into the room the transcript keeps below its turns.
+    Firefox leaves a grid scroller's end padding out of its scroll range while a box
+    sticks in it, so a room kept as padding ended the range at the frame's foot and cut
+    the ring's bottom side away with the card scrolled to its end. The ring stands
+    whole there in each engine."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Opening turn. " + LANDING_WORDS * 3, {"section": "how-store"}
+    )
+    for author, text in (
+        ("agent", "An answer. " + LANDING_WORDS * 12),
+        ("user", "And keep the example."),
+    ):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": author,
+                **({"agent": "Indexer"} if author == "agent" else {}),
+                "parent": root,
+                "text": text,
+            },
+        )
+    page = open_page(request.getfixturevalue(engine), url)
+    resized(page, 1200, 600)
+    page.locator('[data-lf-margin-for="how-store"] .lf-margin-marker').click()
+    card = page.locator(".lf-margin-preview")
+    text_field(card, name="Reply", exact=True).click()
+    page.keyboard.press("ArrowUp")
+    field = card.locator(".lf-msg-editor .lf-compose-field")
+    expect(field.locator("leaf-text")).to_be_focused()
+    transcript = card.locator(".lf-thread-transcript")
+    assert transcript.evaluate("box => box.scrollHeight > box.clientHeight")
+    transcript.evaluate(
+        """box => {
+          const end = box.scrollHeight - box.clientHeight;
+          if (box.scrollTop < end) box.scrollTop = end;
+        }"""
+    )
+    rendered(page)
+    assert _ring_gaps(page, field) == []
 
 
 def test_the_keyboard_walks_up_through_the_users_messages_to_rewrite_one(
@@ -398,11 +455,14 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
     its own, would move nothing but read as a thinner, narrower field than the reply box
     beside it; the reply box's own field would move the words down by its padding and,
     in Feed mode, across by its inset. The rewrite is a comment box whose
-    frame and padding stand around the words, which keep their place; where the thread
-    draws its reply box under the message, the rewrite takes its width. Discard and
-    Save take the message's head. Escape and Discard step back up to the reply box,
-    and Save leaves the user on the thread, as a send does, leaving the thread as it
-    was.
+    frame and padding stand around the words, which keep their place, at the frame's
+    padding; where the thread's reply box runs to the frame's edges under the message,
+    in the panel and in a card, the rewrite takes the height of its field, less the
+    frame's padding a card's box takes in around it. Discard and
+    Save take the message's head. Escape and Discard take back what opened the
+    rewrite: after ↑ they step back up to the reply box, and after a double click or a
+    press on Edit they return to the message's Edit control. Save leaves the user on
+    the thread, as a send does, leaving the thread as it was.
 
     In the margin card, the reply box's growth-following reading a reply row the
     rewrite has none of would throw on each keystroke in the rewrite; the browser
@@ -442,12 +502,26 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
         ".lf-msg-editor > leaf-composition-field > .lf-compose-field"
     ).bounding_box()
     reply_field = reply_row(page, thread).locator(".lf-compose-field").bounding_box()
-    # The panel's reply box stands in its field, under the view and across the row, so
-    # there the rewrite takes its height alone; Feed draws its reply box at the part's
-    # edge, where the words' inset leaves the rewrite's frame none of its sides.
-    sides = {"panel": ("height",), "seat": ("x", "width"), "card": ("x", "width")}
-    for side in sides.get(surface, ()):
-        assert abs(field[side] - reply_field[side]) < 0.5, (side, field, reply_field)
+    # The panel's and a card's reply box run to the frame's edges, so there the
+    # rewrite takes its height alone; a card's box also takes in the card's padding
+    # above and below its field, which the rewrite, standing clear of the card's edges,
+    # leaves out. Feed draws its reply box at the part's edge, where the words' inset
+    # leaves the rewrite's frame none of its sides.
+    padding = (
+        thread.evaluate(
+            "node => parseFloat(getComputedStyle(node).getPropertyValue('--lf-thread-pad'))"
+        )
+        if surface in ("seat", "card")
+        else 0
+    )
+    if surface in ("panel", "seat", "card"):
+        height = reply_field["height"] - 2 * padding
+        assert abs(field["height"] - height) < 0.5, (padding, field, reply_field)
+    # In a card the rewrite's frame stands at the card's padding, that far inside the
+    # reply box's start.
+    if surface in ("seat", "card"):
+        inside = field["x"] - reply_field["x"]
+        assert abs(inside - padding) < 0.5, (padding, field, reply_field)
     head = message.locator(".lf-msg-head").bounding_box()
     for name in ("Discard", "Save"):
         control = message.get_by_role("button", name=name, exact=True)
@@ -478,7 +552,7 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
     page.keyboard.press("Escape")
     expect(message.locator(".lf-msg-editor")).to_have_count(0)
     expect(thread).to_be_visible()
-    expect(reply).to_be_focused()
+    expect(message.locator(".lf-msg-edit")).to_be_focused()
     # Saved, the new words take the box's place, and the user stands on the thread.
     words.dblclick()
     page.keyboard.press("ControlOrMeta+a")
@@ -512,7 +586,7 @@ def test_a_rewrite_is_the_reply_box_where_the_words_stood(browser, serve, surfac
     expect(editor).to_be_focused()
     expect(reply).to_have_js_property("value", "My unfinished reply.")
     page.keyboard.press("Escape")
-    expect(reply).to_be_focused()
+    expect(message.locator(".lf-msg-edit")).to_be_focused()
     expect(reply).to_have_js_property("value", "My unfinished reply.")
 
 
@@ -532,16 +606,23 @@ WORD_LINES = """message => {
   const words = host
     ? window.marginEditorRoots.get(host).querySelector('.cm-content')
     : message.querySelector('.lf-msg-text');
-  const range = document.createRange();
-  range.selectNodeContents(words);
   const lines = new Map();
-  for (const box of range.getClientRects()) {
-    if (box.width < 1) continue;
-    const at = Math.round(box.top - top);
-    const [left, right] = lines.get(at) ?? [Infinity, -Infinity];
-    lines.set(at, [Math.min(left, box.left), Math.max(right, box.right)]);
+  const walker = document.createTreeWalker(words, NodeFilter.SHOW_TEXT);
+  while (walker.nextNode()) {
+    const range = document.createRange();
+    range.selectNodeContents(walker.currentNode);
+    for (const box of range.getClientRects()) {
+      if (box.width < 1) continue;
+      const line = Math.round(box.top - top);
+      const [at, left, right] = lines.get(line) ?? [Infinity, Infinity, -Infinity];
+      lines.set(line, [
+        Math.min(at, box.top - top),
+        Math.min(left, box.left),
+        Math.max(right, box.right),
+      ]);
+    }
   }
-  return [...lines].map(([at, [left, right]]) => [at, left, right]);
+  return [...lines.values()].sort(([a], [b]) => a - b);
 }"""
 
 
@@ -571,7 +652,10 @@ def test_a_rewrite_keeps_the_message_as_it_stood(browser, serve, surface):
     keeps its place and its breaks, the picture its place and size and the head its
     words, and the turns after it theirs: the field's frame stands in the room around
     the words and picture, and Discard, Save and the picture's removal mark are all a
-    rewrite adds."""
+    rewrite adds. The panel holds its view's height while the rewrite is open, and the
+    view stands on its foot, so a height held a fraction of a pixel off, as a whole
+    pixel's rounding leaves it, carries the message by that fraction: a device pixel on
+    a screen of two to the CSS pixel. So nothing moves at all."""
     page, thread, message = _rewrite_surface(
         browser, serve, surface, text=PICTURED, init_script=MARGIN_EDITOR_ROOTS
     )
@@ -592,28 +676,62 @@ def test_a_rewrite_keeps_the_message_as_it_stood(browser, serve, surface):
                 "shelf",
             ):
                 continue
-            assert editing[part][side] == pytest.approx(shown[part][side], abs=0.5), (
+            assert editing[part][side] == shown[part][side], (
                 part,
                 shown[part],
                 editing[part],
             )
     for side in ("answer", "height"):
-        assert editing[side] == pytest.approx(shown[side], abs=0.5), (shown, editing)
-    assert len(editing["lines"]) == len(shown["lines"]), (shown, editing)
-    for line, was in zip(editing["lines"], shown["lines"], strict=True):
-        assert line == pytest.approx(was, abs=1), (shown["lines"], editing["lines"])
+        assert editing[side] == shown[side], (shown, editing)
+    assert editing["lines"] == shown["lines"], (shown["lines"], editing["lines"])
     expect(
         message.get_by_role("button", name="Remove attached image 1", exact=True)
     ).to_be_attached()
+
+
+# Words with a list under them, which the message draws with bullets and its rewrite
+# with the `-` it was typed with.
+LISTED = (
+    "Three checks before the bracket goes up:\n\n"
+    "- the wall takes a plug\n"
+    "- the level reads true\n"
+    "- both bolts are to hand\n\n"
+    "Then fit the north one first."
+)
+
+
+@pytest.mark.parametrize("scaled_firefox", ["1.5", "2"], indirect=True)
+def test_a_rewrite_keeps_its_words_where_a_scaled_screen_drew_them(
+    scaled_firefox, serve
+):
+    """Where Firefox lays a CSS pixel out over device pixels, as at 150% zoom or on a
+    screen of two device pixels to one, opening a rewrite moves none of its lines. It
+    snaps a border to whole device pixels, so a field framed by one would move every
+    line by the fraction, and a bullet that grew its item's line by a fraction would
+    move each item under it. A rewrite types each item's `-` where the bullet stood, so
+    a line's start is the one place the two differ."""
+    page, _, message = _rewrite_surface(
+        scaled_firefox, serve, "panel", text=LISTED, init_script=MARGIN_EDITOR_ROOTS
+    )
+    shown = message.evaluate(WORD_LINES)
+    assert len(shown) >= 5, shown
+    message.locator(".lf-msg-text").dblclick()
+    expect(message.locator(".lf-msg-editor leaf-text")).to_be_focused()
+    rendered(page)
+    editing = message.evaluate(WORD_LINES)
+    assert [[top, right] for top, _, right in editing] == [
+        [top, right] for top, _, right in shown
+    ], (shown, editing)
 
 
 def test_a_package_feed_keeps_a_rewrite_where_a_card_would(browser, serve):
     """A package reader drawing each message on its own, as the feature gallery's Feed
     mode does, has no thread card to open a rewrite in, so it could offer the user's own
     words no rewrite, and Resume writing could take a kept rewrite to the Threads panel.
-    The Edit control opens it there, Save sends it, and words kept through a reload come
-    back under Resume writing on the message where Feed draws it, the reader staying in
-    Feed."""
+    The Edit control opens it there, Save sends it, and words kept through the page's
+    going come back under Resume writing on the next visit, on the message where Feed
+    draws it, the reader staying in Feed. (A reload returns the user to the rewrite
+    itself: tests/browser/navigation/test_arrival_record.py.)"""
     page, workspace, message = _rewrite_surface(browser, serve, "feed")
     mine = message.get_attribute("data-lf-event")
     feed = workspace.get_by_role("button", name="Feed", exact=True)
@@ -640,7 +758,7 @@ def test_a_package_feed_keeps_a_rewrite_where_a_card_would(browser, serve):
     message.locator(".lf-msg-text").dblclick()
     expect(editor).to_be_focused()
     page.keyboard.type(" Or the east.")
-    page.reload()
+    page.goto(page.url)
     wait_until_ready(page)
     feed.click()
     expect(message.locator(".lf-msg-kept")).to_have_text("unsaved edit")
@@ -741,11 +859,16 @@ def test_one_unchanged_rewrite_stands_open_in_a_thread_across_its_readers(
 
 
 def test_a_discarded_rewrite_comes_back(browser, serve):
-    """Escape throws a rewrite's changed words away, so an accidental press could lose a
-    long rewrite for good. Restore discarded edit opens the message on those exact words
-    again, without sending them, by `g D`; Save then sends them as any rewrite, and nothing is left to restore."""
+    """Discard and Escape throw a rewrite's changed words away, so a stray press could
+    lose a long rewrite for good. ⌘Z opens the message on those exact words again,
+    without sending them. A rewrite opened on its message returns the user to its Edit
+    control, where the discard's notice offers that Undo at once; one ↑ opened returns
+    them to the reply box, which keeps ⌘Z for its own words until the caret leaves it.
+    Save then sends the words as any rewrite."""
     page, _, message = _rewrite_surface(browser, serve, "panel")
     editor = message.locator(".lf-msg-editor leaf-text")
+    edit = message.locator(".lf-msg-edit")
+    reply = page.locator(PANEL_REPLY)
     rewritten = "  Fit both brackets and keep the longer explanation.  "
 
     def edits():
@@ -755,26 +878,44 @@ def test_a_discarded_rewrite_comes_back(browser, serve):
             if e["kind"] == "edit"
         ]
 
+    def comes_back():
+        expect(editor).to_be_focused()
+        expect(editor).to_have_js_property("value", rewritten)
+        expect(editor).to_have_js_property("selectionStart", len(rewritten))
+        expect_panel_says(page, "Undone: discarded an edit of “Fit the north bracket.”")
+        assert edits() == []
+
     message.locator(".lf-msg-text").dblclick()
+    write(editor, rewritten)
+    message.get_by_role("button", name="Discard").click()
+    expect(editor).to_have_count(0)
+    expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
+    expect(edit).to_be_focused()
+    expect_panel_says(page, "Edit discarded · Undo")
+    page.keyboard.press("ControlOrMeta+z")
+    comes_back()
+    # Opened again on the message, the rewrite returns there again.
+    page.keyboard.press("Escape")
+    expect(edit).to_be_focused()
+
+    reply.focus()
+    page.keyboard.press("ArrowUp")
     write(editor, rewritten)
     page.keyboard.press("Escape")
     expect(editor).to_have_count(0)
-    expect(message.locator(".lf-msg-text")).to_have_text("Fit the north bracket.")
+    expect(reply).to_be_focused()
+    expect_panel_says(page, "Edit discarded · Undo", says=False)
+    # In the reply box, ⌘Z is the box's own.
+    page.keyboard.press("ControlOrMeta+z")
+    expect(editor).to_have_count(0)
     page.keyboard.press("Escape")
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+d")
-    expect(editor).to_be_focused()
-    expect(editor).to_have_js_property("value", rewritten)
-    expect(editor).to_have_js_property("selectionStart", len(rewritten))
-    assert edits() == []
+    expect_panel_says(page, "Edit discarded · Undo")
+    page.keyboard.press("ControlOrMeta+z")
+    comes_back()
     message.get_by_role("button", name="Save", exact=True).click()
     round_trip(page)
     expect(editor).to_have_count(0)
     assert edits() == [rewritten]
-    page.keyboard.press("Escape")
-    page.keyboard.press("g")
-    page.keyboard.press("Shift+d")
-    expect(editor).to_have_count(0)
 
 
 def test_a_rewrite_saves_its_exact_words(browser, serve):
@@ -1051,7 +1192,7 @@ def test_a_discarded_rewrite_hands_resume_writing_back(browser, serve, previous)
     message.locator(".lf-msg-text").dblclick()
     page.keyboard.type(" and more")
     page.keyboard.press("Escape")
-    expect(reply).to_be_focused()
+    expect(message.locator(".lf-msg-edit")).to_be_focused()
     page.keyboard.press("Escape")
     page.keyboard.press("g")
     page.keyboard.press("i")
@@ -1381,7 +1522,7 @@ def test_a_card_at_the_windows_foot_grows_back_to_how_it_stood(
         for anchor, text in (("p30", held), ("p40", long))
     }
     page = open_page(browser, url)
-    # Where the card stands once it has moved, not its motion (box-motion.js).
+    # Where the card stands once it has moved, not its motion (dom/box-motion.js).
     page.emulate_media(reduced_motion="reduce")
     resized(page, 1512, 860)
     card = page.locator(".lf-margin-preview")

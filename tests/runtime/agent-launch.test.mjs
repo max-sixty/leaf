@@ -4,7 +4,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const { admitResponse, writeLaunchesAgent } = await import("/runtime/layer-client.js");
+const { admitResponse, writeLaunchesAgent } =
+  await import("/runtime/transport/layer-client.js");
 
 /** @param {Record<string, string>} headers */
 const answer = (headers) => admitResponse(new Response(null, { headers }));

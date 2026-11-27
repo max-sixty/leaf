@@ -1,11 +1,12 @@
 import { mkdir, mkdtemp, readFile, readdir, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { URL, fileURLToPath, pathToFileURL } from "node:url";
 import { execFileSync } from "node:child_process";
 
 import { afterEach, describe, expect, it } from "vitest";
 
+import { runtimeEntries } from "../../build/runtime-bundle.mjs";
 import { bundleLayer, bundleSite } from "../bundle-runtime.mjs";
 
 const temporary: string[] = [];
@@ -39,17 +40,10 @@ describe("published runtime bundle", () => {
         join(layer, "runtime", "url.js"),
         'export const moduleUrl = import.meta . url; export const prose = "import.meta.url";',
       );
-      for (const entry of [
-        "layer-client",
-        "media",
-        "widget-api",
-        "portable-api",
-        "check-api",
-      ]) {
-        await writeFile(
-          join(layer, "runtime", `${entry}.js`),
-          `export const revision = "${revision}";`,
-        );
+      // Every runtime module the bundler keeps as an entry, by its own list.
+      for (const entry of runtimeEntries.filter((path) => path !== "leaf.js")) {
+        await mkdir(dirname(join(layer, entry)), { recursive: true });
+        await writeFile(join(layer, entry), `export const revision = "${revision}";`);
       }
       await writeFile(
         join(layer, "runtime", "check-api.js"),
@@ -102,7 +96,7 @@ describe("published runtime bundle", () => {
         `export const state = { revision: "${revision}" };`,
       );
       expect(
-        await readFile(join(layer, "runtime", "layer-client.js"), "utf8"),
+        await readFile(join(layer, "runtime", "transport", "layer-client.js"), "utf8"),
       ).toContain(revision);
     }
   });
@@ -137,13 +131,14 @@ describe("published runtime bundle", () => {
           [
             "import sys",
             "from pathlib import Path",
-            "from leaf.registry.storage import layer_record, selected",
-            "from leaf.revision_artifact import Resource, resource_type",
-            "from leaf.runtime_selection import serving_runtime",
+            "from leaf.source.layer import selected_layer",
+            "from leaf.source.registry.storage import layer_record",
+            "from leaf.source.revision_artifact import Resource, resource_type",
+            "from leaf.source.runtime_selection import serving_runtime",
             "page = Path(sys.argv[1])",
             "layer = {",
             "    path: Resource(data, resource_type(path))",
-            "    for path, data in selected(layer_record(page), page).files.items()",
+            "    for path, data in selected_layer(layer_record(page), page).files.items()",
             "}",
             "for path, resource in serving_runtime().resources(layer, {}).items():",
             "    target = page / path.lstrip('/')",
@@ -158,9 +153,11 @@ describe("published runtime bundle", () => {
       const output = join(directory, "bundled");
       await bundleLayer(runtime, "/published/layer", output);
       const bundled = await readFile(join(output, "leaf.js"), "utf8");
-      expect(await readFile(join(output, "runtime", "media.js"), "utf8")).toBeTruthy();
       expect(
-        await readFile(join(output, "runtime", "layer-client.js"), "utf8"),
+        await readFile(join(output, "runtime", "records", "media.js"), "utf8"),
+      ).toBeTruthy();
+      expect(
+        await readFile(join(output, "runtime", "transport", "layer-client.js"), "utf8"),
       ).toBeTruthy();
       const verifier = await readFile(
         fileURLToPath(new URL("../../dev/leaf_dev/website.js", import.meta.url)),

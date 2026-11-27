@@ -1,4 +1,4 @@
-/* What a place on the page previews (place-preview.js): its name over its first parts,
+/* What a place on the page previews (annotations/place-preview.js): its name over its first parts,
    each read from the place's words rather than copied from its nodes, a heading's
    section as the page's reading walks it, and which links preview one at all. What the
    platform draws, a code block's lines as its whitespace draws them, the state a
@@ -10,14 +10,18 @@
 import "/runtime/stage-integration.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { render } from "/runtime/framework.js";
-import { linkedPlace, placePreview } from "/runtime/place-preview.js";
-import { conversationsAbout, partOver, partTrail } from "/runtime/thread/placement.js";
-import { addressableLabel } from "/runtime/addressable-names.js";
-import { registry } from "/runtime/registry.js";
-import { applicationState } from "/runtime/semantic-state.js";
-import { shadowStage } from "/runtime/shadow-stage.js";
-import { pageText } from "/runtime/passages.js";
+import { render } from "/vendor/lit.js";
+import { linkedPlace, placePreview } from "/runtime/annotations/place-preview.js";
+import {
+  conversationsAbout,
+  partOver,
+  partTrail,
+} from "/runtime/records/thread/placement.js";
+import { addressableLabel } from "/runtime/readings/addressable-names.js";
+import { registry } from "/runtime/state/registry.js";
+import { applicationState } from "/runtime/state/semantic-state.js";
+import { shadowStage } from "/runtime/dom/shadow-stage.js";
+import { pageText } from "/runtime/readings/passages.js";
 import { servedState, servedThread } from "../served.mjs";
 
 // The preview's name and parts, each as [its class without the prefix, its words], of
@@ -296,7 +300,7 @@ test("a heading's section is walked through declared shadow trees and their slot
 });
 
 // A slot nothing is assigned to draws its own children, and the page's reading reads
-// them there (passages.js, `walk`), so a preview of what holds it shows the same words.
+// them there (readings/passages.js, `walk`), so a preview of what holds it shows the same words.
 test("a preview reads an empty slot's fallback as the page's reading does", () => {
   Object.assign(registry, {
     "lf-staged": {

@@ -27,13 +27,13 @@ assert:
     metric: reading-owner-lifetime
     value: |
       Pass only if the widget extends LeafElement and its render() reads the declared
-      status and the action's availability through a synchronous read of the widget
-      controller, such as this.state, this.reading or this.controller.read(), with no
-      subscription of its own to the controller that the native connection callbacks stop
-      or recreate. It must rely on LeafElement to pause while detached and catch up on
-      reinsertion. The native window resize listener must still be registered on
-      connection and removed on disconnection, through whileConnected or connection
-      callbacks that call the super method; fail if it lasts the element's whole life.
+      status and the action's availability synchronously from the state Leaf sets on
+      the element, this.state, with no subscription of its own to the widget's state
+      that the native connection callbacks stop or recreate. It must rely on LeafElement
+      to pause while detached and catch up on reinsertion. The native window resize
+      listener must still be registered on connection and removed on disconnection,
+      through whileConnected or connection callbacks that call the super method; fail
+      if it lasts the element's whole life.
   - type: llm-rubric
     metric: reading-subscription-lifetime
     value: |

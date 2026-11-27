@@ -1,34 +1,39 @@
 /**
- * Promptfoo's setup and teardown for one run. Setup builds the public site, then
- * captures each selected candidate's labelled views and source into its packet and
- * asserts the historical contrast there, so a run whose fixture no longer shows its
- * defect or its repair stops before any model is called. It also seeds the judge's
- * home with the host's Codex login. Teardown retires that seed and counts each
- * column's grades, leaving out what could not be scored.
+ * Promptfoo's setup and teardown for one run. Setup prepares the candidates, then
+ * seeds the judge's home with the host's Codex login. Preparing builds the public
+ * site, captures each selected candidate's labelled views and source into its packet
+ * and asserts the historical contrast there, so a run whose fixture no longer shows
+ * its defect or its repair stops before any model is called; it needs no Codex CLI or
+ * login, so the eval's smoke test runs it alone. Teardown retires the judge's seed and
+ * counts each column's grades, leaving out what could not be scored.
  */
 import assert from "node:assert/strict";
 import { execFileSync } from "node:child_process";
 import { cp, mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import path from "node:path";
-import { chromium } from "playwright";
 import { python } from "../../dev/leaf_dev/arms.mjs";
-import { ORIGIN, candidateContext } from "./provider.mjs";
+import { ORIGIN, candidateContext, launchChromium } from "./provider.mjs";
 
 const FIXTURES = path.join(import.meta.dirname, "fixtures");
 const ROOT = path.resolve(import.meta.dirname, "../..");
 
 async function stageSite(site) {
   await cp(path.join(FIXTURES, "public"), site, { recursive: true });
-  // The recorded viewer's timeline library has left the tree; history keeps its bytes.
+  // The recorded viewer's timeline library has left the tree; history keeps its
+  // bytes. A shallow clone, such as CI's checkout, fetches the one commit it lacks.
   const { dependency } = JSON.parse(
     await readFile(path.join(FIXTURES, "private/provenance.json"), "utf8"),
   );
+  const git = (...args) => execFileSync("git", args, { cwd: ROOT, stdio: "pipe" });
+  try {
+    git("cat-file", "-e", `${dependency.commit}^{commit}`);
+  } catch {
+    git("fetch", "--quiet", "--depth=1", "origin", dependency.commit);
+  }
   await writeFile(
     path.join(site, "assets/timeline.esm.js"),
-    execFileSync("git", ["show", `${dependency.commit}:${dependency.path}`], {
-      cwd: ROOT,
-    }),
+    git("show", `${dependency.commit}:${dependency.path}`),
   );
 }
 
@@ -150,15 +155,21 @@ async function capture(browser, run, test) {
   );
 }
 
-export async function beforeAll({ suite }) {
-  const { metadata } = suite.defaultTest;
-  await stageSite(path.join(metadata.run, "site"));
-  const browser = await chromium.launch({ channel: "chromium", headless: true });
+/** Stage the site and write every candidate's packet under the run. */
+export async function prepareCandidates(suite) {
+  const { run } = suite.defaultTest.metadata;
+  await stageSite(path.join(run, "site"));
+  const browser = await launchChromium();
   try {
-    for (const test of suite.tests) await capture(browser, metadata.run, test);
+    for (const test of suite.tests) await capture(browser, run, test);
   } finally {
     await browser.close();
   }
+}
+
+export async function beforeAll({ suite }) {
+  await prepareCandidates(suite);
+  const { metadata } = suite.defaultTest;
   const login = path.join(
     await mkdtemp(path.join(tmpdir(), "leaf-ui-grader-")),
     ".codex",

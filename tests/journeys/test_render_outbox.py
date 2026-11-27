@@ -21,7 +21,7 @@ from render_harness import (
     write,
 )
 
-from leaf import event_log as events_model
+from leaf.log import event_log as events_model
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -56,7 +56,7 @@ def test_a_tab_whose_key_is_refused_keeps_its_moves_and_names_the_link(browser, 
         pass
     leaf = page.locator(".lf-fp-leaf")
     expect(leaf).to_have_attribute(
-        "aria-label", "Page menu · This tab lost access — open the link again"
+        "aria-label", re.compile(r" · This tab lost access — open the link again$")
     )
     expect(page.locator(PANEL_THREAD)).to_contain_text("Words the server never read")
     # The leaf's menu says what the user can do about it, and that the tab stays open.

@@ -10,6 +10,7 @@ from pathlib import Path
 import click
 import pytest
 from click.testing import CliRunner
+from conftest import hooks_run_this_tree
 from interact_support import (
     COMMAND_SUBJECTS,
     FLOW_PAGE,
@@ -24,11 +25,12 @@ from interact_support import (
     append_command,
     check,
     check_findings,
+    command_notes,
     comment,
     fetch,
     found,
-    fragment_errors,
     fresh_process,
+    markup_findings,
     owed,
     page_state,
     publish,
@@ -39,28 +41,30 @@ from interact_support import (
     words,
 )
 
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import events as event_folds_model
-from leaf import files as files_model
-from leaf import layer as layer_model
-from leaf import obligations as obligations_model
-from leaf import revisioning as revisioning_model
-from leaf import schema as schema_model
-from leaf import service as service_model
-from leaf import todos as todos_model
-from leaf.findings import Finding, Rejected
-from leaf.registry import storage as registry_storage
-from leaf.registry.contract import element_declarations
-from leaf.structure import SourceDocument
-from leaf.themes import DEFAULT_THEME
-from leaf.thread_context import logged_fragment, thread_digest
-from leaf.validation import composition as validation_model
-from leaf.validation.admission import (
+from leaf.base import files as files_model
+from leaf.base import schema as schema_model
+from leaf.base import service as service_model
+from leaf.base.findings import Finding, Rejected
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.log import events as event_folds_model
+from leaf.log.events import logged_fragment
+from leaf.log.thread_context import thread_digest
+from leaf.records import revisioning as revisioning_model
+from leaf.records import todos as todos_model
+from leaf.records import transaction as transaction_model
+from leaf.records.authored_checks.admission import (
     check_markup,
     revision_publication,
 )
-from leaf.validation.instances import question_errors, reference_errors
+from leaf.records.authored_checks.declarations import declaration_advice
+from leaf.records.markup_checks.instances import question_errors, reference_errors
+from leaf.source import layer as layer_model
+from leaf.source import obligation_sources as obligation_sources_model
+from leaf.source import vocabulary as vocabulary_model
+from leaf.source.registry.contract import element_declarations
+from leaf.source.registry.validation import incoming_registry
+from leaf.source.structure import SourceDocument
 from leaf_dev.example_data import authored_sources, named_source, page_files
 
 
@@ -88,7 +92,7 @@ def test_valid_source_activates_once_and_a_bad_save_keeps_it_live(page_dir):
     first = revisioning_model.activate_source(page_dir)
     assert first.error is None and first.created and first.revision == 2
     revision = files_model.revision_path(page_dir, 2)
-    from leaf.revision_artifact import artifact_name, read_artifact
+    from leaf.source.revision_artifact import artifact_name, read_artifact
 
     assert revision.name == artifact_name(2, read_artifact(page_dir, 2)) + ".html"
     assert revision.read_text() == changed
@@ -224,7 +228,7 @@ def test_stamp_assigns_versions_to_the_exact_immutable_revision(page_dir):
 
 
 def test_page_events_name_revisions_and_stamps_name_both(page_dir):
-    kinds = registry_storage.load_registry(page_dir)["$events"]["kinds"]
+    kinds = vocabulary_model.load_registry(page_dir)["$events"]["kinds"]
     for kind in ("comment", "action", "report"):
         required = kinds[kind]["record"]["required"]
         assert "revision" in required and "version" not in required
@@ -237,8 +241,8 @@ def test_page_events_name_revisions_and_stamps_name_both(page_dir):
 
 def test_options_require_an_id(page_dir):
     # Actions name their widget by id, and every group takes them.
-    registry = registry_storage.load_registry(page_dir)
-    errs = fragment_errors(
+    registry = vocabulary_model.load_registry(page_dir)
+    errs = markup_findings(
         '<lf-options><lf-option id="o1" label="A"><strong>A</strong></lf-option></lf-options>',
         registry,
     )
@@ -249,8 +253,8 @@ def test_sample_admits_interactive_widgets(page_dir):
     # The registry marks a sample's content quoted; the runtime leaves the
     # interactive widgets inside unwired. Validation is unchanged by the
     # wrapper: nesting rules (lf-option under lf-options) still hold.
-    registry = registry_storage.load_registry(page_dir)
-    errs = fragment_errors(
+    registry = vocabulary_model.load_registry(page_dir)
+    errs = markup_findings(
         '<lf-sample id="sp" label="a decision">'
         '<lf-options id="g"><lf-option id="o1" label="A"><strong>A</strong></lf-option></lf-options>'
         '<lf-board id="b"><lf-column id="c" label="To do">'
@@ -264,10 +268,12 @@ def test_sample_admits_interactive_widgets(page_dir):
 def test_a_question_on_a_page_stands_in_a_group_its_author_names(page_dir):
     """A widget that asks on a page stands in a named group, an `lf-group`: the group is
     where going to the obligation starts and its `label` the obligation's prompt, read
-    from the markup with no heading or ARIA read. `page check` refuses a widget no group
-    holds, and the registry a group without a label or an id; a message's widget, a
-    mention in a sample, a widget that asks nothing and one set among words need none."""
-    registry = registry_storage.load_registry(page_dir)
+    from the markup with no heading or ARIA read. `page check` refuses a question with
+    no words, as where no group holds a widget without a label of its own or the group's
+    label is blank, and advises on one its own label alone names; the registry refuses
+    a group without a label or an id. A message's widget, a mention in a sample, a
+    widget that asks nothing and one set among words need none."""
+    registry = vocabulary_model.load_registry(page_dir)
     first = (
         '<lf-options id="g-one">'
         '<lf-option id="o-one" label="One"><strong>One</strong></lf-option>'
@@ -281,7 +287,7 @@ def test_a_question_on_a_page_stands_in_a_group_its_author_names(page_dir):
 
     def prompts(body):
         document = SourceDocument(f"<main>{body}</main>")
-        return obligations_model.obligation_sources(document, registry).prompts
+        return obligation_sources_model.obligation_sources(document, registry).prompts
 
     # The label names the question, wherever the widget stands in the group; several
     # widgets in one group share it.
@@ -306,12 +312,38 @@ def test_a_question_on_a_page_stands_in_a_group_its_author_names(page_dir):
         f'<section id="d" role="group" aria-label="Choose">{first}</section>',
         f'<fieldset id="d"><legend>Choose</legend>{first}</fieldset>',
     ):
-        assert refused(ungrouped) == [
-            ("ungrouped-question", "<lf-options id=g-one>")
-        ], ungrouped
+        assert refused(ungrouped) == [("unnamed-question", "<lf-options id=g-one>")], (
+            ungrouped
+        )
     assert prompts(first)["g-one"] == {"text": "", "target": "g-one"}
     (finding,) = question_errors(SourceDocument(f"<main>{first}</main>"), registry)
-    assert '<lf-group id="…" label="…">' in str(finding)
+    assert finding.refuses and '<lf-group id="…" label="…">' in str(finding)
+    # A blank label names nothing either, and the finding names the group to fix.
+    blank = f'<lf-group id="d" label=" ">{first}</lf-group>'
+    (finding,) = question_errors(SourceDocument(f"<main>{blank}</main>"), registry)
+    assert (finding.code, finding.values["group"]) == (
+        "unnamed-question",
+        "<lf-group id=d>",
+    )
+    assert prompts(blank)["g-one"] == {"text": "", "target": "d"}
+    # A widget whose own label names its question stands outside the region On Me
+    # selects, which is advice.
+    labelled = {
+        **registry,
+        "lf-options": {
+            **registry["lf-options"],
+            "attributes": {
+                **registry["lf-options"]["attributes"],
+                "properties": {
+                    **registry["lf-options"]["attributes"]["properties"],
+                    "label": {"type": "string"},
+                },
+            },
+        },
+    }
+    named = first.replace('id="g-one"', 'id="g-one" label="Which one?"')
+    (finding,) = question_errors(SourceDocument(f"<main>{named}</main>"), labelled)
+    assert (finding.code, finding.refuses) == ("ungrouped-question", False)
 
     # A settled group, which asks nothing, a sample's widgets, which ask nothing beyond
     # the sample, and a suggestion, which its sentence names, need no group.
@@ -327,42 +359,22 @@ def test_a_question_on_a_page_stands_in_a_group_its_author_names(page_dir):
     )
     assert refused(f"<p>Refill {suggestion}.</p>") == []
     # A message's widget is named by the message, so its markup needs no group.
-    assert fragment_errors(first, registry) == []
+    assert markup_findings(first, registry) == []
 
 
-def test_command_references_preserve_the_package_owned_subject_roles(page_dir):
-    """An existing id is insufficient when a typed reference names the wrong role."""
-    registry = registry_storage.load_registry(page_dir)
+def test_a_worker_is_assigned_only_to_a_goal(page_dir):
+    """The work reading assigns a worker only to the goal its `on` names, so an id of
+    an element with another role is refused, while a goal's passes."""
+    registry = vocabulary_model.load_registry(page_dir)
     parser = SourceDocument(
-        '<lf-test-plan id="hub" readings="goal">'
+        '<lf-test-plan id="hub">'
         '<lf-test-task id="goal" status="active"><strong>Goal</strong>'
         '<lf-test-worker id="worker" state="waiting" on="tree"><strong>Worker</strong>'
         '<lf-test-tree id="tree" source="project-worktrees"></lf-test-tree>'
-        "</lf-test-worker></lf-test-task></lf-test-plan>"
-    )
-
-    errors = reference_errors(
-        parser.lf_elements, registry, parser.ids, parser.by_id, thread_ids=set()
-    )
-
-    assert [(e.code, e.values["via"], e.values["where"]) for e in errors] == [
-        ("reference-contract", "$work.widgets", {"role": "readings"}),
-        ("reference-contract", "$work.widgets", {"role": "goal"}),
-    ]
-
-
-def test_a_readings_seat_answers_to_one_command(page_dir):
-    """A command fills the seat it names, so each seat in a document is named by
-    exactly one command: a second command naming it is refused, and so is a seat no
-    command names, while each command naming its own seat passes."""
-    registry = registry_storage.load_registry(page_dir)
-    parser = SourceDocument(
-        '<lf-test-plan id="one" readings="seat"></lf-test-plan>'
-        '<lf-test-plan id="two" readings="seat"></lf-test-plan>'
-        '<lf-test-plan id="three" readings="other"></lf-test-plan>'
-        '<lf-test-summary id="seat"></lf-test-summary>'
-        '<lf-test-summary id="other"></lf-test-summary>'
-        '<lf-test-summary id="orphan"></lf-test-summary>'
+        "</lf-test-worker>"
+        '<lf-test-worker id="assigned" state="working" on="goal">'
+        "<strong>Assigned</strong></lf-test-worker>"
+        "</lf-test-task></lf-test-plan>"
     )
 
     errors = reference_errors(
@@ -371,37 +383,23 @@ def test_a_readings_seat_answers_to_one_command(page_dir):
 
     assert errors == [
         Finding(
-            "owned-twice",
-            "<lf-test-plan>",
-            {
-                "line": 1,
-                "attr": "readings",
-                "target": "seat",
-                "first": "<lf-test-plan id=one>",
-                "first_line": 1,
-            },
-        ),
-        Finding(
-            "unowned",
-            "<lf-test-summary>",
-            {"line": 1, "referrer": "lf-test-plan", "attr": "readings"},
-        ),
+            "work-assignment",
+            "<lf-test-worker>",
+            {"line": 1, "attr": "on", "target": "tree", "target_tag": "lf-test-tree"},
+        )
     ]
 
 
 def test_registry_examples_validate(page_dir):
-    registry = registry_storage.load_registry(page_dir)
+    registry = vocabulary_model.load_registry(page_dir)
     assert any(
         tag.startswith("lf-") and "example" in entry for tag, entry in registry.items()
     )
-    assert (
-        validation_model.validate_registry_examples(registry, "vendored registry")
-        is registry
-    )
+    assert declaration_advice(registry, registry, "vendored registry") == []
 
 
 def test_registry_example_ids_are_independent_between_entries(page_dir):
-    registry = registry_storage.load_registry(page_dir)
+    registry = vocabulary_model.load_registry(page_dir)
     registry["lf-diff"]["example"] = (
         '<lf-diff id="shared"><pre>one changed line</pre></lf-diff>'
     )
@@ -410,8 +408,10 @@ def test_registry_example_ids_are_independent_between_entries(page_dir):
     )
 
     assert (
-        validation_model.validate_registry_examples(registry, "independent examples")
-        is registry
+        declaration_advice(
+            {"lf-diff": {}, "lf-code": {}}, registry, "independent examples"
+        )
+        == []
     )
 
 
@@ -421,7 +421,7 @@ def test_every_path_a_diff_resolves_names_a_language_the_bundles_carry(page_dir)
     `paths` is what a filename means, which is how a diff colours a file nobody declared
     a language for. A path resolving outside `names` would resolve to a language neither
     bundle is required to carry."""
-    reg = registry_storage.load_registry(page_dir)
+    reg = vocabulary_model.load_registry(page_dir)
     names = set(reg["$languages"]["names"])
     paths = reg["$languages"]["paths"]
     assert (
@@ -444,7 +444,7 @@ def test_every_widget_in_the_vocabulary_stands_in_a_corpus_source():
     seen — a gap that reads as coverage, since the widget's own tests are green.
     examples/AGENTS.md carries the rest, including the shapes this floor doesn't
     reach."""
-    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
+    registry = incoming_registry(SHIPPED_PACKAGES)
     # The corpus is generated from the others, so it can only repeat their coverage.
     authored = set().union(
         *(
@@ -514,7 +514,7 @@ def test_the_feature_gallery_eyebrows_index_literal_code_names():
 
 
 def test_shipped_widget_purposes_live_in_their_descriptions():
-    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
+    registry = incoming_registry(SHIPPED_PACKAGES)
     titled = [
         tag
         for tag, entry in registry.items()
@@ -527,12 +527,14 @@ def test_a_widget_takes_the_attributes_any_element_takes():
     """`class` and `style`, the page's styling hooks, and the attributes that describe
     any element and record nothing, stand on a widget as on any element; Leaf's own
     `data-lf-` namespace and `hidden` still meet its schema."""
-    registry = validation_model.incoming_registry(SHIPPED_PACKAGES)
+    registry = incoming_registry(SHIPPED_PACKAGES)
 
     def refused(attributes):
+        # What the widget's attribute schema says; `data-lf-` names are the runtime's
+        # markers too, which `reserved-markers` refuses beside this.
         return [
             (e.code, e.values["keyword"], e.values["path"])
-            for e in fragment_errors(
+            for e in markup_findings(
                 '<lf-group id="kind-ask" label="Choose a route"><h2 id="kind-ask-h">Choose a route</h2>'
                 '<lf-options id="kind-options">'
                 f'<lf-option id="route" {attributes}>Page</lf-option>'
@@ -540,6 +542,7 @@ def test_a_widget_takes_the_attributes_any_element_takes():
                 "</lf-options></lf-group>",
                 registry,
             )
+            if e.code == "attribute-schema"
         ]
 
     # A value, like an id, may start with a digit: an alert called 5xx keeps its name.
@@ -556,13 +559,13 @@ def test_a_widget_takes_the_attributes_any_element_takes():
     assert refused("hidden") == [("attribute-schema", "additionalProperties", [])]
 
 
-def test_a_member_key_repeated_in_its_owner_is_refused(tmp_path, initialized_page):
-    """An attribute a member declares unique within its owner (`unique`), such as a
-    playground preset's `for`, refuses a repeat in the same owner, and a preset carries
-    the id a comment on it records, since without one the comment lands on the whole
-    playground. Both doors refuse a break before any browser draws it: message markup,
-    where a reply's playground otherwise reaches the user with only a static check, and
-    the page's own source."""
+def test_a_message_refuses_a_playground_preset_without_an_id(
+    tmp_path, initialized_page
+):
+    """A preset carries the id a comment on it records, since without one the comment
+    lands on the whole playground. Message markup refuses a preset without one before
+    any browser draws it, where a reply's playground otherwise reaches the user with
+    only a static check."""
     page_dir = initialized_page(tmp_path / "page", ("playground",))
 
     def playground(preset):
@@ -574,14 +577,11 @@ def test_a_member_key_repeated_in_its_owner_is_refused(tmp_path, initialized_pag
             "</lf-playground></lf-group>"
         )
 
-    def preset(*names, ident=' id="preset-loud"'):
+    def preset(ident):
         return (
             f'<lf-playground-preset{ident} label="Loud">'
-            + "".join(
-                f'<lf-playground-setting for="{name}" value="4"></lf-playground-setting>'
-                for name in names
-            )
-            + "</lf-playground-preset>"
+            '<lf-playground-setting for="size" value="4"></lf-playground-setting>'
+            "</lf-playground-preset>"
         )
 
     def reply(markup):
@@ -599,62 +599,43 @@ def test_a_member_key_repeated_in_its_owner_is_refused(tmp_path, initialized_pag
             return refused.findings
         return []
 
-    assert reply(playground(preset("size"))) == []
+    assert reply(playground(preset(' id="preset-loud"'))) == []
     assert found(
-        reply(playground(preset("size", "size"))),
-        "repeated-key",
-        "<lf-playground-setting>",
-        key="for",
-        value="size",
-    )
-    assert found(
-        reply(playground(preset("size", ident=""))),
+        reply(playground(preset(""))),
         "attribute-schema",
         "<lf-playground-preset>",
         keyword="required",
     )
-    (page_dir / "index.html").write_text(
-        re.sub(
-            r"<main>.*?</main>",
-            f"<main>{playground(preset('size', 'size'))}</main>",
-            PAGE,
-            flags=re.DOTALL,
-        )
-    )
-    status, findings = check_findings(page_dir)
-    assert status == 1
-    assert found(
-        findings, "repeated-key", "<lf-playground-setting>", key="for", value="size"
-    )
 
 
-def test_a_reply_admits_an_option_that_leads_with_a_strong_and_no_label(
-    tmp_path, initialized_page
-):
+def test_a_message_admits_an_option_that_leads_with_a_strong_and_no_label(page_dir):
     """An option with no `label` that leads with a <strong> is a compact option the
-    registry allows. `page check` advises a `label` for it on a page, but a message has no
-    channel for advice, so its admission takes the option as written."""
-    page_dir = initialized_page(tmp_path / "page", ())
-    check_markup(
+    registry allows. A message holding it is admitted as written, and its command
+    advises a `label` beside its result, as `page check` does on a page."""
+    published(page_dir)
+    noted = command_notes(
+        "thread",
+        "create",
         page_dir,
-        "reply",
-        '<lf-group id="ask" label="Which?"><h2 id="ask-h">Which?</h2>'
+        "--text",
+        '<lf-group id="ask" label="Which?">\n<h2 id="ask-h">Which?</h2>'
         '<lf-options id="pick"><lf-option id="a"><strong>A</strong> first.</lf-option>'
         '<lf-option id="b"><strong>B</strong> second.</lf-option></lf-options></lf-group>',
-        [],
-        publication=revision_publication(
-            page_dir, files_model.latest_revision(page_dir)
-        ),
+        "--title",
+        "Agent thread",
     )
+    assert [(f.code, f.at) for f in noted] == [
+        ("unnamed-card", "<lf-option id=a>"),
+        ("unnamed-card", "<lf-option id=b>"),
+    ]
 
 
-def test_reply_validates_typed_references_against_the_page(page_dir):
-    """Reply markup naming a page element of the wrong role never enters the log, nor
-    does a command naming the page's seat, which it would fill from another document."""
+def test_reply_assigns_a_worker_to_a_goal_on_the_page(page_dir):
+    """A worker in reply markup may work on a goal on the page beside it, and one
+    naming a page element that isn't a goal never enters the log."""
     subjects = (
-        '<lf-test-plan id="hub" readings="seat"><lf-test-task id="goal" status="active">'
+        '<lf-test-plan id="hub"><lf-test-task id="goal" status="active">'
         "<strong>Goal</strong>" + COMMAND_SUBJECTS + "</lf-test-task></lf-test-plan>"
-        '<lf-test-summary id="seat"></lf-test-summary>'
     )
     (page_dir / "index.html").write_text(
         PAGE.replace("</section>", subjects + "</section>")
@@ -664,7 +645,7 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "Act?"}
     )
 
-    def reply(markup):
+    def reply(on):
         return CliRunner().invoke(
             cli_model.cli,
             [
@@ -673,23 +654,21 @@ def test_reply_validates_typed_references_against_the_page(page_dir):
                 "--done",
                 response_reference(page_dir, "c1"),
                 "--text",
-                f"Choose:\n\n{markup}",
+                "Assigned:\n\n"
+                f'<lf-test-plan id="quoted"><lf-test-worker id="quoted-worker"'
+                f' state="working" on="{on}"><strong>Worker</strong>'
+                "</lf-test-worker></lf-test-plan>",
+                "--title",
+                "Thread title",
             ],
         )
 
-    swapped = reply('<lf-test-plan id="quoted" readings="goal"></lf-test-plan>')
-    assert swapped.exit_code != 0
-    assert 'where role="readings"' in words(swapped.output)
+    misassigned = reply("tree")
+    assert misassigned.exit_code != 0
+    assert 'on="tree" must name a goal' in words(misassigned.output)
 
-    borrowed = reply('<lf-test-plan id="quoted" readings="seat"></lf-test-plan>')
-    assert borrowed.exit_code != 0
-    assert "outside its own document" in borrowed.output
-
-    valid = reply(
-        '<lf-test-plan id="quoted" readings="quoted-seat"></lf-test-plan>'
-        '<lf-test-summary id="quoted-seat"></lf-test-summary>'
-    )
-    assert valid.exit_code == 0, valid.output
+    assigned = reply("goal")
+    assert assigned.exit_code == 0, assigned.output
 
 
 def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
@@ -701,9 +680,16 @@ def test_widget_ids_are_one_universe_across_page_and_replies(page_dir):
 
     def reply(markup, *, for_event=None, to="c1"):
         route = (
-            ["thread", "reply", "--done", response_reference(page_dir, for_event)]
+            [
+                "thread",
+                "reply",
+                "--done",
+                response_reference(page_dir, for_event),
+                "--title",
+                "Thread title",
+            ]
             if for_event
-            else ["thread", "reply", str(page_dir), to]
+            else ["thread", "reply", str(page_dir), to, "--title", "Thread title"]
         )
         return CliRunner().invoke(
             cli_model.cli,
@@ -810,6 +796,8 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
                 '<lf-option id="o1" label="A"><strong>A</strong></lf-option>'
                 "</lf-options></lf-group>"
             ),
+            "--title",
+            "Thread title",
         ],
     )
     assert reply.exit_code != 0
@@ -822,7 +810,8 @@ def test_the_runtimes_lf_id_namespace_is_off_limits(page_dir):
 def test_agent_messages_preserve_a_single_space(page_dir):
     """Only the zero-length string is empty; every typed character reaches the log."""
     empty = CliRunner().invoke(
-        cli_model.cli, ["thread", "create", str(page_dir), "--text", ""]
+        cli_model.cli,
+        ["thread", "create", str(page_dir), "--text", "", "--title", "Agent thread"],
     )
     assert empty.exit_code != 0
     assert json.loads(empty.stdout)["error"] == (
@@ -941,7 +930,7 @@ def test_a_body_comes_from_text_a_file_or_stdin(page_dir, tmp_path):
     planned = runner.invoke(
         cli_model.cli,
         ["task", "plan", str(page_dir), "--text"]
-        + ['[{"depth": 0, "title": "Check the rows", "state": "working"}]'],
+        + ['[{"depth": 0, "todo": "Check the rows"}]'],
     )
     assert planned.exit_code == 0, planned.output
 
@@ -953,10 +942,11 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     watcher the panel names — and every publication stay the hub's, untouched
     by a worker's post."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "hub")
+    hooks_run_this_tree("hub")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
     monkeypatch.setenv("LEAF_AGENT", "Hub")
     _tasks_version(page_dir, "active")
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     published(page_dir)
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "status?"}
@@ -971,11 +961,21 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
         )
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+    hooks_run_this_tree("worker-1")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
     assert _report(page_dir, "t-parser", "status", "value=review").exit_code == 0
     answered = CliRunner().invoke(
         cli_model.cli,
-        ["thread", "reply", "--done", reference, "--text", "The work is ready."],
+        [
+            "thread",
+            "reply",
+            "--done",
+            reference,
+            "--text",
+            "The work is ready.",
+            "--title",
+            "Thread title",
+        ],
     )
     assert answered.exit_code == 0, answered.output
     assert json.loads(answered.output)["responds"] == "c1"
@@ -983,6 +983,7 @@ def test_each_agent_session_posts_as_its_own_voice(page_dir, monkeypatch):
     indexed = reply("indexing done")
     assert indexed.exit_code == 0, indexed.output
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-2")
+    hooks_run_this_tree("worker-2")
     monkeypatch.setenv("LEAF_AGENT", "Crawler")
     assert reply("crawl running").exit_code == 0
 
@@ -1022,9 +1023,9 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
 
     def progress(text, *, proactive=False):
         route = (
-            ["thread", "reply", str(claimed), root["id"]]
+            ["thread", "reply", str(claimed), root["id"], "--title", "Thread title"]
             if proactive
-            else ["thread", "reply", reference]
+            else ["thread", "reply", reference, "--title", "Thread title"]
         )
         return CliRunner().invoke(
             cli_model.cli,
@@ -1048,7 +1049,7 @@ def test_ephemeral_reply_takes_the_move_in_hand_and_leaves_it_owed(claimed):
     assert (start["item"], start["text"]) == (root["id"], "Checking the camera.")
     assert events_model.read_events(claimed)[-1] == update
     [working] = page_state(claimed)["workflows"]
-    assert (working["stage"], working["detail"]) == ("working", "Checking the camera.")
+    assert (working["state"], working["detail"]) == ("running", "Checking the camera.")
     assert working["obligation"] == f"update:{root['id']}"
     # The same exact input remains owed; newer progress replaces the Working line.
     again = progress("Checking the clock.")
@@ -1103,6 +1104,8 @@ def test_an_agent_reply_asks_the_user_only_through_a_declared_obligation(page_di
             response_reference(page_dir, root["id"]),
             "--text",
             "Complete.",
+            "--title",
+            "Thread title",
         ],
     )
     assert answered.exit_code == 0, answered.output
@@ -1129,6 +1132,7 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
     """
     publish(page_dir)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+    hooks_run_this_tree("worker-1")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
 
     opened = comment(page_dir, "--text", "The index is still pending.")
@@ -1153,6 +1157,8 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
             response_reference(page_dir, user["id"]),
             "--text",
             "The crawl is paused.",
+            "--title",
+            "Thread title",
         ],
     )
     assert answered.exit_code == 0, answered.output
@@ -1205,10 +1211,10 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
             "title",
             "anchor",
             "detached_from",
+            "rewritten_from",
             "resolved",
             "unread",
             "attention",
-            "holder",
         }
         for thread in state["threads"]
     )
@@ -1229,6 +1235,7 @@ def test_an_agent_edits_predecessor_messages_without_rewriting_history(
 
     before = events_model.read_events(page_dir)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-2")
+    hooks_run_this_tree("worker-2")
     monkeypatch.setenv("LEAF_AGENT", "Crawler")
     foreign = CliRunner().invoke(
         cli_model.cli,
@@ -1281,11 +1288,12 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
     with the wording it replaced, settled by a reply naming the edit, and reopening a
     thread the user had closed. Only the words the user wrote are theirs to revise.
     """
-    from leaf import delivery as delivery_model
-    from leaf.event_log import EventRefused
+    from leaf.agents import delivery as delivery_model
+    from leaf.log.event_log import EventRefused
 
     publish(page_dir)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+    hooks_run_this_tree("worker-1")
 
     def reply_for(event_id, text):
         result = CliRunner().invoke(
@@ -1297,6 +1305,8 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
                 response_reference(page_dir, event_id),
                 "--text",
                 text,
+                "--title",
+                "Thread title",
             ],
         )
         assert result.exit_code == 0, result.output
@@ -1332,7 +1342,7 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
             {"kind": "reply", "parent": asked["id"], "responds": edit["id"]},
         )
     ]
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         stored = next(event for event in page.events if event["id"] == edit["id"])
         delivered = delivery_model.freeze_delivery(
             [delivery_model.batch_data(page_dir, page, [stored])]
@@ -1388,7 +1398,7 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
         },
     )
     [thread] = state_json(page_dir)["threads"]
-    assert thread["attention"]["kind"] == "needs_user", thread["attention"]
+    assert thread["attention"] == f"message:{json.loads(asking.output)['id']}"
     assert [item[0] for item in owed_answers()] == [typo["id"]]
 
     # No words at all delete the message. It keeps its place, beneath the answers
@@ -1399,7 +1409,7 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
         {"kind": "edit", "author": "user", "message": asked["id"], "text": ""},
     )
     assert [item[0] for item in owed_answers()] == [gone["id"]]
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         stored = next(event for event in page.events if event["id"] == gone["id"])
         delivered = delivery_model.freeze_delivery(
             [delivery_model.batch_data(page_dir, page, [stored])]
@@ -1416,7 +1426,7 @@ def test_a_user_revision_is_a_turn_the_agent_answers(page_dir, monkeypatch):
 
     reaction = append_command(
         page_dir,
-        {"kind": "reply", "author": "user", "parent": answer["id"], "token": "keep"},
+        {"kind": "reply", "author": "user", "parent": answer["id"], "emoji": "👍"},
     )
     before = events_model.read_events(page_dir)
     for target, refusal in [
@@ -1440,7 +1450,7 @@ def test_an_agent_edit_rewrites_its_messages_html(page_dir):
     widget's ids, so the edit goes in and Leaf tells the agent where that answer now
     shows. An id any wording held stays the message's own, so no other message
     takes it and inherits the user's answer."""
-    from leaf.thread_context import thread_structure
+    from leaf.log.events import thread_structure
 
     published(page_dir)
 
@@ -1470,13 +1480,14 @@ def test_an_agent_edit_rewrites_its_messages_html(page_dir):
             "widget": "ship",
             "action": "choose",
             "detail": {"value": ["ship-now"]},
+            "answered": True,
         },
     )
 
     def said():
         """What the user's choice says, in the words they chose it in."""
-        from leaf.gesture_words import GestureWords
-        from leaf.registry.storage import require_registry
+        from leaf.log.gesture_words import GestureWords
+        from leaf.source.vocabulary import require_registry
 
         events = events_model.read_events(page_dir)
         words = GestureWords(events, require_registry(page_dir), {}.__getitem__)
@@ -1503,9 +1514,9 @@ def test_an_agent_edit_rewrites_its_messages_html(page_dir):
     # wording that keeps the widget.
     route = comment(page_dir, "--text", "Which route?\n\n" + options("route", "a"))
     route = json.loads(route.stdout)
-    for action, detail in [
-        ("add", {"option": "route-mine", "text": "Mine"}),
-        ("choose", {"value": ["route-mine"]}),
+    for action, detail, answered in [
+        ("add", {"option": "route-mine", "text": "Mine"}, False),
+        ("choose", {"value": ["route-mine"]}, True),
     ]:
         append_command(
             page_dir,
@@ -1516,6 +1527,7 @@ def test_an_agent_edit_rewrites_its_messages_html(page_dir):
                 "widget": "route",
                 "action": action,
                 "detail": detail,
+                "answered": answered,
             },
         )
     reworded = edit(route["id"], "Which route, then?\n\n" + options("route", "a"))
@@ -1567,7 +1579,7 @@ def test_an_agent_edit_rewrites_its_messages_html(page_dir):
 def test_a_rewrite_is_delivered_with_the_words_it_replaced_then(page_dir):
     """A rewrite replaced the words its message had when the user made it, and
     taking back an earlier rewrite later changes nothing it replaced."""
-    from leaf import delivery as delivery_model
+    from leaf.agents import delivery as delivery_model
 
     publish(page_dir)
     asked = append_command(
@@ -1583,7 +1595,7 @@ def test_a_rewrite_is_delivered_with_the_words_it_replaced_then(page_dir):
     second = rewrite("B.")
     third = rewrite("C.")
     append_command(page_dir, {"kind": "undo", "author": "user", "undoes": second["id"]})
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         stored = next(event for event in page.events if event["id"] == third["id"])
         delivered = delivery_model.freeze_delivery(
             [delivery_model.batch_data(page_dir, page, [stored])]
@@ -1599,11 +1611,12 @@ def test_a_rewritten_message_stays_out_of_the_suggested_summary(page_dir, monkey
     A long thread's digest suggests folding all but its last two messages; rewriting
     the newest user message is a turn the agent owes, and it moves no message into
     that range."""
-    from leaf.revision_artifact import active_enclosing
-    from leaf.thread_context import batch_threads
+    from leaf.log.thread_context import batch_threads
+    from leaf.source.revision_artifact import active_enclosing
 
     publish(page_dir)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+    hooks_run_this_tree("worker-1")
     opened = append_command(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "U1"},
@@ -1619,6 +1632,8 @@ def test_a_rewritten_message_stays_out_of_the_suggested_summary(page_dir, monkey
                 response_reference(page_dir, said["id"]),
                 "--text",
                 f"A{n}",
+                "--title",
+                "Thread title",
             ],
         )
         assert result.exit_code == 0, result.output
@@ -1634,7 +1649,7 @@ def test_a_rewritten_message_stays_out_of_the_suggested_summary(page_dir, monkey
             )
 
     def suggested(event):
-        with service_model.PageTransaction(page_dir) as page:
+        with transaction_model.PageTransaction(page_dir) as page:
             [digest] = batch_threads(page.events, [event], active_enclosing(page_dir))
             text = {item["id"]: item.get("text") for item in page.events}
         hint = digest["summary_hint"]
@@ -1740,6 +1755,7 @@ def test_edit_uses_the_captured_contract_when_the_candidate_registry_is_invalid(
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+    hooks_run_this_tree("worker-1")
     message = append_carried_log_record(
         page_dir,
         {
@@ -1808,6 +1824,8 @@ def test_reply_refuses_a_missing_current_layer(page_dir, markup):
             reference,
             "--text",
             f"See:\n\n{markup}" if markup else "See:",
+            "--title",
+            "Thread title",
         ],
     )
     assert result.exit_code != 0, result.output
@@ -1840,21 +1858,17 @@ def test_example_layer_selects_existing_packages(tmp_path, monkeypatch):
     assert sorted(packages) == sorted(
         entry.name
         for entry in schema_model.BUNDLED_PACKAGES.iterdir()
-        if entry.is_dir()
-        and entry != schema_model.DEFAULT_PACKAGE
-        and entry.name != DEFAULT_THEME
+        if entry.is_dir() and entry != schema_model.DEFAULT_PACKAGE
     )
     resolved = layer_model.resolve_packages(tuple(packages), Path.cwd())
     assert resolved == [schema_model.BUNDLED_PACKAGES / name for name in packages]
     assert layer_model.checked_inputs(resolved) == resolved
 
 
-def test_page_state_reads_reactions_as_marks(page_dir):
-    """`page state` lists every reaction in force, beside threads that
-    leave a bare one out — paint on the page is not a thread — and takes a
-    reaction back in once someone answers it, as the panel does. Its durable token
-    is enough; packages may add an explanation, but the default layer does not
-    prescribe one."""
+def test_page_state_reads_a_reaction_as_a_message(page_dir):
+    """`page state` lists a thread a reaction opened as any other, answered or not, and
+    the thread's history reads the reaction's emoji where a message reads its words;
+    the agent reads it as the user meant it."""
     published(page_dir)
     bare = append_carried_log_record(
         page_dir,
@@ -1862,15 +1876,14 @@ def test_page_state_reads_reactions_as_marks(page_dir):
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "shorten",
+            "emoji": "✂️",
             "anchor": {"section": "plan", "quote": "Ship dark"},
         },
     )
     answered = append_carried_log_record(
         page_dir,
-        {"kind": "comment", "author": "user", "revision": 1, "token": "change"},
+        {"kind": "comment", "author": "user", "revision": 1, "emoji": "❌"},
     )
-    # A bare reaction owes no response; adding speech to it is proactive.
     posted = CliRunner().invoke(
         cli_model.cli,
         [
@@ -1880,25 +1893,53 @@ def test_page_state_reads_reactions_as_marks(page_dir):
             answered["id"],
             "--text",
             "Which part?",
+            "--title",
+            "Thread title",
         ],
     )
     assert posted.exit_code == 0, posted.output
     reply = json.loads(posted.output)
     state = state_json(page_dir)
-    assert [t["id"] for t in state["threads"]] == [answered["id"]]
+    assert [t["id"] for t in state["threads"]] == [bare["id"], answered["id"]]
     selected = CliRunner().invoke(
         cli_model.cli, ["page", "state", str(page_dir), answered["id"]]
     )
     assert selected.exit_code == 0, selected.output
-    assert [m["message"] for m in json.loads(selected.output)["content"]] == [
-        answered["id"],
-        reply["id"],
-    ]
-    assert [(r["token"], r["thread"]) for r in state["reactions"]] == [
-        ("shorten", bare["id"]),
-        ("change", answered["id"]),
-    ]
-    assert state["reactions"][0]["anchor"]["quote"] == "Ship dark"
+    assert [
+        (m["message"], m.get("emoji"), m.get("text"))
+        for m in json.loads(selected.output)["content"]
+    ] == [(answered["id"], "❌", None), (reply["id"], None, "Which part?")]
+
+
+def test_the_agent_answers_with_an_emoji_as_with_words(page_dir):
+    """`thread reply --emoji` is the agent's reaction: one emoji in place of words,
+    which answers the update its reference names and declares what it leaves as
+    words do, and is refused beside words or as anything but one emoji."""
+    published(page_dir)
+    thanks = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Thanks!"},
+    )
+    reference = response_reference(page_dir, thanks)
+
+    def reply(*options):
+        return CliRunner().invoke(
+            cli_model.cli,
+            ["thread", "reply", reference, *options, "--title", "Thanks"],
+        )
+
+    both = reply("--done", "--emoji", "👍", "--text", "Glad it helps.")
+    assert both.exit_code != 0 and "--emoji" in both.output
+    assert reply("--done", "--emoji", "ok").exit_code != 0
+    nod = reply("--done", "--emoji", "👍")
+    assert nod.exit_code == 0, nod.output
+    record = json.loads(nod.output)
+    assert record["emoji"] == "👍" and "text" not in record
+    assert record["responds"] == thanks["id"]
+    [thread] = event_folds_model.build_threads(
+        events_model.read_events(page_dir), {}
+    ).values()
+    assert event_folds_model.owed_turns(thread) == []
 
 
 def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
@@ -1906,7 +1947,8 @@ def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
     rewrite is. The withdrawal leaves what answered it its context: the thread stays,
     the reaction's place reads Deleted with what it said, the mark paints nothing, and
     nothing is owed to it. A reaction on a message keeps its place the same way, and one
-    nothing stands on still leaves every reading."""
+    nothing stands on still leaves every reading. The agent hears of each withdrawal
+    as it heard of the reaction."""
     published(page_dir)
     mark = append_command(
         page_dir,
@@ -1914,7 +1956,7 @@ def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "shorten",
+            "emoji": "✂️",
             "anchor": {"section": "plan", "quote": "Ship dark"},
         },
     )
@@ -1922,7 +1964,16 @@ def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
     def reply(target, text):
         posted = CliRunner().invoke(
             cli_model.cli,
-            ["thread", "reply", str(page_dir), target, "--text", text],
+            [
+                "thread",
+                "reply",
+                str(page_dir),
+                target,
+                "--text",
+                text,
+                "--title",
+                "Thread title",
+            ],
         )
         assert posted.exit_code == 0, posted.output
         return json.loads(posted.output)
@@ -1935,7 +1986,7 @@ def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
             "author": "user",
             "revision": 1,
             "parent": answer["id"],
-            "token": "keep",
+            "emoji": "👍",
         },
     )
     kept = reply(nod["id"], "Keeping that part.")
@@ -1946,10 +1997,10 @@ def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
             "author": "user",
             "revision": 1,
             "parent": kept["id"],
-            "token": "keep",
+            "emoji": "👍",
         },
     )
-    # The agent closes the thread by the reaction it acted on, as its instructions say.
+    # The agent closes the thread by the reaction it acted on.
     resolved = CliRunner().invoke(
         cli_model.cli, ["thread", "resolve", str(page_dir), loose["id"]]
     )
@@ -1960,9 +2011,7 @@ def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
         )
         for gesture in (loose, nod, mark)
     ]
-    # Each withdrawal reaches the agent as its reaction did: one that answers no
-    # question wakes nobody, and `page state` stops listing it.
-    assert [undo["attention"] for undo in undos] == [False, False, False]
+    assert [undo["attention"] for undo in undos] == [True, True, True]
 
     thread = event_folds_model.build_threads(events_model.read_events(page_dir), {})[
         mark["id"]
@@ -1973,9 +2022,9 @@ def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
         nod["id"],
         kept["id"],
     ]
-    for gesture, undo, said in ((mark, undos[2], "shorten"), (nod, undos[1], "keep")):
+    for gesture, undo, said in ((mark, undos[2], "✂️"), (nod, undos[1], "👍")):
         placed = next(m for m in thread["msgs"] if m["id"] == gesture["id"])
-        assert "token" not in placed and placed["text"] == ""
+        assert "emoji" not in placed and placed["text"] == ""
         assert placed["withdrawn"] == {"id": undo["id"], "ts": undo["ts"], "was": said}
     assert not event_folds_model.bare_reaction(thread)
     assert event_folds_model.unanswered_turns(thread) == []
@@ -1983,7 +2032,6 @@ def test_a_reaction_something_answered_is_taken_back_into_its_place(page_dir):
     assert thread["resolved"]["kind"] == "resolve"
     state = state_json(page_dir)
     assert [t["id"] for t in state["threads"]] == [mark["id"]]
-    assert state["reactions"] == []
 
 
 def test_a_message_the_user_sent_is_taken_back_into_its_place(page_dir):
@@ -2006,6 +2054,8 @@ def test_a_message_the_user_sent_is_taken_back_into_its_place(page_dir):
             "--obligation",
             "--text",
             "Which part?",
+            "--title",
+            "Thread title",
         ],
     )
     assert answer.exit_code == 0, answer.output

@@ -2,7 +2,8 @@
  * Its offset is authoritative; deep stages animated words in a shadow root, and
  * bare deliberately omits their element so the page must refuse presentation. */
 import { nothing } from "/vendor/lit.js";
-import { LeafElement, motion, shadowStage } from "/runtime/widget-api.js";
+import { motion, shadowStage } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 
 customElements.define(
   "lf-drift",

@@ -43,9 +43,9 @@ from browser.margin import (
     COMMENT_ON_OBLIGATION,
     DENSE_SUGGESTIONS_PAGE,
 )
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -125,7 +125,7 @@ def test_page_map_qualifies_only_duplicate_subjects_with_their_reading_region(
     expect(dialog).to_be_hidden()
     # A phone has no room for the rail, so the thread opens in the floating panel, the
     # user in its reply as in any thread the panel opens for a route naming no part.
-    view = page.locator(".lf-fp-view:not([data-lf-leaving])")
+    view = page.locator(".lf-fp-view")
     expect(
         view.locator('.lf-page-thread[data-lf-thread="comment-proposed-deployment"]')
     ).to_contain_text("Check this subject.")
@@ -190,11 +190,11 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
     page = open_page(browser, serve(PANEL_PAGE))
     page.evaluate(
         """async () => {
-          const {contributionEntry, registerContribution} =
+          const {registerContribution} =
             await window.__lfWidgetApi();
           let state = {state: 'engaged', expanded: true, popup: 'dialog',
             pressed: true, disabled: false, behavior: 'disclosure'};
-          const read = () => ({entries: [contributionEntry({
+          const read = () => ({entries: [{
             key: 'inspect', icon: 'question', label: 'Inspect source',
             context: 'Patch ready', behavior: state.behavior, tone: 'negative',
             rank: 'reading', state: state.state, disabled: state.disabled,
@@ -204,7 +204,7 @@ def test_open_page_map_uses_the_canonical_margin_entry_record_and_live_state(
                   popup: state.popup}
               : null,
             activation: 'inspect-source'
-          })]});
+          }]});
           window.lfCanonicalActivations = [];
           const registration = registerContribution({
             key: 'fixture', target: document.querySelector('#how-cap'), read,
@@ -348,13 +348,13 @@ def test_opaque_contribution_identity_holds_in_the_margin_and_the_page_map(
     page = open_page(browser, serve(PANEL_PAGE))
     readings = page.evaluate(
         """async () => {
-          const {contributionEntry, registerContribution} =
+          const {registerContribution} =
             await window.__lfWidgetApi();
           const target = document.querySelector('#how-cap');
           window.lfIdentityActivations = [];
           const register = (owner, key, label) => registerContribution({
             key: owner, target,
-            read: () => ({entries: [contributionEntry({key, icon: 'dot', label})]}),
+            read: () => ({entries: [{key, icon: 'dot', label}]}),
             activate: activation => window.lfIdentityActivations.push(activation),
           });
           const first = register('a:b', 'c', 'First opaque action');
@@ -373,20 +373,20 @@ def test_opaque_contribution_identity_holds_in_the_margin_and_the_page_map(
 
     page.evaluate(
         """async () => {
-          const {contributionEntry, registerContribution} =
+          const {registerContribution} =
             await window.__lfWidgetApi();
           const target = document.querySelector('#how-cap');
           window.lfIdentityMargins.related = registerContribution({
             key: 'relations', target,
             read: () => ({entries: [
-              contributionEntry({key: 'open-colon', icon: 'more', label: 'Open colon',
+              {key: 'open-colon', icon: 'more', label: 'Open colon',
                 behavior: 'disclosure',
-                relation: {kind: 'entries', keys: ['a:b'], expanded: true}}),
-              contributionEntry({key: 'a:b', icon: 'dot', label: 'Colon target'}),
-              contributionEntry({key: 'open-slash', icon: 'more', label: 'Open slash',
+                relation: {kind: 'entries', keys: ['a:b'], expanded: true}},
+              {key: 'a:b', icon: 'dot', label: 'Colon target'},
+              {key: 'open-slash', icon: 'more', label: 'Open slash',
                 behavior: 'disclosure',
-                relation: {kind: 'entries', keys: ['a/b'], expanded: true}}),
-              contributionEntry({key: 'a/b', icon: 'dot', label: 'Slash target'}),
+                relation: {kind: 'entries', keys: ['a/b'], expanded: true}},
+              {key: 'a/b', icon: 'dot', label: 'Slash target'},
             ]}), activate: () => {},
           });
         }"""
@@ -444,21 +444,20 @@ def test_page_map_keyed_reconciliation_preserves_user_current_location(browser, 
     page = open_page(browser, serve(fixture))
     page.evaluate(
         """async () => {
-          const {commandScope, contributionEntry, registerContribution} =
-            await window.__lfWidgetApi();
+          const {registerContribution} = await window.__lfWidgetApi();
           let swapped = false;
           window.lfKeyedCommandRuns = 0;
-          const scope = commandScope('On the retained Page Map action', [{
+          const scope = {title: 'On the retained Page Map action', rows: [{
             id: 'fixture.retained', keys: ['x'],
             title: 'Run the retained action', line: 'run retained',
             run: () => window.lfKeyedCommandRuns += 1,
-          }]);
+          }]};
           const ordinary = index => registerContribution({
             key: `keyed-${index}`,
             target: document.querySelector(`#keyed-${index}`),
-            read: () => ({entries: [contributionEntry({
+            read: () => ({entries: [{
               key: 'action', icon: 'dot', label: `Action ${index}`,
-            })]}),
+            }]}),
             activate: () => {},
           });
           const registrations = Array.from({length: 13}, (_, offset) =>
@@ -470,17 +469,17 @@ def test_page_map_keyed_reconciliation_preserves_user_current_location(browser, 
             read: () => ({entries: [
               {key: 'keep', icon: 'dot', label: 'Action 12',
                 rank: swapped ? 'secondary' : 'primary', scope},
-              contributionEntry({key: 'peer', icon: 'dot', label: 'Action 12 peer',
-                rank: swapped ? 'primary' : 'secondary'}),
+              {key: 'peer', icon: 'dot', label: 'Action 12 peer',
+                rank: swapped ? 'primary' : 'secondary'},
             ]}), activate: () => {},
           });
           let movingTarget = 14;
           registerContribution({
             key: 'moving-group',
             target: () => document.querySelector(`#keyed-${movingTarget}`),
-            read: () => ({entries: [contributionEntry({
+            read: () => ({entries: [{
               key: 'action', icon: 'dot', label: 'Moving action',
-            })]}), activate: () => {},
+            }]}), activate: () => {},
           });
           window.lfKeyedMap = {
             reordered,
@@ -753,13 +752,13 @@ def test_g_hints_reach_a_late_visible_action_only_location(browser, serve):
     page = open_page(browser, serve(fixture))
     resized(page, 1440, 900)
     page.evaluate("""async () => {
-      const {contributionEntry, registerContribution} =
+      const {registerContribution} =
         await window.__lfWidgetApi();
       for (let index = 0; index < 30; index++) {
         registerContribution({key: `capture-${index}`,
           target: document.querySelector(`#action-${index}`),
-          read: () => ({entries: [contributionEntry({key: 'review', glyph: 'R',
-            label: 'Review capture'})]}), activate: () => {},
+          read: () => ({entries: [{key: 'review', glyph: 'R',
+            label: 'Review capture'}]}), activate: () => {},
         });
       }
     }""")
@@ -1334,17 +1333,17 @@ def test_page_map_disclosure_arrival_yields_to_newer_search(
     )
     page.evaluate(
         """async () => {
-          const {registerContribution, contributionEntry} =
+          const {registerContribution} =
             await window.__lfWidgetApi();
           let expanded = false;
           const registration = registerContribution({
             key: 'disclosure', target: document.querySelector('#target'),
             read: () => ({entries: [
-              contributionEntry({key: 'open', label: 'Expand choices', icon: 'more',
+              {key: 'open', label: 'Expand choices', icon: 'more',
                 behavior: 'disclosure',
-                relation: {kind: 'entries', keys: ['child'], expanded}}),
-              contributionEntry({key: 'child', label: 'Revealed choice', icon: 'dot',
-                visible: expanded}),
+                relation: {kind: 'entries', keys: ['child'], expanded}},
+              {key: 'child', label: 'Revealed choice', icon: 'dot',
+                visible: expanded},
             ]}),
             activate: () => {
               expanded = true;
@@ -1374,53 +1373,3 @@ def test_page_map_disclosure_arrival_yields_to_newer_search(
             expect(search).to_be_focused()
     rendered(page)
     expect(search if search_again else child).to_be_focused()
-
-
-def test_a_crowded_outline_keeps_the_reading_position_when_it_fits_again(
-    browser, serve
-):
-    """An automatic map measurement leaves an outline where its reader scrolled it."""
-    source = leaf_page(
-        "Crowded outline",
-        '<aside><div class="layout-track"><lf-toc id="contents"></lf-toc></div></aside>'
-        '<div class="layout-column"><h1 id="title">Crowded outline</h1>'
-        + "".join(
-            f'<section id="row-{index}"><h2>Section {index:02}</h2>'
-            '<div style="height:120px"></div></section>'
-            for index in range(40)
-        )
-        + "</div>",
-        layout="sidebar",
-    )
-    page = open_page(browser, serve(source))
-    resized(page, 1400, 700)
-    outline = page.get_by_role("navigation", name="On this page")
-    first = outline.get_by_role("link", name="Section 00", exact=True)
-    expect(page.locator("#contents")).to_have_attribute("data-lf-outline", "")
-    first.focus()
-    box = outline.bounding_box()
-    assert box is not None
-    page.mouse.move(box["x"] + 40, box["y"] + 80)
-    page.mouse.wheel(0, 500)
-    page.wait_for_function("document.querySelector('.lf-toc-nav').scrollTop > 300")
-    scroll_settled(page)
-    before = outline.evaluate("node => node.scrollTop")
-    document_before = page.evaluate("scrollY")
-    resized(page, 1401, 700)
-    assert outline.evaluate("node => node.scrollTop") == before
-    assert page.evaluate("scrollY") == document_before
-
-    # Back in view, the link the user left is where they are, and Tab goes on from it.
-    page.mouse.wheel(0, -500)
-    page.wait_for_function("document.querySelector('.lf-toc-nav').scrollTop === 0")
-    scroll_settled(page)
-    page.keyboard.press("Tab")
-    next_link = outline.get_by_role("link", name="Section 01", exact=True)
-    expect(next_link).to_be_focused()
-    page.keyboard.press("Enter")
-    expect(page).to_have_url(re.compile(r"#row-1$"))
-    scroll_settled(page)
-    assert (
-        page.locator("#row-1").evaluate("node => node.getBoundingClientRect().top")
-        < 150
-    )

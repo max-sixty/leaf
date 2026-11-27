@@ -13,8 +13,12 @@ lf-diff,
 lf-call-diff {
   color-scheme: var(--lf-code-scheme, inherit); /* tokens.css, at --lf-pre-bg */
 }
+/* The diff is its own stacking context, so the z-indexes that order its pinned file
+ * name, presses and line numbers order only its own boxes and never lift one over a
+ * box the page stacks beside it, such as a control that sticks at the same edge. */
 lf-diff {
   contain: inline-size;
+  isolation: isolate;
 }
 lf-diff.lf-rendered {
   font-family: var(--lf-mono);

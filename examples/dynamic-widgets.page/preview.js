@@ -12,22 +12,18 @@ export function stageLeafPreview(container, source, onFailure) {
   container.append(frame);
   let sample;
   let disposed = false;
-  const fit = ({ height }) => {
-    frame.style.height = `${Math.ceil(height)}px`;
-  };
   const ready = (async () => {
     sample = await mountSample(frame, { source });
     if (disposed) {
       await sample.destroy();
       return;
     }
-    sample.on("height", fit);
     sample.on("loading", () => {
       sample.ready.catch((error) => {
         if (!disposed) onFailure(error);
       });
     });
-    fit(await sample.ready);
+    await sample.ready;
   })();
   return {
     frame,

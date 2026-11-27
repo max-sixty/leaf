@@ -1,0 +1,241 @@
+/* The class idioms an author writes into a page, each declared in registry.json under
+ * an `lf-` name: a tag, a callout, a lede, a list of facts, a metric, a panel, a
+ * terminal session and a column of quantities. Leaf draws them on every page, whatever
+ * theme the page takes, and on a page that takes none, as it draws a drawing
+ * (drawing.css). The user chose this. Left with the `reading` theme, an idiom drew as
+ * plain text on a page without that theme, and a theme that replaced `reading` would
+ * have to copy these rules. Leaf's own lists of facts, such as About's counts and a
+ * capture's details, take the facts idiom's layout, so a reader learns where a value
+ * stands once, and their surface's type and spacing (base.css).
+ *
+ * Every rule reads the theme's tokens, so an idiom follows the page's palette, faces
+ * and density. A theme restyles one through those tokens, or with rules of its own.
+ * The user chose that an idiom be a default a theme can replace, so these rules, and
+ * drawing.css's, stand in a cascade layer of their own, `lf-idioms`, the first of
+ * the tier this sheet composes into (`lf-base` in the document, above the page's
+ * `base` layer and the theme's tier, `lf-shadow` in a declared tree, after
+ * markup's reading face, because shadow.css imports this sheet after reading.css).
+ * Every other rule of the tier, whether a component's or a package's `defaults.css`,
+ * outranks an idiom's whatever its weight, so a rule that dresses an idiom's element
+ * weighs only what its purpose needs; a theme's `theme.css` doesn't. An idiom outranks
+ * the face, so a numeric cell stands right where the face sets every cell at its
+ * start.
+ * At the tier's own rank, an idiom would give way only to a rule in a later sheet at
+ * least as heavy as Leaf's selector, such as `dl.lf-facts dt`.
+ *
+ * A word that varies an idiom stays bare and is written beside the idiom's class, as
+ * in `class="lf-tag warn"`. Each rule here names it only with that class, so a page's
+ * own `.warn` elsewhere keeps its author's look
+ * (`test_the_kernel_styles_no_class_a_page_coins`).
+ *
+ * The idioms set apart three kinds of words. What the page labels, such as a tag, a
+ * fact's label or a metric's caption, is apparatus, set in the UI sans at small sizes so
+ * it reads as machinery around the argument, with figures of one width, so a count
+ * rewritten in place moves nothing after it. What it shows is mono, as a terminal
+ * session is. What it says keeps the body's face. */
+@layer lf-idioms {
+  /* The compact face a small label rides in, set in the chip tokens (tokens.css) that
+   * every layer's chips read, so a band of chips and an inline tag stand the same height.
+   * A long word breaks only where it would overflow (break-word): `anywhere` also made
+   * each letter a place the chip could shrink to, so a table's automatic layout squeezed
+   * a status column down to "pas" over "sed". It rides in a line at its own height: in
+   * the middle of a line of prose, and of a row a page lays out as flex or grid, where
+   * stretched it took the height of a link a size up beside it, its text at the top of a
+   * tall box. */
+  .lf-tag {
+    display: inline-block;
+    font-family: var(--lf-sans);
+    font-size: var(--lf-t-6);
+    line-height: var(--lf-chip-lh);
+    font-variant-numeric: tabular-nums;
+    padding: var(--lf-chip-pad);
+    box-sizing: border-box;
+    max-width: 100%;
+    overflow-wrap: break-word;
+    border-radius: var(--lf-r-s);
+    background: var(--lf-chip);
+    color: var(--lf-ink-2);
+    vertical-align: middle;
+    align-self: center;
+  }
+
+  /* The one paragraph a user is guaranteed to read, so it is set as one: larger than the
+     body, looser, and in the ink the body isn't. In a page of parts' header
+     (layouts.css, "A page of parts") it takes the size the face sets the prose around
+     it (reading.css), or the browser's without the face, since set larger it ran three
+     or four words to a line and left the list of parts a strip at the window's foot. */
+  h1 + .lf-lede {
+    margin-block-start: 12px;
+  }
+  .lf-lede {
+    color: var(--lf-ink-2);
+    font-size: var(--lf-t-3);
+    line-height: 1.5;
+    margin: 0 0 10px;
+  }
+  @container style(--lf-parts-title: 1) {
+    .lf-lede {
+      font-size: revert-layer;
+      line-height: revert-layer;
+    }
+  }
+
+  /* A callout's tint carries its emphasis. Its prose keeps the page's own size, and the
+   * callout keeps the prose measure, including on a wider sidebar page. Its own
+   * data-width requests room for wider evidence inside the frame. */
+  .lf-callout {
+    --lf-ground: var(--lf-field);
+    background: var(--lf-ground);
+    padding: 12px 16px;
+    margin: var(--lf-callout-margin-block) 0;
+    --lf-block-frame: 1;
+  }
+  @media screen {
+    :where(.lf-callout) {
+      box-sizing: border-box;
+      max-inline-size: var(--lf-measure);
+    }
+  }
+
+  /* A terminal session, a command and what it printed. The command is a `<b>`, which the
+     browser already sets bold, so the eye finds each one in its output. A cut is the
+     code's muted ink rather than a sloped line, and the one thing to notice takes the
+     tint lf-code gives a line to notice, under the code's own ink, which the browser's
+     yellow and black ignore. The user's wash is the draft comment's (--lf-mark-pending),
+     so a mark in it would read as a passage the user is pointing at. Copying the block
+     copies what is selected, output included; taking only the commands would need a
+     script that rewrites the clipboard, or output the selection cannot reach, which would
+     also keep a comment from pointing at it. */
+  pre.lf-terminal i {
+    font-style: normal;
+    color: var(--lf-code-muted);
+  }
+  pre.lf-terminal mark {
+    background: var(--lf-hi-tint);
+    color: inherit;
+  }
+
+  /* A panel groups one working region by its heading and spacing. The content owns any
+     frame it needs; a table or log does not need a second card around it. Its name takes
+     the label font (elements.css, `.lf-label`). */
+  section.lf-panel {
+    margin: 18px 0;
+    --lf-block-frame: trim;
+  }
+  section.lf-panel > :is(h2, h3):first-child {
+    margin: 0 0 10px;
+    font: var(--lf-font-heading);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--lf-muted);
+  }
+
+  /* A status a tag or a callout carries, in the three tones every status on the page is
+     drawn in ($tones). The tint is the whole of the marking and the ink its text, so a
+     tone never needs a word of its own to be read, and never stands in for one. A
+     callout's prose stays in the body's ink; its title takes the tone. */
+  .lf-tag.ok,
+  .lf-callout.ok {
+    --lf-tone-tint: var(--lf-ok-tint);
+    --lf-tone-ink: var(--lf-ok-ink);
+  }
+  .lf-tag.warn,
+  .lf-callout.warn {
+    --lf-tone-tint: var(--lf-warn-tint);
+    --lf-tone-ink: var(--lf-warn-ink);
+  }
+  .lf-tag.danger,
+  .lf-callout.danger {
+    --lf-tone-tint: var(--lf-danger-tint);
+    --lf-tone-ink: var(--lf-danger-ink);
+  }
+  .lf-tag:is(.ok, .warn, .danger) {
+    background: var(--lf-tone-tint);
+    color: var(--lf-tone-ink);
+  }
+  .lf-callout:is(.ok, .warn, .danger) {
+    --lf-ground: var(--lf-tone-tint);
+  }
+  .lf-callout:is(.ok, .warn, .danger) > strong:first-child {
+    color: var(--lf-tone-ink);
+  }
+
+  /* A list of facts, each label beside its value. The labels take a column as wide as
+   * the longest of them, up to two fifths of the list, and wrap past that, so a long
+   * label never leaves its value a ribbon of a few words a line; the values take the
+   * rest and line up on one edge. A `div` may hold a label with its value, as HTML
+   * allows. In the column it keeps the prose's rhythm, and its labels step down to the
+   * apparatus size, never above the size of the words around the list. It is a
+   * component rather than part of the reading face, so it holds in a widget's slotted
+   * content, which a declared shadow tree keeps out of the face (reading.css, `:host`). */
+  dl.lf-facts {
+    display: grid;
+    grid-template-columns: fit-content(40%) minmax(0, 1fr);
+    align-items: baseline;
+    gap: var(--lf-sp-1) var(--lf-sp-3);
+    margin: 14px 0;
+  }
+  dl.lf-facts > div {
+    display: contents;
+  }
+  dl.lf-facts dt {
+    color: var(--lf-muted);
+    font-family: var(--lf-sans);
+    font-weight: 400;
+    font-size: min(var(--lf-t-5), 1em);
+    font-variant-numeric: tabular-nums;
+  }
+  dl.lf-facts dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* A metric tile: one figure under the label naming it, with an optional change beside
+     the figure, written as a one-term definition list. It is type and a hairline above,
+     not a card, so a row of them reads as figures; a page restyles it through the
+     tokens it reads. The figure and its change each go to a new line whole, and a figure
+     too long for the tile breaks anywhere rather than overflow it.
+
+     In a grid, a tile containing just its term and definition takes two of its parent's
+     tracks (subgrid), so peer figures align however many lines a neighbour's label wraps to.
+     Other content keeps its natural rows: a shared two-row span would overlap a third
+     block, such as an authored baseline note. */
+  dl.lf-metric {
+    margin: 0;
+    padding-block-start: var(--lf-sp-2);
+    border-block-start: 1px solid var(--lf-rule);
+    display: grid;
+    row-gap: 0;
+  }
+  dl.lf-metric:has(> dt:first-child + dd:last-child) {
+    grid-row: span 2;
+    grid-template-rows: subgrid;
+  }
+  dl.lf-metric dt {
+    color: var(--lf-muted);
+    font: 600 var(--lf-t-6) / 1.3 var(--lf-sans);
+  }
+  dl.lf-metric dd {
+    margin: var(--lf-sp-1) 0 0;
+    font: 600 var(--lf-t-2) / 1.2 var(--lf-sans);
+    font-variant-numeric: tabular-nums;
+    overflow-wrap: anywhere;
+  }
+  dl.lf-metric dd > :is(strong, small) {
+    display: inline-block;
+  }
+  dl.lf-metric dd small {
+    font: 500 var(--lf-t-6) / 1.3 var(--lf-sans);
+  }
+
+  /* A column of quantities lines up on its last digit — the comparison a table of
+     numbers is there for, and one tabular figures alone don't make. Said per cell,
+     heading included, because which column holds quantities is the author's to
+     declare: "60" and "60 sessions" are one shape and two different things, and a
+     pass that read the text would be guessing at the difference. */
+  th.lf-numeric,
+  td.lf-numeric {
+    text-align: right;
+  }
+}

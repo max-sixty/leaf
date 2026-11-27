@@ -5,9 +5,9 @@ adds it (`leaf package list`).
 
 ## Measured facts
 
-Tie a repeatably measured number inside a sentence to the data run that produced it,
-with a widget that takes the `measured-scalar` contract, and write a number with no
-repeatable source as plain HTML.
+A number the page gives as current should be its latest measurement. For one you will
+measure again while the user reads, a widget taking the `measured-scalar` contract lets
+`page check` flag it once its source holds a later run.
 
 ## Interactive and visual evidence
 
@@ -18,8 +18,8 @@ visual change between two versions as a before-and-after pair of captures, whose
 widget's instructions cover preparing the pair and the comparison controls. Capture
 both versions at the same viewport. Before writing the prose and `alt`, open both
 images and compare them where the change should be.
-For a small change, crop both frames to the subject rather than making the reader
-search a whole window. Captures that vary along other axes need each axis labelled
+For a small change, open the pair on the subject rather than making the reader search
+a whole window. Captures that vary along other axes need each axis labelled
 once, which a table does by default ("Source files and media").
 
 Write a diagram that automatic layout can place, such as a flowchart or a sequence
@@ -27,7 +27,7 @@ diagram, in a widget that lays it out. Its instructions cover checking the drawi
 reporting what you could verify.
 
 Draw what automatic layout can't place, such as a page layout, a wireframe or a
-thumbnail inside an option, as the `svg.drawing` idiom in a `<figure>` with an `id`,
+thumbnail inside an option, as the `svg.lf-drawing` idiom in a `<figure>` with an `id`,
 with `data-width="wide"` when it needs the room. The figure scales the drawing to its
 width, labels included, so make the `viewBox` close to the width it is shown at: 1600
 units in a 720px column draw an 11px label at 5px. Draw only the detail the figure's
@@ -44,7 +44,7 @@ Chart quantities in a chart, not in a diagram language's charts, such as Mermaid
 Keep a few numbers in prose when a sentence explains them clearly.
 
 Show an order of events between actors that you describe, such as a race between two
-jobs, as a timeline rather than drawing one in `svg.drawing`, whose labels you would
+jobs, as a timeline rather than drawing one in `svg.lf-drawing`, whose labels you would
 place by hand. A recorded browser journey is shown as its trace instead (below).
 
 A user can comment on a whole drawing. To let them comment on one part, give the part
@@ -58,12 +58,12 @@ parts (`module-annotations.md`, "Visual parts").
 
 ## Source files and media
 
-Show a text file or quoted passage the user can comment on as a text document. When
-the user reviews an edit to code, prose or configuration, show its exact patch and
-explain the effect beside it. Choose the comparison that covers the work being
-discussed; `wt step diff`, when available, often covers a branch. The patch widget's
-and its package's author instructions own markup, source binding and patch
-preparation.
+Show a text file or quoted passage the user can comment on as a text document. When a
+claim or decision on the page turns on an edit to code, prose or configuration, show
+its exact patch and explain the effect beside it. Choose the comparison that covers
+the work being discussed; `wt step diff`, when available, often covers a branch. The
+patch widget's and its package's author instructions own markup, source binding and
+patch preparation.
 
 Choose whether evidence should follow the current source or preserve what was
 reviewed. A bound widget always shows its source's current value, in every version
@@ -94,8 +94,9 @@ labelled once. The default is a `<table>` with one linked capture per cell, a
 row's. Give each capture's `<img>` an `id`, so the user can point at one capture and
 comment on it alone (`page-authoring.md`, "Stable anchors"). Captures of an option's
 outcome go inside that option, in such a table where
-there are several (`authoring-on-me.md`). Place captures the reader compares side by
-side or one above the other, so whatever moved shows as a misalignment.
+there are several (`authoring-on-me.md`). In such a table, put captures the reader
+compares in neighbouring cells, side by side or one above the other, so whatever
+moved shows as a misalignment.
 
 Use a recording for a fixed demo and a live widget where the user should operate the
 subject. Show a browser journey recorded with Playwright as its trace rather than a

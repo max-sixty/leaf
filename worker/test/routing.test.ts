@@ -11,7 +11,7 @@ import {
   isPageSessionFileRequest,
   isPrivatePageRequest,
   needsPageSlash,
-  newSessionId,
+  hex,
   pageRoute,
   sessionCookie,
   sessionFromCookie,
@@ -43,6 +43,7 @@ const frame_ancestors = "frame-ancestors 'self'";
 const manifest = {
   release: "a".repeat(64),
   protocol: 60,
+  drafts_format: "leaf-drafts/51",
   frame_ancestors,
   routes,
   pages,
@@ -67,7 +68,7 @@ describe("website page routing", () => {
     expect(isPageApiRequest(route("/examples/api/state"))).toBe(true);
     expect(isPageApiRequest(route("/examples/triage-board/api/state"))).toBe(true);
     expect(
-      isPageApiRequest(route("/examples/triage-board/runtime/state-feed.js")),
+      isPageApiRequest(route("/examples/triage-board/runtime/host/state-feed.js")),
     ).toBe(false);
     expect(isPageSessionFileRequest(route("/media/upload.png"), manifest)).toBe(true);
     expect(
@@ -203,7 +204,7 @@ describe("website page routing", () => {
   });
 
   it("mints transport-appropriate session cookies from 128 random bits", () => {
-    const id = newSessionId(Uint8Array.from({ length: 16 }, (_, index) => index));
+    const id = hex(Uint8Array.from({ length: 16 }, (_, index) => index));
     expect(id).toBe("000102030405060708090a0b0c0d0e0f");
     expect(sessionCookie(id, true)).toBe(
       `${SESSION_COOKIE}=${id}; Path=/; Secure; HttpOnly; SameSite=Lax`,

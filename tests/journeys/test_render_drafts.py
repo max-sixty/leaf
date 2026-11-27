@@ -16,7 +16,6 @@ from render_cases_navigation import (
 )
 from render_harness import (
     LONG_PAGE,
-    draft_control,
     heard_draft,
     holding,
     leaf_page,
@@ -24,6 +23,7 @@ from render_harness import (
     page_comment,
     panel_field,
     panel_settled,
+    press_draft_control,
     refuse,
     round_trip,
     sending,
@@ -38,8 +38,8 @@ from render_harness import (
     write_draft_elsewhere,
 )
 
-from leaf import event_log as events_model
-from leaf.render_checks import wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -71,7 +71,7 @@ def test_one_draft_edit_is_what_every_tab_of_the_page_shows(browser, serve, one_
     write(first_draft.locator("leaf-text"), edited)
     expect(second_draft.locator("leaf-text")).to_have_js_property("value", edited)
 
-    draft_control(first, "save", "draft-ops").click()
+    press_draft_control(first, "save", "draft-ops")
     round_trip(first)
     expect(second_draft.locator("leaf-text")).to_have_count(0)
     # The body the other tab is left looking at is the log's, which is what closing the
@@ -142,8 +142,7 @@ def test_a_comment_being_typed_reaches_the_pages_other_tabs(browser, serve, one_
     typed = "Late: " + typed
 
     reply = "Typed into the reply box of the other tab."
-    # The marks stand beside the field once the caret leaves it. A held draft
-    # takes the quick chips' room, so travel through the Threads key route.
+    # Travel through the Threads key route.
     first.keyboard.press("Escape")
     for page in (second, first):
         page.locator("h1").click()
@@ -255,10 +254,14 @@ def test_executable_revision_does_not_restore_a_new_draft_generation(browser, se
     page.route("**/api/drafts", refuse)
     attempt = write_draft_elsewhere(page, editing["context"], editing["words"])
     replace_editing_document(page, serve)
-    assert (
-        page.evaluate("async()=> (await window.__lfCheckApi()).captureDraftEditing()")
-        is None
+    # The entry's record still puts the user back in the reply, which now holds the
+    # other tab's generation: the words come from the drafts store, never the handoff.
+    arrived = page.evaluate(
+        "async()=> (await window.__lfCheckApi()).captureDraftEditing()"
     )
+    assert arrived["context"] == editing["context"]
+    assert arrived["attempt"] == attempt
+    assert arrived["words"] == editing["words"]
     expect(page.locator(".lf-composer leaf-text")).not_to_be_visible()
     actual = stored_draft(page, editing["context"])
     assert actual is not None
@@ -304,7 +307,7 @@ def test_an_empty_draft_survives_reload_and_a_live_revision(browser, serve):
           };
         }"""
     )
-    draft_control(page, "save", "draft-ops").click()
+    press_draft_control(page, "save", "draft-ops")
     # A 503 cannot say whether the server appended before its answer was lost. Keep
     # the one saved gesture visibly pending and its draft recoverable; reopening the
     # editor would invite a second gesture while this attempt is still retrying.

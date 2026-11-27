@@ -11,9 +11,7 @@
 # the ask is a widget in its text, such as a choice (true), or in words (false). A
 # stale label's `edit` is the words its fix must remove, or null where the turn-end
 # check's prompt asks for no edit (skills/leaf/references/turn-end-check.md). A reply case judges the working line
-# the fork posted as it handed the message on, and its label `work`
-# says who should do the work: `take` where a fork of the session could do it
-# beside the session without touching or awaiting what the session is doing.
+# the fork posted as it handed the message on.
 
 # When each conversation starts; its records follow seven seconds apart.
 start: "2026-11-03T09:00:00+00:00"
@@ -52,7 +50,8 @@ rubrics:
       shows. Each change makes the page say what the conversation shows now, in the
       page's own register. Each item not labelled is one the question asks for and
       the conversation clearly shows: an ask the agent left to the user that no On Me
-      item holds and the user hasn't answered since; anything a page holds that no
+      item or question the page still holds open asks and the user hasn't answered
+      since; anything a page holds that no
       longer fits the work as it now stands, such as words the work or the
       conversation has since changed, or finished or dropped work the page still
       presents as current; an On Me item settled elsewhere; work
@@ -64,6 +63,29 @@ rubrics:
       page, if an On Me item already holds it, if the user has since answered it, if
       it concerns a server, watcher or wait loop serving only the agent's own checks,
       or if it repeats another item.
+  names: &names
+    type: llm-rubric
+    metric: names-the-work
+    transform: context.metadata.texts?.judge || 'The fork gave no usable answer.'
+    value: >-
+      The input is the line "The fork gave no usable answer.", which fails, or a
+      conversation between a user and a coding agent, the question Leaf's turn-end
+      check asked a fork of that conversation, and every item of the fork's answer
+      that Leaf took. Judge only the asks (items of kind question), each as the user
+      meets it, often hours later, without the conversation and without rereading the
+      page: its title alone, as a row in their list of what waits on them, and its
+      text and options in a narrow card beneath that title. Pass only if, in every
+      ask, the title says what the work is or does, each option title says what
+      choosing it does ("Merge it", "Merge the cache", or "Merge #812" under a title
+      that says what #812 is, may pass), and the text says what each piece of work
+      it mentions is or does where it first mentions it, in words the user used or
+      the page shows, so the user can decide from the card alone what merging
+      changes. A pull request's number may stand beside such words, as their link,
+      and a later sentence or an option may refer back to work the card has already
+      described. Fail if a title names work only by its number (as "Merging #812"
+      would), if the text mentions work it never describes (as "It builds on #809"
+      would), or if it describes work only by
+      code the user never wrote, or by something only the conversation identifies.
   line: &line
     type: llm-rubric
     metric: line-right
@@ -94,7 +116,9 @@ rubrics:
       which fails. Pass only if the summary is Markdown prose that gives the range's
       decisions, their reasons where the thread gives them, and its open questions,
       correctly and from the original messages, including those an earlier summary
-      in the range folded; holds every decision the range made; and answers nothing
+      in the range folded; holds every decision the range made; is much shorter than
+      the messages it folds, saying where they landed rather than retelling each
+      one; and answers nothing
       the thread's newest message asks, which is the agent's to answer. The range
       must fold the settled earlier discussion, and each message the thread keeps
       after it must read on from the summary: where a kept message answers a
@@ -235,7 +259,7 @@ conversations:
     - leaf: >-
         Leaf has new input for your turn. Read this complete delivery before
         answering.
-        {"format": "leaf-delivery/51", "batches": [{"page": "{page}", "threads":
+        {"format": "leaf-delivery/59", "batches": [{"page": "{page}", "threads":
         [{"id": "c1", "anchor": {"section": "cache-findings"}, "messages": [{"id":
         "c1", "author": "user", "text": "Does TTL's 74% count the cache warming up
         from empty?"}]}], "handling": {"h1": "Answer it with `leaf thread reply`."},
@@ -437,6 +461,55 @@ cases:
           choice: true
     assert:
       - *items
+      - *names
+  # A closeout that names the pull requests by number and describes the change by its
+  # code, as a long session's does, so a fork copying its words asks to merge "#812".
+  ask-permission-named:
+    fork: turn-end
+    page: turn-end-check/pages/cache-chosen.html
+    conversation:
+      - from: cache
+      - *cache-reply
+      - from: cache-chosen
+      - user: Open a PR for it. Does it need the key fix that landed this morning?
+      - tool: Bash
+        input:
+          command: gh pr view 809 --json title,mergedAt && gh pr create --fill && gh pr checks --watch
+          description: Check the merged key fix, open the pull request and wait for its checks
+        result: |-
+          {"title": "Normalize query keys before lookup", "mergedAt": "2026-11-03T08:12:40Z"}
+          https://github.com/acme/search/pull/812
+          All checks were successful
+          review-bot  APPROVED
+      - assistant: >-
+          [#812](https://github.com/acme/search/pull/812) is open, CI is green and
+          review-bot approved it.
+
+
+          **What #812 changes**
+
+          - `SearchService.lookup` goes through `LRUCache.get_or_compute`, keyed on
+          `query.key`, where `flags.get("search.cache") == "lru"`.
+
+          - `cache_size` defaults to 50,000, from the simulation.
+
+          - It sits on #809, so equivalent queries share one entry; nothing else
+          waits.
+
+
+          📌 #1 🟡 **Merge #812**: ready.
+
+
+          To land it, run `/merge-pr`.
+    labels:
+      expect:
+        - kind: question
+          words: ["812"]
+          thread: null
+          choice: true
+    assert:
+      - *items
+      - *names
   ask-on-me:
     fork: turn-end
     page: turn-end-check/pages/cache.html
@@ -465,6 +538,81 @@ cases:
           description: Ask on the page which policy to wire up
         result: '{"kind": "comment", "id": "q1", "author": "agent", "title": "LRU or TTL for the result cache", "obligation": true}'
       - *cache-reply
+    labels:
+      absent:
+        - kind: question
+          words: *cache-question
+    assert:
+      - *items
+  ask-held:
+    fork: turn-end
+    page: turn-end-check/pages/cache.html
+    # The user answered the choice with a question, which hands it to the agent, so
+    # On Me lists nothing while the agent works the answer out.
+    log:
+      - kind: comment
+        author: agent
+        agent: Claude
+        revision: 1
+        id: q1
+        ts: "2026-11-03T09:00:30+00:00"
+        title: LRU or TTL for the result cache
+        text: >-
+          LRU hits 81% of queries within 1.9 GB but serves results up to 41 minutes
+          old at p95; TTL hits 74% and keeps every result under five minutes old, at
+          up to 2.6 GB. Which should I wire up?
+
+
+          <lf-options id="cache-policy"><lf-option id="cache-policy-lru" label="Use
+          the LRU cache"><strong>Use the LRU cache</strong> 81% of queries hit, in
+          1.9 GB.</lf-option><lf-option id="cache-policy-ttl" label="Use the TTL
+          cache"><strong>Use the TTL cache</strong> Every result under five minutes
+          old.</lf-option></lf-options>
+      - kind: reply
+        author: user
+        revision: 1
+        id: u1
+        parent: q1
+        ts: "2026-11-03T09:01:30+00:00"
+        text: How old can an LRU result get at p99?
+    conversation:
+      - from: cache
+      - tool: Bash
+        input:
+          command: >-
+            leaf thread create {page} --title "LRU or TTL for the result cache"
+            --text "LRU hits 81% of queries within 1.9 GB but serves results up to 41
+            minutes old at p95; TTL hits 74% and keeps every result under five minutes
+            old, at up to 2.6 GB. Which should I wire up? <lf-options
+            id=\"cache-policy\">…</lf-options>"
+          description: Ask on the page which policy to wire up
+        result: '{"kind": "comment", "id": "q1", "author": "agent", "title": "LRU or TTL for the result cache"}'
+      - assistant: I've asked on the page which policy to wire up.
+      - user: |-
+          <task-notification>
+          <summary>Leaf: new input</summary>
+          </task-notification>
+      - leaf: >-
+          Leaf has new input for your turn. Read this complete delivery before
+          answering.
+          {"format": "leaf-delivery/59", "batches": [{"page": "{page}", "threads":
+          [{"id": "q1", "title": "LRU or TTL for the result cache", "messages":
+          [{"id": "q1", "author": "agent", "text": "LRU hits 81% of queries within
+          1.9 GB but serves results up to 41 minutes old at p95; TTL hits 74% and
+          keeps every result under five minutes old, at up to 2.6 GB. Which should I
+          wire up?"}, {"id": "u1", "author": "user", "text": "How old can an LRU
+          result get at p99?"}]}], "handling": {"h1": "Answer the user's message in
+          its thread."}, "events": [{"kind": "reply", "parent": "q1", "author":
+          "user", "id": "u1", "handling": ["h1"]}]}]}
+      - tool: Bash
+        input:
+          command: python bench/cache_sim.py --policy lru --size 50000 --percentile 99
+          description: Read the LRU cache's p99 result age
+        result: policy=lru size=50000 queries=1204331 p99_age=58m
+      - assistant: >-
+          At p99 an LRU result is up to 58 minutes old, against under five minutes
+          with TTL. Do you want the LRU cache, for its hit rate and bounded memory, or
+          the TTL cache, for fresher results? I'll wire up whichever you pick.
     labels:
       absent:
         - kind: question
@@ -568,7 +716,7 @@ cases:
       - leaf: >-
           Leaf has new input for your turn. Read this complete delivery before
           answering.
-          {"format": "leaf-delivery/51", "batches": [{"page": "{page}", "threads":
+          {"format": "leaf-delivery/59", "batches": [{"page": "{page}", "threads":
           [{"id": "q1", "title": "Turning on the LRU cache in staging", "resolved":
           "user", "messages": [{"id": "q1", "author": "agent", "text": "Setting
           staging flags needs your ops login, which this session doesn't have. Run
@@ -1129,8 +1277,6 @@ cases:
         anchor:
           section: ft-lede
           quote: fails in about 1 run in 30 on CI and never on a laptop
-    labels:
-      work: take
     assert:
       - *line
   meaning:
@@ -1148,8 +1294,6 @@ cases:
         anchor:
           section: ft-cause-body
           quote: launches the warmup as a background task
-    labels:
-      work: take
     assert:
       - *line
   work-request:
@@ -1167,8 +1311,6 @@ cases:
         anchor:
           section: ft-cause
           quote: Cause
-    labels:
-      work: hand_over
     assert:
       - *line
   user-decides:
@@ -1208,8 +1350,6 @@ cases:
         parent: q1
         id: w1
         text: Await it. 200 ms at startup doesn't matter for us.
-    labels:
-      work: hand_over
     assert:
       - *line
   still-running:
@@ -1239,8 +1379,6 @@ cases:
         anchor:
           section: ft-fix-await
           quote: Await the warmup in
-    labels:
-      work: hand_over
     assert:
       - *line
   work-out:
@@ -1258,8 +1396,6 @@ cases:
         anchor:
           section: ft-cause-body
           quote: the first request can arrive before the cache is filled
-    labels:
-      work: take
     assert:
       - *line
   still-deciding:
@@ -1282,8 +1418,6 @@ cases:
         anchor:
           section: ft-fixes
           quote: Two fixes
-    labels:
-      work: hand_over
     assert:
       - *line
   # A message that changes how the session does work it has said it will do next.
@@ -1307,8 +1441,6 @@ cases:
         anchor:
           section: ft-fixes
           quote: Two fixes
-    labels:
-      work: hand_over
     assert:
       - *line
   # A message that changes a command the session is running.
@@ -1339,8 +1471,6 @@ cases:
         anchor:
           section: ft-fix-await
           quote: Await the warmup in
-    labels:
-      work: hand_over
     assert:
       - *line
   # The journey's `fork-lookup` question, after the session added a card for a passed
@@ -1358,7 +1488,7 @@ cases:
       - leaf: >-
           Leaf has new input for your turn. Read this complete delivery before
           answering.
-          {"format": "leaf-delivery/51", "batches": [{"page": "{page}", "threads":
+          {"format": "leaf-delivery/59", "batches": [{"page": "{page}", "threads":
           [{"id": "r1", "title": "Release bf40b427 deployment checks passed",
           "anchor": null, "resolved": null, "messages": [{"id": "r2", "author":
           "agent", "text": "recording that release bf40b427 passed its deployment
@@ -1397,7 +1527,7 @@ cases:
           Passed deployment checks column at the end. I didn't move any other card,
           and the migration card is still the one release blocker. The update is
           live, and I've answered your comment on the page.
-    waiting: &count-cards
+    waiting:
       - kind: comment
         author: user
         revision: 1
@@ -1405,45 +1535,10 @@ cases:
         text: How many cards does this page's source hold? Count them in the file.
         anchor:
           section: rt-lede
-    labels:
-      work: take
-    assert:
-      - *line
-  # The same question once the session has started on a change to the page's source
-  # that changes the count, before its first edit.
-  source-editing:
-    fork: line
-    page: line-fork/pages/release-board.html
-    conversation:
-      - from: board
-      - *leaf-input
-      - leaf: >-
-          Leaf has new input for your turn. Read this complete delivery before
-          answering.
-          {"format": "leaf-delivery/51", "batches": [{"page": "{page}", "threads":
-          [{"id": "r1", "title": "Splitting the webhook retries card", "anchor":
-          {"section": "card-retry"}, "resolved": null, "messages": [{"id": "r2",
-          "author": "agent", "text": "splitting the webhook retries card into one per
-          partner", "ephemeral": true}]}], "handling": {"h1": "Do the work, put the
-          result on the page, and answer with `leaf thread reply <answer.ref>
-          <declaration> --file reply.md`: what changed, in a sentence or two, linking
-          the section that shows it."}, "events": [{"kind": "comment", "author":
-          "user", "id": "r1", "text": "Split this card into one card per partner that
-          rate limits us: Acme, Globex and Initech.", "anchor": {"section":
-          "card-retry"}, "handling": ["h1"], "answer": {"kind": "reply", "parent":
-          "r1", "ref": "d1:0:r1"}}]}]}
-      - assistant: Splitting the webhook retries card into three, one per partner, starting with Acme.
-    running:
-      - tool: Read
-        input:
-          file_path: "{page}/index.html"
-    waiting: *count-cards
-    labels:
-      work: hand_over
     assert:
       - *line
   # A long thread whose delivery would suggest a range to summarize: the summary fork
-  # Leaf makes beside the line fork (`src/leaf/summary_fork.py`), scored on what it
+  # Leaf makes beside the line fork (`src/leaf/agents/summary_fork.py`), scored on what it
   # wrote. The range takes in an earlier summary, s1, which leaves out the
   # three-minute comparison its originals hold, so a summary written only from s1
   # misses a decision.
@@ -1606,3 +1701,107 @@ cases:
         text: Walk through those two claims against my counterexample.
     # The `declined` check is the whole score: there is no summary to judge.
     assert: []
+  # A long thread of the agent's long Markdown replies, one of them a correction
+  # posted as a new reply, whose earlier discussion settled on one fix. A summary
+  # that retells each reply is as long as the replies; one that says where they
+  # landed takes a few sentences.
+  summary-long:
+    fork: summary
+    page: line-fork/pages/flaky-test.html
+    log:
+      - kind: comment
+        author: user
+        revision: 1
+        id: w1
+        text: Which fix do you recommend? And does either change what production sees at startup?
+        anchor:
+          section: ft-fixes
+          quote: Two fixes
+      - kind: reply
+        author: agent
+        agent: Claude
+        parent: w1
+        responds: w1
+        id: m2
+        text: |-
+          I'd **await the warmup in `start()`**. It's three lines, the race can't happen by construction, and nothing else changes.
+
+          - **Startup.** The warmup fills 10,000 queries from yesterday's log. On the staging pod it takes 180–220 ms, so a pod reaches `start()`'s return about 200 ms later than today.
+          - **Requests during that time.** None reach the cache before it's warm, so the first requests after a deploy hit the cache instead of the search backend. Today about 4% of the first minute's requests after a rollout miss and fall through.
+          - **The lock** would avoid the startup delay, but every cache read would take the lock until the fill finishes, and the fill path gets its own error handling: about forty lines, and a second place for the race to come back.
+
+          Production startup changes only by those 200 ms. I'd still check the readiness probe before shipping it, since a rollout waits on it.
+      - kind: reply
+        author: user
+        parent: w1
+        id: m3
+        text: 200 ms is fine. But will the readiness probe fail during those 200 ms?
+      - kind: reply
+        author: agent
+        agent: Claude
+        parent: w1
+        responds: m3
+        id: m4
+        text: |-
+          No. The readiness probe has `initialDelaySeconds: 5` and checks every 10 s, and a pod's whole startup, warmup included, measured 1.4 s on staging (1.6 s with the await). So the first probe arrives well after `start()` returns.
+
+          - `deploy/search.yaml` sets the probe to `GET /healthz` on port 8080.
+          - The rollout's `maxUnavailable: 0` keeps the old pods serving until the new ones pass.
+          - I ran the rollout on staging three times with the await in place: every pod passed its first probe.
+
+          So the await fix ships without a probe change.
+      - kind: reply
+        author: agent
+        agent: Claude
+        parent: w1
+        id: m5
+        text: |-
+          A correction to my last reply: the probe doesn't wait for `start()` at all. `/healthz` is served by the HTTP server, which `main.py` starts before it calls `cache.start()`, so a pod reports ready as soon as it listens, warm or not.
+
+          My staging runs passed only because the first probe came after the 5 s delay, by which time the warmup had finished. Under load, a slow `top_queries` call could take longer than that, and the pod would take traffic cold.
+
+          So the await fix needs `/healthz` to return 503 until the warmup finishes. That's one more line in the handler, reading the cache's `warm` flag.
+      - kind: reply
+        author: user
+        parent: w1
+        id: m6
+        text: OK, do the await fix with the healthz check.
+      - kind: reply
+        author: agent
+        agent: Claude
+        parent: w1
+        responds: m6
+        id: m7
+        text: |-
+          Done, on the branch `await-warmup`:
+
+          - `start()` awaits `_warm()` before returning, and sets `self.warm = True` when it finishes.
+          - `/healthz` returns 503 with `{"warming": true}` until `cache.warm` is set, then 200.
+          - `test_cache_warmup` passed 300 of 300 runs under eight workers, and a new test checks that `/healthz` says 503 while the warmup runs.
+          - CI is green on the branch, and the [Two fixes](#ft-fixes) section now says which one shipped and why.
+
+          A staging rollout with the change took 1.6 s per pod, and no pod took traffic before its cache was warm.
+      - kind: reply
+        author: user
+        parent: w1
+        id: m8
+        text: Good. Now the other flaky one, test_rate_limit_window, fails on Mondays. Any idea?
+      - kind: reply
+        author: agent
+        agent: Claude
+        parent: w1
+        responds: m8
+        id: m9
+        text: |-
+          The window is computed from `date.isocalendar()` week numbers, and the test builds its fixture with `datetime.now()` in UTC. On a Monday before 08:00 UTC, the runner's local date is still Sunday in the fixture's timezone, so the week number differs by one and the window looks empty.
+    conversation:
+      - from: flaky
+      - *flaky-reply
+    waiting:
+      - kind: reply
+        author: user
+        parent: w1
+        id: m10
+        text: Could it be the timezone the CI runners are set to?
+    assert:
+      - *summary

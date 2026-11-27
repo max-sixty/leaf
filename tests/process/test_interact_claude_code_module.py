@@ -1,6 +1,6 @@
 """Leaf's Claude Code hooks module (`hooks/claude-code.ts`) drawing the session's
 pages above the prompt, forking the conversation for Leaf's clerk as a turn
-ends, and running the forks that write a thread's working line or do its work.
+ends, and running the line fork that writes a thread's working line.
 
 `claude_code_driver.mjs` stands in for Claude Code around the module, which calls
 the real launcher, so these hold the module and the follower it runs together."""
@@ -14,6 +14,7 @@ import threading
 from pathlib import Path
 
 import pytest
+from conftest import hooks_run_this_tree
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
@@ -23,20 +24,21 @@ from interact_support import (
     wait_for,
 )
 
-from leaf import clerk as clerk_model
-from leaf import event_endpoint as endpoint_model
-from leaf import event_log as events_model
-from leaf import inference as inference_model
-from leaf import leases as leases_model
-from leaf import server as server_model
-from leaf import server_rows as server_rows_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as state_model
-from leaf import thread as thread_model
-from leaf import thread_titles as thread_titles_model
-from leaf.harness import NUDGE_WORDS
-from leaf.interaction_log import read_interactions
+from leaf.agents import delivery as delivery_model
+from leaf.agents import inference as inference_model
+from leaf.agents import thread as thread_model
+from leaf.agents import thread_titles as thread_titles_model
+from leaf.base import leases as leases_model
+from leaf.base import rows as rows_model
+from leaf.base import server as server_model
+from leaf.base.harness import NUDGE_WORDS
+from leaf.commands import hooks as hooks_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.log.interaction_log import read_interactions
+from leaf.records import transaction as transaction_model
+from leaf.serving import event_endpoint as endpoint_model
+from leaf.serving import server_rows as server_rows_model
 
 DRIVER = Path(__file__).parents[1].joinpath("claude_code_driver.mjs")
 
@@ -61,10 +63,9 @@ class ClaudeCode:
         self.bands = queue.Queue()
         self.pressed = queue.Queue()
         self.forks = queue.Queue()
-        self.spawned = queue.Queue()
-        self.sent = queue.Queue()
         self.steps = queue.Queue()
         self.completions = queue.Queue()
+        self.environ = queue.Queue()
         threading.Thread(target=self.route, daemon=True).start()
         self.pid = self.read()["pid"]
 
@@ -79,14 +80,12 @@ class ClaudeCode:
                 self.bands.put(record["band"])
             elif "forked" in record:
                 self.forks.put(record)
-            elif "spawned" in record:
-                self.spawned.put(record["spawned"])
-            elif "sent" in record:
-                self.sent.put(record["sent"])
             elif "report" in record:
                 self.steps.put(record["report"])
             elif "completed" in record:
                 self.completions.put(record["completed"])
+            elif "environ" in record:
+                self.environ.put(record["environ"])
             elif {"copied", "toast"} & record.keys():
                 self.pressed.put(record)
             else:
@@ -127,8 +126,10 @@ def holding_page(
     session then starts, as one does when the module loads while it holds a
     page. `serve=False` leaves the page served by an earlier session's call."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", driven.session)
+    hooks_run_this_tree(driven.session)
     monkeypatch.setenv("CLAUDE_PID", str(driven.pid))
-    service_model.claim_page(page_dir)
+    hooks_run_this_tree(driven.session)
+    transaction_model.claim_page(page_dir)
     if serve:
         serving(page_dir, 1)
     session_model.cmd_waiting(page_dir)
@@ -197,15 +198,8 @@ def band_lines(band, surface) -> list[tuple[str, ...]]:
 
 
 def admitted(page_dir, event: dict) -> dict:
-    """The user's message, admitted as the event endpoint admits it, which opens a
-    line turn for a message it keeps back (`forks.kept_from_main_at_admission`)."""
-    from leaf.forks import kept_from_main_at_admission
-    from leaf.service import PageTransaction
-
-    record = append_carried_log_record(page_dir, event)
-    with PageTransaction(page_dir) as page:
-        kept_from_main_at_admission(page, record)
-    return record
+    """The user's message, admitted to the page's log."""
+    return append_carried_log_record(page_dir, event)
 
 
 def test_leaves_own_rows_in_the_conversation_stay_quiet(spawn, sessionless):
@@ -277,7 +271,7 @@ def test_the_band_opens_a_page_from_the_keyboard(
     server = server_model.running_server(page_dir)
     assert server is not None
     url = server["url"]
-    read_result_2 = server_rows_model.ROW.read(server_rows_model.row_path(page_dir))
+    read_result_2 = rows_model.ROW.read(rows_model.row_path(page_dir))
     assert read_result_2 is not None
     title = read_result_2["row"]["title"]
     [button] = elements(band, "Button")
@@ -367,7 +361,12 @@ def test_a_follower_that_ends_to_be_renewed_starts_again(spawn, sessionless, tmp
         "title": "Release",
         "on_user": 0,
         "threads": {"open": 0, "unread": 0},
-        "activity": {"kind": "waiting"},
+        "activity": {
+            "presence": "here",
+            "state": "waiting",
+            "reason": None,
+            "detail": "",
+        },
     }
     # The first follower lists the page and ends to be renewed; the next stays.
     launcher.write_text(
@@ -558,18 +557,17 @@ def test_a_failed_fork_stays_out_of_the_conversation_and_the_next_turn_forks(
     driven.quit()
 
 
-def test_a_held_thread_message_gets_the_agents_working_line_from_a_fork(
+def test_a_thread_message_gets_the_agents_working_line_from_a_fork(
     page_dir, monkeypatch, spawn, sessionless
 ):
-    """The pages follower holds the session's forks lane, so the user's message in a
-    new thread is kept back from the session, and the module forks the conversation with
-    Leaf's prompt for it as it arrives and hands the line back: it goes in as the
-    agent's working line, and the thread goes to the session."""
+    """The pages follower lists the user's message in a new thread as it arrives,
+    and the module forks the conversation with Leaf's prompt for it and hands the
+    line back: it goes in as the agent's working line."""
     said = "Checking why the poll is 2 s"
     driven = ClaudeCode(
         spawn,
         "cc-reply",
-        {"forkAnswer": json.dumps({"line": said, "work": "hand_over"})},
+        {"forkAnswer": json.dumps({"line": said})},
     )
     holding_page(driven, page_dir, monkeypatch)
     server_id = read_record(page_dir / "service.json")["server_id"]
@@ -596,7 +594,7 @@ def test_a_held_thread_message_gets_the_agents_working_line_from_a_fork(
         lambda line: line.startswith("Leaf: the line fork for thread"),
         failure=lambda: f"the fork never reported: {list(driven.diagnostics.queue)}",
     )
-    assert told == f"Leaf: the line fork for thread {asked['id']}: hand_over", told
+    assert told == f"Leaf: the line fork for thread {asked['id']}: posted", told
     [line] = [
         event
         for event in events_model.read_events(page_dir)
@@ -626,7 +624,7 @@ def test_a_fork_after_a_compaction_names_no_row_of_the_request_before_it(
     driven = ClaudeCode(
         spawn,
         "cc-compacted",
-        {"forkAnswer": json.dumps({"line": "Checking", "work": "hand_over"})},
+        {"forkAnswer": json.dumps({"line": "Checking"})},
     )
     holding_page(driven, page_dir, monkeypatch)
     server_id = read_record(page_dir / "service.json")["server_id"]
@@ -668,20 +666,20 @@ def test_a_long_threads_message_gets_a_summary_fork_beside_its_line_fork(
         "cc-reply",
         {
             "forkAnswer": {
-                "<leaf-line-fork>": json.dumps(
-                    {"line": "Checking", "work": "hand_over"}
-                ),
+                "<leaf-line-fork>": json.dumps({"line": "Checking"}),
                 "<leaf-summary-fork>": json.dumps(
                     {"from": "q0", "through": "q5", "text": "The earlier discussion."}
                 ),
             }
         },
     )
-    # The thread's history, written before the follower takes the lane, keeps
-    # nothing back.
+    # The thread's history, written before the follower first reads the page, gets
+    # no line fork.
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", driven.session)
+    hooks_run_this_tree(driven.session)
     monkeypatch.setenv("CLAUDE_PID", str(driven.pid))
-    service_model.claim_page(page_dir)
+    hooks_run_this_tree(driven.session)
+    transaction_model.claim_page(page_dir)
     # Ids the fork's answer names as the range it chose.
     opened = admitted(
         page_dir, {"kind": "comment", "author": "user", "id": "q0", "text": "Q0?"}
@@ -741,20 +739,20 @@ def test_a_long_threads_message_gets_a_summary_fork_beside_its_line_fork(
     driven.quit()
 
 
-def test_a_fork_given_a_threads_work_runs_in_a_turn_leaf_keeps_for_it(
+def test_a_line_fork_whose_step_leaf_could_not_take_posts_nothing(
     page_dir, monkeypatch, spawn, sessionless
 ):
-    """A thread the line fork judges `take` goes to a fork the module spawns with
-    Leaf's task, unnamed, so its agent id is the one address the main thread has for
-    it, and Leaf hears which agent runs the turn it opened for it, which the task
-    names for the fork's `leaf` commands. As that agent's run ends its turn closes,
-    and the main thread hears what came of the thread."""
+    """Where Leaf's step for the line fork's answer fails, as when Leaf's process
+    does, the module reports the instruction once more as failed, and Leaf records
+    that the line fork failed and posts nothing, while the message stays the
+    session's input."""
     driven = ClaudeCode(
         spawn,
-        "cc-work",
+        "cc-unrouted",
         {
-            "forkAnswer": json.dumps({"line": "Checking the version", "work": "take"}),
-            "agentId": "agent-1",
+            "forkAnswer": json.dumps({"line": "Checking the version"}),
+            # The report of the fork's answer, not the one saying that step failed.
+            "stepFails": {"do": "fork", "failed": None},
         },
     )
     holding_page(driven, page_dir, monkeypatch)
@@ -771,313 +769,117 @@ def test_a_fork_given_a_threads_work_runs_in_a_turn_leaf_keeps_for_it(
     asked = admitted(
         page_dir, {"kind": "comment", "author": "user", "text": "Which Python?"}
     )
-    spawned = driven.spawned.get(timeout=STATED_TIMEOUT)
-    assert spawned["subagentType"] == "fork" and "name" not in spawned, spawned
-    assert spawned["prompt"].startswith("<leaf-fork-work>"), spawned["prompt"]
-    turn = wait_for(
-        lambda: state_model.agent_turn_of("cc-work", "agent-1"),
+    [routed] = wait_for(
+        lambda: read_interactions(page_dir, types=("fork_outcome",)),
         bool,
-        failure="Leaf never heard which agent runs the fork's turn",
+        failure=lambda: f"Leaf never routed the thread: {list(driven.debug.queue)}",
     )
-    # The fork's task names the turn its `leaf` commands act in.
-    assert f"`leaf --turn {turn} thread reply …`" in spawned["prompt"]
-
-    ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "turnId": "t9"}
-    driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-1"})
-    wait_for(
-        lambda: state_model.open_agent_turns("cc-work"),
-        lambda turns: turns == {},
-        failure="the fork's turn never closed",
-    )
-    wait_for(
-        lambda: clerk_model.queued("cc-work"),
-        lambda lines: any(f"gave thread {asked['id']}" in line for line in lines),
-        failure=lambda: f"the main thread never heard: {clerk_model.queued('cc-work')}",
-    )
-    driven.quit()
-
-
-def test_a_fork_whose_run_ends_before_its_spawn_returns_still_ends_its_turn(
-    page_dir, monkeypatch, spawn, sessionless
-):
-    """A fork can end its run before Claude Code answers the module's spawn with its
-    agent id, as one that fails at once does. The module keeps that run's end until
-    it learns the id, then tells Leaf, so the fork's turn closes and the main thread
-    is given the thread back, rather than the turn holding the thread until it
-    lapses."""
-    driven = ClaudeCode(
-        spawn,
-        "cc-early",
-        {
-            "forkAnswer": json.dumps({"line": "Checking the version", "work": "take"}),
-            "agentId": "agent-1",
-            "spawnWaits": True,
-        },
-    )
-    holding_page(driven, page_dir, monkeypatch)
-    server_id = read_record(page_dir / "service.json")["server_id"]
-    server_rows_model.RowPublisher(page_dir, server_id).refresh()
-    wait_for(
-        lambda: band_lines(
-            driven.bands.get(timeout=STATED_TIMEOUT)["terminal"], "terminal"
-        ),
-        bool,
-        failure="the band never showed the page",
-    )
-    main_thread_request(driven)
-    asked = admitted(
-        page_dir, {"kind": "comment", "author": "user", "text": "Which Python?"}
-    )
-    driven.spawned.get(timeout=STATED_TIMEOUT)
-    ended = {"durationMs": 1, "isAborted": True, "turnId": "t9"}
-    driven.emit("turn.complete", {**ended, "reason": "error", "agentId": "agent-1"})
-    driven.send({"spawnReturns": True})
-    wait_for(
-        lambda: state_model.open_agent_turns("cc-early"),
-        lambda turns: turns == {},
-        failure="the fork's turn never closed",
-    )
-    wait_for(
-        lambda: clerk_model.queued("cc-early"),
-        lambda lines: any(f"gave thread {asked['id']}" in line for line in lines),
-        failure=lambda: (
-            f"the main thread never heard: {clerk_model.queued('cc-early')}"
-        ),
-    )
-    driven.quit()
-
-
-def test_a_fork_whose_start_leaf_could_not_record_still_ends_its_turn(
-    page_dir, monkeypatch, spawn, sessionless
-):
-    """A fork the module spawned whose agent Leaf couldn't record, as when Leaf's
-    process fails, ends the turn Leaf opened for it, so the main thread gets the
-    thread back at once rather than once the turn lapses; the end names the agent,
-    which runs on, so the main thread hears the id that reaches it."""
-    driven = ClaudeCode(
-        spawn,
-        "cc-unrecorded",
-        {
-            "forkAnswer": json.dumps({"line": "Checking the version", "work": "take"}),
-            "agentId": "agent-1",
-            # The report that the fork runs, not the one saying that step failed.
-            "stepFails": {"do": "spawn", "ended": None, "failed": None},
-        },
-    )
-    holding_page(driven, page_dir, monkeypatch)
-    server_id = read_record(page_dir / "service.json")["server_id"]
-    server_rows_model.RowPublisher(page_dir, server_id).refresh()
-    wait_for(
-        lambda: band_lines(
-            driven.bands.get(timeout=STATED_TIMEOUT)["terminal"], "terminal"
-        ),
-        bool,
-        failure="the band never showed the page",
-    )
-    main_thread_request(driven)
-    asked = admitted(
-        page_dir, {"kind": "comment", "author": "user", "text": "Which Python?"}
-    )
-    driven.spawned.get(timeout=STATED_TIMEOUT)
-    wait_for(
-        lambda: clerk_model.queued("cc-unrecorded"),
-        lambda lines: any(
-            f"Your fork agent-1 gave thread {asked['id']}" in line for line in lines
-        ),
-        failure=lambda: (
-            f"the main thread never heard: {clerk_model.queued('cc-unrecorded')}"
-        ),
-    )
-    assert state_model.open_agent_turns("cc-unrecorded") == {}
-    [gave] = [
-        note
-        for note in read_interactions(page_dir, types=("fork_outcome",))
-        if note.get("step") == "end"
-    ]
-    assert gave["outcome"] == "hand_back" and "Leaf's step failed" in gave["why"]
-    driven.quit()
-
-
-@pytest.mark.parametrize("resumes", [True, False])
-def test_a_later_message_in_a_forks_thread_resumes_that_fork(
-    page_dir, monkeypatch, spawn, sessionless, resumes
-):
-    """The user's later message in a thread a fork answered, once that fork's run has
-    ended, goes to the same fork: the module resumes it with Leaf's message, and,
-    once the message is delivered, tells Leaf the fork runs the new turn, which
-    confirms its start, and which its next end closes. Where Claude Code
-    can't resume the fork, the module ends the turn Leaf opened and spawns nothing,
-    which gives the thread to the main thread."""
-    driven = ClaudeCode(
-        spawn,
-        "cc-resume",
-        {
-            "forkAnswer": json.dumps({"line": "Checking the version", "work": "take"}),
-            "agentId": ["agent-1", "agent-2"],
-            **({} if resumes else {"sendRefuses": "No transcript found"}),
-        },
-    )
-    holding_page(driven, page_dir, monkeypatch)
-    server_id = read_record(page_dir / "service.json")["server_id"]
-    server_rows_model.RowPublisher(page_dir, server_id).refresh()
-    wait_for(
-        lambda: band_lines(
-            driven.bands.get(timeout=STATED_TIMEOUT)["terminal"], "terminal"
-        ),
-        bool,
-        failure="the band never showed the page",
-    )
-    main_thread_request(driven)
-    asked = admitted(
-        page_dir, {"kind": "comment", "author": "user", "text": "Which Python?"}
-    )
-    assert driven.spawned.get(timeout=STATED_TIMEOUT)["subagentType"] == "fork"
-    first = wait_for(
-        lambda: state_model.agent_turn_of("cc-resume", "agent-1"),
-        bool,
-        failure="Leaf never heard which agent runs the fork's turn",
-    )
-    ref = next(
-        event["refs"][asked["id"]]["ref"]
+    assert routed["outcome"] == "failed", routed
+    assert routed["why"].startswith("the fork failed: Leaf's step failed"), routed
+    assert not [
+        event
         for event in events_model.read_events(page_dir)
-        if event["kind"] == "pickup" and "refs" in event
-    )
-    with state_model.acting_in(first):
-        assert thread_model.post_response(ref, "Python 3.12 or later.", asks_back=False)
-    ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "turnId": "t9"}
-    driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-1"})
-    wait_for(
-        lambda: state_model.open_agent_turns("cc-resume"),
-        lambda turns: turns == {},
-        failure="the fork's turn never closed",
-    )
-
-    more = admitted(
-        page_dir,
-        {"kind": "reply", "parent": asked["id"], "author": "user", "text": "And uv?"},
-    )
-    sent = driven.sent.get(timeout=STATED_TIMEOUT)
-    assert sent["to"] == {"agentId": "agent-1"}
-    assert sent["text"].startswith("<leaf-fork-work>") and "And uv?" in sent["text"]
-    if resumes:
-        second = wait_for(
-            lambda: state_model.agent_turn_of("cc-resume", "agent-1"),
-            lambda turn: turn not in (None, first),
-            failure="Leaf never heard which agent runs the follow-up's turn",
-        )
-        pickup = [
-            e for e in events_model.read_events(page_dir) if e["kind"] == "pickup"
-        ][-1]
-        assert (pickup["events"], pickup["turn"]) == ([more["id"]], second)
-        wait_for(
-            lambda: [
-                note
-                for note in read_interactions(page_dir, types=("fork_outcome",))
-                if note.get("step") == "start" and note.get("turn") == second
-            ],
-            bool,
-            failure="the module never confirmed the resumed fork's start",
-        )
-        driven.emit(
-            "turn.complete", {**ended, "reason": "answer", "agentId": "agent-1"}
-        )
-    wait_for(
-        lambda: state_model.open_agent_turns("cc-resume"),
-        lambda turns: turns == {},
-        failure="the follow-up's turn never closed",
-    )
-    if not resumes:
-        # Leaf closes the turn before it notes the end, so wait for the note.
-        [gave] = wait_for(
-            lambda: [
-                note
-                for note in read_interactions(page_dir, types=("fork_outcome",))
-                if note.get("step") == "end" and more["id"] in note["inputs"]
-            ],
-            bool,
-            failure="Leaf never noted the follow-up's end",
-        )
-        assert gave["outcome"] == "hand_back", gave
-        assert "could not be resumed" in gave["why"], gave
-    driven.settle()
-    assert driven.spawned.empty() and driven.sent.empty()
+        if event["kind"] == "reply"
+    ]
+    with transaction_model.PageTransaction(page_dir) as page:
+        assert [event["id"] for event in delivery_model.deliverable(page)] == [
+            asked["id"]
+        ]
     driven.quit()
 
 
-# A fork the module spawned, as `$.state` keeps it: when its run started and the
-# instruction it ran (`hooks/leaf-state.d.ts`).
-SPAWNED = {
-    "started": 1,
-    "id": "work:t7",
-    "do": "spawn",
-    "basis": {"kind": "work", "turn": "t7"},
-}
+LIMIT = "CLAUDE_CODE_AUTO_BACKGROUND_TIMEOUT_MS"
 
 
-def test_leaf_hears_of_the_end_of_a_fork_the_module_spawned_and_no_other(
-    spawn, sessionless
-):
-    """The module keeps the forks it spawned in `$.state`, with the instruction each
-    ran, which a reload of its code leaves standing, so it reports that instruction
-    again as such a fork's run ends, even one spawned before the module loaded, and
-    runs nothing for any other agent's end."""
-    driven = ClaudeCode(spawn, "cc-ends", {"state": {"forks": {"agent-7": SPAWNED}}})
-    ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "turnId": "t9"}
-    driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-9"})
-    driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-7"})
-    step = driven.steps.get(timeout=STATED_TIMEOUT)
-    assert {name: step[name] for name in ("done", "do", "basis", "agent", "ended")} == {
-        "done": "work:t7",
-        "do": "spawn",
-        "basis": SPAWNED["basis"],
-        "agent": "agent-7",
-        "ended": {"answer": "Done."},
-    }, step
-    driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-7"})
-    driven.settle()
-    assert driven.steps.empty()
-    driven.quit()
-
-
-def test_a_forks_end_leaf_did_not_hear_of_is_told_again_as_the_next_turn_ends(
-    spawn, sessionless
-):
-    """The module forgets a fork only once Leaf has heard its run end: a step that
-    failed, as one past its timeout, leaves the fork in `$.state` with how it ended,
-    and the next main-loop turn's end tells Leaf again, rather than the fork's turn
-    running on unseen until it lapses."""
-    driven = ClaudeCode(
-        spawn,
-        "cc-ends-again",
-        {"state": {"forks": {"agent-7": SPAWNED}}, "stepFails": {"ended": True}},
-    )
-    ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "turnId": "t9"}
-    driven.emit("turn.complete", {**ended, "reason": "answer", "agentId": "agent-7"})
-    told = {"answer": "Done."}
-    assert driven.steps.get(timeout=STATED_TIMEOUT)["ended"] == told
-    driven.emit("turn.complete", {**ended, "reason": "aborted", "isAborted": True})
-    assert driven.steps.get(timeout=STATED_TIMEOUT)["ended"] == told
-    driven.settle()
-    driven.quit()
-
-
-def test_a_forks_end_leaf_did_not_hear_of_is_told_again_while_the_session_idles(
+def test_a_session_holding_a_page_has_its_long_commands_moved_to_the_background(
     page_dir, monkeypatch, spawn, sessionless
 ):
-    """A fork's end whose step failed, which the module keeps in `$.state` as a reload
-    finds it, is told again as the pages follower lists the session's pages, which
-    it does while no main-loop turn runs."""
-    driven = ClaudeCode(
-        spawn,
-        "cc-ends-idle",
-        {
-            "state": {"forks": {"agent-7": {**SPAWNED, "ended": {"answer": "Done."}}}},
-        },
-    )
+    """While the session holds a page, the module sets Claude Code's own limit on how
+    long a main-agent foreground command holds the turn to 90 s, after which Claude
+    Code moves it to the background and the page's input reaches the session. A
+    `leaf` command may take a page on, however its launcher is spelled, so the limit
+    is set before that command's result returns, ahead of the session's next call,
+    and taken back once the follower finds the session holds no page. A limit the
+    user set stays as it was, Leaf's own value included."""
+    quoted = '"/opt/leaf/bin/leaf" server start p'
+
+    pageless = ClaudeCode(spawn, "cc-pageless", {})
+    pageless.emit("tool.call", {"tool": "Bash", "command": quoted, "tool_use_id": "u1"})
+    assert pageless.environ.get_nowait() == {LIMIT: "90000"}
+    assert pageless.environ.get(timeout=STATED_TIMEOUT) == {LIMIT: None}
+    pageless.quit()
+
+    driven = ClaudeCode(spawn, "cc-limited", {})
     holding_page(driven, page_dir, monkeypatch)
-    told = {"answer": "Done."}
-    assert driven.steps.get(timeout=STATED_TIMEOUT)["ended"] == told
+    server_id = read_record(page_dir / "service.json")["server_id"]
+    server_rows_model.RowPublisher(page_dir, server_id).refresh()
+    # The follower's listing of the live page sets it, as in a session resumed
+    # holding one.
+    assert driven.environ.get(timeout=STATED_TIMEOUT) == {LIMIT: "90000"}
+    driven.quit()
+
+    own = ClaudeCode(spawn, "cc-own-limit", {"env": {LIMIT: "90000"}})
+    own.emit(
+        "tool.call",
+        {"tool": "Bash", "command": "leaf page state p", "tool_use_id": "u2"},
+    )
+    # The follower finds no page and ends, and the band is drawn empty.
+    own.bands.get(timeout=STATED_TIMEOUT)
+    own.settle()
+    assert own.environ.empty()
+    own.quit()
+
+
+def test_leaf_hears_nothing_from_a_subagent_and_hands_it_nothing(
+    page_dir, monkeypatch, spawn, sessionless, capsys
+):
+    """A subagent the session spawns runs the module's hooks and `hooks.json`'s
+    tool-boundary hook under its parent's session, naming itself, and Leaf neither
+    hears from it nor hands it input, since the main session passes it what it
+    needs. The module reports none of its calls or turns, so the first report Leaf
+    hears is that of the main thread's turn ending after them; and `leaf hook` skips
+    its PostToolBatch (`state.worker_tool_batch`), which hands over nothing and
+    records no pickup, while the main thread's next boundary hands over the user's
+    message."""
+    driven = ClaudeCode(spawn, "cc-subagent", {})
+    holding_page(driven, page_dir, monkeypatch)
+    asked = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Which Python?"}
+    )
+    subagent = {"agentId": "a1"}
+    driven.emit(
+        "tool.call",
+        {"tool": "Bash", "command": "leaf page state", "tool_use_id": "u1", **subagent},
+    )
+    ended = {"answer": "Done.", "durationMs": 1, "isAborted": False, "turnId": "t1"}
+    driven.emit("turn.complete", {**ended, "reason": "answer", **subagent})
+    driven.emit("turn.complete", {**ended, "reason": "answer"})
+    first = driven.steps.get(timeout=STATED_TIMEOUT)
+    assert first.get("turn_end") is True, first
+    wait_for(
+        lambda: driven.debug.get(timeout=STATED_TIMEOUT),
+        lambda line: line.startswith("Leaf: the clerk"),
+        failure=lambda: f"the clerk never reported: {list(driven.diagnostics.queue)}",
+    )
     driven.settle()
+    later = list(driven.steps.queue)
+    assert not any(step.get("turn_end") for step in later), later
+
+    def boundary(**payload) -> str:
+        capsys.readouterr()
+        hooks_model.cmd_hook(
+            "claude-code",
+            {"hook_event_name": "PostToolBatch", "session_id": "cc-subagent"} | payload,
+        )
+        return capsys.readouterr().out
+
+    assert boundary(agent_id="a1") == ""
+    assert not [
+        event
+        for event in events_model.read_events(page_dir)
+        if event["kind"] == "pickup"
+    ]
+    assert asked["text"] in boundary()
     driven.quit()
 
 
@@ -1098,7 +900,7 @@ def test_a_comment_is_titled_by_a_completion_on_the_sessions_own_model(
         {
             "completeReply": '{"title": "Poll interval"}',
             "completeRefusals": 1,
-            "forkAnswer": json.dumps({"line": "Checking", "work": "hand_over"}),
+            "forkAnswer": json.dumps({"line": "Checking"}),
         },
     )
     holding_page(driven, page_dir, monkeypatch)

@@ -3,13 +3,14 @@
 # retired a question; all five answered groups stayed open. Agents can do the step
 # the pick's delivery names ("write the answer into the markup") and stop there. The
 # main prompt replays the minute #4542 merged with that page's revision and the
-# pick's real delivery; the variant replays a pick that keeps today's behavior. The
-# delivery asks for the record once the work is done, since one naming only writing
-# in can leave the question open. For the earlier picks, delivered before that
-# wording, SKILL.md states the goal (bring the whole page up to date; decisions you
-# have acted on become settled records), since a one-line pointer to "Keep the
-# current page current" can leave them open. The `open-question` metric holds the
-# open `keys` question open.
+# pick's real delivery; the variant replays a pick that keeps today's behavior. Both
+# deliveries carry the handling the kernel registry gives at 43fed2e7e172, where the
+# main prompt passed 3 of 3 on Claude Code. The delivery asks for the record once the
+# work is done, since one naming only writing in can leave the question open. For the
+# earlier picks, delivered before that wording, SKILL.md states the goal (bring the
+# whole page up to date; decisions you have acted on become settled records), since a
+# one-line pointer to "Keep the current page current" can leave them open. The
+# `open-question` metric holds the open `keys` question open.
 description: decision-record-after-its-work
 metadata:
   purpose:
@@ -32,7 +33,7 @@ vars:
 
     ```json
     {
-     "format": "leaf-delivery/51",
+     "format": "leaf-delivery/59",
      "id": "483d8a07",
      "created_at": 1793155375.4377432,
      "acknowledge": null,
@@ -45,7 +46,7 @@ vars:
        "handling": {
         "h1": "The user already sees the action applied.",
         "h2": "If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note.",
-        "h3": "It answers the page's obligation, which waits on you until the markup records the answer. Before starting the work it selects or unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it and write the answer into the markup. Once the work is done, make the question a record of the decision (`references/authoring-revisions.md`, \"Keep the current page current\"), such as a choice group marked `settled` with what came of it beside it, and stamp a version. An option the user added needs no writing in; the page keeps it where the user put it."
+        "h3": "It answers the page's obligation, which waits on you until the markup records the answer. Before starting the work it selects or unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it and write the answer into the markup. Once the work is done, make the question a record of the decision (`references/authoring-revisions.md`, \"Keep the current page current\"), such as an `lf-options` marked `settled` with what came of it beside it, and stamp a version. An option the user added needs no writing in; the page keeps it where the user put it."
        },
        "events": [
         {
@@ -260,20 +261,20 @@ vars:
               </p>
               <lf-options id="portable-scope">
                 <lf-option id="portable-scope-none" label="Keep widgets Leaf-only">
-                  <small class="tag">0 names</small> <strong>Keep widgets Leaf-only</strong>
+                  <small class="lf-tag">0 names</small> <strong>Keep widgets Leaf-only</strong>
                   #3833 closes with what has landed, and widgets keep importing any runtime
                   helper.
                 </lf-option>
                 <lf-option id="portable-scope-display" label="Make the display widgets portable" recommended selected>
-                  <small class="tag">41 names</small>
-                  <small class="tag">6 widgets</small> <strong>Make the display widgets portable</strong>
+                  <small class="lf-tag">41 names</small>
+                  <small class="lf-tag">6 widgets</small> <strong>Make the display widgets portable</strong>
                   <code>lf-chart</code>, <code>lf-tally</code>, <code>lf-code</code>,
                   <code>lf-diagram</code>, <code>lf-timeline</code> and
                   <code>lf-motion</code> load on a plain page, checked in CI.
                 </lf-option>
                 <lf-option id="portable-scope-all" label="Make every package widget portable">
-                  <small class="tag">204 names</small>
-                  <small class="tag">36 modules</small> <strong>Make every package widget portable</strong>
+                  <small class="lf-tag">204 names</small>
+                  <small class="lf-tag">36 modules</small> <strong>Make every package widget portable</strong>
                   Every package module loads on a plain page, interaction widgets
                   included, checked in CI.
                 </lf-option>
@@ -374,7 +375,7 @@ vars:
                   <strong>Keep it on its branch</strong> Nothing lands, and the next widget waits on this question.
                 </lf-option>
                 <lf-option id="chart-land-merge" label="Open a PR and land it" recommended selected>
-                  <small class="tag">+1 public module</small> <strong>Open a PR and land it</strong>
+                  <small class="lf-tag">+1 public module</small> <strong>Open a PR and land it</strong>
                   With the review fixes, and <code>portable-api.js</code> named in root
                   <code>AGENTS.md</code>.
                 </lf-option>
@@ -418,19 +419,19 @@ vars:
               </p>
               <lf-options id="keys-route">
                 <lf-option id="keys-route-calls" label="Keep the call; make the keyboard modules load anywhere">
-                  <small class="tag">keyboard graph portable</small> <strong>Keep the call; make the keyboard modules load anywhere</strong>
+                  <small class="lf-tag">keyboard graph portable</small> <strong>Keep the call; make the keyboard modules load anywhere</strong>
                   <code>commands(…)</code> stays. Leaf's keyboard modules stop reading the page
                   at load. Off Leaf the call does nothing, so <code>w</code> does nothing.
                 </lf-option>
                 <lf-option id="keys-route-data" label="Declare the rows as data that Leaf reads" recommended>
-                  <small class="tag">register stays owner</small> <strong>Declare the rows as data that Leaf reads</strong>
+                  <small class="lf-tag">register stays owner</small> <strong>Declare the rows as data that Leaf reads</strong>
                   The widget exposes the same rows as a property, for example
                   <code>this.commands = [{ id: "code.wrap", keys: ["w"], … }]</code>, and
                   fires an event when they change. Leaf binds them as it does today. Off Leaf
                   nothing reads them.
                 </lf-option>
                 <lf-option id="keys-route-markup" label="Declare keys in markup on a button">
-                  <small class="tag">attribute both ways</small> <strong>Declare keys in markup on a button</strong>
+                  <small class="lf-tag">attribute both ways</small> <strong>Declare keys in markup on a button</strong>
                   The block draws
                   <code>&lt;button commandfor="…" command="--wrap" aria-keyshortcuts="w"&gt;Wrap&lt;/button&gt;</code>.
                   Leaf binds <code>w</code> from the attribute. Off Leaf the button still
@@ -495,7 +496,7 @@ vars:
               </p>
               <lf-options id="diff-filter">
                 <lf-option id="diff-filter-reach" label="Find reaches filtered files" recommended selected>
-                  <small class="tag">today</small> <strong>Find reaches filtered files</strong>
+                  <small class="lf-tag">today</small> <strong>Find reaches filtered files</strong>
                   A match in a hidden file clears the filter and lands on it.
                 </lf-option>
                 <lf-option id="diff-filter-skip" label="Find skips filtered files">
@@ -517,12 +518,12 @@ vars:
               </p>
               <lf-options id="transcript-folds">
                 <lf-option id="transcript-folds-hidden" label="Find skips folded messages">
-                  <small class="tag">today</small> <strong>Find skips folded messages</strong>
+                  <small class="lf-tag">today</small> <strong>Find skips folded messages</strong>
                   Folds stay out of find; Leaf's travel unfolds them through
                   <code>revealedBy</code>.
                 </lf-option>
                 <lf-option id="transcript-folds-findable" label="Find reaches folded messages" recommended selected>
-                  <small class="tag">−1 mechanism</small> <strong>Find reaches folded messages</strong>
+                  <small class="lf-tag">−1 mechanism</small> <strong>Find reaches folded messages</strong>
                   ⌘F unfolds the message it matches, and <code>revealedBy</code> is
                   deleted.
                 </lf-option>
@@ -577,7 +578,7 @@ variants:
 
         ```json
         {
-         "format": "leaf-delivery/51",
+         "format": "leaf-delivery/59",
          "id": "7b924a8e",
          "created_at": 1793137004.122991,
          "acknowledge": null,
@@ -590,7 +591,7 @@ variants:
            "handling": {
             "h1": "The user already sees the action applied.",
             "h2": "If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note.",
-            "h3": "It answers the page's obligation, which waits on you until the markup records the answer. Before starting the work it selects or unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it and write the answer into the markup. Once the work is done, make the question a record of the decision (`references/authoring-revisions.md`, \"Keep the current page current\"), such as a choice group marked `settled` with what came of it beside it, and stamp a version. An option the user added needs no writing in; the page keeps it where the user put it."
+            "h3": "It answers the page's obligation, which waits on you until the markup records the answer. Before starting the work it selects or unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it and write the answer into the markup. Once the work is done, make the question a record of the decision (`references/authoring-revisions.md`, \"Keep the current page current\"), such as an `lf-options` marked `settled` with what came of it beside it, and stamp a version. An option the user added needs no writing in; the page keeps it where the user put it."
            },
            "events": [
             {
@@ -856,20 +857,20 @@ variants:
                   </p>
                   <lf-options id="portable-scope">
                     <lf-option id="portable-scope-none" label="Keep widgets Leaf-only">
-                      <small class="tag">0 names</small> <strong>Keep widgets Leaf-only</strong>
+                      <small class="lf-tag">0 names</small> <strong>Keep widgets Leaf-only</strong>
                       #3833 closes with what has landed, and widgets keep importing any runtime
                       helper.
                     </lf-option>
                     <lf-option id="portable-scope-display" label="Make the display widgets portable" recommended selected>
-                      <small class="tag">41 names</small>
-                      <small class="tag">6 widgets</small> <strong>Make the display widgets portable</strong>
+                      <small class="lf-tag">41 names</small>
+                      <small class="lf-tag">6 widgets</small> <strong>Make the display widgets portable</strong>
                       <code>lf-chart</code>, <code>lf-tally</code>, <code>lf-code</code>,
                       <code>lf-diagram</code>, <code>lf-timeline</code> and
                       <code>lf-motion</code> load on a plain page, checked in CI.
                     </lf-option>
                     <lf-option id="portable-scope-all" label="Make every package widget portable">
-                      <small class="tag">204 names</small>
-                      <small class="tag">36 modules</small> <strong>Make every package widget portable</strong>
+                      <small class="lf-tag">204 names</small>
+                      <small class="lf-tag">36 modules</small> <strong>Make every package widget portable</strong>
                       Every package module loads on a plain page, interaction widgets
                       included, checked in CI.
                     </lf-option>
@@ -926,7 +927,7 @@ variants:
                   </p>
                   <lf-options id="diff-filter">
                     <lf-option id="diff-filter-reach" label="Find reaches filtered files" recommended selected>
-                      <small class="tag">today</small> <strong>Find reaches filtered files</strong>
+                      <small class="lf-tag">today</small> <strong>Find reaches filtered files</strong>
                       A match in a hidden file clears the filter and lands on it.
                     </lf-option>
                     <lf-option id="diff-filter-skip" label="Find skips filtered files">
@@ -948,12 +949,12 @@ variants:
                   </p>
                   <lf-options id="transcript-folds">
                     <lf-option id="transcript-folds-hidden" label="Find skips folded messages">
-                      <small class="tag">today</small> <strong>Find skips folded messages</strong>
+                      <small class="lf-tag">today</small> <strong>Find skips folded messages</strong>
                       Folds stay out of find; Leaf's travel unfolds them through
                       <code>revealedBy</code>.
                     </lf-option>
                     <lf-option id="transcript-folds-findable" label="Find reaches folded messages" recommended selected>
-                      <small class="tag">−1 mechanism</small> <strong>Find reaches folded messages</strong>
+                      <small class="lf-tag">−1 mechanism</small> <strong>Find reaches folded messages</strong>
                       ⌘F unfolds the message it matches, and <code>revealedBy</code> is
                       deleted.
                     </lf-option>

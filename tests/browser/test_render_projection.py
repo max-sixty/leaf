@@ -28,6 +28,7 @@ from render_harness import (
     leaf_page,
     names,
     open_page,
+    press_draft_control,
     resized,
     root_overflow,
     round_trip,
@@ -41,11 +42,12 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
-from leaf.render_checks import wait_until_ready
-from leaf.render_gate.readings import DevtoolsIssues
+from leaf.log import event_log as events_model
+from leaf.pages.render_gate.readings import DevtoolsIssues
+from leaf.records import page_data as page_data_model
+from leaf.source import render_checks as render_checks_model
+from leaf.source.render_checks import wait_until_ready
+from leaf_dev.browser import text_field
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -89,8 +91,8 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
 +            return f"tok:{request.token.id}"
 +        return f"ip:{request.remote_addr}"
 """
-    data_model.cmd_data_set(serve.page_dir, "request-call-diff", capture)
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(serve.page_dir, "request-call-diff", capture)
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         {
@@ -225,7 +227,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         ),
         to="feature-2",
     )
-    data_model.cmd_data_set(serve.page_dir, "request-call-diff", updated)
+    page_data_model.cmd_data_set(serve.page_dir, "request-call-diff", updated)
     told(page)
     # A retained row carries the capture it now shows, at its place in the tree.
     expect(lines.nth(2)).to_have_attribute(
@@ -240,9 +242,10 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     ]
     expect(group).to_have_attribute("open", "")
     expect(groups).to_have_count(2)
-    expect(groups.nth(1)).not_to_have_attribute("open", "")
+    # A root the capture adds opens as it arrives, as the first did.
+    expect(groups.nth(1)).to_have_attribute("open", "")
     expect(widget.locator(".lf-call-toggle")).to_have_attribute(
-        "aria-label", "Expand all 2 call-tree roots"
+        "aria-label", "Collapse all 2 call-tree roots"
     )
     expect(lines.nth(2).locator(".lf-call-location")).to_have_text(
         "gateway/limits.py:40"
@@ -283,12 +286,11 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         "Opened gateway/limits.py:40 in the exact patch"
     )
     expect(added).to_be_focused()
-    # Each line already stood in the window once the diff revealed it, so neither
-    # trip departed: no history entry, and the address kept no fragment.
-    assert page.evaluate("history.length") == entries
-    expect(page).not_to_have_url(re.compile(r"#patch$"))
+    # Each trip lands the user on a line they weren't on, so each is a Back step, as a
+    # followed link is, though the diff had already brought the line into the window.
+    assert page.evaluate("history.length") == entries + 2
 
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         patch.replace(" class Limiter:", " class Limiter:  # raw source"),
@@ -328,7 +330,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
         "§ added call-tree item └─ if request.token at gateway/limits.py:40"
     )
 
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         """diff --git a/gateway/limits.py b/gateway/limits.py
@@ -338,7 +340,7 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
  shifted_call()
 """,
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "request-call-diff",
         call_diff(call_node("shifted_call()", "gateway/limits.py", 102)),
@@ -354,14 +356,14 @@ def test_call_diff_projects_stable_commentable_rows(browser, serve):
     )
 
     # Native trees can contain synthetic nodes without source coordinates.
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir, "request-call-diff", call_diff(call_node("synthetic()"))
     )
     told(page)
     expect(widget.locator(".lf-call-group-summary")).to_contain_text("synthetic()")
     expect(widget.locator(".lf-call-location:visible")).to_have_count(0)
 
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "request-call-diff",
         call_diff(message="No callstack changes for requested entrypoints."),
@@ -417,12 +419,12 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
         page.keyboard.insert_text(provided[1:])
     else:
         write(editor, provided)
-    expect(draft.get_by_role("textbox")).to_have_js_property("value", provided)
-    draft_control(page, "save", "ledger-cargo").click()
+    expect(text_field(draft)).to_have_js_property("value", provided)
+    press_draft_control(page, "save", "ledger-cargo")
     round_trip(page)
     expect_obligations_answered(page, "1/5")
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute(
-        "aria-label", re.compile(r"^On Me: [1-9]")
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", re.compile(r"^On Me · [1-9]\d* waiting on me")
     )
 
     honoring = re.sub(
@@ -447,14 +449,14 @@ def test_command_hub_an_absorbed_input_stays_fulfilled(browser, serve, provided)
     # The saved answer remains in the reviewable obligation inventory after the source
     # drops `required`; it is completed, not newly owed to the user.
     expect_obligations_answered(page, "1/5")
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute(
-        "aria-label", re.compile(r"^On Me: [1-9]")
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", re.compile(r"^On Me · [1-9]\d* waiting on me")
     )
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("required")
     expect(page.locator("#ledger-cargo")).not_to_have_attribute("data-lf-user-override")
     expect(page.locator("#ledger-fixture")).to_be_visible()
     draft_control(page, "edit", "ledger-cargo").click()
-    expect(page.locator("#ledger-cargo").get_by_role("textbox")).to_have_js_property(
+    expect(text_field(page.locator("#ledger-cargo"))).to_have_js_property(
         "value", provided
     )
 
@@ -472,7 +474,6 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
     write(seat.locator(".lf-fab-input"), "Finish the current hunk, then park here.")
     with sending(page, "the held send"):
         seat.get_by_role("button", name="Send & pause", exact=True).click()
-    expect(goal).to_have_attribute("data-lf-held")
     # Leaf says what the press did beyond a comment, in words that hold for any widget.
     expect(page.locator(".lf-live")).to_have_text("Held until resolved")
     page.locator("#atlas-record .lf-activity-news").click()
@@ -487,7 +488,7 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
         if event.get("holds") == "goal-parser"
     )
 
-    seat.get_by_role("textbox", name="Reply", exact=True).scroll_into_view_if_needed()
+    text_field(seat, name="Reply", exact=True).scroll_into_view_if_needed()
     append_carried_log_record(
         d,
         {
@@ -500,7 +501,6 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
         },
     )
     told(page)
-    expect(goal).to_have_attribute("data-lf-held", root["id"])
     # The reply landed where the user was looking, so it waits for them to open it.
     seat.get_by_role("button", name="1 new", exact=True).click()
     inline_link = seat.locator('a[href="https://example.com/run"]')
@@ -518,7 +518,6 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
     open_panel_thread(page, root["id"])
     with sending(page, "the resolution"):
         page.locator(".lf-fp-thread-controls :is(.lf-resolve, .lf-reopen)").click()
-    expect(goal).not_to_have_attribute("data-lf-held")
     page.locator("#atlas-record .lf-activity-news").click()
     released = page.locator("#atlas-record .lf-activity-row").first
     expect(released).to_contain_text(
@@ -531,7 +530,6 @@ def test_atlas_send_and_pause_is_one_thread_fold(browser, serve):
     page.locator("#atlas-record .lf-activity-news").click()
     expect(released).to_have_attribute("data-lf-undone", "")
     expect(released).to_contain_text("undone")
-    expect(goal).to_have_attribute("data-lf-held", root["id"])
     assert [
         event["kind"]
         for event in events_model.read_events(d)

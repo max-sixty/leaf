@@ -2,6 +2,7 @@
 
 import ast
 import contextlib
+import gc
 import inspect
 import itertools
 import json
@@ -12,27 +13,31 @@ import signal
 import subprocess
 import sys
 import tempfile
+import threading
+import traceback
 from functools import cache
 from pathlib import Path
 from typing import NamedTuple
 
+import greenlet
 import psutil
 import pytest
 from click.testing import CliRunner
 from playwright.sync_api import Frame, Page, sync_playwright
 
-from leaf import cli as cli_model
-from leaf import codex as codex_model
-from leaf import codex_adapter as codex_adapter_model
-from leaf import harness as harness_model
-from leaf import layer as layer_model
-from leaf import leases as leases_model
-from leaf import machine as machine_model
-from leaf import state as cleanup_model
-from leaf.registry.schema import schema_error, with_leaf_resources
-from leaf.render_gate import browser as browser_model
-from leaf.render_gate import command as render_command_model
-from leaf.render_gate import handover_pass as handover_pass_model
+from leaf.agents import codex as codex_model
+from leaf.agents import codex_adapter as codex_adapter_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import machine as machine_model
+from leaf.base import state as cleanup_model
+from leaf.commands import cli as cli_model
+from leaf.commands import hooks as hooks_model
+from leaf.pages.render_gate import browser as browser_model
+from leaf.pages.render_gate import command as render_command_model
+from leaf.serving import handover_pass as handover_pass_model
+from leaf.source import layer as layer_model
+from leaf.source.registry.schema import schema_error, with_leaf_resources
 from leaf_dev import LEAF_COMMAND as SOURCE_LEAF_COMMAND
 from leaf_dev.browser import FIREFOX_PREFS, linux_font_environment, shell_executable
 from leaf_dev.page_fixtures import package_selection_args
@@ -50,6 +55,10 @@ LEAF_COMMAND = list(SOURCE_LEAF_COMMAND)
 FAILING_HARNESS_PROGRAMS = Path(__file__).parent / "fixtures" / "programs" / "failing"
 
 
+# The run's own stderr, which a test's output capture leaves in place.
+_STDERR = pytest.StashKey[object]()
+
+
 def pytest_configure(config):
     """Set the conditions every test in this process runs under, before any of them.
 
@@ -65,6 +74,8 @@ def pytest_configure(config):
       `unnamed_browser`).
     - On Linux, text is laid out in the fixed fontconfig's faces
       (`leaf_dev.browser.linux_font_environment`).
+    - A test that outlives most of `faulthandler_timeout` has its stacks printed to
+      the run's own stderr (`pytest_runtest_protocol`).
     - Every child starts the way a terminal starts one. A run launched as a shell's
       background job is handed SIGINT set to SIG_IGN, and an inherited SIG_IGN survives
       both Python startup and `exec`, so everything the run spawns would ignore the
@@ -79,6 +90,8 @@ def pytest_configure(config):
     for name, value in linux_font_environment().items():
         run.setenv(name, value)
     signal.signal(signal.SIGINT, signal.default_int_handler)
+    config.stash[_STDERR] = os.fdopen(os.dup(2), "w")
+    config.add_cleanup(config.stash[_STDERR].close)
 
 
 _PROCESS_STATE = pytest.StashKey[dict]()
@@ -315,8 +328,9 @@ def _page_pool(tmp_path_factory):
 
 @pytest.fixture
 def initialized_page(_page_pool, tmp_path):
-    """Put a page initialized with `packages` at `destination`, from the pool, in the
-    default theme, or in none with `theme=False`.
+    """Put a page initialized with `packages` at `destination`, from the pool. The
+    page lists Leaf's `reading` theme ahead of them, as an author's page does, or
+    leaves it out with `reading=False`.
 
     `prepared`, a `(key, step)` pair, runs `step` on the page after `page init`, and
     `key` tells its shape from the bare initialized one: an example's stamped
@@ -339,22 +353,18 @@ def initialized_page(_page_pool, tmp_path):
     lent = []
     own = tmp_path.resolve()
 
-    def lend(destination, packages, prepared=None, *, theme=None):
+    def lend(destination, packages, prepared=None, *, reading=True):
         destination = Path(destination)
-        packages = tuple(packages)
+        packages = (
+            *(("reading",) if reading else ()),
+            *(package for package in packages if package != "reading"),
+        )
         key, step = prepared or (None, None)
-        theme_args = ["--no-theme"] if theme is False else []
 
         def initialize(target):
             made = CliRunner().invoke(
                 cli_model.cli,
-                [
-                    "page",
-                    "init",
-                    *package_selection_args(packages),
-                    *theme_args,
-                    str(target),
-                ],
+                ["page", "init", *package_selection_args(packages), str(target)],
             )
             assert made.exit_code == 0, made.output
             if step:
@@ -367,7 +377,7 @@ def initialized_page(_page_pool, tmp_path):
         if any(root.is_relative_to(own) for root in resolved):
             initialize(destination)
             return destination
-        shape = (layer_model.ASSETS, packages, theme, resolved, key)
+        shape = (layer_model.ASSETS, packages, resolved, key)
         page = _page_pool.lend(shape, destination, initialize)
         lent.append((shape, page))
         return page
@@ -395,6 +405,44 @@ def pytest_addoption(parser):
         metavar="REF",
         help="Also run the `browser` and `journeys` tests whose own source changed since REF",
     )
+
+
+# How long before `faulthandler_timeout` (pyproject.toml) a hung test's greenlets are
+# printed, long enough for `gc` to walk a worker's objects on a loaded runner.
+_GREENLET_DUMP_LEAD_S = 60
+
+
+def _dump_greenlets(stream):
+    """Print the stack of every suspended greenlet to `stream`.
+
+    Playwright's sync API runs the test in a greenlet and switches to its event loop
+    while a call waits, so faulthandler's dump of every thread shows the event loop
+    and never the test line whose call is waiting."""
+    stream.write("\nGreenlet stacks before faulthandler_timeout:\n")
+    for each in gc.get_objects():
+        if isinstance(each, greenlet.greenlet) and each.gr_frame is not None:
+            stream.write(f"\n{each!r}\n")
+            traceback.print_stack(each.gr_frame, file=stream)
+    stream.flush()
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_protocol(item):
+    """A test still running shortly before `faulthandler_timeout` ends its worker has
+    its greenlets' stacks printed first (`_dump_greenlets`), so the crash report names
+    the call it waits in."""
+    timeout = float(item.config.getini("faulthandler_timeout") or 0)
+    if timeout <= _GREENLET_DUMP_LEAD_S:
+        return (yield)
+    timer = threading.Timer(
+        timeout - _GREENLET_DUMP_LEAD_S, _dump_greenlets, (item.config.stash[_STDERR],)
+    )
+    timer.daemon = True
+    timer.start()
+    try:
+        return (yield)
+    finally:
+        timer.cancel()
 
 
 @pytest.hookimpl(wrapper=True)
@@ -562,6 +610,28 @@ CLAUDE_IDENTITY = harness_model.ClaudeCodeHarness.identity_variables
 # The Claude Code sessions `isolated_session` marks as hooked: the worker's own
 # and the id lifecycle fixtures claim under (`record_claim`).
 HOOKED_SESSIONS = (f"pytest-{os.getpid()}", "s1")
+# The sessions whose hooks this tree runs, as a real first hook records it
+# (`leases.mark_root`), so this tree, a checkout, acts for them
+# (`state.runs_session`): the hooked sessions, and the Codex task the Codex tests
+# run as, whose hooks those tests leave unrun.
+ROOTED_SESSIONS = (*HOOKED_SESSIONS, "codex-thread")
+
+
+def hooks_run_this_tree(session_id: str) -> None:
+    """Record that `session_id`'s hooks run this tree, as its first hook would
+    (`leases.mark_root`), so this tree, a checkout, acts for the session
+    (`state.runs_session`). A test that runs as a session of its own calls it before
+    that session's first command."""
+    leases_model.mark_root(session_id, hooks_model.PLUGIN_ROOT)
+
+
+def hooks_run_leaf(session_id: str, root: Path) -> None:
+    """Record that `session_id`'s hooks run the Leaf at `root`, a copy other than
+    this tree, such as a preview's runtime, so that copy acts for the session and
+    this tree acts for none (`state.runs_session`)."""
+    leases_model.mark_root(session_id, root.resolve())
+
+
 # The tests this worker has isolated so far (`isolated_session`).
 _SESSIONS = itertools.count()
 
@@ -573,10 +643,10 @@ def isolated_session(tmp_path_factory, monkeypatch):
     Keep the developer's session and machine state out of every fixture. A page
     tagged with the session running the tests is otherwise reported as unattended
     by the loop guard. Isolate XDG_STATE_HOME, where Leaf stores claims and installed
-    packages, and CODEX_HOME, where Codex reads its configuration and sessions,
-    while retaining HOME so subprocesses share the host's uv cache. Clear the
-    developer's App Server endpoint and host launcher override so a fake task cannot
-    use them.
+    packages, XDG_CONFIG_HOME, where it reads the developer's settings, and
+    CODEX_HOME, where Codex reads its configuration and sessions, while retaining
+    HOME so subprocesses share the host's uv cache. Clear the developer's App Server
+    endpoint and host launcher override so a fake task cannot use them.
 
     The session the tests run as is this worker: a synthetic id, so nothing of
     the developer's answers for it, and the worker's own pid. Every page a test
@@ -620,10 +690,13 @@ def isolated_session(tmp_path_factory, monkeypatch):
     monkeypatch.setenv(handover_pass_model.VARIABLE, "off")
     # A Claude Code session whose harness runs Leaf's hooks and its module in this
     # worker's process, as the plugin installs them, supplying capability evidence
-    # to hook transport and turn activity.
+    # to hook transport and turn activity, and recording this tree as the Leaf its
+    # hooks run, so this tree's commands act for it (`state.runs_session`).
     for session in HOOKED_SESSIONS:
         leases_model.mark_hooks(session)
         leases_model.mark_module(session, os.getpid())
+    for session in ROOTED_SESSIONS:
+        hooks_run_this_tree(session)
     return cleanup_model.state_home()
 
 
@@ -915,6 +988,28 @@ def firefox_browser(_playwright, request):
     from render_harness import WatchedBrowser, clean_browser
 
     firefox = _playwright.firefox.launch(firefox_user_prefs=FIREFOX_PREFS)
+    try:
+        with clean_browser(request.node):
+            yield WatchedBrowser(firefox)
+    finally:
+        firefox.close()
+
+
+@pytest.fixture
+def scaled_firefox(_playwright, request):
+    """Desktop Firefox laying out at `request.param` device pixels to the CSS pixel, as
+    it does at a zoom such as 110% or on a screen of two device pixels to one. A
+    context's `device_scale_factor` doesn't move where Firefox's layout snaps a length
+    to the device's pixels, so a test of that takes this fixture, parametrized
+    `indirect`."""
+    from render_harness import WatchedBrowser, clean_browser
+
+    firefox = _playwright.firefox.launch(
+        firefox_user_prefs={
+            **FIREFOX_PREFS,
+            "layout.css.devPixelsPerPx": str(request.param),
+        }
+    )
     try:
         with clean_browser(request.node):
             yield WatchedBrowser(firefox)

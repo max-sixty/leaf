@@ -8,7 +8,7 @@ import pytest
 from interact_support import append_carried_log_record, element_declaration
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, SEATED_OBLIGATION_PAGE, panel_comment
-from render_cases_layout import overlapped_words, ring_faults, rings_drawn
+from render_cases_layout import overlapped_words
 from render_cases_navigation import NOTED_PAGE, compose
 from render_harness import (
     INLINE_PAGE,
@@ -19,6 +19,7 @@ from render_harness import (
     holding,
     leaf_page,
     open_page,
+    open_threads,
     opened_tab,
     panel_field,
     panel_settled,
@@ -29,14 +30,16 @@ from render_harness import (
     scroll_settled,
     sending,
     wait_for_check_api,
+    without_end_room,
     write,
 )
 
-from browser.navigation import READING_REGIONS_PAGE
+from browser.navigation import READING_REGIONS_PAGE, expect_walk_position
 from browser.threads import open_panel_thread
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
-from leaf_dev.browser import PANEL_THREAD
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
+from leaf_dev.rings import ring_faults, ring_rule, rings_drawn
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -219,7 +222,8 @@ def test_a_reply_link_moves_the_thread_walk_to_its_destination(
 
     The source message's caret must not remain the thread walk's starting point.
     Pointer and native keyboard links share that arrival with Go-to hints, from either
-    thread surface.
+    thread surface. The walk goes on in the place the user chose for threads: a card
+    after a thread read in its card, and the panel once they chose the panel.
     """
     url = serve(
         leaf_page(
@@ -298,7 +302,9 @@ def test_a_reply_link_moves_the_thread_walk_to_its_destination(
     expect(page.locator("#arrival")).to_be_focused()
     page.keyboard.press("t")
     next_thread = page.locator(
-        f'.lf-margin-preview .lf-page-thread[data-lf-thread="{roots[2]}"]'
+        f'{PANEL_THREAD}[data-lf-thread="{roots[2]}"]'
+        if surface == "panel"
+        else f'.lf-margin-preview .lf-page-thread[data-lf-thread="{roots[2]}"]'
     )
     expect(next_thread).to_be_focused()
 
@@ -351,7 +357,8 @@ def test_the_thread_walk_starts_at_a_fresh_fragment_reading(browser, serve, shad
         layer_registry = {"lf-shadow-reading": declaration}
         layer_widgets = {
             "lf-shadow-reading.js": """
-import { once, shadowStage } from "/runtime/widget-api.js";
+import { shadowStage } from "/runtime/widget-api.js";
+import { once } from "/runtime/lib/once.js";
 customElements.define("lf-shadow-reading", class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
@@ -456,6 +463,179 @@ def test_the_thread_walk_opens_the_thread_on_the_passage_the_caret_is_in(
         page.keyboard.press("Escape")
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_caret_in_an_age_is_where_the_thread_walk_starts(engine, request, serve):
+    """A caret in an age's drawn words, which a shadow root holds, is in the age in either
+    engine, so the walk opens the thread on the age's paragraph as it would from the
+    paragraph's own words. The caret goes there as caret browsing walks it, by the
+    engine's own caret movement (`Selection.modify`)."""
+    url = serve(
+        leaf_page(
+            "a caret in an age",
+            """
+<h1>Caret walk</h1>
+<p id="before">The earlier discussion comes first.</p>
+<p id="here">The import ran <lf-age datetime="2026-11-20T02:10:00Z">20 Nov</lf-age>,
+which this discussion is about.</p>
+<p id="after">The later discussion comes last.</p>
+""",
+        ),
+        anchored=[
+            ("before", "earlier discussion"),
+            ("here", "this discussion"),
+            ("after", "later discussion"),
+        ],
+    )
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    page = open_page(request.getfixturevalue(engine), url)
+    assert page.evaluate(
+        """() => {
+          const age = document.querySelector('#here lf-age');
+          const words = age.previousSibling;
+          getSelection().collapse(words, words.length);
+          getSelection().modify('move', 'forward', 'character');
+          getSelection().modify('move', 'forward', 'character');
+          const [caret] = getSelection().getComposedRanges({ shadowRoots: [age.shadowRoot] });
+          return caret.startContainer.getRootNode() === age.shadowRoot;
+        }"""
+    )
+    page.keyboard.press("t")
+    expect(
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{roots[1]}"]')
+    ).to_be_focused()
+
+
+@pytest.mark.parametrize("enters", ["c", "Enter"])
+def test_the_thread_walk_stops_at_each_unsent_comment(browser, serve, enters):
+    """A comment the user began and put away is a stop of the thread walk, in the page's
+    order among the open threads, as Threads lists the two together, a comment about a
+    passage of a paragraph holding a thread included. The walk opens the comment's box
+    on its words and stands the user on the box, not in it, so the next `t` walks on and
+    puts the box away, and `c` or Enter puts the caret after the words. While the user
+    stands on the box it keeps its resting edge, so it doesn't look like one they type
+    in, and wears `c` as a key chip, since its words cover the placeholder that says
+    `c`."""
+    url = serve(
+        leaf_page(
+            "drafts in the walk",
+            """
+<h1>Drafts in the walk</h1>
+<p id="first">The first paragraph takes a comment on the whole of it.</p>
+<p id="second">The second paragraph holds the open thread and a comment on a passage.</p>
+""",
+        ),
+        anchored=[("second", "open thread")],
+    )
+    page = open_page(browser, url)
+    field = page.locator(".lf-fab-input")
+    box = page.locator("#lf-composer .lf-compose-field")
+    page.locator("#first").click(modifiers=["Alt"])
+    write(field, "About the first.")
+    page.keyboard.press("Escape")
+    page.evaluate(
+        """() => {
+          const text = document.getElementById('second').firstChild;
+          const at = text.data.indexOf('a passage');
+          getSelection().setBaseAndExtent(text, at, text, at + 'a passage'.length);
+        }"""
+    )
+    page.keyboard.press("c")
+    write(field, "About the passage.")
+    page.keyboard.press("Escape")
+    # A press on the page starts the walk from what the window shows.
+    page.locator("h1").click()
+
+    page.keyboard.press("t")
+    expect(box).to_be_focused()
+    expect(field).to_have_js_property("value", "About the first.")
+    expect_walk_position(page, "1 of 3 threads and drafts")
+    page.keyboard.press("t")
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+    expect(page.locator(".lf-composer[data-lf-open]")).to_have_count(0)
+    page.keyboard.press("t")
+    expect(box).to_be_focused()
+    expect(field).to_have_js_property("value", "About the passage.")
+    chip = page.locator(".lf-command-binding-badges .lf-command-binding-badge")
+    expect(chip.filter(has_text="c")).to_be_visible()
+    assert ring_rule(box) == ""
+    assert ring_rule(box, "after") == ""
+    page.keyboard.press(enters)
+    expect(chip).to_have_count(0)
+    expect(field).to_be_focused()
+    assert ring_rule(box, "after")
+    expect(field).to_have_js_property("value", "About the passage.")
+    expect(field).to_have_js_property("selectionStart", len("About the passage."))
+
+
+def test_a_thread_stop_wears_c_on_a_reply_box_holding_words(browser, serve):
+    """A thread card the walk stands on whose reply box holds a draft wears `c` as a chip
+    on that box's corner, since the draft's words cover the placeholder that says `c`
+    in an empty box. `c` puts the caret after the words, and the chip goes."""
+    url = serve(
+        leaf_page(
+            "a reply draft",
+            '<h1>A reply draft</h1><p id="said">The thread on this paragraph waits.</p>',
+        ),
+        anchored=[("said", "thread on this paragraph")],
+    )
+    page = open_page(browser, url)
+    card = page.locator(".lf-margin-preview .lf-page-thread")
+    reply = card.locator("leaf-text")
+    chip = page.locator(".lf-command-binding-badges .lf-command-binding-badge")
+    page.locator("h1").click()
+    page.keyboard.press("t")
+    expect(card).to_be_focused()
+    expect(chip).to_have_count(0)
+    page.keyboard.press("c")
+    write(reply, "Left unsent.")
+    page.keyboard.press("Escape")
+    page.locator("h1").click()
+
+    page.keyboard.press("t")
+    expect(card).to_be_focused()
+    expect(chip.filter(has_text="c")).to_be_visible()
+    frame = card.locator(".lf-compose-field").bounding_box()
+    at = chip.bounding_box()
+    assert frame and at
+    assert abs(at["x"] + at["width"] / 2 - frame["x"]) < 2
+    assert abs(at["y"] + at["height"] / 2 - frame["y"]) < 2
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("selectionStart", len("Left unsent."))
+    expect(chip).to_have_count(0)
+
+
+def test_the_thread_walk_reaches_a_resolved_thread_holding_an_unsent_reply(
+    browser, serve
+):
+    """A thread resolved with a reply still unsent is a stop of the walk, which opens it
+    where the reply's words wait, so `t` reaches every draft Threads lists."""
+    url = serve(
+        leaf_page(
+            "a resolved thread with a reply",
+            '<h1>Resolved</h1><p id="said">The thread on this paragraph is resolved.</p>',
+        ),
+        anchored=[("said", "thread on this paragraph")],
+    )
+    page = open_page(browser, url)
+    page.locator('[data-lf-margin-for="said"] .lf-margin-marker').click()
+    reply = page.locator(".lf-margin-preview .lf-page-thread leaf-text")
+    write(reply, "A reply left unsent.")
+    page.locator(".lf-margin-preview .lf-resolve").click()
+    page.locator("h1").click()
+
+    page.keyboard.press("t")
+    expect(page.locator(PANEL_THREAD)).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(page.locator("leaf-text:focus")).to_have_js_property(
+        "value", "A reply left unsent."
+    )
+
+
 def test_the_thread_walk_reaches_a_thread_in_view_ahead_of_the_first_paragraph(
     browser, serve
 ):
@@ -532,7 +712,7 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
     then centre it vertically in the document. `scrollIntoView` also moved the document,
     jumping it to the nearest edge in the press's own task before the smooth centred
     navigation step began. Both local axes must move in that task, while the page waits
-    for its glide (scrolling.js, `glideTo`), whose frames carry it to the centre in one
+    for its glide (dom/scrolling.js, `glideTo`), whose frames carry it to the centre in one
     trip: each one further down, never turning back."""
     lead = "".join(
         f"<p>Reading context before the passage, line {i}.</p>" for i in range(32)
@@ -547,7 +727,7 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
 {lead}
 <div id="local">
   {"".join(f"<p>Local context line {i}.</p>" for i in range(16))}
-  <pre id="rail"><code>{"prefix " * 80}Far-side passage to review.</code></pre>
+  <pre id="rail" style="white-space: pre"><code>{"prefix " * 80}Far-side passage to review.</code></pre>
 </div>
 {tail}
 """,
@@ -558,7 +738,7 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
     )
     page = open_page(
         browser,
-        serve(source, anchored=[("far", "Far-side passage")]),
+        serve(source, anchored=[("local", "Far-side passage")]),
     )
     page.evaluate(
         """() => {
@@ -570,8 +750,9 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
             if (event.target === document)
               window.lfPageTrip.push(document.scrollingElement.scrollTop);
           }, {capture: true});
-          // Registered after the runtime's own listener, which answers a shortcut as
-          // the document captures it, so this reads the press's task once the walk has.
+          // Nothing is focused, so the key is aimed at the page itself, and the
+          // runtime answers it in its capture listener on the document. Registered
+          // after that one, this reads the press's task once the walk has.
           document.addEventListener('keydown', () => {
             window.lfAfterPress = {
               page: document.scrollingElement.scrollTop,
@@ -599,18 +780,24 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
     assert immediate["localXFits"], (
         f"the vertical scrollport also overflowed sideways: {immediate}"
     )
+    # The root's landing band at the window's foot, over the floating panel's cover.
+    foot = page.evaluate(
+        "async () => (await window.__lfWidgetApi()).landingInsets("
+        "document.scrollingElement).bottom"
+    )
     page.wait_for_function(
-        """() => {
+        """foot => {
           const range = [...(CSS.highlights.get('lf-mark-here') ?? [])][0];
           if (!range) return false;
           const rect = range.getBoundingClientRect();
           // The middle of the room the page shows, between the window's head and the
-          // panel at its foot, which the root's scroll padding states.
+          // panel at its foot.
           const style = getComputedStyle(document.scrollingElement);
           const top = parseFloat(style.scrollPaddingTop);
-          const bottom = innerHeight - parseFloat(style.scrollPaddingBottom);
+          const bottom = innerHeight - foot;
           return Math.abs((rect.top + rect.bottom) / 2 - (top + bottom) / 2) < 2;
-        }"""
+        }""",
+        arg=foot,
     )
     trip = page.evaluate("() => window.lfPageTrip")
     assert trip and trip == sorted(trip), (
@@ -738,11 +925,11 @@ def test_go_to_threads_lands_on_threads_from_a_page_thread(browser, serve, width
 
 def test_a_thread_walk_shows_one_thread_at_a_time(browser, serve):
     """A walk shows the thread it lands on and no other, so `c` and the walk's position
-    have one thread to mean. From a thread open in the panel, `t` to a thread about a
-    passage opens its card and puts the panel's view away; from that card, `t` to a
-    thread about the whole page opens it in the panel and closes the card. Were both to
-    stay open, the panel would say "Thread 2 of 2" under the thread the user had
-    left."""
+    have one thread to mean. From the thread about the whole page, open in the panel,
+    `t` to a thread about a passage opens its card and puts the panel's view away; from
+    a card, `t` to the thread about the whole page opens it in the panel and closes the
+    card. Were both to stay open, the panel would say "Thread 2 of 2" under the thread
+    the user had left."""
     url = serve(INLINE_PAGE)
     first = panel_comment(
         serve.page_dir, "About the bold text.", {"section": "p", "quote": "bold text"}
@@ -754,16 +941,20 @@ def test_a_thread_walk_shows_one_thread_at_a_time(browser, serve):
     )
     general = panel_comment(serve.page_dir, "About the whole page.")
     page = open_page(browser, url)
-    view = open_panel_thread(page, first)
+    view = open_panel_thread(page, general)
     # The caret leaves the reply for the view, where the thread's keys answer.
     page.keyboard.press("Escape")
     expect(view).to_be_focused()
 
+    # The thread about the whole page stands after every passage's, so `t` comes round
+    # to the first.
     page.keyboard.press("t")
     card = page.locator(".lf-margin-preview")
-    expect(card.locator(f'.lf-page-thread[data-lf-thread="{second}"]')).to_be_focused()
+    expect(card.locator(f'.lf-page-thread[data-lf-thread="{first}"]')).to_be_focused()
     expect(page.locator(PANEL_THREAD)).to_have_count(0)
 
+    page.keyboard.press("t")
+    expect(card.locator(f'.lf-page-thread[data-lf-thread="{second}"]')).to_be_focused()
     page.keyboard.press("t")
     expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{general}"]')).to_be_focused()
     expect(card).to_be_hidden()
@@ -869,7 +1060,9 @@ def test_a_walk_lands_on_a_thread_in_its_seat_in_view(browser, serve):
 
 
 def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
-    """The system focus outline replaces the surface paint high contrast removes."""
+    """A forced palette drops the shadow that frames a seated card, so the card keeps
+    its frame as an outline on its edge, and the reply box focused in it still draws
+    its own ring, on its `::after` over what the box holds (response.css)."""
     url = serve(SEATED_OBLIGATION_PAGE)
     root = panel_comment(
         serve.page_dir, "Which job should come first?", {"section": "jobs"}
@@ -886,18 +1079,23 @@ def test_forced_colors_keep_inline_thread_focus_visible(browser, serve):
     reply.click()
     expect(reply).to_be_focused()
     assert thread.evaluate("el => el.matches(':focus-within')")
-    focus = thread.evaluate(
+    frame = thread.evaluate(
         """el => { const s = getComputedStyle(el); return {
               style: s.outlineStyle, width: s.outlineWidth,
               offset: s.outlineOffset, shadow: s.boxShadow,
             }; }"""
     )
-    assert focus == {
+    assert frame == {
         "style": "solid",
-        "width": "2px",
-        "offset": "-2px",
+        "width": "1px",
+        "offset": "0px",
         "shadow": "none",
     }
+    ring = thread.locator(".lf-compose-field").evaluate(
+        "el => { const s = getComputedStyle(el, '::after');"
+        " return [s.outlineStyle, s.outlineWidth]; }"
+    )
+    assert ring == ["solid", "2px"], ring
 
 
 def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
@@ -937,15 +1135,16 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
         f"a sibling separator remained inside the current region: {frame}"
     )
 
-    separator = thread.evaluate(
-        """el => { const s = getComputedStyle(el, '::before'); return {
-          content: s.content, borderTop: s.borderTopWidth,
-        }; }"""
+    # Seated threads are framed cards a gap apart, not rules between bare threads.
+    apart = thread.evaluate(
+        """el => { const s = getComputedStyle(el);
+          const before = getComputedStyle(el, '::before');
+          const previous = el.previousElementSibling.getBoundingClientRect();
+          return {gap: el.getBoundingClientRect().top - previous.bottom,
+                  frame: s.boxShadow !== 'none', rule: before.content}; }"""
     )
-    assert separator == {
-        "content": '""',
-        "borderTop": "1px",
-    }, f"the gap between inline threads lost its separator: {separator}"
+    assert apart["gap"] > 0 and apart["frame"], apart
+    assert apart["rule"] == "none", apart
 
     resolve = thread.locator(":scope .lf-thread-meta-actions > .lf-resolve")
     expect(resolve).to_have_css("position", "relative")
@@ -999,11 +1198,20 @@ def test_inline_thread_surface_has_room_without_focus_reflow(browser, serve):
         placement["bodyMargin"], abs=1
     ), f"the first inline message has extra space below its author: {placement}"
 
+    # The reply box runs to the card's sides and foot, inside its hairline; the
+    # thread's controls and messages keep their room inside its padding.
+    reply_row = thread.locator(":scope > .lf-thread-reply").evaluate(
+        """row => { const box = row.getBoundingClientRect();
+          const card = row.parentElement.getBoundingClientRect();
+          return [box.left - card.left, card.right - box.right, card.bottom - box.bottom]; }"""
+    )
+    assert reply_row == [1, 1, 1], reply_row
     clearances = thread.evaluate(
         """el => {
           const root = el.getBoundingClientRect();
           return [...el.children]
-            .filter(child => child.getClientRects().length && getComputedStyle(child).display !== 'none')
+            .filter(child => child.getClientRects().length && getComputedStyle(child).display !== 'none'
+              && !child.matches('.lf-thread-reply'))
             .flatMap(child => {
               const box = child.getBoundingClientRect();
               return [box.left - root.left, root.right - box.right,
@@ -1218,7 +1426,7 @@ def thread_page(serve):
 
 def linked_thread(page, name):
     return page.locator(
-        f":is(.lf-page-thread:not([data-lf-part], .lf-fp-view *), .lf-fp-view)"
+        f":is(.lf-page-thread:not([data-lf-kind], .lf-fp-view *), .lf-fp-view)"
         f'[data-lf-thread="{name}"]'
     )
 
@@ -1235,17 +1443,21 @@ def test_thread_url_opens_its_canonical_surface_on_arrival(browser, serve, name)
     entries = page.evaluate("history.length")
     page.reload()
     wait_until_ready(page)
+    # A reload is a return: the thread opens again where the browser restored the page,
+    # with the user in it.
     expect(thread).to_be_focused()
     assert page.evaluate("history.length") == entries
     if name == "anchor01":
-        # Leaving the passage puts its card away. Back reveals that thread again.
+        # Leaving the passage puts its card away, renaming the entry, so Back returns
+        # to the link the user left by with no thread open, as they left it.
         link = page.get_by_role("link", name="Back to the heading")
         link.click()
         expect(page.locator("#start")).to_be_in_viewport()
         expect(thread).not_to_be_visible()
         page.go_back()
-        expect(thread).to_be_visible()
-        expect(page.locator("#target")).to_be_in_viewport()
+        expect(link).to_be_focused()
+        expect(thread).not_to_be_visible()
+        assert "thread" not in dict(parse_qsl(urlsplit(page.url).query))
     else:
         # A primary reader stays shown while the user reads elsewhere on the page.
         # Returning to its URL must keep that reading position as well.
@@ -1257,6 +1469,173 @@ def test_thread_url_opens_its_canonical_surface_on_arrival(browser, serve, name)
         page.go_back()
         expect(page.locator("#target")).to_be_in_viewport()
         assert page.evaluate("scrollY") == pytest.approx(reading_offset, abs=1)
+
+
+def test_t_after_a_reload_goes_on_from_the_thread_it_reopened(browser, serve):
+    """A reload opens the card its entry names again, with the user in it and the page
+    where the browser restored it, so the first `t` after it goes on to the next
+    thread, a Back step, rather than landing on the card already open."""
+    url = serve(LONG_PAGE, anchored=[("p3", "Paragraph 3."), ("p41", "Paragraph 41.")])
+    page = open_page(browser, url)
+    card = page.locator(".lf-margin-preview .lf-page-thread")
+    page.keyboard.press("t")
+    expect(card).to_be_focused()
+    first = card.get_attribute("data-lf-thread") or ""
+    page.keyboard.press("t")
+    expect(card).not_to_have_attribute("data-lf-thread", first)
+    second = card.get_attribute("data-lf-thread") or ""
+    # The reload restores the offset the walk's landing reached, not one mid-glide.
+    scroll_settled(page)
+    read_to = page.evaluate("scrollY")
+    page.reload()
+    wait_until_ready(page)
+    expect(card).to_have_attribute("data-lf-thread", second)
+    expect(card).to_be_focused()
+    assert page.evaluate("scrollY") == pytest.approx(read_to, abs=2)
+    entries = page.evaluate("history.length")
+    page.keyboard.press("t")
+    expect(card).to_have_attribute("data-lf-thread", first)
+    expect(card).to_be_focused()
+    page.wait_for_function("navigation.transition === null")
+    assert page.evaluate("history.length") == entries + 1
+
+
+def test_back_to_a_hidden_fragment_opens_the_thread_its_entry_names(browser, serve):
+    """Back to an entry naming a thread and a fragment the page has hidden since reveals
+    the fragment, which puts away the panel's view standing over it, and opens the
+    thread the entry names again after, as the page then stands."""
+    filler = "".join(f"<p>Reading context {n}.</p>" for n in range(40))
+    url = serve(
+        leaf_page(
+            "Hidden fragment",
+            '<h1 id="top">Hidden fragment</h1><p id="middle">The middle.</p>'
+            f'{filler}<details id="more" open><summary>More</summary>'
+            '<p id="foot">The foot.</p></details>',
+        )
+    )
+    root = panel_comment(serve.page_dir, "About the whole page.")
+    for n in range(3):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Claude",
+                "parent": root,
+                "revision": 1,
+                "text": f"Reply {n}. " + "More of the explanation. " * 12,
+            },
+        )
+    page = open_page(browser, thread_url(url, root, "foot"))
+    thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
+    expect(thread).to_be_visible()
+    # To another entry with the thread still open, by no press that would put it away.
+    page.evaluate("location.hash = 'middle'")
+    expect(page.locator("#middle")).to_be_focused()
+    expect(thread).to_be_visible()
+    page.evaluate("document.getElementById('more').open = false")
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    expect(page.locator("#foot")).to_be_visible()
+    expect(thread).to_be_visible()
+    page.wait_for_function("navigation.transition === null")
+    query = dict(parse_qsl(urlsplit(page.url).query))
+    assert query.get("thread") == root
+    assert urlsplit(page.url).fragment == "foot"
+
+
+@pytest.mark.parametrize(
+    "anchor",
+    [None, {"section": "gone", "quote": "Words a revision removed."}],
+    ids=["about the page", "passage removed"],
+)
+def test_a_threads_row_and_resolve_s_move_on_are_back_steps(browser, serve, anchor):
+    """A press on a row of Threads lands the user in a thread they weren't in, a Back
+    step as every other route's is, and so does Resolve moving them on from it to the
+    next thread; Back returns to the thread they resolved. A thread with no passage on
+    the page opens in the panel with nothing to land beside it, about the whole page or
+    about words a revision removed, and its view alone makes the step."""
+    url = serve(LONG_PAGE)
+    threads = [
+        panel_comment(serve.page_dir, "First question?", anchor),
+        panel_comment(serve.page_dir, "Second question?", anchor),
+    ]
+    page = open_page(browser, url)
+    open_threads(page)
+    view = page.locator(PANEL_THREAD)
+    rows = page.locator(".lf-fp-thread")
+    expect(rows).to_have_count(2)
+    page.wait_for_function("navigation.transition === null")
+    entries = page.evaluate("history.length")
+    rows.first.click()
+    expect(view).to_be_visible()
+    opened = view.get_attribute("data-lf-thread")
+    assert opened in threads
+    page.wait_for_function("navigation.transition === null")
+    assert page.evaluate("history.length") == entries + 1
+    with sending(page, "the resolve that moves on"):
+        page.locator(".lf-fp-thread-controls .lf-resolve").click()
+    expect(view).not_to_have_attribute("data-lf-thread", opened or "")
+    page.wait_for_function("navigation.transition === null")
+    assert page.evaluate("history.length") == entries + 2
+    page.go_back()
+    expect(view).to_have_attribute("data-lf-thread", opened or "")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_back_from_a_thread_opened_from_threads_returns_to_its_row(
+    request, serve, engine
+):
+    """Back from a thread a press on a row of Threads opened in the panel, as one about a
+    passage opens for a user who chose the panel for threads, returns to Threads, on
+    that row, as the view's own way back does, rather than closing the panel; Forward
+    opens the thread again. The entry keeps the list and its row across a reload of the
+    document, which forgets the panel's views, so the thread the reload opens again
+    still gives way to Threads on Back, and after Escape put the thread away, when Back
+    has no thread to put away."""
+    url = serve(LONG_PAGE)
+    for n, text in enumerate(("First question?", "Second question?", "Third?"), 1):
+        panel_comment(
+            serve.page_dir, text, {"section": f"p{n}", "quote": f"Paragraph {n}."}
+        )
+    page = open_page(request.getfixturevalue(engine), url)
+    choose_threads_in_panel(page)
+    open_threads(page)
+    rows = page.locator(".lf-fp-thread")
+    expect(rows).to_have_count(3)
+    pressed = rows.nth(1)
+    key = pressed.get_attribute("data-lf-key")
+    pressed.click()
+    opened = page.locator(PANEL_THREAD).get_attribute("data-lf-thread") or ""
+    thread = linked_thread(page, opened)
+    expect(thread).to_be_visible()
+    page.wait_for_function("navigation.transition === null")
+
+    row = page.locator(f'.lf-fp-thread[data-lf-key="{key}"]')
+    for reload in (True, False):
+        if reload:
+            page.reload()
+            wait_until_ready(page)
+            expect(thread).to_be_visible()
+        page.go_back()
+        expect(page.locator(panel_view("threads"))).to_be_visible()
+        expect(row).to_be_focused()
+        expect(thread).to_be_hidden()
+        page.wait_for_function("navigation.transition === null")
+        page.go_forward()
+        expect(thread).to_be_visible()
+        page.wait_for_function("navigation.transition === null")
+
+    # Escape puts the thread away where the user stands, so Back has no thread to put
+    # away, and the entry's own record names the row.
+    page.keyboard.press("Escape")
+    if thread.is_visible():
+        page.keyboard.press("Escape")
+    expect(thread).to_be_hidden()
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    expect(page.locator(panel_view("threads"))).to_be_visible()
+    expect(row).to_be_focused()
 
 
 def test_following_a_thread_url_uses_native_history(browser, serve):
@@ -1271,14 +1650,217 @@ def test_following_a_thread_url_uses_native_history(browser, serve):
     assert "thread=" not in page.url
     page.go_forward()
     wait_until_ready(page)
+    # Forward into the document is a return, so the thread opens in place.
     expect(linked_thread(page, "general1")).to_be_focused()
     assert page.evaluate("history.length") == entries + 1
 
 
-def test_authored_fragment_takes_precedence_over_thread_query(browser, serve):
+def test_a_thread_url_with_a_fragment_lands_there_with_the_thread_open(browser, serve):
+    """The fragment places the page, and the thread the URL names opens beside it
+    without moving it, so a reload of an entry that showed both shows both again."""
     page = open_page(browser, thread_url(thread_page(serve), "general1", "target"))
+    expect(linked_thread(page, "general1")).to_be_visible()
     expect(page.locator("#target")).to_be_in_viewport()
-    expect(page.locator('.lf-page-thread[data-lf-thread="general1"]')).to_have_count(0)
+
+
+def test_a_message_s_copied_link_opens_its_thread_on_that_message(browser, serve):
+    """A message's Copy link copies the page's address naming that message, without
+    the fragment the address held, and the link opens the thread on the message; `y`
+    on the thread's Resolve, which the panel draws apart from its messages, copies the
+    thread's own link."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Where does this end?")
+    reply = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "revision": 1,
+            "text": "At the last paragraph.",
+        },
+    )["id"]
+    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
+    page = open_page(browser, thread_url(url, root, "p59"), context=context)
+    thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
+    message = thread.locator(f'.lf-msg[data-lf-event="{reply}"]')
+    message.hover()
+    message.locator(".lf-msg-link").click()
+    expect(message.locator(".lf-msg-link")).to_have_js_property("status", "success")
+    copied = page.evaluate("navigator.clipboard.readText()")
+    # The address as the page holds it, naming the reply in place of the thread.
+    link, here = urlsplit(copied), urlsplit(page.url)
+    assert here.fragment == "p59"
+    assert (link.path, dict(parse_qsl(link.query)), link.fragment) == (
+        here.path,
+        {**dict(parse_qsl(here.query)), "thread": reply},
+        "",
+    )
+    page.locator(".lf-fp-thread-controls .lf-resolve").focus()
+    page.keyboard.press("y")
+    page.wait_for_function(
+        "copied => navigator.clipboard.readText().then((now) => now !== copied)",
+        arg=copied,
+    )
+    assert page.evaluate("navigator.clipboard.readText()") == copied.replace(
+        reply, root
+    )
+
+    followed = open_page(browser, copied, context=context)
+    expect(
+        followed.locator(f'{PANEL_THREAD} .lf-msg[data-lf-event="{reply}"]')
+    ).to_be_focused()
+
+
+def test_a_finger_copies_a_reply_s_link(browser, serve):
+    """Under a finger, where the address names only the thread, a reply offers its Copy
+    link, though not its Copy, whose words a finger selects instead. The opening
+    message offers neither, its link being the thread's, which the address names."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Where does this end?")
+    reply = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "revision": 1,
+            "text": "At the last paragraph.",
+        },
+    )["id"]
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844},
+        has_touch=True,
+        is_mobile=True,
+        permissions=["clipboard-read", "clipboard-write"],
+    )
+    page = open_page(browser, thread_url(url, root), context=context)
+    message = page.locator(f'{PANEL_THREAD} .lf-msg[data-lf-event="{reply}"]')
+    expect(message.locator(".lf-msg-copy")).to_be_hidden()
+    opening = page.locator(f'{PANEL_THREAD} .lf-msg[data-lf-event="{root}"]')
+    expect(opening.locator(".lf-msg-link")).to_be_hidden()
+    message.locator(".lf-msg-link").tap()
+    expect(message.locator(".lf-msg-link")).to_have_js_property("status", "success")
+    copied = urlsplit(page.evaluate("navigator.clipboard.readText()"))
+    assert dict(parse_qsl(copied.query))["thread"] == reply
+
+
+def test_a_link_to_a_folded_message_opens_its_fold(browser, serve):
+    """A link naming a message a summary folds opens the fold and lands on it."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Where does this end?")
+    said = [
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Claude",
+                "parent": root,
+                "revision": 1,
+                "text": f"Step {n}.",
+            },
+        )["id"]
+        for n in range(3)
+    ]
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "summary",
+            "author": "agent",
+            "agent": "Claude",
+            "thread": root,
+            "from": said[0],
+            "through": said[1],
+            "text": "The first two steps.",
+        },
+    )
+    page = open_page(browser, thread_url(url, said[0]))
+    expect(
+        page.locator(f'{PANEL_THREAD} .lf-msg[data-lf-event="{said[0]}"]')
+    ).to_be_focused()
+
+
+@pytest.mark.parametrize(
+    "named",
+    [
+        {"author": "user", "emoji": "👍"},
+        {"author": "agent", "agent": "Claude", "text": "Reading.", "ephemeral": True},
+    ],
+    ids=["reaction", "progress"],
+)
+def test_a_link_naming_a_message_drawn_without_a_row_opens_its_thread(
+    browser, serve, named
+):
+    """A link naming a reaction, a chip on the message it answers, or a step of the
+    agent's work, which the thread draws as a face, opens the thread as its own link
+    does."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Where does this end?", author="agent")
+    event = append_carried_log_record(
+        serve.page_dir, {"kind": "reply", "parent": root, "revision": 1, **named}
+    )["id"]
+    page = open_page(browser, thread_url(url, event))
+    expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')).to_be_focused()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_back_and_forward_show_the_thread_each_entry_names(request, serve, engine):
+    """An entry's `?thread=` names the thread view standing open on it, renamed as views
+    open and close where the user stands. A link followed out of a thread a URL opened
+    puts the view away and leaves an entry naming no thread; Back returns to the
+    thread, with the user on the link they left by and the page where it was, and
+    Forward to the link's target with the view put away again. Escape puts the view
+    away by renaming the entry, never by a traversal."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Where does this end?")
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "revision": 1,
+            "text": "See [the last paragraph](#p59).",
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), thread_url(url, root))
+    # The last paragraph ends a page with no room below it, so the view stands over it.
+    without_end_room(page)
+    thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
+    expect(thread).to_be_focused()
+
+    def query():
+        return dict(parse_qsl(urlsplit(page.url).query))
+
+    start = page.evaluate("navigation.currentEntry.index")
+    link = thread.get_by_role("link", name="the last paragraph")
+    link.click()
+    expect(page.locator("#p59")).to_be_focused()
+    expect(thread).to_be_hidden()
+    page.wait_for_url(lambda now: "thread" not in dict(parse_qsl(urlsplit(now).query)))
+    entries = page.evaluate("navigation.entries().length")
+
+    page.go_back()
+    expect(link).to_be_focused()
+    assert query()["thread"] == root
+    page.wait_for_function("scrollY === 0")
+    page.go_forward()
+    expect(thread).to_be_hidden()
+    expect(page.locator("#p59")).to_be_in_viewport()
+    assert "thread" not in query()
+    expect(page.locator("#p59")).to_be_focused()
+
+    page.go_back()
+    expect(link).to_be_focused()
+    page.keyboard.press("Escape")
+    expect(thread).to_be_hidden()
+    page.wait_for_url(lambda now: "thread" not in dict(parse_qsl(urlsplit(now).query)))
+    assert page.evaluate("navigation.entries().length") == entries
+    assert page.evaluate("navigation.currentEntry.index") == start
 
 
 def test_unknown_thread_url_reports_the_missing_destination(browser, serve):
@@ -1355,48 +1937,33 @@ def test_thread_url_reveals_a_tab_despite_its_generated_display_fragment(
         ],
     )
     page = open_page(browser, thread_url(url, "answer01"), context=one_user)
-    expect(linked_thread(page, "anchor01")).to_be_focused()
+    expect(
+        linked_thread(page, "anchor01").locator('.lf-msg[data-lf-event="answer01"]')
+    ).to_be_focused()
     expect(page.locator("#target")).to_be_in_viewport()
     assert page.evaluate("history.length") == 2
-    assert urlsplit(page.url).fragment == ""
+    # The tab set names the view it opened beside the thread, and the entry keeps both:
+    # the thread by the reply the link named, or by its own id where the tab set's
+    # rename came before the thread stood open and the entry was named again after.
+    assert urlsplit(page.url).fragment == "second"
+    assert dict(parse_qsl(urlsplit(page.url).query))["thread"] in (
+        "answer01",
+        "anchor01",
+    )
     page.reload()
     wait_until_ready(page)
-    expect(linked_thread(page, "anchor01")).to_be_focused()
-    page.emulate_media(reduced_motion="no-preference")
-    page.evaluate(
-        """() => {
-          const preview = document.querySelector('.lf-margin-preview');
-          preview.addEventListener('transitionrun', function hold(event) {
-            if (event.propertyName !== 'opacity' || !preview.inert) return;
-            for (const animation of preview.getAnimations()) animation.pause();
-            preview.removeEventListener('transitionrun', hold);
-          });
-        }"""
-    )
-    # The hold catches only a fade the tab press starts, so the card still stands
-    # placed when the press lands; a card already put away fails here, not in the wait.
-    expect(page.locator(".lf-margin-preview")).to_have_attribute(
-        "data-lf-thread-placement", re.compile(r".+")
-    )
+    expect(linked_thread(page, "anchor01")).to_be_visible()
+    # A press on the other tab puts the card away, so the entry it leaves names no
+    # thread, and Back returns to the tab with the card put away.
     page.get_by_role("tab", name="First", exact=True).click()
     expect(page.locator("#first")).to_be_visible()
     assert urlsplit(page.url).fragment == "first"
-    page.wait_for_function(
-        """() => {
-          const preview = document.querySelector('.lf-margin-preview');
-          return preview.inert && preview.getAnimations().some(a => a.playState === 'paused');
-        }"""
-    )
     page.go_back()
     wait_until_ready(page)
-    assert page.locator("#second").is_visible()
-    expect(linked_thread(page, "anchor01")).to_be_visible()
-    assert urlsplit(page.url).fragment == ""
-    # The card stands under its passage at the full measure, over the link below it,
-    # so the reader puts it away before the press.
-    preview = page.locator(".lf-margin-preview")
-    preview.get_by_role("button", name="Dismiss thread view", exact=True).click()
-    expect(preview).to_be_hidden()
+    expect(page.locator("#target")).to_be_visible()
+    expect(linked_thread(page, "anchor01")).to_be_hidden()
+    assert urlsplit(page.url).fragment == "second"
+    assert "thread" not in dict(parse_qsl(urlsplit(page.url).query))
     # Opening an authored fragment link in a new document inherits the query,
     # just as Copy Link or Open in New Tab does.
     heading_url = page.get_by_role("link", name="Return to the heading").evaluate(

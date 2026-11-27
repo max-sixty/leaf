@@ -36,16 +36,16 @@ from pathlib import Path
 
 from interact_support import ModelPage, model_layer, served_state_error, served_thread
 
-from leaf.data import data_version, value_revision
-from leaf.event_contracts import admitted_event
-from leaf.files import document_descriptor, version_descriptors
-from leaf.passages import SourceReading
-from leaf.registry.storage import served_layer
-from leaf.served_state.context import PageRead
-from leaf.served_state.page import read_served_page
-from leaf.served_state.service import LivePage, PageStateService
-from leaf.served_state.tail import answer
-from leaf.structure import SourceDocument
+from leaf.base.files import document_descriptor, version_descriptors
+from leaf.records.event_contracts import admitted_event
+from leaf.serving.served_state.context import PageRead
+from leaf.serving.served_state.page import read_served_page
+from leaf.serving.served_state.service import LivePage, PageStateService
+from leaf.serving.served_state.tail import answer
+from leaf.source.data import data_version, value_revision
+from leaf.source.layer import served_layer
+from leaf.source.reading import SourceReading
+from leaf.source.structure import SourceDocument
 
 NOW = "2026-09-19T12:00:00+00:00"
 
@@ -67,7 +67,6 @@ UNCLAIMED = {
     "turn_closed": None,
     "turn_opened": None,
     "turn_takes_input": False,
-    "agent_turns": {},
     "input_wakes": False,
     "session_cwd": None,
 }
@@ -241,7 +240,7 @@ def _fold(
     # the same packages the page would install, without writing an installation.
     registry = {
         **(registry or model_layer()),
-        "$layer": {"generation": "0" * 32, "packages": [], "theme": None},
+        "$layer": {"generation": "0" * 32, "packages": []},
     }
     data = data or {"version": "0" * 16, "sources": {}}
     door = ModelPage(documents=parsed, registry=registry, data=data)

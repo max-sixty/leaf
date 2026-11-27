@@ -1,11 +1,13 @@
 /* A floating box's placement: an answer computed for a placement a later one superseded
-   writes nothing, so the later placement's plane and way of standing hold; and the
-   scroll invalidation a held plane adds leaves the watch's own when it ends. */
+   writes nothing, so the later placement's plane and way of standing hold; and each
+   scroll around the element it is watched against, and then around the words it stands
+   beside, solves it again, once. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
 
-const { floatingPlacement } = await import("/runtime/annotation-overlay/floating.js");
+const { floatingPlacement, floatingUi } =
+  await import("/runtime/annotations/annotation-overlay/floating.js");
 
 test("a superseded answer leaves the newer placement's plane and spot", async () => {
   const floating = document.createElement("div");
@@ -59,7 +61,8 @@ test("a superseded answer leaves the newer placement's plane and spot", async ()
   assert.equal(floating.style.top, "20px");
 });
 
-test("leaving a held plane keeps the watch's own scroll invalidation", async () => {
+test("each scroll around what a box is watched against or stood beside solves it again, once", async () => {
+  const { getOverflowAncestors } = await floatingUi();
   const scroller = document.createElement("div");
   scroller.style.overflowY = "auto";
   const row = document.createElement("p");
@@ -68,12 +71,18 @@ test("leaving a held plane keeps the watch's own scroll invalidation", async () 
   document.body.append(scroller, floating);
   let updates = 0;
   const placement = floatingPlacement({ floating, update: () => updates++ });
-  // Floating UI's autoUpdate registers the update it is given on each scroller around
-  // the reference.
-  placement.watch(row, { contextElement: row }, (reference, box, update) => {
-    scroller.addEventListener("scroll", update);
-    return () => scroller.removeEventListener("scroll", update);
-  });
+  /** @type {unknown} */
+  let asked = null;
+  placement.watch(
+    row,
+    { contextElement: row },
+    (reference, box, update, options) => {
+      asked = options;
+      return () => {};
+    },
+    getOverflowAncestors,
+  );
+  assert.deepEqual(asked, { ancestorScroll: false });
   const answer = {
     x: 0,
     y: 0,
@@ -95,17 +104,32 @@ test("leaving a held plane keeps the watch's own scroll invalidation", async () 
       () => "window",
       contextNode,
     );
-  // Held in, the placement solves again on each scroll around the row; placed again
-  // against nothing those scrollers hold, it stops.
+  const scrolled = () => {
+    updates = 0;
+    scroller.dispatchEvent(new Event("scroll"));
+    return updates;
+  };
+  assert.equal(
+    scrolled(),
+    1,
+    "watched before any placement stands it, the box hears the row's scroller",
+  );
   placement.begin();
   await position(row);
   placement.begin();
+  await position(row);
+  assert.equal(scrolled(), 1, "the row's scroller solves the box once per scroll");
+  placement.begin();
   await position(null);
-
-  updates = 0;
-  scroller.dispatchEvent(new Event("scroll"));
-  assert.equal(updates, 1, "the watch no longer hears the scroller");
+  assert.equal(
+    scrolled(),
+    0,
+    "placed against nothing it holds, the scroller is let go",
+  );
+  placement.begin();
+  await position(row);
   placement.stop();
+  assert.equal(scrolled(), 0, "a stopped placement hears no scroll");
   scroller.remove();
   floating.remove();
 });

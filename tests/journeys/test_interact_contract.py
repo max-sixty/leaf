@@ -25,15 +25,17 @@ from interact_support import (
 )
 from model.interact_contract import _value_verb
 
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import data_contracts as data_contracts_model
-from leaf import event_log as events_model
-from leaf import revisioning as revisioning_model
-from leaf import structure as structure_model
-from leaf import thread as thread_model
-from leaf import vendoring as vendoring_model
-from leaf.registry import storage as registry_storage
+from leaf.agents import thread as thread_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.pages import vendoring as vendoring_model
+from leaf.records import page_data as page_data_model
+from leaf.records import revisioning as revisioning_model
+from leaf.source import data as data_model
+from leaf.source import data_contracts as data_contracts_model
+from leaf.source import revision_artifact as artifact_model
+from leaf.source import structure as structure_model
+from leaf.source import vocabulary as vocabulary_model
 from leaf_dev.page_fixtures import package_selection_args
 
 
@@ -103,7 +105,7 @@ def test_revendoring_can_drop_a_historical_data_binding(page_dir):
     vendoring_model.cmd_init(page_dir, (*page_packages(), "./.leaf"))
     # Revision 1 is the document read under the package's binding.
     assert revisioning_model.activate_source(page_dir).error is None
-    data_model.cmd_data_set(page_dir, "builds", [])
+    page_data_model.cmd_data_set(page_dir, "builds", [])
 
     refreshed = CliRunner().invoke(
         cli_model.cli,
@@ -111,13 +113,13 @@ def test_revendoring_can_drop_a_historical_data_binding(page_dir):
     )
 
     assert refreshed.exit_code == 0, refreshed.output
-    historical = data_contracts_model.read_revision(page_dir, 1).registry
+    historical = artifact_model.read_revision(page_dir, 1).registry
     assert (
         data_model.read_data(page_dir, historical)["sources"]["builds"]["value"] == []
     )
     current = read_page_data(page_dir)["sources"]["builds"]
     assert "error" in current and "value" not in current
-    data_model.cmd_data_clear(page_dir, "builds")
+    page_data_model.cmd_data_clear(page_dir, "builds")
     refreshed = CliRunner().invoke(cli_model.cli, ["page", "init", str(page_dir)])
     assert refreshed.exit_code == 0, refreshed.output
 
@@ -182,21 +184,15 @@ def test_withdrawal_may_name_an_outcome_that_retires_no_slots(trial_page):
     assert found(findings, "withdraws-outcome", "<lf-trial>", outcome="missing")
 
 
-@pytest.mark.parametrize(
-    ("arrangement", "refusal"),
-    [
-        ("own-verb", None),
-        ("recording-column-value", None),
-        ("recording-column-position", "'card' is not owned by action widget 'board'"),
-    ],
-)
+@pytest.mark.parametrize("arrangement", ["own-verb", "recording-column-value"])
 def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
-    server, page_dir, arrangement, refusal
+    server, page_dir, arrangement
 ):
     """A card's place belongs to the nearest ancestor recording that position slot.
 
     Scalar records on the card or its column coexist with the board's position
-    record. A column recording positions takes that slot from the board."""
+    record. A nearer widget recording the same slot takes it from the board
+    (`test_nested_member_records_refuse_foreign_selection_and_position`)."""
     card_verbs = {"flag": _value_verb("flag")}
     recorders = {"lf-card": ("flag", card_verbs)}
     if arrangement.startswith("recording-column"):
@@ -210,15 +206,9 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
             entry = registry[tag]
             entry["attributes"]["properties"] |= {
                 attr: {"type": "string"},
-                "restated": {"type": "boolean"},
             }
             entry["verbs"] = verbs
             (widgets / f"{tag}.js").write_text("export default class {}\n")
-        if arrangement == "recording-column-position":
-            registry["lf-column"]["verbs"]["move"] = {
-                "unit": "unit",
-                "record": {"kind": "position", "within": "lf-column"},
-            }
 
     declare_on_page(page_dir, record)
     result = check(page_dir)
@@ -246,11 +236,7 @@ def test_the_widget_that_records_a_parts_position_is_the_one_that_places_it(
             }
         ).encode(),
     )
-    if refusal is None:
-        assert status == 200, body
-    else:
-        assert status == 400, body
-        assert refusal in json.loads(body)["error"]
+    assert status == 200, body
 
 
 def test_check_names_a_media_reference_the_directory_cannot_answer(page_dir):
@@ -342,10 +328,10 @@ def test_sample_data_bindings_use_copied_data_but_not_parent_history(page_dir):
 
     # A child may rebind the copied source. An incompatible current value is an
     # error under its declaration, never passed off as a valid child payload.
-    data_model.cmd_data_set(page_dir, "shared", "parent value")
+    page_data_model.cmd_data_set(page_dir, "shared", "parent value")
     result = check(page_dir)
     assert result.exit_code == 0, result.output
-    registry = registry_storage.require_registry(page_dir)
+    registry = vocabulary_model.require_registry(page_dir)
     source_record = data_model.read_source(page_dir, "shared", registry)
     assert source_record is not None
     value = source_record["value"]
@@ -388,7 +374,7 @@ def test_sample_references_see_only_selected_threads(
         )
     )
     status, findings = check_findings(page_dir)
-    assert (status == 0) == seeded, findings
+    assert status == 0, findings
     if not seeded:
         samples = ("practice", "nested") if nested else ("practice",)
         assert [(f.code, f.samples) for f in findings] == [("unknown-thread", samples)]
@@ -459,8 +445,8 @@ def test_sample_fixture_accepts_native_message_markup(page_dir):
         ({"section": "outer-only"}, False, "no element id 'outer-only'"),
         (
             {"section": "child", "quote": "Words only in the parent"},
-            False,
-            "doesn't say",
+            True,
+            "finds 'Words only in the parent' nowhere in § child",
         ),
         ({"section": "child", "quote": "Child passage"}, True, ""),
         ({"section": "generated-option", "quote": "Generated passage"}, True, ""),
@@ -492,6 +478,7 @@ def test_sample_fixture_anchors_are_captured_in_the_child_reading(
                 "widget": "message-widget",
                 "action": "add",
                 "detail": {"option": "generated-option", "text": "Generated passage"},
+                "answered": False,
             },
         )
     source = (
@@ -505,4 +492,4 @@ def test_sample_fixture_anchors_are_captured_in_the_child_reading(
     assert (result.exit_code == 0) == valid, result.output
     if not valid:
         assert "sample 'practice'" in result.output
-        assert complaint in result.output
+    assert complaint in result.output

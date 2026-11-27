@@ -39,13 +39,14 @@ from render_harness import (
     write,
 )
 
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import user_views as user_views_model
-from leaf.registry.storage import load_registry, served_layer
-from leaf.render_checks import rendered, wait_until_ready
-from leaf.served_state.reading import page_reading, source_readings
+from leaf.base import files as files_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.serving import user_views as user_views_model
+from leaf.source.layer import served_layer
+from leaf.source.page_inputs import page_reading, source_readings
+from leaf.source.render_checks import rendered, wait_until_ready
+from leaf.source.vocabulary import load_registry
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -313,7 +314,8 @@ def test_failed_clock_paints_do_not_starve_other_widgets_or_restart_polling(
     page = open_page(browser, serve(LONG_PAGE))
     page.evaluate(
         """async () => {
-          const {LeafElement, clockValue} = await window.__lfWidgetApi();
+          const {clockValue} = await window.__lfWidgetApi();
+          const {LeafElement} = await window.__lfLibImport('leaf-element.js');
           const {noChange} = await window.__lfVendorImport('lit.js');
           window.clockVersion = 0;
           const probes = [];
@@ -432,7 +434,7 @@ def test_user_view_context_waits_for_a_samples_viewport_allocation(browser, serv
     )
     # Zero width is the state that stays: the sample sizes its frame to its content, so
     # one frame later a zero-wide document stands as tall as its words wrapped one per
-    # line. Either axis at zero is unallocated (user-view.js).
+    # line. Either axis at zero is unallocated (panel/user-view.js).
     frame.wait_for_function(
         """() => document.documentElement.clientWidth === 0 &&
           visualViewport.width === 0"""
@@ -466,7 +468,7 @@ def test_user_view_context_follows_real_tabs_without_changing_the_page(browser, 
     source = leaf_page(
         "View observation",
         '<h1 id="view-heading">Service capacity</h1>'
-        '<svg id="capacity-drawing" class="drawing" viewBox="0 0 1200 80">'
+        '<svg id="capacity-drawing" class="lf-drawing" viewBox="0 0 1200 80">'
         '<text x="20" y="40" font-size="12">Ten thousand requests</text></svg>',
     )
     url = serve(source)
@@ -568,16 +570,15 @@ def test_bad_shadow_words_after_upgrade_keep_the_page_usable(browser, serve):
     entry = {
         "description": "Late shadow words.",
         "attributes": {
-            "type": "object",
-            "properties": {"id": {"type": "string"}},
+            "properties": {},
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "shadow": True,
         "example": '<lf-probe id="probe"></lf-probe>',
     }
-    widget = """import {once, shadowStage} from '/runtime/widget-api.js';
+    widget = """import {shadowStage} from '/runtime/widget-api.js';
+import {once} from '/runtime/lib/once.js';
 customElements.define('lf-probe',class extends HTMLElement {connectedCallback(){if(!once(this))return;const p=document.createElement('p');p.textContent='Good words';shadowStage(this,[p]);}});"""
     page = browser.new_page(viewport={"width": 1200, "height": 900})
     held = []
@@ -671,7 +672,7 @@ def test_offline_reaction_waits_for_its_saved_state(browser, serve):
         "kind": "comment",
         "author": "user",
         "revision": 1,
-        "token": "keep",
+        "emoji": "👍",
         "anchor": {"section": "target"},
     }
     page = browser.new_page(viewport={"width": 1200, "height": 900})
@@ -696,7 +697,7 @@ def test_offline_reaction_waits_for_its_saved_state(browser, serve):
     select_words(page, "#target")
     page.keyboard.press("c")
     page.keyboard.press("Tab")
-    chip = page.locator('.lf-response-options .lf-react[data-lf-token="keep"]')
+    chip = page.locator('.lf-response-options .lf-react[data-lf-emoji="👍"]')
     expect(chip).to_have_attribute("aria-disabled", "true")
     chip.dispatch_event("click")
     chip.focus()
@@ -734,7 +735,7 @@ def test_opt_in_page_interface_joins_initial_widget_settlement(browser, serve):
     page.wait_for_function("() => window.releaseHeldPageInterface !== undefined")
     page.evaluate(
         """async () => {
-          const {nextFrame} = await window.__lfWidgetApi();
+          const {nextFrame} = await window.__lfLibImport('frame-pass.js');
           await new Promise(resolve => nextFrame(() => nextFrame(resolve)));
         }"""
     )

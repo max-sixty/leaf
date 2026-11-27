@@ -17,8 +17,8 @@ from render_harness import (
     sending,
 )
 
-from leaf import data as data_model
-from leaf.render_checks import one_frame, rendered, wait_until_ready
+from leaf.records import page_data as page_data_model
+from leaf.source.render_checks import one_frame, rendered, wait_until_ready
 from leaf_dev.example_data import patch_manifest
 
 
@@ -180,149 +180,6 @@ def test_a_visible_datum_takes_over_pending_thread_motion(browser, serve):
     assert 0 <= box["y"] < box["y"] + box["height"] <= page.viewport_size["height"]
 
 
-@pytest.mark.parametrize("view", ["patch", "file"])
-def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
-    browser, serve, view
-):
-    """A separately mounted navigator follows a diff's output and travels through
-    the ordinary datum route, including reactivation and updated source evidence."""
-
-    def patch(path, value):
-        return (
-            f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
-            f"@@ -1 +1 @@\n-old\n+{value}\n"
-        )
-
-    url = serve(
-        leaf_page(
-            "Browse patch files",
-            "<h1>Review the importer</h1>"
-            '<lf-file-tree id="files" for="patch" data-height="250"></lf-file-tree>'
-            f'<lf-diff id="patch" source="change" view="{view}" collapsed></lf-diff>',
-        )
-    )
-    data_model.cmd_data_set(
-        serve.page_dir,
-        "change",
-        patch_manifest(
-            patch("src/importer.py", "keep_names = True")
-            + patch("tests/importer.py", "assert keep_names")
-        ),
-    )
-    page = open_page(browser, url)
-    tree = page.locator("#files")
-    row = tree.get_by_role("treeitem", name=re.compile(r"importer\.py")).first
-    expect(row).to_be_visible()
-    folds = page.locator("#patch .lf-diff-fold")
-    if view == "patch":
-        expect(folds.first).not_to_have_attribute("open", "")
-    else:
-        expect(page.locator("#patch .lf-diff-search")).to_have_count(0)
-        expect(folds.first).to_have_attribute("open", "")
-    # Search narrows the navigator until a file is opened.
-    search = tree.get_by_role("textbox")
-    search.fill("importer")
-    row.click()
-    expect(search).to_have_value("")
-    expect(search).to_be_focused()
-    expect(folds.first).to_have_attribute("open", "")
-    expect(folds.first.locator("pre")).to_contain_text("keep_names = True")
-    # The same selected file still has an activation route after its patch closes.
-    folds.first.locator("summary").click()
-    row.click()
-    expect(folds.first).to_have_attribute("open", "")
-    # A released pointer activation keeps this navigator's keyboard ownership.
-    # The tree's folders remain part of its ordinary arrow-key traversal.
-    expect(row).to_be_focused()
-    search.fill("")
-    search.press("Tab")
-    expect(row).to_be_focused()
-    folder = tree.get_by_role("treeitem", name="src", exact=True)
-    page.keyboard.press("ArrowLeft")
-    expect(folder).to_be_focused()
-    page.keyboard.press("ArrowLeft")
-    expect(folder).to_have_attribute("aria-expanded", "false")
-    page.keyboard.press("ArrowRight")
-    expect(folder).to_have_attribute("aria-expanded", "true")
-    page.keyboard.press("ArrowDown")
-    expect(row).to_be_focused()
-    page.keyboard.press("ArrowDown")
-    expect(tree.get_by_role("treeitem", name="tests", exact=True)).to_be_focused()
-    page.keyboard.press("ArrowDown")
-    other = tree.get_by_role("treeitem", name=re.compile(r"importer\.py")).last
-    expect(other).to_be_focused()
-    page.keyboard.press("Enter")
-    expect(folds.last).to_have_attribute("open", "")
-    expect(folds.last.locator("pre")).to_contain_text("assert keep_names")
-    expect(other).to_be_focused()
-    if view == "file":
-        expect(folds.first).not_to_be_visible()
-        expect(folds.last).to_be_visible()
-        expect(other).to_have_attribute("aria-selected", "true")
-        # Trees confirms a search match onto its row; the row opens its file.
-        for path, visible in [
-            ("src/importer.py", folds.first),
-            ("tests/importer.py", folds.last),
-        ]:
-            search.fill(path)
-            search.press("ArrowDown")
-            search.press("Enter")
-            expect(search).to_have_value("")
-            expect(tree.locator(f'[data-item-path="{path}"]')).to_be_focused()
-            page.keyboard.press("Enter")
-            expect(visible).to_be_visible()
-        folds.last.locator("summary").press("{")
-        expect(folds.first).to_be_visible()
-        expect(folds.last).not_to_be_visible()
-        expect(row).to_have_attribute("aria-selected", "true")
-        expect(other).to_have_attribute("aria-selected", "false")
-        # Preparing new evidence does not take ownership of a selection made while
-        # that preparation is in flight. Hold one boundary to make the ordering exact.
-        page.evaluate("""() => {
-          const diff = document.getElementById('patch');
-          const prepareEntry = diff.prepareEntry.bind(diff);
-          const held = new Promise(resolve => window.releaseEvidence = resolve);
-          diff.prepareEntry = async (...args) => {
-            window.evidenceHeld = true;
-            await held;
-            return prepareEntry(...args);
-          };
-        }""")
-        data_model.cmd_data_set(
-            serve.page_dir,
-            "change",
-            patch_manifest(
-                patch("src/importer.py", "new_names = True")
-                + patch("tests/importer.py", "assert new_names")
-            ),
-        )
-        page.wait_for_function("window.evidenceHeld === true")
-        folds.first.locator("summary").press("}")
-        page.evaluate("window.releaseEvidence()")
-        expect(folds.last.locator("pre")).to_contain_text("assert new_names")
-        expect(folds.last).to_be_visible()
-        expect(folds.first).not_to_be_visible()
-        expect(other).to_have_attribute("aria-selected", "true")
-        expect(row).to_have_attribute("aria-selected", "false")
-    search.fill("")
-    # A source update replaces the producer inventory, rather than leaving stale rows.
-    data_model.cmd_data_set(
-        serve.page_dir,
-        "change",
-        patch_manifest(patch("src/reader.py", "preserve_case = True")),
-    )
-    next_row = tree.get_by_role("treeitem", name=re.compile(r"reader\.py"))
-    expect(next_row).to_be_visible()
-    expect(
-        tree.get_by_role("treeitem", name=re.compile(r"importer\.py"))
-    ).to_have_count(0)
-    next_row.click()
-    expect(page.locator("#patch pre")).to_contain_text("preserve_case = True")
-    # Clearing the input clears the derived inventory too.
-    data_model.cmd_data_clear(serve.page_dir, "change")
-    expect(tree.get_by_role("treeitem")).to_have_count(0)
-
-
 def test_reloading_a_picked_file_reopens_it_in_a_one_file_view(browser, serve):
     """Picking a file writes its key into the URL, and a reload opens that file again.
 
@@ -370,7 +227,7 @@ def test_a_patch_that_failed_stays_failed_when_its_diff_returns(browser, serve, 
     )
     url = serve(leaf_page("bad diff", f'<h1 id="t">Bad</h1>\n{diff}'))
     if bound:
-        data_model.cmd_data_set(serve.page_dir, "bad-patch", one + one)
+        page_data_model.cmd_data_set(serve.page_dir, "bad-patch", one + one)
     page = open_page(browser, url)
     expect(page.locator("#d-bad .lf-error")).to_contain_text("repeats file path")
     returned = page.evaluate("""async () => {
@@ -388,7 +245,7 @@ def test_a_patch_that_failed_stays_failed_when_its_diff_returns(browser, serve, 
     errors = consume_browser_errors(page, '<lf-diff id="d-bad"> failed: ')
     assert len(errors) == 1, errors
     if bound:
-        data_model.cmd_data_set(serve.page_dir, "bad-patch", one)
+        page_data_model.cmd_data_set(serve.page_dir, "bad-patch", one)
         expect(page.locator("#d-bad [data-line]").last).to_contain_text("y")
         expect(page.locator("#d-bad .lf-error")).to_have_count(0)
 
@@ -406,7 +263,7 @@ def test_a_patch_resumes_preparation_on_return_and_keeps_its_finished_rows(
     )
     url = serve(leaf_page("Returning diff", diff))
     if bound:
-        data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
+        page_data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
     page = browser.new_page()
     held = []
     page.route("**/vendor/pierre-parser.esm.js", lambda route: held.append(route))
@@ -460,7 +317,7 @@ def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(browser, 
             '<lf-diff id="patch" source="patch-data" collapsed></lf-diff>',
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
+    page_data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
     context = browser.new_context(
         viewport={"width": 360, "height": 800}, has_touch=True, is_mobile=True
     )
@@ -536,7 +393,7 @@ diff --git a/other.md b/other.md
             '<lf-diff id="patch" source="patch-data" collapsed></lf-diff>',
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
+    page_data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
     page = open_page(browser, url)
     held = []
     page.route("**/vendor/syntax/markdown.js", lambda route: held.append(route))
@@ -558,7 +415,8 @@ def test_one_press_folds_every_shown_file_and_the_page_shows_between_them(
     browser, serve
 ):
     """The filter's quiet press opens every file the filter shows while any is closed,
-    and closes them once all are open. The diff keeps the page's paper and ink between
+    and closes them once all are open, asking Leaf for one pass over the page's threads
+    rather than one for each file. The diff keeps the page's paper and ink between
     its files after the first file brings the renderer's sheets, whose `:host` is one
     file's box where here it is the whole diff."""
     patch = "".join(
@@ -591,10 +449,18 @@ def test_one_press_folds_every_shown_file_and_the_page_shows_between_them(
     assert diff.evaluate(paints) == page_paint
 
     expect(press).to_have_accessible_name("Expand all files")
+    diff.evaluate(
+        """node => {
+          node.layouts = 0;
+          node.addEventListener('lf-layout', () => node.layouts++);
+        }"""
+    )
     press.click()
     for index in range(3):
         expect(folds.nth(index)).to_have_attribute("open", "")
     rendered(page)
+    # One press asks for one thread pass, however many files it opens.
+    assert diff.evaluate("node => node.layouts") == 1
     expect(folds.locator("[data-line]")).to_have_count(6)
     expect(press).to_have_accessible_name("Collapse all files")
 
@@ -711,7 +577,7 @@ new mode 100755
         manifest = patch_manifest(patch)
         if name != "valid":
             manifest["files"][0]["patch"] = corruptions[name]
-        data_model.cmd_data_set(serve.page_dir, f"source-{name.lower()}", manifest)
+        page_data_model.cmd_data_set(serve.page_dir, f"source-{name.lower()}", manifest)
     page = open_page(browser, url)
     rendered(page)
     for name in corruptions:
@@ -765,7 +631,7 @@ def test_resolved_file_threads_share_the_file_disclosure_edge(browser, serve):
     with sending(page, "the resolution"):
         page.keyboard.press("Enter")
     summary = diff.locator(".lf-resolved-summary")
-    expect(summary).to_have_text("Resolved · 1")
+    expect(summary).to_have_text("Resolved · A")
     for width in (1440, 390):
         resized(page, width, 900)
         rendered(page)
@@ -990,7 +856,7 @@ def test_file_tree_reads_standalone_data_without_a_diff_package(browser, serve):
         ),
         packages=("file-tree",),
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "project",
         {
@@ -1007,7 +873,7 @@ def test_file_tree_reads_standalone_data_without_a_diff_package(browser, serve):
     expect(row).to_be_visible()
     row.click()
     expect(row).to_have_attribute("aria-selected", "true")
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "project",
         {
@@ -1047,7 +913,7 @@ def test_file_tree_keeps_the_folders_the_reader_closed_when_its_paths_change(
         ),
         packages=("file-tree",),
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "project",
         {"files": [{"path": "src/main.py"}, {"path": "tests/test_main.py"}]},
@@ -1058,7 +924,7 @@ def test_file_tree_keeps_the_folders_the_reader_closed_when_its_paths_change(
     expect(src).to_have_attribute("aria-expanded", "true")
     src.click()
     expect(src).to_have_attribute("aria-expanded", "false")
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "project",
         {
@@ -1112,9 +978,9 @@ def test_evidence_close_folds_room_but_retires_controls_immediately(
             + "".join(f"-old{i}\n+new{i}\n" for i in range(12))
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "change", content)
+    page_data_model.cmd_data_set(serve.page_dir, "change", content)
     if kind == "call":
-        data_model.cmd_data_set(
+        page_data_model.cmd_data_set(
             serve.page_dir,
             "patch-data",
             patch_manifest(
@@ -1146,7 +1012,9 @@ def test_evidence_close_folds_room_but_retires_controls_immediately(
     def height():
         return details.evaluate("d=>d.getBoundingClientRect().height")
 
-    page.evaluate("scrollTo(0, document.documentElement.scrollHeight)")
+    # The evidence stands at the foot of the window, with the page's end room below it
+    # (layouts.css).
+    page.locator("#after").evaluate("b => b.scrollIntoView({block: 'end'})")
     scroll_settled(page)
     full = height()
     animated = page.evaluate("""() =>

@@ -1,19 +1,18 @@
 // The two arms share one request and host inference settings. Only the output
 // contract changes: component configuration or complete HTML/CSS/JavaScript.
 import { nothing } from "/vendor/lit.js";
-import {
-  LeafElement,
-  generate,
-  dressCode,
-  keepsHidden,
-  keepsText,
-  publishOutput,
-  quoted,
-  tabStore,
-  whileConnected,
-} from "/runtime/widget-api.js";
+import { generate, dressCode, tabStore, whileConnected } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { keepsText } from "/runtime/lib/keeps.js";
 import { stagePreview, stageLeafPreview } from "../preview.js";
 import * as catalog from "../catalog.js";
+
+// An `lf-generated-document` holds its text as its `document` output; `change` says
+// it moved, for the reader that names it.
+const holdDocument = (element, text) => {
+  element.document = text;
+  element.dispatchEvent(new Event("change"));
+};
 
 const htmlInstructions = `Build a small, polished interactive widget for the user's request.
 
@@ -59,7 +58,7 @@ customElements.define(
       const overall = host.querySelector("#widget-status");
       field.value = tabStore.get("dynamic-widgets:request") ?? field.value;
 
-      if (!quoted(host))
+      if (!host.matches("[data-lf-exhibit] *"))
         whileConnected(host, (signal) => {
           let busy = false;
           const lanes = Object.entries(approaches).map(([name, approach]) => {
@@ -72,12 +71,12 @@ customElements.define(
               empty = get("empty"),
               code = get("code"),
               request = get("request");
-            publishOutput(get("instructions"), "document", approach.instructions);
-            publishOutput(request, "document", "No generation yet.");
+            holdDocument(get("instructions"), approach.instructions);
+            holdDocument(request, "No generation yet.");
             let view = null,
               ticker;
             const showError = (error) => {
-              keepsHidden(errorBox, false);
+              errorBox.toggleAttribute("hidden", false);
               keepsText(errorBox, error.message);
             };
             const draw = async (value) => {
@@ -85,7 +84,7 @@ customElements.define(
                 if (signal.aborted || view !== staged) return;
                 view = null;
                 staged.dispose();
-                keepsHidden(empty, false);
+                empty.toggleAttribute("hidden", false);
                 keepsText(status, "Widget error.");
                 keepsText(overall, "A preview encountered an error.");
                 showError(error);
@@ -96,7 +95,7 @@ customElements.define(
               staged.frame.removeAttribute("data-staging");
               staged.frame.inert = false;
               staged.frame.removeAttribute("aria-hidden");
-              keepsHidden(empty, true);
+              empty.toggleAttribute("hidden", true);
             };
             const metrics = (result) => {
               const time = result.timing;
@@ -112,9 +111,9 @@ customElements.define(
             const run = async (input) => {
               view?.dispose();
               view = null;
-              keepsHidden(empty, false);
-              keepsHidden(errorBox, true);
-              publishOutput(request, "document", input);
+              empty.toggleAttribute("hidden", false);
+              errorBox.toggleAttribute("hidden", true);
+              holdDocument(request, input);
               for (const part of ["code", "css", "js"]) {
                 const listing = get(part);
                 if (!listing) continue;
@@ -176,7 +175,7 @@ customElements.define(
                   const failed = view;
                   view = null;
                   failed?.dispose();
-                  keepsHidden(empty, false);
+                  empty.toggleAttribute("hidden", false);
                   showError(error);
                 }
               } finally {

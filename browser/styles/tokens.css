@@ -7,22 +7,27 @@
  * Every name starts with `--lf-`, so none meets a name a page or its framework coins
  * (tests/model/test_theme_tokens.py). The ones a page, theme or package may rely on
  * are those the references name (skills/leaf/references/package-themes.md, "Theme
- * tokens"), and Leaf's examples and instructions use no other; the rest are Leaf's own
- * and change freely. */
+ * tokens"), and Leaf's examples, instructions and bundled packages use no other; the
+ * rest are Leaf's own and change freely. */
+/* The times of motion, registered so each computes to a time a script can read
+   (runtime/lib/motion-timing.js, `motionTime`) as a stylesheet reads it with `var()`. */
+/* How long the tint that marks an arrival or a change lasts. */
 @property --lf-motion-flash {
   syntax: "<time>";
   inherits: true;
   initial-value: 1200ms;
 }
+/* How long room takes to go back. Long enough that the eye can follow a paragraph's
+   worth of page closing, short enough that the act still reads as having happened at
+   the press: a board's own FLIP is 150ms over a card's width, and this is a taller
+   distance travelled by the whole column below it. A decided suggestion's retired
+   slot, a resolved inline thread and a message leaving a thread fold over it, a frame
+   returns from its editor to its shorter reading over it, and a picture's zoom
+   (runtime/records/media.js) takes the same time. */
 @property --lf-motion-fold {
   syntax: "<time>";
   inherits: true;
   initial-value: 220ms;
-}
-@property --lf-motion-return {
-  syntax: "<time>";
-  inherits: true;
-  initial-value: 180ms;
 }
 @property --lf-motion-disclosure {
   syntax: "<time>";
@@ -36,6 +41,8 @@
   inherits: true;
   initial-value: 160ms;
 }
+/* The finite window in which a mark of the agent's work arrives, which independently
+   rendered carriers join part-way through (runtime/features/contribution-controls.js). */
 @property --lf-motion-agent-arrival {
   syntax: "<time>";
   inherits: true;
@@ -48,34 +55,43 @@
   inherits: true;
   initial-value: 8px;
 }
+/* Registered as a length so it computes to one, which the reach of a mark over a list
+   marker reads back (dom/geometry.js, `markerReach`). */
+@property --lf-list-inset {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 24px;
+}
 :root {
   --lf-safe-top: env(safe-area-inset-top, 0px);
   --lf-safe-right: env(safe-area-inset-right, 0px);
   --lf-safe-bottom: env(safe-area-inset-bottom, 0px);
   --lf-safe-left: env(safe-area-inset-left, 0px);
-  /* The room the chrome keeps at the window's head and foot, stated in the
-     render-blocking theme so the initial document and the eventual chrome share one
-     box. At the head the chrome draws nothing, so the room is the window's safe area. At
-     the foot the floating panel's row rests (floating-panel.css), with a gap below and
-     above it, so the end of the page can scroll clear of it. A page that is not live
-     draws no chrome and keeps no room (below).
+  /* The window's head and foot as the chrome sees them, stated in the render-blocking
+     theme so the initial document and the eventual chrome share one box. At the head
+     the chrome draws nothing, and the room is the window's safe area, which the body
+     keeps (base.css). At the foot the floating panel's row rests (floating-panel.css),
+     with a gap below and above it. The page keeps no room for that band: the row stands
+     over the page, and Leaf's landings stop above it (`--lf-landing-foot`, base.css). A page
+     that is not live draws no chrome (below).
 
-     The row is its one line (`--lf-line`) and the padding around it. The leaf, each
-     mark and press beside the field, and the field's first line of words are each a line
-     tall, and the row stands them all on its foot, so every one of them is centred on
-     the line the words are written on (floating-panel.css, `.lf-fp-row`). */
-  --lf-fp-row-pad: 6px;
-  --lf-floating-row: calc(var(--lf-line) + 2 * var(--lf-fp-row-pad));
+     The row is its one line (`--lf-line`) and the panel's padding around it
+     (`--lf-thread-pad`). The leaf, each mark and press beside the field, and the field's
+     first line of words are each a line tall, and the row stands them all on its foot,
+     so every one of them is centred on the line the words are written on
+     (floating-panel.css, `.lf-fp-row`). */
+  --lf-floating-row: calc(var(--lf-line) + 2 * var(--lf-thread-pad));
   --lf-floating-gap: 14px;
   --lf-head-room: var(--lf-safe-top);
   --lf-foot-room: calc(
     var(--lf-floating-row) + 2 * var(--lf-floating-gap) + var(--lf-safe-bottom)
   );
-  /* What a page reads of the chrome, and only where it needs a number: a box that fills
-     the window takes --lf-view-height, and a box that sticks stops at --lf-top, below
-     the head room and any sticky header under it. Ordinary content never sees either
-     band; the document already keeps clear of both (html[data-lf-live], base.css). */
-  --lf-view-height: calc(100dvh - var(--lf-head-room) - var(--lf-foot-room));
+  /* What a page reads of the window, and only where it needs a number: a box that
+     fills the window takes --lf-view-height, and a box that sticks stops at --lf-top,
+     below the head room and any sticky header under it. Ordinary content never sees
+     either; the document already keeps clear of the head room (html[data-lf-live],
+     base.css). The floating panel takes no room: it stands over the page. */
+  --lf-view-height: calc(100dvh - var(--lf-head-room));
   --lf-top: var(--lf-head-room);
   /* A scroller's landing band, which its `scroll-padding-top` states (the root's
      `--lf-landing-top`, base.css), in two parts: how much of the sticky-header slot it
@@ -86,11 +102,6 @@
      (state.css). */
   --lf-top-covered: calc(var(--lf-head-room) + var(--lf-root-headers, 0px));
   --lf-landing-room: 12px;
-  /* The page tab strip's stated height: its 8px head, a name's 38px face or the aim
-     floor where that is taller, and its 1px rule. The default package draws the strip
-     at it, and the root's `scroll-padding` adds it where a page tab strip stands over
-     the root (`--lf-root-headers`, root-headers.js). */
-  --lf-tabstrip-h: calc(9px + max(38px, var(--lf-aim-floor)));
   /* A list's band, the heading that opens each group of its rows (controls.css,
      `.lf-rows-group`): a thread head's height, and the aim floor under a finger, since
      a band that folds its group is a press with no room for a reach, and a list's bands
@@ -106,12 +117,12 @@
      through the top layer: a modal dialog, a popover, or fullscreen. Letting page
      z-indexes compete with the ladder was rejected: whether a page's header or overlay
      covered the floating panel, a highlight or a pin depended on numbers neither side
-     chose against the other. `stackLevel` (geometry.js) reads a chrome box above every
+     chose against the other. `stackLevel` (dom/geometry.js) reads a chrome box above every
      page box for the same reason. */
   --lf-z-page-paint: 8890; /* paint on a page element */
   --lf-z-margin-raised: 8895; /* the margin item under pointer or focus, or at the user's location */
   --lf-z-page-hints: 8898; /* page-target key chips, under the chrome */
-  --lf-z-margin-preview: 8920; /* the thread card, under the panel it scrolls beneath */
+  --lf-z-margin-preview: 8920; /* the thread card, and the comment box just under it */
   --lf-z-region-capture: 8930; /* viewport crop selection, over the thread card */
   --lf-z-panel: 9000; /* the floating panel */
   --lf-z-chrome-paint: 9060; /* paint whose target is inside the chrome */
@@ -173,42 +184,47 @@
     )
   );
   /* The accent marks where the machinery points — a link, the active milestone,
-     a focus ring — and so has to stay hue-distinct from the
+     the agent at work — and so has to stay hue-distinct from the
      three semantic colors it appears beside. That rules out the warm end: a clay
-     accent sits a few degrees from --lf-warn, and an accent ring beside a warning dot
-     would be a distinction the user has to measure. Ink blue keeps the link and
-     focus conventions and reads as ink on ivory rather than as UI. */
+     accent sits a few degrees from --lf-warn, and an accent mark beside a warning dot
+     would be a distinction the user has to measure. Ink blue keeps the link
+     convention and reads as ink on ivory rather than as UI. */
   --lf-accent: light-dark(#2f5480, #8fb0d8);
   --lf-ok: light-dark(#3f7d4e, #7fb98c);
   --lf-warn: light-dark(#b4741a, #d8a95c);
   --lf-danger: light-dark(#b4402f, #d98b7a);
-  /* The count of what is On me, on the folded leaf, is a fill/ink pair in the user's
-     turn (--lf-turn, below): the turn's mark may be too pale under its digits. Themes
-     choose the pair together rather than deriving its contrast. */
-  --lf-badge-fill: light-dark(#2f6b40, #3f7d4e);
-  --lf-badge-ink: #fff;
   /* Corners come in three sizes, set by what wears them: the scale GitHub's Primer and
      Web Awesome's defaults share. A mark no taller than a line of text (a chip, a key,
-     inline code, a tooltip, a checkbox, a mark, a word's highlight) takes --lf-r-s.
+     inline code, a checkbox, a mark, a word's highlight) takes --lf-r-s.
      A control or a box in the page's flow (a button, a field, a margin entry, a menu
      row, a code block, an option list) takes --lf-r. A surface floating over the page
      that holds controls (the Leaf panel and its menu, a thread card, a dialog) takes
      --lf-r-l, so the controls inside it stay clear of its corners. Only what is round by
-     meaning is round: a dot, a radio mark, a count's pill. A role's own token, such as
-     --lf-chip-r, names its size here rather than a length. A theme sets --lf-r, and
+     meaning is round: a dot, a radio mark, a count's pill. A theme sets --lf-r, and
      the other two are half and twice it, so one length squares or rounds every
      corner. */
   --lf-r: 6px;
   --lf-r-s: calc(var(--lf-r) / 2);
   --lf-r-l: calc(var(--lf-r) * 2);
-  /* The compact label every layer draws a small fact in: .tag here and the
+  /* A box that meets a hairline frame's edge from inside, such as a toolbar's end mark
+     or an option group's corner cell, takes this rounding at the corners they share:
+     the frame's --lf-r less its hairline, so the box's edge, and a ring drawn inside
+     it, follows the frame's inner curve (browser/AGENTS.md, "A box inside a frame
+     either meets its edge or stands clear of it"). */
+  --lf-r-in: calc(var(--lf-r) - 1px);
+  /* The least room between a box and its frame's edge that reads as standing clear of
+     the edge rather than nearly meeting it (browser/AGENTS.md, "A box inside a frame
+     either meets its edge or stands clear of it"). A seat that stands a box clear of an
+     edge, such as a card's grip or a block's toolbar, reads it. It is a length of its
+     own rather than --lf-sp-1, which a denser layout narrows below it. */
+  --lf-clear: 4px;
+  /* The compact label every layer draws a small fact in: .lf-tag here and the
      widgets' own badges in packages, and the runtime's outline chip. Its geometry is
      these tokens and --lf-t-6, so a band of chips from different layers stands at one
      height and one inset; each wearer states only its ground, ink, and where it sits.
      A chip that draws a border adds it outside this geometry. A chip left inline in a
      line of text takes the inset alone: an inline box paints its font's height whatever
      its line-height, which there would only resize the holder's line. */
-  --lf-chip-r: var(--lf-r-s);
   --lf-chip-pad: 0 8px;
   --lf-chip-lh: 1.6;
   --lf-sp-1: 4px;
@@ -242,10 +258,11 @@
   /* How far a line-tall control's reach stands past its face on each side: the room a
      place keeps around such a control where something else takes presses. */
   --lf-reach-room: max(0px, (var(--lf-aim-floor) - var(--lf-line)) / 2);
-  /* The smallest face a user types in. Only a finger's platform asks for one: iOS
-     Safari zooms the page onto a text field set smaller as the field takes focus. The
-     field rule that holds it is in shadow.css, and a surface that shows words before
-     opening a field on them holds the same floor so the two sizes agree. */
+  /* The smallest face a user types in, in one of Leaf's own fields. Only a finger's
+     platform asks for one: iOS Safari zooms the page onto a text field set smaller as
+     the field takes focus. The rule that holds Leaf's fields to it is in surfaces.css,
+     and a surface that shows words before opening a field on them holds the same floor
+     so the two sizes agree. */
   --lf-entry-floor: 0px;
   /* A margin entry's box: 32px of marker, or the floor where a finger raises it. The
      rail below is sized from the same length, so it is named rather than written into
@@ -254,6 +271,19 @@
   /* A mark's box (controls.css, `.lf-mark-action`), on a corner or in a toolbar. A seat that
      keeps room around its marks reads it, so it is named rather than written there. */
   --lf-mark-size: 20px;
+  /* How far a corner mark (controls.css, `data-lf-corner`) stands out past the corner
+     it rides, on an attachment and on the floating panel's box alike. The panel's
+     fold, reach included (surfaces.css), then ends at the foot of the pictures the
+     panel holds `--lf-media-gap` above its box, so a press on a picture opens it. */
+  --lf-mark-overhang: 6px;
+  /* A draft's attached pictures (response.css, `.lf-composer-media`): how tall one
+     stands at most, enough to tell a pasted screenshot by its content, which 56px was
+     not; and how far they stand clear of the edge they meet as it is drawn, wherever a
+     surface places them. While a view is open the floating panel sizes the band it
+     opens for them from both (floating-panel.css), so they are named here rather than
+     on the shelf. */
+  --lf-media-h: 120px;
+  --lf-media-gap: 8px;
   /* How far inside its block's right edge a pin stands. margin-layout.js reads it too,
      to know where a pin will stand before packing it. */
   --lf-pin-inset: 4px;
@@ -261,7 +291,7 @@
      It is authored rather than measured, so the page's geometry is settled before
      anything lands in the margin and never moves because of what does. It seats the
      resting cluster the margin model budgets (RESTING_MARGIN_ENTRY_BUDGET in
-     margin-model.js): two entries and the cluster's gap (`--lf-margin-gap`), hung
+     features/margin-model.js): two entries and the cluster's gap (`--lf-margin-gap`), hung
      `--lf-rail-hang` from the prose, including its gutter, with the focus ring's
      room at the outer edge. A
      finger's larger entries spend the room the hang would, so it shrinks with them. A
@@ -275,13 +305,24 @@
       var(--lf-focus-ring-room)
   );
   /* A page thread's card is read as prose, so its preferred measure is the column's,
-     720px at 17px, at the card's 14px face. Beside its words a card stands at the
-     minimum until `size-width` widens it (placement-rules.json). The minimum chooses whether the card and the
+     720px at 17px, at the card's 14px face. Beside its words the comment box and the
+     card start at the minimum and widen by `size-width` (placement-rules.json). The minimum chooses whether the card and the
      comment box before it fit beside their words. Clearing the margin cluster requires
      the full preferred measure, so its controls never cost message width
      (comment-placement.js). */
   --lf-thread-card: 592px;
   --lf-thread-card-min: 320px;
+  /* The padding of every frame a thread stands in, inside its one-pixel edge: a card
+     over the page or in a widget's flow (annotation-chrome.css, surfaces.css), a
+     comment box, which wears the frame of the card it becomes, and the floating panel
+     with its row (floating-panel.css). A box written in at a frame's edge adds it to its
+     line on either side, so every such box is as tall as the panel's row, under a
+     mouse or a finger (below). `--lf-thread-frame` is the
+     edge and the padding together, where a quote's rule, a rewrite's frame and a
+     summary's region stand; a thread's words stand `--lf-thread-text-inset` further in
+     (surfaces.css). */
+  --lf-thread-pad: 6px;
+  --lf-thread-frame: calc(var(--lf-thread-pad) + 1px);
   /* A compact left column for page-level wayfinding or reference. Unlike a sidenote,
      which annotates one block at its own height, a sidebar may remain beside the user
      while the document moves, so the whole left edge is spoken for. Its 240px box plus
@@ -298,12 +339,13 @@
   --lf-col-pad: 24px;
   /* The window width that holds the column with a rail on either side, the width at
      which a column page's rail stands; narrower, a thread opens in the floating panel
-     rather than a margin card (content-layout.js, `windowHoldsRail`). */
+     rather than a margin card (readings/content-layout.js, `windowHoldsRail`). */
   --lf-rail-room: calc(var(--lf-col) + 2 * var(--lf-rail));
-  /* The room a page Layout leaves above its first block and below its last. A phone's
-     and a block sample's are smaller (base.css). */
+  /* The room a page Layout leaves above its first block and below its last, the latter
+     past the window's safe area at its foot, where a phone draws its home indicator. A
+     phone's and a block sample's are smaller (base.css). */
   --lf-page-pad-start: 72px;
-  --lf-page-pad-end: 96px;
+  --lf-page-pad-end: calc(96px + var(--lf-safe-bottom));
   /* A pane's insets: its header and footer's, and its body's on every side. Tokens
      rather than numbers in the pane rules, so a density restates them and the rules
      keep the zero specificity a package restyling a pane relies on. */
@@ -374,21 +416,20 @@
   --lf-t-1: 1.9375rem;
   --lf-code-size: 0.84375rem;
   --lf-code-line: 1.25rem;
-  /* A drawing's words (`svg.drawing`, the reading theme). These two are fixed, in pixels,
-     which an inline SVG reads as its own units, because the shapes around the words are
-     numbers in those units. In rem, or at a rung a density restates, a reader's larger
-     default size or a working page would change the words and leave the boxes that hold
-     them as drawn. The viewBox scales words and shapes together. */
+  /* A drawing's words (`svg.lf-drawing`, components/drawing.css). These two are fixed,
+     in pixels, which an inline SVG reads as its own units, because the shapes around the
+     words are numbers in those units. In rem, or at a rung a density restates, a
+     reader's larger default size or a working page would change the words and leave the
+     boxes that hold them as drawn. The viewBox scales words and shapes together. */
   --lf-drawing-size: 11.5px;
   --lf-drawing-small-size: 10px;
   /* Inline code, a quote, a code block's inset, a list's inset and a link, as the
      element rules below draw them. They are tokens because the composer draws a draft
-     in the same faces (runtime/composing/text-field.js), inside a shadow root those
+     in the same faces (runtime/annotations/composing/text-field.js), inside a shadow root those
      rules cannot reach, so each construct reads in the draft the way it will in the
      sent message. */
   --lf-code-inline-size: 82%;
   --lf-code-inline-pad: 1px 5px;
-  --lf-code-inline-r: var(--lf-r-s);
   --lf-quote-rule: 2px solid var(--lf-rule);
   --lf-quote-style: italic;
   --lf-quote-inset: 18px;
@@ -457,34 +498,9 @@
   --lf-raise-3-drop: 12px;
   --lf-raise-3-blur: 36px;
   --lf-raise-3: 0 var(--lf-raise-3-drop) var(--lf-raise-3-blur) var(--lf-shade);
-  /* A tooltip's face: a control's label, held or hovered, in the inverse ink at
-     --lf-raise-1. Its stylesheets live wherever the control does, often in a shadow tree
-     or a package and on a pseudo-element no shared class reaches, so the face is
-     tokens they name; each keeps its own placement. --lf-font-tip is derived from the
-     ladder, so it is declared with the other derived tokens (below). */
-  --lf-tip-bg: var(--lf-ink);
-  --lf-tip-ink: var(--lf-paper);
-  /* The user's turn on a tooltip, whose ground is the page's ink: the turn's colour
-     drawn halfway to the tooltip's ink, which holds it clear of that ground at 4.8:1 or
-     more in either scheme, where the paper's turn ink would sink into it. */
-  --lf-tip-turn-ink: color-mix(in srgb, var(--lf-turn) 50%, var(--lf-tip-ink));
-  --lf-tip-pad: 4px 7px;
-  --lf-tip-r: var(--lf-r-s);
-  /* Inline code's ground is a step from the paper it sits on, not the white code
-     canvas: GitHub's #f6f8fa over the reading theme's ivory is 1.01:1, so the chip
-     would vanish and its side padding read as double spaces around every span. */
-  --lf-code-bg: light-dark(
-    oklab(
-      from color-mix(in oklab, var(--lf-paper), var(--lf-ink) 5.6%) l
-        calc(a * min(1.5, 1 + 0.014 / hypot(a, b)))
-        calc(b * min(1.5, 1 + 0.014 / hypot(a, b)))
-    ),
-    oklab(
-      from color-mix(in oklab, var(--lf-paper), var(--lf-ink) 11.2%) l
-        calc(a * min(0.5, 1 + 0.014 / hypot(a, b)))
-        calc(b * min(0.5, 1 + 0.014 / hypot(a, b)))
-    )
-  );
+  /* A tooltip's room (chrome.css, `.lf-preview-face`): enough that a preview of several
+     lines, such as a thread's, reads as a passage rather than a label. */
+  --lf-tip-pad: 6px 10px;
   /* A code block's colours. Each code surface's own sheet sets `color-scheme:
      var(--lf-code-scheme, inherit)`, so a theme or page that sets --lf-code-scheme to
      `dark` or `light` draws its code in that scheme whatever the page's is: every
@@ -499,7 +515,14 @@
   --lf-code-ink: light-dark(#24292f, #e8e7e3);
   --lf-code-muted: light-dark(#57606a, #9b9992); /* near-neutral, as its canvas is */
   --lf-code-border: light-dark(#d0d7de, #3b3a37);
-  /* A neutral chip's ground. */
+  /* The mark on each row a code line wraps onto (reading.css, `pre`): Menlo's ↪ in its
+     em box, a mask so it takes the colour drawn through it. A shape rather than the
+     character, since SF Mono, the face's monospace on a Mac, has no ↪. */
+  --lf-wrap-mark: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 -1556 1233 2048'%3E%3Cpath transform='scale(1 -1)' d='M365 643H946L786 803L876 893L1167 602V520L876 229L786 319L946 479H325Q294 479 246 500Q188 526 151 564Q107 610 87 660Q66 713 66 769Q66 829 88 881Q110 934 152 974Q197 1017 246 1038Q295 1059 357 1059V895Q332 895 309 885Q283 874 267 858Q249 840 239 817Q230 796 230 769Q230 744 240 720Q250 697 267 680Q286 662 309 653Q335 643 365 643Z'/%3E%3C/svg%3E");
+  /* A neutral chip's ground, which inline code and a settled choice stand on too.
+     Inline code stands on it rather than on the white code canvas: GitHub's #f6f8fa
+     over the reading theme's ivory is 1.01:1, so the chip would vanish and its side
+     padding read as double spaces around every span. */
   --lf-chip: light-dark(
     oklab(
       from color-mix(in oklab, var(--lf-paper), var(--lf-ink) 5.9%) l
@@ -537,10 +560,6 @@
         calc(b * min(2.3, 1 + 0.014 / hypot(a, b)))
     )
   );
-  /* A translucent backdrop is the paper it floats over, so it is derived rather than
-     restated: a project that overrides --lf-paper gets a backdrop that follows it, where a
-     second hex kept the default ivory behind a recoloured page. */
-  --lf-veil: color-mix(in srgb, var(--lf-paper) 93.3%, transparent);
   /* Comments use violet so their marks remain distinct from links, focus, and the
      semantic status colors. One hue at three strengths says posted, hovered, and
      active without changing meaning between page and code surfaces. */
@@ -548,20 +567,21 @@
   --lf-mark-hover: light-dark(#dfd1edb3, #6152a079);
   --lf-mark-strong: light-dark(#dfd1ed, #6152a099);
   --lf-mark-ink: light-dark(#4a3b7d, #9d8fd6);
-  /* The words a passage highlight covers (marks.css): a comment's in
-     --lf-mark-ink, and a draft's in the accent, each lifted in dark toward the light ink
-     the dark paper's prose wears. */
+  /* The words a passage highlight covers (marks.css): a comment's in --lf-mark-ink, and
+     a draft's in the user's ink (--lf-ok), deepened in light so its words keep their
+     contrast on its green wash; each lifted in dark toward the light ink the dark
+     paper's prose wears. */
   --lf-mark-ink-text: light-dark(
     var(--lf-mark-ink),
     color-mix(in srgb, var(--lf-mark-ink) 50%, white)
   );
   --lf-mark-pending-text: light-dark(
-    var(--lf-accent),
-    color-mix(in srgb, var(--lf-accent) 60%, var(--lf-ink))
+    color-mix(in srgb, var(--lf-ok) 70%, var(--lf-ink)),
+    color-mix(in srgb, var(--lf-ok) 60%, var(--lf-ink))
   );
-  /* The draft's wash, relative to the accent so one definition serves both schemes; the
-     passage highlight (marks.css) reads it. */
-  --lf-mark-pending: color-mix(in srgb, var(--lf-accent) 20%, transparent);
+  /* The draft's wash, in the user's ink as a draft on a box is, relative to it so one
+     definition serves both schemes; the passage highlight (marks.css) reads it. */
+  --lf-mark-pending: color-mix(in srgb, var(--lf-ok) 20%, transparent);
   /* A reaction's wash: the same hue one step under the resting mark, so a passage
      someone reacted to reads as touched and a passage someone commented on reads as
      annotated, and the two never look alike side by side. */
@@ -577,18 +597,17 @@
 
      What it says:
      - The focus ring, whole: what takes the next key or press (`data-lf-focus-visible`).
+       A text field wears it only while the caret is in its words (response.css).
      - The location ring, whole: the decision the user stands in (`[data-lf-obligation]`)
-       (target-paint.js, `paintLocation`), and the decision's focus ring too. A control
-       inside it that carries the location itself stands it down
-       (`--lf-obligation-ring: none`).
+       (readings/target-paint.js, `paintLocation`), and the decision's focus ring too. It stands
+       down while visible focus is inside the decision, whose own ring says where the
+       user is.
      - Brackets, the band's two ends (surfaces.css): what a gesture under way addresses,
        such as the Alt aim, a comment's element, the thread the user is in or its row
        under the pointer in Threads. In the trace ink, the target of the margin entry
-       in hand; at 1px in the contour ink, the target of an action.
+       in hand; at 1px in the action target's ink, the target of an action.
      - A drawing's part, a shape or a group of them: any of these whole, along the
        contour of each shape it draws (surfaces.css).
-     - A quiet ground (--lf-focus-surface): a large composite holding focus, such as a
-       thread, where a band would be a second box round the box.
 
      Where it stands, which the box decides and the mark never does. The box states it
      once, as `--lf-ring-at`, in the rule that draws its face rather than one that waits
@@ -612,12 +631,22 @@
        and any box that draws a frame round itself stands its rings on the frame (the
        user's choice): a ring a gap off a frame read as a second box round it.
      - A box packed edge to edge with others, such as a list's row or a table's cell, a
-       box padded inside a frame it fills, or one whose clip leaves no room outside it:
-       one band inside its edge, at --lf-focus-ring-inset. A box that clips a mark standing
+       box padded inside a frame it fills, one whose clip leaves no room outside it, or
+       one of Leaf's word and symbol presses, which Leaf seats on frames' edges and in
+       their corners (controls.css, `.lf-btn` and `.lf-icon-action`), or the frame of a
+       field Leaf's controls are built from, which fills the row it is seated in
+       (webawesome.css): one band inside its edge, at --lf-focus-ring-inset. A box that clips a mark standing
        outside its target cuts it, as it cuts the target. A box the page's layout leaves
        less room round than a region's gap, as a full-height workspace's body
        (layouts.css), stands its marks at a control's gap: inside, they would run over
        its words and under what it holds.
+
+     The runtime stands the marks it draws one band inside a box whatever the box's kind
+     where a box clipping it would cut them outside, as round a table filling a scroll
+     area (`[data-lf-flush]`, element-marks.css), since that turns on what holds the box.
+     Those are the aim, the trace, a comment's mark, the location and proxy rings, and
+     focus on the page's own content; a ring a widget draws on its own control stands
+     where the control's kind says.
 
      The width is a token of its own because the ring is drawn outside the box it
      names, so a scroll region has to reserve room for it: a shorthand cannot be
@@ -626,8 +655,8 @@
      the gap to it, and --lf-focus-ring-inset negates it, so there is still one place
      the band's thickness is decided. */
   --lf-focus-ring-w: 2px;
-  --lf-focus-ring: var(--lf-focus-ring-w) solid var(--lf-accent);
-  /* A forced palette replaces the accent with its own ink for every outline, so the
+  --lf-focus-ring: var(--lf-focus-ring-w) solid var(--lf-ok);
+  /* A forced palette replaces the ring's colour with its own ink for every outline, so the
      ring would read as one more edge. Naming the platform's Highlight here gives every
      rule that draws with the token the system's focus colour, inside the chrome and
      out. A forced palette drops box
@@ -652,7 +681,6 @@
      alone, a code block Tab brings to a pane's top can stand 1.5px short of the ring's
      5px. */
   --lf-focus-ring-landing: calc(var(--lf-focus-region-room) + 2px);
-  --lf-focus-surface: color-mix(in srgb, var(--lf-accent) 4%, var(--lf-card));
   /* The same band cast as a shadow, for the boxes that cannot spend an outline on it:
      the anchored response bar, whose focused states already write `outline: none` so
      the field and its choices keep one silhouette, and an item hint, a chip in a layer
@@ -665,12 +693,11 @@
      A rule draws the ring with this token or --lf-focus-ring and gives it no name of its
      own: the suite asks the browser which rule drew a ring it sees, and the token is
      what tells that rule from a contour painted in the same ink. */
-  --lf-focus-shadow: 0 0 0 var(--lf-focus-ring-w) var(--lf-accent);
+  --lf-focus-shadow: 0 0 0 var(--lf-focus-ring-w) var(--lf-ok);
   --lf-target-trace-ink: color-mix(in srgb, var(--lf-ink-2) 42%, var(--lf-paper));
-  /* A drawing's part wears a comment's mark in this quieter ink and width, and an
-     action's target wears its brackets at 1px in this ink (surfaces.css). */
-  --lf-mark-contour-w: 1.5px;
-  --lf-mark-contour-ink: color-mix(in srgb, var(--lf-accent) 72%, var(--lf-paper));
+  /* An action's target wears its brackets at 1px in this quieter ink
+     (element-marks.css). */
+  --lf-action-target-ink: color-mix(in srgb, var(--lf-accent) 72%, var(--lf-paper));
   /* A pressable never wears the accent as a solid fill: the accent is its ink and its
      hairline, and this tint is the disc or ground that rises under it on hover, or that
      a reaction the user added rests on. It is the card with a tenth of the accent in
@@ -713,47 +740,33 @@
   );
   --lf-ok-wash: color-mix(in srgb, var(--lf-ok-tint) 52%, var(--lf-paper));
   --lf-ok-ink: light-dark(#2f6b40, #97cca3);
-  /* What the colour of each of Leaf's own marks tells the user, one token for each
-     thing a mark says, so each meaning's colour is chosen here once, and the margin,
-     the contents, the panel and a widget's settled state read the meaning rather than
-     a hue. A theme restates a meaning here. The words and ground a meaning needs beside
-     its mark (`-ink`, `-wash`, `-tint`) stand with it.
-     - --lf-turn: the user's move, such as a thread in their turn, what is On me, and the
-       agent waiting for them.
-     - --lf-thread: a conversation, on a thread's marker.
-     - --lf-work: the agent at work, on the leaf, the bar beside a block and a plan's
-       progress.
-     - --lf-news: what the user hasn't read, the unread dot.
-     - --lf-draft: words the user put away unsent, the dot the On Me mark and the
-       folded leaf wear for them where nothing has news. It is the neutral step
-       between --lf-border and --lf-muted that holds 3:1 against the panel's ground in
-       either scheme, the least WCAG 1.4.11 asks of a mark the user must see. The On Me
-       mark's symbol is drawn in the muted ink, and at a dot's size a dot in that ink is
-       hard to tell from news's, so the draft's dot stands nearer the ground. A draft's
-       margin entry keeps the muted ink (controls.css).
-     - --lf-change: what changed since the version compared, the bar beside a block and
-       its stretch of the contents.
-     - --lf-settled: what the user chose or finished, such as a chosen option, a pressed
-       answer and a done step.
-     Where the user is (focus, the location ring, the contents' current section) wears
-     the accent, and trouble --lf-warn and --lf-danger.
+  /* Leaf's own marks wear the theme's roles rather than tokens of their own, so a
+     theme recolours a mark by setting its role. Colour carries one distinction on a
+     mark: whose it is. Green (--lf-ok) is the user's, where they are and what waits on
+     them: focus, the location ring, the aim, the contents' current section, a thread in
+     their turn, what is On me and its count, with --lf-ok-ink for words and --lf-ok-wash
+     for a ground. Blue (--lf-accent) is the agent's and what is going on: a thread's
+     marker, the agent at work on the leaf, the bar beside a block and a plan's progress,
+     and the unread dot. Ink records what changed or is settled: what changed since the
+     version compared wears --lf-muted, and what the user chose or finished --lf-ink-2,
+     with --lf-ink words on a --lf-chip ground. Trouble wears --lf-warn and --lf-danger.
+     So where the user stands beside where the agent works, the two read as two
+     parties, as a collaborator's cursor does beside one's own. The user chose this over
+     green for what asks alone, which put the user's place and the agent's in one blue.
+     What changed takes the muted ink, so a long changed stretch of the contents stays
+     quieter than the user's marks. A mark is too small to carry more. Held to the chart
+     palette's floors (--lf-series-1, below) scaled to a mark's size by Stone, Szafir
+     and Setlur's model (CIC 2014), every reader tells apart at most four colours at a
+     7px dot, and those four are a neon magenta, a near-black navy, a bright green and a
+     brick red. So a mark's other meanings are carried by its shape, place and motion,
+     and changed and settled marks don't wear the user's green.
 
-     Colour carries one distinction on a mark: whether it asks something of the user.
-     Green asks; blue shows where the user is and what is going on; ink records what
-     changed or is settled. What changed takes the muted ink, so a long changed stretch
-     of the contents stays quieter than the marks that ask. A mark is too small to carry
-     more. Held to the chart palette's floors (--lf-series-1, below) scaled to a mark's
-     size by Stone, Szafir and Setlur's model (CIC 2014), every reader tells apart at
-     most four colours at a 7px dot, and those four are a neon magenta, a near-black
-     navy, a bright green and a brick red. So a mark's other meanings are carried by its
-     shape, place and motion, and changed and settled marks don't wear the turn's
-     green. */
-  --lf-turn: var(--lf-ok);
-  --lf-turn-ink: var(--lf-ok-ink);
-  --lf-turn-wash: var(--lf-ok-wash);
-  --lf-thread: var(--lf-accent);
-  --lf-work: var(--lf-accent);
-  --lf-news: var(--lf-accent);
+     --lf-draft marks words the user put away unsent, the dot the leaf wears for them
+     where nothing has news. It is the neutral step between --lf-border and --lf-muted
+     that holds 3:1 against the panel's ground in either scheme, the least WCAG 1.4.11
+     asks of a mark the user must see. At a dot's size a dot in the muted ink is hard to
+     tell from news's, so the draft's dot stands nearer the ground. A draft's margin
+     entry keeps the muted ink (controls.css). */
   --lf-draft: light-dark(
     oklab(
       from color-mix(in oklab, var(--lf-paper), var(--lf-ink) 44%) l
@@ -766,10 +779,6 @@
         calc(b * min(1.8, 1 + 0.014 / hypot(a, b)))
     )
   );
-  --lf-change: var(--lf-muted);
-  --lf-settled: var(--lf-ink-2);
-  --lf-settled-ink: var(--lf-ink);
-  --lf-settled-tint: var(--lf-chip);
   --lf-warn-tint: color-mix(
     in oklab,
     var(--lf-paper) 70%,
@@ -788,22 +797,6 @@
     )
   );
   --lf-danger-ink: light-dark(#9c3526, #e0a091);
-  --lf-add-tint: color-mix(
-    in oklab,
-    var(--lf-paper) 70%,
-    light-dark(
-      oklch(from var(--lf-ok) 0.84 0.068 calc(h - 6)),
-      oklch(from var(--lf-ok) 0.4 0.102 calc(h + 2))
-    )
-  );
-  --lf-del-tint: color-mix(
-    in oklab,
-    var(--lf-paper) 70%,
-    light-dark(
-      oklch(from var(--lf-danger) 0.8 0.076 calc(h - 3)),
-      oklch(from var(--lf-danger) 0.4 0.097 calc(h - 4))
-    )
-  );
   --lf-hi-tint: color-mix(
     in oklab,
     var(--lf-paper) 70%,
@@ -923,15 +916,19 @@
   /* A status or reference that names a state rather than qualifying a line: a
      passage's, a drawing's, a summary's. */
   --lf-font-status: 500 var(--lf-t-6) / var(--lf-ui-lh) var(--lf-sans);
-  --lf-font-heading: 600 var(--lf-t-6) / var(--lf-ui-lh) var(--lf-sans); /* a group's name */
+  /* A group's name, and a region's in small capitals (`.lf-label` adds the capitals
+     and their tracking). */
+  --lf-font-heading: 600 var(--lf-t-6) / var(--lf-ui-lh) var(--lf-sans);
   --lf-font-title: 600 var(--lf-t-5) / var(--lf-ui-lh) var(--lf-sans); /* a dialog's or pane's */
   /* Why a box refused what was typed in it, stood over its words. */
   --lf-font-error: 500 var(--lf-t-5) / var(--lf-ui-lh) var(--lf-sans);
-  /* A region's name in small capitals (`.lf-label` adds the capitals and their
-     tracking), set close, since capitals have no descenders. */
-  --lf-font-label: 600 var(--lf-t-6) / 1.3 var(--lf-sans);
-  /* A tooltip's words, a weight up to hold on its inked ground. */
-  --lf-font-tip: 500 var(--lf-t-6) / 1.2 var(--lf-sans);
+  /* A tooltip's words, a weight up from the page's, as the user chose, with lines 1.4
+     apart to go with its room. The tooltip's face is a popover's (controls.css,
+     `.lf-popover`): its raised ground and ink, a hairline ring, a control's corners and
+     the popover's lift. The user chose it over the inverse face, which on a dark page
+     was the brightest thing on screen, and over a dark ground in both schemes. On a
+     light page it stands off the page by its ring and lift alone. */
+  --lf-font-tip: 500 var(--lf-t-6) / 1.4 var(--lf-sans);
   --lf-font-chip: var(--lf-t-6) / var(--lf-chip-lh) var(--lf-sans); /* a small fact (above) */
   --lf-font-count: 600 var(--lf-t-7) / 1 var(--lf-sans); /* a number on a mark */
   /* A tooltip's second line, a status under a drawing, or a chart's axes. */
@@ -955,7 +952,7 @@ html:not([data-lf-live]) {
     --lf-aim-floor: 44px;
     --lf-entry-floor: 16px;
     --lf-line: 34px;
-    --lf-fp-row-pad: 7px;
+    --lf-thread-pad: 7px;
     --lf-rail-hang: calc(var(--lf-col-pad) + 10px);
   }
 }

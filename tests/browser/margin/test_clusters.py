@@ -42,9 +42,9 @@ from browser.margin import (
     _unfold,
     _unfold_suggestion_undo,
 )
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.source import render_checks as render_checks_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -409,13 +409,13 @@ def test_keyboard_arrival_at_a_cluster_shows_all_its_entries_for_the_keys_to_wal
 
     page.evaluate(
         """async () => {
-          const {contributionEntry, registerContribution} =
+          const {registerContribution} =
             await window.__lfWidgetApi();
           registerContribution({key: 'extra', target: document.querySelector('#sug-refill'),
-            read: () => ({entries: [contributionEntry({
+            read: () => ({entries: [{
               key: 'details', icon: 'comment', label: 'Details',
               behavior: 'disclosure', rank: 'reading'
-            })]}), activate: () => {}});
+            }]}), activate: () => {}});
         }"""
     )
     more = item.locator(":scope > .lf-margin-more")
@@ -653,11 +653,9 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(
         reactions.locator('[data-lf-margin-entry-owner="responses"]').first
     ).to_have_class(re.compile(r"lf-margin-entry"))
-    ok = reactions.get_by_role("button", name="keep", exact=True)
-    expect(ok).to_have_attribute("aria-label", "keep")
+    ok = reactions.get_by_role("button", name="👍", exact=True)
+    expect(ok).to_have_attribute("aria-label", "👍")
     expect(ok).not_to_have_attribute("title", re.compile(".+"))
-    ok.hover()
-    expect(page.locator(PREVIEW)).to_have_text("keep")
     expect(page.locator(".lf-fab-bar")).to_be_hidden()
     page.evaluate(
         "() => new Promise(done => requestAnimationFrame(() => requestAnimationFrame(done)))"
@@ -747,10 +745,10 @@ def test_one_target_has_one_primary_margin_entry_and_inline_secondary_margin_ent
     expect(suggestion_item.locator(":scope > .lf-margin-marker")).to_be_hidden()
     page.keyboard.press("e")
     expect(suggestion_item.locator(".lf-margin-entry:visible")).to_have_count(6)
-    with sending(page, "the keep reaction"):
-        reactions.get_by_role("button", name=re.compile(r"^keep\b")).click()
+    with sending(page, "the 👍 reaction"):
+        reactions.get_by_role("button", name="👍", exact=True).click()
     sent = events_model.read_events(serve.page_dir)[-1]
-    assert sent["token"] == "keep" and sent["anchor"] == {"section": "sug-refill"}
+    assert sent["emoji"] == "👍" and sent["anchor"] == {"section": "sug-refill"}
 
 
 def test_secondary_margin_entry_proxies_preserve_disabled_and_focus_contract(
@@ -760,7 +758,7 @@ def test_secondary_margin_entry_proxies_preserve_disabled_and_focus_contract(
     page = open_page(browser, serve(PANEL_PAGE))
     page.evaluate(
         """async () => {
-          const {contributionEntry, registerContribution} =
+          const {registerContribution} =
             await window.__lfWidgetApi();
           let visible = {act: true, backup: true, locked: true, details: true};
           window.lfPrimaryClicks = 0;
@@ -770,16 +768,16 @@ def test_secondary_margin_entry_proxies_preserve_disabled_and_focus_contract(
           const registration = registerContribution({
             key: 'fixture', target: document.querySelector('#how-cap'),
             read: () => ({entries: [
-              contributionEntry({key: 'act', glyph: 'A', label: 'Act',
-                behavior: 'action', visible: visible.act}),
-              contributionEntry({key: 'backup', glyph: 'B', label: 'Backup',
-                behavior: 'action', rank: 'secondary', visible: visible.backup}),
-              contributionEntry({key: 'locked', glyph: 'L', label: 'Locked',
+              {key: 'act', glyph: 'A', label: 'Act',
+                behavior: 'action', visible: visible.act},
+              {key: 'backup', glyph: 'B', label: 'Backup',
+                behavior: 'action', rank: 'secondary', visible: visible.backup},
+              {key: 'locked', glyph: 'L', label: 'Locked',
                 behavior: 'action', rank: 'secondary', disabled: true,
-                visible: visible.locked}),
-              contributionEntry({key: 'details', glyph: 'D', label: 'Details',
+                visible: visible.locked},
+              {key: 'details', glyph: 'D', label: 'Details',
                 behavior: 'disclosure', rank: 'reading', visible: visible.details,
-                relation: {kind: 'element', id: 'how-cap', expanded: true}}),
+                relation: {kind: 'element', id: 'how-cap', expanded: true}},
             ]}),
             activate: (token, {focus}) => {
               if (token === 'act') window.lfPrimaryClicks += 1;
@@ -892,7 +890,7 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
     resized(page, width, 900)
     page.evaluate(
         """async () => {
-          const {contributionEntry, registerContribution} =
+          const {registerContribution} =
             await window.__lfWidgetApi();
           window.contributionEntryFixtures = [];
           for (const [index, id] of ['first', 'second'].entries()) {
@@ -900,9 +898,9 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
             const fixture = {engaged: true, saveState: 'engaged', registrations: []};
             const ordinary = () => {
               const entries = [
-                contributionEntry({key: 'act', icon: 'check', label: `Act ${id}`,
-                  rank: 'primary'}),
-                ...Array.from({length: 5}, (_, n) => contributionEntry({
+                {key: 'act', icon: 'check', label: `Act ${id}`,
+                  rank: 'primary'},
+                ...Array.from({length: 5}, (_, n) => ({
                   key: `detail-${n + 1}`, icon: 'dot',
                   label: `Detail ${n + 1} ${id}`,
                   rank: 'secondary', visible: fixture.engaged || n === 0
@@ -912,12 +910,12 @@ def test_margin_entry_order_and_page_map_actions_are_stable_at_both_widths(
             };
             const editor = () => {
               const entries = [
-                contributionEntry({key: 'cancel', icon: 'cross', label: `Cancel ${id}`,
-                  rank: 'escape', state: 'engaged', visible: fixture.engaged}),
-                contributionEntry({key: 'save', icon: 'check',
+                {key: 'cancel', icon: 'cross', label: `Cancel ${id}`,
+                  rank: 'escape', state: 'engaged', visible: fixture.engaged},
+                {key: 'save', icon: 'check',
                   label: `Save ${id} with a longer explanation that must remain inside its tooltip`,
                   rank: 'complete', tone: 'positive', state: fixture.saveState,
-                  visible: fixture.engaged})
+                  visible: fixture.engaged}
               ];
               return index ? entries.reverse() : entries;
             };
@@ -1039,12 +1037,12 @@ def test_a_reading_marker_remains_visible_beside_offered_actions(browser, serve)
     page = open_page(browser, url)
     page.evaluate(
         """async () => {
-          const {contributionEntry, registerContribution} =
+          const {registerContribution} =
             await window.__lfWidgetApi();
           registerContribution({
             key: 'reading-actions', target: document.querySelector('#how-cap'),
             read: () => ({entries: Array.from({length: 2}, (_, index) =>
-              contributionEntry({key: `peer-${index}`, icon: 'dot',
+              ({key: `peer-${index}`, icon: 'dot',
                 label: `Peer ${index}`, rank: 'secondary'})), side: 'after'}),
             activate: () => {}
           });

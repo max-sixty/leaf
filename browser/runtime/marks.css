@@ -1,5 +1,5 @@
-/* Shared message delivery and passage marks.
- * The document and every declared shadow stage adopt this sheet. */
+/* Shared message delivery, passage marks and the hang of a code line's wrapped rows.
+ * The document, every declared shadow stage and the composer's root adopt this sheet. */
 
 /* Delivery feedback follows reading content into every declared shadow stage.
    A busy action control keeps its cursor: the document's chrome sheet alone owns its
@@ -9,13 +9,13 @@
   cursor: progress;
 }
 /* The start of what a scroller holds, for chrome standing beside words its scroll
-   carries to anchor to (css-anchors.js, `contentStart`): empty and inline, so it lays
+   carries to anchor to (dom/css-anchors.js, `contentStart`): empty and inline, so it lays
    out and paints nothing, and named by the attribute its owner writes. */
 [data-lf-content-start]::before {
   content: "";
   anchor-name: attr(data-lf-content-start type(<custom-ident>));
 }
-/* The heading a link shows for, named for the link to stand by (heading-links.js): one
+/* The heading a link shows for, named for the link to stand by (records/heading-links.js): one
    of two names, since links show for two headings at most, the one under the pointer
    and the one the user is on. */
 [data-lf-heading-link="1"] {
@@ -25,23 +25,23 @@
   anchor-name: --lf-heading-link-2;
 }
 /* The target of an action takes a press. Its mark is drawn from `data-lf-mark`
-   (visual-mark-paint.js, surfaces.css). */
+   (annotations/visual-mark-paint.js, surfaces.css). */
 .lf-action-target {
   cursor: pointer;
 }
 /* The hand over a mark stands on the element under the pointer, painted from the hit
-   test a press uses (anchor-paint.js, `paintHand`), so it shows only where a press
-   opens a thread: not over a control or field inside a marked element, which keeps its
-   own press; not on a mark in the chrome, which a press never opens; not while the
-   annotations are hidden. Armed, a press is the aim's, and where it takes an item the
-   aim's hand stands there too (chrome.css). */
+   test a press uses (annotations/anchor-paint.js, `paintHand`), so it shows only where a press
+   opens a thread: on a passage's marked words, but not where they stand in a control or
+   field, which keeps its own press; not on a mark in the chrome, which a press never
+   opens; not while the annotations are hidden. Armed, a press is the aim's, and where
+   it takes an item the aim's hand stands there too (chrome.css). */
 [data-lf-over-mark] {
   cursor: pointer;
 }
 /* Passage annotation highlights, which the runtime's highlight registry paints without
-   wrapping their words, on every page, whoever draws its margin (anchor-paint.js).
+   wrapping their words, on every page, whoever draws its margin (annotations/anchor-paint.js).
    The highlights rank, from the bottom, `lf-mark-hover`, `lf-mark-here`, `lf-mark` and
-   `lf-react`, then `lf-pending` (anchor-paint.js sets each one's priority). A comment
+   `lf-react`, then `lf-pending` (annotations/anchor-paint.js sets each one's priority). A comment
    sets its words in violet ink over a faint violet wash; pointing at it and standing in
    its thread deepen the wash under it, so pointing at one comment while standing in
    another still says both. Those two set no ink: under the comment's mark its ink
@@ -52,12 +52,12 @@
    composite the same in either order. A draft sets its words in the accent.
    The words take the mark's ink rather
    than a line under them: Chromium rechecks a highlight's text decoration across the
-   whole page on every click and keystroke. Hiding the annotations (`o`) empties the
-   durable highlights, `lf-mark` and `lf-react` (anchor-paint.js, `paintDurable`), so no
+   whole page on every click and keystroke. Hiding the annotations (`g H`) empties the
+   durable highlights, `lf-mark` and `lf-react` (annotations/anchor-paint.js, `paintDurable`), so no
    rule here depends on it.
 
    The rules name the elements holding the words the highlights paint, which the runtime
-   marks `data-lf-marked-words` (anchor-paint.js, `holdWords`), so a mark reads its
+   marks `data-lf-marked-words` (annotations/anchor-paint.js, `holdWords`), so a mark reads its
    colours on the element its words stand in: words marked in a dark panel on a light
    page wear the dark scheme's ink and wash, and a `--lf-mark` set on a section, or on a
    widget's host, recolours the marks inside it. A rule matching every element cost a
@@ -83,4 +83,31 @@
 [data-lf-marked-words]::highlight(lf-react) {
   background-color: var(--lf-react);
   color: var(--lf-mark-ink-text);
+}
+/* A line of code in a box of its own, marked `data-lf-pre-line` by its owner: a code
+   block's line (readings/code-lines.js), a draft's code line (field-editor.js) and a file
+   editor's line (the file-editor package). Its wrapped rows start two columns past its
+   indent (`--lf-code-indent`, its leading columns, which the owner states), up to the
+   24 columns lf-code's lines stop at (code.css), and the first of the two holds the
+   mark on each of them (reading.css, `pre`, says why). The hang indents the rows after
+   the first, and so leaves the first row's tab stops where the block's are. The mark
+   stands past the line's own padding, which the owner states as
+   `--lf-pre-line-inset`. It is here because this sheet reaches every root that draws
+   such a line, and in lf-base, so a page's own rules still outrank it. */
+@layer lf-base {
+  [data-lf-pre-line] {
+    display: block;
+    position: relative;
+    --lf-code-hang: calc(min(var(--lf-code-indent, 0), 22) * 1ch + 2ch);
+    text-indent: var(--lf-code-hang) hanging;
+  }
+  [data-lf-pre-line]::before {
+    content: "";
+    position: absolute;
+    inset-block: 1lh 0;
+    inset-inline-start: calc(var(--lf-pre-line-inset, 0px) + var(--lf-code-hang) - 2ch);
+    inline-size: 1ch;
+    background: var(--lf-code-muted);
+    mask: var(--lf-wrap-mark) 0 0 / 1ch 1lh repeat-y;
+  }
 }

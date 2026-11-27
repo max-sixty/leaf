@@ -120,7 +120,9 @@ def test_withdrawing_a_custom_settlement_clears_the_layers_mark(
             "lf-current, lf-proposed { display: block; }"
         )
     (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
-        """import { keeps, LeafElement, shadowStage } from "/runtime/widget-api.js";
+        """import { shadowStage } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { keeps } from "/runtime/lib/keeps.js";
 customElements.define("lf-trial", class extends LeafElement {
   setup() { STAGE }
   render() { keeps(this, "decision", this.state.decide.detail.decision ?? "open"); }

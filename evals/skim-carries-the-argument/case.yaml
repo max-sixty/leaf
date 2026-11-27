@@ -2,18 +2,22 @@
 # every heading, make Skim a fixed cut of one paragraph per section, whatever a
 # section holds for a reader on a quick pass. The instructions state what Skim is for
 # and let a section with nothing for that reader take no gist, which folds it whole.
-# A report with material a skimming lead doesn't need (background on the gateway,
-# which the instructions don't name, a minute-by-minute timeline and the
-# investigation's method) and a decision she owes tests both halves. The failure is
-# giving the timeline and the investigation a gist, such as a timeline gist saying
-# how long finding the host took. Asked for "a detail dial" without its name, authors
-# can build their own from radio buttons and CSS without reading the detail package,
-# so the request names `lf-dial`.
+# Skim keeps a picture only when the author marks it, so the author also chooses
+# which pictures carry the argument. A report with material a skimming lead doesn't
+# need (background on the gateway, which the instructions don't name, a
+# minute-by-minute timeline and the investigation's method) and a decision she owes
+# tests both halves. Its decline rate per 5 minutes invites a chart she needs at
+# Skim, and the pool's layout a diagram that is background unless it shows the
+# failing host. The failures are giving the timeline and the investigation a gist,
+# such as a timeline gist saying how long finding the host took, leaving the decline
+# chart unmarked so Skim drops it, and marking a picture of the background. Asked for
+# "a detail dial" without its name, authors can build their own from radio buttons
+# and CSS without reading the detail package, so the request names `lf-dial`.
 description: skim-carries-the-argument
 metadata:
   purpose: "A long report with a detail dial: its lede and gists, read alone in order,
-    give the argument and the decision the reader owes, and a section with nothing for
-    a quick pass takes no gist."
+    give the argument and the decision the reader owes; a picture of the failure is a
+    gist, and a section or picture with nothing for a quick pass takes none."
   authoring: true
   tags:
     - authoring
@@ -31,17 +35,24 @@ vars:
 
     Background: how the EU gateway pool works. EU card payments go through our own
     gateway pool rather than the card network's managed gateway. The pool has three
-    hosts behind a load balancer, which sends traffic to every host whose health check
-    passes and checks each host every 10 seconds. Each host keeps a pool of open TLS
-    connections to the card network's EU endpoint, so most payments reuse a connection
-    and a host opens a new one only when its pool runs short. The fraud team's rules
-    run inside the gateway, on each payment before it leaves the pool.
+    hosts behind one load balancer, lb-eu, in eu-west-1: gw-eu-1 in zone a, gw-eu-2 in
+    zone b and gw-eu-3 in zone c. The load balancer sends traffic to every host whose
+    health check passes and checks each host every 10 seconds. Each host keeps a pool
+    of up to 64 open TLS connections to the card network's EU endpoint,
+    auth.eu.cardnet.example, so most payments reuse a connection and a host opens a new
+    one only when its pool runs short. The fraud team's rules run inside the gateway on
+    each host, on each payment before it leaves the pool.
 
-    Impact. From 09:14 to 10:06 UTC, 7.2% of EU card authorizations failed with a
-    handshake error, about 4,100 payments. Merchants' automatic retries recovered 2,860
-    of them; 1,240 payments, about €96,000, were not retried and are lost unless the
-    customer pays again. US and UK traffic was unaffected. Support received 38 tickets,
-    all from merchants on the EU gateway pool.
+    Impact. From 09:14 to 10:06 UTC, about 4,100 EU card authorizations failed with a
+    handshake error; at its height, from 09:30 to 09:55, 7.2% of EU authorizations
+    failed. Merchants' automatic retries recovered 2,860 of the failed payments; 1,240
+    payments, about €96,000, were not retried and are lost unless the customer pays
+    again. US and UK traffic was unaffected. Support received 38 tickets, all from
+    merchants on the EU gateway pool. The EU decline rate per 5 minutes, from the
+    decline-rate dashboard (ordinary declines run near 1%, and US and UK stayed between
+    0.9% and 1.1% throughout): 09:00 1.0%, 09:05 1.1%, 09:10 1.3%, 09:15 3.2%, 09:20
+    5.6%, 09:25 7.6%, 09:30 8.3%, 09:35 8.1%, 09:40 8.4%, 09:45 8.2%, 09:50 8.0%, 09:55
+    3.9%, 10:00 1.6%, 10:05 1.1%, 10:10 1.0%.
 
     Cause. The card network rotated the intermediate certificate on its EU endpoint at
     09:12. Our EU gateway pool has three hosts. Two picked up the new chain on their next
@@ -93,13 +104,13 @@ vars:
 
     ---
 
-    Write the page in the initialized Leaf page directory.
+    Write the page in the Leaf page directory.
 assert:
   - type: llm-rubric
     metric: skim-reads-coherently
     value: |
       Read the page's HTML. With its `lf-dial` at Skim, a reader sees the `h1`, the
-      element with class `lede` and the elements with class `gist`, in document order;
+      element with class `lf-lede` and the elements with class `gist`, in document order;
       read only those, as Priya would. Pass only if, read alone in that order, they
       give her a coherent account she can act on: what failed and its cost (including
       the lost payments), why it happened, and the decision she owes between fix A and
@@ -121,3 +132,26 @@ assert:
       section, inside a closed `details`, or within another section, as long as no
       gist is given to it. Fail if the page has no `lf-dial` or no element with class
       `gist`, since then it chose nothing for Skim.
+  - type: llm-rubric
+    metric: skim-keeps-the-failure-picture
+    value: |
+      Read the page's HTML and find every picture it draws: a `figure`, an `img`, an
+      inline `svg`, a `canvas` or `video`, or a widget that draws a chart, diagram or
+      timeline, such as `lf-chart`, `lf-diagram` or `lf-timeline`. A table is not a
+      picture. Count a picture as shown at Skim when it, or an element containing it,
+      has class `gist` and it is not inside a closed `details`, and every other picture
+      as folded. Sort each picture by what it shows:
+
+      - The failure's course or size: the EU decline rate or failed payments over the
+        incident, or failed, recovered and lost payments.
+      - The cause: the pool with gw-eu-3 failing while the load balancer still sends it
+        traffic.
+      - Skipped material: only how the gateway pool is laid out, with nothing failing
+        in it; only the timeline's events; or only how the team investigated.
+
+      Pass only if every picture of the failure's course or size shows at Skim, and no
+      picture of skipped material does. A picture of the cause may show at Skim or not.
+      A page that draws no picture, or none of a kind, is judged on the pictures it
+      does draw: drawing none is no failure. Begin your reason with one line per
+      picture, giving its element and id, its kind and whether it shows at Skim, or
+      "No pictures" when the page draws none.

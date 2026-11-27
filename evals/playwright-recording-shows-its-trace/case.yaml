@@ -5,9 +5,11 @@
 # off as "not page media"; the routed media paragraph addresses it.
 # authored-recording is the guardrail: a screen recording with no trace stays native
 # video.
+# Adding the package runs `page init` again, which replaces the page's packages, so a
+# command that names only `playwright` leaves the page without its theme.
 description: playwright-recording-shows-its-trace
 metadata:
-  purpose: "A browser journey recorded with Playwright is shown as its trace in lf-trace, not as its video."
+  purpose: "A browser journey recorded with Playwright is shown as its trace in lf-trace, not as its video, and adding the package keeps the page's theme."
   tags:
     - evidence
     - packages
@@ -19,8 +21,9 @@ vars:
     `.tmp/recording/video.webm`, `.tmp/recording/recording.gif` and
     `.tmp/recording/trace.zip`.
 
-    The user has the Leaf page `~/pages/thread-review` open, initialized with no
-    extra packages, and asks: "show a recording of the bug so I can understand it?"
+    The user has the Leaf page `~/pages/thread-review` open, which selects the
+    `reading` package alone, and asks: "show a recording of the bug so I can
+    understand it?"
 
     The page directory is unavailable here. Reply with the commands you would run,
     in order, and the HTML of the section you would add.
@@ -28,6 +31,9 @@ assert:
   - type: llm-rubric
     metric: selects-playwright-package
     value: The proposed commands add the playwright package to the existing ~/pages/thread-review page with leaf page init before using its trace widget or producer. Read valid command arguments, allowing quoting, line continuations and flag order.
+  - type: llm-rubric
+    metric: keeps-the-page-theme
+    value: The page still selects `reading` after the proposed commands. Each leaf page init that names a package names `reading` as well, in either order; a reply that first prints the page's packages and then names every one of them also passes.
   - type: llm-rubric
     metric: trace-is-the-recording
     value: The section presents the recorded journey through an lf-trace widget bound to a source the commands fill by importing trace.zip with the playwright package's producer (import_trace.py, or a step reading the package's producer instructions for the command) and `leaf data set`. A video of the screencast may accompany the trace, but the reply does not offer the video as the recording on its own.

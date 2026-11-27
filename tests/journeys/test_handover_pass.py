@@ -8,11 +8,11 @@ from click.testing import CliRunner
 from interact_support import STATED_TIMEOUT, wait_for
 from render_harness import LONG_PAGE
 
-from leaf import cli as cli_model
-from leaf import event_log as log_model
-from leaf import state as state_model
-from leaf.files import latest_revision
-from leaf.render_gate import handover_pass as handover_pass_model
+from leaf.base import state as state_model
+from leaf.base.files import latest_revision
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as log_model
+from leaf.serving import handover_pass as handover_pass_model
 
 
 def test_a_turn_hands_a_failing_version_over_and_hears_about_it(
@@ -22,7 +22,10 @@ def test_a_turn_hands_a_failing_version_over_and_hears_about_it(
     state_model.prompt_turn("s1")
     (claimed / "index.html").write_text(
         LONG_PAGE.replace(
-            "</main>", "<div id='too-wide' style='width: 2000px'>Wide.</div>\n</main>"
+            "</main>",
+            "<div id='short-box' style='height: 3rem; overflow: hidden'>"
+            "<p>First of three.</p><p>Second of three.</p><p>Third of three.</p>"
+            "</div>\n</main>",
         )
     )
     runner = CliRunner()
@@ -42,10 +45,11 @@ def test_a_turn_hands_a_failing_version_over_and_hears_about_it(
         )
         assert told["attention"] is True
         assert told["revision"] == latest_revision(claimed)
+        # The box that cuts off its own words fails the check.
         failed = [
             f
             for f in told["findings"]
-            if f["severity"] == "error" and "too-wide" in f.get("at", "")
+            if f["severity"] == "error" and "short-box" in f.get("at", "")
         ]
         assert failed, json.dumps(told)
 

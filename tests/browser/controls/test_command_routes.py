@@ -1,15 +1,13 @@
 """Keyboard routes to commands: inline hints, contextual aliases and their forwarding,
 disabled and overridden routes, and the targets offered native controls get."""
 
-import re
-
 import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import SEATED_OBLIGATION_LAYER
 from render_harness import leaf_page, open_page, put_preview_away
 
 from browser.navigation import offered_routes
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -18,14 +16,10 @@ KEYBOARD_HINT_REGISTRY = {
     "lf-keyboard-probe": {
         "description": "Exercises declared keyboard commands and their controls.",
         "attributes": {
-            "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "asks": {"type": "boolean"},
-                "restated": {"type": "boolean"},
             },
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "verbs": SEATED_OBLIGATION_LAYER["lf-verdict"]["verbs"],
@@ -35,7 +29,8 @@ KEYBOARD_HINT_REGISTRY = {
 
 
 KEYBOARD_HINT_MODULE = """\
-import {commandScope, keeps, keepsText, offer, commandsChanged} from '/runtime/widget-api.js';
+import { offer } from '/runtime/lib/controls.js';
+import { keeps, keepsText } from '/runtime/lib/keeps.js';
 
 customElements.define('lf-keyboard-probe', class extends HTMLElement {
   connectedCallback() {
@@ -51,25 +46,25 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     const disable = offer('button', '', 'Toggle disabled');
     disable.onclick = () => {
       this.disabled = !this.disabled;
-      commandsChanged(this);
+      this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
     };
     const ariaDisable = offer('button', '', 'Toggle ARIA disabled');
     ariaDisable.onclick = () => {
       this.ariaRefused = !this.ariaRefused;
-      commandsChanged(this);
+      this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
     };
     const guard = offer('button', '', 'Toggle availability');
-    guard.onclick = () => { this.allowed = !this.allowed; commandsChanged(this); };
+    guard.onclick = () => { this.allowed = !this.allowed; this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true })); };
     const replace = offer('button', '', 'Replace action control');
     replace.onclick = () => {
       const prior = this.seat;
       this.makeControl();
       prior.replaceWith(this.seat);
-      commandsChanged(this);
+      this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
     };
     const quiet = offer('button', '', 'Quiet action');
     this.append(disable, ariaDisable, guard, replace, quiet);
-    const scope = commandScope('In the command probe', [
+    const scope = { title: 'In the command probe', rows: [
       {
         id: 'probe.apply', keys: ['x'], contextKeys: ['1'],
         control: () => this.control, bindingBadge: () => this.badge,
@@ -82,16 +77,16 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
         title: 'Activate without an inline hint', line: 'quiet action',
         run: () => keepsText(quiet, 'Quiet action applied'),
       },
-    ]);
+    ] };
     this.lfCommands = scope;
-    commandsChanged(this);
+    this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
     editor.lfCommands = scope;
-    commandsChanged(editor);
+    editor.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
     this.closest('main').lfCommands = { title: 'Outside the widget', rows: [{
       id: 'probe.outer', title: 'Outer digit', keys: ['1'],
       run: () => keepsText(this.result, 'Outer applied'),
     }] };
-    commandsChanged(this.closest('main'));
+    this.closest('main').dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
   }
 
   makeControl() {
@@ -107,234 +102,9 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
 """
 
 
-@pytest.mark.parametrize("hint_seat", ["widget", "corner"])
-def test_widget_owned_inline_hints_follow_reachable_commands(browser, serve, hint_seat):
-    """A package command needs no obligation role to expose its working keyboard route.
-
-    The same scope stands on the widget and its question context. Focus, native text
-    entry, control availability, and replacement change dispatch and the inline hint
-    together; forwarding never creates a second badge for the same action.
-    """
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "command hints",
-                '<h1>Command hints</h1><button id="outside">Outside the widget</button>'
-                '<lf-group id="question" label="Apply the operation?"><h2 id="question-h">Apply the operation?</h2>'
-                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-group>',
-            ),
-            layer_registry=KEYBOARD_HINT_REGISTRY,
-            layer_widgets={
-                "lf-keyboard-probe.js": (
-                    KEYBOARD_HINT_MODULE
-                    if hint_seat == "widget"
-                    else KEYBOARD_HINT_MODULE.replace(
-                        "bindingBadge: () => this.badge", "bindingBadge: null"
-                    )
-                )
-            },
-        ),
-    )
-    widget = page.locator("#probe")
-    badge = (
-        widget.locator("kbd")
-        if hint_seat == "widget"
-        else page.locator(".lf-command-binding-badges .lf-command-binding-badge")
-    )
-    active_hints = page.locator(
-        "[data-lf-binding-badge], .lf-command-binding-badges .lf-command-binding-badge"
-    )
-    result = widget.locator("output")
-    action = widget.get_by_role("button", name="Apply", exact=True)
-
-    # A badge reveal must leave both the labeled control and its neighbours fixed.
-    def control_boxes():
-        return widget.locator("button, input").evaluate_all(
-            "nodes => nodes.slice(0, 2).map(node => { const b = node.getBoundingClientRect(); "
-            "return [b.x, b.y, b.width, b.height]; })"
-        )
-
-    # No scope stands while focus is outside, so an empty seat advertises nothing.
-    page.locator("#outside").focus()
-    rendered(page)
-    expect(badge).to_be_hidden()
-    unfocused_boxes = control_boxes()
-    page.keyboard.press("x")
-    rendered(page)
-    expect(result).to_have_text("0")
-
-    # The question context forwards the widget's declaration without an obligation allocator.
-    page.keyboard.press("m")
-    expect(page.locator("#question")).to_be_focused()
-    expect(badge).to_be_visible()
-    expect(badge).to_have_text("1")
-    expect(active_hints).to_have_count(1)
-    assert control_boxes() == unfocused_boxes
-    page.keyboard.press("1")
-    expect(result).to_have_text("1")
-
-    page.keyboard.press("Tab")
-    expect(action).to_be_focused()
-    expect(badge).to_be_visible()
-    assert control_boxes() == unfocused_boxes
-    expect(active_hints).to_have_count(1)
-    page.keyboard.press("x")
-    expect(result).to_have_text("2")
-
-    # Even an exact editor scope leaves its contextual digit to native editing.
-    # Its ordinary exact-control x command retains priority.
-    page.keyboard.press("Tab")
-    editor = widget.get_by_role("textbox", name="Practice note")
-    expect(editor).to_be_focused()
-    rendered(page)
-    expect(badge).to_have_text("x")
-    assert control_boxes() == unfocused_boxes
-    page.keyboard.type("1")
-    expect(editor).to_have_value("1")
-    expect(result).to_have_text("2")
-    page.keyboard.press("x")
-    expect(result).to_have_text("3")
-    expect(editor).to_have_value("1")
-
-    widget.get_by_role("button", name="Toggle disabled").click()
-    rendered(page)
-    expect(action).to_be_disabled()
-    expect(badge).to_be_hidden()
-    page.keyboard.press("1")
-    rendered(page)
-    expect(result).to_have_text("3")
-    widget.get_by_role("button", name="Toggle disabled").click()
-    expect(badge).to_be_visible()
-
-    # ARIA-disabled controls also suppress the keyboard callback, not just clicks.
-    widget.get_by_role("button", name="Toggle ARIA disabled").click()
-    rendered(page)
-    expect(badge).to_be_hidden()
-    page.keyboard.press("1")
-    rendered(page)
-    expect(result).to_have_text("3")
-    widget.get_by_role("button", name="Toggle ARIA disabled").click()
-    expect(badge).to_be_visible()
-
-    widget.get_by_role("button", name="Toggle availability").click()
-    rendered(page)
-    expect(badge).to_be_hidden()
-    page.keyboard.press("1")
-    rendered(page)
-    expect(result).to_have_text("3")
-    widget.get_by_role("button", name="Toggle availability").click()
-    expect(badge).to_be_visible()
-
-    widget.get_by_role("button", name="Replace action control").click()
-    expect(badge).to_be_visible()
-    expect(badge).to_have_text("1")
-    expect(active_hints).to_have_count(1)
-    page.keyboard.press("1")
-    expect(result).to_have_text("4")
-    # A control whose command omitted bindingBadge has no hint, but its key works.
-    page.keyboard.press("q")
-    expect(widget.get_by_role("button", name="Quiet action applied")).to_be_visible()
-    expect(active_hints).to_have_count(1)
-
-    page.locator("#outside").focus()
-    rendered(page)
-    expect(badge).to_be_hidden()
-    page.keyboard.press("x")
-    rendered(page)
-    expect(result).to_have_text("4")
-
-    assert control_boxes() == unfocused_boxes
-    if hint_seat == "widget":
-        expect(widget.locator("kbd")).to_have_class(re.compile(r"\blf-binding-seat\b"))
-        assert (
-            widget.locator("kbd").evaluate("badge => getComputedStyle(badge).position")
-            == "absolute"
-        )
-        expect(action.locator("kbd")).to_have_count(0)
-
-    # Native pointer, Enter and Space use the command's callback once each. The
-    # owner's private availability also disables a real pointer press, then restores
-    # the same retained button without adding another activation listener.
-    box = action.bounding_box()
-    page.mouse.click(box["x"] + 1, box["y"] + box["height"] / 2)
-    expect(result).to_have_text("5")
-    rendered(page)
-    assert control_boxes() == unfocused_boxes
-    page.keyboard.press("Enter")
-    expect(result).to_have_text("6")
-    page.keyboard.press("Space")
-    expect(result).to_have_text("7")
-    widget.get_by_role("button", name="Toggle availability").click()
-    expect(action).to_be_disabled()
-    box = action.bounding_box()
-    page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-    expect(result).to_have_text("7")
-    widget.get_by_role("button", name="Toggle availability").click()
-    page.locator("#outside").focus()
-    rendered(page)
-    assert control_boxes() == unfocused_boxes
-    page.mouse.click(box["x"] + box["width"] - 1, box["y"] + box["height"] / 2)
-    expect(result).to_have_text("8")
-
-
-@pytest.mark.parametrize("annotation_mode", ["overlay", "page"])
-def test_widget_context_keys_work_without_an_obligation(
-    browser, serve, annotation_mode
-):
-    """Widget aliases and inline hints work with either annotation presentation owner."""
-    source = leaf_page(
-        "standalone widget commands",
-        '<h1>Standalone command</h1><button id="outside">Outside</button>'
-        '<lf-keyboard-probe id="probe"></lf-keyboard-probe>',
-    )
-    if annotation_mode == "page":
-        source = source.replace("<body>", '<body data-annotations="page">')
-    page = open_page(
-        browser,
-        serve(
-            source,
-            layer_registry=KEYBOARD_HINT_REGISTRY,
-            layer_widgets={"lf-keyboard-probe.js": KEYBOARD_HINT_MODULE},
-        ),
-    )
-    expect(page.locator(".lf-margin-projection")).to_have_count(
-        int(annotation_mode == "overlay")
-    )
-    widget = page.locator("#probe")
-    result = widget.locator("output")
-    badge = widget.locator("kbd")
-    page.locator("#outside").focus()
-    expect(page.locator("#outside")).to_be_focused()
-    rendered(page)
-    expect(badge).to_be_hidden()
-    page.keyboard.press("1")
-    expect(result).to_have_text("Outer applied")
-    page.keyboard.press("Tab")
-    expect(widget.get_by_role("button", name="Apply", exact=True)).to_be_focused()
-    page.keyboard.press("1")
-    expect(result).to_have_text("1")
-    expect(badge).to_be_visible()
-    expect(badge).to_have_text("1")
-    page.keyboard.press("?")
-    expect(
-        page.locator('.lf-command-reference-command[data-lf-command="probe.outer"]')
-    ).to_have_attribute("data-lf-available", "false")
-    page.keyboard.press("Escape")
-    page.keyboard.press("Tab")
-    editor = widget.get_by_role("textbox", name="Practice note")
-    expect(editor).to_be_focused()
-    page.keyboard.type("1")
-    expect(editor).to_have_value("1")
-    expect(result).to_have_text("1")
-    expect(badge).to_have_text("x")
-    page.locator("#outside").focus()
-    rendered(page)
-    expect(badge).to_be_hidden()
-
-
 KEYBOARD_ROUTE_MODULE = """\
-import {keepsText, offer, commandsChanged} from '/runtime/widget-api.js';
+import { offer } from '/runtime/lib/controls.js';
+import { keepsText } from '/runtime/lib/keeps.js';
 
 customElements.define('lf-keyboard-probe', class extends HTMLElement {
   connectedCallback() {
@@ -365,12 +135,12 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
       ],
       run: apply,
     }] };
-    commandsChanged(this);
+    this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
     this.closest('section').lfCommands = { title: 'Outside parameterized actions', rows: [{
       id: 'probe.outer', keys: ['1'], title: 'Apply the outer action', line: 'outer action',
       run: () => keepsText(result, 'Outer applied'),
     }] };
-    commandsChanged(this.closest('section'));
+    this.closest('section').dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
   }
 });
 """
@@ -442,7 +212,8 @@ def test_disabled_command_route_keeps_its_key_and_enabled_sibling(
 
 
 CONTEXT_COMMAND_MODULE = """\
-import {keepsText, offer, commandsChanged} from '/runtime/widget-api.js';
+import { offer } from '/runtime/lib/controls.js';
+import { keepsText } from '/runtime/lib/keeps.js';
 
 customElements.define('lf-keyboard-probe', class extends HTMLElement {
   connectedCallback() {
@@ -458,13 +229,13 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     }
     this.append(result);
     this.lfCommands = { title: 'In explicit actions', rows: rows };
-    commandsChanged(this);
+    this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
     const replace = offer('button', '', 'Replace declaration');
     replace.onclick = () => {
       this.lfCommands = { title: 'In explicit actions', rows: [{id: 'probe.replacement', title: 'Replacement',
         contextKeys: ['2'], run: () => keepsText(result, 'Replacement applied')}] };
-      commandsChanged(this);
-      commandsChanged(this);
+      this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
+      this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
     };
     this.append(replace);
   }
@@ -571,7 +342,8 @@ def test_restoring_obligation_focus_can_execute_its_command_in_the_same_turn(
 def test_contextual_escape_agrees_across_dispatch_hints_and_reference(browser, serve):
     """Escape forwarding stays live when its context scope is read more than once."""
     module = """\
-import {keepsText, offer, commandsChanged} from '/runtime/widget-api.js';
+import { offer } from '/runtime/lib/controls.js';
+import { keepsText } from '/runtime/lib/keeps.js';
 
 customElements.define('lf-keyboard-probe', class extends HTMLElement {
   connectedCallback() {
@@ -582,7 +354,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     this.lfCommands = { title: 'In escape operation', rows: [{id: 'probe.escape', title: 'Apply operation',
       keys: ['x'], contextKeys: ['Escape'], control, bindingBadge: null,
       run: () => keepsText(result, `Applied ${++count}`)}] };
-    commandsChanged(this);
+    this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
   }
 });
 """
@@ -641,7 +413,8 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
 def test_context_aliases_do_not_collide_with_authored_command_ids(browser, serve):
     """A contextual projection keeps both commands when an authored id ends in .context."""
     module = """\
-import {keepsText, offer, commandsChanged} from '/runtime/widget-api.js';
+import { offer } from '/runtime/lib/controls.js';
+import { keepsText } from '/runtime/lib/keeps.js';
 
 customElements.define('lf-keyboard-probe', class extends HTMLElement {
   connectedCallback() {
@@ -656,7 +429,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
       {id: 'probe.apply.context', title: 'Neighbour operation', keys: ['F9'],
         control: neighbour, run: () => keepsText(result, 'Neighbour applied')},
     ] };
-    commandsChanged(this);
+    this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
   }
 });
 """
@@ -714,7 +487,8 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
 def test_context_forwarding_preserves_reference_activation_opt_out(browser, serve):
     """A contextual alias cannot turn a reading-only reference row into an action."""
     module = """\
-import {keepsText, offer, commandsChanged} from '/runtime/widget-api.js';
+import { offer } from '/runtime/lib/controls.js';
+import { keepsText } from '/runtime/lib/keeps.js';
 
 customElements.define('lf-keyboard-probe', class extends HTMLElement {
   connectedCallback() {
@@ -724,7 +498,7 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
     this.lfCommands = { title: 'In guarded operation', rows: [{id: 'probe.guarded', title: 'Guarded operation',
       contextKeys: ['F8'], runFromCommandReference: false,
       run: () => keepsText(result, `Applied ${++count}`)}] };
-    commandsChanged(this);
+    this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
   }
 });
 """
@@ -761,7 +535,8 @@ customElements.define('lf-keyboard-probe', class extends HTMLElement {
 
 
 ROUTE_HINT_OVERRIDE_MODULE = """\
-import {keepsText, offer, commandsChanged} from '/runtime/widget-api.js';
+import { offer } from '/runtime/lib/controls.js';
+import { keepsText } from '/runtime/lib/keeps.js';
 
 customElements.define('lf-verdict', class extends HTMLElement {
   connectedCallback() {
@@ -780,7 +555,7 @@ customElements.define('lf-verdict', class extends HTMLElement {
       }],
       runKey: binding => keepsText(result, `${binding}:${++count}`),
     }] };
-    commandsChanged(this);
+    this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
   }
 });
 """
@@ -830,3 +605,65 @@ def test_route_corner_hint_overrides_the_rows_face_in_obligation_and_widget(
     page.keyboard.press("x")
     expect(result).to_have_text("x:2")
     expect(chip).to_have_count(1)
+
+
+SHIFTING_CONTROL_MODULE = """\
+import { offer } from '/runtime/lib/controls.js';
+import { keepsText } from '/runtime/lib/keeps.js';
+
+customElements.define('lf-keyboard-probe', class extends HTMLElement {
+  connectedCallback() {
+    const neighbour = offer('button', '', 'Neighbour');
+    const control = offer('button', '', 'Apply');
+    const result = offer('output', '', '0');
+    this.append(neighbour, control, result);
+    this.shift = (by) => { control.style.translate = by; this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true })); };
+    this.lfCommands = { title: 'In the probe', rows: [{
+      id: 'probe.apply', title: 'Apply', contextKeys: ['1'], control,
+      bindingBadge: null, run: () => keepsText(result, 'Applied'),
+    }] };
+    this.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
+  }
+});
+"""
+
+
+def test_a_key_chip_keeps_its_corner_while_that_corner_serves(browser, serve):
+    """A corner chip moves off a corner only when that corner stops serving.
+
+    The chip leaves its control's upper-left corner, where it would cover the
+    neighbour, for the upper-right. A change that frees the upper-left, as a press's
+    scale can by a pixel, leaves it there, so it doesn't cross its control and back
+    with every press.
+    """
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "a chip keeps its corner",
+                '<h1>Corners</h1><lf-group id="question" label="Apply this?"><h2 id="question-h">Apply this?</h2>'
+                '<lf-keyboard-probe id="probe" asks></lf-keyboard-probe></lf-group>',
+            ),
+            layer_registry=KEYBOARD_HINT_REGISTRY,
+            layer_widgets={"lf-keyboard-probe.js": SHIFTING_CONTROL_MODULE},
+        ),
+    )
+    chip = page.locator(".lf-command-binding-badges .lf-command-binding-badge")
+    control = page.get_by_role("button", name="Apply", exact=True)
+
+    def side():
+        rendered(page)
+        at = chip.bounding_box()
+        box = control.bounding_box()
+        assert at and box
+        middle = at["x"] + at["width"] / 2
+        return "left" if middle < box["x"] + box["width"] / 2 else "right"
+
+    page.keyboard.press("m")
+    expect(chip).to_have_text("1")
+    expect(chip).to_be_visible()
+    assert side() == "right"
+    page.locator("#probe").evaluate("probe => probe.shift('80px 0')")
+    assert side() == "right"
+    page.locator("#probe").evaluate("probe => probe.shift('')")
+    assert side() == "right"

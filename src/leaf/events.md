@@ -8,40 +8,44 @@ matched whole. The append door mints eight hex characters unique within the page
 so an id is not a global identifier. Each kind's record schema is `$events.kinds` in
 `../../browser/runtime/kernel-registry.json`; this table says what each kind means:
 
-| Kind                                         | Author          | Door                                                                            | Fields                                                                                                                                                                         | Meaning                                                                                                                                                                                                                                                                                                                      |
-| -------------------------------------------- | --------------- | ------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| <a id="kind-comment"></a>`comment`           | user or agent   | `POST /api/event`, `leaf thread create`                                         | `text`, `drawing` or `token`; optional `anchor`, `suggestion`, `about: "design"`, `title`, `viewing` (browser)                                                                 | opens a thread; with `token`, puts a reaction mark on the anchor                                                                                                                                                                                                                                                             |
-| <a id="kind-reply"></a>`reply`               | user or agent   | `POST /api/event`, `leaf thread reply`                                          | `parent`; `text` or `token`; `responds` on an agent's answer; `turn`, the posting session's turn where it holds the page; `todo` and a replacement or null `anchor` (CLI only) | a message in the thread of `parent`; an agent's answer settles the update `responds` names, without closing the thread; an agent reply may also move or detach the thread                                                                                                                                                    |
-| <a id="kind-edit"></a>`edit`                 | user or agent   | `POST /api/event`, `leaf thread edit`                                           | `message`, `text`; `base` (browser)                                                                                                                                            | replaces the text of a message its own author wrote; the original stays in the log ("Messages")                                                                                                                                                                                                                              |
-| <a id="kind-read"></a>`read`                 | user            | `POST /api/event`                                                               | `messages: [{message, version}]`                                                                                                                                               | records the agent-content versions the user has read; bookkeeping ("Read state")                                                                                                                                                                                                                                             |
-| <a id="kind-seen"></a>`seen`                 | user            | `POST /api/event`                                                               | `revision`                                                                                                                                                                     | records the newest live revision a tab showed the user, as they leave; bookkeeping ("Read state")                                                                                                                                                                                                                            |
-| <a id="kind-thread_title"></a>`thread_title` | agent           | `leaf thread edit --title`, or Leaf's own title request (`thread_titles.py`)    | `thread`, `title`                                                                                                                                                              | names a thread; the latest title wins                                                                                                                                                                                                                                                                                        |
-| <a id="kind-activation"></a>`activation`     | page            | revision activation                                                             | `revision`, `publication`                                                                                                                                                      | a revision a read activated after another went live here, before the reanchors it caused                                                                                                                                                                                                                                     |
-| <a id="kind-reanchor"></a>`reanchor`         | page            | revision activation                                                             | `thread`, `revision`, `anchor: {section} or null`                                                                                                                              | moves an open thread whose passage or visual part no longer resolves to its surviving section, or detaches it, adding no message ("Anchors")                                                                                                                                                                                 |
-| <a id="kind-summary"></a>`summary`           | agent           | `leaf thread summarize`                                                         | `thread`, `from`, `through`, `text`; optional `label`                                                                                                                          | folds a contiguous range of a thread under optional Markdown; the originals stay revealable                                                                                                                                                                                                                                  |
-| <a id="kind-resolve"></a>`resolve`           | user or agent   | `POST /api/event`, `leaf thread resolve`                                        | `parent`                                                                                                                                                                       | closes a thread                                                                                                                                                                                                                                                                                                              |
-| <a id="kind-unresolve"></a>`unresolve`       | user            | `POST /api/event`                                                               | `parent`                                                                                                                                                                       | reopens a resolved thread                                                                                                                                                                                                                                                                                                    |
-| <a id="kind-action"></a>`action`             | user            | `POST /api/event` from a widget                                                 | `widget`, `action`, `detail`; server-stamped `meaning`                                                                                                                         | changes the document through the widget ("Admission")                                                                                                                                                                                                                                                                        |
-| <a id="kind-report"></a>`report`             | agent or worker | `leaf page report`                                                              | `widget`, `action`, `detail`; server-stamped `meaning` (as for `action`, under a verb (`verbs`) declaring `writer: "agent"`)                                                   | provisional widget state, in force until a stamped version settles it                                                                                                                                                                                                                                                        |
-| <a id="kind-pickup"></a>`pickup`             | page            | the delivery transport, or a harness's failure receipt                          | `events`, `phase` (`queued`, `opened`, `held` or `failed`), `session`, `turn`; `failure` (when `failed`); `refs`, the `answer.ref` its delivery gave each input owed an answer | the named inputs reached the Codex queue, entered an exact agent turn, were held by a line turn while a line fork judged them, which holds their thread without their entering any turn (`forks.py`), or were given up with no answer coming; idempotent per event, phase, session and turn; never a `start` (`delivery.py`) |
-| <a id="kind-receipt"></a>`receipt`           | page            | delivery receipt (`delivery.receive_batch`)                                     | `through`, the seq the receipt confirms                                                                                                                                        | the complete delivery of the log through `through` reached its durable consumer; the greatest `through` is the acknowledgement cursor                                                                                                                                                                                        |
-| <a id="kind-note"></a>`note`                 | agent           | `leaf page stamp`                                                               | `version`, `revision`, changelog `text`, `restated`, `settles` (the `report` ids it answers and the `todo` ids its `--completes` ends)                                         | maps a public version to an immutable revision, naming the decisions it takes back                                                                                                                                                                                                                                           |
-| <a id="kind-error"></a>`error`               | page            | the runtime                                                                     | `text`                                                                                                                                                                         | a failure the page reported in front of the user; the agent hears it as a report                                                                                                                                                                                                                                             |
-| <a id="kind-render"></a>`render`             | page            | the page's server (`render_gate/handover_pass.py`)                              | `revision`, `findings` (`findings.Finding.json`, less `values`)                                                                                                                | what the render check newly found in a version the agent handed over                                                                                                                                                                                                                                                         |
-| <a id="kind-todo"></a>`todo`                 | agent           | `leaf task create`, or a reply's `todo` (`leaf thread reply --todo`)            | `subject` (a thread, a widget, another element, or the page); `title`; server-stamped `revision` on a widget to-do                                                             | opens work the agent owes (`todos.py`)                                                                                                                                                                                                                                                                                       |
-| <a id="kind-todo_end"></a>`todo_end`         | agent           | `leaf task end`                                                                 | `todo`, an open to-do's id; `outcome` (`done`, `failed` or `dropped`); optional `detail`                                                                                       | ends a to-do (`todos.py`)                                                                                                                                                                                                                                                                                                    |
-| <a id="kind-start"></a>`start`               | agent           | `leaf task start`, or progress posted to an owed update                         | `item`, an owed update's event id or an open to-do's; `text`, the status line; `turn`                                                                                          | takes the item in hand until it ends or a `status` follows; the newest start on an item replaces the one before (`todos.py`)                                                                                                                                                                                                 |
-| <a id="kind-status"></a>`status`             | agent           | `leaf page open` and `leaf page close`, or the website harness at a turn's edge | `state` (`waiting` or `idle`)                                                                                                                                                  | declares the page open for feedback or closed, and puts down every earlier start (`activity.declaration`, `todos.item_starts`)                                                                                                                                                                                               |
-| <a id="kind-plan"></a>`plan`                 | agent           | `leaf task plan`                                                                | `steps`, an outline of `{depth, title, state}` or `{depth, item}`                                                                                                              | replaces the agent's plan, which arranges to-dos and obligations without owning them (`plans.py`)                                                                                                                                                                                                                            |
-| <a id="kind-undo"></a>`undo`                 | user            | `POST /api/event`                                                               | `undoes`                                                                                                                                                                       | withdraws one gesture of the user's own ("Undo")                                                                                                                                                                                                                                                                             |
+| Kind                                         | Author          | Door                                                                                     | Fields                                                                                                                                                                                                | Meaning                                                                                                                                                                                       |
+| -------------------------------------------- | --------------- | ---------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| <a id="kind-comment"></a>`comment`           | user or agent   | `POST /api/event`, `leaf thread create`                                                  | `text`, `drawing` or `emoji`; optional `anchor`, `suggestion`, `about: "design"`, `title`, `viewing` (browser)                                                                                        | opens a thread; with `emoji`, a reaction ("Reactions")                                                                                                                                        |
+| <a id="kind-reply"></a>`reply`               | user or agent   | `POST /api/event`, `leaf thread reply`                                                   | `parent`; `text` or `emoji`; `responds` on an agent's answer; `turn`, the posting session's turn where it holds the page; `todo` with any `waiting_on`, and a replacement or null `anchor` (CLI only) | a message in the thread of `parent`; an agent's answer settles the update `responds` names, without closing the thread; an agent reply may also move or detach the thread                     |
+| <a id="kind-edit"></a>`edit`                 | user or agent   | `POST /api/event`, `leaf thread edit`                                                    | `message`, `text`; `base` (browser)                                                                                                                                                                   | replaces the text of a message its own author wrote; the original stays in the log ("Messages")                                                                                               |
+| <a id="kind-read"></a>`read`                 | user            | `POST /api/event`                                                                        | `messages: [{message, version}]`                                                                                                                                                                      | records the agent-content versions the user has read; bookkeeping ("Read state")                                                                                                              |
+| <a id="kind-seen"></a>`seen`                 | user            | `POST /api/event`                                                                        | `revision`                                                                                                                                                                                            | records the newest live revision a tab showed the user, as they leave; bookkeeping ("Read state")                                                                                             |
+| <a id="kind-thread_title"></a>`thread_title` | agent           | `leaf thread edit --title`, or Leaf's own title request (`thread_titles.py`)             | `thread`, `title`                                                                                                                                                                                     | names a thread; the latest title wins                                                                                                                                                         |
+| <a id="kind-activation"></a>`activation`     | page            | revision activation                                                                      | `revision`, `publication`                                                                                                                                                                             | a revision a read activated after another went live here, before the reanchors it caused                                                                                                      |
+| <a id="kind-reanchor"></a>`reanchor`         | page            | revision activation                                                                      | `thread`, `revision`, `anchor: {section} or null`                                                                                                                                                     | moves an open thread whose passage or visual part no longer resolves to its surviving section, or detaches it, adding no message ("Anchors")                                                  |
+| <a id="kind-summary"></a>`summary`           | agent           | `leaf thread summarize`                                                                  | `thread`, `from`, `through`, `text`; optional `label`                                                                                                                                                 | folds a contiguous range of a thread under optional Markdown; the originals stay revealable                                                                                                   |
+| <a id="kind-resolve"></a>`resolve`           | user or agent   | `POST /api/event`, `leaf thread resolve`                                                 | `parent`                                                                                                                                                                                              | closes a thread                                                                                                                                                                               |
+| <a id="kind-unresolve"></a>`unresolve`       | user or agent   | `POST /api/event`, `leaf thread reopen`                                                  | `parent`                                                                                                                                                                                              | reopens a resolved thread                                                                                                                                                                     |
+| <a id="kind-action"></a>`action`             | user            | `POST /api/event` from a widget                                                          | `widget`, `action`, `detail`, `answered`; server-stamped `meaning`                                                                                                                                    | changes the document through the widget ("Admission")                                                                                                                                         |
+| <a id="kind-report"></a>`report`             | agent or worker | `leaf page report`                                                                       | `widget`, `action`, `detail`; server-stamped `meaning` (as for `action`, under a verb (`verbs`) declaring `writer: "agent"`)                                                                          | provisional widget state, in force until a stamped version settles it                                                                                                                         |
+| <a id="kind-pickup"></a>`pickup`             | page            | the delivery transport, or a harness's failure receipt                                   | `events`, `phase` (`queued`, `opened` or `failed`), `session`, `turn`; `failure` (when `failed`); `refs`, the `answer.ref` its delivery gave each input owed an answer                                | the named inputs reached the Codex queue, entered an exact agent turn, or were given up with no answer coming; idempotent per event, phase, session and turn; never a `start` (`delivery.py`) |
+| <a id="kind-receipt"></a>`receipt`           | page            | delivery receipt (`delivery.receive_batch`)                                              | `through`, the seq the receipt confirms                                                                                                                                                               | the complete delivery of the log through `through` reached its durable consumer; the greatest `through` is the acknowledgement cursor                                                         |
+| <a id="kind-note"></a>`note`                 | agent           | `leaf page stamp`                                                                        | `version`, `revision`, changelog `text`, `restated`, `settles` (the `report` ids it answers and the `todo` ids its `--completes` ends)                                                                | maps a public version to an immutable revision, naming the decisions it takes back                                                                                                            |
+| <a id="kind-error"></a>`error`               | page            | the runtime                                                                              | `text`                                                                                                                                                                                                | a failure the page reported in front of the user; the agent hears it as a report                                                                                                              |
+| <a id="kind-render"></a>`render`             | page            | the page's server (`handover_pass.py`)                                                   | `revision`, `findings` (`findings.Finding.json`, less `values`)                                                                                                                                       | what the render check newly found in a version the agent handed over                                                                                                                          |
+| <a id="kind-todo"></a>`todo`                 | agent           | `leaf task create` or `leaf task plan`, or a reply's `todo` (`leaf thread reply --todo`) | `subject` (a thread, a widget, another element, or the page); `title`; `waiting_on`, what its work waits on, where given; server-stamped `revision` on a widget to-do                                 | opens work the agent owes (`todos.py`)                                                                                                                                                        |
+| <a id="kind-todo_end"></a>`todo_end`         | agent           | `leaf task end`                                                                          | `todo`, an open to-do's id; `outcome` (`done`, `failed` or `dropped`); optional `detail`                                                                                                              | ends a to-do (`todos.py`)                                                                                                                                                                     |
+| <a id="kind-start"></a>`start`               | agent           | `leaf task start`, or progress posted to an owed update                                  | `item`, an owed update's event id or an open to-do's; `text`, the status line; `turn`                                                                                                                 | takes the item in hand until it ends or a `status` follows; the newest start on an item replaces the one before (`todos.py`)                                                                  |
+| <a id="kind-status"></a>`status`             | agent           | `leaf page open` and `leaf page close`, or the website harness at a turn's edge          | `state` (`waiting` or `idle`)                                                                                                                                                                         | declares the page open for feedback or closed, and puts down every earlier start (`activity.declaration`, `todos.item_starts`)                                                                |
+| <a id="kind-plan"></a>`plan`                 | agent           | `leaf task plan`                                                                         | `steps`, an outline of headings `{depth, title}` and items `{depth, item}`                                                                                                                            | replaces the agent's plan, which arranges to-dos and obligations under headings without owning them (`plans.py`)                                                                              |
+| <a id="kind-undo"></a>`undo`                 | user            | `POST /api/event`                                                                        | `undoes`, `answered`                                                                                                                                                                                  | withdraws one gesture of the user's own ("Undo")                                                                                                                                              |
 
 ## Anchors
 
-An `anchor` names a passage by `section` and `quote`, with `prefix` and `suffix` where
-the neighbouring text tells two identical passages apart. The browser writes it from
-the user's selection. `leaf thread create`, and a reply command that moves a thread,
-write it from a quote read out of the authored HTML through `leaf.passages`, so they
-write only anchors the file confirms (`validation.md`, "Passages").
+An `anchor` names a passage by `section` and `quote`, with `prefix` and `suffix`, the
+neighbouring words that tell identical passages apart. The browser writes it from the
+user's selection with both sides, an empty one where the passage meets a fence.
+`leaf thread create`, and a reply command that moves a thread, write the agent's
+`section` and `quote`. Where Leaf's reading of the page's files finds the words once,
+they also write both sides from that copy. Elsewhere they write neither side, and an
+absent side constrains nothing, so only a sole copy answers the quote. The page shows an
+anchor whose words it doesn't find once on its section, or nowhere without one
+(`validation.md`, "Passages").
 
 Projected data has no authored text to quote, so a selection on it names `datum`, the
 rendering key within its section, with `prefix` and `suffix` taken from the datum's own
@@ -49,16 +53,21 @@ words, and, where the projection names an external input (`inputs`), `source` an
 `source_revision`, the value's revision when selected. The door
 checks that the section binds that source, and admits an older revision as a comment on
 a value since replaced. `identity` names a subject the emitter knows persists across
-source replacements. `visual` names a declared part of a picture, and `part` the control
-or region a design comment landed on. `part` is an accessible name, not an element
-identity: an authored id or a quote the file confirms locates the comment exactly, and
-otherwise its section is only a description. A native editing value never becomes a
-`part` or a file-readable quote. A selection whose context can't tell which of several
+source replacements. A selection that runs from one datum into a later one its widget
+drew from the same value, as a drag across lines of a diff does, names the datum it ends
+in as `datum` and the one it starts in as `from`, with `prefix` taken from the first's
+words and `suffix` from the last's. `visual` names a declared part of a
+picture, and `part` the control or region a design comment landed on. `part` is an
+accessible name, not an element
+identity: an authored id or a quote the page finds once locates the comment exactly,
+and otherwise its section is only a description. A native editing value never becomes a
+`part` or a quote. A selection whose context can't tell which of several
 identical passages was meant carries `detached: true`, keeping its words without
 claiming a location.
 
-When a revision drops an open thread's passage or visual part, activation records a
-`reanchor` for it (`validation.source_history.revision_reanchors`). An automatic
+When a revision drops an open thread's passage, as the file's reading of each version
+finds its quote, or its visual part, activation records a `reanchor` for it
+(`authored_checks.source_history.revision_reanchors`). An automatic
 move never invents a passage: it falls back to the surviving section or detaches. A
 reply can choose a new passage. `events.build_threads` reads the latest reply
 transition or `reanchor` as the thread's location and keeps the old anchor as
@@ -67,7 +76,7 @@ transition or `reanchor` as the thread's location and keeps the old anchor as
 A comment the user writes in the panel with nothing selected is about the whole page and
 has no anchor. The browser records with it `viewing`, the ids of the addressable
 elements around the words and pictures on the user's screen as they sent it, in page
-order (`runtime/reading-place.js`, `sectionsInView`), so that on a page showing one
+order (`runtime/readings/reading-place.js`, `sectionsInView`), so that on a page showing one
 section at a time the agent can tell which section "this one" meant. Page chrome the
 author gave an id, such as a header, is among them. The thread still stands on the
 whole page, since the user chose to comment there; `viewing` records only what they saw.
@@ -79,20 +88,20 @@ with it `box`, the frame's size, `says`, the page's words under the ink, and the
 `viewport` and `scheme` of the window it was drawn in. `drawing.frame`, when present,
 names the native visual under that point by a structural path inside its element, so
 inserting or removing a sibling detaches it rather than retargeting it. Points are in
-the frame's local coordinates (`browser/runtime/composing/drawing-record.js`). The
+the frame's local coordinates (`browser/runtime/annotations/composing/drawing-record.js`). The
 browser reads all of this off the rendered page, which no file reading can reproduce, so
 the door bounds its shape, the stroke count and 500 characters of `says`, refuses a
 drawing without an anchor or `box`, and does not re-read it. `$events.handling.comment`
 tells the agent how to read a drawing, and `leaf page picture` redraws one as the user
-saw it (`render_gate/picture.py`).
+saw it (`pages/render_gate/picture.py`).
 
 A note, a reply that publishes the saved source, or an `activation` carries
 `publication`, the exact immutable bundle name (`r<revision>-<digest>`). It is the
 first event of the revision's publication, and its seq is the revision's place in the
 log. A page's first revision, when a read activates it, has no such event, since no
 comparison reads its place. Only the checked source publisher supplies it;
-`revisioning.py`'s header says how a publication and the anchor moves that depend on
-it land together.
+`revision_publication.py`'s header says how a publication and the anchor moves that
+depend on it land together.
 
 ## Undo
 
@@ -123,7 +132,7 @@ and how long ago, in every tab and after a reload. A press withdraws the gesture
 once, unless a message or settlement of the user's is still being sent, which it waits
 for, and leaves the user at the gesture's thread, message, passage or element,
 travelling there where it was out of view, so the user sees what the press took back
-however old it was (`runtime/undo.js`). `runtime/undo.js` names each gesture, and the served list words an
+however old it was (`runtime/records/undo.js`). `runtime/records/undo.js` names each gesture, and the served list words an
 action at its head (`GestureWords.gesture`). An exact control, such as a widget's Undo,
 may withdraw an older gesture it names. It and the undo key may withdraw an action whose
 POST has not returned: the browser keeps both gestures in its ordered ledger and sends
@@ -158,7 +167,7 @@ told of the withdrawal, whether it has yet to read the gesture or has already ac
 it. A user's edit
 carries it as a reply does; read marks, and closing or reopening an answered thread that
 holds no obligation, do not. `leaf wait`, delivery, pickup, the Stop guard and the idle
-gate read the field through `service.requires_agent_attention`, and the pending count
+gate read the field through `transaction.requires_agent_attention`, and the pending count
 counts only the user's events.
 
 Either side can open or close a thread. A thread has served its purpose once the user
@@ -191,6 +200,16 @@ compares every field but those the server assigns (`event_log._attempt_payload`)
 `browser_discard` fields browser ingress drops; it is fixed by the running kernel, and
 no layer changes it.
 
+An `action` of a widget whose tag declares `awaits`, and an `undo` of one, carries
+`answered`: whether the widget's obligation is answered as the gesture leaves the
+widget's state, in the widget's own word (`module-state.md`, "Declared widget state"),
+which the runtime reads after drawing the gesture and before sending it, whoever
+writes it. Admission refuses such a gesture without it, and it on any other gesture,
+and decides nothing about it: the obligation is answered while the newest of the
+widget's words says so, a word being one of its actions in force or the user's undos
+of them, or a version note that restates what any of its actions rests on, which says
+the question is open again (`obligations.gesture_answers`).
+
 `meaning` holds what a reader without the sending registry cannot recover from the
 event. Every `action` and `report` records:
 
@@ -209,8 +228,10 @@ event. Every `action` and `report` records:
 - `state`, the operation and detail domain the gesture was admitted under, so under a
   later layer whose domain excludes the value, the event stays in history only
   (`layer-registry.md`).
-- `answer`, on an action whose admission makes its widget's `awaits.answered` hold:
-  the thread the answer closes, from the widget's authored `resolves` in the sending
+- `answer`, on an action of a widget that asks whose `answered` says its obligation
+  is answered, where the action either records the answer itself (its verb is
+  `awaits.value`) or turns the obligation from open to answered: the thread the answer
+  closes, from the widget's authored `resolves` in the sending
   document, or null. The outcome its deciding verb `withdraws` declines and closes
   nothing.
 - `creates`, the tag of the child a `creates` verb adds. The child is the action's
@@ -234,9 +255,7 @@ to it: the unit stays in the move's container, after the nearest unit both revis
 list before it, unless the revision marks it `restated`. An absorbed move still stands,
 as a written-back pick does, but the markup now decides the order an undo would have
 restored, so it can no longer be undone. The door refuses a move made on an older
-revision whose container the newest one authors differently, and any move of a unit
-that shows another widget's answer (`shows`): that widget's own action places it,
-and is the one record of the answer whichever view sent it (`shown_answers.py`).
+revision whose container the newest one authors differently.
 
 ## Following the log
 
@@ -258,6 +277,28 @@ sequence, so a reader that needs them reads `leaf page state` or the publication
 A thread is keyed by the id of the comment that opened it (`events.build_threads`).
 What each thread command does for the user, and when an agent uses it, is
 `../../skills/leaf/references/threads.md`.
+
+### Reactions
+
+A reaction is a `comment` or `reply` whose content is one emoji (`emoji`) in place of
+`text`. The user's reaction is a comment, on the passage, element or page its anchor
+names, or a reply, on the message its `parent` names. The agent's is a reply, written
+by `leaf thread reply --emoji`.
+
+A reaction is a message, and every rule for messages applies to it unchanged. The
+user's reaction is a turn the agent owes an answer: it wakes the agent as words do,
+and answers the agent's questions before it in its thread. The agent's answers the
+user's turn as a reply in words does. Admission takes any one emoji, in the form the
+record schema's `emoji` pattern states; the layer's `$reactions` lists the emoji the
+browser offers the user to pick from, held to the same form.
+
+The browser draws two kinds of reaction as a mark on what they are on: the reaction that
+opened a thread nothing else has been said in, on its anchor (`events.bare_reaction`),
+and the user's reaction on the agent's message, as a chip on that message. It draws
+the agent's reactions as messages in their thread, and a thread a reaction opened as a
+thread once anything else is said in it. The user takes back a reaction of theirs by
+pressing its emoji again, while its thread is open and stands where the reaction was
+put, whatever has been said since.
 
 ### Read state
 
@@ -281,20 +322,36 @@ waits on the user only through an obligation: the message's own, declared with
 markup declares through `awaits`.
 An answering command declares what it leaves: `--done`, nothing further; `--todo
 <title>`, a to-do on the thread for work the reply promises but does not deliver
-(`todos.todo_reading`); or a message obligation or a question in its markup. The
+(`todos.todo_reading`), with `--waiting-on` naming what that work waits on; or a message obligation or a question in its markup. The
 browser cannot write `todo` or `obligation`.
 A user reply always hands the thread back to the agent.
 
-An agent reply records the delivery event it answers as `responds`, including an
-answer whose update was settled during the turn; a proactive `leaf thread reply`
-carries none, and leaves an answer its thread owes owed. Settlement consumes this
-exact id rather than log order, so answering older work cannot erase newer user
-input. A `--done` answer to an update the agent's earlier answer already settled
-with a to-do still open carries no `responds`, and the command names that to-do
-for `leaf task end` (`thread.post_reply`). A substantive reply reopens a resolved
-thread and restores its unanswered widget and message obligations, as an `unresolve`
-does;
-reactions and failure receipts leave it closed.
+An agent reply records the delivery event it answers as `responds`; a proactive
+`leaf thread reply` carries none, and leaves an answer its thread owes owed. A write
+at a reference goes in only while the input it names is the newest standing in its
+thread (`thread.post_reply`), and an answer settles every input still waiting up to
+that one's place in the thread, the user's messages and their actions on widgets sent
+there alike (`events.settle`), so an answer never settles input the agent wasn't
+shown. A reply at an input the agent has already answered carries no `responds`; where
+that answer opened a to-do still open, the command names it for `leaf task end`. A
+Codex turn's final message is the one write outside that check: the turn can't write
+again, so at a reference that is no longer the thread's newest it goes in answering
+the input it was written for, and what is newer stays owed. A
+substantive reply reopens a resolved thread, and brings back none of the questions
+the resolve ended; failure receipts leave it closed, and so does an `unannounced`
+message of the agent's in a thread the user resolved (below).
+
+The user's `resolve` takes a thread off their list. It retires the questions the agent
+asked them there and settles nothing the agent owes: a turn of theirs, or an answer of
+theirs on a widget in a thread message, that the agent has not answered stays owed, and
+the reply that answers it goes into the thread (`events.owed_turns`). A thread the
+user resolved reopens when they or the agent reopen it (`unresolve`, the agent's by
+`leaf thread reopen`) or when the agent asks them something there, in words or with a
+widget. Whatever else the agent says in it, the result of promised work included, is a
+`reply` with `unannounced: true`, which reopens nothing; `thread.post_reply` sets it,
+and a reply by command says so beside its record. The agent's
+`resolve` answers for its thread, as does the user's answer on a widget whose `resolves`
+names it: from either until the thread reopens, the thread owes nothing.
 
 A harness that gives up on an update writes the failure its answer takes
 (`thread.fail_answer`): a reply for a message, or a failed `pickup` for an answer owed
@@ -302,7 +359,7 @@ to a page obligation, each carrying `failure`, a harness-owned code. Only the ha
 writes `failure`, and the panel draws such a reply as a receipt that answers nothing.
 
 A widget with a local `awaits` obligation in a reply's markup declares that
-obligation itself. It stays open until `awaits.answered` holds. Actions on it before
+obligation itself. It stays open until a gesture of it says it is answered. Actions on it before
 then are not handed over: they carry no receipt and need no reply. The action that
 answers carries the receipt and hands the turn to the agent, and undoing it returns
 the obligation to the user and removes the reply obligation. An action on a thread
@@ -313,17 +370,17 @@ While a thread is open, the user's message after a state-answered obligation in 
 that obligation to the agent, still open, until the agent answers that turn or ends the
 to-do a reply promised (`obligations.thread_obligation_readings`). A thread anchored on
 a page obligation does the same, so an obligation the user has commented on leaves their
-On Me list while the reply owed to the comment stands on the agent's, and a promised
-to-do keeps that obligation the agent's even after the thread is resolved
+On Me list while the reply owed to the comment stands on the agent's, or the to-do a
+reply promised, and stays off it when the user resolves the thread
 (`obligations.anchors_with_agent`). A question asked in words (`obligation: true`)
-is answered by that message instead, along with every open question before it, or by a reaction whose token
-declares `settles` on the message holding it. Neither answer resolves the thread, and
-a `resolve` by either side ends every question asked before it, however the thread
+is answered by that message instead, words or a reaction, along with every open
+question before it. That answer doesn't resolve the thread, and a `resolve` by either
+side ends every question asked before it, however the thread
 reopens later, until the resolve is taken back or a message asks one again
 (`obligations`), which is how the agent ends one the user answered elsewhere. An agent reply whose `obligation` lists such questions, each by the id the
 message that first asked it set, opens each again whatever ended it: each keeps its id
-and words and stands on the reply until the user's next message or a settling reaction
-answers it (`obligations.question_ids`).
+and words and stands on the reply until the user's next message answers it
+(`obligations.question_ids`).
 The delivery of the user's reply lists a thread widget's question up its thread in
 `waiting`, since no revision can write that widget's state (`obligations.waiting_in_thread`).
 A message asks by its words or by a widget in its markup, not both: only words answer
@@ -335,7 +392,7 @@ widgets', thread widgets', message requests and user-owned tasks, with a record 
 them for each update the user handed over (`workflows.handed_over`), read after the
 widget obligations it depends on. `obligations.py` owns a record's statuses and its next
 actor. `$keys.awaits` in `browser/registry.json` says when a widget's obligation
-exists and what its id is, and `Obligation` in `served_state/state.schema.json` lists
+exists and what its id is, and `Obligation` in `serving/served_state/state.schema.json` lists
 the served fields. `obligations.collection` selects `all`, `user` and `unanswered` from
 it. To-dos are separate records, and no to-do is made from an obligation.
 
@@ -345,7 +402,7 @@ it. To-dos are separate records, and no to-do is made from an obligation.
   user's, or an agent's, including a predecessor session's; a reaction or a bare
   drawing has no text to revise. An agent's edit may rewrite the message's HTML too,
   and every reading of its elements takes the latest wording
-  (`thread_context.thread_structure`). A user's action on a widget in it stays keyed
+  (`events.thread_structure`). A user's action on a widget in it stays keyed
   to the widget's id, so it applies to whatever markup the edit leaves under that id,
   and to nothing once the id is gone; no other message or revision may take an id
   any wording of the message held. Readings show the latest text on the original
@@ -369,19 +426,17 @@ it. To-dos are separate records, and no to-do is made from an obligation.
   leaves an existing name in place. `thread_title` names or renames a thread with a
   single line of plain text no longer than its registry `title` allows
   (`registry.kernel.title_limit`). An unnamed thread has a null title.
-- `summary` covers an inclusive `from`–`through` range of one or more spoken turns in
-  one thread; a reaction may lie inside it but not at an endpoint. It replaces the
-  summaries it overlaps whole, and every spoken turn older than the last drawn
-  summary then in force must lie in a summary, apart from the thread's opening
-  message and progress, which no summary counts (`events.summary_range`). This holds
-  for a fold without prose too. The refusal names the range admission would take:
-  the requested one widened over every message it would leave. A delivery's
-  `summary_hint` spans the run of messages it suggests and every summary in force
-  among the messages older than the newest exchange, widened as admission would
-  widen it, so a summary that follows it replaces those summaries with one and is
-  never refused. A delivery leaves it out for a thread whose newest delivered
-  message Leaf kept back for a line fork, since a fork beside that line fork
-  summarizes the thread (`summary_fork`). `text` may be empty, and an optional `label` names the range.
+- `summary` covers an inclusive `from`–`through` range of one or more messages in
+  one thread. It replaces the summaries it overlaps whole. A delivery's `summary_hint` spans the run of messages
+  it suggests and every summary in force among the messages older than the newest
+  exchange, widened over any message other than the opening one that it would leave
+  in full above a summary, so a summary that follows it replaces those summaries
+  with one (`thread_context.summary_hint`). A delivery leaves it out for a thread
+  whose newest delivered message came to a round that awaited a line
+  (`events.unlined`) while a follower listed the session's line forks
+  (`leases.lane_up`), since a fork beside that round's line fork summarizes the
+  thread (`summary_fork`). `text` may be empty, and an optional `label` names the
+  range.
   `events.active_summaries` says which summaries stand. A summary answers, resolves,
   settles and marks read nothing.
 - An agent `reply` with `ephemeral: true` is progress. It carries no `responds`,

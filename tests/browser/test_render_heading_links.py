@@ -1,4 +1,4 @@
-"""A heading the page gives an address offers a link to it (heading-links.js)."""
+"""A heading the page gives an address offers a link to it (records/heading-links.js)."""
 
 import re
 
@@ -124,10 +124,10 @@ def test_each_shown_link_stands_by_its_heading(browser, serve):
         '<section id="a"><h2>First</h2><p>Words.</p></section>'
         '<section id="b"><h2>Second</h2><p>Words.</p></section>'
         '<section id="c"><h2 id="named">Named</h2><p>Words.</p>'
-        '<p class="tag">Tag</p></section>'
+        '<p class="lf-tag">Tag</p></section>'
         '<section id="d"><h2>Fourth</h2><p>Words.</p></section>'
         '<section id="e"><h2 id="late">Late</h2><p>Words.</p></section>',
-        head="<style>#named { anchor-name: --mine; } .tag { position: absolute;"
+        head="<style>#named { anchor-name: --mine; } .lf-tag { position: absolute;"
         " position-anchor: --mine; top: anchor(bottom); left: anchor(right); }"
         " #late.anchored { anchor-name: --late; }</style>",
     )
@@ -154,11 +154,11 @@ def test_each_shown_link_stands_by_its_heading(browser, serve):
             LINK,
         )
 
-    tag = page.locator(".tag").bounding_box()
+    tag = page.locator(".lf-tag").bounding_box()
     page.locator("#named").hover()
     expect(links).to_have_count(1)
     assert standing() == ["Named"]
-    assert page.locator(".tag").bounding_box() == tag
+    assert page.locator(".lf-tag").bounding_box() == tag
 
     page.evaluate(
         "const h = document.querySelector('#a > h2'); h.tabIndex = -1; h.focus()"
@@ -174,7 +174,7 @@ def test_each_shown_link_stands_by_its_heading(browser, serve):
     assert standing() == ["Named", "Second"]
     page.mouse.move(2, 2)
     assert standing() == ["Second"]
-    assert page.locator(".tag").bounding_box() == tag
+    assert page.locator(".lf-tag").bounding_box() == tag
 
     # Words selected in a heading under the pointer bring the anchored comment box,
     # which names the heading while its link shows. The link the pointer then shows

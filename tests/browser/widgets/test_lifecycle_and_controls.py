@@ -6,14 +6,13 @@ import re
 import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import CHIP_PAGE
-from render_cases_layout import rings_drawn
 from render_harness import displayed, leaf_page, open_page
 
 from browser.widgets import (
     _bound_diff,
 )
-from leaf.render_checks import wait_until_ready
-from leaf_dev.example_data import named_source
+from leaf.source.render_checks import wait_until_ready
+from leaf_dev.rings import rings_drawn
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -23,10 +22,8 @@ def test_a_source_widget_releases_its_fallback_face_when_it_renders(browser, ser
     source = {
         "description": "Source that a reader draws.",
         "attributes": {
-            "type": "object",
-            "properties": {"id": {"type": "string"}},
+            "properties": {},
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "data",
     }
@@ -140,7 +137,7 @@ def library_select(browser, serve):
     page = _bound_diff(browser, serve)
     page.evaluate("""async () => {
       await import('/vendor/webawesome.esm.js');
-      const {offer} = await window.__lfWidgetApi();
+      const {offer} = await import("/runtime/lib/controls.js");
       const select = offer('wa-select', 'library-select');
       select.label = 'Choose file';
       for (const value of ['first', 'second', 'third']) {
@@ -282,7 +279,7 @@ def test_webawesome_typography_is_independent_of_surrounding_prose(browser, serv
     page = _bound_diff(browser, serve)
     readings = page.evaluate("""async () => {
       await import('/vendor/webawesome.esm.js');
-      const {offer} = await window.__lfWidgetApi();
+      const {offer} = await import("/runtime/lib/controls.js");
       const properties = ['fontFamily', 'fontStyle', 'fontVariant', 'fontStretch',
         'fontFeatureSettings', 'fontVariationSettings', 'letterSpacing',
         'wordSpacing', 'textTransform'];
@@ -346,12 +343,11 @@ def test_reopening_a_library_select_keeps_its_options_visible(browser, serve, mo
 
 def test_library_copy_feedback_finishes_after_its_tooltip_reopens(browser, serve):
     """The copy button consumes the tooltip's completion to release its copy lock."""
-    source = named_source("visual-review-gallery")
-    page = open_page(browser, serve(source))
+    page = open_page(browser, serve(leaf_page("Copy", "<h1>Copy feedback</h1>")))
     page.emulate_media(reduced_motion="no-preference")
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
     page.evaluate("""async () => {
-      const {offer} = await window.__lfWidgetApi();
+      const {offer} = await import("/runtime/lib/controls.js");
       const copy = offer('wa-copy-button', 'copy-feedback');
       copy.id = 'copy-feedback'; copy.value = 'copied value';
       copy.tooltip = 'copy'; copy.feedbackDuration = 80;
@@ -441,11 +437,13 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
                 face: face(el), armed: off ? armed(el) : null};
       };
       // The resting comment box stands in for the field it opens and wears that field's
-      // face, its text cursor included (annotation-chrome.css).
+      // face, its text cursor included (annotation-chrome.css). A press its owner hid,
+      // such as the panel field's Dictate at rest, draws no face to tell apart.
       const presses = [...document.querySelectorAll('[data-lf-offer]')]
-        .filter((el) => el.dataset.lfOffer !== '' && !el.matches('.lf-fab-rest'));
-      const said = [document.querySelector('#intro > .tag'),
-                    document.querySelector('#owner-fact > .tag')];
+        .filter((el) => el.dataset.lfOffer !== '' && !el.matches('.lf-fab-rest')
+                        && !el.hidden);
+      const said = [document.querySelector('#intro > .lf-tag'),
+                    document.querySelector('#owner-fact > .lf-tag')];
       return {
         presses: presses.map(kind), said: said.map(kind),
         saidMarked: said.map((el) => el.hasAttribute('data-lf-offer')),
@@ -482,7 +480,7 @@ def test_a_control_a_widget_built_is_told_from_a_label_it_wrote(browser, serve):
         f"the control under the pointer says nothing about being pressed: "
         f"{before!r} -> {washed!r}"
     )
-    tag = page.locator("#intro > .tag")
+    tag = page.locator("#intro > .lf-tag")
     tag_rest = tag.evaluate(shadow)
     tag.hover()
     assert tag.evaluate(shadow) == tag_rest, (

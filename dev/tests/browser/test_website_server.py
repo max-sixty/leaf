@@ -56,7 +56,7 @@ def test_a_failed_verifier_page_reports_its_browser_errors(browser):
     )
 
 
-def test_failed_reload_retains_the_script_bytes_the_browser_received(browser, capsys):
+def test_failed_reload_retains_the_script_bytes_the_browser_received(browser, capfd):
     page = browser.new_page()
     url = "https://site-verifier.test/revision/"
     module = b"export const broken = (; // \xe2\x98\x83"
@@ -81,7 +81,7 @@ def test_failed_reload_retains_the_script_bytes_the_browser_received(browser, ca
         with website.capture_script_responses(page):
             page.reload()
             website.await_presentation(page, url, failures, timeout=100)
-    evidence = json.loads(capsys.readouterr().err)
+    evidence = json.loads(capfd.readouterr().err)
     (script,) = evidence["scriptResponses"]
     assert script["url"] == url + "runtime.js"
     assert script["status"] == 200
@@ -94,9 +94,9 @@ def test_failed_reload_retains_the_script_bytes_the_browser_received(browser, ca
     module = b"export const healthy = true;"
     with website.capture_script_responses(page):
         page.reload()
-    assert capsys.readouterr().err == ""
+    assert capfd.readouterr().err == ""
     page.reload()
-    assert capsys.readouterr().err == ""
+    assert capfd.readouterr().err == ""
 
 
 def test_the_agent_response_clock_waits_until_the_reply_is_on_screen(browser):

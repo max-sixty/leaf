@@ -37,9 +37,8 @@ import click
 import turbohtml
 from PIL import Image
 
-from leaf.event_log import initialized
-from leaf.registry.storage import layer_packages
-from leaf.schema import MEDIA_TYPES
+from leaf.base.schema import MEDIA_TYPES
+from leaf.source.registry.storage import layer_packages
 from leaf_dev import LEAF_COMMAND, gallery
 from leaf_dev.arms import arm_python, observed_sum
 from leaf_dev.eval_records import judgments, run_samples
@@ -50,12 +49,12 @@ from leaf_dev.regrade import ASPECTS, saved_comparison
 EXPORT_PHASE = """
 from pathlib import Path
 import sys
-from leaf.event_log import read_events
-from leaf.exporting import cmd_export
-from leaf.files import stamped_version
-from leaf.publishing import cmd_stamp
-from leaf.revisioning import planned_activation
-from leaf.validation.source import check_source
+from leaf.records.authored_checks.source import check_source
+from leaf.log.event_log import read_events
+from leaf.pages.exporting import cmd_export
+from leaf.base.files import stamped_version
+from leaf.records.publishing import cmd_stamp
+from leaf.records.revision_publication import planned_activation
 page, target = map(Path, sys.argv[1:])
 events = read_events(page)
 checked = check_source(page, events)
@@ -70,7 +69,7 @@ cmd_export(page, target, version, runtime=True)
 
 # What a report needs without being asked: `lf-diff` for a cited patch, and `lf-diagram`
 # for the review's campaign. Packages already on the page stay.
-REQUIRED_PACKAGES = ["diff", "diagram"]
+REQUIRED_PACKAGES = ["reading", "diff", "diagram"]
 
 UNREVIEWED = '<h1 id="title">Authoring comparisons</h1>'
 
@@ -1556,7 +1555,7 @@ def eval_report(
     heading = turbohtml.parse_fragment(source, context="main").find("h1")
     if heading is None:
         raise click.ClickException("The review needs an <h1>, the report's title.")
-    packages = list(layer_packages(page)) if initialized(page) else []
+    packages = layer_packages(page) or []
     if any(name not in packages for name in REQUIRED_PACKAGES):
         leaf(
             "page",
@@ -1564,7 +1563,7 @@ def eval_report(
             str(page),
             *[
                 argument
-                for name in dict.fromkeys([*packages, *REQUIRED_PACKAGES])
+                for name in dict.fromkeys([*REQUIRED_PACKAGES, *packages])
                 for argument in ("--package", name)
             ],
         )

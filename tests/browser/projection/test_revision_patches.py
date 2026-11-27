@@ -1,6 +1,8 @@
 """What a live revision's patch changes: the markup and words it rewrote, the nodes,
 widgets and editors it keeps, and the markup it releases."""
 
+import re
+
 import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import LIVE_V1, LIVE_V2, LIVE_V3, live_url
@@ -20,7 +22,7 @@ from render_harness import (
     write,
 )
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -177,7 +179,7 @@ def test_a_revision_leaves_the_page_everything_it_did_not_write(browser, serve):
     since it loaded makes the page differ from any source, so a patch that reconciled
     the live tree against the arriving revision would take all of it back. Four owners,
     none of them the author, on one page: the user's open disclosure, the tokenizer's
-    spans in a code block, a tab stop `focus.js` lends to land the keyboard somewhere,
+    spans in a code block, a tab stop `dom/focus.js` lends to land the keyboard somewhere,
     and what a page module built inside an authored container. The revision rewrites one
     paragraph and mentions none of them.
 
@@ -306,35 +308,36 @@ def test_a_revision_leaves_the_page_everything_it_did_not_write(browser, serve):
     }, f"the revision did not reach what it rewrote in place: {rewritten}"
 
 
-def test_a_revision_keeps_a_recording_on_leaf_s_play_bar(browser, serve):
-    """The runtime trades a video's `controls` for its own play bar before first paint
-    (video-controls.js). A revision that leaves the video as written keeps the node and
-    the bar, and hands the browser's controls back to nobody."""
-    body = """
-<p id="rv-edited">The recording is a draft.</p>
-<video id="rv-video" controls width="320" height="180" aria-label="Test pattern"
-  src="/media/2930ad3df7819c50.mp4"></video>
-"""
-    first = leaf_page("Recording first", body)
-    second = first.replace("Recording first", "Recording second").replace(
-        "is a draft.", "is final."
+def test_a_revision_that_rewrites_a_code_block_boxes_its_new_lines(browser, serve):
+    """A code block's lines stand in boxes the runtime made (readings/code-lines.js), so the
+    patch takes the block whole: one the revision leaves alone keeps its boxes, and one
+    whose code it rewrites arrives as authored and is boxed again, its text the new
+    source."""
+    first = leaf_page(
+        "Boxes first",
+        '<pre id="kept"><code>one\n  two\n</code></pre>'
+        '<pre id="rewritten"><code>alpha\n  beta\n</code></pre>',
+    )
+    second = first.replace("Boxes first", "Boxes second").replace(
+        "alpha\n  beta\n", "alpha\n  beta\n    gamma\n"
     )
     page = open_page(browser, live_url(serve(first)))
-    page.evaluate("() => { window.__video = document.getElementById('rv-video'); }")
+    expect(page.locator("#rewritten [data-lf-pre-line]")).to_have_count(2)
+    page.evaluate(
+        "() => { window.__kept = document.querySelector('#kept [data-lf-pre-line]'); }"
+    )
     (serve.page_dir / "index.html").write_text(second)
     told(page)
-    expect(page.locator("#rv-edited")).to_have_text("The recording is final.")
-    state = page.evaluate(
-        """() => {
-          const video = document.getElementById('rv-video');
-          return {
-            same: video === window.__video,
-            controls: video.hasAttribute('controls'),
-            bars: document.querySelectorAll('.lf-video-controls').length,
-          };
-        }"""
-    )
-    assert state == {"same": True, "controls": False, "bars": 1}, state
+    expect(page).to_have_title("Boxes second")
+    lines = page.locator("#rewritten [data-lf-pre-line]")
+    expect(lines).to_have_count(3)
+    assert lines.evaluate_all(
+        "(lines) => lines.map((line) => line.style.getPropertyValue('--lf-code-indent'))"
+    ) == ["", "2", "4"]
+    assert page.locator("#rewritten").text_content() == "alpha\n  beta\n    gamma\n"
+    assert page.evaluate(
+        "() => window.__kept === document.querySelector('#kept [data-lf-pre-line]')"
+    ), "the block the revision left alone lost its boxes"
 
 
 def test_a_revision_that_moves_the_block_the_user_types_in_keeps_them_there(
@@ -387,6 +390,32 @@ def test_a_revision_that_moves_the_block_the_user_types_in_keeps_them_there(
         "focused": True,
         "caret": [6, 9, "backward"],
     }, f"the revision's move took the user out of their box: {kept}"
+
+
+def test_a_revision_that_rewrites_a_selects_options_keeps_the_users_choice(
+    browser, serve
+):
+    """The option the user chose stays chosen though a revision moves it into a group
+    and marks another option as the author's choice. The patch keeps the select but
+    rebuilds options, and a select holds its choice in its options, so keeping the
+    control doesn't keep the choice; the user's choice wins over the author's, as
+    words typed in a field do."""
+    options = "<option>Starter</option><option>Team</option><option>Scale</option>"
+    first = leaf_page(
+        "Plan first",
+        f'<p><label>Plan <select id="plan">{options}</select></label></p>',
+    )
+    second = first.replace("Plan first", "Plan second").replace(
+        options,
+        '<optgroup label="Small"><option>Starter</option><option>Team</option>'
+        "</optgroup><option selected>Scale</option>",
+    )
+    page = open_page(browser, live_url(serve(first)))
+    page.locator("#plan").select_option("Team")
+    (serve.page_dir / "index.html").write_text(second)
+    told(page)
+    expect(page).to_have_title("Plan second")
+    expect(page.locator("#plan")).to_have_value("Team")
 
 
 def test_a_revision_reorders_a_live_sample_without_replacing_its_document(
@@ -570,8 +599,8 @@ def test_a_revision_reaches_markup_wherever_its_source_holds_it(browser, serve):
     template = "() => document.getElementById('tm-held').content.textContent"
     assert page.evaluate(template) == "The first account."
     quoted = (
-        "async () => { const api = await window.__lfWidgetApi();"
-        " const reading = api.widgetController(document.getElementById('qt-opts')).read();"
+        "async () => { const api = await window.__lfCheckApi();"
+        " const reading = api.controllerOf(document.getElementById('qt-opts')).read();"
         " return { choose: reading.actions.choose.available,"
         " label: document.getElementById('qt-b').textContent.trim() }; }"
     )
@@ -971,10 +1000,8 @@ def test_a_revision_of_the_data_a_widget_draws_replaces_the_widget(browser, serv
                     "lf-drawn-data": {
                         "description": "Text its module draws once, at upgrade.",
                         "attributes": {
-                            "type": "object",
-                            "properties": {"id": {"type": "string"}},
+                            "properties": {},
                             "required": ["id"],
-                            "additionalProperties": False,
                         },
                         "content": "data",
                     }
@@ -988,6 +1015,72 @@ def test_a_revision_of_the_data_a_widget_draws_replaces_the_widget(browser, serv
     stamp_page(serve.page_dir, source("two"), "new data")
     wait_for_revision(page, 2)
     expect(page.locator("#dd output")).to_have_text("two")
+
+
+GRIPPED = """import { html } from '/vendor/lit.js';
+import { LeafElement } from '/runtime/lib/leaf-element.js';
+customElements.define('lf-gripped', class extends LeafElement {
+ static shadow = true;
+ render() {
+  return html`<button data-lf-carry="grip">Move</button><slot></slot>`;
+ }
+});"""
+
+
+def test_a_replaced_widget_gives_focus_back_to_the_grip_its_module_drew(browser, serve):
+    """A revision that rewrites a widget replaces it, and a user on a control the
+    widget's module drew is on the replacement's control of the same `data-lf-carry`
+    key. The control may stand in the widget's declared shadow root, where focus read
+    only in the page's own tree is the host's and the host would take it back. A board
+    keys each card's grip, so rewording one card leaves the user on the grip of
+    another."""
+
+    def source(words, card="First."):
+        return leaf_page(
+            "Gripped",
+            f'<h1>Gripped</h1><lf-gripped id="held"><p>{words}</p></lf-gripped>'
+            f'<lf-board id="work"><lf-column id="doing" label="Doing">'
+            f'<lf-card id="card-a" label="A"><strong>A</strong> {card}</lf-card>'
+            '<lf-card id="card-b" label="B"><strong>B</strong> Second.</lf-card>'
+            "</lf-column></lf-board>",
+        )
+
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                source("One."),
+                layer_registry={
+                    "lf-gripped": {
+                        "description": "Words beside a control its module draws.",
+                        "attributes": {
+                            "properties": {"id": {"type": "string"}},
+                            "required": ["id"],
+                        },
+                        "content": "markup",
+                        "shadow": True,
+                    }
+                },
+                layer_widgets={"lf-gripped.js": GRIPPED},
+            )
+        ),
+    )
+    page.locator("#held button").focus()
+    page.evaluate("() => { window.__held = document.getElementById('held'); }")
+
+    stamp_page(serve.page_dir, source("Two."), "reword")
+    wait_for_revision(page, 2)
+    expect(page.locator("#held p")).to_have_text("Two.")
+    assert page.evaluate("window.__held !== document.getElementById('held')")
+    expect(page.locator("#held button")).to_be_focused()
+
+    page.locator("#card-b > .lf-grip").focus()
+    page.evaluate("() => { window.__card = document.getElementById('card-b'); }")
+    stamp_page(serve.page_dir, source("Two.", "First, reworded."), "reword a card")
+    wait_for_revision(page, 3)
+    expect(page.locator("#card-a")).to_contain_text("First, reworded.")
+    assert page.evaluate("window.__card !== document.getElementById('card-b')")
+    expect(page.locator("#card-b > .lf-grip")).to_be_focused()
 
 
 @pytest.mark.parametrize("departure", ["focused", "link", "selection"])
@@ -1077,8 +1170,8 @@ def test_a_live_revision_updates_the_closed_on_me_door(browser, serve, subject):
     )
     second = first.replace(reading, questions + reading)
     page = open_page(browser, live_url(serve(first, packages=("diff",))))
-    door = page.locator(".lf-fp-on-user")
-    expect(door).to_have_attribute("aria-label", "On Me")
+    door = page.locator(".lf-fp-leaf")
+    expect(door).to_have_attribute("aria-label", re.compile(r"^Page menu · "))
     target = (
         page.locator("#reading")
         if subject != "diff"
@@ -1096,7 +1189,9 @@ def test_a_live_revision_updates_the_closed_on_me_door(browser, serve, subject):
     # An empty but open composer was sufficient to hold the original report.
     (serve.page_dir / "index.html").write_text(second)
     expect(page.locator("lf-options")).to_have_count(3)
-    expect(door).to_have_attribute("aria-label", "On Me: 3")
+    expect(door).to_have_attribute(
+        "aria-label", re.compile(r"^On Me · 3 waiting on me · ")
+    )
     if subject == "selection":
         assert (
             page.evaluate("getSelection().toString().trim()")
@@ -1112,7 +1207,9 @@ def test_a_live_revision_updates_the_closed_on_me_door(browser, serve, subject):
     (serve.page_dir / "index.html").write_text(first)
     expect(page.locator("lf-options")).to_have_count(0)
     # With nothing on the user, the door names the comment they are writing.
-    expect(door).to_have_attribute("aria-label", "On Me, 1 draft unsent")
+    expect(door).to_have_attribute(
+        "aria-label", re.compile(r"^Threads · 1 draft unsent · ")
+    )
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property(
         "value", "Keep this comment while questions change."
@@ -1142,16 +1239,16 @@ def test_a_live_revision_holds_a_changed_comment_anchor_scope(browser, serve):
     (serve.page_dir / "index.html").write_text(second)
     told(page)
     expect(page.locator("#subject p")).to_have_count(1)
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute(
-        "aria-label", "On Me, 1 draft unsent"
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", re.compile(r"^Threads · 1 draft unsent · ")
     )
     expect(editor).to_be_focused()
     expect(editor).to_have_js_property("value", "This occurrence matters.")
 
     editor.press("Escape")
     expect(page.locator("#subject p")).to_have_count(2)
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute(
-        "aria-label", "On Me: 1, 1 draft unsent"
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", re.compile(r"^On Me · 1 waiting on me, 1 draft unsent · ")
     )
 
 
@@ -1211,7 +1308,7 @@ def test_a_live_revision_reorders_the_page_and_obligation_inventory_together(
     )
     page = open_page(browser, live_url(serve(first)))
     expect_obligations_answered(page, "0/3")
-    page.locator(".lf-fp-on-user").click()
+    page.locator(".lf-fp-leaf").click()
     panel_settled(page, view="queue")
     cards = f"{panel_view('queue')} .lf-fp-on-item"
     expect(page.locator(cards)).to_have_count(3)
@@ -1224,7 +1321,7 @@ def test_a_live_revision_reorders_the_page_and_obligation_inventory_together(
 
     def asked():
         return page.locator(cards).evaluate_all(
-            "nodes => nodes.map(node => JSON.parse(node.dataset.lfKey)[1])"
+            "nodes => nodes.map(node => node.dataset.lfKey)"
         )
 
     assert identities("main > lf-group", "id") == [
@@ -1247,7 +1344,7 @@ def test_a_live_revision_reorders_the_page_and_obligation_inventory_together(
     expect(page.locator(cards)).to_have_count(2)
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
-    page.locator(".lf-fp-on-user").click()
+    page.locator(".lf-fp-leaf").click()
     panel_settled(page, view="queue")
     expect(page.locator(cards)).to_have_count(2)
     assert asked() == [

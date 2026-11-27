@@ -57,31 +57,19 @@ import pytest
 from interact_support import running_http_server
 from render_harness import ROOT
 
-from leaf.event_log import read_events
-from leaf.page_snapshot import capture_page_snapshot
-from leaf.render_checks import rendered, wait_until_ready
-from leaf.render_gate.page_code import needs_browser
-from leaf.render_gate.preview import preview_server
-from leaf.render_gate.version import render_version
-from leaf.validation.source import check_source
+from leaf.log.event_log import read_events
+from leaf.pages.page_snapshot import capture_page_snapshot
+from leaf.pages.render_gate.preview import preview_server
+from leaf.pages.render_gate.version import render_version
+from leaf.records.authored_checks.source import check_source
+from leaf.source.browser_judged import needs_browser
+from leaf.source.render_checks import rendered, wait_until_ready
 
 SOURCES = sorted((ROOT / "tests" / "fixtures" / "plain").glob("*.html"))
 # The obstacles a decision has yet to lift, and below, each page's findings they
 # explain, by pin (`differences`, `checked`).
-OBSTACLES = {
-    "sideways-refusal": (
-        "the render gate refuses a page that scrolls sideways, so a table wider than a"
-        " narrow window, which the open web lets the page scroll to, is refused"
-    ),
-}
-KNOWN = {
-    "dashboard": {
-        "sideways-refusal": {
-            "page-scrolls ",
-            "past-column <table> in <section id=shards>",
-        },
-    },
-}
+OBSTACLES: dict[str, str] = {}
+KNOWN: dict[str, dict[str, set[str]]] = {}
 
 # A page that builds content after it loads says it has finished as a page does to
 # assistive technology: no region of it is still busy.
@@ -627,7 +615,7 @@ def test_an_ordinary_page_is_drawn_as_written(
     plain.wait_for_function(f"document.fonts.status === 'loaded' && {LOADED}")
     alone = Arm(plain, standalone=True)
 
-    page_dir = site_of(source, initialized_page(tmp_path / "page", (), theme=False))
+    page_dir = site_of(source, initialized_page(tmp_path / "page", (), reading=False))
     with checked(browser.unwatched, page_dir) as (found, url):
         if url is not None:
             page = browser.unwatched.new_page(viewport=VIEWPORT, color_scheme="light")

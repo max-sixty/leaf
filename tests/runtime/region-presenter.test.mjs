@@ -10,9 +10,8 @@ import {
   applicationState,
   readPart,
   whenApplicationPresented,
-  queueWidgetUpdate,
-} from "/runtime/semantic-state.js";
-import { clockValue, tickClock } from "/runtime/presence.js";
+} from "/runtime/state/semantic-state.js";
+import { clockValue, tickClock } from "/runtime/state/presence.js";
 
 const phase = readPart((root) => root.phase);
 
@@ -155,12 +154,15 @@ test("explicit presentation rereads mechanical inputs without duplicate claims",
 });
 
 test("an unchanged intermediary still carries its upstream DOM dependencies", async () => {
-  const { PRESENTATION_DOM } = await import("/runtime/semantic-state.js");
+  const { PRESENTATION_DOM } = await import("/runtime/state/semantic-state.js");
   let dom = "old";
   const seen = [];
+  // The DOM the projection waits for, none until an owner upstream of it draws.
+  const upstream = Promise.withResolvers();
+  let owed = [];
   const projection = applicationPresenter({
     region: "projection:chrome",
-    after: PRESENTATION_DOM.widgets,
+    after: () => owed,
     reading: () => true,
     paint: () => {
       dom = "projected";
@@ -179,20 +181,12 @@ test("an unchanged intermediary still carries its upstream DOM dependencies", as
     reading: () => true,
     paint: () => seen.push(dom),
   });
-  const nativeCommit = Promise.withResolvers();
-  const updated = queueWidgetUpdate(
-    "pending-native-widget",
-    () => {
-      dom = "widget";
-    },
-    () => nativeCommit.promise,
-  );
+  owed = [upstream.promise];
   void consumer.present();
   const finished = projection.present();
-  await updated;
   await new Promise((resolve) => setTimeout(resolve, 0));
   const beforeCommit = [...seen];
-  nativeCommit.resolve();
+  upstream.resolve();
   await finished;
   projection.disconnect();
   thread.disconnect();
@@ -209,8 +203,8 @@ test("a paint advancing a version it does not read claims no second pass", async
   // An owner's commit advances the version its readers follow, inside the paint that
   // commits. `tick` writes without reading, so the paint is not subscribed to its own
   // write; `x.value += 1` reads first, and claims the region again for nothing.
-  const { tick } = await import("/runtime/version-signal.js");
-  const { signal } = await import("/runtime/framework.js");
+  const { tick } = await import("/runtime/state/version-signal.js");
+  const { signal } = await import("/vendor/signals-core.js");
   const paints = { ticked: 0, added: 0 };
   const ticked = signal(0);
   const added = signal(0);
@@ -239,156 +233,4 @@ test("a paint advancing a version it does not read claims no second pass", async
   noisy.disconnect();
   assert.equal(paints.ticked, 1);
   assert.equal(paints.added, 2, "reading the version first subscribes the paint");
-});
-
-test("a region owing no paint has committed while a widget holds the DOM upstream", async () => {
-  // Reply continuity waits for the margin's own commit (thread/presentation.js). A
-  // margin owing no repaint has already committed, so a widget withholding its commit,
-  // as one does through a drag, doesn't delay it, while the pass and the margin's
-  // upstream DOM wait for the widget. A margin that repaints commits only after its
-  // upstream, so this holds only without a repaint. The regions keep the page's chain.
-  const { PRESENTATION_DOM, whenDocumentPresented } =
-    await import("/runtime/semantic-state.js");
-  const paints = [];
-  const chain = [
-    ["projection:chrome", PRESENTATION_DOM.widgets],
-    ["thread", PRESENTATION_DOM.projection],
-    ["obligations", PRESENTATION_DOM.thread],
-    ["annotations", PRESENTATION_DOM.obligations],
-  ].map(([region, after]) =>
-    applicationPresenter({
-      region,
-      after,
-      reading: () => true,
-      paint: () => paints.push(region),
-    }),
-  );
-  await Promise.all(chain.map((presenter) => presenter.present()));
-  assert.equal(paints.length, 4);
-
-  const held = Promise.withResolvers();
-  void queueWidgetUpdate(
-    "probe-held-widget",
-    () => {},
-    () => held.promise,
-  );
-  let upstream = false;
-  void Promise.allSettled(PRESENTATION_DOM.obligations()).then(() => {
-    upstream = true;
-  });
-  let documentPresented = false;
-  void whenDocumentPresented().then(() => {
-    documentPresented = true;
-  });
-  await chain.at(-1).committed();
-  await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.equal(upstream, false, "the margin's upstream DOM waits for the widget");
-  assert.equal(documentPresented, false, "the pass still waits for the widget");
-  held.resolve();
-  await whenDocumentPresented();
-  assert.equal(upstream, true);
-  for (const presenter of chain) presenter.disconnect();
-});
-
-test("an optimistic cyclic move cannot deadlock widget DOM before its refusal", async () => {
-  const original = applicationState.read().document;
-  const move = {
-    unit: "unit",
-    writer: "user",
-    record: { kind: "position", within: "lf-cycle-box" },
-  };
-  const descriptor = (id, parent) => ({
-    id,
-    tag: "lf-cycle-box",
-    document: { kind: "page", revision: 1 },
-    declaration: {
-      verbs: {},
-    },
-    parent: parent && { id: parent, tag: "lf-cycle-box" },
-    ancestors: [],
-    quoted: false,
-  });
-  const board = {
-    ...descriptor("board", null),
-    tag: "lf-cycle-board",
-    declaration: {
-      verbs: { move },
-    },
-  };
-  applicationState.identify(1);
-  applicationState.captureDocument({
-    ...applicationState.read().document,
-    registry: {
-      [board.tag]: board.declaration,
-      "lf-cycle-box": {
-        verbs: {},
-      },
-      $states: {
-        [board.tag]: {
-          move: {
-            writer: "user",
-            definition: {
-              origin: board.tag,
-              unit: move.unit,
-              record: move.record,
-              creates: null,
-              detail: null,
-            },
-          },
-        },
-      },
-    },
-    descriptors: new Map([
-      ["board", board],
-      ["outer", descriptor("outer", "board")],
-      ["inner", descriptor("inner", "outer")],
-    ]),
-    authored: new Map([
-      [
-        "board",
-        {
-          tag: board.tag,
-          specs: new Map([["move", move]]),
-          state: {
-            move: {
-              value: { board: ["outer"], outer: ["inner"], inner: [] },
-              units: {},
-              ranks: { outer: "1", inner: "1" },
-            },
-          },
-        },
-      ],
-    ]),
-  });
-  try {
-    applicationState.enqueue(
-      {
-        kind: "action",
-        widget: "board",
-        action: "move",
-        detail: { unit: "outer", value: "inner", rank: "1" },
-        revision: 1,
-        attempt: "cyclic-move",
-      },
-      "now",
-    );
-    assert.equal(applicationState.read().effective.widgetParents.get("outer"), "inner");
-    assert.equal(applicationState.read().effective.widgetParents.get("inner"), "outer");
-    const drawn = [];
-    await Promise.all(
-      ["outer", "inner"].map((id) =>
-        queueWidgetUpdate(
-          id,
-          () => drawn.push(id),
-          () => Promise.resolve(),
-        ),
-      ),
-    );
-    assert.deepEqual(drawn.sort(), ["inner", "outer"]);
-    applicationState.refuse("cyclic-move");
-    assert.equal(applicationState.read().effective.widgetParents.get("outer"), "board");
-  } finally {
-    applicationState.refuse("cyclic-move");
-    applicationState.captureDocument(original);
-  }
 });

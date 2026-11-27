@@ -1,7 +1,8 @@
 /* A page-owned worktree adapter preserves the source record's stable identity
  * and provenance. Native details owns disclosure; Leaf owns datum comments. */
 import { html } from "/vendor/lit.js";
-import { keeps, LeafElement } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { keeps } from "/runtime/lib/keeps.js";
 customElements.define(
   "lf-test-tree",
   class extends LeafElement {
@@ -18,7 +19,7 @@ customElements.define(
         <summary>Worktree evidence</summary>
         ${
           record
-            ? html`<dl class="facts">
+            ? html`<dl class="lf-facts">
                   <dt>Branch</dt>
                   <dd>${record.branch}</dd>
                   <dt>Revision</dt>

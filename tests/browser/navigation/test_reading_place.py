@@ -28,13 +28,14 @@ from render_harness import (
     take_browser_errors,
     told,
     wait_for_revision,
+    word_point,
     write,
 )
 
 from browser.threads import open_panel_thread
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
+from leaf.source.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -52,11 +53,12 @@ def test_restoring_a_reading_start_paints_its_continuation_before_the_frame(
             )
         ),
     )
+    # The region is read in the task that marks its box.
     page.evaluate("""async () => {
-      const api = await window.__lfWidgetApi();
+      const api = await window.__lfCheckApi();
       const host = document.querySelector('#reading');
-      const region = {id:'reading', host, body:host};
-      window.reading = {api, host, region, stop:api.registerReadingRegion(region)};
+      host.setAttribute('data-lf-scroll', 'reading');
+      window.reading = {api, host, region: api.readingRegionFor(host)};
     }""")
     expect(page.locator("#reading")).to_have_attribute("data-lf-more-below", "")
     page.evaluate("""() => {
@@ -78,10 +80,8 @@ def test_restoring_a_reading_start_paints_its_continuation_before_the_frame(
         p.api.restorePlace(p.place, p.region);
         queueMicrotask(() => {
           observer.disconnect();
-          const result = {top:p.host.scrollTop,
-            more:p.host.hasAttribute('data-lf-more-below')};
-          p.stop();
-          resolve(result);
+          resolve({top:p.host.scrollTop,
+            more:p.host.hasAttribute('data-lf-more-below')});
         });
       });
       observer.observe(p.host);
@@ -189,6 +189,133 @@ def test_history_returns_the_working_place_as_well_as_the_viewport(browser, serv
     )
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_back_after_a_reload_returns_to_the_place_the_entry_left(
+    request, serve, engine
+):
+    """An entry keeps where the user was across a reload of the document, as a revision
+    that changes the page's code reloads it: Back after the reload returns to the line
+    they were reading and to the link they followed, as Back before it does."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "Return across a reload",
+                "<h1>Return across a reload</h1>"
+                + "".join(
+                    f"<p>Reading paragraph {n} carries on long enough to name a place.</p>"
+                    for n in range(40)
+                )
+                + '<p><a id="reference" href="#destination">Read the destination</a></p>'
+                + "".join(f"<p>Middle paragraph {n}.</p>" for n in range(60))
+                + '<section id="destination" style="min-height:900px">'
+                "<h2>Destination</h2></section>",
+            )
+        ),
+    )
+    page.locator("#reference").scroll_into_view_if_needed()
+    page.evaluate("scrollBy({top: 120, behavior: 'instant'})")
+    scroll_settled(page)
+    read_to = page.evaluate("scrollY")
+    page.locator("#reference").click()
+    expect(page.locator("#destination")).to_be_focused()
+    scroll_settled(page)
+    page.reload()
+    wait_until_ready(page)
+    page.go_back()
+    expect(page.locator("#reference")).to_be_focused()
+    page.wait_for_function("top => Math.abs(scrollY - top) <= 2", arg=read_to)
+
+
+TWO_LINE_PATCH = """diff --git a/app.py b/app.py
+--- a/app.py
++++ b/app.py
+@@ -1,2 +1,2 @@
+-a = 1
+-b = 2
++a = 10
++b = 20
+"""
+
+
+@pytest.mark.parametrize("walk", ["first t", "t between seats", "m between asks"])
+def test_a_walk_to_a_stop_already_on_screen_is_a_back_step(browser, serve, walk):
+    """Each stop a walk lands on is a Back step, as each followed link is, though the
+    window already shows it: Back from the second stop returns to the first, and Back
+    from the card the first `t` opens returns to the page with no thread open rather
+    than leaving the page."""
+    events = []
+    if walk == "first t":
+        body = "<p id=a>The first passage.</p><p id=b>The second passage.</p>"
+        anchored = [("a", "first passage"), ("b", "second passage")]
+    elif walk == "t between seats":
+        body = '<lf-diff id="patch" source="review-patch"></lf-diff>'
+        anchored = []
+        events = [
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": f"About line {line}.",
+                "anchor": {
+                    "section": "patch",
+                    "datum": f'["app.py","new",{line}]',
+                    "source": "review-patch",
+                    "data_revision": 1,
+                },
+            }
+            for line in (1, 2)
+        ]
+    else:
+        body = "".join(
+            f'<lf-group id="ask-{n}" label="Which route?"><h2>Which route?</h2>'
+            f'<lf-options id="routes-{n}"><lf-option id="left-{n}">Left</lf-option>'
+            f'<lf-option id="right-{n}">Right</lf-option></lf-options></lf-group>'
+            for n in (1, 2)
+        )
+        anchored = []
+    url = serve(
+        leaf_page("Stops on screen", f"<h1>Stops</h1>{body}"), anchored=anchored
+    )
+    if walk == "t between seats":
+        page_data_model.cmd_data_set(serve.page_dir, "review-patch", TWO_LINE_PATCH)
+        for event in events:
+            append_carried_log_record(serve.page_dir, event)
+    page = open_page(browser, url)
+    key = "m" if walk == "m between asks" else "t"
+    scope = "lf-diff" if walk == "t between seats" else ".lf-margin-preview"
+    threads = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    stops = (
+        [page.locator("#ask-1"), page.locator("#ask-2")]
+        if key == "m"
+        else [
+            page.locator(f'{scope} .lf-page-thread[data-lf-thread="{thread}"]')
+            for thread in threads
+        ]
+    )
+    entries = page.evaluate("history.length")
+    loaded = page.evaluate("navigation.currentEntry.index")
+    page.keyboard.press(key)
+    expect(stops[0]).to_be_focused()
+    assert page.evaluate("history.length") == entries + 1
+    if walk == "first t":
+        page.wait_for_function("navigation.transition === null")
+        page.go_back()
+        expect(page.locator(".lf-margin-preview")).to_be_hidden()
+        assert page.evaluate("navigation.currentEntry.index") == loaded
+        return
+    page.keyboard.press(key)
+    expect(stops[1]).to_be_focused()
+    assert page.evaluate("history.length") == entries + 2
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    expect(stops[0]).to_be_focused()
+
+
 @pytest.mark.parametrize("close_source", [False, True])
 def test_history_returns_only_a_visible_caret(browser, serve, close_source):
     """A caret in prose is a working place even when no element holds focus."""
@@ -228,19 +355,182 @@ def test_history_returns_only_a_visible_caret(browser, serve, close_source):
     assert returned == (None if close_source else before)
 
 
+# Prose whose selections and carets history returns to, and a decision far below that
+# `m` leaves them for.
+EXACT_ENDS_PAGE = leaf_page(
+    "Exact ends",
+    "<h1>Exact ends</h1>"
+    '<p id="spaced">Tend · sandboxing keeps the runner apart from the host.</p>'
+    '<p id="marked"><em>Emphasis</em> and then the words after it carry on.</p>'
+    '<div style="height:1600px"></div>'
+    '<lf-group id="ask" label="Which route?"><h2>Which route?</h2>'
+    '<lf-options id="routes"><lf-option id="left">Left</lf-option>'
+    '<lf-option id="right">Right</lf-option></lf-options></lf-group>',
+)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("where", ["before a space", "where an element ends"])
+def test_history_returns_a_caret_between_the_same_characters(
+    request, serve, engine, where
+):
+    """A caret in prose comes back between the characters it stood between, though it
+    stood just before a space, or where an element ends and the words after it begin."""
+    page = open_page(request.getfixturevalue(engine), serve(EXACT_ENDS_PAGE))
+    block = "spaced" if where == "before a space" else "marked"
+    page.evaluate(
+        """block => {
+          const at = document.getElementById(block);
+          if (block === 'spaced') getSelection().collapse(at.firstChild, 4);
+          else getSelection().collapse(at, 1);
+        }""",
+        block,
+    )
+    # How many of the block's characters stand before the caret.
+    before = """block => {
+      const s = getSelection();
+      if (!s.rangeCount || !s.isCollapsed) return null;
+      const r = document.createRange();
+      r.setStart(document.getElementById(block), 0);
+      r.setEnd(s.focusNode, s.focusOffset);
+      return document.getElementById(block).contains(s.focusNode) ? r.toString().length : null;
+    }"""
+    assert page.evaluate(before, block) == (4 if block == "spaced" else 8)
+    page.keyboard.press("m")
+    expect(page.locator("#ask")).to_be_focused()
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    page.wait_for_function(
+        f"([block, want]) => ({before})(block) === want",
+        arg=[block, 4 if block == "spaced" else 8],
+    )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_history_returns_a_selection_with_its_trailing_space(request, serve, engine):
+    """Words selected with the space after them come back with that space, though the
+    passage a comment on them would quote ends at their last word."""
+    page = open_page(request.getfixturevalue(engine), serve(EXACT_ENDS_PAGE))
+    page.evaluate("""() => {
+      const text = document.getElementById('spaced').firstChild;
+      const at = text.data.indexOf('keeps');
+      getSelection().setBaseAndExtent(text, at, text, at + 'keeps the '.length);
+    }""")
+    assert page.evaluate("getSelection().toString()") == "keeps the "
+    page.keyboard.press("m")
+    expect(page.locator("#ask")).to_be_focused()
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    page.wait_for_function("() => getSelection().toString() === 'keeps the '")
+
+
+UNNAMED_PROSE = """
+<h1>Unnamed prose</h1>
+<div><p>The passage without a name carries the words to select and more after them.</p></div>
+<div style="height:1600px"></div>
+<lf-group id="ask" label="Which route?"><h2>Which route?</h2>
+<lf-options id="routes"><lf-option id="left">Left</lf-option>
+<lf-option id="right">Right</lf-option></lf-options></lf-group>
+"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_history_returns_a_selection_in_unnamed_prose_across_a_revision(
+    request, serve, engine
+):
+    """Words selected where no element names them are a working place too: Back after
+    a trip selects them again, and still selects the same words after a revision wrote
+    others before them in their paragraph."""
+    url = serve(leaf_page("Unnamed prose", UNNAMED_PROSE))
+    page = open_page(request.getfixturevalue(engine), live_url(url))
+    selected = """() => {
+      const text = [...document.querySelectorAll('p')]
+        .find((p) => p.textContent.includes('without a name')).firstChild;
+      const at = text.data.indexOf('words to select');
+      getSelection().setBaseAndExtent(text, at, text, at + 'words to select'.length);
+    }"""
+    page.evaluate(selected)
+    page.keyboard.press("m")
+    expect(page.locator("#ask")).to_be_focused()
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    page.wait_for_function("() => getSelection().toString() === 'words to select'")
+
+    page.wait_for_function("navigation.transition === null")
+    page.go_forward()
+    expect(page.locator("#ask")).to_be_focused()
+    # A selection the revision would rewrite holds the revision back (features/version.js).
+    page.evaluate("getSelection().removeAllRanges()")
+    _publish(
+        serve.page_dir,
+        2,
+        leaf_page(
+            "Unnamed prose",
+            UNNAMED_PROSE.replace(
+                "<p>The passage",
+                "<p>New words come first, and the words to see. The passage",
+            ),
+        ),
+        "words before the selection",
+    )
+    told(page)
+    expect(page.get_by_text("New words come first")).to_be_attached()
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    page.wait_for_function(
+        """() => {
+          const s = getSelection();
+          return s.toString() === 'words to select' &&
+            s.anchorNode.data.slice(s.anchorOffset - 9, s.anchorOffset) === 'ries the ';
+        }"""
+    )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_history_returns_a_widgets_named_control_across_a_revision(
+    request, serve, engine
+):
+    """Focus on a control a widget generates comes back by the key the widget names it
+    by inside its element (records/carry.js), though a revision has drawn the widget again."""
+    page_html = leaf_page(
+        "Named control",
+        '<h1>Named control</h1><lf-code id="snippet"><pre><code class="language-python">'
+        "first = 1\nsecond = 2</code></pre></lf-code>"
+        '<div style="height:1600px"></div><lf-group id="ask" label="Which route?"><h2>Which route?</h2>'
+        '<lf-options id="routes"><lf-option id="left">Left</lf-option>'
+        '<lf-option id="right">Right</lf-option></lf-options></lf-group>',
+    )
+    url = serve(page_html)
+    page = open_page(request.getfixturevalue(engine), live_url(url))
+    source = page.locator('#snippet pre[data-lf-carry="source"]')
+    source.focus()
+    expect(source).to_be_focused()
+    page.keyboard.press("m")
+    expect(page.locator("#ask")).to_be_focused()
+    _publish(
+        serve.page_dir,
+        2,
+        page_html.replace("second = 2", "second = 3"),
+        "a new line of code",
+    )
+    told(page)
+    expect(page.locator("#snippet")).to_contain_text("second = 3")
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    expect(source).to_be_focused()
+
+
 # A widget that draws one item at a time, as one fetching each item when it is picked
 # does, so a part of another item is in no element until its item is drawn, and every
 # item's parts would share their ids. It answers keys such as `b/3`, part 3 of item b,
-# through the hooks every route reads (anchor-resolution.js, `revealAddressed` and
+# through the hooks every route reads (readings/anchor-resolution.js, `revealAddressed` and
 # `addressedElements`); a referrer travels to one with `navigateToDatum`.
 ITEMS_LAYER = {
     "lf-items": {
         "description": "Items drawn one at a time, each part addressed by item/part.",
         "attributes": {
-            "type": "object",
-            "properties": {"id": {"type": "string"}},
+            "properties": {},
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "example": '<lf-items id="items"></lf-items>',
@@ -248,14 +538,11 @@ ITEMS_LAYER = {
     "lf-item-link": {
         "description": "A button that travels to one part of the items it refers to.",
         "attributes": {
-            "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "for": {"type": "string"},
                 "key": {"type": "string", "minLength": 1},
             },
             "required": ["id", "for", "key"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "refers": {"for": {}},
@@ -264,7 +551,7 @@ ITEMS_LAYER = {
 }
 ITEMS_WIDGETS = {
     "lf-items.js": """
-import {once} from '/runtime/widget-api.js';
+import {once} from '/runtime/lib/once.js';
 customElements.define('lf-items', class extends HTMLElement {
   #item = null;
   connectedCallback() {
@@ -293,7 +580,8 @@ customElements.define('lf-items', class extends HTMLElement {
 });
 """,
     "lf-item-link.js": """
-import {navigateToDatum, once} from '/runtime/widget-api.js';
+import {navigateToDatum} from '/runtime/widget-api.js';
+import {once} from '/runtime/lib/once.js';
 customElements.define('lf-item-link', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
@@ -366,6 +654,95 @@ def test_a_url_naming_a_widget_key_reaches_its_part(browser, serve):
     expect(part("b", 1)).to_be_in_viewport()
 
 
+def test_a_trip_that_puts_a_thread_away_leaves_an_entry_naming_none(browser, serve):
+    """A widget's trip from the page while the floating panel shows a thread, which the
+    landing puts away since the view would stand over the part, adds an entry naming no
+    thread, so Forward or a reload there leaves the thread put away."""
+    url = live_url(
+        serve(
+            leaf_page(
+                "Items at the foot",
+                '<h1 id="top">Items at the foot</h1>'
+                '<lf-item-link id="jump" for="items" key="a/4"></lf-item-link>'
+                + "".join(f"<p>Reading context {n}.</p>" for n in range(30))
+                + '<lf-items id="items"></lf-items>',
+            ),
+            layer_registry=ITEMS_LAYER,
+            layer_widgets=ITEMS_WIDGETS,
+        )
+    )
+    root = append_carried_log_record(
+        serve.page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Where?"},
+    )["id"]
+    for n in range(3):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Claude",
+                "parent": root,
+                "revision": 1,
+                "text": f"Reply {n}. " + "More of the explanation. " * 30,
+            },
+        )
+    page = open_page(browser, f"{url}{'&' if '?' in url else '?'}thread={root}")
+    thread = page.locator(f'{panel_view("thread")}[data-lf-thread="{root}"]')
+    expect(thread).to_be_focused()
+    # A key, not a press: a press on the page would put the view away before the trip.
+    page.locator("#jump button").focus()
+    page.keyboard.press("Enter")
+    expect(page.locator('#items [data-item="a"][data-part="4"]')).to_be_focused()
+    expect(thread).to_be_hidden()
+    page.wait_for_function("navigation.transition === null")
+    assert "thread=" not in page.url
+
+
+def test_a_rename_waiting_on_a_navigation_names_only_its_own_entry(browser, serve):
+    """A rename asked for during a navigation waits for it, so it never aborts it, and
+    renames only the entry it was asked on: once a newer navigation has moved the user
+    to another entry, it is dropped rather than overwriting that entry's address."""
+    page = open_page(browser, serve(leaf_page("Renames", "<h1>Renames</h1>")))
+    page.evaluate(
+        """async () => {
+          const api = await window.__lfCheckApi();
+          navigation.addEventListener('navigate', (event) => {
+            if (event.destination.url.endsWith('#slow'))
+              event.intercept({handler: () => new Promise(() => {})});
+          });
+          const slow = navigation.navigate('#slow');
+          api.replaceEntry(new URL('#renamed', location.href));
+          await navigation.navigate('#other').committed;
+          await slow.finished.catch(() => {});
+          await new Promise((resolve) => setTimeout(resolve));
+        }"""
+    )
+    assert page.url.endswith("#other")
+
+
+def test_a_revision_s_reload_during_a_navigation_carries_its_mark(browser, serve):
+    """A revision's reload writes its mark and reloads at once, though a navigation is
+    under way, which the reload ends anyway, so the document it asks for carries the
+    mark rather than a rename that waited and was dropped when the user moved on."""
+    page = open_page(browser, serve(leaf_page("Reloads", "<h1>Reloads</h1>")))
+    with page.expect_request(lambda request: request.is_navigation_request()) as reload:
+        page.evaluate(
+            """async () => {
+              const {reloadAt} = await import('/runtime/records/history.js');
+              navigation.addEventListener('navigate', (event) => {
+                if (event.navigationType === 'push')
+                  event.intercept({handler: () => new Promise(() => {})});
+              });
+              navigation.navigate('#slow').finished.catch(() => {});
+              const url = new URL(location.href);
+              url.searchParams.set('_leaf-revision', '2');
+              setTimeout(() => reloadAt(url));
+            }"""
+        )
+    assert "_leaf-revision=2" in reload.value.url
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_back_across_root_tabs_draws_the_key_the_entry_names(request, serve, engine):
     """A root tab set takes Back to an entry in another of its views and opens that
@@ -410,8 +787,7 @@ def test_back_returns_the_passage_chosen_between_trips(
     """A passage the user chose after one trip, by click or Tab, is where the next trip
     departs from, even while the first landing still shows: Back returns to it, and
     another Back to the original reading. A click on words that take no focus is
-    returned as the selection it left. The large landing's paragraph follows its
-    section, since a click on the commented section opens its thread instead."""
+    returned as the selection it left."""
     stop = ' tabindex="0"' if focusable else ""
     elsewhere = f'<p id="elsewhere"{stop}>This independent paragraph has no thread.</p>'
     first = (
@@ -767,7 +1143,7 @@ LINE_AT_TOP = """(line) => {
 def test_a_place_in_a_long_document_names_the_line_at_its_top(browser, serve):
     """A reading place in a long text document names the first line drawn at the top of
     the document's box, with runs of lines the browser skips above it. The place passes
-    over each skipped run whole (reading-place.js, `lastHeld`), and passing over lines
+    over each skipped run whole (readings/reading-place.js, `lastHeld`), and passing over lines
     past a run's end named a line further down."""
     url = serve(
         leaf_page(
@@ -779,7 +1155,7 @@ def test_a_place_in_a_long_document_names_the_line_at_its_top(browser, serve):
     text = "".join(
         f"Line {i:04d} names the place a reader stands.\n" for i in range(1500)
     )
-    data_model.cmd_data_set(serve.page_dir, "log-text", text)
+    page_data_model.cmd_data_set(serve.page_dir, "log-text", text)
     page = open_page(browser, url)
     resized(page, 1280, 900)
     rendered(page)
@@ -822,7 +1198,7 @@ def test_a_reading_after_a_disclosure_opens_reads_what_it_shows(browser, serve):
 
 def test_a_reading_after_a_widget_says_its_layout_changed_reads_it_anew(browser, serve):
     """A rearrangement that changes no size, such as a view swap moving words in from far
-    below, is said with `layoutChanged`, and the next reading of the screen finds the
+    below, is said with an `lf-layout` event, and the next reading of the screen finds the
     words it brought, after each such notice from the box."""
     source = leaf_page(
         "A rearranged page",
@@ -846,14 +1222,14 @@ def test_a_reading_after_a_widget_says_its_layout_changed_reads_it_anew(browser,
         """async () => {
           const area = document.getElementById("area");
           document.getElementById("incoming").style.transform = "translateY(-1700px)";
-          (await window.__lfWidgetApi()).layoutChanged(area);
+          area.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
         }"""
     )
     assert page.evaluate(reading) == "incoming"
     on_screen = """async () => {
       const area = document.getElementById("area");
       document.getElementById("later").style.transform = "translateY(-2300px)";
-      (await window.__lfWidgetApi()).layoutChanged(area);
+      area.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
       return [...(await window.__lfCheckApi()).blocksOnScreen()].map(([block]) => block.id);
     }"""
     assert "later" in page.evaluate(on_screen)
@@ -930,7 +1306,7 @@ def test_reading_landmarks_use_drawn_segments_in_mixed_blocks(
     reading = """async () => {
       const owner = await window.__lfCheckApi();
       return {blocks: [...owner.blocksOnScreen()].map(([block]) => block.id),
-        place: (await window.__lfWidgetApi()).capturePlace(), top: document.querySelector('#visible').getBoundingClientRect().top};
+        place: owner.capturePlace(), top: document.querySelector('#visible').getBoundingClientRect().top};
     }"""
     initial = page.evaluate(reading)
     assert "mixed" not in initial["blocks"]
@@ -994,7 +1370,7 @@ def test_reading_place_names_a_projected_datum(browser, serve, subtests):
         }""")
         scroll_settled(page)
         place = page.evaluate(
-            """async () => (await window.__lfWidgetApi()).capturePlace()"""
+            """async () => (await window.__lfCheckApi()).capturePlace()"""
         )
         assert place.get("datum") == "record", place
         assert place["quote"].startswith(record)
@@ -1009,7 +1385,7 @@ def test_reading_place_names_a_projected_datum(browser, serve, subtests):
         }""")
         scroll_settled(page)
         reading = page.evaluate("""async () => {
-          const api = await window.__lfWidgetApi();
+          const api = await window.__lfCheckApi();
           const place = api.capturePlace();
           return {place, top: document.getElementById(place.datum)?.getBoundingClientRect().top};
         }""")
@@ -1024,7 +1400,7 @@ def test_reading_place_names_a_projected_datum(browser, serve, subtests):
         scroll_settled(page)
         page.evaluate(
             """async place => {
-          (await window.__lfWidgetApi()).restorePlace(place);
+          (await window.__lfCheckApi()).restorePlace(place);
         }""",
             reading["place"],
         )
@@ -1062,8 +1438,7 @@ def test_reading_restore_leaves_a_concealed_landmark_alone(browser, serve, subte
         with subtests.test(conceal=conceal, quote=quote):
             result = page.evaluate(
                 """async ({identity, words, conceal, quote}) => {
-              const {restorePlace} = await window.__lfWidgetApi();
-              const {landingBand, shownBox} = await window.__lfCheckApi();
+              const {restorePlace, landingBand, shownBox} = await window.__lfCheckApi();
               const section = document.getElementById(identity);
               const place = {section: section.id, sectionTop: 0};
               if (quote) Object.assign(place, {quote: words, quoteTop: 0});
@@ -1276,21 +1651,6 @@ def _select_remembered_backwards(page):
     }""")
 
 
-def _word_point(locator, word):
-    """Place an actual gesture over letters, avoiding blank space in a block's box."""
-    return locator.evaluate(
-        """(node, sought) => {
-      const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
-      let word; while ((word = walker.nextNode()) && !word.data.includes(sought)) {}
-      const range = document.createRange(), start = word.data.indexOf(sought);
-      range.setStart(word, start); range.setEnd(word, start + sought.length);
-      const box = range.getBoundingClientRect();
-      return {x: box.left + box.width / 2, y: box.top + box.height / 2};
-    }""",
-        word,
-    )
-
-
 ALIGN_CURRENT_PAGE = leaf_page(
     "Align the current item",
     '<h1>Keep the same reading place</h1><div style="height:700px"></div>'
@@ -1408,7 +1768,7 @@ def test_align_current_item_uses_bounded_reading_region_and_preserves_horizontal
     assert page.evaluate("scrollY") == root_y
     expect(page.locator("#nested-heading")).to_be_focused()
     # A click and collapsed caret still identify the paragraph in this region.
-    point = _word_point(page.locator("#nested-reading"), "bounded")
+    point = word_point(page.locator("#nested-reading"), "bounded")
     page.mouse.click(point["x"], point["y"])
     page.keyboard.press("g")
     page.keyboard.press("z")
@@ -1443,7 +1803,7 @@ def test_align_current_item_from_the_menu_on_touch_reserves_z(browser, serve):
     )
     assert codes and all("z" not in code for code in codes)
     page.keyboard.press("Escape")
-    point = _word_point(page.locator("#remembered"), "amber")
+    point = word_point(page.locator("#remembered"), "amber")
     page.mouse.dblclick(point["x"], point["y"])
     page.evaluate("""() => {
       const s = getSelection();
@@ -1477,7 +1837,7 @@ def test_the_menu_keeps_its_place_when_a_revision_shortens_the_words_it_held(
     )
     context = browser.new_context(has_touch=True)
     page = open_page(browser, live_url(serve(source)), context=context)
-    point = _word_point(page.locator("#remembered"), "keeps")
+    point = word_point(page.locator("#remembered"), "keeps")
     page.mouse.click(point["x"], point["y"])
     held = page.evaluate(
         "() => { window.held = getSelection().focusNode; return getSelection().focusOffset; }"
@@ -1577,7 +1937,19 @@ def test_a_nearest_landing_asks_whether_its_box_is_already_shown(
     A fixed box stands still while every box around it scrolls, so a landing on one the
     window doesn't show, as a Tab's arrival makes, moves none of them. A fixed box a
     transformed box holds is placed in that box, not the window, so it rides the page's
-    scroll and a landing scrolls the page to show it."""
+    scroll and a landing scrolls the page to show it.
+
+    A control the user is on is measured out to its ring's room, all of it but what a box
+    clipping without scrolling hides, except where a nearest landing would move nothing.
+    A negative margin, as a control in a stuck header wears, takes nothing from the box.
+    So these are shown and a nearest landing on them moves nothing: the first row of a
+    clipped group 4px below the band's top; a button 4px from the window's side on a
+    page that scrolls only down; a fixed button 4px from the side of a page that
+    scrolls across, since scrolling the page moves no fixed box; and a button with a
+    negative top margin, seen whole beside the floating panel, 2px into the panel's foot
+    band. A button 4px inside a
+    mirrored pane's edge is not shown while the pane can scroll its ring's room in, and a
+    nearest landing scrolls the pane until it is."""
     source = leaf_page(
         "Room",
         '<button id="fixed" style="position:fixed;left:20px;top:1200px">Fixed</button>'
@@ -1592,7 +1964,20 @@ def test_a_nearest_landing_asks_whether_its_box_is_already_shown(
         '</div><div style="height:1600px"></div>'
         '<div id="short-pane" style="height:250px;overflow:auto">'
         '<div style="height:100px"></div><div id="long" style="height:300px"></div>'
-        '<div style="height:600px"></div></div><div style="height:1600px"></div>',
+        '<div style="height:600px"></div></div><div style="height:1600px"></div>'
+        '<button id="edge" style="position:relative">Edge</button>'
+        '<div style="height:1600px"></div>'
+        '<button id="pinned" style="position:fixed;top:500px;right:4px">Pinned</button>'
+        '<div id="mirror" style="width:400px;height:60px;overflow-x:auto;'
+        'overflow-y:hidden;transform:scaleX(-1)">'
+        '<div style="width:1200px;height:40px;position:relative">'
+        '<button id="mirrored" style="position:absolute;left:300px;top:8px;width:96px">'
+        "Mirrored</button></div></div>"
+        '<div style="height:1600px"></div>'
+        '<div id="group" style="overflow:clip;border:1px solid;width:300px">'
+        '<button id="row" style="display:block;width:100%;margin:0">First row</button>'
+        '<button style="display:block;width:100%">Second row</button></div>'
+        '<div style="height:1600px"></div>',
     )
     page = open_page(browser, serve(source))
     page.set_viewport_size({"width": 1280, "height": 900})
@@ -1688,6 +2073,121 @@ def test_a_nearest_landing_asks_whether_its_box_is_already_shown(
         assert reading["seen"] == 250, reading
         assert reading["top"] == reading["before"]["top"], reading
         assert reading["after"] is True, reading
+
+    with subtests.test(case="a ring's room past a side no scroll reaches"):
+        reading = page.evaluate("""async () => {
+          const {alreadyShown} = await window.__lfCheckApi();
+          const edge = document.querySelector('#edge');
+          const root = document.documentElement;
+          scrollBy({top: edge.getBoundingClientRect().top - 300, behavior: 'instant'});
+          edge.style.left = `${root.clientWidth - 4 - edge.getBoundingClientRect().right}px`;
+          edge.focus();
+          return {gap: root.clientWidth - edge.getBoundingClientRect().right,
+                  room: parseFloat(getComputedStyle(edge).scrollMarginRight),
+                  across: root.scrollWidth - root.clientWidth,
+                  shown: alreadyShown(edge)};
+        }""")
+        assert reading["gap"] == pytest.approx(4, abs=0.5), reading
+        assert reading["room"] > reading["gap"], reading
+        assert reading["across"] == 0, reading
+        assert reading["shown"] is True, reading
+
+    with subtests.test(
+        case="a ring's room past a fixed box on a page that scrolls across"
+    ):
+        reading = page.evaluate("""async () => {
+          const {alreadyShown} = await window.__lfCheckApi();
+          const pinned = document.querySelector('#pinned');
+          const root = document.documentElement;
+          const wide = document.createElement('div');
+          wide.style.cssText = 'width:calc(100vw + 200px);height:1px';
+          document.body.append(wide);
+          pinned.focus();
+          const reading = {gap: root.clientWidth - pinned.getBoundingClientRect().right,
+                           across: root.scrollWidth - root.clientWidth,
+                           shown: alreadyShown(pinned)};
+          pinned.blur();
+          wide.remove();
+          return reading;
+        }""")
+        assert reading["gap"] == pytest.approx(4, abs=0.5), reading
+        assert reading["across"] > 0, reading
+        assert reading["shown"] is True, reading
+
+    with subtests.test(case="a negative margin, beside the panel"):
+        reading = page.evaluate("""async () => {
+          const {alreadyShown, landingBand, seenRect} = await window.__lfCheckApi();
+          const {scrollIntoView} = await window.__lfWidgetApi();
+          const band = landingBand(document.documentElement);
+          const stuck = document.createElement('button');
+          stuck.textContent = 'Stuck';
+          stuck.style.cssText = 'position:absolute;left:20px;width:80px;height:30px;' +
+            'margin:0;scroll-margin-top:-12px';
+          document.body.append(stuck);
+          stuck.style.top = `${scrollY + band.bottom + 2 - 30}px`;
+          stuck.focus({preventScroll: true});
+          const box = stuck.getBoundingClientRect();
+          const seen = seenRect(stuck, new Map());
+          const margin = parseFloat(getComputedStyle(stuck).scrollMarginTop);
+          const y = scrollY;
+          const shown = alreadyShown(stuck);
+          scrollIntoView(stuck, {block: 'nearest', behavior: 'instant'});
+          const moved = scrollY - y;
+          stuck.remove();
+          return {margin, band: band.bottom, vh: innerHeight, bottom: box.bottom,
+                  whole: Boolean(seen) && seen.top <= box.top && seen.bottom >= box.bottom,
+                  shown, moved};
+        }""")
+        assert reading["margin"] < 0, reading
+        assert reading["band"] < reading["vh"], reading
+        assert reading["bottom"] > reading["band"], reading
+        assert reading["whole"], reading
+        assert reading["shown"] is True, reading
+        assert reading["moved"] == 0, reading
+
+    with subtests.test(case="a ring's room a clipping group hides"):
+        reading = page.evaluate("""async () => {
+          const {alreadyShown, landingBand} = await window.__lfCheckApi();
+          const {scrollIntoView} = await window.__lfWidgetApi();
+          const group = document.querySelector('#group');
+          const row = document.querySelector('#row');
+          row.focus({preventScroll: true});
+          const band = landingBand(document.scrollingElement);
+          scrollBy({top: group.getBoundingClientRect().top - (band.top + 4),
+                    behavior: 'instant'});
+          const y = scrollY;
+          const shown = alreadyShown(row);
+          scrollIntoView(row, {block: 'nearest', behavior: 'instant'});
+          return {room: parseFloat(getComputedStyle(row).scrollMarginTop),
+                  gap: group.getBoundingClientRect().top - band.top,
+                  shown, moved: scrollY - y};
+        }""")
+        assert reading["room"] > 4, reading
+        assert reading["shown"] is True, reading
+        assert reading["moved"] == 0, reading
+
+    with subtests.test(
+        case="a ring's room past a mirrored pane's edge it scrolls toward"
+    ):
+        reading = page.evaluate("""async () => {
+          const {alreadyShown} = await window.__lfCheckApi();
+          const {scrollIntoView} = await window.__lfWidgetApi();
+          const pane = document.querySelector('#mirror');
+          const button = document.querySelector('#mirrored');
+          scrollBy({top: pane.getBoundingClientRect().top - 300, behavior: 'instant'});
+          button.focus({preventScroll: true});
+          const gap = () =>
+            button.getBoundingClientRect().left - pane.getBoundingClientRect().left;
+          const before = {gap: gap(), shown: alreadyShown(button)};
+          scrollIntoView(button, {block: 'nearest', behavior: 'instant'});
+          return {before, gap: gap(), scrolled: pane.scrollLeft, shown: alreadyShown(button),
+                  room: parseFloat(getComputedStyle(button).scrollMarginRight)};
+        }""")
+        assert reading["before"]["gap"] == pytest.approx(4, abs=0.5), reading
+        assert reading["before"]["shown"] is False, reading
+        assert reading["scrolled"] > 0, reading
+        assert reading["gap"] == pytest.approx(reading["room"], abs=1), reading
+        assert reading["shown"] is True, reading
 
 
 def test_align_current_tall_block_in_a_pane_in_a_pane_lands_its_opening(browser, serve):
@@ -1856,7 +2356,7 @@ def test_align_current_item_does_not_follow_old_page_caret_from_empty_threads(
     )
     page = open_page(browser, serve(ALIGN_CURRENT_PAGE), context=context)
     page.locator("#remembered").scroll_into_view_if_needed()
-    point = _word_point(page.locator("#remembered"), "amber")
+    point = word_point(page.locator("#remembered"), "amber")
     page.mouse.click(point["x"], point["y"])
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -2015,7 +2515,7 @@ def test_restore_selection_has_touch_route_and_does_not_carry_draft(browser, ser
         viewport={"width": 390, "height": 844}, has_touch=True
     )
     page = open_page(browser, serve(RESTORE_SELECTION_PAGE), context=context)
-    point = _word_point(page.locator("#remembered"), "amber")
+    point = word_point(page.locator("#remembered"), "amber")
     page.mouse.dblclick(point["x"], point["y"])
     expect(selection_field(page)).to_be_visible()
     selected = page.evaluate("() => getSelection().toString()")
@@ -2027,8 +2527,8 @@ def test_restore_selection_has_touch_route_and_does_not_carry_draft(browser, ser
     write(editor, "Words about the violet subject")
     page.keyboard.press("Escape")
     page.locator("#away").scroll_into_view_if_needed()
-    # Nothing is on the user, so the mark opens Threads, where the put-away draft waits.
-    page.locator(".lf-fp-on-user").tap()
+    # Nothing is on the user, so the leaf opens Threads, where the put-away draft waits.
+    page.locator(".lf-fp-leaf").tap()
     panel_settled(page, view="threads")
     page.keyboard.press("g")
     page.keyboard.press("v")
@@ -2063,7 +2563,7 @@ def test_restore_selection_reveals_a_filtered_diff_datum(browser, serve):
     page = open_page(browser, serve(DIFF_PAGE))
     line = page.locator("lf-diff [data-line]").filter(has_text="window: 60").first
     line.scroll_into_view_if_needed()
-    point = _word_point(line, "window")
+    point = word_point(line, "window")
     page.mouse.dblclick(point["x"], point["y"])
     selected = page.evaluate("() => getSelection().toString()")
     assert selected
@@ -2098,11 +2598,11 @@ def test_restore_selection_failed_datum_hydration_leaves_history_untouched(
         '@@ -1 +1 @@\n-return "old"\n+return "amber"\n'
     )
     url = serve(authored)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
     page = open_page(browser, live_url(url))
     line = page.locator('lf-diff [data-lf-datum=\'["app.py","new",1]\']')
     expect(line).to_contain_text("amber")
-    point = _word_point(line, "amber")
+    point = word_point(line, "amber")
     page.mouse.dblclick(point["x"], point["y"])
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     page.keyboard.press("Escape")
@@ -2117,7 +2617,7 @@ def test_restore_selection_failed_datum_hydration_leaves_history_untouched(
         return prepare.apply(this, args);
       };
     }""")
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         {
@@ -2161,30 +2661,29 @@ def test_restore_selection_failed_datum_hydration_leaves_history_untouched(
     assert take_browser_errors(page) == []
 
 
-@pytest.mark.parametrize("navigation_api", [False, True])
-def test_restore_selection_back_keeps_the_offset_before_reveal(
-    browser, serve, navigation_api
-):
-    """Disclosure can reshape the source before successful arrival commits its entry."""
-    page = open_page(
-        browser,
-        serve(RESTORE_SELECTION_PAGE),
-        init_script=None
-        if navigation_api
-        else "Object.defineProperty(window, 'navigation', {value:undefined});",
-    )
+def test_restore_selection_back_keeps_the_place_read_before_reveal(browser, serve):
+    """The disclosure the arrival opens reshapes the page above the place the user left
+    before the arrival commits its entry, so the entry keeps the place read before it:
+    Back stands what the user was reading where it stood on screen, though the page
+    above it has grown since."""
+    page = open_page(browser, serve(RESTORE_SELECTION_PAGE))
     page.emulate_media(reduced_motion="reduce")
     _select_remembered_backwards(page)
     page.keyboard.press("Escape")
     page.locator("#selected-details summary").click()
     page.locator("#away").scroll_into_view_if_needed()
     before = page.evaluate("scrollY")
+    stood = page.locator("#away").evaluate("node => node.getBoundingClientRect().top")
     page.keyboard.press("g")
     page.keyboard.press("v")
     page.wait_for_function("() => getSelection().toString().includes('amber passage')")
     assert page.evaluate("scrollY") < before - 300
     page.go_back()
-    page.wait_for_function("offset => Math.abs(scrollY-offset)<2", arg=before)
+    page.wait_for_function(
+        "top => Math.abs(document.getElementById('away').getBoundingClientRect().top"
+        " - top) < 2",
+        arg=stood,
+    )
     assert take_browser_errors(page) == []
 
 
@@ -2249,7 +2748,7 @@ def test_restore_selection_tracks_late_native_adjustment_and_retires_write_prove
         viewport={"width": 1200, "height": 900}, has_touch=True
     )
     page = open_page(browser, serve(RESTORE_SELECTION_PAGE), context=context)
-    point = _word_point(page.locator("#remembered"), "identity")
+    point = word_point(page.locator("#remembered"), "identity")
     page.mouse.dblclick(point["x"], point["y"])
     expect(selection_field(page)).to_be_visible()
     initial = page.evaluate("() => getSelection().toString()")
@@ -2374,7 +2873,7 @@ def test_a_landing_that_moves_nothing_stops_a_scroll_still_under_way(
     even where its destination already stands where it lands: the log the reader set
     moving stops where the landing found it, rather than running on past what they
     chose. Firefox ran the log on to its end, since it stops no smooth scroll for an
-    instant write of the position the page last saw (arrivals.js,
+    instant write of the position the page last saw (dom/arrivals.js,
     `stopWhereItStands`)."""
     filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(3))
     rows = "".join(
@@ -2417,3 +2916,141 @@ def test_a_landing_that_moves_nothing_stops_a_scroll_still_under_way(
     )
     assert after["page"] == pytest.approx(page_top, abs=2), after
     assert after["log"] < started + 200 < after["limit"], (started, after)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_history_returns_a_selection_across_lines_of_a_diff(request, serve, engine):
+    """Words selected across two lines of a diff, one passage its widget drew from one
+    value, come back as they were when Back returns to the entry."""
+    url = serve(
+        leaf_page(
+            "Selection across lines",
+            '<h1 id="title">Wording</h1><lf-diff id="patch" source="patch-data"></lf-diff>'
+            '<div style="height:1600px"></div>'
+            '<lf-group id="ask" label="Which route?"><h2>Which route?</h2>'
+            '<lf-options id="routes"><lf-option id="left">Left</lf-option>'
+            '<lf-option id="right">Right</lf-option></lf-options></lf-group>',
+        ),
+        packages=("diff",),
+    )
+    page_data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        "diff --git a/AGENTS.md b/AGENTS.md\n--- a/AGENTS.md\n+++ b/AGENTS.md\n"
+        "@@ -10,2 +10,3 @@\n Text in the tree says what holds now.\n"
+        "-Old wording.\n+Instructions must reach a reader who has only\n"
+        "+that text and the files it points to.\n",
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    first, last = '["AGENTS.md","new",11]', '["AGENTS.md","new",12]'
+    page.locator("#patch").evaluate(
+        """(diff, [first, last]) => {
+          const at = (key, word, after) => {
+            const line = diff.shadowRoot.querySelector(`[data-lf-datum='${key}']`);
+            const walk = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+            for (let node = walk.nextNode(); node; node = walk.nextNode()) {
+              const i = node.data.indexOf(word);
+              if (i >= 0) return [node, i + after * word.length];
+            }
+          };
+          const [from, to] = [at(first, "reach", 0), at(last, "files", 1)];
+          getSelection().setBaseAndExtent(from[0], from[1], to[0], to[1]);
+        }""",
+        [first, last],
+    )
+    page.evaluate(
+        "async () => { window.__lfPageRange = (await window.__lfCheckApi()).pageRange; }"
+    )
+    # The words selected, as the page's own reading of the selection finds them.
+    selected = (
+        "() => getSelection().rangeCount"
+        " ? window.__lfPageRange(getSelection())?.toString() : null"
+    )
+    words = page.evaluate(selected)
+    assert words and words.startswith("reach") and words.endswith("files")
+    page.keyboard.press("m")
+    expect(page.locator("#ask")).to_be_focused()
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    page.wait_for_function(f"() => ({selected})() === {words!r}")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("how", ["push", "replace"])
+def test_a_visit_whose_address_drops_its_fragment_doesnt_land_on_it_later(
+    request, serve, engine, how
+):
+    """A visit to a fragment whose page leaves that address while deferred work still
+    arrives doesn't land on the fragment once the work comes in."""
+    url = serve(
+        leaf_page(
+            "Late landing",
+            '<h1 id="top">Late landing</h1><div style="height:2600px"></div>'
+            '<p id="target">The fragment target.</p><div style="height:1600px"></div>',
+        ).replace(
+            "</head>",
+            "<script type=\"module\">import {afterPresentation} from '/runtime/widget-api.js';"
+            "afterPresentation(() => new Promise((done) => (window.__arrived = done)));"
+            "</script></head>",
+        )
+    )
+    page = request.getfixturevalue(engine).new_page()
+    page.goto(f"{url}#target")
+    wait_until_ready(page, through="presented")
+    page.wait_for_function("typeof window.__arrived === 'function'")
+    page.evaluate(
+        f"() => {{ history.{how}State(null, '', location.pathname + location.search);"
+        " scrollTo({top: 0, behavior: 'instant'}); window.__arrived(); }"
+    )
+    wait_until_ready(page)
+    scroll_settled(page)
+    assert page.evaluate("scrollY") < 50
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_traversal_left_before_its_part_is_drawn_doesnt_travel_to_it(
+    request, serve, engine
+):
+    """Back to a widget's part the widget has to draw first, then a move to another
+    address before it has drawn it: the part, once drawn, takes the user nowhere."""
+    url = live_url(
+        serve(
+            leaf_page(
+                "Items",
+                """
+<h1 id="top">Items</h1>
+<p><a id="to-part" href="#items:a/2">Part 2 of item a</a></p>
+<lf-item-link id="jump" for="items" key="b/1"></lf-item-link>
+<lf-items id="items"></lf-items>
+<div style="height:1600px"></div>
+""",
+            ),
+            layer_registry=ITEMS_LAYER,
+            layer_widgets={
+                **ITEMS_WIDGETS,
+                "lf-items.js": ITEMS_WIDGETS["lf-items.js"].replace(
+                    "new Promise((resolve) => setTimeout(resolve, 50))",
+                    "new Promise((resolve) => window.__holdReveal"
+                    " ? (window.__reveals ??= []).push(resolve) : setTimeout(resolve, 50))",
+                ),
+            },
+        )
+    )
+    page = open_page(request.getfixturevalue(engine), url)
+    page.locator("#to-part").click()
+    page.wait_for_url(re.compile(r"#items:a/2$"))
+    page.locator("#top").scroll_into_view_if_needed()
+    page.locator("#jump button").click()
+    page.wait_for_url(re.compile(r"#items:b/1$"))
+    expect(page.locator('#items [data-item="b"][data-part="1"]')).to_be_focused()
+    page.wait_for_function("navigation.transition === null")
+    page.evaluate("window.__holdReveal = true")
+    page.go_back()
+    page.wait_for_function("() => window.__reveals?.length === 1")
+    page.evaluate(
+        "() => { history.pushState(null, '', location.pathname + location.search);"
+        " scrollTo({top: 0, behavior: 'instant'}); window.__reveals[0](); }"
+    )
+    expect(page.locator('#items [data-item="a"][data-part="2"]')).to_be_attached()
+    scroll_settled(page)
+    assert page.evaluate("scrollY") < 50

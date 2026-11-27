@@ -14,7 +14,8 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 
 def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve):
-    """The empty route borrows Add's seat, then both actions keep stable seats."""
+    """The empty route's badge stands in the cards' digit column, then both actions keep
+    stable seats."""
     page = open_page(browser, serve(OBLIGATION_PAGE))
     # The second obligation carries the card presentation, which is where the row's trailing
     # room is contested: its options wear their binding badges at the corner, so the
@@ -27,8 +28,12 @@ def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve
              const form = el.getBoundingClientRect();
              const press = el.querySelector('.lf-compose-submit').getBoundingClientRect();
              const mark = el.querySelector('.lf-key-badge').getBoundingClientRect();
+             const card = el.parentElement
+               .querySelector(':scope > lf-option > .lf-key-badge')
+               .getBoundingClientRect();
              return {
-               dx: (press.left + press.right) / 2 - (mark.left + mark.right) / 2,
+               columnStart: mark.left - card.left,
+               columnEnd: mark.right - card.right,
                dy: (press.top + press.bottom) / 2 - (mark.top + mark.bottom) / 2,
                badgeWidth: mark.width,
                centerX: (press.left + press.right) / 2,
@@ -36,7 +41,8 @@ def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve
              };
            }"""
     )
-    assert abs(shown["dx"]) < 0.5, shown
+    assert abs(shown["columnStart"]) < 0.5, shown
+    assert abs(shown["columnEnd"]) < 0.5, shown
     assert abs(shown["dy"]) < 0.5, shown
 
     field = page.locator("#bracket > .lf-another leaf-text")
@@ -82,6 +88,7 @@ def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve
                    room: parseFloat(getComputedStyle(field)
                      .getPropertyValue('--lf-field-end-room')),
                    right: press.getBoundingClientRect().right,
+                   press: press.getBoundingClientRect().width,
                  };
                }"""
         )
@@ -90,8 +97,13 @@ def test_the_draft_binding_badge_and_send_press_share_the_row_end(browser, serve
     spacing = page.locator("html").evaluate(
         "el => parseFloat(getComputedStyle(el).getPropertyValue('--lf-sp-2'))"
     )
-    assert gaps["#bracket"]["room"] - gaps["#jobs"]["room"] == (
-        pytest.approx(shown["badgeWidth"] + spacing, abs=0.5)
+    # Add's face is its row's line, so the card's taller line widens its press too.
+    assert gaps["#bracket"]["room"] - gaps["#jobs"]["room"] == pytest.approx(
+        shown["badgeWidth"]
+        + spacing
+        + gaps["#bracket"]["press"]
+        - gaps["#jobs"]["press"],
+        abs=0.5,
     )
     # Writing in the row and putting the bindings away reveals the press in the exact
     # seat the badge vacated: the room is held whether either face is painted or not.

@@ -73,6 +73,14 @@ function sanitized(value, secrets = []) {
 /** An https origin is a secure context, as a page served on loopback is. */
 export const ORIGIN = "https://candidate.test";
 
+// The bound on each Playwright wait that names none, as Leaf's Python tools take it
+// (`leaf.source.render_checks.SERVED_TIMEOUT_MS`): a hang bound, so a reviewer's step on a
+// host busy with other sessions' suites fails only where the page has stopped.
+const SERVED_TIMEOUT_MS = python(
+  "-c",
+  "from leaf.source.render_checks import SERVED_TIMEOUT_MS; print(SERVED_TIMEOUT_MS)",
+);
+
 /**
  * A browser context that answers the candidate's requests from its site's files, so a
  * run needs no server and a reviewer can reach nothing else.
@@ -83,6 +91,7 @@ export async function candidateContext(browser, { site, url }) {
     viewport: { width: 1200, height: 900 },
     reducedMotion: "reduce",
   });
+  context.setDefaultTimeout(SERVED_TIMEOUT_MS);
   await context.route("**/*", async (route) => {
     const request = route.request();
     const target = new URL(request.url());
@@ -99,19 +108,35 @@ export async function candidateContext(browser, { site, url }) {
   return context;
 }
 
+/**
+ * Chrome for Testing at the build Python's Playwright installed. `leaf-dev setup`
+ * installs only that side's browsers, and Node's Playwright may pin another build.
+ */
+export function launchChromium() {
+  const executablePath = python(
+    "-c",
+    "import json; from leaf_dev.browser import playwright_executable;" +
+      " print(json.dumps(playwright_executable('chromium')))",
+  );
+  return chromium.launch({ executablePath, headless: true });
+}
+
 /** A single controlled browser capability shared by both model transports. */
 export async function openBrowser(manifest, evidenceDir, limit = 12) {
-  const browser = await chromium.launch({ channel: "chromium", headless: true });
+  const browser = await launchChromium();
   try {
     const context = await candidateContext(browser, manifest);
     const page = await context.newPage();
-    page.setDefaultTimeout(5000);
     await page.goto(manifest.url, { waitUntil: "networkidle" });
     await page.evaluate(() => document.fonts.ready);
     let calls = 0;
     const captures = [];
     async function snapshot() {
       const controls = await page.evaluate(() => {
+        // An earlier snapshot's indexes name elements this one may not list, so clear
+        // them before numbering, or an old and a new control share an index.
+        for (const el of document.querySelectorAll("[data-eval-control]"))
+          el.removeAttribute("data-eval-control");
         // Read as inputs, the one element type whose fields cover every line below.
         const elements = /** @type {NodeListOf<HTMLInputElement>} */ (
           document.querySelectorAll("*")

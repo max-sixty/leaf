@@ -24,7 +24,7 @@ from render_harness import (
     take_browser_errors,
 )
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import slow_cpu
 
 # A field below a box. A key landing in the field grows the box above it, carrying the
@@ -627,6 +627,71 @@ def test_a_permitted_step_permits_nothing_after_it(browser):
     )
     judge_watches()
     consume_browser_errors(page, moved_within("button#act"))
+
+
+# How a card's transcript changes as the card widens and its padding lifts its head,
+# and whether the watch credits that rise.
+RISES = {
+    "a-message-joins": ("log.append(answer)", True),
+    "the-reply-grows": ("log.lastElementChild.append(answer.textContent)", True),
+    "nothing-joins": ("card.style.paddingTop = '120px'", False),
+    "a-hidden-child-joins": (
+        "answer.hidden = true; log.append(answer); card.style.paddingTop = '120px'",
+        False,
+    ),
+    "the-transcript-pads": ("log.style.paddingBottom = '120px'", False),
+    "a-short-message-joins-past-it": (
+        "answer.textContent = 'Yes.'; log.append(answer);"
+        " card.style.paddingTop = '120px'",
+        False,
+    ),
+}
+
+
+@pytest.mark.parametrize("change", list(RISES))
+def test_a_card_standing_on_its_foot_rises_as_it_widens_only_as_far_as_its_transcript_grew(
+    browser, change
+):
+    """A card over its subject stands on its foot (`data-lf-rises`), so the long message
+    that widens it once (`data-lf-widens`) lifts its head in the same frame, carrying
+    its controls up and sideways, whether the message joins its transcript or grows
+    the reply streaming into it. A card whose head rises further than what joined its
+    transcript, as with no message, a hidden one, padding or a short one with padding
+    past it, is reported."""
+    script, credited = RISES[change]
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0"><div data-lf-runtime>'
+            '<div id="card" data-lf-widens data-lf-rises style="position:fixed;'
+            'bottom:40px;right:40px;width:160px">'
+            '<button id="close">Close</button>'
+            '<div id="log" data-lf-reflow="append">'
+            "<p data-lf-append-tail>A short question.</p></div>"
+            "</div></div></body>"
+        )
+    )
+    paint(page)
+    page.evaluate(
+        """script => new Promise((done) => {
+          const answer = document.createElement("p");
+          answer.textContent = "An answer long enough to stand taller than wide. ".repeat(12);
+          card.style.width = "320px";
+          new Function("answer", script)(answer);
+          requestAnimationFrame(() => requestAnimationFrame(done));
+        })""",
+        script,
+    )
+    judge_watches()
+    if not credited:
+        consume_browser_errors(
+            page,
+            lambda problem: (
+                problem.code == "moved-without-input"
+                and ["div#card"] in problem.values["beside"]
+            ),
+        )
 
 
 def test_the_document_moves_what_it_painted_half_parsed_without_a_finding(browser):
@@ -1258,6 +1323,7 @@ def test_append_growth_may_raise_a_port_standing_on_its_foot(browser, fault, pro
     [
         ("", False, False),
         ("", True, False),
+        ("retimed", False, False),
         ("part_at_once", False, False),
         ("unstanding", False, True),
         ("unstanding", True, True),
@@ -1269,11 +1335,12 @@ def test_append_growth_may_raise_a_port_standing_on_its_foot(browser, fault, pro
     ],
 )
 def test_a_carry_draws_the_way_of_a_step_news_may_take(browser, fault, key, protected):
-    """A box that follows its own layout, as box-motion.js carries a floating box's
+    """A box that follows its own layout, as dom/box-motion.js carries a floating box's
     parts, may draw the step news's append growth takes as travel: a ResizeObserver
     delivery no input owns begins a carry that draws the standing port's head where it
     was and slides it to where its rise puts it, or draws part of the step at once, as
-    news may draw all of it. The step itself is judged as if drawn at once, so a carry
+    news may draw all of it, and a carry re-timed before any frame draws it is the
+    same carry. The step itself is judged as if drawn at once, so a carry
     of a step the port may not take still fails, as does one that draws the head below
     where it was, past where its rise puts it, or past it on the way. A key pressed
     elsewhere while the carry runs changes none of that, though it starts a new run:
@@ -1310,10 +1377,17 @@ def test_a_carry_draws_the_way_of_a_step_news_may_take(browser, fault, key, prot
                 unstanding: [{ '--carry': '0px 40px' }, { '--carry': '0px 40px', offset: 0.5 },
                   { '--carry': '0px 0px' }],
               }[fault] ?? [{ '--carry': `0px ${from}px` }, { '--carry': `0px ${to}px` }];
-              window.carries = [row, port].map((part) => {
+              const carry = () => [row, port].map((part) => {
                 part.style.translate = 'var(--carry)';
                 return part.animate(keyframes, { duration: key ? 1600 : 200, fill: 'forwards' });
               });
+              window.carries = carry();
+              // Re-timed from where it is drawn before any frame draws it, as
+              // dom/box-motion.js re-times a carry a second delivery reaches.
+              if (fault === 'retimed') {
+                window.carries.forEach((carry) => carry.cancel());
+                window.carries = carry();
+              }
             }).observe(port);
             </script></body>"""
         )
@@ -1353,7 +1427,7 @@ def test_a_carry_draws_the_way_of_a_step_news_may_take(browser, fault, key, prot
 def test_a_line_news_adds_rides_only_the_stream_it_joins(browser, rides):
     """News adds a line to a port standing on its foot, which rises to hold it. Carried
     in alone from 60 px below, the new line slides on its own, and fails. Carried with
-    the line already there by the distance the rise moved that one, as box-motion.js
+    the line already there by the distance the rise moved that one, as dom/box-motion.js
     carries a stream's new turn with the turns above it, it rides that line's carry."""
     page = browser.new_page()
     page.goto(
@@ -1405,6 +1479,65 @@ def test_a_line_news_adds_rides_only_the_stream_it_joins(browser, rides):
     else:
         errors = consume_browser_errors(page, {"code": "moved-without-input"})
         assert names_move(errors, "p#news"), errors
+
+
+@pytest.mark.parametrize(
+    "fault, protected",
+    [("", False), ("uncountered", True), ("alone", True)],
+)
+def test_a_stuck_foot_holds_its_line_through_a_carry_of_what_holds_it(
+    browser, fault, protected
+):
+    """News moves a scroller's content up a step, and a carry no input owns draws the
+    content where it was and slides it to where it stands. A box stuck to the
+    scroller's foot inside that content, as a thread's New reply is, has its inset
+    moved against the carry on the same clock, as dom/box-motion.js moves it, so it
+    holds its line on screen and moves nothing. Left to ride the carry, the stuck box
+    travels down and back with no input, and an inset moved with no carry under it
+    moves the box without input; both fail."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0;font:16px monospace">'
+            "<style>@property --carry { syntax: '<length>+'; inherits: false;"
+            " initial-value: 0px 0px; }</style>"
+            '<section style="position:fixed;bottom:0;left:0;width:360px">'
+            '<div id="port" style="height:200px;overflow:auto;overflow-anchor:none">'
+            '<div id="content"><div id="step" style="height:40px"></div>'
+            '<div style="height:400px"></div>'
+            '<div id="foot" style="position:sticky;bottom:0">'
+            '<button id="press">New reply</button></div></div></div></section>'
+            "</body>"
+        )
+    )
+    paint(page)
+    page.evaluate(
+        """fault => {
+          const options = { duration: 300 };
+          window.carries = [];
+          if (fault !== 'alone') {
+            step.remove();
+            content.style.translate = 'var(--carry)';
+            window.carries.push(content.animate(
+              [{ '--carry': '0px 40px' }, { '--carry': '0px 0px' }], options));
+          }
+          if (fault !== 'uncountered')
+            window.carries.push(foot.animate(
+              [{ bottom: '40px' }, { bottom: '0px' }], options));
+        }""",
+        fault,
+    )
+    page.wait_for_function(
+        "window.carries.every((carry) => carry.playState === 'finished')"
+    )
+    paint(page)
+    judge_watches()
+    if not protected:
+        assert take_browser_errors(page) == []
+    else:
+        errors = consume_browser_errors(page, {"code": "moved-without-input"})
+        assert names_move(errors, "button#press"), errors
 
 
 def test_a_box_s_height_tween_is_no_carry(browser):
@@ -1940,7 +2073,7 @@ def test_an_input_owns_its_counted_rendering_until_it_settles(browser, serve):
     )
     page.evaluate(
         """async work => {
-      const {nextFrame} = await window.__lfWidgetApi();
+      const {nextFrame} = await window.__lfLibImport('frame-pass.js');
       const above = document.querySelector('#above');
       document.querySelector('#press').addEventListener('click', () => {
         let turn = 0;
@@ -2051,51 +2184,6 @@ def _far_sample(sample_id, after_id):
     )
 
 
-def test_a_jump_owns_the_fit_of_the_live_sample_it_brings_near(browser, serve):
-    """A link that jumps to a live sample far down starts its page there (`whenNear`),
-    and the frame fits that page as soon as it draws, carrying what follows it: the
-    jump owns that landing, however late it comes. It owns nothing after the landing,
-    so a control that moves once the frame has fitted is reported. A sample a script
-    brings near, with no input, fits as news, and its fit is reported too."""
-    page = open_page(
-        browser,
-        serve(
-            leaf_page(
-                "Fit on arrival",
-                '<p><a id="jump" href="#far">Jump to the sample</a></p>'
-                '<div style="height: 400vh"></div>'
-                + _far_sample("far", "after")
-                + '<div style="height: 400vh"></div>'
-                + _far_sample("scripted", "later")
-                + '<div style="height: 100vh"></div>',
-            )
-        ),
-    )
-    fitted = """sample => {
-        const frame = sample.querySelector('iframe');
-        return sample.ready.then(() => frame.clientHeight < 300);
-    }"""
-    page.locator("#jump").click()
-    page.wait_for_function(f"({fitted})(document.querySelector('#far'))")
-    rendered(page)
-    judge_watches()
-    assert page.lf_errors == []
-
-    page.locator("#after").evaluate("node => { node.style.marginTop = '40px'; }")
-    rendered(page)
-    judge_watches()
-    consume_browser_errors(page, moved_within("button#after"))
-
-    page.locator("#scripted").evaluate(
-        "sample => sample.scrollIntoView({block: 'start', behavior: 'instant'})"
-    )
-    page.wait_for_function(f"({fitted})(document.querySelector('#scripted'))")
-    rendered(page)
-    judge_watches()
-    moved = consume_browser_errors(page, {"code": "moved-without-input"})
-    assert names_move(moved, "button#later"), moved
-
-
 @pytest.mark.parametrize("retired_at", ["click", "resolve-remove", "remove-resolve"])
 def test_a_retired_widget_preparation_cannot_credit_a_passive_landing(
     browser, serve, retired_at
@@ -2119,7 +2207,7 @@ def test_a_retired_widget_preparation_cannot_credit_a_passive_landing(
     )
     page.evaluate(
         """async retiredAt => {
-          const {widgetController} = await window.__lfWidgetApi();
+          const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
           const widget = document.querySelector('#choice');
           const gate = Promise.withResolvers();
           window.release = gate.resolve;
@@ -2131,7 +2219,9 @@ def test_a_retired_widget_preparation_cannot_credit_a_passive_landing(
               if (phase === 'begin') identity ??= preparation;
               else if (preparation === identity) { terminal.resolve(); stop(); }
             });
-            widgetController(widget).present(gate.promise);
+            // Said from inside a widget, the work is that widget's preparation.
+            widget.querySelector(':scope > .lf-another')
+              .dispatchEvent(new PendingTaskEvent(gate.promise));
             if (retiredAt === "click") widget.remove();
           }, {once: true});
         }""",
@@ -2180,16 +2270,19 @@ def test_each_capable_preparation_keeps_its_own_input_landing(
         ),
     )
     page.evaluate("""async () => {
-      const {widgetController} = await window.__lfWidgetApi();
+      const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
       const widget = document.querySelector('#choice');
+      // Said from inside a widget, the work is that widget's preparation.
+      const prepare = promise =>
+        widget.querySelector(':scope > .lf-another').dispatchEvent(new PendingTaskEvent(promise));
       const first = Promise.withResolvers();
       const second = Promise.withResolvers();
       window.rejectFirst = first.reject;
       window.releaseFirst = first.resolve;
       window.releaseSecond = second.resolve;
       document.querySelector('#press').addEventListener('click', () => {
-        widgetController(widget).present(first.promise);
-        widgetController(widget).present(second.promise.then(() => {
+        prepare(first.promise);
+        prepare(second.promise.then(() => {
           widget.style.height = '120px';
         }));
       }, {once: true});
@@ -2217,6 +2310,161 @@ def test_each_capable_preparation_keeps_its_own_input_landing(
     rendered(page)
     judge_watches()
     assert page.lf_errors == []
+
+
+def test_a_carry_a_landing_s_own_layout_begins_is_the_input_s_though_news_lands(
+    browser, serve
+):
+    """A box that follows its own layout, as dom/box-motion.js carries a floating box's
+    parts, begins its motion in the ResizeObserver delivery of the frame a preparation's
+    landing draws in, after that frame's tick. The motion is the input's though the
+    server's reading lands after that delivery and before the next tick, as it can
+    when a pasted image lands in an open thread. The growing box stands after the
+    control, so only the carry moves it."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Landing carry",
+                '<button id="press">Press</button>'
+                '<lf-group id="choice-q" label="Which?">'
+                '<lf-options id="choice"><lf-option id="a">A</lf-option></lf-options></lf-group>'
+                '<button id="control" style="display:block">Control</button>'
+                '<div id="after"></div>',
+            )
+        ),
+    )
+    page.evaluate("""async () => {
+      const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
+      CSS.registerProperty({
+        name: '--carry', syntax: '<length>+', inherits: false, initialValue: '0px 0px',
+      });
+      const widget = document.querySelector('#choice');
+      const control = document.querySelector('#control');
+      const after = document.querySelector('#after');
+      const gate = Promise.withResolvers();
+      window.release = gate.resolve;
+      new ResizeObserver(() => {
+        if (!after.offsetHeight || window.carry) return;
+        control.style.translate = 'var(--carry)';
+        window.carry = control.animate(
+          [{'--carry': '0px 60px'}, {'--carry': '0px 0px'}], {duration: 300});
+        document.body.setAttribute('data-lf-reading', 'news');
+      }).observe(after);
+      document.querySelector('#press').addEventListener('click', () => {
+        // Said from inside a widget, the work is that widget's preparation.
+        widget.querySelector(':scope > .lf-another').dispatchEvent(
+          new PendingTaskEvent(gate.promise.then(() => {
+            after.style.height = '40px';
+          })));
+      }, {once: true});
+    }""")
+    page.locator("#press").click()
+    rendered(page, facts=("updatesSettled",))
+    judge_watches()
+    assert page.lf_errors == []
+    page.evaluate("release()")
+    page.wait_for_function("window.carry !== undefined")
+    page.evaluate("carry.finished")
+    rendered(page)
+    judge_watches()
+    assert page.lf_errors == []
+
+
+@pytest.mark.parametrize("late", [False, True], ids=["in-its-frame", "a-frame-late"])
+def test_a_carry_news_begins_after_it_seals_a_landing_carries_its_step(
+    browser, serve, late
+):
+    """News seals a preparation's landing still open, and its step's carry, begun in a
+    ResizeObserver delivery after it lands, is a carry no input owns, as the carry of
+    an answer arriving while a reply's preparation lands is (dom/box-motion.js). The
+    answer grows a port standing on its foot, and the carry draws the port's head where
+    it was and slides it to where the rise puts it, so the head moves nothing a carry
+    of news's step may not draw. A carry begun a frame late, after a frame has painted
+    the head where the rise puts it, draws it back down and moves it, and fails."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Sealed landing carry",
+                '<button id="press">Press</button>'
+                '<lf-group id="choice-q" label="Which?">'
+                '<lf-options id="choice"><lf-option id="a">A</lf-option></lf-options>'
+                "</lf-group>",
+            )
+        ),
+    )
+    # The runtime's own markers, which an authored page may not wear, as the panel's
+    # standing box wears them.
+    page.evaluate(
+        """stand => document.body.insertAdjacentHTML('beforeend', stand)""",
+        '<section id="stand" data-lf-runtime style="position:fixed;bottom:0;'
+        'left:0;width:360px"><header id="row"><button id="head">Close</button>'
+        '</header><div id="port" data-lf-rises '
+        'style="max-height:300px;overflow:auto;overflow-anchor:none">'
+        '<div id="source" data-lf-reflow="append">'
+        '<p id="old" style="margin:0;height:40px">Already reading.</p></div>'
+        '</div><button id="field">Comment</button></section>',
+    )
+    page.evaluate(
+        """async (late) => {
+      const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
+      CSS.registerProperty({
+        name: '--carry', syntax: '<length>+', inherits: false, initialValue: '0px 0px',
+      });
+      const widget = document.querySelector('#choice');
+      const port = document.querySelector('#port');
+      const gate = Promise.withResolvers();
+      window.release = gate.resolve;
+      let height = null;
+      new ResizeObserver(() => {
+        const now = port.getBoundingClientRect().height;
+        const grew = height !== null && now > height;
+        height = now;
+        if (!grew) return;
+        const carry = () => {
+          window.carries = [row, port].map((part) => {
+            part.style.translate = 'var(--carry)';
+            return part.animate(
+              [{'--carry': '0px 40px'}, {'--carry': '0px 0px'}], {duration: 300});
+          });
+        };
+        if (late) requestAnimationFrame(() => requestAnimationFrame(carry));
+        else carry();
+      }).observe(port);
+      document.querySelector('#press').addEventListener('click', () => {
+        widget.querySelector(':scope > .lf-another').dispatchEvent(
+          new PendingTaskEvent(gate.promise));
+      }, {once: true});
+    }""",
+        late,
+    )
+    page.locator("#press").click()
+    rendered(page, facts=("updatesSettled",))
+    judge_watches()
+    assert page.lf_errors == []
+    landing = page.evaluate("""async () => {
+      release();
+      await new Promise((done) => setTimeout(done));
+      const open = window.lfInputRenderingOpen();
+      document.body.setAttribute('data-lf-reading', 'news');
+      const next = document.createElement('p');
+      next.textContent = 'The answer.';
+      next.style.cssText = 'margin:0;height:40px';
+      document.getElementById('source').append(next);
+      return open;
+    }""")
+    assert landing, "the preparation's landing was over before news sealed it"
+    page.wait_for_function(
+        "window.carries?.every((carry) => carry.playState === 'finished')"
+    )
+    rendered(page)
+    judge_watches()
+    if not late:
+        assert take_browser_errors(page) == []
+    else:
+        errors = consume_browser_errors(page, {"code": "moved-without-input"})
+        assert names_move(errors, "button#head"), errors
 
 
 @pytest.mark.parametrize(
@@ -2251,7 +2499,7 @@ def test_a_preparation_no_input_began_lands_passive(browser, serve, input_at):
     page.route("**/vendor/syntax/markdown.js", lambda route: grammar.append(route))
     page.evaluate(
         """async inputAt => {
-      const {nextFrame} = await window.__lfWidgetApi();
+      const {nextFrame} = await window.__lfLibImport('frame-pass.js');
       const root = document.querySelector('#patch').shadowRoot;
       const details = root.querySelector('details');
       const opens = () => {
@@ -2896,14 +3144,14 @@ def test_a_resize_owns_its_layout_before_its_event_dispatches(browser):
 # bar's slide above it (`news`), or the press beginning that slide, which runs on past
 # news that moves nothing (`press`). The translation arms slide the line itself
 # instead of flowing it: by its margin, or by a registered property its translate
-# reads, as box-motion.js carries a part. `data-retarget` has the news cancel the
-# slide and begin its replacement in the task that adopts the reading, as box-motion.js
+# reads, as dom/box-motion.js carries a part. `data-retarget` has the news cancel the
+# slide and begin its replacement in the task that adopts the reading, as dom/box-motion.js
 # carries a send's ride on through the server's answer: from where it is drawn to the
 # same end (`drawn`) or a farther one (`farther`), or from where it began
 # (`restart`). A translation paints no layout shift, which every passive
 # verdict starts from, so a box no reader reads slides in the window meanwhile, as a
 # panel's controls redrawn by the reading shift. The delivery arms begin the slide
-# where box-motion.js begins a carry, in a ResizeObserver delivery that follows a
+# where dom/box-motion.js begins a carry, in a ResizeObserver delivery that follows a
 # box's layout: the press's own growth, its news landing before the next frame's tick
 # (`delivery`), or the news's growth three frames on (`news-delivery`). The growing box
 # stands after the line, so only the slide moves it.
@@ -3425,7 +3673,7 @@ def test_sampled_native_translation_distinguishes_press_from_news(
 def test_a_carry_a_press_s_own_layout_begins_is_the_press_s_though_news_lands(
     browser, motion
 ):
-    """A box that follows its own layout, as box-motion.js carries a floating box's
+    """A box that follows its own layout, as dom/box-motion.js carries a floating box's
     parts, begins its motion in the ResizeObserver delivery of the frame the press
     draws in, after that frame's tick. The motion is the press's though news lands
     before the next tick, as a send's answer can within a long frame, where the panel's
@@ -4292,7 +4540,8 @@ def test_typing_root_scroll_keeps_a_fixed_field_but_not_its_local_carry(browser,
 # the insets are written changes how the credit is found, not what an extra move is.
 # A popover shown with its anchor as `source` is anchored with no name, its insets an
 # offset from a custom property under a rule leaving them `auto` and a guard rolling
-# every property back, as Leaf's preview is.
+# every property back, as Leaf's preview is. An offset summed from several terms, as a
+# heading's link centers on its first line, follows its anchor as a single one does.
 # Rules disagreeing need the insets in rules, and an important rule over an inline
 # inset needs the inset inline. A transform above the scroller changes the geometry of
 # a credit, so it runs on the cases that move something, and not on those about which
@@ -4301,6 +4550,9 @@ TURNED = "scale(.8) rotate(10deg)"
 ANCHOR_SCROLL_CASES = [
     ("", "inline", "none"),
     ("", "inline", TURNED),
+    ("", "fallbacks", "none"),
+    ("", "offset_sum", "none"),
+    ("anchor_y", "offset_sum", "none"),
     ("", "scoped_rule", "none"),
     ("portal_x", "inline", "none"),
     ("portal_x", "inline", TURNED),
@@ -4323,8 +4575,9 @@ def test_native_anchor_scroll_retains_local_motion_proof(
     browser, fault, declared, transform
 ):
     """A portal following its anchor's scroll is credited whether its insets are
-    written inline or stated in its tree's stylesheet, and whether its anchor's name is
-    unique or repeated under `anchor-scope`; moving either independently still fails.
+    written inline, with or without a fallback, or stated in its tree's stylesheet, and
+    whether its anchor's name is unique or repeated under `anchor-scope`; moving either
+    independently still fails.
     A direct anchor inset that a more specific rule overrides credits nothing, even
     where a later rule in sheet order states it, and neither does an inline one an
     important rule overrides. A popover's implicit anchor, the `source` it was shown
@@ -4333,6 +4586,11 @@ def test_native_anchor_scroll_retains_local_motion_proof(
     field_style = "position:fixed;position-anchor:--target;left:calc(anchor(left) + 100px);top:calc(anchor(top) + 10px)"
     if fault == "declared_unused":
         field_style = "position:fixed;position-anchor:--target;left:100px;top:50px"
+    if declared == "fallbacks":
+        # Floating placement's form, the fallback a far edge's written back from 100%.
+        field_style = "position:fixed;position-anchor:--target;left:calc(anchor(left, 8px) + 100px);top:calc(anchor(top, calc(100% - 300px)) + 10px)"
+    if declared == "offset_sum":
+        field_style = "position:fixed;position-anchor:--target;--a:80px;--b:120px;left:calc(anchor(left) + var(--a) + (var(--b) - var(--a)) / 2);top:calc(anchor(top, -9999px) + var(--a) - var(--b) + 50px)"
     sheet, scope, decoy = "", "", ""
     if declared == "scoped_rule":
         sheet = f"<style>#field {{ {field_style} }}</style>"
@@ -4407,6 +4665,114 @@ def test_native_anchor_scroll_retains_local_motion_proof(
         )
     else:
         assert errors == [], (before, after, errors)
+
+
+# A row in a carrier anchored to words the document scrolls, as Leaf's margin carries a
+# row whose target scrolls in a box short of the document. As margin-layout.js does,
+# `place` writes the carrier at the window's origin as it measures the anchor, and the
+# row level with the anchor's top, `by` pixels lower.
+CARRIED_ROW = """<!doctype html><body style="margin:0;height:3000px">
+<p id="anchor" style="position:absolute;top:1000px;left:40px;width:200px;margin:0;anchor-name:--words">Words the row marks</p>
+<div id="carrier" style="position:fixed;position-anchor:--words;left:0;top:0;width:0;height:0;display:grid;grid-template:0px/0px;position-visibility:always">
+<button id="row" style="grid-area:1/1;align-self:start;justify-self:start;margin-left:260px">Row</button></div>
+<script>function place(by = 0) {
+  const at = anchor.getBoundingClientRect().top;
+  carrier.style.top = `calc(anchor(top) - ${at}px)`;
+  row.style.marginTop = `${at + by}px`;
+}
+scrollTo(0, 600);
+place();</script>"""
+# The same row, its words in a shadow tree that a document `::part()` rule names,
+# as the runtime names a widget's box from the document (dom/css-anchors.js).
+CARRIED_ROW_IN_PART = CARRIED_ROW.replace(
+    '<p id="anchor" style="position:absolute;top:1000px;left:40px;width:200px;margin:0;anchor-name:--words">Words the row marks</p>',
+    """<style>::part(words){anchor-name:--words}</style><div id="host"></div>
+<script>host.attachShadow({mode:'open'}).innerHTML = '<p part="words" style="position:absolute;top:1000px;left:40px;width:200px;margin:0">Words the row marks</p>';
+var anchor = host.shadowRoot.firstElementChild;</script>""",
+)
+# The document's row and words, beside a shadow tree whose own style gives a box that
+# exposes a part, for styling alone, a private anchor of the same name.
+CARRIED_ROW_BESIDE_PRIVATE = CARRIED_ROW.replace(
+    '<div id="carrier"',
+    '''<div id="host"></div>
+<script>host.attachShadow({mode:'open'}).innerHTML = '<style>p{anchor-name:--words}</style><p part="label">Private words</p>';</script>
+<div id="carrier"''',
+    1,
+)
+
+
+@pytest.mark.parametrize(
+    ("scroll", "fault", "tree"),
+    [
+        ("step", "", "document"),
+        ("step", "row", "document"),
+        ("twice", "", "document"),
+        ("twice", "row", "document"),
+        ("smooth", "", "document"),
+        ("smooth", "row", "document"),
+        ("step", "", "part"),
+        ("step", "row", "part"),
+        ("twice", "", "part"),
+        ("twice", "row", "part"),
+        ("step", "", "private"),
+        ("step", "row", "private"),
+    ],
+)
+def test_a_carried_row_keeps_its_anchor_s_lagging_scroll(browser, scroll, fault, tree):
+    """Chrome carries a box anchored to scrolled words a frame after the scroll, so a
+    frame callback can read the words moved and the row not yet. A row its script places
+    again in that frame, by the same offset from the words, a row whose words scroll
+    again before it catches up, and a row through a smooth scroll no input makes, are
+    credited, whether the words stand in the document or in a shadow tree the document
+    names through `::part()`, and beside a shadow tree's private anchor of the same name;
+    a row placed elsewhere still fails."""
+    page = browser.new_page()
+    fixture = {
+        "document": CARRIED_ROW,
+        "part": CARRIED_ROW_IN_PART,
+        "private": CARRIED_ROW_BESIDE_PRIVATE,
+    }[tree]
+    page.goto("data:text/html," + quote(fixture))
+    paint(page)
+    paint(page)
+    moved = "5" if fault else "0"
+    if scroll == "step":
+        page.evaluate(f"scrollBy(0, -9); place({moved})")
+    elif scroll == "twice":
+        # A second scroll from another script, as `scrollIntoView` and then `scrollBy`
+        # make, in the task after the frame that carries the row to the first. A
+        # user-blocking task posted from that frame's callbacks runs ahead of the
+        # delivery of its painted shifts, so the watch's reading of that paint finds
+        # the words moved by the second scroll and the row caught up to the first.
+        page.evaluate(
+            """by => new Promise((done) => {
+              scrollBy(0, -9);
+              place();
+              requestAnimationFrame(() => scheduler.postTask(() => {
+                scrollBy(0, -40);
+                place(by);
+                done();
+              }, {priority: 'user-blocking'}));
+            })""",
+            int(moved),
+        )
+    else:
+        page.evaluate(
+            """by => new Promise((done) => {
+              addEventListener('scrollend', done, {once: true});
+              scrollBy({top: -300, behavior: 'smooth'});
+              setTimeout(() => place(by), 80);
+            })""",
+            int(moved),
+        )
+    paint(page)
+    page.evaluate(PAINTED)
+    judge_watches()
+    errors = take_browser_errors(page)
+    if fault:
+        assert names_move(errors, "button#row"), errors
+    else:
+        assert errors == [], errors
 
 
 @pytest.mark.parametrize(
@@ -4840,7 +5206,7 @@ motion.pause();motion.currentTime=150;
 @pytest.mark.parametrize("fault", [False, True])
 def test_a_sticky_inset_moves_its_box_only_within_its_block(browser, fault):
     """A ride carries a scroller's messages while their sticky heads' insets travel
-    against the carry (box-motion.js), so a stuck head holds its line and one short of
+    against the carry (dom/box-motion.js), so a stuck head holds its line and one short of
     it rides with its message. The inset is credited by the head's move within its
     message, not read as an offset that cancels the carry; a head moving the other
     way within its message still fails."""
@@ -5243,12 +5609,12 @@ def test_real_factory_invalidates_nonwindow_and_stopped_tenure(browser, serve, f
       const selected=()=>module.floatingSelections().find(s=>s.floating===holder);
       const owner=module.floatingPlacement({floating:holder,update:()=>void place()});
       async function place(){owner.begin();const answer=await owner.position(ui.computePosition,subject,{placement:'right-start',middleware:[]},()=>plane,subject);if(answer)owner.stand(answer);}
-      owner.watch(subject,subject,ui.autoUpdate);await place(); const first=selected();
+      owner.watch(subject,subject,ui.autoUpdate,ui.getOverflowAncestors);await place(); const first=selected();
       if(!first||first.plane!=='page')throw Error('First placement was not supported page');
       const original=holder.getBoundingClientRect();host.style.transform='translateX(0)';await place();const unsupported=selected();const nested=holder.getBoundingClientRect();const nativeNonwindow=holder.offsetParent===host;
       host.style.removeProperty('transform');plane='window';await place();const second=selected();
       if(!second)throw Error('Supported window placement missing');
-      owner.stop();const stopped=selected();owner.watch(subject,subject,ui.autoUpdate);await place();const third=selected();
+      owner.stop();const stopped=selected();owner.watch(subject,subject,ui.autoUpdate,ui.getOverflowAncestors);await place();const third=selected();
       window.reviewOwner=owner;window.reviewPlace=place;
       return {absentUnsupported:unsupported===undefined,unchanged:original.x===nested.x&&original.y===nested.y&&original.width===nested.width&&original.height===nested.height,nativeNonwindow,window:second.plane,newTenure:first.tenure!==second.tenure,sameSubject:first.subject===second.subject,sameAnchor:first.anchor===second.anchor,absentStopped:stopped===undefined,newStoppedTenure:second.tenure!==third.tenure,sameStoppedSubject:second.subject===third.subject};
     }""")
@@ -5917,7 +6283,7 @@ def test_real_floating_plane_retains_local_motion(
               {placement:'right-start',middleware:[]}, ()=>plane, subject);
             if (placed) {owner.stand(placed); answer = placed;}
           }
-          owner.watch(subject, subject, ui.autoUpdate);
+          owner.watch(subject, subject, ui.autoUpdate, ui.getOverflowAncestors);
           await place();
           holder.style.removeProperty('visibility');
           const original = selection();

@@ -28,10 +28,13 @@ lf-code {
 }
 /* The gutter's ground runs the block's full height, notes included, so a note stands
    inside one block of code rather than cutting it in two. The lines paint the same
-   ground in their own gutter cells, over a highlighted line's tint. */
+   ground in their own gutter cells, over a highlighted line's tint. Each line hangs its
+   wrapped rows from its own indent (below), so the hang every code block gives its rows
+   (reading.css, `pre`) stops here, short of the notes. */
 lf-code.lf-rendered > pre {
   margin: 0;
   padding: var(--lf-code-inset-block) 0;
+  text-indent: 0;
   --lf-block-frame: 1;
   --lf-code-gutter: max(38px, calc(var(--lf-code-digits, 2) * 1ch + 16px));
   --lf-code-ch: 1ch;
@@ -56,10 +59,9 @@ lf-code.lf-rendered > pre {
 lf-code .lf-code-line {
   display: block;
   position: relative;
-  --lf-code-hang: calc(min(var(--lf-code-indent, 0), 22) * 1ch + 2ch);
   padding: 0 var(--lf-code-inset-inline) 0
-    calc(var(--lf-code-gutter) + var(--lf-code-gap) + var(--lf-code-hang));
-  text-indent: calc(-1 * var(--lf-code-hang));
+    calc(var(--lf-code-gutter) + var(--lf-code-gap));
+  text-indent: calc(min(var(--lf-code-indent, 0), 22) * 1ch + 2ch) hanging;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }
@@ -124,6 +126,18 @@ lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-hi] {
 }
 lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-hi]::before {
   border-right-color: var(--lf-warn);
+}
+/* The lines the widget a block follows is at (`playhead`): an accent bar at the gutter's
+   outer edge and an accent number, so they read apart from an hi line by shape as well
+   as hue, and an accent wash that an hi line's own tint keeps. The bar is the gutter's,
+   not the line's, because the gutter's own background paints over an inset on the line. */
+lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-at]:not([data-lf-hi]) {
+  background: var(--lf-accent-tint);
+}
+lf-code :is(.lf-code-line, .lf-code-elided)[data-lf-at]::before {
+  box-shadow: inset 3px 0 0 var(--lf-accent);
+  color: var(--lf-accent);
+  font-weight: 600;
 }
 /* A note is the author's prose about a source line, not another source line. It is a
    small card under its line, its left edge under the line's first character
@@ -242,8 +256,6 @@ lf-code[data-lf-notes="hidden"] .lf-code-line:has(+ lf-note)::before {
       border-radius: var(--lf-r);
       padding: var(--lf-code-inset-block) var(--lf-code-inset-inline)
         var(--lf-code-inset-block) calc(var(--lf-code-gutter) + var(--lf-code-gap));
-      white-space: pre-wrap;
-      overflow-wrap: anywhere;
     }
     & > lf-note {
       margin-inline: 1px;

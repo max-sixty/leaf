@@ -43,11 +43,40 @@ from leaf_dev.browser import (
     tab_options,
 )
 from leaf_dev.example_data import named_source
+from leaf_dev.frames import SCRIPT as FRAMES_SCRIPT
 from leaf_dev.recording import recording
 from leaf_dev.states import STATES, State
 from leaf_dev.visits import Visit, said, visits
 
 OUT = ROOT / ".tmp" / "probe"
+
+# Reads `--frames`' expression after every frame the page draws (`leaf_dev.frames`):
+# called where it is a function, and evaluated afresh each frame where it is not, so an
+# expression may name what a later step creates. A reading that throws records its
+# error; an expression that doesn't parse fails the run.
+BEGIN_FRAMES = """(expression) => {
+  let read = null;
+  try {
+    const value = (0, eval)(`(${expression})`);
+    if (typeof value === "function") read = value;
+  } catch (error) {
+    if (error instanceof SyntaxError) throw error;
+  }
+  read ??= () => (0, eval)(`(${expression})`);
+  lfFrames.begin(() => {
+    try {
+      return read();
+    } catch (error) {
+      return { error: String(error) };
+    }
+  });
+}"""
+
+
+def begin_frames(page: Page, expression: str) -> None:
+    page.evaluate(FRAMES_SCRIPT.read_text())
+    page.evaluate(BEGIN_FRAMES, expression)
+
 
 STEPS = {
     "press": lambda page, key: page.keyboard.press(key),
@@ -114,6 +143,12 @@ def source_path(value: str | None) -> Path | str | None:
     "its JSON value is the result.",
 )
 @click.option(
+    "--frames",
+    "frame_expression",
+    help="A JavaScript expression or function read after every frame the page draws, "
+    "from the first --do step until the page settles; its values are `frames`.",
+)
+@click.option(
     "--log",
     type=click.Path(exists=True, dir_okay=False, path_type=Path),
     help="A JSON-lines file of events to admit before the page loads.",
@@ -163,6 +198,7 @@ def probe(
     authored,
     steps,
     expression,
+    frame_expression,
     log,
     shot,
     journey,
@@ -237,6 +273,16 @@ def probe(
     that navigates reports the current document's frames and layout shifts. The journey
     must wait for its own result, including delayed completion, before returning.
 
+    --frames EXPR reads EXPR after every frame the page draws, from before the first
+    --do step until the journey and the page have settled, and prints its values in
+    `frames`, each beside the frame's time in ms and how many inputs the page had
+    handled by then. EXPR is read afresh each frame, so it may name what a later step
+    creates, and a read that throws records its error. Each is read once its frame has
+    drawn, so it shows what that frame drew; a journey that reads in a frame callback of
+    its own reads before the runtime's rendering pass for that frame, and so sees the
+    frame before. A frame an input reached before the read is left out
+    (`leaf_dev.frames`), and a journey that navigates leaves no frames.
+
     --journey loads a Python file with run(page), using the full Playwright API
     for clicks, typing, scrolling and assertions. --record DIR saves trace.zip
     and video.webm under DIR/head (and DIR/base with --base); --gif adds
@@ -296,10 +342,17 @@ def probe(
             raise click.BadParameter(
                 "the journey must define run(page)", param_hint="--journey"
             )
+    if frame_expression:
+        steps = [("frames", lambda page: begin_frames(page, frame_expression)), *steps]
     shots = run_directory(OUT) if shot else None
     traces = shots
 
     def read(arm: str, visit: Visit) -> None:
+        if frame_expression:
+            visit.doing = "frames"
+            visit.reading["frames"] = visit.page.evaluate(
+                "() => globalThis.lfFrames?.end() ?? []"
+            )
         if expression:
             visit.doing = "js"
             visit.reading["result"] = visit.page.evaluate(expression)

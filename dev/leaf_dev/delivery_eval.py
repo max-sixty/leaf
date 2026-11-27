@@ -13,9 +13,9 @@ import time
 from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
-from leaf.event_log import read_events
-from leaf.harness import ClaudeCodeHarness
-from leaf.thread import successful_replies
+from leaf.agents.thread import successful_replies
+from leaf.base.harness import ClaudeCodeHarness
+from leaf.log.event_log import read_events
 from leaf_dev import ROOT
 from leaf_dev.arms import LiveChild, LiveSession, PageClient, run_leaf, scratch
 from leaf_dev.eval_cases import definition

@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
+import { realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -8,12 +9,7 @@ import { spawnSync } from "node:child_process";
 import { parse } from "acorn";
 import { build } from "esbuild";
 import { adapt, seam } from "../vendor.mjs";
-import {
-  buildOutputs,
-  checkOutputs,
-  checkRuntimeModules,
-  compilerPaths,
-} from "./build.mjs";
+import { buildOutputs, checkOutputs, compilerPaths } from "./build.mjs";
 import { bundledPackages, checkModule } from "./shipped.mjs";
 
 const outputs = await buildOutputs();
@@ -149,20 +145,6 @@ test("unimported browser and package modules are strict without a pragma", async
   assert.equal(typed.status, 0, typed.stdout + typed.stderr);
 });
 
-test("runtime TypeScript is refused by build and check, with declarations allowed", async (context) => {
-  const scratch = await mkdtemp(path.join(tmpdir(), "leaf-runtime-source-"));
-  context.after(() => rm(scratch, { recursive: true }));
-  const runtime = path.join(scratch, "browser/runtime/nested");
-  await mkdir(runtime, { recursive: true });
-  await writeFile(path.join(runtime, "types.d.ts"), "export type Value = number;\n");
-  await checkRuntimeModules(scratch);
-  await writeFile(path.join(runtime, "unimported.ts"), "export const value = 1;\n");
-  await assert.rejects(checkRuntimeModules(scratch), {
-    message:
-      "Runtime modules are JavaScript with JSDoc so an edit reaches pages and tests without a build:\nbrowser/runtime/nested/unimported.ts",
-  });
-});
-
 test("locked source reproduces the complete committed output", async () => {
   const rebuilt = await buildOutputs();
   assert.deepEqual(rebuilt, outputs);
@@ -211,6 +193,21 @@ test("checking stale output refuses it without changing any bytes", async (conte
   await writeFile(path.join(scratch, chunk), "");
   await assert.rejects(checkOutputs(outputs, scratch), new RegExp(chunk));
   await rm(path.join(scratch, chunk));
+  // And a module compiled from TypeScript the build no longer compiles.
+  const compiled = "browser/runtime/removed.js";
+  await writeFile(
+    path.join(scratch, compiled),
+    "// Compiled from removed.ts by build/typescript.mjs; edit that file.\n",
+  );
+  await assert.rejects(checkOutputs(outputs, scratch), new RegExp(compiled));
+  await rm(path.join(scratch, compiled));
+  // A compiled module edited apart from its TypeScript asks for the edit in the .ts.
+  const edited = "browser/runtime/state/tab-store.js";
+  await writeFile(path.join(scratch, edited), `${outputs.get(edited)}// edited\n`);
+  await assert.rejects(
+    checkOutputs(outputs, scratch),
+    /Move any change made in the \.js.*\n.*state\/tab-store\.js/s,
+  );
 });
 
 test("an upstream adaptation fails the build once its seam or its module moves", async () => {
@@ -316,23 +313,48 @@ test("Trees search hides every nonmatch and restores an empty query", async () =
   }
 });
 
-test("notices name the packages whose code reached an output", () => {
-  const metafile = {
-    inputs: { "node_modules/a/x.js": {}, "node_modules/@s/b/y.js": {} },
-    outputs: {
-      "out.js": {
-        inputs: {
-          "node_modules/a/x.js": { bytesInOutput: 0 },
-          "node_modules/@s/b/node_modules/c/z.js": { bytesInOutput: 3 },
-          "node_modules/@s/b/y.js": { bytesInOutput: 5 },
-          "entry.mjs": { bytesInOutput: 9 },
-        },
-      },
-      "out.js.map": { inputs: {} },
-    },
+test("notices name the packages whose code reached an output", async () => {
+  // a: read and shaken out; @s/b: reached, with its dependency c beside it;
+  // d: a dependency of c that c's prebuilt file inlines, and e one of d's;
+  // f: a dependency of @s/b that ships nowhere.
+  const w = realpathSync(await mkdtemp(path.join(tmpdir(), "leaf-notices-")));
+  const manifest = async (dir, dependencies = {}) => {
+    await mkdir(path.join(w, dir), { recursive: true });
+    await writeFile(
+      path.join(w, dir, "package.json"),
+      JSON.stringify({ dependencies }),
+    );
   };
-  assert.deepEqual(bundledPackages(metafile, "/w"), [
-    "/w/node_modules/@s/b",
-    "/w/node_modules/@s/b/node_modules/c",
-  ]);
+  try {
+    await manifest("node_modules/a");
+    await manifest("node_modules/@s/b", { c: "1", f: "1" });
+    await manifest("node_modules/@s/b/node_modules/c", { d: "1" });
+    await manifest("node_modules/d", { e: "1" });
+    await manifest("node_modules/e");
+    await manifest("node_modules/f");
+    const metafile = {
+      inputs: { "node_modules/a/x.js": {}, "node_modules/@s/b/y.js": {} },
+      outputs: {
+        "out.js": {
+          inputs: {
+            "node_modules/a/x.js": { bytesInOutput: 0 },
+            "node_modules/@s/b/node_modules/c/z.js": { bytesInOutput: 3 },
+            "node_modules/@s/b/y.js": { bytesInOutput: 5 },
+            "entry.mjs": { bytesInOutput: 9 },
+          },
+        },
+        "out.js.map": { inputs: {} },
+      },
+    };
+    const reached = [`${w}/node_modules/@s/b`, `${w}/node_modules/@s/b/node_modules/c`];
+    assert.deepEqual(bundledPackages(metafile, w), reached);
+    assert.deepEqual(bundledPackages(metafile, w, ["d", "e"]), [
+      ...reached,
+      `${w}/node_modules/d`,
+      `${w}/node_modules/e`,
+    ]);
+    assert.throws(() => bundledPackages(metafile, w, ["g"]), /inlined g/);
+  } finally {
+    await rm(w, { recursive: true, force: true });
+  }
 });

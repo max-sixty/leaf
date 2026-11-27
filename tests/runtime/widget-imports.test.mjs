@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { widgetImports } from "/runtime/widget-imports.js";
+import { widgetImports } from "/runtime/state/widget-imports.js";
 
 test("declared creations prepare shadow rules before any child exists", () => {
   const scope = document.createElement("main");

@@ -11,11 +11,11 @@ from interact_support import (
     record_claim,
 )
 
-from leaf import activity as activity_model
-from leaf import cli as cli_model
-from leaf import leases as leases_model
-from leaf import service as service_model
-from leaf import state as cleanup_model
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.commands import cli as cli_model
+from leaf.records import activity as activity_model
 
 
 def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
@@ -37,13 +37,13 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
     assert codex["turn"] and codex["turn_closed"] is None
     assert codex["turn_opened"] and not codex["turn_takes_input"]
     assert codex["listening"] is False
-    assert codex["activity"]["kind"] == "away"
+    assert codex["activity"]["presence"] == "away"
     leases_model.mark_hooks("codex-thread")
     codex = page_state(codex_claimed_page)
     assert codex["turn_takes_input"] and codex["listening"] is False
-    assert codex["activity"]["kind"] == "listening"
+    assert codex["activity"]["presence"] == "here"
 
-    assert activity_reading(claimed)["kind"] == "listening"
+    assert activity_reading(claimed)["presence"] == "here"
     claim = service_model.page_claim(claimed)
 
     # A stale status does not mask the open turn's own deadline: with the status
@@ -55,7 +55,7 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
     record_claim(claimed, **{**claim, "turn_opened": opened.isoformat()})
     declare(claimed, ts="2020-01-01T00:00:00+00:00")
     listening = activity_reading(claimed)
-    assert listening["kind"] == "listening"
+    assert listening["presence"] == "here"
     assert (
         listening["next_transition_at"]
         == (opened + activity_model.WORKING_GRACE).isoformat()
@@ -66,7 +66,8 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
     old_start = declare_work(
         claimed, "an old task", ts="2020-01-01T00:00:00+00:00", session="s1"
     )
-    assert activity_reading(claimed)["kind"] == "stalled"
+    stalled = activity_reading(claimed)
+    assert (stalled["presence"], stalled["state"]) == ("here", "blocked")
     ended = CliRunner().invoke(
         cli_model.cli, ["task", "end", str(claimed), old_start["item"], "done"]
     )
@@ -80,17 +81,23 @@ def test_only_a_fresh_turn_whose_hooks_take_input_reads_listening(
     declare(claimed, ts=opened.isoformat())
     stale = page_state(claimed)
     assert (stale["turn_takes_input"], stale["turn_closed"]) == (True, None)
-    assert stale["activity"]["kind"] == "away"
+    assert stale["activity"]["presence"] == "away"
 
     # A status the turn writes renews it: the agent is there to have written it.
     declare(claimed, ts=now.isoformat())
-    assert activity_reading(claimed)["kind"] == "listening"
+    assert activity_reading(claimed)["presence"] == "here"
 
-    # A claim an older Leaf wrote, with no `turn_opened`, owes no belief either.
+    # A session whose record a Leaf of another shape wrote, with no
+    # `turn_opened`, owes no belief either: this Leaf reads no record of it.
     lifecycle = cleanup_model.session_record("s1")
     assert lifecycle is not None
+    path = cleanup_model.session_file("s1", cleanup_model.SESSION_SUFFIX)
+    cleanup_model.SESSION.remove(path)
     cleanup_model.write_json(
-        cleanup_model.session_file("s1", cleanup_model.SESSION_SUFFIX),
-        {key: value for key, value in lifecycle.items() if key != "turn_opened"},
+        path.with_name(f"{path.stem}@13{path.suffix}"),
+        {
+            "format": "leaf-session/13",
+            **{key: value for key, value in lifecycle.items() if key != "turn_opened"},
+        },
     )
-    assert activity_reading(claimed)["kind"] == "unheld"
+    assert activity_reading(claimed)["presence"] == "gone"

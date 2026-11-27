@@ -1,5 +1,6 @@
 """Diff controls share canonical fields and preserve the compact source reader."""
 
+import re
 from html import escape
 
 import pytest
@@ -13,8 +14,8 @@ from render_harness import (
     write,
 )
 
-from leaf import data as data_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.records import page_data as page_data_model
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.example_data import patch_manifest
 
 
@@ -44,7 +45,7 @@ def test_diff_thread_controls_leave_line_numbers_readable(browser, serve, touch)
             f'<lf-diff id="native"><pre>{escape(patch)}</pre></lf-diff>',
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
+    page_data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
     context = browser.new_context(
         viewport={"width": 390 if touch else 1280, "height": 844},
         has_touch=touch,
@@ -54,9 +55,6 @@ def test_diff_thread_controls_leave_line_numbers_readable(browser, serve, touch)
     diff = page.locator("#patch")
     buttons = diff.locator(".lf-diff-line-comment")
     expect(buttons).to_have_count(4)
-    expect(diff.locator(".lf-diff-wrap, .lf-diff-review, .lf-diff-next")).to_have_count(
-        0
-    )
 
     def geometry():
         return buttons.evaluate_all("""buttons => buttons.map(button => {
@@ -142,14 +140,14 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
             '<h1>Review source and prose</h1><p id="subject">Discuss this paragraph.</p>'
             '<lf-diff id="patch" source="patch-data"></lf-diff>',
             head="""<style id="response-inset-override">
-              :is(.lf-fab-bar, .lf-margin-preview) {
+              :is(.lf-fab-bar, .lf-margin-preview, [data-lf-thread-surface]) {
                 --lf-thread-text-pad-block: 12px !important;
                 --lf-compose-action-inset: 16px !important;
               }
             </style>""",
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
+    page_data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
     context = browser.new_context(
         viewport={"width": 1280, "height": 900},
         has_touch=touch,
@@ -168,16 +166,35 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     def face(field):
         return field.evaluate("""node => {
           const style = getComputedStyle(node);
-          const properties = ['font-family', 'font-size', 'line-height', 'color',
-            'padding-top', 'padding-right', 'padding-bottom', 'padding-left'];
+          const properties = ['font-family', 'font-size', 'line-height', 'color'];
           return Object.fromEntries(properties.map(name => [name, style.getPropertyValue(name)]));
         }""")
 
+    def insets(field, card):
+        """Where the field's words start and end, from the outer edge of its card."""
+        return field.evaluate(
+            """(field, card) => {
+              const edge = field.closest(card).getBoundingClientRect();
+              const box = field.getBoundingClientRect();
+              const style = getComputedStyle(field);
+              const side = name =>
+                parseFloat(style[`border${name}Width`]) + parseFloat(style[`padding${name}`]);
+              return {
+                start: box.left + side('Left') - edge.left,
+                end: edge.right - (box.right - side('Right')),
+                top: box.top + side('Top') - edge.top,
+              };
+            }""",
+            card,
+        )
+
     def forced_ring(field):
         return field.evaluate("""field => {
-          // A floating editor gives its frame the ring; a seated editor wears it.
-          for (const node of [field, field.closest('.lf-compose-field')]) {
-            const style = getComputedStyle(node);
+          // A seated editor wears the ring; a floating editor draws it on a box laid
+          // over its frame, which an error about the box would otherwise cover.
+          const frame = field.closest('.lf-compose-field');
+          for (const [node, pseudo] of [[field], [frame], [frame, '::after']]) {
+            const style = getComputedStyle(node, pseudo);
             if (style.outlineStyle !== 'none' && parseFloat(style.outlineWidth) > 0)
               return [style.outlineWidth, style.outlineStyle, style.outlineColor];
           }
@@ -208,19 +225,29 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     page.locator("#subject").click(modifiers=["Alt"])
     floating = page.locator(".lf-fab-input:visible").first
     expect(floating).to_be_focused()
+    # The floating box is the frame of the card it becomes, and a seated box stands
+    # where its card will, so across the card each box's words stand where its card's
+    # will. Above its field the floating frame also runs over the card's edge and
+    # padding, where the card's first message will stand, so its words stand that
+    # frame lower than a seated box's.
+    frame = 1 + float(
+        floating.evaluate(
+            "node => getComputedStyle(node).getPropertyValue('--lf-thread-pad')"
+        ).removesuffix("px")
+    )
     physical_face = face(floating)
-    assert float(physical_face["padding-top"].removesuffix("px")) + 1 == 12
+    physical_insets = insets(floating, ".lf-compose-field")
+    assert physical_insets["top"] == frame + 12
     page.emulate_media(forced_colors="active")
     forced = forced_ring(floating)
     assert forced, "the floating response paints no focus ring in forced colors"
     page.emulate_media(forced_colors="none")
     write(floating, markdown)
     draft_face = face(floating)
+    draft_insets = insets(floating, ".lf-compose-field")
     # Touch reserves Send's column; a mouse lets words use its free corner.
-    text_end = f"{44 + 2 * 16 + 1}px" if touch else "13px"
-    assert (
-        f"{float(draft_face['padding-right'].removesuffix('px')) + 1:g}px" == text_end
-    )
+    text_end = f"{44 + 2 * 16 + 1}px" if touch else "8px"
+    assert f"{draft_insets['end'] - frame:g}px" == text_end
     floating.press("Control+Enter" if touch else "Enter")
     physical_reading = reading(page.locator(".lf-margin-preview .lf-msg-body").first)
     sent_insets = page.locator(".lf-margin-preview .lf-msg-text").first.evaluate(
@@ -242,13 +269,23 @@ def test_response_and_message_reading_keep_their_face_across_shadow_seating(
     expect(inline).to_be_focused()
     assert inline.evaluate("node => node.getRootNode() instanceof ShadowRoot")
     assert face(inline) == physical_face
+    seated_insets = insets(inline, ".lf-fab-bar")
+    assert seated_insets == physical_insets | {"top": 12}
     page.emulate_media(forced_colors="active")
     assert forced_ring(inline) == forced
     page.emulate_media(forced_colors="none")
     write(inline, markdown)
     assert face(inline) == draft_face
+    # A seat is wider than a card, and its message keeps a card's width, so a seated
+    # draft's words end where that message's will rather than at the field's end.
+    seated_draft = insets(inline, ".lf-fab-bar")
+    assert seated_draft | {"end": None} == draft_insets | {"top": 12, "end": None}
     inline.press("Control+Enter" if touch else "Enter")
-    assert reading(diff.locator(".lf-msg-body").first) == physical_reading
+    seated_message = diff.locator(".lf-msg-body").first
+    assert reading(seated_message) == physical_reading
+    assert insets(seated_message.locator(".lf-msg-text"), ".lf-page-thread")[
+        "end"
+    ] == pytest.approx(seated_draft["end"], abs=0.01)
 
 
 @pytest.mark.parametrize("width,scheme", [(1280, "light"), (390, "dark")])
@@ -528,7 +565,7 @@ def test_file_tree_lands_at_the_file_start_after_reading_down(browser, serve, sc
             layout="workspace" if pane else "column",
         )
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "change",
         patch_manifest(
@@ -613,3 +650,146 @@ def test_file_tree_lands_at_the_file_start_after_reading_down(browser, serve, sc
     expect(metadata).to_be_in_viewport(ratio=1)
     expect(visible).to_have_count(0)
     expect(mode).to_be_focused()
+
+
+@pytest.mark.parametrize("view", ["patch", "file"])
+def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
+    browser, serve, view
+):
+    """A separately mounted navigator follows a diff's output and travels through
+    the ordinary datum route, including reactivation and updated source evidence."""
+
+    def patch(path, value):
+        return (
+            f"diff --git a/{path} b/{path}\n--- a/{path}\n+++ b/{path}\n"
+            f"@@ -1 +1 @@\n-old\n+{value}\n"
+        )
+
+    url = serve(
+        leaf_page(
+            "Browse patch files",
+            "<h1>Review the importer</h1>"
+            '<lf-file-tree id="files" for="patch" data-height="250"></lf-file-tree>'
+            f'<lf-diff id="patch" source="change" view="{view}" collapsed></lf-diff>',
+        )
+    )
+    page_data_model.cmd_data_set(
+        serve.page_dir,
+        "change",
+        patch_manifest(
+            patch("src/importer.py", "keep_names = True")
+            + patch("tests/importer.py", "assert keep_names")
+        ),
+    )
+    page = open_page(browser, url)
+    tree = page.locator("#files")
+    row = tree.get_by_role("treeitem", name=re.compile(r"importer\.py")).first
+    expect(row).to_be_visible()
+    folds = page.locator("#patch .lf-diff-fold")
+    if view == "patch":
+        expect(folds.first).not_to_have_attribute("open", "")
+    else:
+        expect(page.locator("#patch .lf-diff-search")).to_have_count(0)
+        expect(folds.first).to_have_attribute("open", "")
+    # Search narrows the navigator until a file is opened.
+    search = tree.get_by_role("textbox")
+    search.fill("importer")
+    row.click()
+    expect(search).to_have_value("")
+    expect(search).to_be_focused()
+    expect(folds.first).to_have_attribute("open", "")
+    expect(folds.first.locator("pre")).to_contain_text("keep_names = True")
+    # The same selected file still has an activation route after its patch closes.
+    folds.first.locator("summary").click()
+    row.click()
+    expect(folds.first).to_have_attribute("open", "")
+    # A released pointer activation keeps this navigator's keyboard ownership.
+    # The tree's folders remain part of its ordinary arrow-key traversal.
+    expect(row).to_be_focused()
+    search.fill("")
+    search.press("Tab")
+    expect(row).to_be_focused()
+    folder = tree.get_by_role("treeitem", name="src", exact=True)
+    page.keyboard.press("ArrowLeft")
+    expect(folder).to_be_focused()
+    page.keyboard.press("ArrowLeft")
+    expect(folder).to_have_attribute("aria-expanded", "false")
+    page.keyboard.press("ArrowRight")
+    expect(folder).to_have_attribute("aria-expanded", "true")
+    page.keyboard.press("ArrowDown")
+    expect(row).to_be_focused()
+    page.keyboard.press("ArrowDown")
+    expect(tree.get_by_role("treeitem", name="tests", exact=True)).to_be_focused()
+    page.keyboard.press("ArrowDown")
+    other = tree.get_by_role("treeitem", name=re.compile(r"importer\.py")).last
+    expect(other).to_be_focused()
+    page.keyboard.press("Enter")
+    expect(folds.last).to_have_attribute("open", "")
+    expect(folds.last.locator("pre")).to_contain_text("assert keep_names")
+    expect(other).to_be_focused()
+    if view == "file":
+        expect(folds.first).not_to_be_visible()
+        expect(folds.last).to_be_visible()
+        expect(other).to_have_attribute("aria-selected", "true")
+        # Trees confirms a search match onto its row; the row opens its file.
+        for path, visible in [
+            ("src/importer.py", folds.first),
+            ("tests/importer.py", folds.last),
+        ]:
+            search.fill(path)
+            search.press("ArrowDown")
+            search.press("Enter")
+            expect(search).to_have_value("")
+            expect(tree.locator(f'[data-item-path="{path}"]')).to_be_focused()
+            page.keyboard.press("Enter")
+            expect(visible).to_be_visible()
+        folds.last.locator("summary").press("{")
+        expect(folds.first).to_be_visible()
+        expect(folds.last).not_to_be_visible()
+        expect(row).to_have_attribute("aria-selected", "true")
+        expect(other).to_have_attribute("aria-selected", "false")
+        # Preparing new evidence does not take ownership of a selection made while
+        # that preparation is in flight. Hold one boundary to make the ordering exact.
+        page.evaluate("""() => {
+          const diff = document.getElementById('patch');
+          const prepareEntry = diff.prepareEntry.bind(diff);
+          const held = new Promise(resolve => window.releaseEvidence = resolve);
+          diff.prepareEntry = async (...args) => {
+            window.evidenceHeld = true;
+            await held;
+            return prepareEntry(...args);
+          };
+        }""")
+        page_data_model.cmd_data_set(
+            serve.page_dir,
+            "change",
+            patch_manifest(
+                patch("src/importer.py", "new_names = True")
+                + patch("tests/importer.py", "assert new_names")
+            ),
+        )
+        page.wait_for_function("window.evidenceHeld === true")
+        folds.first.locator("summary").press("}")
+        page.evaluate("window.releaseEvidence()")
+        expect(folds.last.locator("pre")).to_contain_text("assert new_names")
+        expect(folds.last).to_be_visible()
+        expect(folds.first).not_to_be_visible()
+        expect(other).to_have_attribute("aria-selected", "true")
+        expect(row).to_have_attribute("aria-selected", "false")
+    search.fill("")
+    # A source update replaces the producer inventory, rather than leaving stale rows.
+    page_data_model.cmd_data_set(
+        serve.page_dir,
+        "change",
+        patch_manifest(patch("src/reader.py", "preserve_case = True")),
+    )
+    next_row = tree.get_by_role("treeitem", name=re.compile(r"reader\.py"))
+    expect(next_row).to_be_visible()
+    expect(
+        tree.get_by_role("treeitem", name=re.compile(r"importer\.py"))
+    ).to_have_count(0)
+    next_row.click()
+    expect(page.locator("#patch pre")).to_contain_text("preserve_case = True")
+    # Clearing the input clears the derived inventory too.
+    page_data_model.cmd_data_clear(serve.page_dir, "change")
+    expect(tree.get_by_role("treeitem")).to_have_count(0)

@@ -13,10 +13,15 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { recentPlaceInput } from "/runtime/focus.js";
-import { pointerAt } from "/runtime/pointer.js";
-import { glideTo, startScroll, stopGlide } from "/runtime/scrolling.js";
-import { focusPlace, holdPlace, holdUserPlace } from "/runtime/user-place.js";
+import { recentPlaceInput } from "/runtime/dom/focus.js";
+import { pointerAt } from "/runtime/base/pointer.js";
+import { glideTo, startScroll, stopGlide } from "/runtime/dom/scrolling.js";
+import {
+  focusPlace,
+  holdPlace,
+  holdPlaceOf,
+  holdUserPlace,
+} from "/runtime/readings/user-place.js";
 
 // A scroller whose boxes are stated: each node's viewport top is its content top less
 // the scroller's scrollTop.
@@ -186,7 +191,7 @@ test("a hold pays for the growth above its node that anchoring left", () => {
   const [above, read] = [item("a", 1000), item("b", 1150)];
   scroller.append(above, read);
   scrollTo(1100);
-  const hold = holdPlace(read);
+  const hold = holdPlaceOf(read);
   // The edit grows the block above by 126px, and the browser's anchoring, holding that
   // block's top, paid for none of it.
   at.set(read, 1276);
@@ -194,7 +199,7 @@ test("a hold pays for the growth above its node that anchoring left", () => {
   assert.equal(scrolled(), 1226);
   assert.equal(read.getBoundingClientRect().top, 50);
   // Where anchoring already paid, the hold has nothing left to pay.
-  const again = holdPlace(read);
+  const again = holdPlaceOf(read);
   at.set(read, 1300);
   scrollTo(1250);
   again();
@@ -202,25 +207,21 @@ test("a hold pays for the growth above its node that anchoring left", () => {
   scroller.remove();
 });
 
-test("a change that hides the held node puts its stand-in where it stood", () => {
-  const { scroller, item, at, scrolled, scrollTo } = laidOut();
+test("a node the change hid or removed holds nothing", () => {
+  const { scroller, item, scrolled, scrollTo } = laidOut();
   const [gist, folded] = [item("gist", 1000), item("folded", 1100)];
   scroller.append(gist, folded);
   scrollTo(1080);
-  const hold = holdPlace(folded, (node) => (node === folded ? gist : null));
-  // The fold hides the block being read, and the gist it runs under stays put above.
+  const hidden = holdPlaceOf(folded);
   // happy-dom applies no user-agent sheet, so the block states what `[hidden]` computes.
   folded.hidden = true;
   folded.style.display = "none";
-  hold();
-  assert.equal(scrolled(), 980);
-  assert.equal(gist.getBoundingClientRect().top, 20);
-  // With no stand-in, a hidden or removed node holds nothing.
-  at.set(gist, 1000);
-  const lost = holdPlace(gist);
+  hidden();
+  assert.equal(scrolled(), 1080);
+  const removed = holdPlaceOf(gist);
   gist.remove();
   scrollTo(900);
-  lost();
+  removed();
   assert.equal(scrolled(), 900);
   scroller.remove();
 });
@@ -385,12 +386,51 @@ test("a field the user types in comes before a resting pointer, which names a co
   restOn(null);
 });
 
-test("a block folded until found holds its stand-in, though it keeps a box", () => {
+// What stands at the reading line, as the platform answers for the point: an element
+// that holds no words.
+/** @param {Element | null} node */
+function readAt(node) {
+  document.elementFromPoint = () => node;
+  document.caretPositionFromPoint = () => null;
+}
+
+test("a module's hold lands the stand-in where the block its change hid began", () => {
+  const { scroller, item, scrolled, scrollTo } = laidOut();
+  const [gist, folded, line] = [
+    item("gist", 1000),
+    item("folded", 1100, 300),
+    item("line", 1250, 20),
+  ];
+  folded.append(line);
+  scroller.append(gist, folded);
+  /** @param {Element} node */
+  const standIn = (node) => (folded.contains(node) ? gist : null);
+  // The block began 40px down the window, with the line read 150px inside it.
+  scrollTo(1060);
+  readAt(line);
+  const hold = holdPlace(scroller, standIn);
+  folded.style.display = "none";
+  hold();
+  assert.equal(gist.getBoundingClientRect().top, 40);
+  // A block that began above the window: the stand-in lands where the line stood.
+  folded.style.display = "";
+  scrollTo(1200);
+  const begun = holdPlace(scroller, standIn);
+  folded.style.display = "none";
+  begun();
+  assert.equal(gist.getBoundingClientRect().top, 50);
+  assert.equal(scrolled(), 950);
+  scroller.remove();
+  readAt(null);
+});
+
+test("a block folded until found gives way to its stand-in, though it keeps a box", () => {
   const { scroller, item, scrolled, scrollTo } = laidOut();
   const [gist, folded] = [item("gist", 1000), item("folded", 1100)];
   scroller.append(gist, folded);
   scrollTo(1080);
-  const hold = holdPlace(folded, (node) => (node === folded ? gist : null));
+  readAt(folded);
+  const hold = holdPlace(scroller, (node) => (node === folded ? gist : null));
   // `hidden="until-found"` keeps the block's box and hides its contents.
   folded.setAttribute("hidden", "until-found");
   folded.style.display = "block";
@@ -398,4 +438,91 @@ test("a block folded until found holds its stand-in, though it keeps a box", () 
   hold();
   assert.equal(scrolled(), 980);
   scroller.remove();
+  readAt(null);
+});
+
+test("a module's hold asks the stand-in of the widget whose own tree held the words", () => {
+  const { scroller, item, scrollTo } = laidOut();
+  const [gist, widget, line] = [
+    item("gist", 1000),
+    item("widget", 1100, 300),
+    item("line", 1250, 20),
+  ];
+  widget.attachShadow({ mode: "open" }).append(line);
+  scroller.append(gist, widget);
+  scrollTo(1060);
+  readAt(line);
+  /** @type {Element[]} */
+  const asked = [];
+  const hold = holdPlace(scroller, (node) => {
+    asked.push(node);
+    return gist;
+  });
+  // happy-dom's `checkVisibility` stops at a shadow root, so the line states what the
+  // browser answers for a node under a hidden host.
+  widget.style.display = "none";
+  line.style.display = "none";
+  hold();
+  assert.deepEqual(asked, [widget]);
+  assert.equal(gist.getBoundingClientRect().top, 40);
+  scroller.remove();
+  readAt(null);
+});
+
+test("a box with no box of its own marks no place for a stand-in", () => {
+  const { scroller, item, scrollTo } = laidOut();
+  const [gist, folded] = [item("gist", 1000), item("folded", 1100)];
+  // A wrapper that is `display: contents`, as the platform answers for one.
+  const wrapper = document.createElement("div");
+  wrapper.checkVisibility = () => false;
+  wrapper.getBoundingClientRect = () => new DOMRect(0, 0, 0, 0);
+  wrapper.append(gist, folded);
+  scroller.append(wrapper);
+  scrollTo(1060);
+  readAt(folded);
+  const hold = holdPlace(scroller, () => gist);
+  folded.style.display = "none";
+  hold();
+  assert.equal(gist.getBoundingClientRect().top, 40);
+  scroller.remove();
+  readAt(null);
+});
+
+test("with no stand-in, the nearest box the change left drawn goes back, if its top showed", () => {
+  const { scroller, item, at, scrolled, scrollTo } = laidOut();
+  const [above, disclosure, line] = [
+    item("above", 1000),
+    item("disclosure", 1100, 300),
+    item("line", 1250, 20),
+  ];
+  disclosure.append(line);
+  scroller.append(above, disclosure);
+  scrollTo(1060);
+  readAt(line);
+  const hold = holdPlace(scroller);
+  // The change closes the disclosure over the line, and what stands above it grows by
+  // 60px, which the browser's anchoring paid for none of.
+  line.style.display = "none";
+  at.set(disclosure, 1160);
+  hold();
+  assert.equal(disclosure.getBoundingClientRect().top, 40);
+  assert.equal(scrolled(), 1120);
+  // A disclosure that began above the window marks no place.
+  line.style.display = "";
+  scrollTo(1300);
+  const begun = holdPlace(scroller);
+  line.style.display = "none";
+  at.set(disclosure, 1220);
+  begun();
+  assert.equal(scrolled(), 1300);
+  // The line still drawn goes back itself.
+  line.style.display = "";
+  at.set(disclosure, 1100);
+  scrollTo(1060);
+  const still = holdPlace(scroller);
+  at.set(line, 1330);
+  still();
+  assert.equal(line.getBoundingClientRect().top, 190);
+  scroller.remove();
+  readAt(null);
 });

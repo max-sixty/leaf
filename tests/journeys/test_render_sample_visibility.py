@@ -2,14 +2,16 @@
 
 import pytest
 from render_harness import (
+    leaf_page,
+    open_page,
     open_threads,
     panel_settled,
 )
 
 from journeys.test_render_read_state import (
     _expect_news,
+    _leaf,
     _message_body,
-    _on_me_mark,
     _open_first_unread,
     _read_by_the_sample,
     _sample_reading_page,
@@ -34,7 +36,7 @@ def test_narrowing_a_partially_clipped_sample_does_not_acknowledge_hidden_words(
         "#clip iframe { min-width: 900px; }",
     )
     page.locator("#clip").evaluate("clip => clip.style.width = '250px'")
-    _on_me_mark(child).evaluate("mark => mark.focus({preventScroll: true})")
+    _leaf(child).evaluate("mark => mark.focus({preventScroll: true})")
     _open_first_unread(page, child)
     # The sample's panel stands at its frame's foot, so the clip is scrolled to show
     # the message's lines, cut at the narrow clip's right edge.
@@ -95,7 +97,7 @@ def test_sample_exposure_preserves_parent_declared_occlusion(browser, serve):
         "#read-practice { min-width: 950px; }",
     )
     open_threads(page)
-    _on_me_mark(child).evaluate("mark => mark.focus({preventScroll: true})")
+    _leaf(child).evaluate("mark => mark.focus({preventScroll: true})")
     _open_first_unread(page, child)
     bottom = _message_body(child).evaluate(
         "body => body.getBoundingClientRect().bottom"
@@ -117,3 +119,49 @@ def test_sample_exposure_preserves_parent_declared_occlusion(browser, serve):
         "close => close.focus({preventScroll: true})"
     )
     _read_by_the_sample(page, child)
+
+
+def test_a_turned_sample_reads_the_part_of_its_window_the_user_sees(browser, serve):
+    """A sample turned a quarter shows down what its window holds across, so with the
+    window's top cutting its frame in half the user sees the far half of the sample's
+    window, its whole height, and that is the part the sample reads as shown, in its
+    window's own coordinates (dom/geometry.js, `frameView`)."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Turned sample",
+                """<h1>Turned sample</h1>
+<div id="turn"><lf-sample id="turned" label="practice" window>
+  <template id="turned-page" data-sample><h1>Practice</h1></template>
+</lf-sample></div>
+<div style="height: 2000px"></div>""",
+                head="<style>#turn { rotate: 90deg; margin-block: 150px; }</style>",
+            )
+        ),
+    )
+    page.evaluate("document.querySelector('#turned').ready")
+    frame = page.locator("#turned iframe")
+    child = frame.element_handle().content_frame()
+    child.wait_for_function("() => document.body?.hasAttribute('data-lf-presented')")
+    box = frame.evaluate("""frame => {
+      const shown = frame.getBoundingClientRect();
+      scrollTo({ top: scrollY + shown.top + shown.height / 2, behavior: 'instant' });
+      return { cut: -frame.getBoundingClientRect().top, width: frame.offsetWidth,
+               height: frame.offsetHeight, left: frame.clientLeft, top: frame.clientTop };
+    }""")
+    reading = child.evaluate(
+        "async () => (await window.__lfCheckApi()).readSampleVisibility()"
+    )
+    assert reading["visible"], reading
+    assert [reading[edge] for edge in ("left", "top", "right", "bottom")] == (
+        pytest.approx(
+            [
+                box["cut"] - box["left"],
+                -box["top"],
+                box["width"] - box["left"],
+                box["height"] - box["top"],
+            ],
+            abs=1,
+        )
+    ), (reading, box)

@@ -24,10 +24,10 @@ from render_harness import (
     write,
 )
 
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import thread as thread_model
-from leaf.render_checks import (
+from leaf.agents import thread as thread_model
+from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
+from leaf.source.render_checks import (
     PROBE_POLL_MS,
     SERVED_TIMEOUT_MS,
     rendered,
@@ -42,13 +42,12 @@ def _read_events(page_dir):
 
 
 # The panel's control at rest, which a test focuses to stand the user in the panel.
-def _on_me_mark(page):
-    return page.locator(".lf-fp-on-user")
+def _leaf(page):
+    return page.locator(".lf-fp-leaf")
 
 
-# The page's one standing sign of unread messages: a dot on the On Me mark, whose name
-# counts the threads holding news, and on the folded leaf. The leaf's dot stands
-# whatever view is open, where the view's ✕ takes the mark's seat, so it is read here.
+# The page's one standing sign of unread messages: a dot on the leaf, whose name counts
+# the threads holding news, whatever view is open or however the panel stands.
 def _expect_news(page, news=True):
     dot = page.locator(".lf-fp-news-dot")
     if news:
@@ -243,7 +242,9 @@ def _read_by_the_sample(page, child):
     """The control: the child sends the message read, and its server holds it read."""
     _expect_news(child, False)
     round_trip(child)
-    state = page.request.get(f"{child.url}api/state").json()
+    state = page.request.get(
+        child.evaluate("new URL('api/state', document.baseURI).href")
+    ).json()
     (thread,) = served_thread(state["browser"])["threads"]
     assert thread["id"] == SAMPLE_READER
     assert thread["unread"] == {}
@@ -258,7 +259,7 @@ def test_clipped_sample_cannot_acknowledge_child_viewport(browser, serve):
         '<h1>Practice page</h1><div id="read-clip">{sample}</div>',
         "#read-clip { height: 100px; overflow: auto; }",
     )
-    _on_me_mark(child).focus()
+    _leaf(child).focus()
     _open_first_unread(page, child)
     _still_unread(page, child)
 
@@ -280,9 +281,9 @@ def test_offscreen_sample_cannot_acknowledge_child_viewport(browser, serve):
         '<h1>Practice page</h1><div id="read-gap"></div>{sample}',
         "#read-gap { height: 2000px; }",
     )
-    # Below the first screen it shows nothing: the user focuses its On Me mark and
+    # Below the first screen it shows nothing: the user focuses its leaf and
     # scrolls the containing page back to the top first.
-    _on_me_mark(child).focus()
+    _leaf(child).focus()
     page.evaluate("scrollTo(0, 0)")
     _open_first_unread(page, child)
     assert frame.bounding_box()["y"] > page.viewport_size["height"]
@@ -312,7 +313,7 @@ def test_a_sample_in_a_native_modal_escapes_inherited_inertness(browser, serve):
     page.locator("#owner-modal").evaluate(
         "dialog => { dialog.close(); dialog.showModal(); }"
     )
-    _on_me_mark(child).focus()
+    _leaf(child).focus()
     _open_first_unread(page, child)
     _scroll_to_message(page, child, "document.querySelector('#owner-modal')")
     _read_by_the_sample(page, child)
@@ -406,7 +407,7 @@ def test_a_reply_in_a_diff_thread_draws_where_the_user_is_and_waits_elsewhere(
     inside the widget's shadow tree, is read once shown. Both moves stay inside the
     widget's shadow tree, where the document hears no focus event."""
     url = serve(LONG_LINE_DIFF_PAGE)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
     page = open_page(browser, url)
     page.wait_for_function("document.querySelector('lf-diff.lf-rendered') !== null")
     _select_new_route(page)
@@ -486,7 +487,7 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
     Threads lists rows rather than messages, so the page seat is the only copy in view.
     The answer arrives below the window's foot, where it is drawn at once."""
     url = serve(LONG_LINE_DIFF_PAGE)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
     page = open_page(browser, url)
     page.wait_for_function("document.querySelector('lf-diff.lf-rendered') !== null")
     _select_new_route(page)
@@ -519,6 +520,9 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
         " .lf-msg-body"
     )
     expect(body).to_have_count(1)
+    # The answer is drawn while it stands below the window's foot, so its layout has
+    # its own frame before the scroll brings it into view.
+    rendered(page)
     # The answer's foot 20px under the open view's top edge, or 20px above it.
     page.evaluate(
         """([body, card, under]) => scrollBy(0, body.getBoundingClientRect().bottom

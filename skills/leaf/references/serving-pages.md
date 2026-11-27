@@ -41,23 +41,27 @@ shouldn't see.
 
 ## Address and authentication
 
-By default Leaf serves on the address the session arrived through: the SSH destination
-for an SSH session, otherwise loopback. The document, its files and its events all need
-the URL's key, which the browser keeps in a cookie. One key covers every page on the
-machine, so sharing one page's URL gives access to all of them. Leaf opens no public
-tunnel; binding beyond loopback exposes the port to that network.
+Leaf serves a new page on the hostname the user sets as `host` in Leaf's config file,
+`~/.config/leaf/config.toml`, binding every interface as `--host` does. Without it,
+Leaf serves on the address the session arrived through: the SSH destination for an SSH
+session, otherwise loopback. The document, its files and its events all need the URL's
+key, which the browser keeps in a cookie. One key covers every page on the machine, so
+sharing one page's URL gives access to all of them. Leaf opens no public tunnel;
+binding beyond loopback exposes the port to that network.
 
-A page keeps its host and port in `<page>/service.json`, so serving again, changing
-its packages and reviving keep the same URL. `--host` changes the hostname and keeps the port. On
-macOS, restarting a `--host` page can wait about 30 seconds for the port to free up, and
-serving refuses if it is still taken.
+A page keeps its host and port in its directory's service record, so serving again,
+changing its packages and reviving keep the same URL. The `host` setting applies only
+to a page with no service record yet. `--host` changes the hostname and keeps the
+port. On macOS, restarting a `--host` page can wait about 30 seconds for the port to
+free up, and serving refuses if it is still taken.
 
 ## Unreachable URLs and `--host`
 
 When a server binds only loopback, `server start` prints a `loopback-only` note. That
-is the default for any session that didn't arrive over SSH, such as a scheduler or a
-background job. If you see it and the user isn't at this machine, ask them for a
-hostname their browser can reach and serve on it, or export the version as a file.
+is the default for any session that didn't arrive over SSH on a machine with no `host`
+setting, such as a scheduler or a background job. If you see it and the user isn't at
+this machine, ask them for a hostname their browser can reach and serve on it, or
+export the version as a file.
 
 Otherwise only the user can tell you a URL doesn't load. When they do, restart the
 server with a hostname their browser can use:
@@ -71,20 +75,32 @@ leaf server start <page> --host <reachable-name>
 on this machine, and an overlay-network hostname works. If no route works, export the
 version as a file.
 
+A user who opens every page by the same name can set it once in
+`~/.config/leaf/config.toml`, and each new page is served there:
+
+```toml
+host = "<reachable-name>"
+```
+
 ## Leaf updates
 
 A page records the packages it selects, and the Leaf serving, checking or exporting it
 composes their widgets, theme and vocabulary, as it supplies its runtime. A server
-keeps the Leaf it started under, and `leaf server start` from another Leaf, such as an
-update, restarts it under that one at the same URL; open tabs reconnect, reloading where
-the runtime changed. Open pages keep working across updates except one that changes
-the page protocol.
+keeps the Leaf it started under until the session holding its page runs an installed
+update, or the harness updates the server's own copy in place, as Codex and Pi do; it
+then restarts under the update at the same URL on its own. `leaf server start` from
+another Leaf, such as an update, restarts it under that one at the same URL. Open
+tabs reconnect, reloading where the runtime changed. Open pages keep working across
+updates except one that changes the page protocol.
 
-After a protocol change, the session holding the page takes it to the new protocol at
-its first `leaf` command or hook, keeping the log and source, and reports only a
-failure. While another live session holds the page, Leaf refuses to serve or write it,
-and `leaf page state` explains in `source.error`, naming the `leaf page init` command
-to run from the session that holds the page. A page a newer Leaf initialized is refused
+After a protocol change, Leaf takes the page to the new protocol for the session
+holding it, keeping the log and source, and tells you only of a failure. It does so
+at the session's next turn or at a `leaf` command that writes to the page. A command
+that only reads the page, such as `leaf page state`, leaves it at the old protocol.
+
+While another live session holds the page, Leaf refuses to serve or write it, and
+`leaf page state` refuses it too, naming the `leaf page init` command to run from the
+session that holds the page. A page a newer Leaf initialized is refused
 as well; the refusal says how to load a newer Leaf.
 
 An update can change what a widget accepts or how it draws, and a page's own widgets
@@ -151,7 +167,7 @@ Omit `--session` to include server requests and raw event records. The raw `<pag
 which `tail -F` follows live while you reproduce a problem, is in arrival order and
 still holds retries. Browser wall time stays in `observed_at`; order alone does not
 prove cause. The user's decisions are in `leaf page events <page>`, and
-[`interaction-batch.schema.json`](../../../src/leaf/interaction-batch.schema.json) defines
+[`interaction-batch.schema.json`](../../../src/leaf/log/interaction-batch.schema.json) defines
 the fields every browser row carries, and [page-storage.md](../../../src/leaf/page-storage.md)
 names the file's other owners.
 

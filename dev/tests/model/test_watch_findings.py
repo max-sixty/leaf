@@ -3,7 +3,7 @@
 import pytest
 from render_harness import is_problem
 
-from leaf.findings import Finding
+from leaf.base.findings import Finding
 
 
 @pytest.mark.parametrize(

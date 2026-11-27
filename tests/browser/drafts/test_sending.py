@@ -25,6 +25,7 @@ from render_harness import (
     draft_control,
     expect_error_waits_in_menu,
     expect_panel_says,
+    field_press,
     holding,
     http_error_console,
     open_page,
@@ -33,6 +34,7 @@ from render_harness import (
     panel_says,
     panel_settled,
     panel_view,
+    press_draft_control,
     round_trip,
     select_words,
     sending,
@@ -45,7 +47,7 @@ from render_harness import (
 )
 
 from browser.threads import PANEL_REPLY, open_panel_thread, seed_panel_threads
-from leaf import event_log as events_model
+from leaf.log import event_log as events_model
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -99,7 +101,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     sent = "The first save still owns this body."
     draft.locator(".lf-draft-body").dblclick()
     write(draft.locator("leaf-text"), sent)
-    draft_control(page, "save", "draft-ops").click()
+    press_draft_control(page, "save", "draft-ops")
     expect(draft).to_have_attribute("aria-busy", "true")
     assert stored_draft_text(page, "edit:draft-ops") == sent
     expect(draft.locator(".lf-draft-body")).to_have_text(sent)
@@ -135,7 +137,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
             json={"ok": False, "final": True, "error": "refused before append"},
         ),
     )
-    draft_control(page, "save", "draft-ops").click()
+    press_draft_control(page, "save", "draft-ops")
     item = draft.locator(".lf-draft-tools")
     expect(item.get_by_role("status")).to_have_text("Save failed. The edit is kept.")
     expect(editor).to_have_js_property("value", "Keep these unsent words.")
@@ -144,7 +146,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
 
     write(editor, "Keep the revised unsent words.")
     expect(item.locator(".lf-draft-status")).to_be_empty()
-    item.get_by_role("button", name="Save", exact=True).click()
+    press_draft_control(page, "save", "draft-ops")
     expect(item.get_by_role("status")).to_have_text("Save failed. The edit is kept.")
     page.unroute("**/api/event")
     item.get_by_role("button", name="Retry", exact=True).click()
@@ -197,7 +199,8 @@ def test_a_refused_selection_comment_leaves_the_words_on_their_passage(
 ):
     """The composer goes down with the send, so a refusal has to put the words back in
     the store rather than in whatever box was on screen — the one they were typed in has
-    gone with the thread they went to."""
+    gone with the thread they went to. The refusal says they are kept and offers Resume
+    writing."""
     browser, held = held_events
     page = open_page(browser, serve(LONG_PAGE))
     words = "The selection comment the server will refuse."
@@ -220,11 +223,12 @@ def test_a_refused_selection_comment_leaves_the_words_on_their_passage(
                 "final": True,
             },
         )
-    # The words went back to a box out of view, so the refusal says where they are.
-    expect_panel_says(
-        page,
-        "Couldn't take this — refused before append. Draft kept — g i resumes writing",
+    # The words went back to a box out of view, so the refusal says they are kept.
+    expect_panel_says(page, "Couldn't take this — refused before append. Draft kept")
+    expect(field_press(page).locator(".lf-compose-press-word")).to_have_text(
+        "Resume writing"
     )
+    expect(field_press(page).locator("kbd")).to_have_text(["g", "i"])
 
     # Their passage still holds their draft, so opening it again finds the words.
     page.locator("h1").click()
@@ -415,7 +419,7 @@ def test_a_refused_selection_comment_written_past_is_where_resume_writing_goes(
     """The user has gone on to write somewhere else when the refusal lands. Their
     refused words go back to the passage's box, which is out of view, so the notice says
     they are kept and Resume writing takes the user to them, rather than to the box they
-    can already see."""
+    can already see, from the Errors list as by `g i`."""
     browser, held = held_events
     page = open_page(browser, serve(LONG_PAGE))
     words = "The selection comment the server will refuse."
@@ -441,17 +445,15 @@ def test_a_refused_selection_comment_written_past_is_where_resume_writing_goes(
     expect(page.locator(".lf-fp-leaf .lf-fp-error-dot")).to_be_visible()
     expect(page.locator(".lf-fab-input")).not_to_be_visible()
 
-    page.keyboard.press("Escape")
-    expect(panel_field(page)).not_to_be_focused()
-    page.keyboard.press("g")
-    page.keyboard.press("i")
+    expect_error_waits_in_menu(
+        page,
+        "Couldn't take this — refused before append. Draft kept",
+        press="Resume writing",
+        run=True,
+    )
     expect(page.locator(".lf-fab-input")).to_be_focused()
     expect(page.locator(".lf-fab-input")).to_have_js_property("value", words)
     assert stored_draft_text(page, "general") == later
-    expect_error_waits_in_menu(
-        page,
-        "Couldn't take this — refused before append. Draft kept — g i resumes writing",
-    )
     consume_browser_errors(page, http_error_console(400))
 
 
@@ -740,7 +742,7 @@ def test_a_first_answer_leaves_a_later_sends_words_masked(held_events, serve):
     offered = page.evaluate(
         """async (ctx) => {
           const api = await window.__lfWidgetApi();
-          return api.loadDraft(ctx)?.text ?? null;
+          return api.draft(ctx).read()?.text ?? null;
         }""",
         f"reply:{root['id']}",
     )

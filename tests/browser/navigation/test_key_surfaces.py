@@ -7,7 +7,7 @@ import re
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
-from render_cases_interaction import OBLIGATIONS_PAGE, live_url
+from render_cases_interaction import live_url, serve_obligations
 from render_cases_navigation import NOTED_PAGE
 from render_harness import (
     expect_open_threads,
@@ -22,16 +22,34 @@ from render_harness import (
 
 from browser.navigation import expect_walk_position
 from browser.threads import open_panel_thread
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
+
+# The opening of a page function whose `declared(scope)` declares a scope on `body` and
+# answers `'declared'`, or the words of the failure Leaf reports there for a declaration
+# it refuses, which the listener keeps from the page's own error report.
+DECLARED = """async () => {
+          const declared = (scope) => {
+            let said = 'declared';
+            const refused = (event) => {
+              said = event.error.message;
+              event.stopPropagation();
+            };
+            document.body.addEventListener('error', refused);
+            document.body.lfCommands = scope;
+            document.body.dispatchEvent(
+              new CustomEvent('lf-commands', { bubbles: true, composed: true }));
+            document.body.removeEventListener('error', refused);
+            return said;
+          };"""
 
 
 def test_overlapping_identical_live_announcements_are_fresh_changes(browser, serve):
     """Even overlapping identical words give the polite region two arrivals."""
     page = open_page(browser, serve(NOTED_PAGE))
-    page.locator(".lf-fp-on-user").focus()
+    page.locator(".lf-fp-leaf").focus()
     page.evaluate(
         """async () => {
           window.__lfLiveNode = document.querySelector('.lf-live');
@@ -44,7 +62,8 @@ def test_overlapping_identical_live_announcements_are_fresh_changes(browser, ser
             childList: true,
             subtree: true,
           });
-          const {announce} = await window.__lfWidgetApi();
+          const announce = (words) =>
+            window.dispatchEvent(new CustomEvent('lf-announce', {detail: words}));
           announce('Same update');
           announce('Same update');
         }"""
@@ -61,7 +80,7 @@ def test_overlapping_identical_live_announcements_are_fresh_changes(browser, ser
 
 def test_registered_shortcuts_are_exposed_to_assistive_technology(browser, serve):
     """The same declarations that paint help expose their active keys through ARIA."""
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    page = open_page(browser, serve_obligations(serve))
 
     expect(page_comment(page)).to_have_attribute(
         "aria-keyshortcuts", "Enter Meta+Enter Control+Enter"
@@ -118,18 +137,12 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     page.keyboard.press("Escape")
 
     refused = page.evaluate(
-        """async () => {
-          const { commandsChanged } = await window.__lfWidgetApi();
-          try {
-            document.body.lfCommands = { title: 'A project scope', rows: [
-              { id: 'test.no-line', keys: ['F2'],
-                run: () => {} },
-            ] };
-            commandsChanged(document.body);
-            return 'declared';
-          } catch (e) {
-            return e.message;
-          }
+        DECLARED
+        + """
+          return declared({ title: 'A project scope', rows: [
+            { id: 'test.no-line', keys: ['F2'],
+              run: () => {} },
+          ] });
         }"""
     )
     assert "title" in refused, refused
@@ -141,19 +154,13 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     # names does nothing. A declaration that means a different key than it says is the
     # one thing no surface can project, so it is refused where declarations enter.
     modified = page.evaluate(
-        """async () => {
-          const { commandsChanged } = await window.__lfWidgetApi();
-          try {
-            document.body.lfCommands = { title: 'A project scope', rows: [
-              { id: 'test.bad-modifier', keys: ['Ctrl+k'],
-                title: 'a modifier the matcher never asks about',
-                line: 'a key that is really just k', run: () => {} },
-            ] };
-            commandsChanged(document.body);
-            return 'declared';
-          } catch (e) {
-            return e.message;
-          }
+        DECLARED
+        + """
+          return declared({ title: 'A project scope', rows: [
+            { id: 'test.bad-modifier', keys: ['Ctrl+k'],
+              title: 'a modifier the matcher never asks about',
+              line: 'a key that is really just k', run: () => {} },
+          ] });
         }"""
     )
     assert "Ctrl is no modifier" in modified, modified
@@ -163,17 +170,10 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     # binding therefore needs exactly one route: otherwise dispatch can gain a press that
     # the reference omits from its presentation projection.
     routed = page.evaluate(
-        """async () => {
-          const { commandsChanged } = await window.__lfWidgetApi();
-          const declare = row => {
-            try {
-              document.body.lfCommands = { title: 'A routed project scope', rows: [row] };
-              commandsChanged(document.body);
-              return 'declared';
-            } catch (e) {
-              return e.message;
-            }
-          };
+        DECLARED
+        + """
+          const declare = row =>
+            declared({ title: 'A routed project scope', rows: [row] });
           return {
             missing: declare({
               id: 'test.missing-route', keys: ['F2', 'F3'],
@@ -209,7 +209,6 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
     # uses this for the Tab that closes it before the browser moves focus past its door.
     native = page.evaluate(
         """async () => {
-          const { commandsChanged } = await window.__lfWidgetApi();
           const owner = document.createElement('div');
           owner.tabIndex = -1;
           // In view, where a key acts at the control it is pressed on.
@@ -222,7 +221,7 @@ def test_a_key_the_runtime_binds_is_a_key_some_surface_names(browser, serve):
               title: 'Run before the browser', line: 'run first',
               native: true, run: () => ran++ },
           ] };
-          commandsChanged(owner);
+          owner.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
           const event = new KeyboardEvent(
             'keydown', {key: 'F2', bubbles: true, cancelable: true}
           );
@@ -245,7 +244,7 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True
     )
-    page = open_page(browser, serve(OBLIGATIONS_PAGE, comments=2), context=context)
+    page = open_page(browser, serve_obligations(serve, comments=2), context=context)
     assert page.evaluate("() => matchMedia('(pointer: coarse)').matches"), (
         "the touch fixture never reached Leaf's coarse-pointer rules"
     )
@@ -259,9 +258,10 @@ def test_a_coarse_pointer_keeps_useful_status_without_keyboard_hints(browser, se
               dispatchEvent(new Event('resize'));
             }"""
     )
-    # The field's end still names its press, Next On Me while On Me lists anything,
-    # but not the key that makes it.
-    expect(panel_field(page)).to_have_attribute("placeholder", "Saved · Next On Me")
+    # The notice's words stay, but the field's end names no press: a word alone there
+    # reads as status to a finger, and the panel's menu and lists reach each press.
+    expect(panel_field(page)).to_have_attribute("placeholder", "Saved")
+    expect(page.locator(".lf-fp-field .lf-compose-press")).to_have_count(0)
 
     # And the page is still whole underneath. Everything that asks how far down the
     # page reaches asks it of the chrome's box, and one with no box answers 0 — the top
@@ -431,7 +431,7 @@ def test_a_key_on_screen_is_a_key_that_works(browser, serve):
         return register, reference
 
     # No threads and one version: the thread walk still runs, as every page walk does
-    # (keyboard/AGENTS.md, "Page grammar"), and the page has no thread scope and no link.
+    # (dom/keyboard/AGENTS.md, "Page grammar"), and the page has no thread scope and no link.
     register, reference = surfaces_name_what_runs()
     assert {"thread.next", "thread.previous"} <= register["runs"]
     assert {"thread.primary", "link.follow"} <= register["absent"]

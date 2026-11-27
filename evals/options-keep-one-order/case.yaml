@@ -39,8 +39,8 @@ vars:
         and the theme.
       </p>
       <lf-options id="resolve-glyph-choice">
-        <lf-option id="resolve-words" label="Write Resolve and Reopen as words, and make the resolved line reopen" recommended><small class="tag">effort: ~25 lines</small> <strong>Write Resolve and Reopen as words, and make the resolved line reopen</strong></lf-option>
-        <lf-option id="resolve-keep" label="Keep the ✓ glyphs"><small class="tag">effort: none</small> <strong>Keep the ✓ glyphs</strong>Their names stay in tooltips only, which a phone never shows.</lf-option>
+        <lf-option id="resolve-words" label="Write Resolve and Reopen as words, and make the resolved line reopen" recommended><small class="lf-tag">effort: ~25 lines</small> <strong>Write Resolve and Reopen as words, and make the resolved line reopen</strong></lf-option>
+        <lf-option id="resolve-keep" label="Keep the ✓ glyphs"><small class="lf-tag">effort: none</small> <strong>Keep the ✓ glyphs</strong>Their names stay in tooltips only, which a phone never shows.</lf-option>
       </lf-options>
     </lf-group>
 
@@ -59,8 +59,8 @@ vars:
         Cost: about 40 lines, one default-package widget plus theme.
       </p>
       <lf-options id="answer-control-choice">
-        <lf-option id="answer-build" label="Draw an Answer press on bare questions and on On Me cards" recommended><small class="tag">effort: ~40 lines</small> <strong>Draw an Answer press on bare questions and on On Me cards</strong></lf-option>
-        <lf-option id="answer-keep" label="Keep the rail’s ? as the only sign"><small class="tag">effort: none</small> <strong>Keep the rail’s ? as the only sign</strong></lf-option>
+        <lf-option id="answer-build" label="Draw an Answer press on bare questions and on On Me cards" recommended><small class="lf-tag">effort: ~40 lines</small> <strong>Draw an Answer press on bare questions and on On Me cards</strong></lf-option>
+        <lf-option id="answer-keep" label="Keep the rail’s ? as the only sign"><small class="lf-tag">effort: none</small> <strong>Keep the rail’s ? as the only sign</strong></lf-option>
       </lf-options>
     </lf-group>
     ```

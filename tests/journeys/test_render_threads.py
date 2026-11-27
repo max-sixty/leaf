@@ -46,9 +46,9 @@ from render_harness import (
 )
 
 from journeys import detached_threads
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
-from leaf_dev.browser import PANEL_THREAD
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD, text_field
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -69,6 +69,21 @@ CAPTURE_SAMPLE_PAGE = leaf_page(
     <section id="child-paint" style="height:200px;background:rgb(200,40,40)"></section>
   </template>
 </lf-sample>""",
+)
+
+
+# A window sample turned a quarter, its window's top corner red and its foot corner
+# blue, both on its start side.
+TURNED_SAMPLE_PAGE = leaf_page(
+    "Capture a turned sample",
+    """<h1>Capture a turned sample</h1>
+<div id="turn"><lf-sample id="turned-sample" label="practice" window>
+  <template id="turned-sample-page" data-sample>
+    <div style="position: fixed; inset: 0 50% 50% 0; background: rgb(200, 40, 40)"></div>
+    <div style="position: fixed; inset: 50% 50% 0 0; background: rgb(40, 40, 200)"></div>
+  </template>
+</lf-sample></div>""",
+    head="<style>#turn { rotate: 90deg; margin-block: 150px; }</style>",
 )
 
 
@@ -168,7 +183,7 @@ def test_a_phone_editor_inside_a_marked_widget_keeps_pointer_entry(browser, serv
     )
     comment = page.locator("#pr-exact-patch .lf-diff-file-comment").first
     comment.click()
-    field = page.get_by_role("textbox", name=re.compile(r"^Comment on .+ · file$"))
+    field = text_field(page, name=re.compile(r"^Comment on .+ · file$"))
     expect(field).to_be_focused()
     page.keyboard.type("Earlier file comment.")
     with sending(page, "the earlier file comment"):
@@ -347,7 +362,7 @@ def test_a_region_capture_draws_live_samples_and_survives_removed_links(browser,
     })""")
     frame = page.locator("#capture-sample iframe").bounding_box()
     # The area takes in the unreadable image above the sample, so the element the
-    # capture draws holds it (`captureRoot`, composing/page-image.js).
+    # capture draws holds it (`captureRoot`, host/page-image.js).
     unreadable = page.locator("#unreadable").bounding_box()
     surface = open_capture_area(page)
     left, top = int(unreadable["x"]) + 1, int(unreadable["y"]) + 1
@@ -383,6 +398,40 @@ def test_a_region_capture_draws_live_samples_and_survives_removed_links(browser,
         });
     })""")
     assert errors == []
+
+
+def test_a_region_capture_draws_a_turned_sample_as_its_reader_sees_it(browser, serve):
+    """A sample turned a quarter shows down what its window holds across, so an area
+    over the top half of its frame takes in its window's start half: the foot corner on
+    the left and the top corner on the right. The image draws that half, as the sample
+    draws it (host/page-image.js)."""
+    page = open_page(browser, serve(TURNED_SAMPLE_PAGE))
+    page.evaluate("document.querySelector('#turned-sample').ready")
+    frame = page.locator("#turned-sample iframe").bounding_box()
+    surface = open_capture_area(page)
+    left, top = int(frame["x"]) + 1, int(frame["y"]) + 1
+    page.mouse.move(left, top)
+    page.mouse.down()
+    page.mouse.move(
+        int(frame["x"] + frame["width"]) - 1,
+        int(frame["y"] + frame["height"] / 2),
+        steps=5,
+    )
+    with page.expect_response(lambda response: response.url.endswith("/api/media")):
+        page.mouse.up()
+    expect(surface).to_be_hidden()
+    media_url = page.locator(".lf-composer-media-item img").get_attribute("src")
+    image = Image.open(
+        io.BytesIO((serve.page_dir / media_url.lstrip("/")).read_bytes())
+    ).convert("RGB")
+    scale = page.evaluate("devicePixelRatio")
+    down = round((frame["y"] + frame["height"] / 4 - top) * scale)
+
+    def across(share):
+        return round((frame["x"] + frame["width"] * share - left) * scale)
+
+    assert rgb_pixel(image, (across(1 / 4), down)) == (40, 40, 200)
+    assert rgb_pixel(image, (across(3 / 4), down)) == (200, 40, 40)
 
 
 def test_a_rewrite_never_replaces_words_it_did_not_see(browser, serve):
@@ -515,6 +564,13 @@ def test_firefox_paints_the_author_and_words_in_the_same_send_flash(
         firefox_browser, serve, "card"
     )
     page.emulate_media(reduced_motion="no-preference")
+    # The screencast delivers frames at whatever rate the host spares, so the fade is
+    # stretched to ten times its shipped length: a host ten times slower still captures
+    # frames inside it. The cue reads its length from the token as it starts, and the
+    # stretch changes only when each colour is drawn, not how Firefox paints it.
+    page.evaluate(
+        "() => document.documentElement.style.setProperty('--lf-motion-flash', '12s')"
+    )
     page.evaluate(
         """() => {
           window.__sendFlash = new Promise((resolve, reject) => {
@@ -549,9 +605,12 @@ def test_firefox_paints_the_author_and_words_in_the_same_send_flash(
                 const edge = root.getBoundingClientRect().right - 1.5;
                 const field = root.querySelector('.lf-thread-reply .lf-compose-field')
                   .getBoundingClientRect();
+                // The message's own last row, which a frame of its growth leaves
+                // short of where it stands.
+                const foot = message.getBoundingClientRect().bottom - 2;
                 resolve({head: [x, rows.head], body: [x, rows.body],
                   headEdge: [edge, rows.head], bodyEdge: [edge, rows.body],
-                  ring: [x, field.top - 1.5]});
+                  ring: [x, field.top - 1.5], foot: [x, foot]});
               }, reject);
             });
             observer.observe(root, {subtree: true, childList: true});
@@ -585,16 +644,18 @@ def test_firefox_paints_the_author_and_words_in_the_same_send_flash(
     # frame with the page drawn across the card in a band (main's own panel chrome
     # shows it too), which can cover the author's row and leave the card's edge, and
     # the arrival's first frames show the card still growing, its reply field over the
-    # words. Such a frame says nothing about the message's two grounds, so it is read
-    # only where the card's edge stands the same on both rows, the author's row shows
-    # a ground the message takes (its yellow, the card's paper, or a mix of the two),
-    # and the reply field's ring stands where most of those frames show it. On a
-    # loaded machine band frames can outnumber the rest, so the ring's settled place
-    # is taken only from frames that drew the card.
+    # words or the message's ground ending at their row. Such a frame says nothing
+    # about the message's two grounds, so it is read only where the card's edge stands
+    # the same on both rows, the author's row shows a ground the message takes (its
+    # yellow, the card's paper, or a mix of the two), the message's foot shows the
+    # words' ground, and the reply field's ring stands where most of those frames show
+    # it. On a loaded machine band frames can outnumber the rest, so the ring's settled
+    # place is taken only from frames that drew the card.
     drawn = [
         colours
         for colours in captured
         if near(colours["headEdge"], colours["bodyEdge"])
+        and near(colours["foot"], colours["body"])
         and colours["head"][0] > 245
         and colours["head"][1] <= 251
     ]
@@ -603,9 +664,8 @@ def test_firefox_paints_the_author_and_words_in_the_same_send_flash(
     readings = [colours for colours in drawn if near(colours["ring"], settled)]
     # The light card fades from yellow (#fff8c5) to paper. Require an actual
     # sequence of intermediate colours: a discrete jump, or the constant .5
-    # pending opacity blending yellow with paper, must not pass as a fade. A loaded
-    # machine captures only a few frames of the fade, so two that differ by more
-    # than JPEG rounding of one colour are the sequence.
+    # pending opacity blending yellow with paper, must not pass as a fade. Two frames
+    # that differ by more than JPEG rounding of one colour are the sequence.
     fading = [
         reading
         for reading in readings
@@ -662,6 +722,7 @@ def test_a_settlement_in_a_reply_leaves_its_own_anchor_on_the_page(browser, serv
                 "widget": wid,
                 "action": "decide",
                 "detail": {"outcome": "accept"},
+                "answered": True,
             },
         )
         page = open_page(browser, url)

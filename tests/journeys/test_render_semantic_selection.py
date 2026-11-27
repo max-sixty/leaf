@@ -23,8 +23,8 @@ from render_harness import (
     write,
 )
 
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -33,7 +33,7 @@ pytestmark = pytest.mark.shifts_unsurveyed
 def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     """Undo, Draw mode, Design mode and search have no key under a finger, so the leaf's
     menu holds each, read off the command's own row. Inside a mode, the panel's row is
-    the mode's: its way out is the ✕ at the row's end, in the On Me mark's seat, with
+    the mode's: its way out is the ✕ before the leaf, with
     the mode's name beside it, while the field quotes words a finger selects, in a mode
     too; a tap on those comments on them. Search owns the field, so its way out is that
     ✕ too. Design mode leaves Leaf's own chrome working, its way out included."""
@@ -43,7 +43,7 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     page = open_page(browser, serve(UNDO_PAGE), context=context)
     host = page.locator(PANEL)
     row = page.locator(".lf-fp-row")
-    on_me = page.locator(".lf-fp-on-user")
+    leaf = page.locator(".lf-fp-leaf")
 
     def leave(name):
         return row.locator(f'.lf-fp-exit[aria-label="{name}"]')
@@ -59,9 +59,13 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     expect(host).not_to_have_attribute("data-lf-open", re.compile("."))
     expect(page.locator("lf-option[selected]")).to_have_attribute("id", "opt-b")
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
+    # The undo reopens the question, since the markup's pick answers nothing, and the
+    # leaf opens On Me while it waits. Answering it again leaves the leaf its menu.
+    with sending(page, "the second pick"):
+        page.locator("#opt-a").tap()
 
     # A mode offers no step of its own: a stroke's undo is on its drawing's composer, so
-    # each mode's way out is the ✕ in the On Me mark's seat, its name beside it.
+    # each mode's way out is the ✕ before the leaf, its name beside it.
     for entry, stands, name in (
         ("command:draw.mode.enter", "html[data-lf-draw-mode]", "Draw"),
         ("command:design.mode.enter", DESIGN_LEGEND, "Design"),
@@ -71,15 +75,18 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
         way_out = leave(f"Exit {name} mode")
         expect(way_out).to_be_visible()
         expect(row.locator(".lf-fp-mode")).to_have_text(name)
-        expect(on_me).to_have_count(0)
+        expect(leaf).to_be_visible()
         way_out.tap()
         expect(page.locator(stands)).to_have_count(0)
         expect(way_out).to_have_count(0)
-        expect(on_me).to_be_visible()
+        expect(leaf).to_be_visible()
     expect(page.locator(".lf-fab-input")).to_be_hidden()
 
     panel_control(page, "command:design.mode.enter", at="annotate").tap()
-    expect(page.locator(".lf-live")).to_contain_text("Exit Design mode leaves.")
+    # A touchscreen hears what the mode does and no key; the ✕ beside its name leaves it.
+    expect(page.locator(".lf-live")).to_have_text(
+        "Design mode: a click comments on what it lands on — a widget, a control, a picture."
+    )
     exit_design = leave("Exit Design mode")
 
     # The mode is about what the agent made, so Leaf's own chrome stays a finger's: the
@@ -177,7 +184,7 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     panel_control(page, "command:page.search.open", at="navigate").tap()
     expect(next_match).to_be_visible()
     expect(exit_draw).to_have_count(0)
-    expect(on_me).to_have_count(0)
+    expect(leaf).to_be_visible()
     leave("Close search").tap()
     exit_draw.tap()
     expect(page.locator("html")).not_to_have_attribute("data-lf-draw-mode", "")
@@ -186,7 +193,7 @@ def test_a_finger_reaches_the_page_commands_its_keys_reach(browser, serve):
     # widget; Annotations holds Select mode, named beside the ✕ that closes it, and a
     # tap on an element chooses it for a comment.
     panel_control(page, "command:target.picker.open", at="annotate").tap()
-    cancel = row.locator(".lf-fp-quick .lf-fp-exit")
+    cancel = row.locator(":scope > .lf-fp-exit")
     expect(row.locator(".lf-fp-mode")).to_have_text("Select")
     expect(cancel).to_be_visible()
     cancel.tap()

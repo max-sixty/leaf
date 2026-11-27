@@ -21,8 +21,9 @@ from render_harness import (
 )
 
 from browser.threads import claim_for_codex, open_panel_thread, thread_row
-from leaf import thread as thread_model
-from leaf.render_checks import rendered
+from leaf.agents import thread as thread_model
+from leaf.source.render_checks import rendered
+from leaf_dev.browser import open_on_me
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -152,7 +153,7 @@ def test_a_title_on_its_way_reads_as_one(browser, serve, request):
     mapped = page.locator(".lf-page-map-dialog .lf-page-map-action-label-word")
     expect(mapped.locator(".lf-thread-name-pending")).to_have_text(pending)
     page.keyboard.press("Escape")
-    page.locator(".lf-fp-on-user").click()
+    open_on_me(page)
     panel_settled(page, view="queue")
     page.locator(".lf-fp-filters button").filter(has_text="On Codex").click()
     owed = page.locator('.lf-fp-on-item[data-lf-list="agent"]')

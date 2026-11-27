@@ -18,10 +18,10 @@ from interact_support import STATED_TIMEOUT
 from playwright.sync_api import BrowserContext
 from playwright.sync_api import Page as BrowserPage
 
-from leaf import harness
-from leaf.harness import NUDGE_WORDS
-from leaf.hook_transport import inline_context
-from leaf.interaction_log import read_interactions
+from leaf.agents.delivery import inline_context
+from leaf.base import harness
+from leaf.base.harness import NUDGE_WORDS
+from leaf.log.interaction_log import read_interactions
 from leaf_dev import ROOT
 from leaf_dev.commands.journey import _claude_code as journey_claude_code
 from leaf_dev.commands.journey import _journey as journey
@@ -121,7 +121,7 @@ def test_release_publication_requires_the_marker_in_board_markup():
 
 
 def test_release_publication_ignores_rebased_resource_urls_in_board():
-    from leaf.revision_delivery import rebase_document
+    from leaf.serving.revision_delivery import rebase_document
 
     marker = "71b197da"
     authored = '<main><img src="/page/chart.svg" alt="Current chart"></main>'
@@ -305,10 +305,10 @@ def test_a_steps_comments_are_timed_from_the_log_and_in_a_browser_the_page(
     }
 
 
-def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
-    """A comment a fork of the conversation decided on carries the fork's outcome,
-    time and tokens beside the breakdown of the session's reply, whether the fork
-    posted a working line as it handed the thread over or Leaf handed it."""
+def test_a_comment_a_line_fork_ran_on_keeps_the_forks_record(tmp_path):
+    """A comment a line fork ran on carries the fork's outcome, time and tokens
+    beside the breakdown of the session's reply, whether its line went in or Leaf
+    dropped it."""
     events = [
         {
             "kind": "comment",
@@ -361,7 +361,7 @@ def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
             "type": "fork_outcome",
             "thread": "c1",
             "inputs": ["c1"],
-            "outcome": "hand_over",
+            "outcome": "posted",
             "text": "Looking at how it is served.",
             "line": "w1",
             "elapsedMs": 3200.0,
@@ -373,8 +373,9 @@ def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
             "type": "fork_outcome",
             "thread": "c2",
             "inputs": ["c2"],
-            "outcome": "hand_over",
-            "why": "it asks for a change",
+            "outcome": "dropped",
+            "why": "the agent spoke in the thread, or a turn joined its round, first",
+            "text": "Renaming it.",
             "elapsedMs": 2100.0,
         },
     ]
@@ -392,26 +393,31 @@ def test_a_comment_a_fork_decided_on_keeps_the_forks_record(tmp_path):
         user.ids[name], user.profiles[name] = comment, profile
         user.sent.append(name)
     assert user.timing("mid-turn") == (
-        "`mid-turn` picked up after 20.0 s, answered after 4.0 s; a fork's hand_over "
+        "`mid-turn` picked up after 20.0 s, answered after 4.0 s; a fork's posted "
         'after 3200 ms on 12 in, 80 out, 9000 cache read tokens: "Looking at how it '
         'is served."'
+    )
+    assert user.timing("ending") == (
+        "`ending` picked up after 10.0 s, answered after 20.0 s; a fork's dropped "
+        "after 2100 ms: the agent spoke in the thread, or a turn joined its round, "
+        'first: "Renaming it."'
     )
     user.passed("forks", time.monotonic())
 
     [step] = user.sample()["steps"]
-    answered, handed = step["comments"]["mid-turn"], step["comments"]["ending"]
-    assert answered["fork"] == {
-        "outcome": "hand_over",
+    lined, dropped = step["comments"]["mid-turn"], step["comments"]["ending"]
+    assert lined["fork"] == {
+        "outcome": "posted",
         "elapsedMs": 3200.0,
         "usage": usage,
     }
-    assert answered["reply"] is not None
-    assert handed["fork"] == {
-        "outcome": "hand_over",
-        "why": "it asks for a change",
+    assert lined["reply"] is not None
+    assert dropped["fork"] == {
+        "outcome": "dropped",
+        "why": "the agent spoke in the thread, or a turn joined its round, first",
         "elapsedMs": 2100.0,
     }
-    assert handed["reply"] is not None
+    assert dropped["reply"] is not None
 
 
 PROMPT = """
@@ -1037,8 +1043,8 @@ def test_the_release_ask_over_http_is_the_shared_check(tmp_path, monkeypatch):
     check as in a browser waits on its turn, title and answer, requiring a published
     revision naming the release; it reads nothing a browser would. A step's comment
     is posted on its section."""
-    from leaf.event_log import append_event, read_events
-    from leaf.thread import post_reply, title_event
+    from leaf.agents.thread import post_reply, title_event
+    from leaf.log.event_log import append_event, read_events
     from leaf_dev.arms import run_leaf, serving
     from leaf_dev.review_scenario import post, prepare
 
@@ -1113,7 +1119,7 @@ def test_a_harness_journey_over_http_starts_no_browser(monkeypatch):
     entered = []
 
     @contextmanager
-    def target_session(browser, target, release, *, sandbox, preview):
+    def target_session(browser, target, release, *, sandbox):
         entered.append(browser)
         end = (
             journey.HttpEnd("http://127.0.0.1:1/?t=t", Path("page"), time.sleep)
@@ -1147,3 +1153,11 @@ def test_a_harness_journey_over_http_starts_no_browser(monkeypatch):
     assert result.exit_code == 0, result.output
     assert (launched, entered) == ([True], [None, "browser"])
     assert json.loads(result.stdout)["userEnd"] == "browser"
+
+
+def test_release_name_matches_its_words_whatever_joins_them():
+    # An agent may write the word pair as a title, as in `Valley Summit`.
+    for written in ("valley-summit", "Valley Summit", "VALLEY_SUMMIT", "Valley–Summit"):
+        assert journey.names_release(f"Release {written} passed", "valley-summit")
+    assert not journey.names_release("Summit valley passed", "valley-summit")
+    assert not journey.names_release("Valley passed; summit next", "valley-summit")

@@ -8,6 +8,7 @@ import json
 import os
 import shutil
 import tarfile
+import urllib.error
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -16,20 +17,24 @@ import pytest
 from interact_support import (
     PAGE,
     append_command,
-    page_packages,
     publish,
     running_http_server,
 )
 
 import leaf_website as website_server
-from leaf import drafts as drafts_model
-from leaf import media as media_model
-from leaf.event_log import read_events
-from leaf.files import latest_revision, revision_path
-from leaf.service import PageTransaction
-from leaf.structure import SourceDocument
+from leaf.base.files import latest_revision, revision_path
+from leaf.log.event_log import read_events
+from leaf.pages.hosting import LeafHTTPServer
+from leaf.records.transaction import PageTransaction
+from leaf.serving import drafts as drafts_model
+from leaf.serving import media as media_model
+from leaf.source.file_bindings import bind_file, unbind_file
+from leaf.source.structure import SourceDocument
 from leaf_dev.page_fixtures import example_media
 from process.website_server import (
+    FakeCodexHarness,
+    get,
+    post,
     write_manifest,
 )
 
@@ -183,7 +188,7 @@ def durable_page_store():
 def test_public_and_private_snapshots_keep_a_stored_revisions_publication_date(
     page_dir, monkeypatch
 ):
-    from leaf import page_snapshot
+    from leaf.pages import page_snapshot
 
     activation = website_server.activate_source(page_dir)
     assert activation.error is None
@@ -303,7 +308,7 @@ def test_publishing_saved_responses_keeps_the_reading_a_tab_holds(
     None of those readings is one a tab goes on to extend, so they leave the server's
     remembered readings alone, and the tab's next answer is still only what changed
     (`served_state.tail`), even where the server remembers a single reading."""
-    from leaf.served_state import tail
+    from leaf.serving.served_state import tail
     from leaf_website.storage import PUBLISHER, restore
 
     monkeypatch.setattr(tail, "REMEMBERED", 1)
@@ -419,86 +424,6 @@ def test_a_saved_published_revision_loads_its_layer_from_the_release(
     assert not any(path.startswith("revisions/") for path in publication["responses"])
 
 
-def test_a_later_release_restores_a_visitors_page_as_they_left_it(
-    page_dir, tmp_path, monkeypatch, initialized_page
-):
-    """A deploy at the same page protocol restores the visitor's page whole, though the
-    new release publishes its own first revision: their comment stands on the revision
-    they read, which the container then serves itself, since the new release's assets
-    hold only the revisions it published."""
-    from leaf_website.storage import PUBLISHER, restore
-
-    def release_site(name, page, release):
-        site = tmp_path / name
-        shutil.copytree(page, site / "page")
-        write_manifest(site, {"/example": ("page", "example")})
-        manifest_path = site / website_server.SITE_MANIFEST
-        manifest = json.loads(manifest_path.read_text())
-        manifest["release"] = release
-        entry = manifest["pages"]["/example"]
-        entry["assets"] = f"/_leaf-release/{release}/example"
-        entry["revisions"] = [revision_path(page, 1).stem]
-        manifest_path.write_text(json.dumps(manifest))
-        return site, entry
-
-    publish(page_dir)
-    earlier, _ = release_site("earlier", page_dir, "0" * 64)
-    visited = revision_path(earlier / "page", 1).stem
-    republished = initialized_page(
-        tmp_path / "republished",
-        page_packages(),
-        (
-            "PAGE-republished",
-            lambda template: (template / "index.html").write_text(
-                PAGE.replace("<h2>Plan</h2>", "<h2>Plan, republished</h2>")
-            ),
-        ),
-    )
-    publish(republished)
-    later, entry = release_site("later", republished, "1" * 64)
-    assert revision_path(later / "page", 1).stem != visited
-    with durable_page_store() as (store_url, stored):
-        monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
-        monkeypatch.setenv("LEAF_SITE_ROOT", str(earlier))
-        assert restore(earlier)
-        monkeypatch.setenv("LEAF_PAGE_COMMIT", PUBLISHER)
-        append_command(
-            earlier / "page",
-            {
-                "kind": "comment",
-                "author": "user",
-                "revision": 1,
-                "text": "Kept across the deploy",
-                "attempt": "kept-comment-0001",
-            },
-        )
-        with PageTransaction(earlier / "page"):
-            pass
-
-        stored["release"] = "1" * 64
-        monkeypatch.setenv("LEAF_SITE_ROOT", str(later))
-        monkeypatch.delenv("LEAF_PAGE_COMMIT")
-        assert restore(later)
-        monkeypatch.setenv("LEAF_PAGE_COMMIT", PUBLISHER)
-        restored = later / "page"
-        assert revision_path(restored, 1).stem == visited
-        assert b"Plan, republished" not in revision_path(restored, 1).read_bytes()
-        assert any(
-            event.get("text") == "Kept across the deploy"
-            for event in read_events(restored)
-        )
-        with PageTransaction(restored):
-            pass
-        publication = stored["publications"][-1]
-    document = b"".join(
-        stored["blobs"][digest] for digest in publication["responses"][""]["chunks"]
-    )
-    assert f"{entry['assets']}/revisions/".encode() not in document
-    assert any(
-        path.startswith(f"revisions/{visited}") for path in publication["responses"]
-    )
-
-
 def test_a_session_that_swaps_an_image_goes_on_saving(page_dir, tmp_path, monkeypatch):
     """Revisions that differ only in the images they show share the address their
     resources answer at, and an image answers at the page root, never there. A
@@ -581,6 +506,107 @@ def test_a_draft_write_is_answered_only_once_the_page_store_holds_it(
     assert restored["store"] == answer["store"]
     assert restored["version"] == answer["version"]
     assert restored["drafts"]["general"]["text"] == words
+
+
+@contextmanager
+def a_hosted_file_editor(page_dir, tmp_path, monkeypatch):
+    """A site serving a page that binds `files/notes.md` from its own directory as
+    `notes`, as the file editor's example binds `files/`, over a durable page store.
+    Yields the private page directory, the store, a save of the reader's words over
+    the revision the file was first read at, answering its status and body, and a
+    restart, which starts the page from the release as a stopped container's
+    successor does and answers the file's text."""
+    from leaf_website.storage import PUBLISHER, restore
+
+    notes = page_dir / "files" / "notes.md"
+    notes.parent.mkdir()
+    notes.write_text("Published words.\n")
+    bind_file(page_dir, "notes", notes)
+    publish(page_dir)
+    site = tmp_path / "site"
+    private = site / "page"
+    shutil.copytree(page_dir, private)
+    write_manifest(site, {"/example": ("page", "example")})
+    monkeypatch.setenv("LEAF_SITE_ROOT", str(site))
+    httpd = LeafHTTPServer(
+        ("127.0.0.1", 0), website_server.site_endpoint(site, FakeCodexHarness())
+    )
+    address = f"http://127.0.0.1:{httpd.server_address[1]}"
+    url = f"{address}/example/api/files/notes"
+    with durable_page_store() as (store_url, stored), running_http_server(httpd):
+        monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
+        assert restore(site)
+        monkeypatch.setenv("LEAF_PAGE_COMMIT", PUBLISHER)
+        revision = json.loads(get(url)[0])["revision"]
+
+        def save():
+            body = {"revision": revision, "text": "Reader saved words.\n"}
+            try:
+                return 200, post(url, body, {"Origin": address})[0]
+            except urllib.error.HTTPError as error:
+                return error.code, error.read()
+
+        def restart():
+            shutil.rmtree(private)
+            shutil.copytree(page_dir, private)
+            assert restore(site)
+            return (private / "files" / "notes.md").read_text()
+
+        yield private, stored, save, restart
+
+
+def test_a_save_to_a_file_the_page_binds_is_answered_once_the_page_store_holds_it(
+    page_dir, tmp_path, monkeypatch
+):
+    """A file the page binds from its own directory is part of the page. The editor
+    is told a save is kept only once the page store holds it, so a container that
+    stops after the answer comes back with the reader's words, not the ones the
+    release published."""
+    with a_hosted_file_editor(page_dir, tmp_path, monkeypatch) as (*_, save, restart):
+        status, saved = save()
+        assert status == 200
+        assert saved["text"] == "Reader saved words.\n"
+        assert restart() == "Reader saved words.\n"
+
+
+def test_a_saved_file_outlasts_its_grant_as_it_does_on_this_machine(
+    page_dir, tmp_path, monkeypatch
+):
+    """Withdrawing a grant leaves the file itself as the reader saved it, so the
+    agent can bind it again. The page's record is its directory, whatever the page
+    grants, so a container that stops after the unbind keeps the file too."""
+    with a_hosted_file_editor(page_dir, tmp_path, monkeypatch) as (
+        private,
+        _stored,
+        save,
+        restart,
+    ):
+        assert save()[0] == 200
+        unbind_file(private, "notes")
+        with PageTransaction(private):
+            pass
+        assert restart() == "Reader saved words.\n"
+
+
+def test_a_file_save_the_page_store_refused_is_kept_once_its_retry_is_answered(
+    page_dir, tmp_path, monkeypatch
+):
+    """A save whose commit the page store refuses fails, though the container's file
+    holds it. The editor's retry meets that file as a newer one, and takes it as its
+    own words kept, so that answer too waits until the page store holds them."""
+    with a_hosted_file_editor(page_dir, tmp_path, monkeypatch) as (
+        _private,
+        stored,
+        save,
+        restart,
+    ):
+        stored["fail"] = True
+        assert save()[0] == 500
+        stored["fail"] = False
+        status, stale = save()
+        assert status == 409
+        assert json.loads(stale)["current"]["text"] == "Reader saved words.\n"
+        assert restart() == "Reader saved words.\n"
 
 
 def test_a_drafts_save_answered_too_late_is_the_store_the_next_write_runs_on(

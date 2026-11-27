@@ -9,8 +9,8 @@ canonical.dataset.lfRuntime = "";
 canonical.href = "https://leaf.test/pages/feed/";
 document.head.append(canonical);
 globalThis.fetch = async () => new Response(null, { status: 204 });
-const { connection } = await import("/runtime/http-api.js");
-const { applicationState } = await import("/runtime/semantic-state.js");
+const { connection } = await import("/runtime/host/http-api.js");
+const { applicationState } = await import("/runtime/state/semantic-state.js");
 
 test("a connection returns the host response without publishing or retrying", async (t) => {
   applicationState.identify(1, null, true);
@@ -49,31 +49,49 @@ test("captured documents cannot use host connections", async (t) => {
   assert.equal(fetch.mock.callCount(), 0);
 });
 
-test("file conflicts use the public RequestError constructor and retain the server snapshot", async (t) => {
-  const { boundFile, RequestError } = await import("/runtime/widget-api.js");
+test("a refused save resolves the server's reason and the newer file it holds", async (t) => {
+  const { boundFile } = await import("/runtime/widget-api.js");
   applicationState.identify(1, null, true);
   const current = { label: "Notes", text: "new disk text", revision: "disk-revision" };
-  const body = JSON.stringify({ error: "Changed on disk", current });
-  t.mock.method(
+  const fetch = t.mock.method(
     globalThis,
     "fetch",
     async () =>
-      new Response(body, {
+      new Response(JSON.stringify({ error: "Changed on disk", current }), {
         status: 409,
         headers: { "Content-Type": "application/json" },
       }),
   );
-  await assert.rejects(
-    boundFile("notes").save({ revision: "old-revision", text: "draft" }),
-    (error) => {
-      assert.ok(error instanceof RequestError);
-      assert.equal(error.status, 409);
-      assert.equal(error.body, body);
-      assert.equal(error.said, "Changed on disk");
-      assert.deepEqual(error.current, current);
-      return true;
-    },
+  const file = boundFile("notes");
+  const snapshot = { revision: "old-revision", text: "draft" };
+  assert.deepEqual(await file.save(snapshot), { refused: "Changed on disk", current });
+  fetch.mock.mockImplementation(
+    async () =>
+      new Response(JSON.stringify({ error: "The file is not writable" }), {
+        status: 403,
+        headers: { "Content-Type": "application/json" },
+      }),
   );
+  assert.deepEqual(await file.save(snapshot), {
+    refused: "The file is not writable",
+    current: null,
+  });
+  // An answer that says nothing of its own may come from a proxy, with the save
+  // having reached the file.
+  fetch.mock.mockImplementation(
+    async () => new Response("Bad gateway", { status: 502 }),
+  );
+  await assert.rejects(file.save(snapshot), /HTTP 502/);
+  // A fault in the server's words may come after the write, as when the host's store
+  // refuses to keep it.
+  fetch.mock.mockImplementation(
+    async () =>
+      new Response(JSON.stringify({ error: "PageStoreRefused: 503" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }),
+  );
+  await assert.rejects(file.save(snapshot), /PageStoreRefused/);
 });
 
 test("a file request without an answer retains its original cause", async (t) => {

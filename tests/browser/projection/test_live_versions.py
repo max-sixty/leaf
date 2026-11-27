@@ -38,10 +38,11 @@ from render_harness import (
     write,
 )
 
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
-from leaf.render_checks import wait_until_ready
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.source import render_checks as render_checks_model
+from leaf.source.render_checks import wait_until_ready
+from leaf_dev.browser import panel_tab
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -192,6 +193,10 @@ def test_a_stamped_live_draft_and_its_unstamped_view_keep_distinct_menu_rows(
     # had followed by then would come down to whether a state read landed between the
     # two presses. The keyboard route leaves the composer open through both.
     page.locator(".lf-fp-leaf").press("Enter")
+    # The draft the composer holds marks the leaf, which so opens Threads; the Menu tab
+    # turns the view to the menu, by key too.
+    expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "threads")
+    panel_tab(page, "Menu").press("Enter")
     expect(page.locator(PANEL)).to_have_attribute("data-lf-open", "menu")
     page.locator('.lf-fp-item[data-lf-row="versions"]').press("Enter")
     rows = page.locator(panel_view("versions")).locator(".lf-fp-version")

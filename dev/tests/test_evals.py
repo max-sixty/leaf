@@ -208,8 +208,9 @@ def test_codex_trace_keeps_subagent_activity_without_inventing_tool_calls():
 
 
 # What a stand-in fork answers in each case, the checks the grader then passes, and
-# words the judge reads: a stale lede's fix, which lands on the page, and a decision
-# asked as a choice of the answers the agent offered, which the user presses.
+# words the judge reads: a stale lede's fix, which lands on the page, a decision
+# asked as a choice of the answers the agent offered, which the user presses, and the
+# working line a line fork wrote, which Leaf posts.
 REPLAYED = {
     "stale-edit": (
         {
@@ -255,6 +256,11 @@ REPLAYED = {
         {"answered": True, "labels-found": True, "choices-right": True},
         "<strong>Rebuild on Saturday</strong>",
     ),
+    "why-ci": (
+        {"line": "reading why it fails only on CI"},
+        {"answered": True, "lined": True},
+        "reading why it fails only on CI",
+    ),
 }
 
 
@@ -262,11 +268,12 @@ REPLAYED = {
 def test_fork_replay_hands_the_answer_through_the_arms_leaf(
     case, tmp_path, monkeypatch
 ):
-    # No model runs: a stand-in for Claude Code reads the turn-end check's prompt
-    # and answers it, so this shows the question reaching the fork and the answer
-    # reaching the grader through the arm's Leaf.
+    # No model runs: a stand-in for Claude Code reads the fork's prompt and answers
+    # it, so this shows the question reaching the fork and the answer reaching the
+    # grader through the arm's Leaf.
     import os
 
+    from leaf.agents import clerk, forks
     from leaf_dev import ROOT, fork_eval
 
     work = tmp_path / "work"
@@ -297,16 +304,22 @@ def test_fork_replay_hands_the_answer_through_the_arms_leaf(
         }
 
     monkeypatch.setattr(fork_eval, "claude_child", child)
+    snapshot = {"type": "prompt_snapshot", "cliPrefix": fork_eval.INTERACTIVE}
+    prefix = {"attachment": snapshot, "sessionId": "live", "version": "2"}
+    monkeypatch.setattr(fork_eval, "live_prefix", lambda run: prefix)
     response = fork_eval.execute_scenario(case, ROOT, work)
     metadata = response["metadata"]
     assert metadata["checks"] == checks
-    assert "<leaf-fork-check>" in asked.read_text()
+    opening = {"turn-end": clerk.OPENING, "line": forks.LINE_OPENING}
+    assert opening[fork_eval.CASES[case]["fork"]] in asked.read_text()
     first, environment, after = [
         json.loads(line)
         for line in (work / "transcript.jsonl").read_text().splitlines()[:3]
     ]
     assert (environment["parentUuid"], after["parentUuid"]) == (first["uuid"], "env")
-    assert judged in metadata["texts"]["judge"]
+    # The live session's prefix follows the environment, as it does in a live session.
+    assert after["attachment"] == snapshot
+    assert any(judged in text for text in metadata["texts"].values())
 
 
 def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatch):
@@ -363,17 +376,18 @@ def test_catalog_builds_native_and_workflow_promptfoo_tests(tmp_path, monkeypatc
         if test["metadata"]["case"] == "page-reads-at-every-width/queue"
     )
     assert "ESC-4107" in queue["vars"]["prompt"]
+    # Each complete task's quality assertion names the authoring judge's file.
+    from leaf_dev import regrade
+
     for test in config["tests"]:
         if test["metadata"]["case"] in {
             "configuration",
             "page-reads-at-every-width/queue",
         }:
-            live = next(
-                a
-                for a in test["assert"]
-                if a["value"].endswith("/authoring_assertion.mjs")
-            )
-            assert live["config"]["judge"]["id"].endswith("/arrangement_eval.py")
+            (live,) = (a for a in test["assert"] if a["metric"] == "quality")
+            path, function = live["value"].removeprefix("file://").rsplit(":", 1)
+            assert Path(path).resolve() == Path(regrade.__file__).resolve()
+            assert live["type"] == "python" and function == "authoring"
 
     # A saved run can contain the same Python provider on different models. The
     # report must join labels and keep the saved model, even after pins change.
@@ -753,6 +767,56 @@ def test_judgments_of_saved_samples_reach_the_report(tmp_path, monkeypatch):
     assert section.count("Desktop navigation.") == 3
 
 
+def test_authoring_judge_grades_a_sample_on_its_saved_pages(tmp_path, monkeypatch):
+    """Only the live judge is replaced: a case's quality assertion hands it the
+    sample's saved pages under the names every judge reads, with the case's rubric
+    and the author's answer, and returns its grade. A sample with nothing to judge
+    never reaches it."""
+    from leaf_dev import regrade
+
+    run = saved_run(tmp_path / "saved")
+    saved = json.loads((run / "results.json").read_text())["results"]["results"]
+    sample = saved[0]["response"]
+    work = Path(sample["metadata"]["work"])
+    work.mkdir(parents=True)
+    current = module.grading(module.catalog()["configuration"], "leaf", lambda: {})
+    (assertion,) = (a for a in current["assert"] if a["metric"] == "quality")
+    judged = []
+
+    def judge(pages, widths, prompt, schema, evidence, *, handovers):
+        judged.append(pages)
+        assert evidence.parent == work
+        assert assertion["config"]["rubric"] in prompt
+        assert "base summary" in prompt
+        assert handovers == {"page": None}
+        return {
+            "output": {"status": "pass", "reason": "The final settings are readable."},
+            "metadata": {"evidence": str(evidence)},
+        }
+
+    monkeypatch.setattr(regrade, "judge_pages", judge)
+
+    def grade() -> dict:
+        return regrade.authoring(
+            sample["output"],
+            {"providerResponse": sample, "config": assertion["config"]},
+        )
+
+    passed = grade()
+    assert passed["pass"] and passed["metadata"]["authoring_grade"]["status"] == "pass"
+    assert set(judged[0]) == {"page", "page_before_decision", "page_before_revision"}
+
+    phases = sample["metadata"]["diagnostics"]["phases"]
+    del phases[next(iter(phases))]["page"]
+    missing = grade()
+    assert missing["metadata"]["authoring_grade"]["status"] == "insufficient_evidence"
+    sample["metadata"]["checks"]["completed"] = False
+    incomplete = grade()
+    assert not incomplete["pass"]
+    assert incomplete["metadata"]["authoring_grade"]["status"] == "unscored"
+    assert len(judged) == 1
+
+
 def test_review_citations_become_leaf_elements_the_page_check_accepts(tmp_path):
     """The browser is the last of the review's tabs, and each citation draws its saved
     captures and links that land, while one that names nothing stops the report."""
@@ -913,16 +977,13 @@ def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch, brows
             expect(view.locator("#external")).to_have_attribute(
                 "href", "https://example.com/"
             )
-            with view.expect_popup() as opened:
-                view.get_by_role("link", name="Open handoff").click()
-            linked = opened.value
-            settle(linked)
+            view.get_by_role("link", name="Open handoff").click()
+            settle(view)
             expect(
-                linked.get_by_role("heading", name=f"Handoff phase {phase}")
+                view.get_by_role("heading", name=f"Handoff phase {phase}")
             ).to_be_visible()
-            with linked.expect_popup() as returned:
-                linked.get_by_role("link", name="Back to queue").click()
-            expect(returned.value.locator("#keep .lf-pick")).to_have_attribute(
+            view.get_by_role("link", name="Back to queue").click()
+            expect(view.locator("#keep .lf-pick")).to_have_attribute(
                 "aria-checked", "true"
             )
     assert {p: p.read_bytes() for p in originals} == originals
@@ -986,3 +1047,33 @@ def test_arrangement_retains_linked_pages_per_phase(tmp_path, monkeypatch, brows
     for page in arms.pages(cleanup_work):
         assert arms.read_page_state(ROOT, cleanup.state, page)["server"] is None
     shutil.rmtree(cleanup_work)
+
+
+def test_a_finished_page_reads_its_data_under_the_runs_state_home(tmp_path):
+    """A case's fixture package is installed only under the run's state home, so a
+    page that selects it composes its layer there and on no other state home."""
+    from leaf_dev import ROOT
+    from leaf_dev.authoring_eval import bound_sources
+
+    state, page = tmp_path / "state", tmp_path / "page"
+
+    def leaf(*args, said=None):
+        return arms.run_leaf(ROOT, state, *args, input_text=said, check=True).stdout
+
+    leaf("package", "install", "evals/numeric-grid-shows-shape/fixtures/team-charts")
+    leaf("page", "init", "--package", "team-charts", "--package", "diff", str(page))
+    (page / "index.html").write_text(
+        "<!doctype html><html><head><title>Patch</title></head><body><main>"
+        '<h1 id="title">Patch</h1><lf-diff id="view" source="patch"></lf-diff>'
+        "</main></body></html>"
+    )
+    patch = (
+        "diff --git a/a.txt b/a.txt\n--- a/a.txt\n+++ b/a.txt\n"
+        "@@ -1 +1 @@\n-old\n+new\n"
+    )
+    manifest = leaf("package", "run", "diff", "patch_manifest.py", said=patch)
+    leaf("data", "set", str(page), "patch", said=manifest)
+
+    assert "+new" in json.dumps(bound_sources(page, state)["patch"]["value"])
+    with pytest.raises(RuntimeError, match="unknown package 'team-charts'"):
+        bound_sources(page, tmp_path / "another-state")

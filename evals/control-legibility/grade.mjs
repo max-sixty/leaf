@@ -7,7 +7,8 @@
  * every control read otherwise, with the reading, so a run says which control to fix.
  */
 import { JUDGE_MODELS } from "../../dev/leaf_dev/arms.mjs";
-import { answerArray, ask } from "./provider.mjs";
+import { ask } from "../../dev/leaf_dev/claude_ask.mjs";
+import { answerArray } from "./provider.mjs";
 
 const SYSTEM =
   "You compare what a user expected a control to do with what it does. Judge meaning, not wording.";

@@ -1,0 +1,34 @@
+# A page script's shortcut meant for the whole page takes none of Leaf's keys when it
+# is a command scope Leaf dispatches, or a listener on the document, which hears only
+# the keys Leaf leaves. A raw listener on `body`, or on an element wrapping the page,
+# hears a key pressed with focus inside it before Leaf and takes Leaf's keys there,
+# while with nothing focused Leaf's command runs first; a capture listener on the
+# window takes them everywhere. `body` tempts, since page-behavior.md also says it
+# survives revisions.
+description: page-wide-keys-take-no-leaf-keys
+metadata:
+  purpose: A page script binds keys for the whole page where they take none of Leaf's keys.
+  tags:
+    - keyboard
+vars:
+  prompt: |
+    A Leaf page shows a slide deck from a page script, `page/deck.js`. The script
+    draws the current slide into `<section id="deck">`, and the deck's Previous and
+    Next buttons call its `step(-1)` and `step(1)`. Add keyboard shortcuts: the left
+    and right arrow keys step the deck, and Home goes back to the first slide, from
+    anywhere on the page, including after the reader clicks one of the deck's
+    buttons. Show the JavaScript to add to `page/deck.js`. Only shipped references
+    are available; runtime source and execution are unavailable.
+assert:
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Pass only if the shortcuts are handled where they take none of Leaf's own keys:
+      a `keydown` listener on `document` or `window` in the bubble phase, or a command
+      scope declared as the `lfCommands` of `document.body` or
+      `document.documentElement`, with an `lf-commands` event dispatched on that element.
+      Fail if the listener that handles them is on `document.body`, on the deck's
+      section, or on another element wrapping the page's content, or if it is added
+      with `capture: true` (or a third argument of `true`) on `document` or `window`.
+      Ignoring keys typed into a field, or leaving modified presses alone, is fine
+      either way. Execution is unavailable, so not running checks is not a failure.

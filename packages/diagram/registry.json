@@ -1,24 +1,16 @@
 {
   "lf-diagram": {
-    "description": "A Mermaid-syntax diagram rendered by Pele, with optional comment targets on its named boxes.",
+    "description": "A Mermaid-syntax diagram rendered by Pele, each of whose named boxes takes a comment of its own.",
     "attributes": {
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" },
-        "parts": {
-          "const": "all"
-        }
-      },
-      "required": ["id"],
-      "additionalProperties": false
+      "required": ["id"]
     },
     "content": "data",
     "visual": {
-      "parts": "parts"
+      "prefixes": ["node:"]
     },
     "space": "available",
     "height": true,
-    "instructions": "Write Mermaid source inside the `<pre>`, HTML-escaping & before < and >. Give each diagram an `accTitle` naming its subject and an `accDescr` describing its relationships, for a reader who can't see it. The diagram lays itself out for the width it is drawn at, on a phone as on a desktop: it wraps long labels and turns a left-to-right flowchart top-down where that doesn't fit, so write the direction, labels and spacing that read best with room, with no frontmatter config fitting it to a narrow window. What it can't narrow that far, such as a long row of siblings side by side, keeps its width and scrolls in its box. Give a node or edge that needs its own tone a Mermaid class, naming an edge by its id (`A e1@--> B` then `class e1 added`), and style it in page CSS with theme tokens: a node as `.pele-node.CLASS`, an edge's line as `.pele-edge.CLASS path` (`stroke`) and its arrowhead as `.pele-edge.CLASS .pele-marker` (`fill`), and the edge's label as `.pele-edge-label.CLASS`. Each drawn box carries its Mermaid id as `data-id`, so a page script can answer a click on one by listening on `body` for clicks inside `.pele-node`; the box itself takes no focus, so offer the same details through a control too. Without `parts`, the whole diagram is one comment target; with `parts=\"all\"`, each named box, such as a flowchart node or a sequence participant, is a target of its own. Edges and messages never are.\n\n`page check --render` reports syntax errors and empty drawings; look at each rendered diagram to check it shows the\nrelationships it should. Without visual access, check the source's labels and edges\nagainst the claims, state those claims in prose or a table beside it, and report the\ndiagram as unchecked (`references/page-checkpoints.md`, \"Pre-handover review\").",
-    "example": "<lf-diagram id=\"checkout-flow\" data-height=\"368\" parts=\"all\"><pre>\nflowchart TD\n  accTitle: Checkout from cart to receipt\n  accDescr: The cart reaches a payment decision; a paid order produces a receipt.\n  Cart([Cart]) --> Pay{Paid?}\n  Pay --> Receipt[(Receipt)]\n</pre></lf-diagram>"
+    "instructions": "Write Mermaid source inside the `<pre>`, HTML-escaping & before < and >. Give each diagram an `accTitle` naming its subject and an `accDescr` describing its relationships, for a reader who can't see it. The diagram lays itself out for the width it is drawn at, on a phone as on a desktop: it wraps long labels and turns a left-to-right flowchart top-down where that doesn't fit, so write the direction, labels and spacing that read best with room, with no frontmatter config fitting it to a narrow window. What it can't narrow that far, such as a long row of siblings side by side, keeps its width and scrolls in its box. Give a node or edge that needs its own tone a Mermaid class, naming an edge by its id (`A e1@--> B` then `class e1 added`), and style it in page CSS with theme tokens: a node as `.pele-node.CLASS`, an edge's line as `.pele-edge.CLASS path` (`stroke`) and its arrowhead as `.pele-edge.CLASS .pele-marker` (`fill`), and the edge's label as `.pele-edge-label.CLASS`. Each drawn box carries its Mermaid id as `data-id`, so a page script can answer a click on one by listening on `body` for clicks inside `.pele-node`; the box itself takes no focus, so offer the same details through a control too. Each named box, such as a flowchart node or a sequence participant, takes a comment of its own, and the rest of the drawing, edges and messages included, takes a comment on the whole diagram.\n\n`page check --render` reports syntax errors and empty drawings; look at each rendered diagram to check it shows the\nrelationships it should. Without visual access, check the source's labels and edges\nagainst the claims, state those claims in prose or a table beside it, and report the\ndiagram as unchecked (`references/page-checkpoints.md`, \"Pre-handover review\").",
+    "example": "<lf-diagram id=\"checkout-flow\" data-height=\"368\"><pre>\nflowchart TD\n  accTitle: Checkout from cart to receipt\n  accDescr: The cart reaches a payment decision; a paid order produces a receipt.\n  Cart([Cart]) --> Pay{Paid?}\n  Pay --> Receipt[(Receipt)]\n</pre></lf-diagram>"
   }
 }

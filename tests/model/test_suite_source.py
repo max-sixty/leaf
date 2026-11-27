@@ -3,7 +3,10 @@
 How a test spells a deadline, which signal it sends and where it gets a process or a
 browser are read from each module's syntax. Each case reads one module under `tests/`,
 so the rules fit the tier every pull request runs, and a change that breaks one is
-refused before it lands rather than by the next nightly run.
+refused before it lands rather than by the next nightly run. The suite's deadline
+reaches Leaf's other code that drives a browser through the openers in
+`leaf.source.render_checks`, so where that code opens its contexts and pages, and the
+defaults it sets on them, are read here too, from `src/` and `dev/leaf_dev/`.
 """
 
 import ast
@@ -22,6 +25,18 @@ def _read(path):
     """The module's syntax, and its path as a finding names it."""
     tree = ast.parse(path.read_text(encoding="utf-8"))
     return tree, path.relative_to(ROOT / "tests").as_posix()
+
+
+def _literal(node) -> bool:
+    """Whether `node` is a deadline spelled as a number: a nonzero one, or sums and
+    products of them. A zero timeout asks without waiting."""
+    if isinstance(node, ast.BinOp):
+        return _literal(node.left) and _literal(node.right)
+    return (
+        isinstance(node, ast.Constant)
+        and type(node.value) in (int, float)
+        and node.value != 0
+    )
 
 
 @by_module
@@ -179,15 +194,6 @@ def test_a_wait_takes_the_suites_deadline(path):
         "wait",
     }
 
-    def literal(node) -> bool:
-        if isinstance(node, ast.BinOp):
-            return literal(node.left) and literal(node.right)
-        return (
-            isinstance(node, ast.Constant)
-            and type(node.value) in (int, float)
-            and node.value != 0
-        )
-
     def called(func) -> str | None:
         return (
             func.attr if isinstance(func, ast.Attribute) else getattr(func, "id", None)
@@ -209,23 +215,23 @@ def test_a_wait_takes_the_suites_deadline(path):
             computed = (
                 isinstance(node.left, ast.Call)
                 and called(node.left.func) == "monotonic"
-                and literal(node.right)
+                and _literal(node.right)
             )
         elif isinstance(node, ast.Call):
             computed = any(
-                keyword.arg in deadline_names and literal(keyword.value)
+                keyword.arg in deadline_names and _literal(keyword.value)
                 for keyword in node.keywords
             ) or (
                 called(node.func) in deadline_first
                 and isinstance(node.func, ast.Attribute)
                 and bool(node.args)
-                and literal(node.args[0])
+                and _literal(node.args[0])
             )
         elif isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef, ast.Lambda)):
             computed = any(
                 argument.arg in deadline_names
                 and default is not None
-                and literal(default)
+                and _literal(default)
                 for argument, default in defaults(node.args)
             )
         else:
@@ -235,10 +241,51 @@ def test_a_wait_takes_the_suites_deadline(path):
                 f"{named}:{node.lineno} "
                 + ast.unparse(node).split("\n", 1)[0]
                 + " — STATED_TIMEOUT (interact_support.py), or in a browser"
-                " SERVED_TIMEOUT_MS or HANDOVER_DEADLINE_MS (leaf.render_checks),"
+                " SERVED_TIMEOUT_MS or HANDOVER_DEADLINE_MS (leaf.source.render_checks),"
                 " bounds it"
             )
     assert not fixed, "\n".join(fixed)
+
+
+def test_the_pages_leaf_opens_take_the_served_deadline():
+    """Every context and page Leaf's code opens outside the suite, a developer tool's
+    included, comes from `open_render_context` or `open_render_page`, which give each
+    Playwright wait, request and `expect` that names no deadline `SERVED_TIMEOUT_MS`.
+    A page opened any other way keeps Playwright's own 30s, and a probe or still that
+    is right fails on a host busy with other sessions' suites (tests/AGENTS.md,
+    "Results do not depend on execution speed"). A default set on the page or context
+    afterwards wins over the opener's, so it names a constant, as a wait in the suite
+    does where its length is its subject. The suite's own pages come from its
+    fixtures, which `test_a_wait_takes_the_suites_deadline` reads."""
+    openers = {"open_render_context", "open_render_page"}
+    opens = {"new_context", "new_page"}
+    defaults = {"set_default_timeout", "set_default_navigation_timeout"}
+    found = []
+    for path in sorted((ROOT / "src").rglob("*.py")) + sorted(
+        (ROOT / "dev" / "leaf_dev").rglob("*.py")
+    ):
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+        owned = {
+            node
+            for function in ast.walk(tree)
+            if isinstance(function, ast.FunctionDef) and function.name in openers
+            for node in ast.walk(function)
+        }
+        for node in ast.walk(tree):
+            if (
+                not isinstance(node, ast.Call)
+                or not isinstance(node.func, ast.Attribute)
+                or node in owned
+            ):
+                continue
+            where = f"{path.relative_to(ROOT)}:{node.lineno} {ast.unparse(node)}"
+            if node.func.attr in opens:
+                found.append(
+                    f"{where} — an opener in leaf.source.render_checks opens it"
+                )
+            elif node.func.attr in defaults and node.args and _literal(node.args[0]):
+                found.append(f"{where} — SERVED_TIMEOUT_MS or a named constant")
+    assert not found, "\n".join(sorted(found))
 
 
 @by_module

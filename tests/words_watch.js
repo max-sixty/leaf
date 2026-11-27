@@ -9,11 +9,12 @@
 // `leaf-text`'s closed editor, whose `value` is the text. At every frame while any field
 // holds words, each is asked whether its words are still on the page: the field itself,
 // still connected and laid out (`checkVisibility`, which a field under `display: none`
-// fails) and still holding them, or else another laid-out field holding the same words,
-// which is how a re-render hands a draft to the node replacing its box, and where the
-// watch follows them. A field scrolled out of view is still on the page, and so is one
-// under `visibility: hidden`, which is how a surface whose target a pane has scrolled
-// past waits out of view for it to come back.
+// fails) and still holding them, alone or within a longer text, or else another laid-out
+// field holding the same words or the same longer text, which is how a re-render hands a
+// draft to the node replacing its box, and where the watch follows them. A field
+// scrolled out of view is still on the page, and so is one under `visibility: hidden`,
+// which is how a surface whose target a pane has scrolled past waits out of view for it
+// to come back.
 //
 // Words that are gone are the user's to have put away, so a key or a press must come
 // after the last edit, in the operation that puts the words away: Escape, Send, Cancel, a press
@@ -22,7 +23,7 @@
 // that news is delivered, as its own reading of the store: words this document stored
 // that the store no longer holds when they leave the screen, under a key whose value
 // another document changed, are that edit's to have put away. Leaf keeps its drafts on
-// the page's server rather than in the browser's storage (runtime/drafts.js), so the
+// the page's server rather than in the browser's storage (runtime/records/drafts.js), so the
 // watch reads the drafts this document writes there and what the server answers it,
 // as they pass and before the page reads them, as a store of the same kind: words this
 // document wrote that the server holds no longer, under a draft another document
@@ -30,7 +31,7 @@
 // they left is later input, which redeems nothing. A close watcher's close, such as Android's back
 // gesture makes, puts words away only where the page's storage still holds them, as Leaf's
 // drafts do for kept words and for saved ones until the log accepts them: back may close an editor but
-// never throw its words away (keyboard/close-requests.js), whether a gesture or a
+// never throw its words away (dom/keyboard/close-requests.js), whether a gesture or a
 // script asked for the close. What only moves the user around the words does
 // not count: a key whose typing applied or was cancelled,
 // a modifier, the caret keys unless the field edits with one, Tab unless the page takes it, the page's scroll keys, and a press on the field itself. A wheel,
@@ -86,9 +87,12 @@
       if (node.shadowRoot) yield* fields(node.shadowRoot);
     }
   }
-  // The laid-out field holding these words, if any does.
-  const shownIn = (words) =>
-    [...fields()].find((field) => drawn(field) && text(field) === words) ?? null;
+  // The laid-out field holding these words, if any does: their text alone, or the
+  // longer text a field last showed them within (`shown`).
+  const shownIn = ({ words, shown }) =>
+    [...fields()].find(
+      (field) => drawn(field) && (text(field) === words || text(field) === shown),
+    ) ?? null;
   // A field words are typed into: an input only where it takes text, not a checkbox or
   // a range, whose `value` is not words.
   const TYPED = new Set(["text", "search", "url", "email", "tel", "number"]);
@@ -110,6 +114,8 @@
     // This is the owner's declared input chain, not an arbitrary ancestor's `open`.
     editor: [...valueOwners(field)].find((owner) => owner.open === true) ?? null,
     close: null,
+    // The longer text the field last showed the words within, as a draft join makes.
+    shown: null,
   });
 
   // Applied or cancelled typing cannot put words away. An uncancelled native
@@ -311,7 +317,7 @@
     // A reading may be served before a write out at the time, or answered after a
     // later one, so it speaks of a draft only with nothing newer heard of its store,
     // and, with a write of it out, only of another document's words, which the page
-    // takes over that write as the server would (runtime/drafts.js). Another store's
+    // takes over that write as the server would (runtime/records/drafts.js). Another store's
     // versions order nothing against the one heard before it.
     /** @param {string} key @param {string} store @param {number} version @param {{attempt: string} | null} [held] */
     const current = (key, store, version, held = null) =>
@@ -472,7 +478,7 @@
   const judge = (field, held, source, replaced) => {
     const { words, typedOrder } = held;
     // Back by the time of judging: a re-render that put them straight back.
-    const heir = shownIn(words);
+    const heir = shownIn(held);
     if (heir) {
       holding.set(heir, held);
       watching();
@@ -551,6 +557,13 @@
         } else painting.delete(field);
         continue;
       }
+      // A field whose text grew around the words still shows them, as a draft that
+      // joins another tab's words does (runtime/records/drafts.js, `bothWords`).
+      if (drawn(field) && text(field).includes(held.words)) {
+        held.shown = text(field);
+        painting.delete(field);
+        continue;
+      }
       holding.delete(field);
       const operation = painting.get(field);
       painting.delete(field);
@@ -562,7 +575,7 @@
         drawn(field) &&
         text(field) === operation.value;
       const effectSource = matched ? operation.source : source;
-      const heir = shownIn(held.words);
+      const heir = shownIn(held);
       if (heir) holding.set(heir, held);
       else
         pending.set(field, {

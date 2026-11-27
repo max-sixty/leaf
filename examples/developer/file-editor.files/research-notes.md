@@ -13,10 +13,14 @@ warming the connection pool fix it?
 
 Most of it is TLS to the database proxy: 2.9 s of the 4.1 s in the trace from the
 second deploy. The proxy resolves its own upstream on the first connection, and
-that lookup has no cache until it succeeds once.
+that lookup has no cache until it succeeds once. The trace's spans, from the API pod:
+
+```bash
+kubectl logs deploy/api --since=10m | grep -E 'tls_handshake|first_request'
+```
 
 ## Open
 
 - Does the proxy's lookup cache survive a pod restart, or only a connection?
-- Warming at startup adds 700 ms to readiness. Is that worth it on every deploy,
-  or only for the API pods?
+- Warming saves $`4.1 - 0.64 \approx 3.5`$ s on each pod's first request and adds
+  700 ms to readiness. Is that worth it on every deploy, or only for the API pods?

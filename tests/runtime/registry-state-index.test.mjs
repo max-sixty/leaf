@@ -14,11 +14,11 @@ import test from "node:test";
 import {
   adoptRegistry,
   elementDeclarations,
-  layerFact,
   recordedWidgetSelector,
   registry,
+  sameRecord,
   stateSpecs,
-} from "/runtime/registry.js";
+} from "/runtime/state/registry.js";
 
 const load = (generation, declarations) => {
   for (const tag of Object.keys(registry)) delete registry[tag];
@@ -45,7 +45,7 @@ test("authoring selectors and shared facts never enter widget state", () => {
     },
     "lf-index-owner.selected": idiom,
     table: idiom,
-    ".lede": idiom,
+    ".lf-lede": idiom,
     $keys: {
       verbs: "State meanings.",
     },
@@ -114,12 +114,25 @@ test("a later generation inherits nothing from the index warmed before it", () =
   assert.equal(recordedWidgetSelector({ kind: "value", attr: "phase" }), "");
 });
 
-test("a layer fact is the registry's own value, which a module cannot change", () => {
+test("records that differ only in how the element keeps the value are one record", () => {
+  const phase = { kind: "value", attr: "phase" };
+  assert.ok(sameRecord(phase, { ...phase, property: "value", event: "sl-change" }));
+  assert.ok(!sameRecord(phase, { kind: "value", attr: "status" }));
+  assert.ok(!sameRecord(phase, { kind: "attribute", attr: "phase" }));
+  assert.ok(
+    !sameRecord(
+      { kind: "position", within: "lf-lane" },
+      { kind: "position", within: "lf-shelf" },
+    ),
+  );
+  assert.ok(sameRecord(undefined, undefined));
+  assert.ok(!sameRecord(phase, undefined));
+});
+
+test("a layer-wide declaration is frozen as the registry adopts it", () => {
   load("frozen", { $work: { widgets: { "lf-task": { role: "goal" } } } });
-  const work = layerFact("$work");
-  assert.equal(layerFact("$work"), work);
   assert.throws(() => {
-    work.widgets["lf-task"].role = "worker";
+    registry.$work.widgets["lf-task"].role = "worker";
   }, TypeError);
   assert.equal(registry.$work.widgets["lf-task"].role, "goal");
 });

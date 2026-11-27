@@ -1,0 +1,60 @@
+// Compiled from pointer.ts by build/typescript.mjs; edit that file.
+/* The user's pointer: the one unrounded position shared by hit-test consumers, and
+   whether it is a finger. */
+import { isNode } from "../lib/shadow-tree.js";
+let x = -1;
+let y = -1;
+
+// Read pointer events rather than legacy mouse events, whose client coordinates are
+// rounded away from the point the browser hit-tested. A snapshot keeps consumers from
+// becoming another writer of the position they read.
+const remember = (ev) => {
+  x = ev.clientX;
+  y = ev.clientY;
+};
+document.addEventListener("pointermove", remember, { capture: true });
+// A finger can arrive already down, with no preceding pointermove. The press is its
+// position too, and for a tap it is the only statement of it.
+document.addEventListener("pointerdown", remember, { capture: true });
+// A mouse that left the window stands over nothing in it, as `:hover` says once it
+// goes: the browser sends `pointerout` with nothing to relate it to. A finger's out,
+// after every lift, keeps its tap's position.
+document.addEventListener(
+  "pointerout",
+  (ev) => {
+    if (ev.pointerType === "mouse" && !ev.relatedTarget) x = y = -1;
+  },
+  { capture: true },
+);
+
+// Where the pointer stands, or -1 on each axis where it stands over nothing here.
+export const pointerAt = () => ({ x, y });
+
+// Whether the user's primary pointer is a finger, as the theme's `(pointer: coarse)`
+// rules ask it: the query itself, so a surface that follows a change can listen on it.
+export const coarsePointer = matchMedia("(pointer: coarse)");
+
+// Whether a press event was made by the keyboard rather than by the pointer, asked of
+// the event itself. A `click` with no click count is Enter or Space on the control, or
+// the page's own `element.click()` standing for one — a keyboard route — while every
+// mousedown, mouseup, dblclick and counted click follows a physical press. A mode that
+// captures presses across the whole document has to let the keyboard one through: it
+// belongs to the control it is on, whatever the pointer did a moment ago, and a mode
+// that eats it makes the control unreachable from the keyboard for as long as the claim
+// stands.
+export const pressIsKeyboardActivation = (event) =>
+  event.type === "click" && !event.detail;
+
+// An automatic revision activation replaces the document, not the user's pointer.
+// New input wins over a handoff captured by the departing document. A handoff from a
+// document whose runtime never started carries no pointer (features/version.js).
+export function restorePointer(point) {
+  if (x !== -1 || y !== -1 || !point) return;
+  if (!Number.isFinite(point.x) || !Number.isFinite(point.y)) return;
+  x = point.x;
+  y = point.y;
+}
+
+/** The DOM origin across shadow roots; a window-only event has no DOM source. */
+export const eventSource = (event) =>
+  event.composedPath().find((node) => isNode(node)) ?? null;

@@ -302,23 +302,22 @@ naming page media. `widgets-draw-as-written` measures the kinds it left out: a t
 playground (the case's primary context), a playground of candidates
 (`/playground-candidates`), a text document with a Markdown preview
 (`/text-document`), and a chart or a Mermaid diagram in a thread message
-(`/thread-chart`, `/thread-diagram`). `visual-change-uses-captures/review` does the
-same for a visual review, since that case holds the captures. `/dashboard` is the
-control: its charts are a kind plain check already runs. Each sample authors one page
-in one turn; `dev/leaf_dev/draw_failures.py` reads the executor's final
+(`/thread-chart`, `/thread-diagram`). `/dashboard` is the control: its charts are a
+kind plain check already runs. Each sample authors one page in one turn;
+`dev/leaf_dev/draw_failures.py` reads the executor's final
 `page check --render`, which opens every thread holding markup, and every check the
 author ran, for findings that say a widget or the page's code failed to run or draw.
 
 ```sh
-uv run leaf-dev eval run 'widgets-draw-as-written*' visual-change-uses-captures/review --harness claude-code --repeat 10 -j 2
-uv run leaf-dev eval run 'widgets-draw-as-written*' visual-change-uses-captures/review --harness codex --repeat 6 -j 2
+uv run leaf-dev eval run 'widgets-draw-as-written*' --harness claude-code --repeat 10 -j 2
+uv run leaf-dev eval run 'widgets-draw-as-written*' --harness codex --repeat 6 -j 2
 ```
 
-The runs authored at `73222dc97` with the cases of `371e34337`: 70 pages on Claude Code
-with Opus 5.5 (mean $0.41–1.77 a page by context) and 42 on Codex with Sol 6.1
-(medium). Codex samples' own checks are read since `ff445bcdc`, which keeps a
-`leaf` MCP call's output in the check log; before it, a Codex author's checks never
-reached the log, so earlier readings of "the author's own checks" undercount Codex.
+The runs authored at `73222dc97` with the cases of `371e34337`: 60 pages on Claude Code
+with Opus 5.5 and 36 on Codex with Sol 6.1 (medium). Codex samples' own checks are
+read since `ff445bcdc`, which keeps a `leaf` MCP call's output in the check log;
+before it, a Codex author's checks never reached the log, so earlier readings of "the
+author's own checks" undercount Codex.
 Every sample placed the widget its context asks for.
 
 | Kind                                | Claude Code: a check saw it fail / final page fails | Codex      | Authors who ran `--render` |
@@ -326,17 +325,15 @@ Every sample placed the widget its context asks for.
 | Tuning playground                   | 0 / 0 of 10                                         | 0 / 0 of 6 | 10 of 10; 0 of 6           |
 | Playground of candidates            | 0 / 0 of 10                                         | 0 / 0 of 6 | 7 of 10; 0 of 6            |
 | Text document with preview          | 0 / 0 of 10                                         | 0 / 0 of 6 | 2 of 10; 6 of 6            |
-| Visual review of supplied captures  | 0 / 0 of 10                                         | 0 / 0 of 6 | 10 of 10; 1 of 6           |
 | Chart in a thread message           | 0 / 0 of 10                                         | 0 / 0 of 6 | 1 of 10; 0 of 6            |
 | Mermaid diagram in a thread message | 0 / 0 of 10                                         | 0 / 5 of 6 | 5 of 10; 0 of 6            |
 | Control: charts on a dashboard page | 5 / 0 of 10                                         | 1 / 0 of 6 | 10 of 10; 6 of 6           |
 
 Measured:
 
-- None of the 64 pages with a playground, text document or visual review had the
-  widget fail to draw, at any check its author ran or on the final page (0 of 64,
-  0–6%). Authors wrote values on the step, choices that exist and focus rectangles
-  inside their captures; all 16 visual reviews set a focus rectangle.
+- None of the 48 pages with a playground or text document had the widget fail to
+  draw, at any check its author ran or on the final page (0 of 48, 0–7%). Authors
+  wrote values on the step and choices that exist.
 - 5 of 6 Codex thread messages holding a sequence diagram didn't draw (44–97%):
   each put a `;` in a `loop` label or a `Note`, which Mermaid reads as the end of a
   statement. None of those authors ran `--render`, and plain check never draws a
@@ -361,20 +358,16 @@ Measured:
   makes. Each read the gate's `words.js` to work out why, and rebuilt the drawing
   with `createElementNS`.
 
-Two harder contexts then tested whether those widgets hold up where the values are
+A harder context then tested whether the playground holds up where the values are
 easier to get wrong. `widgets-draw-as-written/playground-fine-steps` gives today's
 settings at values a round step skips (quality 0.82, sharpening 0.7 px, saturation
-1.15×, width 1,250 px), and `visual-change-uses-captures/review-scaled` states the
-captures at device scale 2, so a focus rectangle has to be in CSS pixels, half the
-image's own. All 40 drew (10 per context and harness; 0 of 104 with the plain
-contexts, 0–4%): every Claude Code author gave quality `step="0.01"`, and all 20
-reviews set a focus rectangle that fit the 600×350 capture. One Codex author's page
-script misused `generatedElement`, and its plain check, which runs any page with a
-script, caught it.
+1.15×, width 1,250 px). All 20 drew (10 per harness; 0 of 68 with the plain
+playground and text-document contexts, 0–5%), and every Claude Code author gave
+quality `step="0.01"`.
 
 ```sh
-uv run leaf-dev eval run widgets-draw-as-written/playground-fine-steps visual-change-uses-captures/review-scaled --harness claude-code --repeat 10 -j 2
-uv run leaf-dev eval run widgets-draw-as-written/playground-fine-steps visual-change-uses-captures/review-scaled --harness codex --repeat 10 -j 2
+uv run leaf-dev eval run widgets-draw-as-written/playground-fine-steps --harness claude-code --repeat 10 -j 2
+uv run leaf-dev eval run widgets-draw-as-written/playground-fine-steps --harness codex --repeat 10 -j 2
 ```
 
 Inferred, not measured: the thread results cover one request per widget, and the
@@ -386,7 +379,7 @@ Decision, made on this evidence:
   every failure its browser run caught came from a trigger it already has.
 - A thread message whose markup places a widget that criterion names is run once
   before it posts and refused on what the run reports (`bed5963ff`,
-  `render_gate/command.message_check`), reversing #1691 for those messages only.
+  `render_gate/messages.message_check`), reversing #1691 for those messages only.
   Reposting the 32 eval messages with it refused exactly the 5 that don't draw and
   posted the other 27, each in 1.3–1.9 s at a load of 10–20; markup without such a
   widget waits on no browser.
@@ -413,12 +406,12 @@ uv run leaf-dev eval run widgets-draw-as-written/thread-diagram widgets-draw-as-
 ```
 
 An earlier run of similar cases, from the closed #3901 at `f00911ed1`, agrees and
-adds two observations. In its `placed-widgets-draw` cases and a visual-review case,
-agents authored 41 samples on Claude Code (Opus 5.5) and 28 on Codex (Sol 6.1), and
-its grader counted a widget as failed only where the runtime posted an `error`
-event. No final page or message failed on that count: text documents 0 of 13
-(0–23%), markup-only playgrounds 0 of 9 (0–30%), visual reviews 0 of 13 (0–23%) and
-charts in thread messages 0 of 30 (0–11%), from 29 samples.
+adds an observation. In its `placed-widgets-draw` cases, agents on Claude Code
+(Opus 5.5) and Codex (Sol 6.1) authored the samples, and its grader counted a
+widget as failed only where the runtime posted an `error` event. No final page or
+message failed on that count: text documents 0 of 13 (0–23%), markup-only
+playgrounds 0 of 9 (0–30%) and charts in thread messages 0 of 30 (0–11%), from 29
+samples.
 
 - 2 of 29 thread-chart samples (7%, 2–22%) had a chart draft that failed while its
   author wrote it, both found by the 4 Claude Code authors who drew their chart on
@@ -431,11 +424,6 @@ charts in thread messages 0 of 30 (0–11%), from 29 samples.
   would refuse the message. #3901 reported no other NaN drawing, so a scan for NaN
   after the chart draws, which #3923's branch had and its merge dropped, would
   catch nothing these runs show.
-- Asked for "a Leaf visual review", 3 of 3 Claude Code authors (44–100%) paired the
-  captures in `lf-shot` rather than `lf-visual-review`. #3901 then named the package
-  in the prompt, as `visual-change-uses-captures/review` does, so the visual-review
-  rates in both runs measure whether the widget draws once chosen, not whether
-  authors find it.
 
 `dev/tests/browser/test_draw_failures.py` is #3901's control for the grader: a
 playground control at `value="40"` over `max="24"` passes plain `page check`
@@ -452,8 +440,8 @@ agent that has handed a page over acts on findings that arrive afterwards.
 
 **How long `page check --render` takes.** Each catalog example and the render corpus
 was built with this checkout and the command timed, launcher included, plain and
-with `--render`, under `LEAF_RENDER_VIEWPORT=fixed`, on the shared Mac; the eval
-pages were the saved final pages, re-vendored. One run per example:
+with `--render`, under `LEAF_RENDER_VIEWPORT=fixed`, on the shared Mac. One run per
+example:
 
 ```sh
 LEAF_RENDER_VIEWPORT=fixed uv run python - <<'PY'
@@ -475,16 +463,14 @@ for source in catalog_sources():
 PY
 ```
 
-| Pages, 1-minute load                                 | `--render`, median (p10–p90) | Plain, no browser run | Plain with the page-code run |
-| ---------------------------------------------------- | ---------------------------- | --------------------- | ---------------------------- |
-| 17 catalog examples, 3 runs each, load 6–10          | 7.0 s (5.3–11.6)             | 0.20 s (18 runs)      | 0.99 s (33 runs)             |
-| 17 catalog examples, 2 runs each, load 10–22         | 8.1 s (6.0–12.5)             | 0.23 s (12)           | 1.21 s (22)                  |
-| 70 final pages from `widgets-draw-as-written`, 14–39 | 7.7 s (6.2–11.1)             | 0.29 s (42)           | 1.28 s (28)                  |
-| The render corpus, 2 runs, 12–18                     | 384 s                        | —                     | 15.6 s                       |
+| Pages, 1-minute load                         | `--render`, median (p10–p90) | Plain, no browser run | Plain with the page-code run |
+| -------------------------------------------- | ---------------------------- | --------------------- | ---------------------------- |
+| 17 catalog examples, 3 runs each, load 6–10  | 7.0 s (5.3–11.6)             | 0.20 s (18 runs)      | 0.99 s (33 runs)             |
+| 17 catalog examples, 2 runs each, load 10–22 | 8.1 s (6.0–12.5)             | 0.23 s (12)           | 1.21 s (22)                  |
+| The render corpus, 2 runs, 12–18             | 384 s                        | —                     | 15.6 s                       |
 
-By context, eval pages took 6.5 s (text documents, thread pages) to 11.1 s (visual
-reviews), and the slowest example, `pr-walkthrough`, 15 s. At the lower load the
-check took about 1 s less; no run was on an idle machine.
+The slowest example, `pr-walkthrough`, took 15 s. At the lower load the check took
+about 1 s less; no run was on an idle machine.
 
 **Whether agents act on findings delivered after handover.**
 `document/render-after-handover` hands the agent `evals/usability/fixtures/cutover.html`,
@@ -566,7 +552,7 @@ weigh the advice.
 
 ## The render pass, 2026-11-05
 
-The pass is built in `src/leaf/render_gate/handover_pass.py`, whose header holds its
+The pass is built in `src/leaf/serving/handover_pass.py`, whose header holds its
 contract and its cost. These runs scored it against the merge base, where the driver's
 `render` move posts the same findings as the page's `error`:
 
@@ -940,7 +926,7 @@ beside a mostly empty decision column.
 The browser user's passage selection picked the contents outline's copy of a
 heading, which Leaf echoes from the heading and offers no comment route for, and
 the sample failed. `eval_user.py` now selects only words in the page's own reading
-(`pageText`, passages.js), the words a comment can anchor to: tab labels and board
+(`pageText`, readings/passages.js), the words a comment can anchor to: tab labels and board
 column headings stay selectable, and Leaf's chrome and echoed copies don't.
 
 The dashboard comment fell back to a whole-page comment wherever the follow-ups

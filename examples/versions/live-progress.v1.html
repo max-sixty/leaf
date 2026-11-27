@@ -57,27 +57,27 @@
   <body>
     <main class="layout-column">
       <h1>Checkout v2 release</h1>
-      <p class="lede" id="lp-lede">
+      <p class="lf-lede" id="lp-lede">
         The production canary has reached 10%. Customer checkout is healthy while
         release checks collect enough evidence for the next traffic increase.
       </p>
 
       <div class="layout-tiles" id="lp-status">
-        <dl id="lp-k-traffic" class="metric">
+        <dl id="lp-k-traffic" class="lf-metric">
           <dt>candidate traffic</dt>
           <dd><strong>10%</strong></dd>
         </dl>
-        <dl id="lp-k-checks" class="metric">
+        <dl id="lp-k-checks" class="lf-metric">
           <dt>checks passing</dt>
           <dd><strong>2 of 5</strong></dd>
         </dl>
-        <dl id="lp-k-observed" class="metric">
+        <dl id="lp-k-observed" class="lf-metric">
           <dt>last observation</dt>
           <dd><strong>14:22:24</strong></dd>
         </dl>
       </div>
 
-      <aside class="callout" id="lp-current-state">
+      <aside class="lf-callout" id="lp-current-state">
         <strong>Canary running at 10%</strong>
         The candidate is serving production checkout traffic. Error rate and latency
         pass; order, finance-export, and rollback comparisons are still collecting.
@@ -163,7 +163,7 @@
 
       <section id="lp-release">
         <h2>Release</h2>
-        <dl class="facts" id="lp-release-facts">
+        <dl class="lf-facts" id="lp-release-facts">
           <dt>Environment</dt>
           <dd>Production</dd>
           <dt>Candidate</dt>
@@ -176,24 +176,24 @@
         <h3 id="lp-steps-heading">Release steps</h3>
         <ol id="lp-release-steps">
           <li id="lp-step-build">
-            <small class="tag ok">done · 14:18</small>
+            <small class="lf-tag ok">done · 14:18</small>
             <strong>Build and verify the candidate</strong> Image signed and provenance
             recorded.
           </li>
           <li id="lp-step-canary">
-            <small class="tag warn">active · now</small>
+            <small class="lf-tag warn">active · now</small>
             <strong>Expand the canary</strong> Candidate serving 10% of production
             checkout traffic.
           </li>
           <li id="lp-step-checks">
-            <small class="tag">planned</small>
+            <small class="lf-tag">planned</small>
             <strong>Pass release checks</strong> Three comparisons are still collecting.
           </li>
           <li id="lp-step-promote">
-            <small class="tag">planned</small> <strong>Expand to 100%</strong>
+            <small class="lf-tag">planned</small> <strong>Expand to 100%</strong>
           </li>
           <li id="lp-step-observe">
-            <small class="tag">planned</small> <strong>Observe and complete</strong>
+            <small class="lf-tag">planned</small> <strong>Observe and complete</strong>
           </li>
         </ol>
         <details id="lp-release-notes">

@@ -1,7 +1,19 @@
-/* Trees owns row rendering and its scoped stylesheet. Leaf owns the empty state
- * and the surrounding theme tokens, inherited by the one declared shadow stage. */
-:host(lf-file-tree) [data-file-tree-virtualized-scroll] {
-  --lf-holds-height: 1;
+/* The navigator's container, which Trees draws in, with the empty state standing in
+ * the frame when there are no rows. Trees owns the rows' look and its scoped
+ * stylesheet in the container's own shadow root; Leaf owns the empty state and the
+ * theme tokens that root inherits. */
+:host(lf-file-tree) .lf-file-tree {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-block-size: 0;
+}
+:host(lf-file-tree) .lf-file-tree-rows {
+  flex: 1;
+  min-block-size: 0;
+}
+:host(lf-file-tree) .lf-file-tree-rows[hidden] {
+  display: none !important;
 }
 :host(lf-file-tree) .lf-file-tree-empty {
   margin: 0;
@@ -13,20 +25,24 @@
   place-items: center;
   pointer-events: none;
 }
-:host(lf-file-tree) .lf-file-tree-empty[hidden] {
-  display: none;
+:host(.lf-file-tree-rows) [data-file-tree-virtualized-scroll] {
+  --lf-holds-height: 1;
 }
 /* Rows touch one another and their viewport clips at either edge. Draw Leaf's
  * one actual-focus ring inside the row instead of adding it around Trees' ring. */
-:host(lf-file-tree) [role="treeitem"] {
+:host(.lf-file-tree-rows) [role="treeitem"] {
   --lf-ring-at: var(--lf-focus-ring-inset);
 }
-:host(lf-file-tree) [role="treeitem"][data-lf-focus]::before {
+:host(.lf-file-tree-rows) [role="treeitem"][data-lf-focus]::before {
   display: none;
 }
-/* Trees' search field stands 1px below the top of the same clipping viewport, so no
- * outside ring fits: its ring stands one band inside its edge, over the border it
- * replaces. */
-:host(lf-file-tree) [data-file-tree-search-input] {
+/* Trees' search field stands at the top of the same clipping viewport, under the line
+ * its pane draws over the tree, which Trees' 1px margin left it all but touching. The
+ * row gap Trees keeps under the field, kept above it too, stands it clear of that
+ * line. Its ring stands one band inside its edge, over the border it replaces. */
+:host(.lf-file-tree-rows) [data-file-tree-search-container] {
+  padding-block-start: var(--trees-item-row-gap);
+}
+:host(.lf-file-tree-rows) [data-file-tree-search-input] {
   --lf-ring-at: var(--lf-focus-ring-inset);
 }

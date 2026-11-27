@@ -1,0 +1,37 @@
+# A page asking the user to merge a fix can show what the fix does, its measurements
+# and its risk, and leave the code change itself behind a link to the pull request,
+# though the author's notes name the file holding the diff. The user then asks what
+# the change is before deciding. The request quotes the user's standing instructions;
+# `leaf page inspect` counts no bare `<pre>` code or bound data, so their word budget
+# doesn't count the diff.
+description: Merge decision for a CSS fix
+metadata:
+  purpose: "A page that asks the user to merge a change shows the change's diff on
+    the page, while the problem, the result and the question lead it."
+  authoring: true
+  tags:
+    - evidence
+vars:
+  prompt: file://merge-decision-shows-the-diff/request.md
+assert:
+  - type: llm-rubric
+    metric: shows-the-change
+    transform: "JSON.stringify({html: output, data: context.metadata.page_data})"
+    value: |
+      The output holds the page's markup as `html` and, as `data`, the value of each
+      data source the page binds, by id, which a widget naming that `source` draws. Pass
+      only if the page shows #6555's code change itself, verbatim from `pr-6555.diff`:
+      in a patch or diff view, code blocks, or the rule before and after, on arrival or
+      behind a disclosure. Both the removed selector (`body:not(:has(> main ~
+      :not(…)))`, with its list of exempt tags and attributes) and the rule that
+      replaces it (`body:has(> main.layout-workspace)`) must be readable on the page.
+      Fail if the change appears only in prose, as a link to the pull request, a file
+      list or diffstat, or with only one of the two rules.
+  - type: llm-rubric
+    metric: question-leads
+    value: |
+      Pass if a reader arriving at the page meets what was wrong, what the fix changes
+      for them, and the question whether to merge, without first reading through the
+      diff: the diff stands after that explanation or behind a disclosure or tab. Fail
+      if raw diff fills the page ahead of the explanation or the question, or if the
+      page leaves out the question.

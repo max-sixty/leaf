@@ -21,10 +21,9 @@ user's move. `tests/*/test_interact_document.py` exercises both that case and la
 revisions that must retain the recorded order.
 
 Some state units identify external records rather than elements: `lf-diff` uses file
-paths and `lf-visual-review` uses case ids. Their declarations name a detail field as
-the unit, without declaring which source owns that record. `direct_dependencies`
-includes the unit among identities; `action_rests_on` retains identities contained by
-the owner. A typed record unit remains a possible way to state that distinction.
+paths. Its declaration names a detail field as the unit, without declaring which
+source owns that record. `direct_dependencies` includes the unit among identities;
+`action_rests_on` retains identities contained by the owner. A typed record unit remains a possible way to state that distinction.
 
 ## Remaining proposal
 

@@ -24,6 +24,7 @@ from render_harness import (
     INLINE_PAGE,
     PASSAGE_SOURCES,
     RELEASE_FOCUS,
+    WORDS_RANGE,
     command_reference_rows,
     compare_with,
     consume_browser_errors,
@@ -45,17 +46,17 @@ from render_harness import (
 )
 
 from journeys import detached_threads, listed_threads
-from leaf import anchor_capture as anchor_capture_model
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import passages as passages_model
-from leaf import service as service_model
-from leaf import structure as structure_model
-from leaf.registry.storage import read_page_registry
-from leaf.render_checks import rendered, wait_until_ready
-from leaf_dev.browser import PANEL_THREAD
+from leaf.agents import delivery as delivery_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
+from leaf.records import transaction as transaction_model
+from leaf.source import anchor_capture as anchor_capture_model
+from leaf.source import passages as passages_model
+from leaf.source import structure as structure_model
+from leaf.source.render_checks import rendered, wait_until_ready
+from leaf.source.vocabulary import read_page_registry
+from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 from leaf_dev.example_data import named_source, patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -105,7 +106,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
         const {TEXT_BLOCK} = await window.__lfCheckApi();
         const {anchorForRange, resolveAnchor} =
             await window.__lfCheckApi();
-        const {nextRender} = await window.__lfWidgetApi();
+        const {nextRender} = await window.__lfLibImport('frame-pass.js');
         const {renderingState} = await window.__lfCheckApi();
         const tick = () => new Promise(r => setTimeout(r, 0));
         const rendered = async () => {
@@ -192,7 +193,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
             const resolved = resolveAnchor(anchor);
             // A cross-cell selection remains a real native selection and a writable
             // comment. It must not acquire an exact semantic highlight by ignoring
-            // the same fences file capture respects. Generated wordless faces and
+            // the reading's fences. Generated wordless faces and
             // identified data can also retain an element fallback.
             if (!resolved?.exact || resolved.kind !== 'passage') {
                 nonexact.push(anchor);
@@ -250,15 +251,17 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
     }"""
     )
     # Refusing a highlight needs evidence independent of browser resolution. A
-    # regression that detaches ordinary file-readable prose must fail this sweep.
+    # regression that detaches prose the file's reading says once must fail this sweep.
     passages = passages_model.page_passages(
         structure_model.SourceDocument((serve.page_dir / "index.html").read_text()),
         read_page_registry(serve.page_dir).registry,
     )
     for anchor in result["nonexact"]:
-        located = {key: value for key, value in anchor.items() if key != "detached"}
-        assert anchor_capture_model.resolve_quote(passages, located) is None, (
-            f"{source.stem}: browser detached a file-readable passage: {anchor}"
+        found = anchor_capture_model.copies(
+            passages, anchor["quote"], anchor.get("section")
+        )
+        assert len(found) != 1, (
+            f"{source.stem}: browser detached a passage the file says once: {anchor}"
         )
     assert result["attempted"] > 0, f"{source.stem}: the passage sweep found nothing"
     assert result["missed"] == [], (
@@ -282,8 +285,9 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
 
     A numbered widget and both ordinary block shapes share the same gesture.
     The retained widget's Copy returns after a hidden widget is detached and
-    reconnected. The control stays reachable beside horizontally scrolling code,
-    and a revision updates its source or removes it without duplicating controls.
+    reconnected. The control stays reachable beside code that keeps its lines and
+    scrolls them sideways, and a revision updates its source or removes it without
+    duplicating controls.
     """
     colored = '\n  print("' + "long source " * 30 + '")\t\n'
     suffix = "VISIBLE_END"
@@ -295,7 +299,8 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
             "copy source",
             '<h1 id="title">Copy source</h1>'
             + (
-                '<pre id="colored" style="anchor-name: --authored-colored, --authored-secondary">'
+                '<pre id="colored" style="white-space: pre; '
+                'anchor-name: --authored-colored, --authored-secondary">'
                 '<code class="language-python">'
                 + escape(colored_source)
                 + "</code></pre>"
@@ -309,7 +314,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
             + escape(widget)
             + "</code></pre></lf-code>"
             + '<lf-draft id="draft"><pre>A draft copies its own Markdown.</pre></lf-draft>',
-            head="<style>#plain { anchor-name: --authored-plain; }"
+            head="<style>#plain { anchor-name: --authored-plain; white-space: pre; }"
             "#numbered.lf-rendered > pre { anchor-name: --authored-numbered; }</style>",
         )
 
@@ -447,7 +452,7 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     pre.focus()
     page.keyboard.press("ArrowRight")
     page.wait_for_function("document.querySelector('#colored').scrollLeft > 0")
-    scroll_settled(page)
+    scroll_settled(page, "#colored", axis="x")
     after = control.bounding_box()
     block = pre.bounding_box()
     assert after and block
@@ -565,16 +570,15 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
         )
     cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})
     touch.wait_for_function("document.querySelector('#plain').scrollLeft > 0")
-    scroll_settled(touch)
+    scroll_settled(touch, "#plain", axis="x")
     touch_pre.evaluate("pre => pre.scrollLeft = pre.scrollWidth")
 
     def suffix_uncovered():
         reading = touch_pre.evaluate(
             """(pre, suffix) => {
-          const text = pre.querySelector('code').firstChild;
-          const range = new Range();
-          range.setStart(text, text.length - suffix.length);
-          range.setEnd(text, text.length);
+          const range = ("""
+            + WORDS_RANGE
+            + """)(pre.querySelector('code'), suffix, true);
           const rect = range.getBoundingClientRect();
           const copy = document.querySelector('.lf-chrome .lf-code-copy');
           const hit = document.elementFromPoint(rect.right - 2, rect.top + rect.height / 2);
@@ -601,10 +605,11 @@ def test_code_copy_keeps_source_and_stays_beside_scrolling_and_revised_blocks(
     # characters are readable and take presses on arrival, before any tap.
     fitting = touch_pre.evaluate(
         """(pre, suffix) => {
-          const code = pre.querySelector('code');
+          const first = document.createTreeWalker(pre.querySelector('code'),
+            NodeFilter.SHOW_TEXT).nextNode();
           const range = new Range();
-          range.setStart(code.firstChild, 0);
-          range.setEnd(code.firstChild, 1);
+          range.setStart(first, 0);
+          range.setEnd(first, 1);
           const width = range.getBoundingClientRect().width;
           const style = getComputedStyle(pre);
           const available = pre.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight);
@@ -670,7 +675,9 @@ def test_the_menu_runs_in_descending_number_order_past_v9(browser, serve):
     # to once the ordering has decided it.
     presses = versions.locator(".lf-fp-compare")
     expect(presses).to_have_count(9)
-    expect(presses.first).to_have_attribute("aria-label", "Compare with v9")
+    expect(presses.first).to_have_attribute(
+        "aria-label", re.compile(r"\bCompare with v9\b")
+    )
     page.locator(".lf-fp-leaf").click()
     compare_with(page)
     expect(page.locator(".lf-fp-row")).to_contain_text("since v9")
@@ -716,7 +723,7 @@ diff --git a/README.md b/README.md
 -Routes by legacy key.
 +Routes by token.
 """
-    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
     page = open_page(browser, url)
     page.wait_for_function(
         "() => document.querySelector('lf-diff.lf-rendered') !== null"
@@ -747,7 +754,7 @@ diff --git a/README.md b/README.md
     details.evaluate(
         "element => { element.open = false; window.__lfDiffDetails = element; }"
     )
-    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
     told(page)
     assert details.evaluate("element => element === window.__lfDiffDetails")
     expect(details).not_to_have_attribute("open", "")
@@ -801,9 +808,9 @@ diff --git a/README.md b/README.md
     write(input_, "Review the whole added line.")
     input_.evaluate("input => input.setSelectionRange(7, 16)")
     page.evaluate(
-        """async () => {
-          const {threadSurface} = await window.__lfWidgetApi();
-          threadSurface(document.querySelector('#patch')).update();
+        """() => {
+          document.querySelector('#patch').dispatchEvent(
+            new CustomEvent('lf-layout', {bubbles: true, composed: true}));
         }"""
     )
     expect(input_).to_be_focused()
@@ -859,8 +866,15 @@ diff --git a/README.md b/README.md
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(1)
     page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
     expect(added).not_to_be_in_viewport()
-    # The thread's view goes to the line it quotes with Show on page.
+    # The thread's view goes to the line it quotes with Show on page. Its row in
+    # Threads brings the line into view as it opens the view, so the search hides it
+    # again first.
     first_thread_head(page, serve.page_dir)
+    expect(search).to_have_value("")
+    search.fill("nothing-matches")
+    expect(added).to_be_hidden()
+    page.evaluate("() => document.scrollingElement.scrollTo(0, 0)")
+    expect(added).not_to_be_in_viewport()
     page.locator(".lf-fp-head").get_by_role("button", name="Show on page").click()
     expect(search).to_have_value("")
     expect(added).to_be_in_viewport()
@@ -869,10 +883,9 @@ diff --git a/README.md b/README.md
     expect(inline).to_have_count(1)
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(0)
     panel_settled(page, open=False)
-    # It lands in the thread's reply there, as the field it left was; Escape steps out
-    # onto the thread, so the line can be selected.
-    expect(inline.locator(".lf-thread-reply leaf-text")).to_be_focused()
-    page.keyboard.press("Escape")
+    # Show on page chose cards for threads, so it lands on the thread there, where the
+    # panel's field shows that choice's notice (records/thread/focus.js, `openingPart`).
+    expect(inline.locator(".lf-page-thread")).to_be_focused()
 
     selected = added.evaluate(
         """line => {
@@ -947,7 +960,7 @@ diff --git a/README.md b/README.md
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
 
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         """diff --git a/app.py b/app.py
@@ -983,7 +996,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
         "</lf-diff>",
     )
     url = serve(authored)
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         """diff --git a/app.py b/app.py
@@ -1029,7 +1042,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     inline_status.evaluate("node => { node.dataset.identityProbe = 'inline'; }")
     panel_status.evaluate("node => { node.dataset.identityProbe = 'panel'; }")
     record_claim(serve.page_dir)
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(transaction, [root])
     told(page)
     expect(inline_status).to_have_text("Delivered")
@@ -1052,9 +1065,11 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     expect(panel_status).to_have_count(0)
 
     # The keyboard reaches the seat directly and through the comment note, without
-    # opening the thread in the panel.
+    # opening the thread in the panel, once the tab opens threads beside their
+    # passages again: opening the panel's view chose the panel for them.
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
+    choose_threads_in_panel(page, on=False)
     page.keyboard.press("t")
     expect(thread).to_be_focused()
     expect(page.locator(PANEL_THREAD)).to_have_count(0)
@@ -1139,12 +1154,12 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     strip = thread.locator(f'.lf-msg[data-lf-event="{reply["id"]}"] .lf-react-strip')
     thread.locator(f'.lf-msg[data-lf-event="{reply["id"]}"] .lf-react-trigger').click()
     with sending(page, "the inline reaction"):
-        strip.locator('.lf-react[data-lf-token="change"]').click()
+        strip.locator('.lf-react[data-lf-emoji="❌"]').click()
     reacted = events_model.read_events(serve.page_dir)[-1]
-    assert (reacted["kind"], reacted["parent"], reacted["token"]) == (
+    assert (reacted["kind"], reacted["parent"], reacted["emoji"]) == (
         "reply",
         reply["id"],
-        "change",
+        "❌",
     )
 
     # Resolve is the thread's own control, reached by the keyboard like any other.
@@ -1154,7 +1169,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
         page.keyboard.press("Enter")
     resolved = page.locator("lf-diff .lf-resolved-threads")
     summary = resolved.locator(":scope > summary")
-    expect(summary).to_have_text("Resolved · 1")
+    expect(summary).to_have_text("Resolved · Keep this check beside the changed line")
     expect(summary).to_be_focused()
     expect(thread.locator(".lf-msg").first).to_be_hidden()
     summary.click()
@@ -1202,7 +1217,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
     )
     url = serve(leaf_page("diff patch table", f'<h1 id="cases">Cases</h1>{markup}'))
     for case in [*accepted, *stored]:
-        data_model.cmd_data_set(
+        page_data_model.cmd_data_set(
             serve.page_dir, f"files-{case['id']}", patch_manifest(case["patch"])
         )
     page = open_page(browser, url)
@@ -1732,3 +1747,19 @@ def test_a_revised_example_travels_between_its_own_versions(browser, serve):
     ).to_contain_text("v1")
     page.locator(".lf-fp-leaf").click()
     expect(page.locator("#ret-cost-keep")).to_have_count(0)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize(
+    ("source", "words"),
+    [("extending", "window The workspace"), ("how-it-works", "there The quote")],
+)
+def test_page_search_reads_a_docs_captions_title_apart_from_its_text(
+    engine, source, words, request, serve
+):
+    """A figure caption in the product docs draws its title on a line of its own above
+    its text, and page search finds the title's last word and the text's first apart."""
+    page = open_page(request.getfixturevalue(engine), serve(named_source(source)))
+    page.keyboard.press("/")
+    page.get_by_role("searchbox", name="Search page text").fill(words)
+    expect(page.locator(".lf-page-search-status")).to_have_text("1 of 1")

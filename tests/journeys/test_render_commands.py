@@ -3,12 +3,19 @@
 import hashlib
 import json
 import os
+import re
 import shutil
 import subprocess
 from pathlib import Path
 
 import pytest
-from browser.test_render_commands import FILM_DECLARATION, FILM_PAGE, unnamed_browser
+from browser.test_render_commands import (
+    FILM_DECLARATION,
+    FILM_PAGE,
+    no_browser,
+    restate,
+    unnamed_browser,
+)
 from conftest import LEAF_COMMAND
 from interact_support import (
     append_carried_log_record,
@@ -30,12 +37,14 @@ from render_harness import (
     LONG_PAGE,
     example_media,
     leaf_page,
+    open_page,
+    reported_browser_errors,
 )
 
-from leaf import render_checks as render_checks_model
-from leaf import user_views
-from leaf.render_gate.command import PIN_VARIABLE
-from leaf.render_gate.page_code import run_page_code
+from leaf.pages.render_gate.command import PIN_VARIABLE
+from leaf.pages.render_gate.page_code import run_page_code
+from leaf.serving import user_views
+from leaf.source import render_checks as render_checks_model
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -71,12 +80,22 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
 
     ok = gate()
     assert ok.returncode == 0, ok.stdout + ok.stderr
-    assert json.loads(ok.stdout)["browser"]["browser"] == "Chrome"
+    clean = json.loads(ok.stdout)
+    assert clean["browser"]["browser"] == "Chrome"
+    # Chrome raises DevTools issues the suite's headless shell never does, such as one
+    # for a form field with neither an id nor a name. The page check reports each as
+    # the page's, so Leaf's own panel and fields must raise none.
+    assert not [f for f in clean["findings"] if f["code"] == "devtools-issue"], clean
 
-    # A vw width slips the static lint (which counts only px) and overflows only
-    # in a layout engine.
+    # A box that cuts off its own words passes the static lint, and only a layout
+    # engine sees the words it loses.
     (d / "index.html").write_text(
-        LONG_PAGE.replace("</main>", "<div style='width:150vw'>wide</div>\n</main>")
+        LONG_PAGE.replace(
+            "</main>",
+            "<div id='short-box' style='height: 3rem; overflow: hidden'>"
+            "<p>First of three.</p><p>Second of three.</p><p>Third of three.</p>"
+            "</div>\n</main>",
+        )
     )
     broken = gate()
     assert broken.returncode == 1, broken.stderr
@@ -84,9 +103,9 @@ def test_check_render_refuses_what_only_a_browser_can_see(serve):
     assert report["status"] == 1
     assert report["browser"]["asked"] == report["browser"]["ran"] == ["render check"]
     assert report["browser"]["browser"] == "Chrome"
-    [scrolls] = [f for f in report["findings"] if f["code"] == "page-scrolls"]
-    assert scrolls["widths"] == [360, 1920], report
-    assert scrolls["severity"] == "error" and scrolls["values"]["past"] > 0, scrolls
+    [cut] = [f for f in report["findings"] if f["code"] == "clipped-content"]
+    assert cut["widths"] == [360, 1920], report
+    assert cut["severity"] == "error" and cut["values"]["down"] > 0, cut
     screens = report["browser"]["screens"]
     into = Path(screens["directory"])
     names = {screen["file"] for screen in screens["files"]}
@@ -141,6 +160,7 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
             "widget": "ship",
             "action": "choose",
             "detail": {"value": ["ship-now"]},
+            "answered": True,
         },
     )
     append_carried_log_record(
@@ -272,7 +292,7 @@ def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
         env=named,
     )
     assert checked.returncode == 0, checked.stdout + checked.stderr
-    unavailable = json.loads(checked.stdout)["browser"]["unavailable"]
+    unavailable = no_browser(json.loads(checked.stdout))
     assert unavailable.startswith("no browser launched: ")
     assert "LEAF_BROWSER_EXECUTABLE" in unavailable and str(missing) in unavailable
     assert "Chrome did not launch" not in unavailable
@@ -286,7 +306,7 @@ def test_a_named_browser_that_is_not_one_names_the_variable(serve, tmp_path):
             env=unnamed_browser() | {variable: str(missing)},
         )
         assert answered.returncode == 0, answered.stdout + answered.stderr
-        unavailable = json.loads(answered.stdout)["browser"]["unavailable"]
+        unavailable = no_browser(json.loads(answered.stdout))
         assert variable in unavailable and str(missing) in unavailable
         assert "LEAF_BROWSER_EXECUTABLE" not in unavailable
 
@@ -305,7 +325,16 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
     page_dir = tmp_path / "state" / "page"
 
     init = subprocess.run(
-        [launcher, "page", "init", "--package", "diagram", page_dir],
+        [
+            launcher,
+            "page",
+            "init",
+            "--package",
+            "reading",
+            "--package",
+            "diagram",
+            page_dir,
+        ],
         cwd=elsewhere,
         capture_output=True,
         text=True,
@@ -322,7 +351,7 @@ def test_an_installed_payload_passes_its_real_browser_gate(tmp_path, headless_sh
     assert vocabulary.returncode == 0, vocabulary.stderr
     installed_registry = json.loads(vocabulary.stdout)
     assert "lf-diagram" in installed_registry
-    assert installed_registry["$layer"]["packages"] == ["diagram"]
+    assert installed_registry["$layer"]["packages"] == ["reading", "diagram"]
     (page_dir / "index.html").write_text(named_source("release-notes").read_text())
     shutil.copytree(example_media(), page_dir / "media", dirs_exist_ok=True)
     stamp = subprocess.run(
@@ -469,8 +498,8 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
         assert ran.returncode == status, ran.stdout + ran.stderr
         return json.loads(ran.stdout)
 
-    no_browser = check(0, LEAF_BROWSER_EXECUTABLE=str(tmp_path / "not-a-browser"))
-    assert no_browser["browser"] is None
+    unbrowsed = check(0, LEAF_BROWSER_EXECUTABLE=str(tmp_path / "not-a-browser"))
+    assert unbrowsed["browser"] is None
 
     (d / "index.html").write_text(FILM_PAGE)
     broken = check(1, LEAF_BROWSER_EXECUTABLE=headless_shell)
@@ -490,7 +519,7 @@ def test_plain_check_runs_the_code_a_page_authored(serve, tmp_path, headless_she
 
     unrun = check(0, LEAF_BROWSER_EXECUTABLE=str(tmp_path / "not-a-browser"))
     assert (unrun["browser"]["asked"], unrun["browser"]["ran"]) == (["page code"], [])
-    assert unrun["browser"]["unavailable"].startswith("no browser launched: ")
+    assert no_browser(unrun).startswith("no browser launched: ")
 
     (d / "page" / "film.js").write_text(
         "export const paint = (el, step) =>\n"
@@ -522,12 +551,11 @@ from render_harness import (
     SAMPLE_MARKUP,
     SAMPLE_TEXT,
     consume_browser_errors,
-    open_page,
     primed,
 )
 
-from leaf import event_log as events_model
-from leaf.render_gate import version as render_gate_model
+from leaf.log import event_log as events_model
+from leaf.pages.render_gate import version as render_gate_model
 
 
 @pytest.mark.shifts_unsurveyed
@@ -540,7 +568,7 @@ def test_render_reads_widget_chrome_where_it_stands(
     comment on it, and got nothing back — twice, months apart, on the same page. The
     heading was the page's word in a row its author had marked as the runtime's, and
     `.lf-ui` is a look rather than a permission, so the class alone can't be the answer:
-    the declaration goes on the label (control-labels.js), and an undeclared word under chrome is
+    the declaration goes on the label (dom/control-labels.js), and an undeclared word under chrome is
     reported. It is about a word the user was shown, so the check asks that first: a
     word the browser reads out and the page never paints is hidden with [hidden], the
     silence available in every root, and the same word shown is still reported. A
@@ -692,6 +720,8 @@ def test_a_widget_that_fails_in_a_message_is_refused_where_a_browser_draws_it(
                 "thread",
                 "create",
                 str(d),
+                "--title",
+                "Chart check",
                 "--text",
                 'See this.\n\n<lf-chart id="t-bad">\n<pre>\n{ marks: [ }\n</pre></lf-chart>',
             ],
@@ -818,12 +848,18 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     expect(comparison).to_have_attribute("position", "0")
     comparison.evaluate("node => { node.position = 50; }")
     view = page.locator("lf-shot").get_by_role("radio", name="Slider", exact=True)
-    # A second finger does not replace the primary contact's input destination.
+    # A second finger does not replace the primary contact's input destination. It
+    # lands on the handle, since Web Awesome drags the divider to wherever a press
+    # starts.
     view.focus()
-    handle.evaluate("""handle => handle.dispatchEvent(new PointerEvent('pointerdown', {
-      bubbles: true, composed: true, pointerId: 98, pointerType: 'touch',
-      isPrimary: false, button: 0
-    }))""")
+    handle.evaluate("""handle => {
+      const box = handle.getBoundingClientRect();
+      handle.dispatchEvent(new PointerEvent('pointerdown', {
+        bubbles: true, composed: true, pointerId: 98, pointerType: 'touch',
+        isPrimary: false, button: 0,
+        clientX: box.left + box.width / 2, clientY: box.top + box.height / 2,
+      }));
+    }""")
     expect(view).to_be_focused()
     handle.click()
     expect(handle).to_be_focused()
@@ -874,6 +910,129 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
         " parseFloat(getComputedStyle(node).outlineWidth)"
     )
     assert width > 0
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_shot_keeps_inspection_across_replaced_captures_and_their_refusals(
+    request, serve, engine
+):
+    """A live shot whose captures and facts a script replaces keeps the reader's
+    inspection: the focused control, the view, the divider and 100%. A pair shot at two
+    viewports, or a focus outside its captures, is refused in the shot with focus kept,
+    and correcting it shows the new pair at its new size, in Firefox too, whose decode
+    of a reused image can be stale. In Pixels the old mask stays whole until the new
+    one is encoded, and a refusal arriving meanwhile leaves it alone."""
+    browser = request.getfixturevalue(engine)
+    large = [
+        solid_png(1200, 1000, colour) for colour in ((220, 230, 240), (240, 230, 220))
+    ]
+    large_src = [
+        f"/media/{hashlib.sha256(data).hexdigest()[:16]}.png" for data in large
+    ]
+    source = leaf_page(
+        "Replaced captures",
+        f'<h1>Replaced captures</h1><lf-shot id="replaced" alt="a pair" before="{SHOT_SRC["before"]}" after="{SHOT_SRC["after"]}"></lf-shot>',
+    )
+    media = {SHOT_SRC[n]: data for n, data in SHOTS.items()}
+    page = open_page(
+        browser, serve(source, media=media | dict(zip(large_src, large, strict=True)))
+    )
+    shot = page.locator("#replaced")
+    slider = shot.get_by_role("radio", name="Slider", exact=True)
+    slider.click()
+    shot.get_by_role("button", name="Image options").click()
+    shot.get_by_role("button", name="100%", exact=True).click()
+    divider = shot.get_by_role("scrollbar")
+    divider.press("Home")
+    divider.press("ArrowRight")
+    slider.focus()
+    expect(slider).to_be_focused()
+    focused = slider.element_handle()
+    actual = shot.get_by_role("button", name="100%", exact=True, include_hidden=True)
+
+    restate(shot, {"before": SHOT_SRC["after"], "after": SHOT_SRC["before"]})
+    expect(shot.locator('.lf-shotframe[data-lf-state="before"] img')).to_have_attribute(
+        "src", re.compile(re.escape(SHOT_SRC["after"]) + "$")
+    )
+    expect(slider).to_be_focused()
+    assert slider.evaluate("(node, focused) => node === focused", focused)
+    expect(slider).to_have_attribute("aria-checked", "true")
+    expect(shot.locator("wa-comparison")).to_have_attribute("position", "1")
+    expect(actual).to_have_attribute("aria-pressed", "true")
+
+    restate(shot, {"after": large_src[1]})
+    error = "before is 600px wide and after is 1200px — a pair has to be shot at one viewport"
+    expect(shot.locator(".lf-error")).to_contain_text(error)
+    reported_browser_errors(page, error)
+    expect(slider).to_be_focused()
+    restate(
+        shot,
+        {
+            "before": large_src[0],
+            "density": "2",
+            "focus-x": "300",
+            "focus-y": "200",
+            "focus-width": "200",
+            "focus-height": "200",
+        },
+    )
+    expect(shot.locator(".lf-error")).to_have_count(0)
+    expect(slider).to_be_focused()
+    # At 100% the 1200 px captures taken at 2× stand 600 CSS px wide.
+    assert shot.locator(".lf-shotframe img").evaluate_all(
+        """images => images.map(image =>
+          [image.naturalWidth, image.naturalHeight, image.getBoundingClientRect().width])"""
+    ) == [[1200, 1000, 600], [1200, 1000, 600]]
+
+    pixels = shot.get_by_role("radio", name="Pixels", exact=True)
+    pixels.click()
+    mask = shot.locator(".lf-shot-pixel-mask")
+    expect(mask).to_have_attribute("style", re.compile(r"--lf-shot-pixels: url\("))
+    painted = """node => ({
+      ground: node.querySelector('.lf-shotpixels img').src,
+      mask: node.querySelector('.lf-shot-pixel-mask').style.getPropertyValue('--lf-shot-pixels'),
+    })"""
+    previous = shot.evaluate(painted)
+    # The new mask's encoding waits for its release, at a real asynchronous boundary.
+    page.evaluate(
+        """() => {
+          const encode = OffscreenCanvas.prototype.convertToBlob;
+          window.heldShotMasks = [];
+          OffscreenCanvas.prototype.convertToBlob = async function(...args) {
+            const blob = await encode.apply(this, args);
+            await new Promise(resolve => window.heldShotMasks.push(resolve));
+            return blob;
+          };
+          window.releaseShotMasks = () => {
+            OffscreenCanvas.prototype.convertToBlob = encode;
+            for (const release of window.heldShotMasks) release();
+          };
+        }"""
+    )
+    restate(shot, {"after": large_src[0]}, read=False)
+    page.wait_for_function("window.heldShotMasks.length === 1")
+    assert shot.evaluate(painted) == previous
+    # A focus arriving while that pair prepares asks for a pair of its own, which is
+    # refused, and the mask held for the pair it replaced stays held.
+    restate(shot, {"focus-x": "900"})
+    error = "focus 900,200 200×200 CSS px falls outside its captured images"
+    expect(shot.locator(".lf-error")).to_contain_text(error)
+    reported_browser_errors(page, error)
+    assert shot.evaluate(painted) == previous
+    page.evaluate("window.releaseShotMasks()")
+    # Correcting the focus alone recovers.
+    restate(shot, {"focus-x": "300"})
+    expect(shot.locator(".lf-error")).to_have_count(0)
+    expect(pixels).to_be_focused()
+    expect(pixels).to_have_attribute("aria-checked", "true")
+    expect(shot.locator(".lf-shotstage")).to_have_attribute(
+        "aria-description", "identical"
+    )
+    corrected = shot.evaluate(painted)
+    assert corrected["mask"] and corrected["mask"] != previous["mask"]
+    assert corrected["ground"] == shot.locator(
+        '.lf-shotframe[data-lf-state="after"] img'
+    ).evaluate("node => node.src")
 
 
 def test_plain_check_reports_page_request_failures_but_ignores_optional_assets(

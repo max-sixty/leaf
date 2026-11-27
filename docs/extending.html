@@ -304,7 +304,7 @@
           gap: var(--lf-sp-1);
         }
       }
-      /* The Layout tab's drawings are the theme's svg.drawing idiom. A figure of several
+      /* The Layout tab's drawings are Leaf's svg.lf-drawing idiom. A figure of several
          panels sets them side by side and stacks them on a narrow window, so no panel's
          words shrink past reading. */
       .panels {
@@ -344,31 +344,31 @@
       #layouts-table td:first-child code {
         white-space: nowrap;
       }
-      /* Marks particular to these drawings, on the same tokens as the theme's
-         svg.drawing idiom: the rail, a surface drawn over the page, an
+      /* Marks particular to these drawings, on the same tokens as Leaf's
+         svg.lf-drawing idiom: the rail, a surface drawn over the page, an
          attribute's outline, a split that lands somewhere new, and a scroll thumb. */
-      svg.drawing .rail {
+      svg.lf-drawing .rail {
         fill: var(--lf-accent-tint);
       }
-      svg.drawing .over {
+      svg.lf-drawing .over {
         fill: var(--lf-paper);
         fill-opacity: 0.92;
         stroke: var(--lf-accent);
         stroke-width: 1.5;
         stroke-dasharray: 5 4;
       }
-      svg.drawing .attr {
+      svg.lf-drawing .attr {
         fill: none;
         stroke: var(--lf-ok);
         stroke-width: 1.5;
         stroke-dasharray: 2 3;
       }
-      svg.drawing .split {
+      svg.lf-drawing .split {
         stroke: var(--lf-danger);
         stroke-width: 1.2;
         stroke-dasharray: 4 3;
       }
-      svg.drawing .thumb {
+      svg.lf-drawing .thumb {
         fill: var(--lf-muted);
         opacity: 0.6;
       }
@@ -398,7 +398,7 @@
           <p>extending</p>
           <h1>Extending Leaf</h1>
         </hgroup>
-        <p class="lede" id="lede">
+        <p class="lf-lede" id="lede">
           A page is ordinary HTML that Leaf's widgets, themes and layouts extend, and
           packages add reusable widgets, themes and behavior to Leaf. Their contracts
           let each contribution work alongside other packages and the page's own
@@ -406,10 +406,13 @@
         </p>
         <p id="extending-scope">
           This guide is for whoever builds on Leaf: what a page can hold, how it takes a
-          theme and how it is laid out, then the interfaces for implementing widgets,
-          themes and packages, with a package tutorial and CSS contracts.
+          theme and how it is laid out, then who owns what, how packages share data, a
+          package tutorial, CSS contracts and the registry keys.
           <a href="/how-it-works/">How it works</a> introduces Leaf's core concepts and
-          how they fit together. <a href="/using/">Using</a> covers working on a page.
+          how they fit together, and its
+          <a href="/how-it-works/#package-interface">Package interface</a> topic
+          explains what a package leans on Leaf for and why.
+          <a href="/using/">Using</a> covers working on a page.
         </p>
       </header>
 
@@ -449,9 +452,9 @@
                 requiring CSS classes. These elements provide most of a page's content.
               </li>
               <li id="src-idioms">
-                <strong>Theme classes.</strong> The theme supplies classes for common
-                presentation patterns, including <code>.lede</code> and
-                <code>.callout</code>.
+                <strong>Leaf's classes.</strong> Leaf supplies classes for common
+                presentation patterns on every page, whatever its theme, including
+                <code>.lf-lede</code> and <code>.lf-callout</code>.
               </li>
               <li id="src-widgets">
                 <strong>Widgets.</strong> A widget is a complete page feature, authored
@@ -594,13 +597,14 @@
             <p id="progress-lists-subjects">
               Any widget can ask, whether bundled, from a package or the page’s own, by
               declaring <a href="#awaits"><code>awaits</code></a> in its registry entry,
-              which names the actions that answer it. To ask about content that asks
-              nothing, such as a paragraph or a chart, or to leave the user a step such
-              as trying a build, the agent opens a thread on that content or the page
-              with a message sent with <code>--obligation</code>, and the user’s reply
-              answers it. Nothing goes On Me that neither a widget nor a thread answers,
-              so no item carries a generic Done, and Leaf adds no answer to a widget
-              beyond those the widget declares.
+              and says on each of the user's gestures whether it is answered. To ask
+              about content that asks nothing, such as a paragraph or a chart, or to
+              leave the user a step such as trying a build, the agent opens a thread on
+              that content or the page with a message sent with
+              <code>--obligation</code>, and the user’s reply answers it. Nothing goes
+              On Me that neither a widget nor a thread answers, so no item carries a
+              generic Done, and Leaf adds no answer to a widget beyond those the widget
+              declares.
             </p>
             <p id="asking-lists">
               Each ask joins the user's On Me list until the widget or thread that asks
@@ -636,32 +640,37 @@
               author arranges the page and makes local adjustments.
             </p>
             <figure id="styles-capture" class="diagram-figure">
-              <lf-diagram id="styles-theme-capture" data-height="370" parts="all">
+              <lf-diagram id="styles-theme-capture" data-height="370">
                 <pre>
 flowchart TD
-  accTitle: A page captures its selected theme
-  accDescr: The author selects Editorial from the user's themes. Leaf captures that theme in the release-review page, and the export carries the same theme. Changing the user's default later changes neither existing copy.
-  Themes["User's themes&lt;br/&gt;Editorial · Dense"] -->|select Editorial| Page["Release review&lt;br/&gt;Captured: Editorial"]
+  accTitle: A page selects its theme as a package
+  accDescr: The author selects the Editorial theme from the packages on the user's machine, which also hold Leaf's reading theme and the user's Dense theme. The release-review page records that selection, and the export carries the same theme.
+  Themes["Themes on this machine&lt;br/&gt;Reading · Editorial · Dense"] -->|select Editorial| Page["Release review&lt;br/&gt;Selects: Editorial"]
   Page -->|export| Export["Exported review&lt;br/&gt;Same Editorial theme"]
 </pre>
               </lf-diagram>
               <figcaption>
-                <strong>A page keeps the theme it was made with.</strong>
-                <code>leaf theme list</code> shows the user’s named themes. Changing the
-                default later leaves this page and its export intact.
+                <strong>A page’s theme is a package it selects.</strong>
+                <code>leaf package list</code> shows Leaf’s reading theme beside the
+                user’s own. The page records its selection, and its export carries the
+                theme’s rules.
               </figcaption>
             </figure>
             <details id="styles-theme-selection">
               <summary>Choosing a theme and honoring browser preferences</summary>
               <p id="styles-user-preference">
-                <code>leaf theme list</code> exposes the user's named themes and their
-                author instructions. <code>page init --theme NAME</code> selects one; a
-                new page otherwise uses the user's default, or Leaf's reading theme. A
-                page with a design wholly its own takes none with
-                <code>--no-theme</code> and starts from the browser's defaults, while
-                Leaf's widgets, threads and panel keep their faces. Re-initializing
-                keeps the captured choice unless explicitly changed. The author follows
-                the user's request first, then the task and the theme's instructions.
+                <code>leaf package list</code> shows each theme the machine can select
+                with its author instructions: Leaf's reading theme,
+                <code>reading</code>, and any the user installed. A theme is a package,
+                which <code>page init --package NAME</code> selects ahead of the page's
+                other packages. A theme builds on the reading theme where the page
+                selects <code>reading</code> before it, and replaces it where the page
+                selects the theme alone. A page with a design wholly its own selects no
+                theme and starts from the browser's defaults, while Leaf's widgets,
+                classes, threads and panel keep their faces. Re-initializing keeps the
+                page's packages unless <code>--package</code> names a new list. The
+                author follows the user's request first, then the task and the theme's
+                instructions.
               </p>
               <p id="styles-platform-preferences">
                 The reading theme supports light and dark schemes. Authors preserve
@@ -802,7 +811,7 @@ flowchart TD
             <div class="panels two" id="kind-figure">
               <figure id="kind-column">
                 <svg
-                  class="drawing"
+                  class="lf-drawing"
                   viewBox="0 0 240 160"
                   role="img"
                   aria-label="Prose in the reading column, with a wide block growing past it"
@@ -897,7 +906,7 @@ flowchart TD
               </figure>
               <figure id="kind-sidebar">
                 <svg
-                  class="drawing"
+                  class="lf-drawing"
                   viewBox="0 0 240 160"
                   role="img"
                   aria-label="A sidebar page: a body beside its side column, each block starting at its region's left edge"
@@ -958,7 +967,7 @@ flowchart TD
               </figure>
               <figure id="kind-workspace">
                 <svg
-                  class="drawing"
+                  class="lf-drawing"
                   viewBox="0 0 240 160"
                   role="img"
                   aria-label="A workspace fills the window, and each pane scrolls separately"
@@ -1120,7 +1129,7 @@ flowchart TD
               </figure>
               <figure id="kind-tiles">
                 <svg
-                  class="drawing"
+                  class="lf-drawing"
                   viewBox="0 0 240 160"
                   role="img"
                   aria-label="A tile block within a page: equal cells wrap into rows"
@@ -1224,7 +1233,7 @@ flowchart TD
 
             <figure class="fig small" id="vocabulary-attribute">
               <svg
-                class="drawing"
+                class="lf-drawing"
                 viewBox="0 0 240 160"
                 role="img"
                 aria-label="data-width on a figure extends it past the reading column"
@@ -1256,8 +1265,9 @@ flowchart TD
 
             <p id="column-bound">
               A log, feed, or long listing with <code>data-bound</code> scrolls within a
-              limited height and opens at its newest entry. Its growing content
-              therefore does not make the whole page longer.
+              limited height: <code>start</code> opens at its first line, and
+              <code>end</code> follows its newest entry. Its growing content therefore
+              does not make the whole page longer.
             </p>
 
             <h3 id="margins-heading">Margins</h3>
@@ -1310,7 +1320,7 @@ flowchart TD
             <p id="sidebar-page-panels">
               For a reading page, give the body <code>layout-column</code>: prose keeps
               its reading measure while wide exhibits use the remaining room. A
-              <code>section.panel</code> groups a region by its compact heading and
+              <code>section.lf-panel</code> groups a region by its compact heading and
               spacing, without a surrounding card.
             </p>
             <pre id="sidebar-page-markup"><code>&lt;main class="layout-sidebar"&gt;
@@ -1350,7 +1360,7 @@ flowchart TD
             <div class="panels two" id="workspace-figure">
               <figure id="workspace-full-height">
                 <svg
-                  class="drawing"
+                  class="lf-drawing"
                   viewBox="0 0 240 160"
                   role="img"
                   aria-label="A workspace fills the window and its panes scroll"
@@ -1492,7 +1502,7 @@ flowchart TD
               </figure>
               <figure id="workspace-flows">
                 <svg
-                  class="drawing"
+                  class="lf-drawing"
                   viewBox="0 0 240 160"
                   role="img"
                   aria-label="In a small window, a workspace's panes take their natural height and the page scrolls"
@@ -1670,7 +1680,7 @@ flowchart TD
 
             <figure class="fig" id="narrow-figure">
               <svg
-                class="drawing"
+                class="lf-drawing"
                 viewBox="0 0 360 190"
                 role="img"
                 aria-label="A sidebar page's regions, numbered in source order, stack into one column on a phone"
@@ -1731,7 +1741,7 @@ flowchart TD
               <ul>
                 <li><a href="#responsibilities">Who owns what</a></li>
                 <li><a href="#boundaries">Choose the extension boundary</a></li>
-                <li><a href="#layer">Package interfaces</a></li>
+                <li><a href="#layer">Data between packages</a></li>
               </ul>
             </nav>
           </details>
@@ -1743,7 +1753,7 @@ flowchart TD
               the shared record of what the user does.
             </p>
             <figure id="ownership-anatomy" class="diagram-figure">
-              <lf-diagram id="ownership-architecture" data-height="719" parts="all">
+              <lf-diagram id="ownership-architecture" data-height="719">
                 <pre>
 flowchart TD
   accTitle: Ownership boundaries in a Leaf page
@@ -1791,8 +1801,8 @@ flowchart TD
                     <td>User</td>
                     <td>Goals, preferences, decisions, and edits.</td>
                     <td>
-                      Instructions to the agent, actions on the page, and named personal
-                      themes with a default. Theme colors can follow the browser's
+                      Instructions to the agent, actions on the page, and themes
+                      installed as packages. Theme colors can follow the browser's
                       color-scheme preference.
                     </td>
                   </tr>
@@ -1813,8 +1823,8 @@ flowchart TD
                     </td>
                     <td>
                       Registry declarations, browser modules, scoped styles, and author
-                      instructions. The package connects its controls to Leaf's state,
-                      commands, and annotation APIs.
+                      instructions. Each leans on Leaf through the
+                      <a href="/how-it-works/#package-interface">package interface</a>.
                     </td>
                   </tr>
                   <tr>
@@ -1869,15 +1879,20 @@ flowchart TD
             </ol>
           </section>
           <section id="layer">
-            <h2>Package interfaces</h2>
-            <p>
-              Packages connect through declared inputs, outputs and actions. A release
+            <h2>Data between packages</h2>
+            <p id="package-interface-link">
+              A package meets Leaf through the package interface:
+              <a href="/how-it-works/#package-interface">How it works</a> draws it,
+              walks through a whole widget that records a choice, and gives the form
+              each kind of need takes with the reasons for that design.
+            </p>
+            <p id="package-data-flow">
+              Packages meet each other through declared inputs and outputs. A release
               review can use one package to read a patch and another to navigate its
               files, without either package knowing the other’s implementation.
             </p>
-            <h3 id="package-data-flow">Data connects widgets</h3>
             <figure id="package-data-diagram" class="diagram-figure">
-              <lf-diagram id="package-data-contract" data-height="285" parts="all">
+              <lf-diagram id="package-data-contract" data-height="285">
                 <pre>
 flowchart TD
   accTitle: A typed output connects independent widgets
@@ -1892,31 +1907,6 @@ flowchart TD
                 shape. The file tree can also read a stored source with that contract. A
                 published output is a browser-local derivation, not a decision in the
                 page’s log.
-              </figcaption>
-            </figure>
-            <h3 id="package-action-flow">Widgets delegate recorded state to Leaf</h3>
-            <figure id="package-action-diagram" class="diagram-figure">
-              <lf-diagram id="package-action-contract" data-height="398" parts="all">
-                <pre>
-flowchart TD
-  accTitle: A choice is drawn immediately and recorded by Leaf
-  accDescr: The user's choice starts two paths. The browser draws it before the next frame, while Leaf validates the action and appends it to the log. Shared state then reconciles the browser's selection.
-  Choose["Choose Canary clients"]
-  Choose --&gt; Draw["Browser&lt;br/&gt;Draw now"]
-  Choose --&gt; Admit["Leaf&lt;br/&gt;Admit action"]
-  Admit --&gt; State["Shared state"]
-  Draw --&gt; Reconcile["Browser&lt;br/&gt;Reconcile choice"]
-  State --&gt; Reconcile
-</pre>
-              </lf-diagram>
-              <figcaption id="package-action-widget">
-                The package declares <code>choose</code> and the schema for its selected
-                IDs. The browser shows what the gesture decides while admission
-                completes; a refused action restores the server’s state. Undo withdraws
-                the admitted action, and the widget draws the resulting selection.
-                Packages share these guarantees.
-                <a href="/how-it-works/#state">How it works</a> explains how Leaf
-                derives state from the record.
               </figcaption>
             </figure>
             <details id="package-contract-details">
@@ -1950,13 +1940,13 @@ flowchart TD
                 defines those interfaces.
               </p>
               <p id="package-captured-layer">
-                <code>page init</code> records the page's package and theme selection.
-                The Leaf serving, checking or exporting the page composes its
-                <em>layer</em> from that selection and supplies the browser runtime.
-                Each revision captures the authored content, page-owned declarations and
-                modules, and the package selection. Historical revisions run with the
-                current Leaf's runtime and composed layer while retaining their authored
-                content and recorded decisions. The
+                <code>page init</code> records the page's package selection. The Leaf
+                serving, checking or exporting the page composes its <em>layer</em> from
+                that selection and supplies the browser runtime. Each revision captures
+                the authored content, page-owned declarations and modules, and the
+                package selection. Historical revisions run with the current Leaf's
+                runtime and composed layer while retaining their authored content and
+                recorded decisions. The
                 <a
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md#package-contract"
                   >package contract</a
@@ -1985,7 +1975,10 @@ flowchart TD
               id="package-init-command"
             ><code class="language-bash">$ leaf package init packages/callout
 $ leaf package check packages/callout</code></pre>
-            <p>The widget in this tutorial needs only these files:</p>
+            <p>
+              <code>package init</code> writes the two files the widget in this tutorial
+              needs:
+            </p>
 
             <pre id="callout-files">
 packages/callout/
@@ -1994,13 +1987,13 @@ packages/callout/
 </pre>
 
             <p>
-              Every package beyond the bundled default joins a page with
-              <code>--package</code>. In the commands below, <code>PAGE</code> is the
-              page directory to create or update:
+              Every package joins a page with <code>--package</code>, the page’s theme
+              included. In the commands below, <code>PAGE</code> is the page directory
+              to create or update:
             </p>
             <pre
               id="page-init-command"
-            ><code class="language-bash">$ leaf page init --package packages/callout PAGE</code></pre>
+            ><code class="language-bash">$ leaf page init --package reading --package packages/callout PAGE</code></pre>
             <p>
               The
               <a
@@ -2011,11 +2004,6 @@ packages/callout/
               composition order, and replacement rules.
             </p>
             <p>
-              <code>package init</code> also creates empty contribution directories for
-              instructions, browser modules, widgets, and vendor files. The CSS-only
-              widget here leaves them untouched.
-            </p>
-            <p>
               To start with behavior instead, name the first element while creating the
               package:
             </p>
@@ -2023,14 +2011,17 @@ packages/callout/
               id="widget-init-command"
             ><code class="language-bash">$ leaf package init packages/risk-notes --widget lf-risk-note</code></pre>
             <p>
-              Leaf writes a valid markup-widget element declaration and its one-shot
-              browser module, then checks the complete candidate before changing the
-              package. The tutorial below stays with the smaller CSS-only form so each
-              contract remains visible. A behavior module imports Leaf's package API
-              from
-              <code>/runtime/widget-api.js</code>; it declares each interactive
-              capability once, as the <code>lfCommands</code> of the element it applies
-              in. The same live command rows feed keyboard dispatch, help, accessibility
+              Leaf writes a working starter, a yes-or-no choice that records the user's
+              press: its element declaration, its browser module and its style rule. It
+              checks the complete candidate before changing the package, and each part
+              is there to be changed into the widget you need.
+              <a href="/how-it-works/#example-widget">How it works</a> walks through a
+              widget of that shape line by line. The tutorial below stays with the
+              smaller CSS-only form so each contract remains visible. A module that
+              needs Leaf's functions imports them from
+              <code>/runtime/widget-api.js</code>, and one that adds keys declares each
+              command once, as the <code>lfCommands</code> of the element it applies in.
+              The same live command rows feed keyboard dispatch, help, accessibility
               shortcuts, and—when <code>decision</code> names the action—the controls
               shown inline for an obligation.
             </p>
@@ -2057,10 +2048,10 @@ packages/callout/
                 href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/packages.md#styles-and-composition"
                 >style contract</a
               >
-              distinguishes theme inputs such as <code>--lf-accent</code> from layout
-              declarations, runtime outputs, and vendor bridges. The
-              <a href="#styles-contract">CSS contract</a> explains how widget, theme and
-              control sheets compose.
+              distinguishes a declaration to Leaf, as this one is, from theme tokens
+              such as <code>--lf-accent</code>, facts about a box, and vendor bridges.
+              The <a href="#styles-contract">CSS contract</a> explains how widget, theme
+              and control sheets compose.
             </p>
           </section>
           <section id="widget">
@@ -2079,23 +2070,20 @@ packages/callout/
             <pre id="callout-registry"><code class="language-json">{
   "lf-callout": {
     "description": "A short warning or constraint that belongs in the reading flow.",
-    "attributes": {
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" }
-      },
-      "required": ["id"],
-      "additionalProperties": false
-    },
+    "attributes": { "required": ["id"] },
     "example": "&lt;lf-callout id=\"migration-warning\"&gt;&lt;strong&gt;Migration window&lt;/strong&gt; Writes pause for about two minutes.&lt;/lf-callout&gt;"
   }
 }</code></pre>
             <p>
               <code>attributes</code> is a JSON Schema of the element's attributes, and
               the entry needs no other Leaf declaration: the body is the author's markup
-              unless <code>content</code> says otherwise. Leaf adds the grammar an
-              <code>id</code> follows; <code>description</code> and
-              <code>example</code> make the merged registry useful to an author.
+              unless <code>content</code> says otherwise. Every element takes an
+              <code>id</code>, which Leaf adds with its grammar, so the entry says only
+              that this one requires it. Leaf also writes the schema's
+              <code>type</code> and <code>additionalProperties</code>, so
+              <code>page check</code> refuses an attribute the entry doesn't name, such
+              as a misspelt one. <code>description</code> and <code>example</code> make
+              the merged registry useful to an author.
             </p>
             <p>
               The <a href="#keys">registry-key reference</a> lists every other fact a
@@ -2108,7 +2096,7 @@ packages/callout/
             <pre
               id="package-check-command"
             ><code class="language-bash">$ leaf package check packages/callout
-$ leaf page init --package packages/callout PAGE
+$ leaf page init --package reading --package packages/callout PAGE
 $ leaf page vocabulary PAGE | jq '.["lf-callout"], .["$keys"]'
 $ leaf page check PAGE --render</code></pre>
             <p>
@@ -2227,23 +2215,255 @@ $ leaf page check PAGE --render</code></pre>
             </p>
 
             <h3 id="styles-tiers">The tiers</h3>
-            <figure id="cascade-figure" class="diagram-figure">
-              <h4 id="cascade-document">The page’s document</h4>
-              <lf-diagram id="cascade-document-order" data-height="635" parts="all">
-                <pre>
-flowchart TD
-  accTitle: CSS precedence in the page document
-  accDescr: For normal declarations, unlayered page rules have the highest precedence, then the page's own layers, lf-state, lf-overrides, lf-layouts, lf-base and lf-reset. Each arrow points from a higher tier to a lower tier.
-  Page["Page rules · unlayered"] --> Layers["Page's own layers"]
-  Layers --> State["lf-state · Leaf"]
-  State --> Theme["lf-overrides · packages"]
-  Theme --> Layout["lf-layouts · Leaf"]
-  Layout --> Base["lf-base · Leaf and widgets"]
-  Base --> Reset["lf-reset · Leaf"]
-</pre>
-              </lf-diagram>
+            <p id="styles-tiers-lede">
+              A page's own CSS goes in one of four places, and each ranks against Leaf's
+              tiers as below. Unlayered rules, and rules in a layer of any name but
+              <code>base</code> or <code>reset</code>, outrank everything Leaf draws, so
+              a page restyles a widget there.
+            </p>
+            <figure id="cascade-figure" data-width="wide">
+              <div class="lf-scroll" id="cascade-scroll" style="overflow-x: auto">
+                <svg
+                  class="lf-drawing"
+                  style="max-width: none; min-width: 760px"
+                  viewBox="0 0 760 310"
+                  role="img"
+                  aria-label="The page document's cascade tiers, highest first: the page's unlayered rules; any other layer the page names, where Tailwind's theme, components and utilities go; Leaf's widgets, controls, Layouts and drawn text; the page's base layer, where Tailwind puts preflight and the author's base rules; the theme the page selects; Leaf's clearing of form controls; and the page's reset layer, where a page can import preflight instead."
+                >
+                  <defs>
+                    <marker
+                      id="cascade-tip"
+                      viewBox="0 0 10 10"
+                      refX="5"
+                      refY="5"
+                      markerWidth="7"
+                      markerHeight="7"
+                      orient="auto-start-reverse"
+                    >
+                      <path class="tip" d="M0 0 L10 5 L0 10 z" />
+                    </marker>
+                  </defs>
+                  <path class="arrow" d="M20 300 V44" marker-end="url(#cascade-tip)" />
+                  <text
+                    x="10"
+                    y="170"
+                    text-anchor="middle"
+                    transform="rotate(-90 10 170)"
+                  >
+                    wins
+                  </text>
+                  <text class="small strong" x="48" y="26">Tier</text>
+                  <text class="small strong" x="198" y="26">What goes there</text>
+                  <text class="small strong" x="528" y="26">Tailwind 4 puts here</text>
+                  <g id="cascade-unlayered">
+                    <rect class="box" x="36" y="40" width="464" height="32" rx="4" />
+                    <text class="mono strong" x="48" y="61">unlayered</text>
+                    <text x="198" y="61">your rules for this page</text>
+                  </g>
+                  <g id="cascade-other">
+                    <rect class="box" x="36" y="78" width="464" height="32" rx="4" />
+                    <text class="mono strong" x="48" y="99">any other @layer</text>
+                    <text x="198" y="99">restyle a widget here</text>
+                    <rect class="box" x="516" y="78" width="236" height="32" rx="4" />
+                    <text x="528" y="99">theme · components · utilities</text>
+                  </g>
+                  <g id="cascade-leaf">
+                    <rect
+                      class="box hot"
+                      x="36"
+                      y="116"
+                      width="464"
+                      height="32"
+                      rx="4"
+                    />
+                    <text class="mono strong" x="48" y="137">lf-base … lf-state</text>
+                    <text x="198" y="137">
+                      Leaf's widgets, controls, Layouts, drawn text
+                    </text>
+                  </g>
+                  <g id="cascade-base">
+                    <rect class="box" x="36" y="154" width="464" height="32" rx="4" />
+                    <text class="mono strong" x="48" y="175">@layer base</text>
+                    <text x="198" y="175">element defaults, such as an h1's size</text>
+                    <rect class="box" x="516" y="154" width="236" height="32" rx="4" />
+                    <text x="528" y="175">base: preflight + base rules</text>
+                  </g>
+                  <g id="cascade-theme">
+                    <rect
+                      class="box hot"
+                      x="36"
+                      y="192"
+                      width="464"
+                      height="32"
+                      rx="4"
+                    />
+                    <text class="mono strong" x="48" y="213">lf-theme</text>
+                    <text x="198" y="213">
+                      the theme you select, on your own markup
+                    </text>
+                  </g>
+                  <g id="cascade-lf-reset">
+                    <rect
+                      class="box hot"
+                      x="36"
+                      y="230"
+                      width="464"
+                      height="32"
+                      rx="4"
+                    />
+                    <text class="mono strong" x="48" y="251">lf-reset</text>
+                    <text x="198" y="251">Leaf clears form controls' faces</text>
+                  </g>
+                  <g id="cascade-reset">
+                    <rect class="box" x="36" y="268" width="464" height="32" rx="4" />
+                    <text class="mono strong" x="48" y="289">@layer reset</text>
+                    <text x="198" y="289">a reset that fills only the gaps</text>
+                    <rect
+                      class="ghost"
+                      x="516"
+                      y="268"
+                      width="236"
+                      height="32"
+                      rx="4"
+                    />
+                    <text x="528" y="289">preflight, if imported here</text>
+                  </g>
+                </svg>
+              </div>
+              <figcaption>
+                <strong>The page's document, highest first.</strong> Leaf's tiers are
+                tinted. Leaf's panel and thread cards are unlayered too, after the
+                page's rules, and keep their look against a selector as light as one
+                class. <code>!important</code> reverses the order.
+              </figcaption>
+            </figure>
+            <p id="styles-base-slot">
+              A framework's base layer holds its reset beside the element rules its
+              author writes, as Tailwind 4's <code>base</code> holds preflight. The
+              author's rules must beat the theme, and the reset must leave Leaf's
+              widgets their margins and borders, so Leaf places
+              <code>base</code> between its theme and its own elements. A layer ranks as
+              a whole, so the reset also beats the theme's look on the page's own
+              markup: a list loses its bullets and a code block its frame. A page that
+              wants the theme's look under Tailwind imports preflight into
+              <code>reset</code> instead:
+            </p>
+            <pre
+              id="styles-tailwind-reset"
+            ><code class="language-css">@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(reset);
+@import "tailwindcss/utilities.css" layer(utilities);</code></pre>
+            <p id="styles-tiers-order">
+              A page selects its theme and its other packages once, with
+              <code>leaf page init --package NAME</code>, which records them in the page
+              directory. Each time Leaf serves or exports the page, it composes one
+              stylesheet from its own sheets and each selected package's, every sheet in
+              its tier, and links it at the top of the page's <code>&lt;head&gt;</code>,
+              ahead of the page's own <code>&lt;style&gt;</code> and
+              <code>&lt;link&gt;</code> elements. That sheet's first rule names Leaf's
+              tiers, <code>reset</code> and <code>base</code> among them. A layer ranks
+              where its name first appears, so a framework's own statement, such as
+              Tailwind's <code>@layer theme, base, components, utilities</code>, leaves
+              <code>base</code> where Leaf put it and ranks its other layers above
+              Leaf's.
+            </p>
+            <figure id="head-figure" data-width="wide">
+              <div class="lf-scroll" id="head-scroll" style="overflow-x: auto">
+                <svg
+                  class="lf-drawing"
+                  style="max-width: none; min-width: 760px"
+                  viewBox="0 0 760 230"
+                  role="img"
+                  aria-label="Where a page's styles come from. The agent runs leaf page init --package reading once, which records the page's packages; on every serve Leaf composes its own sheets and each package's into theme.css and links it first in the page's head, its first rule naming reset, lf-reset, lf-theme, base, lf-base, lf-layouts, lf-overrides and lf-state. The page's own head follows as written, such as a link to a Tailwind build under page/, whose statement names theme, base, components and utilities: base keeps the rank Leaf gave it, and the other three rank above Leaf."
+                >
+                  <defs>
+                    <marker
+                      id="head-tip"
+                      viewBox="0 0 10 10"
+                      refX="5"
+                      refY="5"
+                      markerWidth="7"
+                      markerHeight="7"
+                      orient="auto-start-reverse"
+                    >
+                      <path class="tip" d="M0 0 L10 5 L0 10 z" />
+                    </marker>
+                  </defs>
+                  <text class="small strong" x="0" y="16">What the agent writes</text>
+                  <text class="small strong" x="410" y="16">
+                    What Leaf serves: the page's &lt;head&gt;, in order
+                  </text>
+                  <g id="head-init">
+                    <rect class="box" x="0" y="28" width="330" height="52" rx="4" />
+                    <text class="mono strong" x="12" y="49">
+                      leaf page init --package reading
+                    </text>
+                    <text x="12" y="68">records the page's packages, once</text>
+                  </g>
+                  <g id="head-authored">
+                    <rect class="box" x="0" y="116" width="330" height="96" rx="4" />
+                    <text class="mono strong" x="12" y="137">index.html</text>
+                    <text class="mono" x="12" y="156">
+                      &lt;link rel="stylesheet" href="page/app.css"&gt;
+                    </text>
+                    <text x="12" y="176">where Tailwind's build opens with</text>
+                    <text class="mono" x="12" y="195">
+                      @layer theme, base, components, utilities;
+                    </text>
+                  </g>
+                  <g id="head-leaf">
+                    <rect
+                      class="box hot"
+                      x="410"
+                      y="28"
+                      width="350"
+                      height="96"
+                      rx="4"
+                    />
+                    <text class="mono strong" x="422" y="49">
+                      1 &lt;link href="theme.css"&gt;
+                    </text>
+                    <text x="422" y="68">Leaf's own sheets, then each package's</text>
+                    <text class="mono small" x="422" y="88">
+                      @layer reset, lf-reset, lf-theme, base,
+                    </text>
+                    <text class="mono small" x="440" y="104">
+                      lf-base, lf-layouts, lf-overrides, lf-state;
+                    </text>
+                  </g>
+                  <g id="head-page">
+                    <rect class="box" x="410" y="136" width="350" height="76" rx="4" />
+                    <text class="mono strong" x="422" y="157">
+                      2 the page's &lt;head&gt;, as written
+                    </text>
+                    <text x="422" y="176">
+                      base keeps the rank Leaf's rule gave it;
+                    </text>
+                    <text x="422" y="195">
+                      theme, components, utilities rank above Leaf
+                    </text>
+                  </g>
+                  <text class="small" x="370" y="46" text-anchor="middle">
+                    each serve
+                  </text>
+                  <path class="arrow" d="M334 54 H402" marker-end="url(#head-tip)" />
+                  <text class="small" x="370" y="156" text-anchor="middle">copied</text>
+                  <path
+                    class="arrow"
+                    d="M334 164 C 368 164, 368 174, 402 174"
+                    marker-end="url(#head-tip)"
+                  />
+                </svg>
+              </div>
+              <figcaption>
+                <strong>Where a page's styles come from.</strong> Leaf's tiers are
+                tinted. An export inlines the same sheet in a
+                <code>&lt;style&gt;</code> in its place.
+              </figcaption>
+            </figure>
+            <figure id="cascade-shadow-figure" class="diagram-figure">
               <h4 id="cascade-shadow">A widget’s shadow tree</h4>
-              <lf-diagram id="cascade-shadow-order" data-height="449" parts="all">
+              <lf-diagram id="cascade-shadow-order" data-height="449">
                 <pre>
 flowchart TD
   accTitle: CSS precedence inside a widget's shadow tree
@@ -2256,21 +2476,11 @@ flowchart TD
               </lf-diagram>
               <figcaption>
                 <strong>Normal declarations, highest precedence first.</strong>
-                Leaf’s <code>lf-state</code> hides what a decision removed;
-                <code>lf-reset</code> clears the browser’s form-control styles; marks
-                are the highlights Leaf draws. <code>!important</code> reverses the
-                layer order.
+                Page rules stop at the shadow root; marks are the highlights Leaf draws.
               </figcaption>
             </figure>
             <details id="cascade-sheets">
               <summary>Which styles contribute to each tier?</summary>
-              <p>
-                A page’s unlayered rules come first. Leaf’s panel, cards and marks are
-                also unlayered and appear later, winning a tie. The page’s own
-                <code>@layer</code> blocks follow Leaf’s layers, so they outrank them,
-                except one named <code>reset</code>, which Leaf ranks below its own so a
-                page’s reset leaves Leaf’s controls their frames.
-              </p>
               <table>
                 <thead>
                   <tr>
@@ -2279,6 +2489,10 @@ flowchart TD
                   </tr>
                 </thead>
                 <tbody>
+                  <tr>
+                    <td><code>lf-state</code></td>
+                    <td>Leaf's rules that hide what a decision removed.</td>
+                  </tr>
                   <tr>
                     <td><code>lf-overrides</code></td>
                     <td>
@@ -2299,10 +2513,18 @@ flowchart TD
                   <tr>
                     <td><code>lf-base</code></td>
                     <td>
-                      In the document: Leaf’s <code>base.css</code>, then packages’
-                      <code>defaults.css</code> and <code>widget-shadow.css</code>. In a
-                      shadow tree: defaults the widget adopts with
-                      <code>inBaseLayer()</code>.
+                      In the document: the reading look for text Leaf draws, such as a
+                      thread's messages, then Leaf's faces for its own elements and
+                      controls, then packages' <code>widget-shadow.css</code> and
+                      <code>defaults.css</code>. In a shadow tree: defaults the widget
+                      adopts inside <code>@layer lf-base { … }</code>.
+                    </td>
+                  </tr>
+                  <tr>
+                    <td><code>lf-theme</code></td>
+                    <td>
+                      Leaf's tokens and page shell, the reading look for the page's own
+                      markup and controls, and each package's <code>theme.css</code>.
                     </td>
                   </tr>
                 </tbody>
@@ -2324,7 +2546,7 @@ flowchart TD
               theme inputs, such as color and type, flow through both.
             </p>
             <figure id="styles-scope" class="diagram-figure">
-              <lf-diagram id="styles-nested-boundary" data-height="484" parts="all">
+              <lf-diagram id="styles-nested-boundary" data-height="484">
                 <pre>
 flowchart TD
   accTitle: A nested widget keeps its own styling when the outer package names its own structure
@@ -2408,10 +2630,23 @@ flowchart TD
             <h2>Choose a bundled package</h2>
             <p>
               The <a href="/examples/feature-gallery/">core product gallery</a> shows
-              Leaf’s default widgets and controls. The pages below demonstrate optional
-              packages; the Code review package provides authoring instructions.
+              Leaf’s default widgets and controls in the reading theme. The other pages
+              below each demonstrate an optional package; the Code review package
+              provides authoring instructions.
             </p>
             <div class="package-catalog">
+              <a
+                class="package-card"
+                data-package="reading"
+                href="/examples/feature-gallery/"
+              >
+                <strong>Reading</strong>
+                <span
+                  >Leaf’s reading theme: the type, color and faces that prose, tables
+                  and controls read in.</span
+                >
+                <em>Open page ↗</em>
+              </a>
               <a
                 class="package-card"
                 data-package="code-review"
@@ -2460,18 +2695,6 @@ flowchart TD
                 <span
                   >Keep current release state, named checks, and the changing run log in
                   view together.</span
-                >
-                <em>Open page ↗</em>
-              </a>
-              <a
-                class="package-card"
-                data-package="visual-review"
-                href="/examples/visual-review-gallery/"
-              >
-                <strong>Visual review</strong>
-                <span
-                  >Compare screenshots from a website journey, with capture conditions
-                  and results for each step.</span
                 >
                 <em>Open page ↗</em>
               </a>
@@ -2532,9 +2755,7 @@ flowchart TD
                 href="/examples/incident-report/"
               >
                 <strong>Detail</strong>
-                <span
-                  >Turn a page from its gists and pictures to every closed detail.</span
-                >
+                <span>Turn a page from its gists to every closed detail.</span>
                 <em>Open page ↗</em>
               </a>
               <a

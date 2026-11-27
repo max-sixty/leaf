@@ -1,19 +1,15 @@
 // Records where a floating box's painted parts stand at every frame, for a test that
 // judges how they move (journeys/test_floating_box_motion.py). A test installs it as an init
-// script, then brackets its inputs with `lfMotionFrames.begin({box, ring})`, the
-// selectors of the box and of the ring its surface draws, and `lfMotionFrames.end()`,
-// which returns the frames, waiting on `lfMotionFrames.count()` for the frames it needs
-// on either side of them.
-//
-// A frame's reading is taken after the browser has run that frame's callbacks, in a task
-// the frame posts, so it reads what the frame drew: the parts' translations and the
-// surface's cuts that box-motion.js animates stand as their animations sample them. An
-// input the browser handles between the frame and that task, as Firefox handles one ahead
-// of other tasks, changes a layout no frame has drawn yet, so that reading is dropped.
+// script after leaf_dev's frames.js, which reads the page once each frame has drawn, so
+// the parts' translations and the surface's cuts that dom/box-motion.js animates stand as
+// their animations sample them. The test brackets its inputs with
+// `lfMotionFrames.begin({box, ring})`, the selectors of the box and of the ring its
+// surface draws, and `lfMotionFrames.end()`, which returns the frames, waiting on
+// `lfMotionFrames.count()` for the frames it needs on either side of them.
 //
 // Each part is read as the reader sees it, not as its box is laid out:
 //
-// - the box's outline, as its surface's ring is cut (box-motion.js, `ground`), on
+// - the box's outline, as its surface's ring is cut (dom/box-motion.js, `ground`), on
 //   each of its four edges;
 // - each control's box;
 // - each run of words by its first letter, in the page and in every shadow tree under
@@ -115,44 +111,20 @@
     }
     return Object.fromEntries(Object.entries(parts).map(([key, { at }]) => [key, at]));
   }
-  let inputs = 0;
-  for (const type of [
-    "keydown",
-    "keyup",
-    "beforeinput",
-    "input",
-    "pointerdown",
-    "pointerup",
-  ])
-    addEventListener(type, () => inputs++, { capture: true, passive: true });
-  let recording = null;
   window.lfMotionFrames = {
     begin({ box: boxSelector, ring: ringSelector }) {
-      const frames = [];
-      const channel = new MessageChannel();
-      recording = { frames, channel };
-      channel.port1.onmessage = ({ data }) => {
-        if (data !== inputs) return;
+      window.lfFrames.begin(() => {
         const box = document.querySelector(boxSelector);
         const ring = document.querySelector(ringSelector);
-        frames.push({ inputs, parts: box ? read(box, ring) : {} });
-      };
-      const frame = () => {
-        if (recording?.frames !== frames) return;
-        channel.port2.postMessage(inputs);
-        requestAnimationFrame(frame);
-      };
-      requestAnimationFrame(frame);
+        return box ? read(box, ring) : {};
+      });
     },
     // How many frames stand recorded.
-    count: () => recording?.frames.length ?? 0,
+    count: () => window.lfFrames.count(),
     // How many inputs the page has handled, which a test reads before each of its own:
     // a frame belongs to the input whose events it has seen.
-    inputs: () => inputs,
-    end() {
-      const frames = recording?.frames ?? [];
-      recording = null;
-      return frames;
-    },
+    inputs: () => window.lfFrames.inputs(),
+    end: () =>
+      window.lfFrames.end().map(({ inputs, read: parts }) => ({ inputs, parts })),
   };
 })();

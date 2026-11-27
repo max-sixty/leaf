@@ -42,7 +42,7 @@
       }
 
       #pr-flow-diagram .pele-node.removed rect {
-        fill: var(--lf-del-tint);
+        fill: var(--lf-danger-tint);
         stroke: var(--lf-danger);
       }
       #pr-flow-diagram .pele-node.removed text {
@@ -91,7 +91,7 @@
           <p>pull request review · captured revision</p>
           <h1>Unified diff in the switch picker</h1>
         </hgroup>
-        <p class="lede" id="pr-lede">
+        <p class="lf-lede" id="pr-lede">
           <a href="https://github.com/max-sixty/worktrunk/pull/3865"
             >Worktrunk PR #3865</a
           >
@@ -100,22 +100,22 @@
           evidence below.
         </p>
         <p id="pr-tags">
-          <span class="tag ok">Safe to approve</span>
-          <span class="tag warn">2 follow-ups</span>
-          <span class="tag">46 files · +1,567 −701</span>
+          <span class="lf-tag ok">Safe to approve</span>
+          <span class="lf-tag warn">2 follow-ups</span>
+          <span class="lf-tag">46 files · +1,567 −701</span>
         </p>
       </header>
 
       <aside id="pr-rail">
         <div class="layout-track">
-          <section class="panel" id="pr-contents-panel">
+          <section class="lf-panel" id="pr-contents-panel">
             <lf-toc id="pr-contents" max-level="2"></lf-toc>
           </section>
         </div>
       </aside>
 
       <div id="pr-body">
-        <aside class="callout ok" id="pr-verdict">
+        <aside class="lf-callout ok" id="pr-verdict">
           <p>
             <strong>Safe to approve with two follow-ups.</strong> Review found four
             defects and the current revision corrects each one. Two questions stay open,
@@ -151,7 +151,7 @@
           </lf-options>
         </lf-group>
 
-        <section class="panel" id="pr-orientation">
+        <section class="lf-panel" id="pr-orientation">
           <h2>Review finding</h2>
           <div id="pr-agent-summary">
             <p>
@@ -167,7 +167,7 @@
           </div>
         </section>
 
-        <section class="panel" id="pr-change-surface">
+        <section class="lf-panel" id="pr-change-surface">
           <h2>Change surface</h2>
           <p id="pr-scale-intro">
             Risk is concentrated in the Git repository layer and picker runtime. Tests,
@@ -283,7 +283,7 @@ max-sixty/worktrunk #3865
           </details>
         </section>
 
-        <section class="panel" id="pr-system">
+        <section class="lf-panel" id="pr-system">
           <h2>What changes at runtime</h2>
           <p id="pr-system-intro">
             The behavior view keeps the picker path fixed and changes the default
@@ -305,7 +305,7 @@ max-sixty/worktrunk #3865
                 <span>unchanged boundary</span>
                 <span class="pr-added">+ new path</span>
               </p>
-              <lf-diagram id="pr-flow-diagram" data-height="564" parts="all">
+              <lf-diagram id="pr-flow-diagram" data-height="564">
                 <pre>
 flowchart TB
   accTitle: Unified diff preparation
@@ -346,7 +346,7 @@ flowchart TB
           </lf-tabs>
         </section>
 
-        <section class="panel" id="pr-hunk">
+        <section class="lf-panel" id="pr-hunk">
           <h2>The orchestration hunk the picker uses</h2>
           <p id="pr-hunk-intro">
             This exact hunk from <code>src/summary.rs</code> replaces direct Git
@@ -383,7 +383,7 @@ index b856171b57..cfa4f0448e 100644
           </lf-diff>
         </section>
 
-        <section class="panel" id="pr-invariants">
+        <section class="lf-panel" id="pr-invariants">
           <h2>Review invariants</h2>
           <p id="pr-invariant-intro">
             Exact excerpts from revision <code>9ca8f78b</code> show the byte-equality
@@ -477,7 +477,7 @@ index b856171b57..cfa4f0448e 100644
           </lf-code>
         </section>
 
-        <section class="panel" id="pr-evidence">
+        <section class="lf-panel" id="pr-evidence">
           <h2>Evidence and remaining gaps</h2>
           <div>
             <table id="pr-evidence-table">
@@ -493,7 +493,7 @@ index b856171b57..cfa4f0448e 100644
               <tbody>
                 <tr>
                   <th scope="row">
-                    <span class="tag ok">passed</span>
+                    <span class="lf-tag ok">passed</span>
                     Unified and subsidiary tabs show the intended changes
                   </th>
                   <td>
@@ -505,7 +505,7 @@ index b856171b57..cfa4f0448e 100644
                 </tr>
                 <tr>
                   <th scope="row">
-                    <span class="tag ok">passed</span>
+                    <span class="lf-tag ok">passed</span>
                     Sparse checkouts retain out-of-cone untracked files
                   </th>
                   <td>
@@ -517,7 +517,7 @@ index b856171b57..cfa4f0448e 100644
                 </tr>
                 <tr>
                   <th scope="row">
-                    <span class="tag ok">passed</span>
+                    <span class="lf-tag ok">passed</span>
                     Worktree-local temp directories leave no index artifacts
                   </th>
                   <td>
@@ -529,7 +529,7 @@ index b856171b57..cfa4f0448e 100644
                 </tr>
                 <tr>
                   <th scope="row">
-                    <span class="tag ok">passed</span>
+                    <span class="lf-tag ok">passed</span>
                     Off-screen worktrees are demand-loaded
                   </th>
                   <td>
@@ -541,7 +541,7 @@ index b856171b57..cfa4f0448e 100644
                 </tr>
                 <tr>
                   <th scope="row">
-                    <span class="tag warn">gap</span>
+                    <span class="lf-tag warn">gap</span>
                     Selected-row demand remains fast
                   </th>
                   <td>
@@ -551,7 +551,7 @@ index b856171b57..cfa4f0448e 100644
                 </tr>
                 <tr>
                   <th scope="row">
-                    <span class="tag warn">gap</span>
+                    <span class="lf-tag warn">gap</span>
                     Commit dry-run excludes its own temp index under local TMPDIR
                   </th>
                   <td>
@@ -580,7 +580,7 @@ index b856171b57..cfa4f0448e 100644
           </details>
         </section>
 
-        <section class="panel" id="pr-patch">
+        <section class="lf-panel" id="pr-patch">
           <h2>Exact patch · 46 files</h2>
           <p id="pr-patch-intro">
             GitHub’s captured patch for revision <code>9ca8f78b</code>. All 46 files
@@ -600,7 +600,7 @@ index b856171b57..cfa4f0448e 100644
           ></lf-diff>
         </section>
 
-        <section class="panel" id="pr-source-facts">
+        <section class="lf-panel" id="pr-source-facts">
           <h2>Captured pull request</h2>
           <lf-pr-brief
             id="pr-reviewed-request"
@@ -609,34 +609,34 @@ index b856171b57..cfa4f0448e 100644
           ></lf-pr-brief>
         </section>
 
-        <section class="panel" id="pr-history">
+        <section class="lf-panel" id="pr-history">
           <h2>Review history</h2>
           <ol id="pr-review-chronology">
             <li id="pr-chronology-open">
-              <time>03:32 UTC</time> <small class="tag">observation</small>
+              <time>03:32 UTC</time> <small class="lf-tag">observation</small>
               <strong>PR opened</strong> The first revision introduced the unified
               picker tab, shared diff preparation, and broad integration coverage.
             </li>
             <li id="pr-chronology-first-review">
-              <time>03:43 UTC</time> <small class="tag warn">warning</small>
+              <time>03:43 UTC</time> <small class="lf-tag warn">warning</small>
               <strong>First review withheld approval</strong> It found divergent sparse
               handling, a predictable shared temp directory, startup-cost uncertainty,
               and documentation drift.
             </li>
             <li id="pr-chronology-temp-fix">
-              <time>04:13 UTC</time> <small class="tag ok">intervention</small>
+              <time>04:13 UTC</time> <small class="lf-tag ok">intervention</small>
               <strong>Temp indexes became random, exclusive files</strong> Sparse
               registration and worktree-local temp-directory exclusion gained focused
               tests.
             </li>
             <li id="pr-chronology-race-fix">
-              <time>04:32 UTC</time> <small class="tag ok">intervention</small>
+              <time>04:32 UTC</time> <small class="lf-tag ok">intervention</small>
               <strong>The index copy kept ownership of its pathname</strong> Writing
               through the still-open file closed the symlink race, and off-screen
               worktrees moved out of eager prewarm.
             </li>
             <li id="pr-chronology-final-review">
-              <time>04:57 UTC</time> <small class="tag">observation</small>
+              <time>04:57 UTC</time> <small class="lf-tag">observation</small>
               <strong>Agent review recommends approval with follow-ups</strong> The
               shared <code>TempIndex</code> path and orchestration prose converged;
               selected-row latency and dry-run temp artifacts remained visible notes.

@@ -24,7 +24,7 @@
           <p>Exploration</p>
           <h1>Feeds in Leaf</h1>
         </hgroup>
-        <p class="lede" id="lede">
+        <p class="lf-lede" id="lede">
           A feed card is already a Leaf item: a drafted thing to approve, edit, dismiss
           or discuss. Leaf lacks two things a feed needs: an agent that runs without
           being asked, and one list that covers every page. I recommend testing the
@@ -118,7 +118,7 @@
           <lf-sample id="feed-sample" label="made-up morning feed" window>
             <template id="feed-sample-page" data-sample>
               <h1>Today</h1>
-              <p class="lede" id="today-lede">
+              <p class="lf-lede" id="today-lede">
                 Three things are ready for you. Everything here is made up.
               </p>
 
@@ -159,20 +159,20 @@ Max</pre>
                   <thead>
                     <tr>
                       <th>Measure</th>
-                      <th class="num">This week</th>
-                      <th class="num">Last week</th>
+                      <th class="lf-numeric">This week</th>
+                      <th class="lf-numeric">Last week</th>
                     </tr>
                   </thead>
                   <tbody>
                     <tr>
                       <th scope="row">Pages authored</th>
-                      <td class="num">212</td>
-                      <td class="num">180</td>
+                      <td class="lf-numeric">212</td>
+                      <td class="lf-numeric">180</td>
                     </tr>
                     <tr>
                       <th scope="row">Median first reply</th>
-                      <td class="num">58 s</td>
-                      <td class="num">62 s</td>
+                      <td class="lf-numeric">58 s</td>
+                      <td class="lf-numeric">62 s</td>
                     </tr>
                   </tbody>
                 </table>
@@ -229,7 +229,7 @@ Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
           <h2>Leaf lacks a producer and a cross-page view, and already has the wake</h2>
           <figure id="loop-figure">
             <svg
-              class="drawing loop"
+              class="lf-drawing loop"
               viewBox="0 0 680 250"
               role="img"
               aria-labelledby="loop-t"
@@ -366,14 +366,14 @@ Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
                 label='A. A "Today" page owned by one background session'
               >
                 <strong>A. A "Today" page owned by one background session</strong>
-                <small class="tag">Leaf code: almost none</small
-                ><small class="tag">proactive: yes</small>
+                <small class="lf-tag">Leaf code: almost none</small
+                ><small class="lf-tag">proactive: yes</small>
                 A launchd job resumes one standing Claude Code session each morning. It
                 checks the sources you name and writes a card for each action. Your
                 press resumes it to carry the action out.
                 <figure id="today-page-fig">
                   <svg
-                    class="drawing"
+                    class="lf-drawing"
                     width="260"
                     viewBox="0 0 260 90"
                     role="img"
@@ -405,15 +405,15 @@ Pages authored rose 18% to 212. Median first reply held at about a minute.</pre>
                 </p>
               </lf-option>
               <lf-option id="build-cross-page" label="B. On Me across every page">
-                <small class="tag">Leaf code: rows, a view, persistence</small
-                ><small class="tag">proactive: no</small>
+                <small class="lf-tag">Leaf code: rows, a view, persistence</small
+                ><small class="lf-tag">proactive: no</small>
                 <strong>B. On Me across every page</strong>
                 Each page's row publishes its On Me items. All pages becomes one feed of
                 every page's items. Simple items are answered inline, and the rest open
                 their page at the item.
                 <figure id="cross-page-fig">
                   <svg
-                    class="drawing"
+                    class="lf-drawing"
                     width="260"
                     viewBox="0 0 260 90"
                     role="img"

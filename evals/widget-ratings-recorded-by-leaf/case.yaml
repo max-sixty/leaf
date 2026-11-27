@@ -1,0 +1,71 @@
+# An author new to Leaf who ports a widget that already keeps what the user makes, here
+# ratings in localStorage and a POST to the site's server, is pulled to keep that store
+# and add Leaf beside it, or to swap it for a function call. On a Leaf page the widget
+# declares a verb, draws from the `state` Leaf sets and records each gesture with an
+# `lf-action` event, and Leaf keeps the record for every tab and device, for Undo and for
+# the agent; a store of the module's own reaches none of them.
+# `module-state.md`, "Where a widget keeps its state", and `package-data.md`, "User
+# state", say so, and `module-plain-elements.md` gives the protocol.
+description: widget-ratings-recorded-by-leaf
+metadata:
+  purpose: A widget ported from a site that stores what the user makes records it through Leaf's state and lf-action instead of a store of its own.
+  tags:
+    - packages
+    - state
+    - package-interface
+vars:
+  prompt: |
+    Our docs site has a widget that lets a reviewer rate each of a model's answers
+    from 1 to 5. I want it as a Leaf package widget, lf-answer-ratings, on the eval
+    review pages our agent writes. There a rating has to survive a reload, be there
+    when the reviewer opens the page on their other laptop, and reach the agent,
+    which reads the ratings when it next revises the page. This is the module on
+    the docs site:
+
+    ```js
+    customElements.define("answer-ratings", class extends HTMLElement {
+      connectedCallback() {
+        this.key = `ratings:${location.pathname}`;
+        this.ratings = JSON.parse(localStorage.getItem(this.key) ?? "{}");
+        for (const answer of this.querySelectorAll("[data-answer]")) {
+          const stars = document.createElement("div");
+          for (let n = 1; n <= 5; n++) {
+            const star = document.createElement("button");
+            star.textContent = "★";
+            star.setAttribute("aria-label", `${n} of 5`);
+            star.addEventListener("click", () => this.rate(answer.dataset.answer, n));
+            stars.append(star);
+          }
+          answer.append(stars);
+        }
+        this.paint();
+      }
+      rate(id, n) {
+        this.ratings[id] = n;
+        localStorage.setItem(this.key, JSON.stringify(this.ratings));
+        fetch("/api/ratings", { method: "POST", body: JSON.stringify(this.ratings) });
+        this.paint();
+      }
+      paint() {
+        // Presses each answer's stars up to its rating.
+      }
+    });
+    ```
+
+    Show the registry entry, one authored occurrence and the module.
+assert:
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Pass only if Leaf keeps the ratings: the registry entry declares a verb under
+      `verbs` for a rating, the module draws each answer's rating from the `state`
+      Leaf sets on the element, and it records each rating as the reviewer gives it
+      with an `lf-action` event naming that verb, dispatched directly or through
+      `LeafElement`'s `record()`. Rating one answer
+      leaves the others' ratings in force: the verb's `unit` names the answer, each
+      answer is a widget of its own, or each action carries every answer's rating.
+      Fail if the module still keeps the ratings in `localStorage`, `sessionStorage`,
+      IndexedDB, a cookie, `tabStore`, or a copy of its own that it draws from in
+      place of `state`, whether instead of the recorded action or beside it; or if it
+      sends them anywhere itself, with `fetch`, XHR, a WebSocket or `connection()`.
+      Execution is unavailable, so not running checks is not a failure.

@@ -2,13 +2,11 @@
 import { render } from "/vendor/lit.js";
 import { createView } from "../margin-entry-gallery-view.js";
 import {
-  contributionEntry,
-  once,
   presentContributionEntry,
-  presentContributionReceipts,
   registerContribution,
   whileConnected,
 } from "/runtime/widget-api.js";
+import { once } from "/runtime/lib/once.js";
 
 function wireSample({ sample, key, control, disclosure }) {
   const behavior = sample.behavior ?? "action";
@@ -16,7 +14,7 @@ function wireSample({ sample, key, control, disclosure }) {
   const paint = () => {
     presentContributionEntry(
       control,
-      contributionEntry({
+      {
         key,
         label: sample.name,
         ...(sample.icon ? { icon: sample.icon } : { glyph: sample.glyph }),
@@ -28,22 +26,24 @@ function wireSample({ sample, key, control, disclosure }) {
         count: sample.count ?? 1,
         disabled: !sample.interactive,
         relation: disclosure ? { kind: "element", id: disclosure.id, expanded } : null,
-      }),
-      { selected: sample.selected ?? false, unread: sample.unread ?? false },
-    );
-    presentContributionReceipts(
-      control,
-      sample.workflowStage
-        ? {
-            id: key,
-            subject: { kind: "widget", id: key },
-            stage: sample.workflowStage,
-            // The server stamps whether the agent is at work on it (served_state/work.py).
-            at_work: sample.workflowStage === "working",
-            detail: "",
-          }
-        : null,
-      sample.awaitsUser ?? false,
+      },
+      {
+        selected: sample.selected ?? false,
+        unread: sample.unread ?? false,
+        receipt: sample.workflowState
+          ? {
+              id: key,
+              subject: { kind: "widget", id: key },
+              // Where the server says the update stands (activity.py): a turn took it
+              // in, or the agent is at work on it.
+              state: sample.workflowState,
+              reason: null,
+              seen: true,
+              detail: "",
+            }
+          : null,
+        awaitsUser: sample.awaitsUser ?? false,
+      },
     );
     // The words beside each fixed sample say what its preview would, over the next
     // cell, so only the live discovery samples keep the preview the factory gives them.

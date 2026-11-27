@@ -5,25 +5,21 @@
    holds, are the browser suite's. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { signal } from "/runtime/framework.js";
-import { html, nothing, noChange } from "/vendor/lit.js";
-import { LeafElement, shadowStage } from "/runtime/widget-api.js";
-import { focused, focusDestination } from "/runtime/focus.js";
-import { failSoftUnreported } from "/runtime/widget-upgrade.js";
-import { keys, reflectFirstScopes, reflectKeys } from "/runtime/keyboard/scopes.js";
+import { signal } from "/vendor/signals-core.js";
+import { html, nothing } from "/vendor/lit.js";
+import { shadowStage } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { focused, focusDestination } from "/runtime/dom/focus.js";
+import { showFailure } from "/runtime/lib/failure.js";
+import { keys, reflectFirstScopes, reflectKeys } from "/runtime/dom/keyboard/scopes.js";
 import {
   applicationState,
-  attachApplicationPresentation,
-  applicationRegionsPresented,
   readApplicationPresentation,
   readPart,
-  queueWidgetUpdate,
-  applicationPresenter,
-  PRESENTATION_DOM,
-} from "/runtime/semantic-state.js";
-import { clockValue, tickClock } from "/runtime/presence.js";
-import { adoptRegistry } from "/runtime/registry.js";
-import { acceptData, notifyDataSubscribers } from "/runtime/data.js";
+} from "/runtime/state/semantic-state.js";
+import { clockValue, tickClock } from "/runtime/state/presence.js";
+import { adoptRegistry } from "/runtime/state/registry.js";
+import { acceptData, notifyDataSubscribers } from "/runtime/host/data.js";
 
 const phase = readPart((root) => root.phase);
 const host = readPart((root) => root.hostAvailable);
@@ -61,10 +57,11 @@ const committed = async (element) => {
   await Object.getPrototypeOf(LeafElement.prototype).getUpdateComplete.call(element);
 };
 
-// Whether the element's own region still waits on a draw.
+// Whether a region of the element's still waits on a draw: the one Leaf holds for an
+// element it sets data on, or the one it holds on drawing the element announced.
 const pending = (element) =>
   readApplicationPresentation().pending.some((region) =>
-    region.startsWith(`element:${element.localName}#`),
+    region.startsWith(`element:${element.localName}:`),
   );
 
 const tick = () =>
@@ -202,45 +199,6 @@ test("mechanical focus reads do not subscribe a widget's content to focus moves"
   button.remove();
 });
 
-test("readiness finishes a waiting render without claiming another presentation", async () => {
-  const region = "probe:ready";
-  const prerequisite = attachApplicationPresentation(region, {});
-  let claim = prerequisite.present("first");
-  let draws = 0;
-  const tag = `lf-probe-ready-${++tags}`;
-  customElements.define(
-    tag,
-    class extends LeafElement {
-      render() {
-        draws++;
-        if (!this.whenReady(() => applicationRegionsPresented([region])))
-          return noChange;
-        return html`ready`;
-      }
-    },
-  );
-  const element = document.createElement(tag);
-  document.body.append(element);
-  await settled(element);
-  assert.equal(element.textContent, "");
-  claim.resolve();
-  assert.equal(
-    pending(element),
-    false,
-    "completion does not reopen this widget's claim",
-  );
-  await settled(element);
-  assert.equal(element.textContent, "ready");
-  assert.equal(draws, 2);
-  claim = prerequisite.present("second");
-  await settled(element);
-  claim.resolve();
-  await settled(element);
-  assert.equal(draws, 2, "finished readiness has no subscription to falling proof");
-  element.remove();
-  prerequisite.disconnect();
-});
-
 test("an element draws again when a part its render read moves, and not for another", async () => {
   applicationState.setPhase("waiting");
   const { element, draws } = probe(() => phase());
@@ -352,6 +310,7 @@ test("an element gates its draws on the delivered bound value", async () => {
   customElements.define(
     tag,
     class extends LeafElement {
+      static properties = { value: { attribute: false } };
       shouldUpdate(changed) {
         return super.shouldUpdate(changed) && this.value !== this.drawn;
       }
@@ -401,11 +360,11 @@ test("a failure in a part the element generated stays in that part, and the next
     tag,
     class extends LeafElement {
       setup() {
-        this.part = document.createElement("p");
-        this.append(document.createElement("strong"), this.part);
+        this.generated = document.createElement("p");
+        this.append(document.createElement("strong"), this.generated);
       }
       createRenderRoot() {
-        return this.part;
+        return this.generated;
       }
       render() {
         const now = phase();
@@ -422,13 +381,13 @@ test("a failure in a part the element generated stays in that part, and the next
   element.requestUpdate();
   await settled(element);
   await new Promise((resolve) => setTimeout(resolve, 0));
-  assert.ok(element.part.isConnected, "the failure keeps the element's own part");
-  assert.match(element.part.textContent, /failed: cannot draw/);
+  assert.ok(element.generated.isConnected, "the failure keeps the element's own part");
+  assert.match(element.generated.textContent, /failed: cannot draw/);
   assert.ok(element.querySelector("strong"), "the authored children stay");
   failing = false;
   applicationState.setPhase("offline");
   await settled(element);
-  assert.equal(element.part.textContent, "offline");
+  assert.equal(element.generated.textContent, "offline");
   element.remove();
 });
 
@@ -477,11 +436,11 @@ test("a failed preparation stands beside the render root, which the next draw st
     tag,
     class extends LeafElement {
       setup() {
-        this.part = document.createElement("p");
-        this.append(this.part);
+        this.generated = document.createElement("p");
+        this.append(this.generated);
       }
       createRenderRoot() {
-        return this.part;
+        return this.generated;
       }
       render() {
         return html`${phase()}`;
@@ -493,12 +452,12 @@ test("a failed preparation stands beside the render root, which the next draw st
   document.body.append(element);
   await settled(element);
   // The controller shows a rejected `present()` on its owner, as here.
-  failSoftUnreported(element, new Error("could not prepare"));
-  assert.ok(element.part.isConnected);
+  showFailure(element, new Error("could not prepare"));
+  assert.ok(element.generated.isConnected);
   assert.match(element.textContent, /failed: could not prepare/);
   applicationState.setPhase("offline");
   await settled(element);
-  assert.equal(element.part.textContent, "offline");
+  assert.equal(element.generated.textContent, "offline");
   assert.equal(element.querySelector(".lf-error"), null);
   element.remove();
 });
@@ -539,6 +498,8 @@ test("a draw reads again the keys of what it drew and around it, not of the page
       render() {
         return html`<button>Open</button><button>Close</button>`;
       }
+      // A subclass that leaves `super.updated()` out still has its keys read.
+      updated() {}
     },
   );
   const element = document.createElement(tag);
@@ -645,6 +606,7 @@ test("bound data draws only as it is delivered", async () => {
   customElements.define(
     tag,
     class extends LeafElement {
+      static properties = { value: { attribute: false } };
       render() {
         revisions.push(this.value?.[0].revision ?? null);
         return html`drawn`;
@@ -666,12 +628,16 @@ test("bound data draws only as it is delivered", async () => {
   element.remove();
 });
 
-test("a data widget the markup binds to nothing reads its written <pre> as its input", async () => {
+test("a data widget the markup binds to nothing reads its written <pre> as its value", async () => {
   const tag = `lf-probe-written-${++tags}`;
   adoptRegistry({
     [tag]: {
       content: "data",
-      inputs: { text: { source: "source", contract: "text", property: "value" } },
+      inputs: {
+        text: { source: "source", contract: "text", property: "value" },
+        // Another input, as a code block's playhead, leaves the <pre> to the value.
+        at: { reference: "for", contract: "lines", property: "at" },
+      },
     },
   });
   const drawn = [];
@@ -679,7 +645,7 @@ test("a data widget the markup binds to nothing reads its written <pre> as its i
     tag,
     class extends LeafElement {
       render() {
-        drawn.push(this.value);
+        drawn.push([this.value, this.at]);
         return nothing;
       }
     },
@@ -689,7 +655,7 @@ test("a data widget the markup binds to nothing reads its written <pre> as its i
   element.innerHTML = "<pre>**Fixed** &lt;now&gt;\n</pre>";
   document.body.append(element);
   await settled(element);
-  assert.deepEqual(drawn, ["**Fixed** <now>\n"]);
+  assert.deepEqual(drawn, [["**Fixed** <now>\n", undefined]]);
   element.remove();
   // A module that makes one without a `<pre>` hosts the input itself.
   const hosted = document.createElement(tag);
@@ -697,7 +663,7 @@ test("a data widget the markup binds to nothing reads its written <pre> as its i
   hosted.value = "set by its host";
   document.body.append(hosted);
   await settled(hosted);
-  assert.deepEqual(drawn.at(-1), "set by its host");
+  assert.deepEqual(drawn.at(-1), ["set by its host", undefined]);
   hosted.remove();
 });
 
@@ -895,6 +861,7 @@ test("accepted data claims the element's region until its delivery draws", async
   customElements.define(
     tag,
     class extends LeafElement {
+      static properties = { value: { attribute: false } };
       render() {
         return html`${this.value?.[0].revision}`;
       }
@@ -941,6 +908,7 @@ test(
     customElements.define(
       tag,
       class extends LeafElement {
+        static properties = { value: { attribute: false } };
         showData = true;
         render() {
           return html`${this.showData ? this.value?.[0].revision : "Hidden"}`;
@@ -968,59 +936,3 @@ test(
     }
   },
 );
-
-test("document consumers wait for native Lit follow-up DOM, not held drawing", async () => {
-  const held = Promise.withResolvers();
-  const tag = `lf-probe-native-completion-${++tags}`;
-  customElements.define(
-    tag,
-    class extends LeafElement {
-      static properties = { value: {} };
-      constructor() {
-        super();
-        this.value = "initial";
-      }
-      scheduleUpdate() {
-        return queueWidgetUpdate(
-          this.id,
-          () => super.scheduleUpdate(),
-          () => super.getUpdateComplete(),
-        );
-      }
-      render() {
-        return html`<p>${this.value}</p>`;
-      }
-      updated(changed) {
-        super.updated(changed);
-        if (this.value === "intermediate") this.value = "final";
-        if (this.value === "final") this.work = held.promise;
-      }
-      async getUpdateComplete() {
-        const result = await super.getUpdateComplete();
-        await this.work;
-        return result;
-      }
-    },
-  );
-  const element = document.createElement(tag);
-  element.id = tag;
-  document.body.append(element);
-  await settled(element);
-  const seen = [];
-  const consumer = applicationPresenter({
-    region: "native-completion-consumer",
-    reading: () => true,
-    after: PRESENTATION_DOM.widgets,
-    paint: () => seen.push(element.textContent),
-  });
-  element.value = "intermediate";
-  const ready = consumer.present();
-  await ready;
-  assert.deepEqual(seen, ["final"]);
-  assert.ok(pending(element), "DOM completion does not certify held semantic drawing");
-  held.resolve();
-  await settled(element);
-  assert.ok(!pending(element));
-  consumer.disconnect();
-  element.remove();
-});

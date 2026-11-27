@@ -8,8 +8,10 @@ owns it, whose header holds the rest of its contract.
 
 Each JSON record below is a `state.Record`, declared once beside its owning module,
 whose functions are its only writers. Its `format` versions it
-([layer-registry.md](layer-registry.md), "Page protocol"). A state-home record whose
-pages are gone is removed whichever Leaf wrote it (`state.retire_if_gone`).
+([layer-registry.md](layer-registry.md), "Page protocol"), and each shape is kept under
+the name below with its `since` before the suffix, as `drafts@51.json`, so a Leaf of
+one shape never reads or replaces another's. A state-home record whose pages are gone
+is removed by whichever Leaf of its shape next lists it (`state.retire_if_gone`).
 
 - `index.html` — the author's mutable document. The server validates it before
   activation and never serves it directly. An invalid save creates no revision, leaves
@@ -29,8 +31,9 @@ pages are gone is removed whichever Leaf wrote it (`state.retire_if_gone`).
   version never moves as later saves go live. A static-site build may write these
   responses out as disposable delivery output, never an authority.
 
-- `layer.json` — the packages and theme the page selects, its generation and
-  its page protocol (`registry.storage.LAYER`, [layer-registry.md](layer-registry.md)).
+- `layer.json` — the packages the page selects and its generation, in a `format`
+  that names its page protocol (`registry.storage.LAYER`,
+  [layer-registry.md](layer-registry.md)).
   Every Leaf that reads the page composes its registry, theme, instructions, widgets
   and package modules from it; none of them is a file in the page.
 
@@ -58,7 +61,7 @@ pages are gone is removed whichever Leaf wrote it (`state.retire_if_gone`).
 - `observations.jsonl` — a private, best-effort diagnostic trace: browser observations,
   server requests and thread-title requests, each `leaf` command's duration, and
   developer run context. It never enters page state or acknowledgement and is never
-  served. `interaction_log.py` owns admission and reading, `browser/runtime/interaction-log.js`
+  served. `interaction_log.py` owns admission and reading, `browser/runtime/transport/interaction-log.js`
   what a tab sends and sheds, `interaction-batch.schema.json` a browser batch, and
   `leaf-dev logs response-times` the timing query over it.
 
@@ -95,12 +98,17 @@ pages are gone is removed whichever Leaf wrote it (`state.retire_if_gone`).
   it through `service.read_stream`, and a missing file reads as an empty stream.
   [session-lifetime.md](session-lifetime.md) owns when each part stops being believed.
 
+- `init.lock` — the lock that holds a re-initialization of the page, a `page init` or
+  a renewal at this Leaf's page protocol, from the reading that decides it through the
+  restart of the page's service, so a second one decides after the first
+  (`vendoring._reinit`).
+
 - `waiter.lock` — the bare-shell wait lease; a harness session uses
   `<state-home>/sessions/<session>.wait` instead
   ([session-lifetime.md](session-lifetime.md)).
 
 - `preview.json` — the preview identity `leaf-dev preview` writes and the browser chrome
-  labels (`server.PREVIEW`). Its presence exempts the page from the Stop hook's watcher
+  labels (`service.PREVIEW`). Its presence exempts the page from the Stop hook's watcher
   guard.
 
 - `service.json` — the desired server address, enabled state, lifetime, runtime
@@ -118,7 +126,7 @@ pages are gone is removed whichever Leaf wrote it (`state.retire_if_gone`).
   that service live, and the file stays after release (`leases.py`).
 
 - `<state-home>/claims/<page-key>.json` — the page's one canonical claim
-  (`service.CLAIM`). `<state-home>/claims/<session-key>/<page-key>.json` is a symlink
+  (`state.CLAIM`). `<state-home>/claims/<session-key>/<page-key>.json` is a symlink
   locating it for the owning session's discovery, which admits a locator only when the
   claim names that session, so a stale locator cannot take back a transferred page
   (`state.held_claims`, `state.retire_claim`). `page init` on a fresh page clears the
@@ -136,9 +144,10 @@ pages are gone is removed whichever Leaf wrote it (`state.retire_if_gone`).
 - `<state-home>/rows/<page-key>.json` — disposable output of a serving page's own
   activity, for its neighbours (`server_rows.py`). No page's fold reads it.
 
-- `<state-home>/render-readings/<page-key>.json` — the page's latest render check,
-  for its server (`render_gate/handover_pass.py`). No page's fold reads it, and
-  without it a version is read again.
+- `<state-home>/render-readings/<page-key>.json` — the page's latest render check
+  (`render_reading.py`), for its server (`handover_pass.py`), for the
+  parts `leaf page state` lists and for the parts `leaf thread create --part` takes. No
+  page's fold reads it, and without it a version is read again.
 
 ## Revision delivery
 
@@ -146,11 +155,11 @@ The live root serves the active revision, and revision and version addresses go 
 the same delivery, all naming the page root as canonical (`revision_delivery.py`). The
 revision manifest's `executable` digest decides whether an open tab patches its
 document or replaces it (`revision_artifact.py`). The browser compares the two
-authored DOM baselines to decide which widgets a patch keeps (`version.js`).
+authored DOM baselines to decide which widgets a patch keeps (`features/version.js`).
 
 A publication that also changes the log stages its bundle, names it in its first
 admitted event, and writes the revision marker last, and the next page transaction
-finishes one that was interrupted (`revisioning.py`).
+finishes one that was interrupted (`revision_publication.py`).
 
 ## Page state
 

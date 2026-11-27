@@ -139,7 +139,7 @@ document 130–160. Work that was repeated or read by no one made up most of the
 difference: the check walked the page's containment once per live sample
 (`passages.enclosing_ids`), anchor relocation walked both revisions in full
 (`SourceReading.decided_passages`), every check judged the recorded data for
-advice only `page check` prints (`validation.source.source_advice`), and the
+advice only `page check` prints (`authored_checks.source.source_advice`), and the
 document's delivery copied the whole page once per mark it wrote
 (`revision_delivery._spliced`). The user-view report also forced the style and
 layout of every hidden tab, about 280 ms 300 ms after each presentation, which
@@ -330,8 +330,8 @@ process: an earlier batch at a load average near 27 read 1.0–3.7 s.
   fragile (quoting, heredocs), so a reply tool of Leaf's own, whose arguments are JSON
   (`$.tool.register`), is the sturdier source. A `$.model.fork` fork streams nothing
   a hook can see: its text comes back whole. A subagent's steps reach every hook but
-  the one that spawned it, with its `agentId`, so a fork made with `$.agent.spawn`
-  could stream its reply the same way.
+  the one that spawned it, with its `agentId`, so the subagent a session spawns for a
+  thread could stream its reply the same way.
 - **A message that waited behind a long command, on Claude Code:** page input
   reaches a busy session only between its tool calls. Of 58 thread messages from 1
   to 5 November, 37 reached a busy session, after a median 16 s (p90 99 s), and 6

@@ -13,6 +13,7 @@ from interact_support import (
     PAGE,
     PAGE_GROUP,
     append_command,
+    page_packages,
     publish,
     revision_root,
     running_http_server,
@@ -24,13 +25,13 @@ from process.website_server import (
 from process.website_server.test_saved_records import durable_page_store
 
 import leaf_website as website_server
-from leaf.delivery import receive_batch
-from leaf.drafts import read_drafts, write_draft
-from leaf.event_log import read_events
-from leaf.files import revision_path
-from leaf.hosting import LeafHTTPServer
-from leaf.runtime_selection import serving_runtime
-from leaf.service import PageTransaction, acknowledged, unacknowledged
+from leaf.agents.delivery import receive_batch
+from leaf.base.files import revision_path
+from leaf.log.event_log import read_events
+from leaf.pages.hosting import LeafHTTPServer
+from leaf.records.transaction import PageTransaction, acknowledged, unacknowledged
+from leaf.serving.drafts import read_drafts, write_draft
+from leaf.source.runtime_selection import serving_runtime
 
 
 def test_saved_website_record_restores_comments_choices_and_private_revision(
@@ -69,6 +70,7 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
                 "widget": "choice",
                 "action": "choose",
                 "detail": {"value": ["backfill-first"]},
+                "answered": True,
             },
         )
         comment = append_command(
@@ -140,7 +142,7 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
                 sys.executable,
                 "-c",
                 (
-                    "from pathlib import Path; import sys; from leaf.service import PageTransaction; "
+                    "from pathlib import Path; import sys; from leaf.records.transaction import PageTransaction; "
                     "page = PageTransaction(Path(sys.argv[1])); page.__enter__(); page.__exit__(None, None, None)"
                 ),
                 str(private),
@@ -256,3 +258,83 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
                 read_events(recovered), acknowledged(read_events(recovered))
             )
         ] == [next_comment["id"]]
+
+
+def test_a_later_release_restores_a_visitors_page_as_they_left_it(
+    page_dir, tmp_path, monkeypatch, initialized_page
+):
+    """A deploy at the same page protocol restores the visitor's page whole, though the
+    new release publishes its own first revision: their comment stands on the revision
+    they read, which the container then serves itself, since the new release's assets
+    hold only the revisions it published."""
+    from leaf_website.storage import PUBLISHER, restore
+
+    def release_site(name, page, release):
+        site = tmp_path / name
+        shutil.copytree(page, site / "page")
+        write_manifest(site, {"/example": ("page", "example")})
+        manifest_path = site / website_server.SITE_MANIFEST
+        manifest = json.loads(manifest_path.read_text())
+        manifest["release"] = release
+        entry = manifest["pages"]["/example"]
+        entry["assets"] = f"/_leaf-release/{release}/example"
+        entry["revisions"] = [revision_path(page, 1).stem]
+        manifest_path.write_text(json.dumps(manifest))
+        return site, entry
+
+    publish(page_dir)
+    earlier, _ = release_site("earlier", page_dir, "0" * 64)
+    visited = revision_path(earlier / "page", 1).stem
+    republished = initialized_page(
+        tmp_path / "republished",
+        page_packages(),
+        (
+            "PAGE-republished",
+            lambda template: (template / "index.html").write_text(
+                PAGE.replace("<h2>Plan</h2>", "<h2>Plan, republished</h2>")
+            ),
+        ),
+    )
+    publish(republished)
+    later, entry = release_site("later", republished, "1" * 64)
+    assert revision_path(later / "page", 1).stem != visited
+    with durable_page_store() as (store_url, stored):
+        monkeypatch.setenv("LEAF_PAGE_STORE_URL", store_url)
+        monkeypatch.setenv("LEAF_SITE_ROOT", str(earlier))
+        assert restore(earlier)
+        monkeypatch.setenv("LEAF_PAGE_COMMIT", PUBLISHER)
+        append_command(
+            earlier / "page",
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": "Kept across the deploy",
+                "attempt": "kept-comment-0001",
+            },
+        )
+        with PageTransaction(earlier / "page"):
+            pass
+
+        stored["release"] = "1" * 64
+        monkeypatch.setenv("LEAF_SITE_ROOT", str(later))
+        monkeypatch.delenv("LEAF_PAGE_COMMIT")
+        assert restore(later)
+        monkeypatch.setenv("LEAF_PAGE_COMMIT", PUBLISHER)
+        restored = later / "page"
+        assert revision_path(restored, 1).stem == visited
+        assert b"Plan, republished" not in revision_path(restored, 1).read_bytes()
+        assert any(
+            event.get("text") == "Kept across the deploy"
+            for event in read_events(restored)
+        )
+        with PageTransaction(restored):
+            pass
+        publication = stored["publications"][-1]
+    document = b"".join(
+        stored["blobs"][digest] for digest in publication["responses"][""]["chunks"]
+    )
+    assert f"{entry['assets']}/revisions/".encode() not in document
+    assert any(
+        path.startswith(f"revisions/{visited}") for path in publication["responses"]
+    )

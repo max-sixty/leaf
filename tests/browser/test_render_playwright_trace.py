@@ -6,7 +6,6 @@ from pathlib import Path
 
 import pytest
 from playwright.sync_api import expect
-from render_cases_layout import current_location_ring, ring_faults
 from render_cases_navigation import source_revision
 from render_harness import (
     PREVIEW,
@@ -18,10 +17,11 @@ from render_harness import (
     told,
 )
 
-from leaf import data as data_model
-from leaf.render_checks import evaluate_probe, rendered, wait_until_ready
+from leaf.records import page_data as page_data_model
+from leaf.source.render_checks import evaluate_probe, rendered, wait_until_ready
 from leaf_dev.example_data import named_source
 from leaf_dev.page_fixtures import example_media
+from leaf_dev.rings import current_location_ring, ring_faults, rings_drawn
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -55,7 +55,7 @@ def test_trace_bookmarks_leave_the_image_allocation(browser, serve):
         packages=("playwright",),
         media=media,
     )
-    data_model.cmd_data_set(serve.page_dir, "trace", record)
+    page_data_model.cmd_data_set(serve.page_dir, "trace", record)
     context = browser.new_context(viewport={"width": 1280, "height": 900})
     user = open_page(browser, url, context=context)
     widget = user.locator("#before")
@@ -113,7 +113,7 @@ def test_trace_parts_carry_the_recording_and_place_they_were_drawn_from(browser,
         packages=("playwright",),
         media=media,
     )
-    data_model.cmd_data_set(serve.page_dir, "trace", record)
+    page_data_model.cmd_data_set(serve.page_dir, "trace", record)
     page = open_page(browser, url)
     parts = page.locator("#journey [data-lf-projection]")
 
@@ -135,7 +135,7 @@ def test_trace_parts_carry_the_recording_and_place_they_were_drawn_from(browser,
     ), first
 
     record["actions"][0]["title"] += " (rerun)"
-    data_model.cmd_data_set(serve.page_dir, "trace", record)
+    page_data_model.cmd_data_set(serve.page_dir, "trace", record)
     told(page)
     rerun = source_revision(serve.page_dir, "trace")
     assert rerun != revision
@@ -185,7 +185,7 @@ def test_timeline_marks_say_their_words_beside_them_inside_the_window(
     the lane's other marks, which are thinner than the owner's hit tests are apart. It
     covers another mark only where no side holds a line clear of them, as at the end of
     a phone's input lane, and then says so and lets the pointer through to them
-    (preview.js, `data-lf-covers`).
+    (annotations/preview.js, `data-lf-covers`).
     """
     browser = request.getfixturevalue(engine)
     record = json.loads(
@@ -203,7 +203,7 @@ def test_timeline_marks_say_their_words_beside_them_inside_the_window(
         packages=("playwright",),
         media=media,
     )
-    data_model.cmd_data_set(serve.page_dir, "trace", record)
+    page_data_model.cmd_data_set(serve.page_dir, "trace", record)
     context = browser.new_context(viewport={"width": width, "height": 900})
     page = open_page(browser, url, context=context)
     widget = page.locator("#journey")
@@ -215,7 +215,7 @@ def test_timeline_marks_say_their_words_beside_them_inside_the_window(
         if zoom:
             widget.get_by_role("button", name="Zoom in", exact=True).click()
             rendered(page)
-        # Every mark that says something when pointed at (preview.js).
+        # Every mark that says something when pointed at (annotations/preview.js).
         timeline.evaluate("""node => [...node.querySelectorAll('*')]
             .forEach((el) => el.toggleAttribute('data-test-tip',
               typeof el.lfPreview === 'function'))""")
@@ -296,7 +296,7 @@ def press_scale(widget, name):
 
     The menu hangs from its trigger by CSS anchor positioning, which Chromium moves for
     a scroll only at the page's next rendering update. Below image tools near the
-    window's foot, the menu reaches into the root's foot padding (floating-panel.js,
+    window's foot, the menu reaches into the root's foot padding (panel/floating-panel.js,
     `followBox`), so Playwright's click scrolls the choice into view and then presses
     where the menu stood before that update. On a slower runner the update comes first,
     the press lands on the page, and the menu closes, as any press outside it does. So
@@ -328,7 +328,7 @@ def test_trace_arrows_step_the_way_the_time_scale_runs_in_right_to_left_text(
         packages=("playwright",),
         media=media,
     )
-    data_model.cmd_data_set(serve.page_dir, "rtl-trace", record)
+    page_data_model.cmd_data_set(serve.page_dir, "rtl-trace", record)
     user = open_page(browser, url)
     widget = user.locator("#journey")
     call = widget.locator(f'.lf-trace-call-bar[data-lf-id="{setup["id"]}"]')
@@ -422,7 +422,7 @@ def scrolled_closed_tree(browser, serve, motion):
         packages=("playwright",),
         media=media,
     )
-    data_model.cmd_data_set(serve.page_dir, "review-trace", record)
+    page_data_model.cmd_data_set(serve.page_dir, "review-trace", record)
     context = browser.new_context(
         viewport={"width": 1280, "height": 500}, reduced_motion=motion
     )
@@ -459,20 +459,32 @@ def test_trace_tree_opened_by_the_browser_keeps_its_match(browser, serve):
     reader's, and the shift the opening announces a frame later must not return the
     tree to where the reader left it. Headless Chrome has no find bar, and Leaf
     intercepts a fragment navigation to travel there itself, so the page makes the
-    find's two moves: it opens the tree and scrolls the row into view natively.
+    find's two moves: it opens the tree and scrolls the row into view natively. The
+    browser's reveal stops at the window's foot rather than above the floating panel,
+    as Leaf's landings do, so the row is shown where the browser put it.
+
+    Those two moves are no input of the reader's, so the shift watch judges what they
+    move as moving by itself, once the reader's last input has finished rendering. The
+    closed tree stands below the window, as a find's match often does, so the opening
+    moves nothing the reader sees and the find scrolls the page to the match.
     """
     user, widget, _ = scrolled_closed_tree(browser, serve, "reduce")
-    # The reader goes back to reading the page, which takes focus off the summary.
-    user.get_by_text("Review note 0 on").click()
+    # The reader goes back to the top of the page, which takes focus off the summary.
+    user.get_by_role("heading", name="Saved element", level=1).click()
     rendered(user)
-    widget.locator(".lf-trace-node").last.evaluate(
+    assert widget.locator(".lf-trace-tree").evaluate(
+        "tree => tree.getBoundingClientRect().top >= innerHeight"
+    )
+    user.wait_for_function("() => !lfInputRenderingOpen()")
+    revealed = widget.locator(".lf-trace-node").last.evaluate(
         "row => { row.closest('details').open = true;"
-        " row.scrollIntoView({block: 'nearest'}); }"
+        " row.scrollIntoView({block: 'nearest'});"
+        " const {top, bottom} = row.getBoundingClientRect(); return [top, bottom]; }"
     )
     landed = user.evaluate(LANDED_ROW)
     user.context.close()
     assert landed["open"]
-    assert_row_shown(landed)
+    assert landed["row"] == pytest.approx(revealed, abs=1), (landed, revealed)
 
 
 def test_trace_tree_opens_at_each_checkpoints_reading(browser, serve):
@@ -539,14 +551,14 @@ def test_trace_comparison_pairs_authored_results_across_delayed_sources(browser,
         packages=("playwright",),
         media=media,
     )
-    data_model.cmd_data_set(serve.page_dir, "before-trace", record)
+    page_data_model.cmd_data_set(serve.page_dir, "before-trace", record)
     user = open_page(browser, url)
     before = user.locator("#before")
     before.locator(".lf-trace-bookmark").click()
     expect(before.locator(".lf-trace-phase")).to_have_attribute(
         "data-lf-datum", targets[0]
     )
-    before.get_by_role("button", name="Image scale", exact=True).click()
+    before.get_by_role("button", name=re.compile(r"^Image scale, ")).click()
     press_scale(before, "Actual size")
     canvas = before.locator(
         ".lf-trace-image:not(.lf-trace-image-pending) .lf-trace-canvas"
@@ -568,7 +580,7 @@ def test_trace_comparison_pairs_authored_results_across_delayed_sources(browser,
     # it has any data or an archive-specific scope in which to save that view.
     user.get_by_role("radio", name="After", exact=True).click()
     after = user.locator("#after")
-    data_model.cmd_data_set(serve.page_dir, "after-trace", record)
+    page_data_model.cmd_data_set(serve.page_dir, "after-trace", record)
     expect(after.locator(".lf-trace-phase")).to_have_attribute(
         "data-lf-datum", targets[1]
     )
@@ -642,7 +654,7 @@ def test_trace_initial_moment_uses_capture_order_and_skips_unavailable_targets(
         packages=("playwright",),
         media=media,
     )
-    data_model.cmd_data_set(serve.page_dir, "review-trace", record)
+    page_data_model.cmd_data_set(serve.page_dir, "review-trace", record)
     user = open_page(browser, url)
     widget = user.locator("#journey")
     expect(widget.get_by_role("radio", name="Stream 2", exact=True)).to_have_attribute(
@@ -704,7 +716,7 @@ def test_hidden_recording_prepares_when_shown_without_blocking_page(browser, ser
         packages=("playwright",),
         media=media,
     )
-    data_model.cmd_data_set(serve.page_dir, "hidden-trace", record)
+    page_data_model.cmd_data_set(serve.page_dir, "hidden-trace", record)
     user = open_page(browser, url)
     widget = user.locator("#journey")
     expect(widget).to_be_hidden()
@@ -780,7 +792,7 @@ def test_trace_metadata_inspection_preserves_pending_checkpoint(browser, serve):
 def test_trace_playback_frames_stand_over_the_capture_they_replace(browser, serve):
     """A frame played over a fitted capture covers it exactly, so playback shows one
     image and the recorded pointer lands on the frame it marks."""
-    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    context = browser.new_context(viewport={"width": 1440, "height": 828})
     user = context.new_page()
     user.goto(serve(named_source("playwright-trace-gallery")))
     wait_until_ready(user)
@@ -788,7 +800,8 @@ def test_trace_playback_frames_stand_over_the_capture_they_replace(browser, serv
     widget.get_by_role("button", name="Start", exact=True).click()
     rendered(user)
     # The fitted capture is narrower than its canvas, where centering rules would
-    # otherwise reach the playback layer.
+    # otherwise reach the playback layer: the window is short enough for the stage's
+    # height, not its width, to bound the capture.
     assert widget.evaluate("""widget => {
       const image = widget.querySelector(
         '.lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img');
@@ -825,7 +838,7 @@ def test_trace_pointer_annotation_stays_inside_the_panned_image_viewport(
       const r = node.getBoundingClientRect();
       return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) === node;
     }""")
-    scale = widget.get_by_role("button", name="Image scale", exact=True)
+    scale = widget.get_by_role("button", name=re.compile(r"^Image scale, "))
     expect(scale).to_have_text("Fit")
     scale.focus()
     scale.press("Enter")
@@ -864,6 +877,28 @@ def test_trace_pointer_annotation_stays_inside_the_panned_image_viewport(
     ring = current_location_ring(user)
     assert ring, "the canvas has no focus ring"
     assert not (faults := ring_faults([ring], "the panned trace canvas")), "\n".join(
+        faults
+    )
+
+
+def test_the_selected_input_s_name_wears_its_whole_band(browser, serve):
+    """The band around the selected input's name stands whole, read with the timeline
+    holding keyboard focus, though the label holding the name clips a long one to an
+    ellipsis."""
+    user = open_page(browser, serve(named_source("playwright-trace-gallery")))
+    widget = user.locator("lf-trace").first
+    widget.locator(".lf-trace-input-label").filter(has_text="Click").first.click()
+    expect(
+        widget.locator(".lf-trace-input-label .lf-trace-word[data-lf-current]")
+    ).to_be_visible()
+    timeline = widget.get_by_role("group", name="Recording timeline", exact=True)
+    timeline.focus()
+    user.keyboard.press("Tab")
+    user.keyboard.press("Shift+Tab")
+    expect(timeline).to_be_focused()
+    drawn = rings_drawn(user)
+    assert drawn, "the timeline draws no focus mark"
+    assert not (faults := ring_faults(drawn, "on the selected input")), "\n".join(
         faults
     )
 
@@ -981,7 +1016,7 @@ def test_trace_images_stand_at_their_own_capture_times(browser, serve):
         packages=("playwright",),
         media=media,
     )
-    data_model.cmd_data_set(serve.page_dir, "timed-trace", record)
+    page_data_model.cmd_data_set(serve.page_dir, "timed-trace", record)
     user = open_page(browser, url)
     resized(user, 1280, 900)
     widget = user.locator("#journey")
@@ -1057,7 +1092,7 @@ def test_trace_comparison_keeps_native_playback_and_shares_image_inspection(
         packages=("playwright",),
         media=media,
     )
-    data_model.cmd_data_set(serve.page_dir, "recording", record)
+    page_data_model.cmd_data_set(serve.page_dir, "recording", record)
     user = open_page(browser, url)
     before = user.locator("#before")
     after = user.locator("#after")
@@ -1075,7 +1110,7 @@ def test_trace_comparison_keeps_native_playback_and_shares_image_inspection(
         expect(user.locator(f"#{label.lower()} .lf-trace-phase")).to_have_attribute(
             "data-lf-datum", targets[-1]
         )
-    after.get_by_role("button", name="Image scale", exact=True).click()
+    after.get_by_role("button", name=re.compile(r"^Image scale, ")).click()
     press_scale(after, "Actual size")
     canvas = after.locator(
         ".lf-trace-image:not(.lf-trace-image-pending) .lf-trace-canvas"
@@ -1096,3 +1131,21 @@ def test_trace_comparison_keeps_native_playback_and_shares_image_inspection(
     user.get_by_role("radio", name="Before", exact=True).click()
     wait_until_ready(user)
     assert image_view(before) == pytest.approx(inspected, abs=1)
+
+
+def test_trace_reveal_of_a_part_it_lacks_draws_playback_stopped(browser, serve):
+    """Travel to a part the recording doesn't hold stops playback, and the Play
+    control says so, so its next press starts playback rather than stopping it."""
+    context = browser.new_context(viewport={"width": 1440, "height": 900})
+    user = context.new_page()
+    user.goto(serve(named_source("playwright-trace-gallery")))
+    wait_until_ready(user)
+    widget = user.locator("lf-trace").first
+    widget.get_by_role("button", name="Start", exact=True).click()
+    rendered(user)
+    widget.get_by_role("button", name="Play", exact=True).click()
+    play = widget.locator(".lf-trace-play")
+    expect(play).to_have_attribute("data-lf-playing", "")
+    widget.evaluate("widget => widget.lfParts.reveal('trace-0000-action-missing')")
+    expect(play).not_to_have_attribute("data-lf-playing", "")
+    expect(play).to_have_attribute("aria-label", "Play")

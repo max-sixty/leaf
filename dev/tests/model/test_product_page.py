@@ -6,9 +6,9 @@ from typing import cast
 
 import pytest
 
-from leaf.delivery import DELIVERY
-from leaf.registry.schema import json_validator, with_leaf_resources
-from leaf.structure import SourceDocument
+from leaf.agents.delivery import DELIVERY
+from leaf.source.registry.schema import json_validator, with_leaf_resources
+from leaf.source.structure import SourceDocument
 from leaf_dev import docs, prompts
 from leaf_dev.commands.site import demo as record_demo
 from leaf_dev.example_data import catalog_sources, document_metadata, named_source
@@ -107,8 +107,7 @@ def test_how_it_works_shows_each_prompt_as_leaf_writes_it():
     validator.validate(
         prompts.delivery("f7667dd2ce39fdb3", prompts.JOURNEY["line"]["batch"])
     )
-    for step in ("work", "follow-up", "resume"):
-        validator.validate(prompts.journey_delivery(step))
+    validator.validate(prompts.journey_delivery())
 
 
 def test_demo_waiter_preserves_the_reason_a_wait_delivered_nothing():

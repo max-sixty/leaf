@@ -1,11 +1,15 @@
 /* What the floating panel's empty field says and offers at its end
- * (field-readings.js), from the moment's facts, and the guide's table of the readings
+ * (panel/field-readings.js), from the moment's facts, and the guide's table of the readings
  * held to their order. */
 import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
-import { FIELD_READINGS, passingWords, readField } from "/runtime/field-readings.js";
-import { leafSays, wordsText } from "/runtime/voice.js";
+import {
+  FIELD_READINGS,
+  passingWords,
+  readField,
+} from "/runtime/panel/field-readings.js";
+import { leafSays, wordsText } from "/runtime/base/voice.js";
 
 /** @param {string} word */
 const press = (word) => ({ word, keys: [], run: () => {} });
@@ -13,9 +17,11 @@ const CLOSE = press("Close");
 const NEXT_ON_ME = press("Next On Me");
 const NEXT_THREAD = press("Next thread");
 
-// The page's field at rest: nothing of the user's stands, so the status claims it.
+// The page's field at rest under a keyboard: nothing of the user's stands, so the
+// status claims it.
 const facts = (over = {}) => ({
   thread: false,
+  keys: true,
   writing: false,
   error: null,
   held: null,
@@ -91,10 +97,28 @@ test("a walk's step takes the page field's words, and leaves a thread's Reply", 
   const thread = readField(facts({ ...step, thread: true }));
   assert.deepEqual(
     [thread.says, wordsText(thread.words), thread.end, thread.offers],
-    ["turn", "Reply…", "", true],
+    ["turn", "", "Reply…", true],
   );
   const goTo = readField(facts({ ...step, thread: true, goTo: "No visible threads" }));
   assert.deepEqual([goTo.says, goTo.end], ["notice", "Reply…"]);
+});
+
+test("to a finger a thread's field says at rest what it says once tapped", () => {
+  const finger = {
+    thread: true,
+    keys: false,
+    destination: () => leafSays("Reply to reopen…"),
+  };
+  const rest = readField(facts(finger));
+  assert.deepEqual(
+    [rest.says, wordsText(rest.words), rest.offers],
+    ["turn", "Reply to reopen…", true],
+  );
+  assert.equal(said(facts({ ...finger, writing: true })), "Reply to reopen…");
+  // In a stance the box takes no reply, so it says nothing.
+  assert.equal(said(facts({ ...finger, still: true })), "");
+  // The page's field says the status to a finger as to a keyboard.
+  assert.equal(said(facts({ keys: false })), "Running the browser suite");
 });
 
 test("a notice leads with nothing, a walk's step with where the user stands", () => {
@@ -133,15 +157,15 @@ test("while a stance stands the field's end offers its Close, on the page and in
     readField(facts({ ...still, selected: "the queue fills" })).end,
     "Comment…",
   );
-  const resolved = { message: "Resolved “Retries”", press: NEXT_THREAD };
+  const resolved = { message: "Resolved “Retries”", press: NEXT_THREAD, news: false };
   assert.equal(
     readField(facts({ ...still, thread: true, notice: resolved })).end,
     NEXT_THREAD,
   );
 });
 
-test("a notice offering a press says it over an error, and offers its press", () => {
-  const resolved = { message: "Resolved “Retries”", press: NEXT_THREAD };
+test("a gesture's notice with a press says it over an error, and offers its press", () => {
+  const resolved = { message: "Resolved “Retries”", press: NEXT_THREAD, news: false };
   const over = facts({ error: { message: "Couldn't load v3" }, notice: resolved });
   assert.deepEqual(
     [said(over), readField(over).end],
@@ -149,6 +173,9 @@ test("a notice offering a press says it over an error, and offers its press", ()
   );
   assert.equal(readField(facts({ ...over, thread: true })).end, NEXT_THREAD);
   assert.equal(said({ ...over, writing: true }), "Couldn't load v3");
+  // News answers no gesture of the user's, so it leaves the error the field's words.
+  const news = { message: "2 changes since v1", press: NEXT_THREAD, news: true };
+  assert.equal(said({ ...over, notice: news }), "Couldn't load v3");
 });
 
 test("the folded leaf's peek says what passes, in the field's order", () => {

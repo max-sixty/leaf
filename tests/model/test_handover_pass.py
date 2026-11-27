@@ -1,5 +1,6 @@
 """What the render pass reads and what it tells. A version the agent hands over is read
-once, a failure wakes the agent, and advice goes with what next reaches it."""
+once, a failure wakes the agent, and advice goes with what next reaches it. The parts
+each visual drew reach `page state` while the version read is the one it shows."""
 
 import json
 import os
@@ -12,6 +13,7 @@ from typing import Any
 
 import pytest
 from interact_support import (
+    FLOW_PAGE,
     acknowledged_through,
     append_carried_log_record,
     append_command,
@@ -20,22 +22,30 @@ from interact_support import (
     delivered,
     inlined,
     last_deliverable_seq,
+    state_json,
     working,
 )
 
-from leaf import data as data_model
-from leaf import delivery as delivery_model
-from leaf import hooks as hooks_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as state_model
-from leaf.event_log import read_events
-from leaf.files import latest_revision
-from leaf.findings import Finding
-from leaf.render_gate import handover_pass as handover_pass_model
-from leaf.revision_artifact import read_artifact
-from leaf.revisioning import activate_source
-from leaf.validation.source import check_source
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import state as state_model
+from leaf.base.files import latest_revision
+from leaf.base.findings import Finding
+from leaf.commands import hooks as hooks_model
+from leaf.commands import session as session_model
+from leaf.commands.session import set_status
+from leaf.log.event_log import read_events
+from leaf.records import page_data as page_data_model
+from leaf.records import transaction as transaction_model
+from leaf.records.authored_checks.source import check_source
+from leaf.records.render_reading import read_reading
+from leaf.records.revisioning import activate_source
+from leaf.serving import handover_pass as handover_pass_model
+from leaf.serving import server_rows as server_rows_model
+from leaf.serving.served_state.context import read_page
+from leaf.source.revision_artifact import read_artifact
 
 FAILURE: dict[str, Any] = {
     "code": "past-column",
@@ -44,6 +54,12 @@ FAILURE: dict[str, Any] = {
     "widths": [360, 900],
     "values": {"by": 40},
     "text": "at 360–900px wide, <div id=wide> is set 40px past the column",
+}
+DRAWN = {
+    "flow": {
+        "parts": [{"id": "node:A", "label": "A"}, {"id": "node:B", "label": "B"}],
+        "whole": False,
+    }
 }
 ADVICE: dict[str, Any] = {
     "code": "shrunk-labels",
@@ -90,16 +106,25 @@ def read_digest(page_dir: Path) -> str:
     return read_artifact(page_dir, revision).digest
 
 
-def browser_read(findings: list[dict]) -> SimpleNamespace:
-    """A browser that finished reading the page and found `findings`, as
-    `command.BrowserCheck` answers."""
+def browser_read(
+    findings: list[dict], visuals: dict[str, dict] | None = None
+) -> SimpleNamespace:
+    """A browser that finished reading the page, found `findings` and read what each
+    visual drew (`visuals`), as `command.BrowserCheck` answers."""
     return SimpleNamespace(
-        unavailable=None,
         findings=lambda: [
-            SimpleNamespace(code=finding["code"], json=lambda f=finding: f)
+            SimpleNamespace(
+                code=finding["code"], unread=False, json=lambda f=finding: f
+            )
             for finding in findings
         ],
+        render=SimpleNamespace(visuals=visuals or {}),
     )
+
+
+def data_version(page_dir: Path) -> str:
+    """The version of the data the page holds now (`data.data_version`)."""
+    return read_page(page_dir, read_events(page_dir)).data["version"]
 
 
 def leave_reading(
@@ -107,16 +132,28 @@ def leave_reading(
 ) -> None:
     """The reading an agent's own `page check --render` leaves."""
     handover_pass_model.remember_reading(
-        page_dir, digest or read_digest(page_dir), browser_read(findings)
+        page_dir,
+        digest or read_digest(page_dir),
+        data_version(page_dir),
+        browser_read(findings),
     )
 
 
-def checking(findings: list[dict], digest: str | None = None):
-    """`check_page` with the browser's part standing in: a reading of `findings` in the
-    live version, or in the version `digest`."""
+def checking(
+    findings: list[dict],
+    digest: str | None = None,
+    visuals: dict[str, dict] | None = None,
+):
+    """`check_page` with the browser's part standing in: a reading of `findings`, and of
+    what each visual drew (`visuals`), in the live version, or in the version `digest`,
+    with the data the page holds."""
     return lambda page_dir, **_options: (
         {},
-        (digest or read_digest(page_dir), browser_read(findings)),
+        (
+            digest or read_digest(page_dir),
+            data_version(page_dir),
+            browser_read(findings, visuals),
+        ),
     )
 
 
@@ -171,7 +208,7 @@ def test_a_data_update_after_the_declaration_still_hands_the_version_over(pass_p
     # The save that binds the data, which a tab makes live.
     declare_data_input(pass_page.dir, "builds", {"type": "array"})
     session_model.cmd_waiting(pass_page.dir)
-    data_model.cmd_data_set(pass_page.dir, "builds", ["green"])
+    page_data_model.cmd_data_set(pass_page.dir, "builds", ["green"])
     pass_page.passes.look()
     assert len(pass_page.reads) == 1
 
@@ -220,15 +257,13 @@ def test_a_page_nobody_holds_has_nobody_to_tell(pass_page):
 def test_a_page_its_agent_closed_has_nobody_to_tell(pass_page):
     save(pass_page.dir, "last words")
     state_model.close_session_turn("s1")
-    with service_model.PageTransaction(pass_page.dir) as page:
-        page.set_status("idle")
+    with transaction_model.PageTransaction(pass_page.dir) as page:
+        set_status(page, "idle")
     pass_page.passes.look()
     assert pass_page.reads == []
 
 
-def test_a_reading_beside_another_of_its_version_tells_nothing_twice(
-    claimed, monkeypatch
-):
+def test_a_reading_beside_another_of_its_version_tells_nothing_twice(claimed):
     """A server started again mid-reading may read that version a second time, and a
     reading taken at another viewport may find otherwise. The first reading to tell
     tells the version; the other tells nothing."""
@@ -236,12 +271,10 @@ def test_a_reading_beside_another_of_its_version_tells_nothing_twice(
     first = checking([FAILURE])
 
     def beside_another(page_dir, **options):
-        monkeypatch.setattr("leaf.validation.command.check_page", first)
-        handover_pass_model.read_and_tell(page_dir)
+        handover_pass_model.read_and_tell(page_dir, first)
         return checking([ADVICE])(page_dir, **options)
 
-    monkeypatch.setattr("leaf.validation.command.check_page", beside_another)
-    handover_pass_model.read_and_tell(claimed)
+    handover_pass_model.read_and_tell(claimed, beside_another)
     [event] = [e for e in events_of(claimed) if e["kind"] == "render"]
     assert [f["text"] for f in event["findings"]] == [FAILURE["text"]]
 
@@ -276,42 +309,48 @@ def test_a_reading_its_alarm_ended_is_told_as_a_failure_and_costs_it_once(
     assert len(ran) == 2
 
 
-def test_a_reading_a_browser_could_not_finish_leaves_none(page_dir):
-    """Chrome failing says nothing of the page, so nothing is told or refused for it."""
-    failed = Finding("gate-failed", values={"error": "Target closed"})
+@pytest.mark.parametrize(
+    "unread",
+    [
+        Finding("gate-failed", values={"error": "Target closed"}),
+        Finding("probe-failed", values={"error": "Target closed"}),
+        Finding("browser-error", values={"error": "Target closed"}),
+        Finding("server-stopped", values={"error": "Timeout 30000ms exceeded."}),
+        Finding("no-browser", values={"error": "no browser launched: none found"}),
+    ],
+    ids=lambda finding: finding.code,
+)
+def test_a_reading_a_browser_could_not_finish_leaves_none(page_dir, unread):
+    """A browser that crashed or a preview server that stopped answering says
+    nothing of the page, so nothing is told or refused for it, as where no browser
+    ran."""
     handover_pass_model.remember_reading(
-        page_dir,
-        "sha256:0",
-        SimpleNamespace(unavailable=None, findings=lambda: [failed]),
+        page_dir, "sha256:0", "data", SimpleNamespace(findings=lambda: [unread])
     )
-    handover_pass_model.remember_reading(
-        page_dir, "sha256:0", SimpleNamespace(unavailable="no browser", findings=list)
-    )
-    assert handover_pass_model.read_reading(page_dir) is None
+    assert read_reading(page_dir) is None
 
 
 @pytest.fixture
-def told(claimed, monkeypatch):
+def told(claimed):
     """Save a version and read and tell `findings` of it, as a server's child does
     with each version handed over."""
     versions = iter(range(1, 100))
 
     def read(findings: list[dict]) -> list[dict]:
         save(claimed, f"version {next(versions)}")
-        monkeypatch.setattr("leaf.validation.command.check_page", checking(findings))
-        handover_pass_model.read_and_tell(claimed)
+        handover_pass_model.read_and_tell(claimed, checking(findings))
         return [e for e in events_of(claimed) if e["kind"] == "render"]
 
     return read
 
 
 def events_of(page_dir: Path) -> list[dict]:
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         return list(page.events)
 
 
 def deliverable(page_dir: Path) -> list[dict]:
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         return delivery_model.deliverable(page)
 
 
@@ -347,6 +386,63 @@ def test_advice_alone_wakes_nobody_and_goes_with_what_next_reaches_the_agent(
     assert batch["handling"][shown[0]["handling"][0]].startswith("Leaf's render check")
     # The receipt moved the cursor past it, so it reaches the agent once.
     assert event["id"] not in [e["id"] for e in deliverable(claimed)]
+
+
+def test_advice_wakes_nobody_once_what_came_with_it_is_answered(
+    claimed, interactive, told, monkeypatch
+):
+    """A comment the agent answered before its receipt still rides in the receipt
+    batch, and the advice told beside it goes with it (`delivery.deliverable`). With
+    the comment answered, advice is all that is left for the agent, and it wakes the
+    session by none of the three routes: a watch between turns, the nudge a watch
+    sends for what it leaves as it ends, and the server's nudge after a turn Escape
+    interrupted."""
+    session_model.cmd_waiting(claimed)
+    [advice] = told([ADVICE])
+    comment = append_command(
+        claimed,
+        {"kind": "comment", "author": "user", "text": "looks good", "revision": 1},
+    )
+    thread_model.post_reply(
+        claimed, {"parent": comment["id"], "responds": comment["id"]}, "Thanks."
+    )
+    assert [e["id"] for e in deliverable(claimed)] == [advice["id"], comment["id"]]
+    nudged = []
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness,
+        "nudge",
+        lambda harness, page, quoted: nudged.append(page) or True,
+    )
+
+    # A Stop hook closed the turn; its watch makes one pass, its harness process then
+    # ends, and the watch nudges for what it leaves.
+    leases_model.mark_hooks("s1")
+    state_model.close_session_turn("s1")
+    runs = iter([True])
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness,
+        "process_runs",
+        lambda harness: next(runs, False),
+    )
+    monkeypatch.setattr(
+        session_model.Watch, "await_news", lambda watch, mark, timeout=0: False
+    )
+    stop = {"hook_event_name": "Stop", "session_id": "s1"}
+    assert hooks_model.cmd_watch("claude-code", stop) is None
+    assert nudged == []
+
+    # Escape interrupts the next turn, which Claude Code's record reads as idle.
+    state_model.prompt_turn("s1")
+    idle = {
+        "state": "idle",
+        "since": datetime.now().astimezone().isoformat(),
+        "command": False,
+    }
+    monkeypatch.setattr(
+        harness_model.ClaudeCodeHarness, "live_turn", lambda harness: dict(idle)
+    )
+    server_rows_model.nudge_interrupted(claimed)
+    assert nudged == []
 
 
 def test_advice_holds_no_turn_and_goes_in_with_what_a_hook_hands_over(
@@ -428,17 +524,15 @@ def test_a_save_before_the_check_froze_the_source_is_the_version_told(claimed):
         assert checked.artifact is not None
         return checking([FAILURE], checked.artifact.digest)(page_dir)
 
-    with pytest.MonkeyPatch.context() as patched:
-        patched.setattr("leaf.validation.command.check_page", saved_first)
-        handover_pass_model.read_and_tell(claimed)
+    handover_pass_model.read_and_tell(claimed, saved_first)
     [event] = [e for e in events_of(claimed) if e["kind"] == "render"]
     assert event["revision"] == latest_revision(claimed)
-    reading = handover_pass_model.read_reading(claimed)
+    reading = read_reading(claimed)
     assert reading is not None and reading["digest"] == read_digest(claimed)
 
 
 def test_a_save_past_the_version_read_leaves_its_findings_to_the_next_reading(
-    claimed, told, monkeypatch
+    claimed, told
 ):
     """Nothing is told of a version nobody sees any more, and none of it is lost."""
     activate_source(claimed)
@@ -448,9 +542,44 @@ def test_a_save_past_the_version_read_leaves_its_findings_to_the_next_reading(
         save(page_dir, "moved on")
         return checking([FAILURE], stale)(page_dir)
 
-    monkeypatch.setattr("leaf.validation.command.check_page", moved_on)
-    handover_pass_model.read_and_tell(claimed)
+    handover_pass_model.read_and_tell(claimed, moved_on)
     assert [e for e in events_of(claimed) if e["kind"] == "render"] == []
 
     [event] = told([FAILURE])
     assert event["revision"] == latest_revision(claimed)
+
+
+def flow_element(page_dir: Path) -> dict:
+    """The diagram `flow` as `page state` lists it among the page's elements."""
+    (element,) = (e for e in state_json(page_dir)["elements"] if e["id"] == "flow")
+    return element
+
+
+def test_page_state_lists_the_parts_drawn_in_the_version_it_shows(claimed):
+    """The reading of a version hands `page state` the parts each visual drew in it,
+    on the visual's element, and a later version shows none of them until it is read
+    in turn: its visuals may draw other parts."""
+    (claimed / "index.html").write_text(FLOW_PAGE)
+    assert activate_source(claimed).error is None
+    handover_pass_model.read_and_tell(claimed, checking([], visuals=DRAWN))
+    assert flow_element(claimed)["parts"] == DRAWN["flow"]["parts"]
+    save(claimed, "a later version")
+    assert "parts" not in flow_element(claimed)
+
+
+def test_a_data_update_lists_no_parts_until_a_check_reads_it(claimed):
+    """A data update makes no new version but can change what a visual draws, so the
+    parts a check drew list only while the page holds the data it read, and the next
+    check lists them again."""
+    (claimed / "index.html").write_text(FLOW_PAGE)
+    declare_data_input(claimed, "builds", {"type": "array"})
+    handover_pass_model.remember_reading(
+        claimed, read_digest(claimed), data_version(claimed), browser_read([], DRAWN)
+    )
+    assert flow_element(claimed)["parts"] == DRAWN["flow"]["parts"]
+    page_data_model.cmd_data_set(claimed, "builds", ["green"])
+    assert "parts" not in flow_element(claimed)
+    handover_pass_model.remember_reading(
+        claimed, read_digest(claimed), data_version(claimed), browser_read([], DRAWN)
+    )
+    assert flow_element(claimed)["parts"] == DRAWN["flow"]["parts"]

@@ -33,23 +33,28 @@ Record the work you take on as `references/conversation-loop.md`, "When to write
 says. Choose a page's packages from `leaf package list`, which prints each package
 this machine can select, bundled or installed by the user, with what it adds, such as
 a live preview in which the user compares candidates or tunes a configuration before
-sending it. Initialize the page with each package whose purpose fits it:
-`leaf page init --package diagram --package diff <page>`. Running `page init` again
-with `--package` replaces the page's packages, so name every package the page keeps.
-Personal themes and their author instructions are discoverable with `leaf theme list`;
-`references/package-themes.md`, "Personal themes", covers choosing one and how the
-page captures it.
+sending it. Initialize the page with each package whose purpose fits it, its theme
+first: `leaf page init --package reading --package diagram --package diff <page>`. A
+theme is the package that gives a page its look, and a page that selects none draws in
+the browser's defaults. So select `reading`, Leaf's own, first on every page, except
+where another theme from `leaf package list` takes its place or the page carries a
+design of its own (`references/package-themes.md`, "A page's theme"). Running `page
+init` again with `--package` replaces the page's packages, its theme among them, so
+name every package the page keeps; the command prints the packages the page now
+selects.
 
-Read the applicable references under **Author a version** below. For substantial
-new material, including a new section on an existing page, start an author without
+Read the applicable references under **Author a version** below. For substantial new
+material, including a new section on an existing page, start an author without
 inherited conversation (`fork_turns: "none"` where available). Give it the reader's
-question, task, relevant facts and constraints, initial content and state, the page
-registry, `references/page-authoring.md` and a fresh output directory (`mktemp -d`).
-Ask it to construct the subject the page discusses, following "Show the subject" and
-"Develop the work", and return finished files and captions. Keep the research
-history and existing page with you. Integrate the returned material following
-"Composing a page" and `references/authoring-on-me.md` for decisions left to the
-user. When subagents are unavailable, build the material directly.
+question, the task, the relevant facts with the material they rest on (the cases,
+records or code, or the files that hold them), the constraints, the initial content
+and state, the page registry, `references/page-authoring.md` and a fresh output
+directory (`mktemp -d`). Ask it to construct the subject the page discusses,
+following "Show the subject", "Show what a claim rests on" and "Develop the work",
+and return finished files and captions. Keep the research history and existing page
+with you. Integrate the returned material following "Composing a page" and
+`references/authoring-on-me.md` for decisions left to the user. When subagents are
+unavailable, build the material directly.
 
 Follow `references/authoring-revisions.md` when changing an existing page, then
 write `<page>/index.html`. Each valid save becomes a live immutable revision. An invalid save leaves the last valid one live
@@ -118,10 +123,15 @@ testing. Keep direct answers, small edits, and review and integration of worker
 results with you. Having more work to do is a reason to
 delegate it while you remain available for the user's next move.
 
+New input from the page reaches you only between your steps, so while you hold a
+page, keep each step you wait on to about a minute. Run a longer command, or a wait
+on CI or on your own background work, in the background. While it runs, end your
+turn if your harness wakes you when it finishes, and otherwise check on it a minute
+at a time. A fork you give a thread message to keeps each step it waits on to a
+minute too, since the thread's later messages reach it between its own steps.
+
 `references/conversation-loop.md`, "Long-running work", owns worker briefs,
-results and work continuing beyond your turn. If subagents are unavailable, run
-long operations in the background and follow the harness delivery loop between
-bounded steps.
+results and work continuing beyond your turn.
 
 ## Commands
 
@@ -163,8 +173,9 @@ summary from before a compaction, doesn't carry its rules.
 
 - `references/page-authoring.md`: all of it, before writing or revising any version.
 - `references/page-layout.md`: before giving a page a Layout other than the reading
-  column, widening or bounding a block, placing contents or notes in the margin,
-  styling Leaf's controls, or showing several contributors' activity.
+  column or adding a block to a page that has one, widening or bounding a block,
+  placing contents or notes in the margin, styling Leaf's controls, or showing several
+  contributors' activity.
 - `references/page-behavior.md`: before giving a page a script, a file under `page/`,
   a `page/registry.json`, or anything loaded from another server.
 - `references/live-samples.md`: before letting the user operate a Leaf page inside a
@@ -180,7 +191,8 @@ summary from before a compaction, doesn't carry its rules.
 ### First handoff
 
 - `references/conversation-loop.md`: before a page handoff, starting work on the page,
-  work long enough to delegate, or asking the user to do something no widget answers.
+  work long enough to delegate, asking the user to do something no widget answers, or
+  reading what the user has seen and the windows they have the page open in.
 - The contract "Harness selection" picks: before the first handoff and when a
   delivery arrives.
 
@@ -202,17 +214,25 @@ summary from before a compaction, doesn't carry its rules.
   session's page.
 - `references/module-authoring.md`: before writing or changing a page-owned or
   package widget, or using a Leaf helper `page-behavior.md` doesn't describe in a page
-  script. Then, as the behavior needs them: `references/module-reading.md` for reading the page, content helpers, obligations
+  script. It maps each kind of thing a package leans on Leaf for to the reference that
+  describes it, and lists every function Leaf exports, under the section that describes
+  it. For a widget, read `references/module-plain-elements.md` with it, the protocol
+  between Leaf and a widget's element. Then, as the behavior needs them:
+  `references/module-reading.md` for reading the page, content helpers, obligations
   and history; `references/module-state.md` for recorded state, data, authenticated
   HTTP connections and LLM generation;
   `references/module-input.md` for commands, focus and text entry;
+  `references/module-previews.md` for the preview Leaf shows of an element the user
+  points at, tabs to or holds; `references/module-controls.md` for the controls a
+  widget builds;
   `references/module-scroll-and-motion.md` for scrolling, travel and motion; and
   `references/module-annotations.md` for margin entries, visual parts and Threads.
 - `references/interface-goals.md`: before writing a widget, package CSS, or page CSS
   that adds controls or changes what moves when the page changes.
 - `references/packages.md`: for package design, registry declarations, or a design
   comment whose fix belongs in a package; `references/package-themes.md` for theme
-  rules; `references/package-data.md` for user state and data contracts.
+  rules; `references/package-data.md` for how widgets work together, user
+  state and data contracts.
 
 ### Set up a Codex connection
 

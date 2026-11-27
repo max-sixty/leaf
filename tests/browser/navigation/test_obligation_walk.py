@@ -5,10 +5,10 @@ import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    OBLIGATIONS_PAGE,
     answered_comment,
     live_url,
     panel_comment,
+    serve_obligations,
 )
 from render_cases_layout import MARK, SHOT_SRC, SHOTS
 from render_cases_navigation import (
@@ -19,8 +19,10 @@ from render_cases_navigation import (
     OVER_WORDS,
 )
 from render_harness import (
+    LONG_PAGE,
     RELEASE_FOCUS,
     expect_obligations_answered,
+    gesture_writes,
     held_frames,
     leaf_page,
     open_page,
@@ -35,12 +37,14 @@ from render_harness import (
     scroll_settled,
     sending,
     suggestion_control,
+    without_end_room,
 )
 
 from browser.navigation import expect_walk_position, walk_position
 from browser.threads import open_panel_thread
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.agents import thread as thread_model
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import named_source
 
@@ -291,7 +295,7 @@ def test_keys_answer_an_obligation_from_its_marks(browser, serve):
     Home and End reach them.
     Moving focus does not replace the obligation's numeric action context with a widget copy.
     """
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    page = open_page(browser, serve_obligations(serve))
     nums = page.locator("#live-question > lf-option > .lf-key-badge")
     expect(nums.first).to_be_hidden()
 
@@ -369,12 +373,12 @@ def test_keys_answer_an_obligation_from_its_marks(browser, serve):
 
 def test_a_failed_obligation_reveal_does_not_register_an_arrival(browser, serve):
     """A rejected reveal neither advances nor marks the existing obligation walk."""
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    page = open_page(browser, serve_obligations(serve))
     page.keyboard.press("m")
     expect_walk_position(page, "1 of 4 waiting on me")
     page.evaluate(
         """async () => {
-          const {widgetController} = await window.__lfWidgetApi();
+          const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
           const source = document.querySelector('#sug-refill');
           // Revealing the suggestion waits for its update, which the test holds.
           source.hidden = 'until-found';
@@ -382,7 +386,8 @@ def test_a_failed_obligation_reveal_does_not_register_an_arrival(browser, serve)
             const {promise: ready, reject} = Promise.withResolvers();
             window.rejectObligationReveal = reject;
             ready.then(() => {}, () => { window.obligationRevealRejected = true; });
-            widgetController(source).present(ready);
+            // Said from inside the suggestion, the work is its preparation.
+            source.querySelector('lf-new').dispatchEvent(new PendingTaskEvent(ready));
             Object.defineProperty(source, 'updateComplete', {value: ready, configurable: true});
             queueMicrotask(() => delete source.updateComplete);
             window.obligationRevealStarted = true;
@@ -405,7 +410,7 @@ def test_a_failed_obligation_reveal_does_not_register_an_arrival(browser, serve)
 
 def test_a_delayed_obligation_reveal_yields_to_programmatic_user_focus(browser, serve):
     """A completed old reveal cannot steal accessibility focus or register an arrival."""
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    page = open_page(browser, serve_obligations(serve))
     page.keyboard.press("m")
     expect(page.locator("#live-question-decision")).to_be_focused()
     expect_walk_position(page, "1 of 4 waiting on me")
@@ -428,13 +433,13 @@ def test_a_delayed_obligation_reveal_yields_to_programmatic_user_focus(browser, 
     page.wait_for_function("window.obligationRevealStarted === true")
     # Assistive technology and focus-management code can move the user without a
     # pointer, key, or input event. The retained navigation must read focus itself.
-    page.locator(".lf-fp-on-user").focus()
-    expect(page.locator(".lf-fp-on-user")).to_be_focused()
+    page.locator(".lf-fp-leaf").focus()
+    expect(page.locator(".lf-fp-leaf")).to_be_focused()
     page.evaluate("releaseObligationReveal()")
     page.wait_for_function("window.obligationRevealSettled === true")
     rendered(page)
 
-    expect(page.locator(".lf-fp-on-user")).to_be_focused()
+    expect(page.locator(".lf-fp-leaf")).to_be_focused()
     # The user left the walk, so it says nothing more; it never says the next arrival.
     position = walk_position(page)
     assert (position or {}).get("text") in (None, "1 of 4 waiting on me")
@@ -598,7 +603,7 @@ def test_an_absent_walk_destination_returns_to_the_callers_fallback(browser, ser
     page.evaluate(RELEASE_FOCUS)
     fallback = page.evaluate(
         """async () => {
-          const {beginWalk} = await window.__lfWidgetApi();
+          const {beginWalk} = await window.__lfCheckApi();
           return beginWalk('thread', 'Thread', () => null) ?? 'Thread 1 of 1';
         }"""
     )
@@ -674,7 +679,7 @@ def test_obligations_sharing_context_keep_their_source_identity(browser, serve):
     # applies after the pick's send comes back.
     expect_obligations_answered(page, "1/2")
     first, second = questions()
-    assert first["status"] == "answered"
+    assert first["answered"]
     assert first["answer"]["value"] == ["first-a"]
     assert second["answer"] is None
     page.keyboard.press("m")
@@ -748,6 +753,51 @@ def test_digits_leave_an_obligation_the_user_scrolled_away_from(browser, serve):
     with sending(page, "the answer"):
         page.keyboard.press("2")
     assert answer() == ["right"]
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_digit_shows_on_its_choice_as_a_scroll_brings_the_choice_into_view(
+    engine, request, serve
+):
+    """With focus on an ask, a choice a scroll brings back into the window wears its
+    digit from the frame it enters, while the scroll still moves, as it would once the
+    scroll ends (command-hints.js). The choice enters at the window's top, clear of
+    the panel's row, and the choice after it keeps the ask in sight meanwhile."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(
+            leaf_page(
+                "A long ask",
+                '<h1>A long ask</h1><lf-group id="route" label="Which route?"><h2 id="route-h">Which route?</h2>'
+                '<lf-options id="routes">'
+                '<lf-option id="left">Take the left route<div style="height:1600px"></div></lf-option>'
+                '<lf-option id="right">Take the right route</lf-option>'
+                '<lf-option id="back">Go back<div style="height:1600px"></div></lf-option>'
+                '</lf-options></lf-group><div style="height:4000px">Reading on</div>',
+            )
+        ),
+    )
+    page.keyboard.press("m")
+    expect(page.locator("#left > .lf-key-badge")).to_be_visible()
+    gesture_writes(page, 2600)
+    expect(page.locator("#right")).not_to_be_in_viewport()
+    _, _, samples = gesture_writes(
+        page,
+        -1200,
+        sample="""() => {
+          const choice = document.getElementById('right');
+          const digit = choice.querySelector(':scope > .lf-key-badge');
+          const top = choice.getBoundingClientRect().top;
+          return {
+            seen: top >= 0 && top < innerHeight / 2,
+            worn: Boolean(digit?.checkVisibility({opacityProperty: true}))
+              && digit.textContent.trim() === '2',
+          };
+        }""",
+    )
+    seen = [sample["read"] for sample in samples if sample["read"]["seen"]]
+    assert len(seen) >= 3, samples
+    assert all(read["worn"] for read in seen), samples
 
 
 def test_keys_pressed_while_the_page_moves_act_as_if_it_had_landed(browser, serve):
@@ -914,6 +964,133 @@ def test_m_pressed_while_a_glide_carries_asks_past_steps_on_from_where_it_lands(
             page.evaluate("() => document.activeElement?.closest('lf-group')?.id")
         )
     assert reached[0] == reached[1]
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_m_pressed_while_the_page_glides_lands_an_ask_in_a_sticky_track_where_it_lands_alone(
+    request, serve, engine
+):
+    """`d m` typed quickly, on a sidebar page whose stuck track holds the ask, ends where
+    the same keys typed slowly end: `d`'s glide carries the track up only until it
+    sticks, so the ask stands in the window where the glide leaves it and `m` moves the
+    page nowhere `d` doesn't. Counted as riding the whole glide, the ask read as leaving
+    the window above, and `m` pulled the page back most of the way to the top."""
+    paragraphs = "".join(
+        f"<p>Body paragraph {n} of the review, long enough to fill a line.</p>"
+        for n in range(120)
+    )
+    source = leaf_page(
+        "An ask in the track",
+        '<aside id="route"><div class="layout-track" id="track">'
+        '<lf-group id="ask" label="Which route?"><h2 id="ask-h">Which route?</h2>'
+        '<lf-options id="routes"><lf-option id="left">Take the left route</lf-option>'
+        '<lf-option id="right">Take the right route</lf-option></lf-options></lf-group>'
+        "<p>Notes beside the ask.</p></div></aside>"
+        f'<article class="layout-column"><h1>Release review</h1>{paragraphs}</article>',
+        layout="sidebar",
+    )
+    page = open_page(request.getfixturevalue(engine), serve(source))
+    resized(page, 1400, 700)
+    ask = page.locator("#ask")
+    track_top = "document.getElementById('track').getBoundingClientRect().top"
+
+    def settled():
+        scroll_settled(page)
+        return page.evaluate("scrollY")
+
+    standing = page.evaluate(track_top)
+    page.keyboard.press("d")
+    paged = settled()
+    stuck = page.evaluate(track_top)
+    # The track rode the start of `d`'s glide, short of the whole of it.
+    assert 1 < standing - stuck < paged, (standing, stuck, paged)
+    page.keyboard.press("m")
+    expect(ask).to_be_focused()
+    assert settled() == pytest.approx(paged, abs=2)
+
+    page.evaluate(RELEASE_FOCUS)
+    page.evaluate("() => scrollTo({top: 0, behavior: 'instant'})")
+    scroll_settled(page)
+    # `m` pressed before `d`'s glide has moved the page, on any host.
+    with held_frames(page) as step:
+        page.keyboard.press("d")
+        page.keyboard.press("m")
+        step()
+    expect(ask).to_be_focused()
+    assert settled() == pytest.approx(paged, abs=2)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_m_pressed_as_g_g_glides_back_lands_an_ask_its_released_track_carries_down(
+    request, serve, engine
+):
+    """`g g m` typed quickly, on a sidebar page whose stuck track holds the ask just
+    above the window's foot, ends where the same keys typed slowly end. `g g`'s glide to
+    the top takes the track's own place back past the line it sticks at, so the track
+    comes down with the page and carries the ask past the foot, and `m` brings it back.
+    Read as staying stuck, the ask stood whole where the glide leaves it, and `m` left
+    it under the foot."""
+    paragraphs = "".join(
+        f"<p>Body paragraph {n} of the review, long enough to fill a line.</p>"
+        for n in range(120)
+    )
+    source = leaf_page(
+        "An ask a released track carries",
+        '<aside id="route"><div class="layout-track" id="track">'
+        '<div id="before" style="height: 300px"></div>'
+        '<lf-group id="ask" label="Which route?"><h2 id="ask-h">Which route?</h2>'
+        '<lf-options id="routes"><lf-option id="left">Take the left route</lf-option>'
+        '<lf-option id="right">Take the right route</lf-option></lf-options></lf-group>'
+        "</div></aside>"
+        f'<article class="layout-column"><h1>Release review</h1>{paragraphs}</article>',
+        layout="sidebar",
+    )
+    page = open_page(request.getfixturevalue(engine), serve(source))
+    resized(page, 1400, 700)
+    ask = page.locator("#ask")
+
+    def settled():
+        scroll_settled(page)
+        return page.evaluate("scrollY")
+
+    def foot_gap():
+        """How far the ask's foot stands above the window's, which no chrome covers
+        beside the page's column."""
+        return page.evaluate(
+            "document.documentElement.clientHeight"
+            " - document.getElementById('ask').getBoundingClientRect().bottom"
+        )
+
+    page.evaluate("() => scrollTo({top: 600, behavior: 'instant'})")
+    settled()
+    # Stand the ask, in the stuck track, 12px above the window's foot.
+    page.evaluate(
+        "gap => { const before = document.getElementById('before');"
+        " before.style.height = `${before.offsetHeight + gap - 12}px`; }",
+        foot_gap(),
+    )
+    settled()
+    assert foot_gap() == pytest.approx(12, abs=1)
+    page.keyboard.press("g")
+    page.keyboard.press("g")
+    assert settled() == 0
+    # Released, the track came down past the window's foot with the ask.
+    assert foot_gap() < 0
+    page.keyboard.press("m")
+    expect(ask).to_be_focused()
+    slowly = settled()
+    assert foot_gap() >= 0
+
+    page.evaluate(RELEASE_FOCUS)
+    page.evaluate("() => scrollTo({top: 600, behavior: 'instant'})")
+    settled()
+    with held_frames(page) as step:
+        page.keyboard.press("g")
+        page.keyboard.press("g")
+        page.keyboard.press("m")
+        step()
+    expect(ask).to_be_focused()
+    assert settled() == pytest.approx(slowly, abs=2)
 
 
 def test_the_obligation_walk_uses_the_visible_reading_after_its_focus_is_released(
@@ -1134,6 +1311,8 @@ def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an
         },
     )
     page = open_page(browser, live_url(url))
+    # A page with no room below it, so no scroll lifts its obligations clear of a view.
+    without_end_room(page)
 
     # A thread is chrome holding no obligation, so the walk starts from the page.
     page.keyboard.press("t")
@@ -1244,7 +1423,7 @@ def test_walking_to_an_obligation_on_a_phone_continues_its_discussion_in_the_pan
 ):
     """A phone's window has no room for a margin card, so `m` leaves the obligation's
     choices uncovered, a digit answers, and `c` continues its thread in the floating panel
-    rather than starting another (thread/destination.js)."""
+    rather than starting another (records/thread/destination.js)."""
     url = serve(TALL_OBLIGATION_THREAD_PAGE)
     root = answered_comment(
         serve.page_dir, "The disk cache costs more.", {"section": "cache-ask"}
@@ -1507,12 +1686,12 @@ def test_an_obligation_in_a_reply_is_where_the_user_stands_once_answered(
     open_panel_thread(page, about_obligation)
     page.evaluate(
         """async (thread) => {
-      const {contributionEntry, registerContribution} =
+      const {registerContribution} =
         await window.__lfWidgetApi();
       registerContribution({key: 'reply-capture',
         target: document.querySelector(`${thread} lf-shot`),
-        read: () => ({entries: [contributionEntry({key: 'review', glyph: 'R',
-          label: 'Review reply capture'})]}), activate: () => {},
+        read: () => ({entries: [{key: 'review', glyph: 'R',
+          label: 'Review reply capture'}]}), activate: () => {},
       });
     }""",
         PANEL_THREAD,
@@ -1736,3 +1915,56 @@ def test_the_ring_round_a_question_stands_clear_of_its_words(browser, serve):
     assert ring["offset"] > 0, ring
     assert ring["ring"]["top"] >= 0 and ring["ring"]["left"] >= 0, ring
     assert ring["ring"]["left"] + ring["width"] < workspace["words"], (ring, workspace)
+
+
+@pytest.mark.parametrize("where", ["margin", "panel"])
+def test_an_m_walk_between_thread_asks_is_a_back_step_naming_the_thread_it_left(
+    browser, serve, where
+):
+    """`m` from the question one thread asks to the one another asks is a Back step,
+    as every walk's stop is, whether the threads open in margin cards or in the
+    floating panel, and the entry it leaves still names the thread it left."""
+    url = serve(LONG_PAGE)
+    threads = []
+    for n, section in enumerate(("p3", "p41")):
+        comment = {"kind": "comment", "author": "user", "revision": 1, "text": f"Q{n}?"}
+        if where == "margin":
+            comment["anchor"] = {
+                "section": section,
+                "quote": f"Paragraph {section[1:]}.",
+            }
+        root = append_carried_log_record(serve.page_dir, comment)["id"]
+        # A question the reply's widget asks, which `m` draws before it lands there.
+        thread_model.post_reply(
+            serve.page_dir,
+            {"parent": root},
+            f'Pick one.\n\n<lf-group id="ask-{n}" label="Which {n}?">\n'
+            f'<h3 id="ask-{n}-h">Which {n}?</h3><lf-options id="pick-{n}">'
+            f'<lf-option id="pick-{n}-a">Alpha</lf-option>'
+            f'<lf-option id="pick-{n}-b">Beta</lf-option></lf-options></lf-group>',
+        )
+        threads.append(root)
+    page = open_page(browser, url)
+    page.keyboard.press("m")
+    page.wait_for_function(f"({IN_THREAD})() !== null")
+    first = page.evaluate(IN_THREAD)
+    page.wait_for_function("navigation.transition === null")
+    entries = page.evaluate("history.length")
+    page.keyboard.press("m")
+    page.wait_for_function(f"(({IN_THREAD})() ?? {first!r}) !== {first!r}")
+    assert page.evaluate(IN_THREAD) in threads
+    page.wait_for_function("navigation.transition === null")
+    assert page.evaluate("history.length") == entries + 1
+    left = page.evaluate(
+        "new URL(navigation.entries()[navigation.currentEntry.index - 1].url)"
+        ".searchParams.get('thread')"
+    )
+    assert left == first
+
+
+# The thread the focused node is in, across shadow roots, or null.
+IN_THREAD = """() => {
+  let at = document.activeElement;
+  while (at?.shadowRoot?.activeElement) at = at.shadowRoot.activeElement;
+  return at?.closest('[data-lf-thread]')?.dataset.lfThread ?? null;
+}"""

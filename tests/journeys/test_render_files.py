@@ -1,20 +1,24 @@
 """File editing stays quiet while saves, external changes and conflicts preserve work."""
 
 import os
+import re
 
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
     consume_browser_errors,
     expect_preview_words,
+    holding,
     http_error_console,
     leaf_page,
     open_page,
     primed,
     rendered,
+    resized,
+    scroll_settled,
 )
 
-from leaf.file_bindings import bind_file
+from leaf.source.file_bindings import bind_file
 
 
 def test_file_editor_saves_quietly_and_preserves_inflight_edits(
@@ -258,7 +262,7 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     expect(widget.get_by_role("menuitemcheckbox", name="Compare")).to_be_focused()
     page.keyboard.press("ArrowDown")
     expect(widget.get_by_role("menuitem", name="Save draft")).to_be_focused()
-    # The page's own keys wait while the reader stands in the menu.
+    # The page's letters wait while the reader stands in the menu, as in any ARIA menu.
     page.keyboard.press("c")
     expect(menu).to_be_visible()
     expect(widget.get_by_role("menuitem", name="Save draft")).to_be_focused()
@@ -323,29 +327,31 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     assert file.read_text() == draft
 
     # When a focused Retry becomes a conflict, the disappearing button returns typing
-    # to the retained editor rather than the document body. A file that moves again
-    # while the reader weighs the conflict is read once they take the file version,
-    # rather than leaving the editor on the compared one.
+    # to the retained editor rather than the document body. A save with no answer may
+    # have reached the file, so Retry reads it first, and that read finds the file
+    # moved. A file that moves again while the reader weighs the conflict is read once
+    # they take the file version, rather than leaving the editor on the compared one.
     page.route("**/api/files/notes", fail_write)
     replace("# Mine\n")
     page.clock.run_for(600)
     expect(retry).to_be_visible()
     page.unroute("**/api/files/notes", fail_write)
-    held.clear()
-    page.evaluate("window.heldFileWrites = 0")
-    page.route("**/api/files/notes", hold_writes)
-    with page.expect_request(file_write):
-        retry.click()
-    page.wait_for_function("window.heldFileWrites === 1")
+    held_reads.clear()
+    page.route("**/api/files/notes", hold_reads)
+    retry.click()
+    holding(page, held_reads, 1, "the retry read")
     expect(retry).to_be_focused()
     file.write_text("# Compared\n")
-    held[0].continue_()
+    held_reads[0].continue_()
     page.clock.run_for(100)
     expect(retry).to_be_hidden()
     expect(conflict).to_be_visible()
     expect(editor).to_be_focused()
     caret_visible()
-    page.unroute("**/api/files/notes", hold_writes)
+    assert file.read_text() == "# Compared\n"
+    page.unroute("**/api/files/notes", hold_reads)
+    for route in held_reads[1:]:
+        route.continue_()
     with page.expect_response(lambda response: response.url.endswith("/api/state")):
         file.write_text("# Newest\n")
     choose("Use file version")
@@ -359,3 +365,64 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
         http_error_console(409),
         "Failed to load resource: net::ERR_FAILED",
     )
+
+
+def test_picking_a_file_under_an_open_panel_brings_it_clear(browser, serve, tmp_path):
+    """With the floating panel opened over an editor in a pane at the window's foot by
+    a draft of several lines, opening a file from the tree scrolls the page until the
+    editor clears the panel, as a destination it covers is brought clear of it."""
+    for name in ("values", "alerts"):
+        (tmp_path / f"{name}.yaml").write_text(f"# {name}.yaml\n")
+    url = serve(
+        leaf_page(
+            "Deploy files",
+            """<header><h1>Deploy files</h1></header>
+            <div id="regions">
+              <lf-pane id="files-pane" label="Files">
+                <lf-file-tree id="files" for="config"></lf-file-tree></lf-pane>
+              <lf-pane id="notes-pane" label="Notes"><div><p>Notes</p></div></lf-pane>
+              <lf-pane id="editor-pane" label="File">
+                <lf-file-editor id="config" binding="values alerts"></lf-file-editor>
+              </lf-pane>
+            </div>""",
+            head="""<style>
+#regions { display: grid; grid-template-columns: 16rem 1fr; grid-template-rows: 1fr 20rem; }
+#files-pane { grid-row: 1 / span 2; }
+</style>""",
+            layout="workspace",
+        ),
+        packages=["file-editor", "file-tree"],
+    )
+    for name in ("values", "alerts"):
+        bind_file(serve.page_dir, name, tmp_path / f"{name}.yaml")
+    page = open_page(browser, live_url(url))
+    resized(page, 1200, 900)
+    editor = page.locator("lf-file-editor")
+    expect(
+        editor.get_by_role("textbox", name="File contents", exact=True)
+    ).to_contain_text("values.yaml")
+    page.evaluate(
+        """() => document.body.append(
+          Object.assign(document.createElement("div"), {style: "height: 600px"}))"""
+    )
+    page.locator("body").focus()
+    page.keyboard.press("c")
+    for line in range(8):
+        page.keyboard.type(f"line {line}")
+        page.keyboard.press("Shift+Enter")
+    page.wait_for_function(
+        "innerHeight - document.querySelector('.lf-floating-panel .lf-fp-card')"
+        ".getBoundingClientRect().top > 200"
+    )
+    page.locator("lf-file-tree").get_by_role("treeitem", name="alerts.yaml").click()
+    expect(editor.locator(".lf-file-editor-name")).to_have_text("alerts.yaml")
+    # The editor shows the file before the landing starts the page's scroll, which
+    # names the file in the address as it starts (features/anchor-travel.js, `arrive`).
+    expect(page).to_have_url(re.compile("#config:alerts$"))
+    scroll_settled(page)
+    # The open panel's card starts where it covers the page.
+    panel_top, editor_end = editor.evaluate("""host => {
+      const card = document.querySelector(".lf-floating-panel .lf-fp-card");
+      return [card.getBoundingClientRect().top, host.getBoundingClientRect().bottom];
+    }""")
+    assert editor_end <= panel_top, (editor_end, panel_top)

@@ -13,7 +13,9 @@ import time
 import pytest
 from interact_support import ROOT, STATED_TIMEOUT
 
-SERVER = ROOT / "src" / "leaf" / "codex_tool.py"
+from leaf.base.machine import pid_alive
+
+SERVER = ROOT / "src" / "leaf" / "agents" / "codex_tool.py"
 
 # Stands in for Leaf behind the plugin's launcher, which runs a host's launcher in
 # its place: it says where it ran, for which thread, with which words and stdin.
@@ -120,7 +122,7 @@ def test_a_call_that_hangs_holds_up_no_other_and_ends_with_the_server(server, tm
     server.process.stdin.close()
     server.process.wait(timeout=STATED_TIMEOUT)
     deadline = time.monotonic() + STATED_TIMEOUT
-    while _alive(waiting):
+    while pid_alive(waiting):
         assert time.monotonic() < deadline, "the call's command outlived the server"
         time.sleep(0.05)
 
@@ -128,7 +130,7 @@ def test_a_call_that_hangs_holds_up_no_other_and_ends_with_the_server(server, tm
 def test_a_call_ends_before_codex_gives_up_on_it(tmp_path, monkeypatch):
     """Codex abandons a call at its timeout and cancels nothing, so the server
     ends the command first and says so with whatever it printed."""
-    from leaf import codex_tool
+    from leaf.agents import codex_tool
 
     launcher = tmp_path / "host-leaf"
     launcher.write_text(HOST_LAUNCHER)
@@ -146,14 +148,6 @@ def _written_pid(path) -> int:
         assert time.monotonic() < deadline, f"nothing wrote {path}"
         time.sleep(0.05)
     return int(text)
-
-
-def _alive(pid: int) -> bool:
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    return True
 
 
 @pytest.mark.skipif(not shutil.which("sandbox-exec"), reason="macOS's sandbox")

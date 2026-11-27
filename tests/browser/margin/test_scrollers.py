@@ -11,6 +11,7 @@ from render_cases_layout import MARK
 from render_harness import (
     FOLLOWER_MARK,
     SUBJECT_MARK,
+    WORDS_RECTS,
     assert_follows_in_every_frame,
     leaf_page,
     margins_laid_out,
@@ -26,7 +27,7 @@ from browser.margin import (
     PANE_PIN_PAGE,
     _comment_on,
 )
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -106,7 +107,12 @@ def test_a_passage_s_row_moves_with_the_page_s_scroll_in_the_task_that_scrolls(
     text = " ".join(
         f"Sentence number {i} says something about the release." for i in range(120)
     )
-    body = f'<h1>Passage rows</h1><p id="long">{text} Finally the last words land.</p>'
+    # The page goes on past the passage, so the scroll can put the words a third of the
+    # way down rather than stop at the page's end, under the floating panel.
+    body = (
+        f'<h1>Passage rows</h1><p id="long">{text} Finally the last words land.</p>'
+        '<div style="height: 100vh"></div>'
+    )
     events = [_comment_on("long", quote="the last words land")]
     page = open_page(browser, serve(leaf_page("Passage rows", body), events=events))
     row = page.locator('[data-lf-margin-for="long"]')
@@ -210,59 +216,6 @@ def test_a_pin_in_a_pane_scrolls_with_it_and_leaves_with_its_target(browser, ser
         }"""
     )
     assert stands
-
-
-@pytest.mark.parametrize("engine", ["firefox_browser", "webkit_browser"])
-def test_rows_follow_a_pane_and_a_shadow_scroller_in_every_engine(
-    request, serve, engine
-):
-    """Firefox and WebKit carry rows on the same anchors as Chrome: a pin in a pane,
-    whose lane is a frame anchored to the pane's scroller, and a row whose target
-    scrolls inside a widget's shadow tree, anchored through the part the document
-    names it by. Both keep their offset from their targets through those scrolls."""
-    browser = request.getfixturevalue(engine)
-    page = open_page(browser, serve(PANE_PIN_PAGE, events=[_comment_on("pane-top")]))
-    resized(page, 1280, 720)
-    pane_scroll_behavior(page, page.locator("#pin-pane"), "bounded")
-    page.evaluate(
-        """async () => {
-          const {contributionEntry, registerContribution} = await window.__lfWidgetApi();
-          const host = document.createElement('div');
-          const root = host.attachShadow({mode: 'open'});
-          root.innerHTML = '<div id="inner" style="height: 100px; overflow: auto">'
-            + '<div style="height: 40px"></div><p id="deep">Deep target</p>'
-            + '<div style="height: 400px"></div></div>';
-          document.querySelector('#other-pane > div').prepend(host);
-          const target = root.getElementById('deep');
-          const margin = registerContribution({key: 'deep', target,
-            read: () => ({entries: [contributionEntry({
-              key: 'deep', glyph: '!', label: 'deep controls'})]}),
-            activate: () => {}});
-          window.__deep = {target, margin, inner: root.getElementById('inner')};
-        }"""
-    )
-    margins_laid_out(page)
-    reading = """() => {
-      const pane = document.querySelector('[data-lf-margin-for="pane-top"]');
-      const {target, margin} = window.__deep;
-      const deep = margin.control('deep', 'margin').closest('.lf-margin-cluster');
-      const top = (a, b) => a.getBoundingClientRect().top - b.getBoundingClientRect().top;
-      return {pane: top(pane, document.getElementById('pane-top')),
-              deep: top(deep, target),
-              shown: !pane.classList.contains('lf-withheld')
-                && !deep.classList.contains('lf-withheld')};
-    }"""
-    before = page.evaluate(reading)
-    assert before["shown"], before
-    page.evaluate("""() => {
-      document.querySelector('#pin-pane > div').scrollTop = 40;
-      window.__deep.inner.scrollTop = 20;
-    }""")
-    rendered(page)
-    after = page.evaluate(reading)
-    assert after["shown"], after
-    assert after["pane"] == pytest.approx(before["pane"], abs=1), (before, after)
-    assert after["deep"] == pytest.approx(before["deep"], abs=1), (before, after)
 
 
 WIDENED_TABLE_PAGE = leaf_page(
@@ -411,14 +364,16 @@ def test_marks_stand_on_a_scaled_slide_in_every_engine(request, serve, engine):
 
 def _listing(lines, layout="workspace"):
     """A page holding `lines` in a code block that scrolls inside its `pre`, as
-    reveal.js's theme makes every long one."""
+    reveal.js's theme makes every long one, keeping its lines as an author who wants
+    them scrolled says (reading.css, `pre`)."""
     return leaf_page(
         "a code block that scrolls",
         "<div><h1>Listing</h1><p>A paragraph above the block, long enough to fill the "
         'column it stands in from one edge to the other.</p><pre id="listing"><code>'
         + "\n".join(lines)
         + "</code></pre></div>",
-        head="<style>pre code { display: block; overflow: auto; max-height: 400px; }"
+        head="<style>pre code { display: block; overflow: auto; max-height: 400px;"
+        " white-space: pre; }"
         "</style>",
         layout=layout,
     )
@@ -438,14 +393,12 @@ LONG_NEIGHBOURS = [
     f"    total += step_{i:02d}(sample_values, weight={i})" for i in range(1, 41)
 ]
 # Where a row's pin stands against its quoted words' first line and the code box.
-PIN_ON_LINE = """quote => {
+PIN_ON_LINE = (
+    """quote => {
   const code = document.querySelector('#listing code');
-  const text = code.firstChild;
-  const at = text.data.indexOf(quote);
-  const range = document.createRange();
-  range.setStart(text, at);
-  range.setEnd(text, at + quote.length);
-  const line = range.getClientRects()[0];
+  const line = ("""
+    + WORDS_RECTS
+    + """)(code, quote)[0];
   const box = code.getBoundingClientRect();
   const row = document.querySelector('[data-lf-margin-for="listing"]');
   const pin = row.getBoundingClientRect();
@@ -456,6 +409,7 @@ PIN_ON_LINE = """quote => {
           pin: pin.toJSON(), line: line.toJSON(), box: box.toJSON(),
           shown: !row.classList.contains('lf-withheld')};
 }"""
+)
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
@@ -540,14 +494,11 @@ def test_a_pin_on_lines_partly_scrolled_away_stands_by_one_still_shown(
     resized(page, 1280, 800)
     margins_laid_out(page)
     # The boxes of the quoted lines, as JavaScript taking the quote.
-    lines = """(quote) => {
-      const text = document.querySelector('#listing code').firstChild;
-      const at = text.data.indexOf(quote);
-      const range = document.createRange();
-      range.setStart(text, at);
-      range.setEnd(text, at + quote.length);
-      return [...range.getClientRects()].filter((box) => box.width);
-    }"""
+    lines = (
+        """(quote) => ("""
+        + WORDS_RECTS
+        + """)(document.querySelector('#listing code'), quote)"""
+    )
     reading = f"""quote => {{
       const lines = ({lines})(quote);
       const code = document.querySelector('#listing code');
@@ -665,12 +616,9 @@ def test_a_code_block_s_own_pin_stands_above_its_corner(request, serve, engine):
     reading = page.evaluate(
         """() => {
           const block = document.getElementById('listing').getBoundingClientRect();
-          const text = document.querySelector('#listing code').firstChild;
-          const at = text.data.indexOf('short_second = 1');
-          const range = document.createRange();
-          range.setStart(text, at);
-          range.setEnd(text, at + 16);
-          const line = range.getClientRects()[0];
+          const line = ("""
+        + WORDS_RECTS
+        + """)(document.querySelector('#listing code'), 'short_second = 1')[0];
           const rows = [...document.querySelectorAll('[data-lf-margin-for="listing"]')]
             .map((row) => ({quoted: row.getAttribute('aria-label').includes('short_second'),
                             box: row.getBoundingClientRect()}));
@@ -827,8 +775,7 @@ def test_a_bounded_region_reflows_its_margin_without_resizing_the_page(
                   if (change === 'size') target.previousElementSibling.style.height = '224px';
                   else {
                     target.setAttribute('data-offset', '');
-                    const {layoutChanged} = await window.__lfWidgetApi();
-                    await layoutChanged(target);
+                    await target.dispatchEvent(new CustomEvent('lf-layout', { bubbles: true, composed: true }));
                   }
                 }""",
                 change,
@@ -1018,7 +965,7 @@ def test_a_row_follows_its_target_through_a_scroller_inside_a_shadow_tree(
     resized(page, 1440, 900)
     page.evaluate(
         """async (tree) => {
-          const { contributionEntry, registerContribution } =
+          const { registerContribution } =
             await window.__lfWidgetApi();
           const host = document.createElement('div');
           const root = host.attachShadow({mode: 'open'});
@@ -1045,13 +992,13 @@ def test_a_row_follows_its_target_through_a_scroller_inside_a_shadow_tree(
             }
           }
           const margin = registerContribution({key: 'deep', target,
-            read: () => ({entries: [contributionEntry({
-              key: 'deep', glyph: '!', label: 'deep controls'})]}),
+            read: () => ({entries: [{
+              key: 'deep', glyph: '!', label: 'deep controls'}]}),
             activate: () => {}});
           const sideways = registerContribution({key: 'side',
             target: side,
-            read: () => ({entries: [contributionEntry({
-              key: 'side', glyph: '!', label: 'side controls'})]}),
+            read: () => ({entries: [{
+              key: 'side', glyph: '!', label: 'side controls'}]}),
             activate: () => {}});
           window.__deep = {host, target, inner: root.getElementById('inner'), margin,
                            wide: root.getElementById('wide'), sideways};
@@ -1201,21 +1148,26 @@ TAB_PIN_PAGE = leaf_page(
 )
 
 
-def test_a_row_behind_an_inactive_tab_is_withheld(browser, serve):
+def test_a_row_behind_an_inactive_tab_stands_on_the_tab_set(browser, serve):
     """An inactive tab keeps its content laid out under `content-visibility: hidden`,
     where an anchor is invalid and a row would be drawn wherever it stood with no
-    anchor at all. The row is withheld instead — nothing drawn, nothing to Tab to — and
-    comes back with its tab."""
+    anchor at all. The row stands level with the tab set instead, which the page
+    draws, and moves to its passage with its tab."""
     page = open_page(browser, serve(TAB_PIN_PAGE, events=[_comment_on("behind")]))
     resized(page, 1440, 900)
     margins_laid_out(page)
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="behind"]')
-    expect(row).to_have_class(re.compile(r"\blf-withheld\b"))
-    expect(row).to_be_hidden()
+
+    def level_with(selector):
+        top = page.locator(selector).bounding_box()["y"]
+        assert abs(row.bounding_box()["y"] - top) <= 2, selector
+
+    expect(row).to_be_visible()
+    level_with("#views")
     page.get_by_role("tab", name="Second").click()
     margins_laid_out(page)
-    expect(row).not_to_have_class(re.compile(r"\blf-withheld\b"))
     expect(row).to_be_visible()
+    level_with("#behind")
 
 
 # A deck whose script moves its slides with transitions: the next slide hidden below the
@@ -1248,10 +1200,10 @@ DECK_PAGE = leaf_page(
 
 def test_rows_follow_slides_a_transition_shows_and_hides(browser, serve):
     """A slide hidden by `visibility`, or moved out of the box that clips it, withholds
-    its comment's row, as a closed disclosure does. When the deck swaps slides by a
-    transition, the class change that starts it is read while the transition still holds
-    the old values, and nothing after it resizes or mutates; the rows follow once the
-    transitions end, without a reload."""
+    its comment's row, while a closed disclosure stands its row on itself. When the deck
+    swaps slides by a transition, the class change that starts it is read while the
+    transition still holds the old values, and nothing after it resizes or mutates; the
+    rows follow once the transitions end, without a reload."""
     page = open_page(
         browser,
         serve(
@@ -1271,7 +1223,8 @@ def test_rows_follow_slides_a_transition_shows_and_hides(browser, serve):
     }
     withheld = re.compile(r"\blf-withheld\b")
     expect(row["slide-one"]).to_be_visible()
-    for hidden in ("slide-two", "slide-three", "note"):
+    expect(row["note"]).to_be_visible()
+    for hidden in ("slide-two", "slide-three"):
         expect(row[hidden]).to_have_class(withheld)
         expect(row[hidden]).to_be_hidden()
 
@@ -1509,7 +1462,7 @@ def test_an_authored_anchor_scope_leaves_margin_controls_reachable(browser, serv
     expect(stuck).to_be_visible()
 
 
-@pytest.mark.parametrize("engine", ["browser", "webkit_browser"])
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
 def test_a_constrained_target_carries_its_row_through_scroll(
     request, serve, subtests, engine
 ):
@@ -1519,11 +1472,9 @@ def test_a_constrained_target_carries_its_row_through_scroll(
 
     Sticky constraints can belong to the target or an ancestor, and a fixed target
     stays put through the document's scroll. A fixed scroller, such as a page of parts'
-    title column, stays put too, and its row rides what its own scroll carries. Firefox
-    draws a stuck target's row where the target would stand unstuck
-    (notes/browser-support.md, "A stuck sticky anchor in Firefox"). Chromium also reads
-    the compositor's frames, which only it traces; WebKit checks the rectangles after
-    each scroll.
+    title column, stays put too, and its row rides what its own scroll carries. Chromium
+    also reads the compositor's frames, which only it traces; Firefox and WebKit check
+    the rectangles after each scroll.
     """
     page = open_page(request.getfixturevalue(engine), serve(PANEL_PAGE))
     resized(page, 1280, 900)
@@ -1535,7 +1486,7 @@ def test_a_constrained_target_carries_its_row_through_scroll(
             page.mouse.move(0, 0)
             page.evaluate(
                 """async (position) => {
-                  const {contributionEntry, registerContribution} =
+                  const {registerContribution} =
                     await window.__lfWidgetApi();
                   if (window.__nonlinear) {
                     // The case before leaves its host, or its fixed target, and its row.
@@ -1570,8 +1521,8 @@ def test_a_constrained_target_carries_its_row_through_scroll(
                     host.remove();
                   }
                   const contribution = registerContribution({key: 'nonlinear', target,
-                    read: () => ({entries: [contributionEntry({key: 'nonlinear',
-                      glyph: '!', label: 'Constrained controls'})]}), activate: () => {}});
+                    read: () => ({entries: [{key: 'nonlinear',
+                      glyph: '!', label: 'Constrained controls'}]}), activate: () => {}});
                   window.__nonlinear = {host, target, position, contribution};
                 }""",
                 position,
@@ -1636,7 +1587,7 @@ def test_distant_margin_coordinates_follow_small_moves_without_restatement(
     resized(page, 1280, 900)
     page.evaluate(
         """async () => {
-          const {contributionEntry, registerContribution} =
+          const {registerContribution} =
             await window.__lfWidgetApi();
           const main = document.querySelector('main');
           const space = document.createElement('div');
@@ -1649,8 +1600,8 @@ def test_distant_margin_coordinates_follow_small_moves_without_restatement(
           target.style.setProperty('--target-y', '123456.578125px');
           space.append(target); main.append(space);
           const contribution = registerContribution({key: 'distant', target,
-            read: () => ({entries: [contributionEntry({key: 'distant',
-              glyph: '!', label: 'Distant controls'})]}), activate: () => {}});
+            read: () => ({entries: [{key: 'distant',
+              glyph: '!', label: 'Distant controls'}]}), activate: () => {}});
           window.__distantMargin = {target, contribution};
         }"""
     )

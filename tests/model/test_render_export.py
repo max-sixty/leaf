@@ -16,17 +16,18 @@ from render_harness import (
     leaf_page,
 )
 
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import exporting as exporting_model
-from leaf import leases as leases_model
-from leaf import media as media_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf.event_log import read_events
-from leaf.files import published_versions
-from leaf.served_state.service import PageStateService
-from leaf.structure import SourceDocument
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.base.files import published_versions
+from leaf.commands import cli as cli_model
+from leaf.commands import session as session_model
+from leaf.log.event_log import read_events
+from leaf.pages import exporting as exporting_model
+from leaf.records import page_data as page_data_model
+from leaf.records import transaction as transaction_model
+from leaf.serving import media as media_model
+from leaf.serving.served_state.service import PageStateService
+from leaf.source.structure import SourceDocument
 from leaf_dev.example_data import patch_manifest
 
 
@@ -132,8 +133,8 @@ def test_an_export_holds_each_data_value_once_outside_its_documents(serve, tmp_p
             '</lf-text-document><lf-diff id="patch" source="review-patch"></lf-diff>',
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "notes", "NOTES_SENTINEL\n")
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(serve.page_dir, "notes", "NOTES_SENTINEL\n")
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         patch_manifest(
@@ -193,7 +194,14 @@ def test_an_export_holds_the_page_and_nothing_of_the_conversation(claimed, tmp_p
         "<text>ATTACHMENTWORD</text></svg>"
     )
     attached = media_model.cmd_media(claimed, [attachment])[0]["path"]
-    choice = {"kind": "action", "author": "user", "revision": 1, "action": "choose"}
+    # Each single choice says its pick answers it.
+    choice = {
+        "kind": "action",
+        "author": "user",
+        "revision": 1,
+        "action": "choose",
+        "answered": True,
+    }
     chosen = append_command(
         claimed, {**choice, "widget": "picks", "detail": {"value": ["second"]}}
     )
@@ -201,7 +209,13 @@ def test_an_export_holds_the_page_and_nothing_of_the_conversation(claimed, tmp_p
         claimed, {**choice, "widget": "taken-back", "detail": {"value": ["drop"]}}
     )
     append_command(
-        claimed, {"kind": "undo", "author": "user", "undoes": taken_back["id"]}
+        claimed,
+        {
+            "kind": "undo",
+            "author": "user",
+            "undoes": taken_back["id"],
+            "answered": False,
+        },
     )
     comment = append_command(
         claimed,
@@ -226,8 +240,8 @@ def test_an_export_holds_the_page_and_nothing_of_the_conversation(claimed, tmp_p
             "</lf-text-document>",
         },
     )
-    data_model.cmd_data_set(claimed, "thread-notes", "BOUNDINTHREADWORD\n")
-    data_model.cmd_data_set(claimed, "page-notes", "PAGEDATAWORD\n")
+    page_data_model.cmd_data_set(claimed, "thread-notes", "BOUNDINTHREADWORD\n")
+    page_data_model.cmd_data_set(claimed, "page-notes", "PAGEDATAWORD\n")
     append_command(
         claimed, {**choice, "widget": "reply-choice", "detail": {"value": ["PICKWORD"]}}
     )
@@ -258,7 +272,10 @@ def test_an_export_holds_the_page_and_nothing_of_the_conversation(claimed, tmp_p
         {
             "kind": "plan",
             "author": "agent",
-            "steps": [{"depth": 0, "title": "PLANWORD", "state": "working"}],
+            "steps": [
+                {"depth": 0, "title": "PLANWORD"},
+                {"depth": 1, "item": todo["id"]},
+            ],
         },
     )
     source.write_text(
@@ -274,7 +291,7 @@ def test_an_export_holds_the_page_and_nothing_of_the_conversation(claimed, tmp_p
     assert lease_path is not None
     lease = leases_model.take_wait_lease(lease_path)
     assert lease
-    with service_model.PageTransaction(claimed) as transaction:
+    with transaction_model.PageTransaction(claimed) as transaction:
         transaction.set_stream_activity(
             "s1", "turn-live", {"kind": "tool", "detail": "OBSERVEDWORD"}
         )

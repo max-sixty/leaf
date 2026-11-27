@@ -2,13 +2,14 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { servedReading, servedThread, servedWorkflow } from "../served.mjs";
 
-const { foldThreads, lastMovedAt, moved, readThreadRecords } =
-  await import("/runtime/thread/model.js");
-const { threadAttention } = await import("/runtime/thread/workflow.js");
-const { threadName, threadSummary, prepareAuthoredMessage, messageReading } =
-  await import("/runtime/thread/messages.js");
-const { loadMarkdown } = await import("/runtime/markdown.js");
-const { createThreadDestinations } = await import("/runtime/thread/destination.js");
+const { foldThreads, moved, readThreadRecords } =
+  await import("/runtime/state/thread/model.js");
+const { threadAttention } = await import("/runtime/records/thread/workflow.js");
+const { threadName, prepareAuthoredMessage, messageReading } =
+  await import("/runtime/records/thread/messages.js");
+const { loadMarkdown } = await import("/runtime/lib/markdown.js");
+const { createThreadDestinations } =
+  await import("/runtime/records/thread/destination.js");
 
 test("Thread destinations without a page preview retain canonical targets and shadow-held identity", async () => {
   const owner = document.createElement("div");
@@ -53,7 +54,7 @@ test("a thread's unread is the server reading less what this tab is acknowledgin
     }),
   ];
   const read = (acknowledging) =>
-    readThreadRecords(threads, NO_DOCUMENT, new Map(), [], [], [], acknowledging)[0];
+    readThreadRecords(threads, NO_DOCUMENT, new Map(), [], [], acknowledging)[0];
 
   const unread = read([]);
   assert.deepEqual(
@@ -95,7 +96,7 @@ test("a reading keeps the record of every thread nothing it reads has changed", 
   );
   // A new thread, and a workflow that moved on in another, read again only theirs.
   const added = servedThread([agent("d", { kind: "comment" })]);
-  const moving = { ...workflows[1], stage: "picked_up" };
+  const moving = { ...workflows[1], seen: true };
   const next = read([...threads, added], NO_DOCUMENT, new Map(), [
     workflows[0],
     moving,
@@ -122,14 +123,14 @@ test("a reading keeps the record of every thread nothing it reads has changed", 
 test("a reply to a thread reads its own message and the reactions it moves", () => {
   const reacting = {
     ...NO_DOCUMENT,
-    registry: { $reactions: { tokens: { yes: { glyph: "+" } } } },
+    registry: { $reactions: { emoji: ["👍"] } },
   };
   const root = agent("root", { kind: "comment", author: "user" });
   const first = agent("first", { seq: 2 });
   const liked = {
     ...agent("liked", { seq: 3, author: "user" }),
     parent: "first",
-    token: "yes",
+    emoji: "👍",
   };
   const second = agent("second", { seq: 4 });
   const thread = servedThread([root, first, liked, second]);
@@ -153,6 +154,12 @@ test("a reply to a thread reads its own message and the reactions it moves", () 
     [null, false, null, false, true],
   );
   assert.equal(after.msgs[1].reactions?.choices[0]?.inForce?.id, "liked");
+  // A package draws a thread from its record's `turns`: the messages themselves, less
+  // the reaction, which stands on the message it answers.
+  assert.deepEqual(
+    after.turns,
+    after.msgs.filter((message) => message.id !== "liked"),
+  );
   assert.deepEqual(
     [after],
     readThreadRecords(
@@ -169,12 +176,11 @@ test("marking one thread read reads that thread's record again, and no other", (
     servedThread([agent(id, { kind: "comment" })], { unread: { [id]: id } }),
   );
   const read = readThreadRecords;
-  const before = read(threads, NO_DOCUMENT, new Map(), [], [], [], []);
+  const before = read(threads, NO_DOCUMENT, new Map(), [], [], []);
   const after = read(
     threads,
     NO_DOCUMENT,
     new Map(),
-    [],
     [],
     [],
     [{ message: "a", version: "a" }],
@@ -211,7 +217,7 @@ test("a gesture copies only the thread it stands in", () => {
   );
 });
 
-test("a message moves when it is edited, and a thread when any turn moves", () => {
+test("a message moves when it is edited", () => {
   const plain = agent("plain", { seq: 3, ts: "2026-03-01T09:00:00Z" });
   const edited = agent("edited", {
     seq: 1,
@@ -220,14 +226,6 @@ test("a message moves when it is edited, and a thread when any turn moves", () =
   });
   assert.deepEqual(moved(plain), { seq: 3, ts: "2026-03-01T09:00:00Z" });
   assert.deepEqual(moved(edited), { seq: 7, ts: "2026-03-02T09:00:00Z" });
-  const thread = {
-    root: { ...edited, body: { text: "Topic" } },
-    msgs: [
-      { ...edited, body: { text: "Topic" } },
-      agent("later", { seq: 4, ts: "2026-02-25T09:00:00Z" }),
-    ],
-  };
-  assert.equal(lastMovedAt(thread), "2026-03-02T09:00:00Z");
 });
 
 test("an untitled thread goes by the words its opening renders, everywhere it is named", async () => {
@@ -241,7 +239,6 @@ test("an untitled thread goes by the words its opening renders, everywhere it is
     agent("opening", { kind: "comment", author: "user", ...extra });
   const prose = named(user({ text: "Is **this** the\n\n`retry` path?" }));
   assert.equal(threadName(prose), "Is this the retry path?");
-  assert.equal(threadSummary(prose).topic, threadName(prose));
   // A drawing with no words still has a name to stand under.
   assert.equal(
     threadName(named(user({ text: "", drawing: { strokes: [] } }))),
@@ -254,6 +251,14 @@ test("an untitled thread goes by the words its opening renders, everywhere it is
   );
 });
 
+// The records the server publishes for a question the agent asked and for what an
+// update of the user's is owed, so a record made from them carries every field the
+// server sends.
+const ASKED = servedReading("question").browser.views["1"].obligations[0];
+const OWED = servedReading("queues on both sides").browser.views["1"].obligations.find(
+  ({ source, next_actor }) => source.kind === "update" && next_actor === "agent",
+);
+
 test("attention names the outstanding question rather than the latest message", () => {
   const question = agent("question", {
     kind: "comment",
@@ -263,72 +268,61 @@ test("attention names the outstanding question rather than the latest message", 
     text: "I also added the room number.",
     seq: 2,
   });
-  const source = servedThread([question, followup], {
-    attention: { kind: "needs_user", reason: "obligation", workflow: null },
-  });
-  const [thread] = readThreadRecords([source], NO_DOCUMENT, new Map(), []);
+  const asked = {
+    ...ASKED,
+    id: "message:question",
+    source: { kind: "message", id: "question" },
+    thread: "question",
+    message: "question",
+  };
+  const source = servedThread([question, followup], { attention: asked.id });
+  const [thread] = readThreadRecords([source], NO_DOCUMENT, new Map(), [], [asked]);
   const attention = threadAttention(thread, "Claude");
+  assert.equal(thread.attention, asked);
   assert.equal(attention.word.text, "Your turn");
+  // The record an update in the thread publishes, and the workflow it stands by.
+  const owed = (id, subject, changes) => ({
+    ...OWED,
+    id: `update:${id}`,
+    source: { kind: "update", id, subject },
+    thread: "question",
+    message: null,
+    workflow: id,
+    ...changes,
+  });
+  const handedBack = { next_actor: "user", state: "blocked", reason: "failed" };
+  const said = (record, workflows = []) =>
+    threadAttention({ ...thread, attention: record, workflows }, "Claude").word.text;
+  for (const [id, subject, word] of [
+    ["send", { kind: "thread", id: "question" }, "Send it again"],
+    ["move", { kind: "widget", id: "choice" }, "Try it again"],
+  ])
+    assert.equal(
+      said(owed(id, subject, handedBack), [
+        servedWorkflow({
+          id,
+          subject,
+          thread: "question",
+          state: "blocked",
+          reason: "failed",
+          seen: true,
+        }),
+      ]),
+      word,
+    );
+  // Owed by the agent with no workflow in the thread to say how it stands.
+  const inThread = { kind: "thread", id: "question" };
   assert.equal(
-    threadAttention(
-      {
-        ...thread,
-        attention: { kind: "needs_user", reason: "resend", workflow: "send" },
-        workflows: [
-          servedWorkflow({
-            id: "send",
-            subject: { kind: "thread", id: "question" },
-            thread: "question",
-          }),
-        ],
-      },
-      "Claude",
-    ).word.text,
-    "Send it again",
-  );
-  assert.equal(
-    threadAttention(
-      {
-        ...thread,
-        attention: { kind: "needs_user", reason: "resend", workflow: "move" },
-        workflows: [
-          servedWorkflow({
-            id: "move",
-            subject: { kind: "widget", id: "choice" },
-            thread: "question",
-          }),
-        ],
-      },
-      "Claude",
-    ).word.text,
-    "Try it again",
-  );
-  assert.equal(
-    threadAttention(
-      {
-        ...thread,
-        attention: { kind: "waiting", reason: "uncertain", workflow: null },
-      },
-      "Claude",
-    ).word.text,
+    said(owed("gone", inThread, { state: "blocked", reason: "quiet" })),
     "Uncertain",
   );
-  assert.equal(
-    threadAttention(
-      {
-        ...thread,
-        attention: { kind: "waiting", reason: "workflow", workflow: null },
-      },
-      "Claude",
-    ).word.text,
-    "Waiting",
-  );
+  assert.equal(said(owed("gone", inThread, { state: "waiting" })), "Waiting");
   assert.equal(threadAttention({ ...thread, attention: null }, "Claude"), null);
 });
 
 test("superseding a blocked primary destination completes its prior navigation", async () => {
-  const { applicationState } = await import("/runtime/semantic-state.js");
-  const { readThreads } = await import("/runtime/thread/state.js");
+  const { applicationState } = await import("/runtime/state/semantic-state.js");
+  const { readThreads } = await import("/runtime/records/thread/state.js");
   applicationState.identify(1);
   applicationState.captureDocument({
     ...applicationState.read().document,
@@ -344,7 +338,10 @@ test("superseding a blocked primary destination completes its prior navigation",
       document.body.append(workspace);
       const reached = Promise.withResolvers();
       const blocked = Promise.withResolvers();
-      const router = createThreadDestinations({});
+      const router = createThreadDestinations({
+        placedAt: () => null,
+        prepareNavigationStep: () => null,
+      });
       let calls = 0;
       const unregister = router.register(workspace, () => {}, {
         update: () =>
@@ -366,7 +363,7 @@ test("superseding a blocked primary destination completes its prior navigation",
 
 test("a thread the primary declines and nothing on the page shows is asked of it again, last", async () => {
   // The page the test before admitted, whose reading holds one thread.
-  const { readThreads } = await import("/runtime/thread/state.js");
+  const { readThreads } = await import("/runtime/records/thread/state.js");
   const id = readThreads().threads[0].id;
   const workspace = document.createElement("section");
   const view = document.createElement("div");
@@ -375,6 +372,7 @@ test("a thread the primary declines and nothing on the page shows is asked of it
   const router = createThreadDestinations({
     threadIdsAt: () => [],
     placedAt: () => null,
+    prepareNavigationStep: () => null,
   });
   // Declines until asked as the last resort, as the floating panel declines a thread
   // about a passage.
@@ -399,7 +397,7 @@ test("a thread the primary declines and nothing on the page shows is asked of it
 });
 
 test("prepared thread readings consume only their own held-news release", async () => {
-  const { HeldNews } = await import("/runtime/thread/held-news.js");
+  const { HeldNews } = await import("/runtime/records/thread/held-news.js");
   for (const earlier of [false, true])
     assert.equal(
       await (async (earlier) => {
@@ -463,7 +461,7 @@ test("prepared thread readings consume only their own held-news release", async 
 });
 
 test("held news keeps a reaction taken back elsewhere as it was drawn", async () => {
-  const { HeldNews } = await import("/runtime/thread/held-news.js");
+  const { HeldNews } = await import("/runtime/records/thread/held-news.js");
   /** @param {boolean} taken */
   const reading = (taken) => {
     const said = (id, seq, author, parent, text) => ({
@@ -478,8 +476,8 @@ test("held news keeps a reaction taken back elsewhere as it was drawn", async ()
     const mark = {
       ...said("mark", 3, "user", "answer", ""),
       ...(taken
-        ? { withdrawn: { id: "undo", ts: "now", was: "keep" } }
-        : { token: "keep" }),
+        ? { withdrawn: { id: "undo", ts: "now", was: "👍" } }
+        : { emoji: "👍" }),
     };
     if (!taken) delete mark.text;
     const source = servedThread([
@@ -508,16 +506,24 @@ test("held news keeps a reaction taken back elsewhere as it was drawn", async ()
   );
   held.hold(reading(false), { row: false });
   const next = held.prepare(reading(true), { row: false });
-  const mark = next.reading.threads[0].source.msgs.find(({ id }) => id === "mark");
+  const drawn = next.reading.threads[0].source;
+  const mark = drawn.msgs.find(({ id }) => id === "mark");
   held.dispose();
   owner.remove();
-  assert.equal(mark?.token, "keep");
+  assert.equal(mark?.emoji, "👍");
   assert.equal(mark?.withdrawn, undefined);
+  // The held thread's turns are those of the messages it holds, so a package reading
+  // them draws what the seat does: the mark still a reaction, and no turn.
+  assert.deepEqual(
+    drawn.turns.map(({ id }) => id),
+    ["opening", "answer", "kept"],
+  );
 });
 
 test("a thread commits when drawn, and abandoned renders call nothing", async (t) => {
-  const { createPrimaryReader } = await import("/runtime/thread/primary-reader.js");
-  const { applicationState } = await import("/runtime/semantic-state.js");
+  const { createPrimaryReader } =
+    await import("/runtime/records/thread/primary-reader.js");
+  const { applicationState } = await import("/runtime/state/semantic-state.js");
   applicationState.identify(1);
   applicationState.adopt(servedReading("suggestion closes a thread"));
   await loadMarkdown();
@@ -568,7 +574,11 @@ test("a thread commits when drawn, and abandoned renders call nothing", async (t
           }),
       },
       reaction: {},
-      read: { observeMessage: () => () => {}, observeFeedback: () => () => {} },
+      read: {
+        observeMessage: () => () => {},
+        observeFeedback: () => () => {},
+        observeSummary: () => () => {},
+      },
     },
     () => Promise.resolve(),
     { answersAtOnce: true },
@@ -606,7 +616,7 @@ test("a thread commits when drawn, and abandoned renders call nothing", async (t
 });
 
 test("news answers only a user turn that still stands", async () => {
-  const { threadChange } = await import("/runtime/thread/held-news.js");
+  const { threadChange } = await import("/runtime/records/thread/held-news.js");
   const root = { id: "question", key: "question", author: "user", body: "Question" };
   const turn = { id: "followup", key: "followup", author: "user", body: "And this?" };
   const reading = (messages, words) => ({
@@ -625,7 +635,7 @@ test("news answers only a user turn that still stands", async () => {
 });
 
 test("a step its turn ended above the user's message is news a seat can hold", async () => {
-  const { threadChange } = await import("/runtime/thread/held-news.js");
+  const { threadChange } = await import("/runtime/records/thread/held-news.js");
   const root = { id: "question", key: "question", author: "user", body: "Question" };
   const step = { id: "step", key: "step", author: "agent", progress: true };
   const turn = { id: "followup", key: "followup", author: "user", body: "And this?" };
@@ -649,8 +659,8 @@ test("a step its turn ended above the user's message is news a seat can hold", a
 });
 
 test("Copy gives an authored message's Markdown, its HTML included, after the public thread reading", async () => {
-  const { adoptRegistry } = await import("/runtime/registry.js");
-  const { loadMarkdown } = await import("/runtime/markdown.js");
+  const { adoptRegistry } = await import("/runtime/state/registry.js");
+  const { loadMarkdown } = await import("/runtime/lib/markdown.js");
   adoptRegistry({ $layer: { generation: "authored-copy" } });
   assert.equal(await loadMarkdown(), true);
   const text = "Agent **words**\n\n<p>A <strong>captured</strong> answer.</p>";

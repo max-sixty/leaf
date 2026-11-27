@@ -1,0 +1,404 @@
+/* The document's rules for elements Leaf draws or declares, rather than the author's:
+ * the chrome's root, the facts of Leaf's own surfaces, a region's label, a suggestion's
+ * slots, and the box of a pane or a group, whatever element declares that role. They
+ * stand in `lf-base` with the faces of Leaf's controls and every widget package's rules,
+ * above the page's `base` layer and below its other layers (layer.py,
+ * `composed_sheets`), so a framework's reset leaves them whole. The tokens,
+ * the page shell and the rules that keep a guarantee for the author's own elements stay
+ * in base.css, below the page's `base`. A declared tree doesn't read this sheet. */
+
+/* The chrome's root stands after `body` (leaf.js), a stacking context at the largest
+   z-index there is. A box the page writes can at most tie with it, and a tie paints in
+   tree order, where nothing in `body` follows it; so it paints over every page box,
+   whatever stacking contexts the page makes, and the page rises over Leaf only through
+   the top layer (the ladder, styles/tokens.css). Its box is empty at the origin and
+   takes no room; Leaf positions its surfaces against the document or the viewport. It
+   inherits from the root, as `body` does, so what the two share is declared there
+   (`:root`, below). */
+:root > .lf-chrome {
+  position: absolute;
+  inset: 0 auto auto 0;
+  z-index: 2147483647;
+  width: 0;
+  height: 0;
+}
+
+/* Leaf's own surfaces wear markup's reading face (styles/components/reading.css) on
+   every page, whatever look the page takes: the chrome, and each control Leaf builds
+   into a page. */
+:where(.lf-chrome),
+:where(.lf-ui) {
+  --lf-reading-face: 1;
+}
+/* A list of facts on a surface Leaf draws for its interface, the chrome (`.lf-ui`, as
+   About's counts) or a popover a control opens (`.lf-popover`, as a capture's details),
+   keeps the facts idiom's layout (styles/components/idioms.css) at the surface's
+   density: its labels take the interface's small font, as the surface's other labels
+   do, and the list the reading face's spacing. They don't share an ancestor class, so
+   the rule names both. It outranks the idiom's rules at any weight (idioms.css), and
+   weighs less than the frame's edge trims (reading.css), so they still take a first
+   or last list's margin. */
+:where(.lf-ui) dl.lf-facts,
+:where(.lf-popover) dl.lf-facts {
+  margin-block: 10px;
+}
+:where(.lf-ui) dl.lf-facts dt,
+:where(.lf-popover) dl.lf-facts dt {
+  font: var(--lf-font-small);
+}
+
+/* The label font: small capitals in the UI sans that name a region, ranking below every
+   heading they stand among. A pane's name takes it, and so does each label a widget or
+   the chrome draws, by wearing `.lf-label`; a wearer keeps only where it stands, and a
+   label that can't wear the class, a generated or authored one, states these four
+   declarations itself. A group of a list's rows is named by the list's group heading
+   instead (controls.css, `.lf-rows-head`), whose author's capitals these would mangle. */
+.lf-label,
+:where([data-lf-reading-role="pane"]) > header > :is(h2, h3, h4, h5, h6) {
+  font: var(--lf-font-heading);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--lf-muted);
+}
+
+/* lf-suggestion / lf-old / lf-new: a proposed change to content the user has seen. The
+ * wrapper takes the form its content takes — inline among the words for a change of a
+ * phrase, block around the slots for one of whole paragraphs — so a suggestion sits
+ * mid-sentence or wraps whole sections without disturbing either flow, and either way
+ * the change is one box. The slots carry the marks. A decision is the end of the matter
+ * visually: the settled slot loses every mark and reads as ordinary prose, and a
+ * suggestion with nothing left to show disappears.
+ *
+ * Rejected: no box at all (display: contents), which is this same reading of
+ * "follow the content" with the box left out — and a box is what anything asking where
+ * the change is has to have. An element generating none measures (0,0) at the document's
+ * origin, which is not a degenerate answer but a wrong one, naming the top of the page:
+ * the ring has nothing to hang on, the obligation walk's travel centres the document,
+ * and a container's edge rule reaches past the wrapper to the slots. The widget still
+ * prepends a span to itself for its controls to anchor from, since what a widget
+ * builds for itself is what it can rely on, and which form this wrapper takes is a
+ * stylesheet's to say — a layer restyling it boxless would take the controls off the
+ * page altogether (see lf-suggestion.js). A wrapper that draws nothing still has to be
+ * somewhere.
+ *
+ * Having a box also puts the wrapper in front of the render gate's floors, and the
+ * width floor is written for widgets that reserve a region. This one's box is its
+ * content's in both forms, words included — a one-word swap is ~30px and correct — so
+ * the declaration names `inline`, the key that names whose floor is whose. */
+lf-suggestion {
+  display: inline;
+}
+lf-old,
+lf-new {
+  border-radius: var(--lf-r-s);
+  padding: 0 3px;
+}
+/* --lf-ink-2, not --lf-muted: the strike and the tint already say retired, and muted on
+ * the danger tint reads 4.8:1 in light, close to the 4.5:1 the contrast sweep holds
+ * every user-facing word to. */
+lf-old {
+  background: var(--lf-danger-tint);
+  color: var(--lf-ink-2);
+  text-decoration: line-through;
+  text-decoration-color: var(--lf-danger);
+}
+lf-new {
+  background: var(--lf-ok-tint);
+}
+/* The words that moved, deepened against the slot's own tint: the module's ranges
+ * through the highlight registry (lf-suggestion.js #emphasize), so no node is
+ * wrapped. Layout-free
+ * properties only, which is all ::highlight() may carry. Each rule names its slot,
+ * whose text is all these ranges paint (AGENTS.md, "Runtime ownership"). */
+lf-old::highlight(lf-sug-del),
+lf-old *::highlight(lf-sug-del) {
+  background-color: color-mix(in srgb, var(--lf-danger) 30%, transparent);
+}
+lf-new::highlight(lf-sug-ins),
+lf-new *::highlight(lf-sug-ins) {
+  background-color: color-mix(in srgb, var(--lf-ok) 26%, transparent);
+}
+/* Which form a slot takes is asked of the platform's own closed set, inverted: any
+ * child that is not phrasing content makes the slot a block. Enumerating the block
+ * side would name every shipped widget in the integrated layer — the closed list the
+ * norms forbid, silently inline for a project-layer widget staged in a slot, whose
+ * fold then drops it in the frame of the press. Phrasing is the list that cannot
+ * grow: a custom element is never in it, so a block widget from any layer is covered
+ * unnamed. The marker at the end corrects the inversion's one wrong answer: an inline
+ * widget is a custom element too. Which widgets those are is the registry's to say
+ * (`inline`) and a stylesheet cannot read it, so delivery paints the declaration
+ * where a selector can reach it (data-lf-inline, `mark_declared`).
+ * Rejected: a list of widget names here, which the layer that most needs the answer,
+ * a project's own, could never be given. What a tag list buys that the marker does
+ * not is the page that never runs the runtime: unpainted, an inline widget in a slot
+ * reads as block there. No shipped script-free page stages one, and the price of
+ * keeping that case is the closed list itself.
+ *
+ * The content-shape test stays in :where() so this default is as easy to override
+ * as the slots' ordinary tag rules. Semantic retirement belongs to state.css.
+ *
+ * The platform half is HTML's phrasing-content set quoted whole, `link` and `meta`
+ * included, which no slot will ever hold and which render nothing if one does. CSS
+ * cannot derive the category, so the selector keeps the literal, and
+ * `build/registry.test.mjs` holds it to the kernel's `$passages.phrasing`, which the
+ * runtime reads for the same question about where a line of words runs. The browser
+ * tests exercise the marker half through an inline Gloss in a suggestion slot.
+ *
+ * The block form's room is above the slot rather than around it, so a run of changes
+ * reads as a stack. Room on one side costs the pair nothing, the gap between two slots
+ * and between two suggestions being the second one's either way. Nor does it cost the
+ * prose around a change: collapsing takes the larger of this 10px and the 13px a
+ * paragraph reserves, so room on the other side would be room no user sees.
+ *
+ * Both slots take the block form together, the wrapper being what asks the question:
+ * what the user is deciding is one change, not two halves with their own layouts.
+ * Where each slot answers for itself, a paragraph replaced by a phrase renders as a
+ * full-width struck field with a three-word pill under it.
+ *
+ * The padding then frames what the slot holds, so the slot says so: a block change is a
+ * whole paragraph in a tinted field. */
+lf-suggestion:has(
+  > :is(lf-old, lf-new)
+    > :not(
+      a,
+      abbr,
+      area,
+      audio,
+      b,
+      bdi,
+      bdo,
+      br,
+      button,
+      canvas,
+      cite,
+      code,
+      data,
+      datalist,
+      del,
+      dfn,
+      em,
+      embed,
+      i,
+      iframe,
+      img,
+      input,
+      ins,
+      kbd,
+      label,
+      link,
+      map,
+      mark,
+      math,
+      meta,
+      meter,
+      noscript,
+      object,
+      output,
+      picture,
+      progress,
+      q,
+      ruby,
+      s,
+      samp,
+      script,
+      select,
+      slot,
+      small,
+      span,
+      strong,
+      sub,
+      sup,
+      svg,
+      template,
+      textarea,
+      time,
+      u,
+      var,
+      video,
+      wbr,
+      :where([data-lf-inline])
+    )
+) {
+  display: block;
+  & > :is(lf-old, lf-new) {
+    display: block;
+    /* A framed box that starts or ends the slot, such as an options group, stands
+       clear of the tint's edge (`--lf-clear`) rather than nearly meeting it. */
+    padding: var(--lf-clear) 10px;
+    margin-top: 10px;
+    --lf-block-frame: 1;
+    transition: padding var(--lf-motion-fold) ease;
+  }
+}
+/* Decided: the surviving slot is plain prose, the other one gone. The retired one is
+ * folded away by the widget rather than dropped in a frame (lf-suggestion.js). A block
+ * survivor gives up its padding over the same span: its 10px is the sentence the user is
+ * looking at stepping sideways, which is the jerk the fold is there to remove, only
+ * smaller. The transition is declared on the block slot rather than on the decided
+ * state, because a transition is read from the state the element is leaving; the shared
+ * reduced-motion guard in shadow.css takes it with everything else.
+ *
+ * An inline survivor gives up its 3px in the frame the decision lands. Its width is
+ * what the margin seats the suggestion's pin by, and an inline box resizing over a
+ * transition tells no observer, so the pin was seated mid-fold and the next unrelated
+ * layout pass, such as an agent's comment arriving, moved it a few pixels with no
+ * input. The other route, following the transition frame by frame, slid the pin beside
+ * the control just pressed, which browser/AGENTS.md, "The page holds still under the
+ * user's aim", forbids. Settling at once moves the words
+ * by the padding as part of the gesture, and the pin takes its final seat once.
+ *
+ * Padding alone. The tint going is paint, which a state change may do freely, and a
+ * transitioned background is the thing the option group's own comment above warns
+ * about: the tokens themselves move when the user's system flips to dark, so every
+ * slot on the page would animate from one palette to the other for a change nobody
+ * made. */
+lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
+  background: none;
+  color: inherit;
+  text-decoration: none;
+}
+/* The retiring slot keeps its ordinary inset until native fold motion gives it
+   back; restyling it first would change the fold's intrinsic starting box. */
+lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
+  padding: 0;
+}
+
+/* A pane is one task region: an optional header, one body element, an optional footer,
+ * with no generated wrappers. It is whatever element declares `reading-role:
+ * pane`, whose role delivery paints into the served document (`data-lf-reading-role`),
+ * so the first paint lays it out before any script runs. The rows are `auto 1fr auto`,
+ * because a grid row's minimum is its content's: a body that scrolls contributes
+ * nothing and the row takes what the header and footer leave, while a body that doesn't
+ * holds the row at its full height. Whether a body scrolls is the stylesheet's: the
+ * workspace Layout scrolls pane bodies where it fills the window (layouts.css), and
+ * `readings/reading-regions.js` reads which box scrolls from the result.
+ *
+ * A widget that composes regions out of boxes it generates, such as a playground's
+ * controls beside its preview, marks them with the same role and takes these same
+ * rules, so no package keeps a copy of them. They are the kernel's rather than the
+ * default package's for that reason: a package's rules name its own widgets, and these
+ * reach every package's.
+ *
+ * The grammar (the rows, and which child stands in which) holds over what a widget
+ * declares for itself, such as a board's block margin and minimum width when the board
+ * is a pane's body, so it stands in the Layouts tier above every package (layouts.css)
+ * rather than here, where a widget's own root rule (`lf-board { … }`) could outrank
+ * it. The look (frame, paper, padding, the
+ * header's font) is a default inside :where(), so a package that draws its generated
+ * pane another way does so with one class rather than by outranking the attribute. */
+/* A pane's body is a keyboard stop of its own where it scrolls with nothing in it to
+ * Tab to (dom/reach.js), and the layer's ring stands outside the box it names. A held pane
+ * stands flush with the scrollport of the workspace body holding it, so that ring lost
+ * its right and bottom sides to the scrollport's edge and ran over the header's rule.
+ * The pane is the body's ring frame instead (surfaces.css, `.lf-ring-frame`), drawing
+ * the ring inset on a later box sharing the body's grid cell: an outline on the body
+ * itself paints under whatever positioned content scrolls across its edges. */
+[data-lf-reading-role="pane"]::after {
+  position: static;
+  grid-row: 2;
+  grid-column: 1;
+  z-index: 1;
+}
+/* The pane role's box: a grid of header, body and footer, whose rows the grammar
+ * (layouts.css) places. It stands with the base its widget's rules share, so a widget
+ * that hides one of its panes, or a page, outranks it with an ordinary rule. */
+[data-lf-reading-role="pane"] {
+  display: grid;
+  grid-template-rows: auto 1fr auto;
+  grid-template-columns: minmax(0, 1fr);
+  min-width: 0;
+  --lf-block-frame: 1;
+}
+/* The frame clips to its rounding, so a body, header or footer that paints its own
+ * ground to the pane's edges, as a file tree or an editor does, takes the frame's
+ * corners. Clip, not hidden: a hidden box is a scroll container, which would take the
+ * sticky boxes inside a body that doesn't scroll off the window. */
+:where([data-lf-reading-role="pane"]) {
+  border: 1px solid var(--lf-rule);
+  border-radius: var(--lf-r);
+  --lf-ground: var(--lf-paper);
+  background: var(--lf-ground);
+  overflow: clip;
+}
+:where([data-lf-reading-role="pane"]) > header {
+  padding: var(--lf-pane-bar-pad);
+  border-bottom: 1px solid var(--lf-rule);
+  font: var(--lf-font-title);
+  --lf-block-frame: 1;
+}
+/* A pane is a region of a workspace, so its name takes the label font (`.lf-label`):
+ * small capitals that rank below the page's title and the pane's own headings, where a
+ * bare h2 drew the region's label larger than anything it held. */
+:where([data-lf-reading-role="pane"]) > header > :is(h2, h3, h4, h5, h6) {
+  margin: 0;
+}
+:where([data-lf-reading-role="pane"]) > footer {
+  padding: var(--lf-pane-bar-pad);
+  border-top: 1px solid var(--lf-rule);
+  --lf-block-frame: 1;
+}
+/* A named group (`reading-role: group`) is a block that draws nothing of its own: its
+ * label is data, and what it holds, any heading included, is the author's. It is a
+ * region, where a question asked inside it stands, so its marks stand at a region's gap
+ * (tokens.css, "Where it stands"). It states the gap because its `role="group"` would
+ * otherwise put them at a control's (surfaces.css). */
+:where([data-lf-reading-role="group"]) {
+  display: block;
+  --lf-ring-at: var(--lf-focus-region-gap);
+}
+/* A framed box that holds authored content is an inline-size container, so a widget
+ * inside it that caps its minimum at `100cqi` is capped by the box rather than the page:
+ * a board in a pane scrolls its columns inside the pane instead of running out of it. A
+ * framed box contains its own exhibits, so being a container changes only what a
+ * widget measures against itself. The default package
+ * makes its card a container for the same reason; its sample is a table, which
+ * containment skips, so it states `--lf-box-cap` for what it holds instead. The package
+ * also makes a boxed tab set's panel a container; a page tab's panel is the page's own
+ * flow, which an exhibit breaks out through, so it is not one. A container takes no
+ * width from what it holds, so a framed box placed where its width would come from its
+ * content (an auto flex basis, a `fit-content` track) is only as wide as its other
+ * parts there; the page gives it a width.
+ *
+ * A pane's body is such a place where the author centres it with an `auto` inline
+ * margin, since a grid item with one takes its width from what it holds. So a body
+ * fills the pane's width (`stretch`), and its own `max-inline-size` and margins place
+ * it there, as a block's do in flow. An element the browser sizes by what it shows,
+ * such as an image, a video or a control, holds no widget, so as a whole body it is no
+ * container and keeps its own size, up to the pane's width less its inset. */
+:where([data-lf-reading-role="pane"]) > :not(header, footer) {
+  container-type: inline-size;
+  /* Firefox lacks `stretch` in the inline axis (notes/browser-support.md, "A pane's
+   * body sized by `stretch` in Firefox"). */
+  inline-size: -moz-available;
+  inline-size: stretch;
+}
+:where([data-lf-reading-role="pane"])
+  > :is(
+    img,
+    video,
+    audio,
+    canvas,
+    iframe,
+    embed,
+    object,
+    svg,
+    input,
+    select,
+    textarea,
+    button
+  ) {
+  container-type: revert-layer;
+  inline-size: revert-layer;
+  /* Firefox lacks `stretch` (above). */
+  max-inline-size: -moz-available;
+  max-inline-size: stretch;
+}
+/* The body's top inset is named because a body that scrolls on its own holds a sticking
+ * box that far below its scrollport's edge, where the rows it scrolls still show above
+ * the box; the workspace hands the inset back through `--lf-top` (layouts.css). A package
+ * that pads a pane body another way sets `--lf-pane-top` with it. */
+:where([data-lf-reading-role="pane"]) > :not(header, footer) {
+  --lf-pane-top: var(--lf-pane-inset);
+  padding: var(--lf-pane-top) var(--lf-pane-inset) var(--lf-pane-inset);
+  --lf-block-frame: 1;
+}

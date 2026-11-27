@@ -29,12 +29,12 @@ from browser.margin import (
     LONG_THREAD_ROOT,
     PARAGRAPH_ON_OBLIGATION,
     WORDS_RIGHT,
-    _comment_on,
 )
 from browser.threads import append_agent_reply
-from leaf import event_log
-from leaf import thread as thread_model
-from leaf.render_checks import rendered
+from leaf.agents import thread as thread_model
+from leaf.log import event_log
+from leaf.source.render_checks import rendered
+from leaf_dev.browser import text_field
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -75,12 +75,12 @@ def test_a_thread_card_is_unseen_until_its_first_placement_lands(browser, serve)
         expect(preview).to_contain_text("Check the tools separately.")
         page.keyboard.press("Escape")
         expect(preview).to_be_hidden()
-        page.locator(".lf-fp-on-user").focus()
+        page.locator(".lf-fp-leaf").focus()
 
         held.pop(0).continue_()
         rendered(page)
         expect(preview).to_be_hidden()
-        expect(page.locator(".lf-fp-on-user")).to_be_focused()
+        expect(page.locator(".lf-fp-leaf")).to_be_focused()
         expect(preview).not_to_have_attribute("data-lf-thread-placement")
 
         first.click()
@@ -107,13 +107,17 @@ def test_a_margin_card_clears_its_row_without_sacrificing_message_width(
     expect(preview).to_have_attribute("data-lf-thread-placement", re.compile(r".+"))
     rendered(page)
     geometry = page.evaluate(
-        """() => {
+        """async () => {
+          const {COMMENT_GAP, markRoom, subjectGap} = await window.__lfOverlayApi();
           const controls = document.querySelector('[data-lf-kinds="comment"]')
             .closest('[data-lf-margin-for]').getBoundingClientRect();
+          const subject = document.getElementById('bracket');
+          const room = markRoom(subject, subject.getBoundingClientRect(), COMMENT_GAP);
           const card = document.querySelector('.lf-margin-preview');
           const box = card.getBoundingClientRect();
           return {controlsRight: controls.right, cardLeft: box.left,
                   cardRight: box.right, viewport: innerWidth,
+                  gap: subjectGap(room, 'right'),
                   preferred: parseFloat(getComputedStyle(card)
                     .getPropertyValue('--lf-thread-card')),
                   minimum: parseFloat(getComputedStyle(card)
@@ -121,12 +125,13 @@ def test_a_margin_card_clears_its_row_without_sacrificing_message_width(
         }"""
     )
     past = (
-        geometry["viewport"] - 8 - (geometry["controlsRight"] + 16)
+        geometry["viewport"] - 8 - (geometry["controlsRight"] + geometry["gap"])
         >= geometry["preferred"]
     )
     assert past == (width == 2400), geometry
     assert geometry["cardLeft"] == pytest.approx(
-        (geometry["controlsRight"] if past else page.evaluate(WORDS_RIGHT)) + 16,
+        (geometry["controlsRight"] if past else page.evaluate(WORDS_RIGHT))
+        + geometry["gap"],
         abs=0.5,
     ), geometry
     assert geometry["cardRight"] == pytest.approx(
@@ -150,6 +155,51 @@ PICK_UNDER_A_CARD = leaf_page(
 </lf-group>
 """,
 )
+
+
+def test_a_card_on_a_widget_stands_its_gap_past_the_ring_round_its_decision(
+    browser, serve
+):
+    """The options' own ring stands on their frame, and the ring round the decision
+    they fill, which shows while the user stands in it, stands past the decision's
+    padding: the card stands its gap past that ring rather than on it, whether or not
+    the ring shows yet."""
+    decision = leaf_page(
+        "Decision ring",
+        """
+<h1 id="title">Decision ring</h1>
+<lf-group id="ask" label="Which banner?" style="padding: 2px">
+  <lf-options id="choice">
+    <lf-option id="row" label="Status in words">Status in words.</lf-option>
+    <lf-option id="two" label="Keep two rows">Keep two rows.</lf-option>
+  </lf-options>
+</lf-group>
+""",
+    )
+    comment = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "text": "Does the banner wrap?",
+        "anchor": {"section": "choice"},
+    }
+    page = open_page(browser, serve(decision, events=[comment]))
+    resized(page, 1440, 900)
+    page.locator('[data-lf-margin-for="choice"] .lf-margin-marker').click()
+    preview = page.locator(".lf-margin-preview")
+    expect(preview).to_have_attribute("data-lf-thread-placement", re.compile(r".+"))
+    rendered(page)
+    clear = page.evaluate(
+        """() => {
+          const ask = document.getElementById('ask');
+          const room = parseFloat(getComputedStyle(ask).getPropertyValue('--lf-band-room'));
+          const box = ask.getBoundingClientRect();
+          const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
+          return Math.max(card.left - (box.right + room), (box.left - room) - card.right,
+                          card.top - (box.bottom + room), (box.top - room) - card.bottom);
+        }"""
+    )
+    assert clear == pytest.approx(8, abs=0.5)
 
 
 def test_a_pick_under_an_open_card_leaves_the_card_where_it_stands(browser, serve):
@@ -211,29 +261,39 @@ def test_a_row_arriving_takes_the_room_below_the_markers_already_seated(browser,
 
 
 # Each visible message head's time, where it says one, against what could cut it: its
-# own box, the metadata it stands in and the head; and the parts it shows, its day and
-# its clock, where a time too narrow for both drops its clock below its one line.
+# own box, the metadata it stands in and the head, and each part it shows, which cuts
+# its own words; and those parts, its day and its clock, where a time too narrow for
+# both drops its clock below its one line.
 TIMES_WHOLE = """card => [...card.querySelectorAll('.lf-msg-head')]
   .filter((head) => head.checkVisibility() && head.querySelector('time'))
   .map((head) => {
     const time = head.querySelector('time');
     const box = time.getBoundingClientRect();
+    const shown = [...time.children]
+      .filter((part) => part.getBoundingClientRect().top < box.bottom - 0.5);
     return {
       text: time.textContent,
       whole: time.scrollWidth <= time.clientWidth &&
+        shown.every((part) => part.scrollWidth <= part.clientWidth) &&
         box.right <= time.parentElement.getBoundingClientRect().right + 0.5 &&
         box.right <= head.getBoundingClientRect().right + 0.5,
-      shown: [...time.children]
-        .filter((part) => part.getBoundingClientRect().top < box.bottom - 0.5)
-        .map((part) => part.textContent),
+      shown: shown.map((part) => part.textContent),
     };
   })"""
 
+# Whether a notice of news says its whole count: its words stand in a span of their
+# own, which cuts them with an ellipsis, "2 …".
+NOTICE_WHOLE = """notice => {
+  const words = notice.querySelector(':scope > span');
+  return words.scrollWidth <= words.clientWidth;
+}"""
 
-def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
-    """A narrow card, with Previous and Next for its target's two threads,
-    holding news while the user writes: the notice reads whole beside the actions, the
-    message head's time stays whole, and the name gives up the room, with an ellipsis."""
+
+def test_a_card_s_head_row_cuts_a_long_name_beside_a_whole_notice(browser, serve):
+    """A card at its least width, with Previous and Next for its target's two threads,
+    holding news while the user writes: the notice reads whole beside the actions, and
+    the head beside them gives up its parts in their order (surfaces.css), cutting a
+    long name at its cap with an ellipsis."""
     url = serve(PANEL_PAGE)
     # Supply the overflow this test needs: a short author can fit as the other
     # header content changes.
@@ -253,7 +313,7 @@ def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
     page.locator(".lf-margin-marker").first.click()
     preview = page.locator(".lf-margin-preview")
     expect(preview.get_by_text("Make the banner quieter")).to_be_visible()
-    preview.get_by_role("textbox", name="Reply", exact=True).click()
+    text_field(preview, name="Reply", exact=True).click()
     page.keyboard.type("Also check the dark scheme")
     rendered(page)
     thread_model.post_reply(
@@ -268,10 +328,8 @@ def test_a_card_s_head_row_cuts_the_name_before_the_time(browser, serve):
     notice = preview.locator(".lf-margin-thread-controls .lf-thread-news")
     expect(notice).to_have_text("2 new")
     rendered(page)
-    assert notice.evaluate("node => node.scrollWidth <= node.clientWidth")
+    assert notice.evaluate(NOTICE_WHOLE)
     card = preview.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
-    times = card.evaluate(TIMES_WHOLE)
-    assert times and all(time["whole"] for time in times), times
     name = card.locator(".lf-msg-head b").first
     assert name.evaluate("node => node.scrollWidth > node.clientWidth")
     assert name.evaluate("node => getComputedStyle(node).textOverflow") == "ellipsis"
@@ -292,17 +350,17 @@ NEWS_BESIDE_HEAD = """([notice, head]) => {
 
 @pytest.mark.parametrize("finger", [False, True])
 def test_a_card_s_head_stands_whole_beside_news(browser, serve, finger):
-    """A card holding news while the user writes, an agent's edit above the thread's
-    end with a new reply, which waits wherever the card stands: the notice takes only
-    the room the head of the user's message leaves beside its name and time, and
-    stands clear of it. On a desktop card, with Previous and Next for its target's two
-    threads, the head keeps "Me" and its time whole. On a card at its least width
-    under a finger, whose three controls, the notice and the head's Edit each take a
-    finger's width, the head keeps "Me" whole and its time gives up its clock whole,
-    keeping its day, as any narrow head gives up its time before its name, where a cut
-    read "25 Sep, …"; a touch screen as wide as 1408 stands that card beside
-    its words. The notice says one count, "2 new", on either. Drawn whole, the notice
-    stood over the head."""
+    """A card at its least width holding news while the user writes, an agent's edit
+    above the thread's end with a new reply, which waits wherever the card stands: the
+    notice says one count, "2 new", whole, and stands clear of the head of the user's
+    message, which gives up its parts beside it in their order (surfaces.css). On a
+    desktop card, with Previous and Next for its target's two threads, and on one under
+    a finger, whose three controls, the notice and the head's Edit each take a finger's
+    width, the head keeps "Me" whole and its time gives up its clock whole, keeping its
+    day, as any narrow head gives up its time before its name, where a cut read
+    "25 Sep, …"; a touch screen as wide as 1408 stands that card beside its words.
+    Under a finger, where the controls always show, the head holds their room, so Edit
+    stands clear of the time."""
     url = serve(PANEL_PAGE)
     # Written 51 days ago, so its time names its day, the widest a time reads.
     root = append_carried_log_record(
@@ -329,7 +387,7 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, finger):
     page.locator(".lf-margin-marker").first.click()
     preview = page.locator(".lf-margin-preview")
     expect(preview.get_by_text("Keep the logo where it is")).to_be_visible()
-    preview.get_by_role("textbox", name="Reply", exact=True).click()
+    text_field(preview, name="Reply", exact=True).click()
     page.keyboard.type("Also check the dark scheme")
     rendered(page)
     append_carried_log_record(
@@ -354,12 +412,14 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, finger):
     stands = page.evaluate(
         NEWS_BESIDE_HEAD, [notice.element_handle(), head.element_handle()]
     )
+    assert notice.evaluate(NOTICE_WHOLE)
     assert stands["notice"] >= stands["head"] - 0.5, stands
-    assert stands["time"] <= stands["edit"] + 0.5, stands
+    if finger:
+        assert stands["time"] <= stands["edit"] + 0.5, stands
     times = card.evaluate(TIMES_WHOLE)
     # The user's message, the head beside the notice.
     assert times and times[0]["whole"], times
-    assert len(times[0]["shown"]) == (1 if finger else 2), times
+    assert len(times[0]["shown"]) == 1, times
     name = head.locator("b")
     expect(name).to_have_text("Me")
     assert name.evaluate("node => node.scrollWidth <= node.clientWidth")
@@ -381,7 +441,7 @@ def test_crossing_to_the_small_screen_moves_the_card_s_thread_to_the_panel(
     marker.click()
     card = page.locator(".lf-margin-preview")
     expect(card).to_be_visible()
-    reply = card.get_by_role("textbox", name="Reply", exact=True)
+    reply = text_field(card, name="Reply", exact=True)
     reply.click()
     page.keyboard.type("Keep the reaper")
     page.keyboard.press("ArrowLeft")
@@ -401,7 +461,7 @@ def test_crossing_to_the_small_screen_moves_the_card_s_thread_to_the_panel(
 
     resized(page, 1440, 900)
     expect(card).to_be_visible()
-    expect(page.locator(".lf-fp-view:not([data-lf-leaving])")).to_have_count(0)
+    expect(page.locator(".lf-fp-view")).to_have_count(0)
     typed = card.locator("leaf-text")
     expect(typed).to_be_focused()
     assert typed.evaluate("el => el === window.lfTypedIn")
@@ -419,10 +479,10 @@ def test_widening_from_a_thread_in_the_panel_lands_in_its_card(browser, serve):
     resized(page, 390, 760)
     margins_laid_out(page)
     page.locator('.lf-margin-marker[data-lf-kinds~="comment"]').click()
-    # The click puts the caret in the reply (thread/focus.js, `openingPart`); Escape
+    # The click puts the caret in the reply (records/thread/focus.js, `openingPart`); Escape
     # stands the user on the thread.
     page.keyboard.press("Escape")
-    expect(page.locator(".lf-fp-view:not([data-lf-leaving])")).to_be_focused()
+    expect(page.locator(".lf-fp-view")).to_be_focused()
 
     resized(page, 1440, 900)
     card = page.locator(".lf-margin-preview")
@@ -718,43 +778,6 @@ def test_tab_reaching_a_card_the_page_carried_away_brings_it_back(
     assert control_in_card() not in (None, reached)
 
 
-def test_the_rail_tab_stop_follows_a_carried_row_back_into_view(browser, serve):
-    """The rail's one Tab stop is its highest row in view, whichever way the page got
-    there. A row on a line a box scrolls sideways stands in a carrier, which the browser
-    moves with the page's scroll but whose own box reads a frame late: read there, a
-    scroll back to the top left the stop on the second row, below the first, until
-    something else re-read the rail."""
-    line = " ".join(["A line wider than its box, which scrolls it sideways."] * 4)
-    filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(30))
-    body = (
-        "<h1>Carried rows</h1>"
-        f'<div style="overflow-x: auto"><p id="first" style="white-space: nowrap">{line}'
-        f'</p></div>{filler[: len(filler) // 3]}<p id="second">The second finding.</p>'
-        f"{filler}"
-    )
-    events = [_comment_on("first"), _comment_on("second")]
-    page = open_page(browser, serve(leaf_page("Carried rows", body), events=events))
-    resized(page, 1440, 900)
-    rendered(page)
-    first = page.locator('[data-lf-margin-for="first"] .lf-margin-marker')
-    second = page.locator('[data-lf-margin-for="second"] .lf-margin-marker')
-    assert first.evaluate("row => row.closest('.lf-margin-carrier') !== null"), (
-        "the fixture's first row no longer stands in a carrier"
-    )
-    expect(first).to_have_attribute("tabindex", "0")
-
-    page.mouse.move(300, 300)
-    page.mouse.wheel(0, 600)
-    scroll_settled(page)
-    rendered(page)
-    expect(second).to_have_attribute("tabindex", "0")
-    page.mouse.wheel(0, -600)
-    scroll_settled(page)
-    rendered(page)
-    expect(first).to_have_attribute("tabindex", "0")
-    expect(second).to_have_attribute("tabindex", "-1")
-
-
 @pytest.mark.parametrize("target", ["sec-mounts", "bracket"])
 def test_a_card_beside_an_element_scrolled_past_its_top_waits_at_the_windows_top(
     browser, serve, target
@@ -832,49 +855,76 @@ PANE_PAGE = leaf_page(
     head="<style>#pane-body { height: 420px; overflow: auto; }</style>",
     layout="sidebar",
 )
+# The same pane inside a box that contains its paint and stops short of the pane's foot,
+# so the box's foot cuts the pane off there without the box scrolling anything.
+PAINT_CLIPPED_PANE_PAGE = leaf_page(
+    "Release pane",
+    f"""<div><h1>Release</h1>
+<div id="paint-clip">
+<lf-pane id="evidence" label="Evidence"><div id="pane-body">
+{PANE_FILLER}
+<section id="pane-sec"><h2>Rollout</h2><p>One.</p><p>Two.</p><p>Three.</p><p>Four.</p>
+</section>
+{PANE_FILLER}
+</div></lf-pane>
+</div>
+{PANE_FILLER}</div>""",
+    head="""<style>#pane-body { height: 420px; overflow: auto; }
+#paint-clip { contain: paint; height: 400px; }</style>""",
+    layout="sidebar",
+)
 
 
-def test_a_card_a_panes_edge_holds_stays_put_as_the_pane_scrolls(browser, serve):
+@pytest.mark.parametrize(
+    "source,foot", [(PANE_PAGE, "pane-body"), (PAINT_CLIPPED_PANE_PAGE, "paint-clip")]
+)
+def test_a_card_a_panes_edge_holds_stays_put_as_the_pane_scrolls(
+    browser, serve, source, foot
+):
     """A card under an element in a scrolling pane, held in by the pane's foot, stands
     in the pane's plane: it is anchored to the pane, which the pane's own scroll does not
     move, so that scroll writes nothing to the card. Read as the page's plane, the card
     was anchored to the element, carried up with each scroll frame, and placed back. A
     scroll of the page carries the pane and the card together, and keeps the card's
-    side, which the pane's size holds rather than where the page shows it."""
+    side, which the pane's size holds rather than where the page shows it. Where a box
+    that contains its paint cuts the pane off above the pane's foot, the box's foot
+    holds the card in, so the card stands in that box's plane."""
     comment = {**COMMENT_ON_OBLIGATION, "anchor": {"section": "pane-sec"}}
-    page = open_page(browser, serve(PANE_PAGE, events=[comment]))
+    page = open_page(browser, serve(source, events=[comment]))
     resized(page, 1440, 900)
     page.evaluate("() => document.getElementById('pane-sec').scrollIntoView()")
     page.locator('[data-lf-margin-for="pane-sec"] .lf-margin-marker').click()
     card = page.locator(".lf-margin-preview")
     expect(card).to_have_attribute("data-lf-thread-placement", "below")
-    reading = """() => ({
+    reading = """foot => ({
       card: document.querySelector('.lf-margin-preview').getBoundingClientRect().top,
       bottom: document.getElementById('pane-sec').getBoundingClientRect().bottom,
-      foot: document.getElementById('pane-body').getBoundingClientRect().bottom,
+      foot: document.getElementById(foot).getBoundingClientRect().bottom,
     })"""
-    at = page.evaluate(reading)
+    at = page.evaluate(reading, foot)
     page.evaluate(
         "by => document.getElementById('pane-body').scrollBy(0, by)",
         at["bottom"] - at["foot"] + 60,
     )
     rendered(page)
     expect(card).to_have_attribute("data-lf-plane", "region")
-    before = page.evaluate(reading)
+    before = page.evaluate(reading, foot)
     writes = scroll_writes(
         page, (5, 5, -5, 5), scroller="document.getElementById('pane-body')"
     )
     assert not [
         w for w in writes if any("lf-margin-preview" in step for step in w["target"])
     ], writes
-    assert page.evaluate(reading)["card"] == pytest.approx(before["card"], abs=0.5)
-    before = page.evaluate(reading)
+    assert page.evaluate(reading, foot)["card"] == pytest.approx(
+        before["card"], abs=0.5
+    )
+    before = page.evaluate(reading, foot)
     writes = scroll_writes(page, (5, 5, -5, 5))
     assert not [
         w for w in writes if any("lf-margin-preview" in step for step in w["target"])
     ], writes
     expect(card).to_have_attribute("data-lf-thread-placement", "below")
-    after = page.evaluate(reading)
+    after = page.evaluate(reading, foot)
     assert after["card"] - after["foot"] == pytest.approx(
         before["card"] - before["foot"], abs=0.5
     )

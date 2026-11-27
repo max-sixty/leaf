@@ -50,17 +50,6 @@ diff --git a/gateway/limits.py b/gateway/limits.py
 """,
 )
 
-# The panel's Threads view, in the order its rows stand: each thread by its id. A row is
-# keyed by the thread's key, which for a thread this tab started is the attempt that
-# sent it (thread/model.js, `threadKey`), so the page's own reading names its id.
-LIST_ORDER = """async () => {
-  const {readThreads} = await window.__lfWidgetApi();
-  const ids = new Map(readThreads().threads.map((t) => [t.key, t.id]));
-  return [...document.querySelectorAll(
-    '.lf-fp-view[data-lf-route="threads"]:not([data-lf-leaving]) .lf-fp-thread')]
-    .map((row) => ids.get(row.dataset.lfKey));
-}"""
-
 
 def panel_comment(d, text, anchor=None, author="user", *, obligation=False):
     """One thread's opening message, written straight to the log. An agent's that
@@ -100,41 +89,41 @@ STACKED_OPTIONS_PAGE = leaf_page(
 <h1 id="h">Clip storage</h1>
 <lf-group id="stacked-decision" label="Where should clips live?"><h2 id="stacked-decision-h">Where should clips live?</h2>
 <lf-options id="stacked">
-  <lf-option id="st-sd" label="SD card only"><small class="tag">effort: low</small><small class="tag danger">risk: high</small> <strong>SD card only</strong>
-    <dl class="facts"><dt>Keeps</dt><dd>nine days</dd><dt>Retrieval</dt><dd>a ladder</dd></dl>
+  <lf-option id="st-sd" label="SD card only"><small class="lf-tag">effort: low</small><small class="lf-tag danger">risk: high</small> <strong>SD card only</strong>
+    <dl class="lf-facts"><dt>Keeps</dt><dd>nine days</dd><dt>Retrieval</dt><dd>a ladder</dd></dl>
     <p>Clips stay on the camera's card and overwrite oldest-first.</p>
   </lf-option>
-  <lf-option id="st-pi" label="Pi in the shed" ><small class="tag">effort: med</small><small class="tag">risk: low</small> <strong>Pi in the shed</strong>
-    <dl class="facts"><dt>Keeps</dt><dd>a season</dd><dt>Retrieval</dt><dd>the couch</dd></dl>
+  <lf-option id="st-pi" label="Pi in the shed" ><small class="lf-tag">effort: med</small><small class="lf-tag">risk: low</small> <strong>Pi in the shed</strong>
+    <dl class="lf-facts"><dt>Keeps</dt><dd>a season</dd><dt>Retrieval</dt><dd>the couch</dd></dl>
     <p>A nightly pull over the garden wifi; the link is the weak span.</p>
   </lf-option>
 </lf-options></lf-group>
 <lf-group id="terse-q" label="Which one?"><lf-options id="terse">
-  <lf-option id="t-paper" label="Paper maps"><small class="tag">effort: low</small><small class="tag">risk: high</small> <strong>Paper maps</strong>Nothing
+  <lf-option id="t-paper" label="Paper maps"><small class="lf-tag">effort: low</small><small class="lf-tag">risk: high</small> <strong>Paper maps</strong>Nothing
   to charge.</lf-option>
-  <lf-option id="t-gps" label="GPS"><small class="tag">£240</small><small class="tag">a week of battery</small><small class="tag">resellable if the season ends early</small> <strong>GPS</strong>A week of
+  <lf-option id="t-gps" label="GPS"><small class="lf-tag">£240</small><small class="lf-tag">a week of battery</small><small class="lf-tag">resellable if the season ends early</small> <strong>GPS</strong>A week of
   battery.</lf-option>
 </lf-options></lf-group>
 <div id="pair" class="layout-tiles">
-  <section id="cv-cedar" class="panel"><strong>Cedar</strong>
-    <dl class="facts"><dt>Seal</dt><dd>never</dd></dl>
+  <section id="cv-cedar" class="lf-panel"><strong>Cedar</strong>
+    <dl class="lf-facts"><dt>Seal</dt><dd>never</dd></dl>
     <p>Weathers silver; no sealant, no schedule.</p></section>
-  <section id="cv-pine" class="panel"><strong>Pine</strong>
-    <dl class="facts"><dt>Seal</dt><dd>yearly</dd></dl>
+  <section id="cv-pine" class="lf-panel"><strong>Pine</strong>
+    <dl class="lf-facts"><dt>Seal</dt><dd>yearly</dd></dl>
     <p>Cheaper up front; seal it every autumn.</p></section>
 </div>
 <div id="terse-pair" class="layout-tiles">
-  <section id="cv-oiled" class="panel"><strong>Oiled</strong> Darker, and a spring job.</section>
-  <section id="cv-bare" class="panel"><strong>Bare</strong> Silver by June.</section>
+  <section id="cv-oiled" class="lf-panel"><strong>Oiled</strong> Darker, and a spring job.</section>
+  <section id="cv-bare" class="lf-panel"><strong>Bare</strong> Silver by June.</section>
 </div>
 <div id="spread" class="layout-tiles">
-  <section id="cv-oak" class="panel"><strong>Oak</strong> Heavy.</section>
-  <section id="cv-ash" class="panel"><strong>Ash</strong> Pale, and it moves in damp, so a board
+  <section id="cv-oak" class="lf-panel"><strong>Oak</strong> Heavy.</section>
+  <section id="cv-ash" class="lf-panel"><strong>Ash</strong> Pale, and it moves in damp, so a board
     laid in March stands proud of the one beside it by June and the fixings work
     loose over the winter after that.</section>
-  <section id="cv-elm" class="panel"><strong>Elm</strong> Scarce.</section>
-  <section id="cv-yew" class="panel"><strong>Yew</strong> Slow.</section>
-  <section id="cv-fir" class="panel"><strong>Fir</strong> Cheap, and it rots at the ground.</section>
+  <section id="cv-elm" class="lf-panel"><strong>Elm</strong> Scarce.</section>
+  <section id="cv-yew" class="lf-panel"><strong>Yew</strong> Slow.</section>
+  <section id="cv-fir" class="lf-panel"><strong>Fir</strong> Cheap, and it rots at the ground.</section>
 </div>
 """,
 )
@@ -178,7 +167,7 @@ OBLIGATION_PAGE = leaf_page(
 <lf-group id="jobs-decision" label="Which jobs are worth starting?"><h2 id="jobs-decision-h">Which jobs are worth starting?</h2>
 <lf-options id="jobs" multiple>
   <lf-option id="job-mounts" for="sec-mounts">Replace the <code>M8</code> mounts</lf-option>
-  <lf-option id="job-heater" for="sec-heater"><small class="tag ok">reversible</small>Heat the bird bath</lf-option>
+  <lf-option id="job-heater" for="sec-heater"><small class="lf-tag ok">reversible</small>Heat the bird bath</lf-option>
   <lf-option id="job-camera">Neither — the camera first</lf-option>
 </lf-options></lf-group>
 <section id="sec-mounts"><h2>The mounts</h2><p id="mounts-p">Plastic, and one came
@@ -279,12 +268,12 @@ CHIP_PAGE = leaf_page(
     "chips",
     """
 <h1 id="h">Short facts</h1>
-<p id="intro">The store is <span class="tag">experimental</span> for now.</p>
+<p id="intro">The store is <span class="lf-tag">experimental</span> for now.</p>
 <lf-group id="picks-decision" label="Should we keep the store?"><h2 id="picks-decision-h">Should we keep the store?</h2>
 <lf-options id="picks">
-  <lf-option id="p-keep" label="Keep the store"><small class="tag">reversible</small> <strong>Keep the store</strong></lf-option>
+  <lf-option id="p-keep" label="Keep the store"><small class="lf-tag">reversible</small> <strong>Keep the store</strong></lf-option>
 </lf-options></lf-group>
-<dl class="facts"><dt>Owner</dt><dd id="owner-fact"><span class="tag">finch</span></dd></dl>
+<dl class="lf-facts"><dt>Owner</dt><dd id="owner-fact"><span class="lf-tag">finch</span></dd></dl>
 """,
 )
 SETTLED_OBLIGATION_PAGE = OBLIGATION_PAGE.replace(
@@ -390,9 +379,9 @@ REBUILT_INLINE_PAGE = leaf_page(
     """
 <h1 id="h">Session store</h1>
 <div id="cmp-stores" class="layout-tiles">
-  <section id="v-service" class="panel"><lf-suggestion id="sug-store"><lf-old>Redis</lf-old><lf-new>Valkey</lf-new></lf-suggestion
+  <section id="v-service" class="lf-panel"><lf-suggestion id="sug-store"><lf-old>Redis</lf-old><lf-new>Valkey</lf-new></lf-suggestion
     >, one hop from the app</section>
-  <section id="v-cookie" class="panel">A signed cookie, with nothing to run</section>
+  <section id="v-cookie" class="lf-panel">A signed cookie, with nothing to run</section>
 </div>
 """,
 )
@@ -457,8 +446,14 @@ HOLD_MOTION = """
   Element.prototype.animate = function (...args) {
     const motion = inner.apply(this, args);
     // A scroll timeline owns its progress; assigning an absolute time to it throws.
-    // The hold is for gesture animations on the document timeline.
-    if (motion.timeline !== document.timeline) return motion;
+    // The hold is for gesture animations on the document timeline that end. An endless
+    // one has no last frame to step to or finish, as a glide's hold on scroll anchoring
+    // has none (dom/scrolling.js, `holdBox`).
+    if (
+      motion.timeline !== document.timeline ||
+      motion.effect?.getComputedTiming().endTime === Infinity
+    )
+      return motion;
     motion.pause();
     motion.currentTime = 0;
     window.__lfHeld.push(motion);
@@ -472,9 +467,15 @@ HOLD_MOTION = """
     return motion;
   };
 """
+# The inline edge the comment box stands by (floating.js, `held`): its words widen it
+# away from that edge, and the card Send opens keeps it.
+HELD_EDGE = """() => document.querySelector("script[data-lf-entry]")
+  .lfFloatingSelections()
+  .find((selection) => selection.floating.matches(".lf-fab-bar")).edges.left"""
 # Every shape the decision predicate has to tell apart, on one page: four things the page is
-# waiting on the user for, and, beneath them, one of each way of not being one. The
-# four are in document order, because that is the order the walk below must take them in.
+# waiting on the user for, one the user has answered (`serve_obligations` logs the pick,
+# since markup alone answers nothing), and, beneath them, one of each way of not being one.
+# The four are in document order, because that is the order the walk below must take them in.
 OBLIGATIONS_PAGE = leaf_page(
     "obligations",
     """
@@ -510,7 +511,7 @@ OBLIGATIONS_PAGE = leaf_page(
 </lf-test-tasks>
 <lf-group id="honored-decision" label="Which gate design?"><h2 id="honored-decision-h">Which gate design?</h2>
 <lf-options id="honored">
-  <lf-option id="hon-tiers" label="Two-tier gates" selected><strong>Two-tier gates</strong></lf-option>
+  <lf-option id="hon-tiers" label="Two-tier gates"><strong>Two-tier gates</strong></lf-option>
   <lf-option id="hon-one" label="One gate"><strong>One gate</strong></lf-option>
 </lf-options></lf-group>
 <section id="retired-decision"><h2>Which cookie policy?</h2>
@@ -536,6 +537,23 @@ OBLIGATIONS_IN_ORDER = [
     "t-bath-decision",
 ]
 ALL_OBLIGATIONS_IN_ORDER = [*OBLIGATIONS_IN_ORDER, "honored-decision"]
+# The user's pick that answers `honored-decision`.
+HONORED_PICK = {
+    "kind": "action",
+    "author": "user",
+    "revision": 1,
+    "widget": "honored",
+    "action": "choose",
+    "detail": {"value": ["hon-tiers"]},
+    "answered": True,
+}
+
+
+def serve_obligations(serve, **kwargs):
+    """Serve OBLIGATIONS_PAGE with the user's answer to `honored-decision` in its log."""
+    url = serve(OBLIGATIONS_PAGE, **kwargs)
+    append_command(serve.page_dir, HONORED_PICK)
+    return url
 
 
 OBLIGATION_WITH_CONTEXT_PAGE = leaf_page(
@@ -646,13 +664,12 @@ MESSAGE_ROOM_PAGE = leaf_page(
 
 
 # What each item of the panel's On view says, as On Me's card or On <agent>'s line: its
-# obligation's kind and id (queue-api.js, `queueItemKey`), the list it stands in ("you",
-# "agent" or "done"), its title, its prompt where its card is open, and what it says of
-# its ending (such as "Answered: …"), each null where the item has none, and its box.
+# obligation's id, the list it stands in ("you", "agent" or "done"), its title, its
+# prompt where its card is open, and what it says of its ending (such as "Answered: …"),
+# each null where the item has none, and its box.
 ON_ITEM_SAYS = """() => [...document.querySelectorAll(
-    '.lf-fp-view[data-lf-route="queue"]:not([data-lf-leaving]) .lf-fp-on-item')].map((c) => ({
-  kind: JSON.parse(c.dataset.lfKey)[0],
-  id: JSON.parse(c.dataset.lfKey)[1],
+    '.lf-fp-view[data-lf-route="queue"] .lf-fp-on-item')].map((c) => ({
+  id: c.dataset.lfKey,
   list: c.dataset.lfList,
   title: c.querySelector('.lf-fp-on-title, .lf-fp-on-line .lf-fp-label')?.textContent
     ?? null,
@@ -913,7 +930,7 @@ WRAP_TOP = """() => { const r = document.createRange();
 # that matched in width and not in colour would be two rings that look like one.
 RING = """(el) => { const s = getComputedStyle(el);
     return [s.outlineStyle, s.outlineWidth, s.outlineColor]; }"""
-# The location ring round the decision `el` (target-paint.js, `paintLocation`), which
+# The location ring round the decision `el` (readings/target-paint.js, `paintLocation`), which
 # `el` draws as its own outline while it wears `data-lf-projected-location`, read as RING
 # reads an outline: its band's style, width and colour, or "none" where `el` stands in
 # no ring.
@@ -1065,7 +1082,6 @@ diff --git a/ab/bracket.py b/ab/bracket.py
 -    return "plastic"
 +    return "steel"
 </pre></lf-diff>
-<lf-visual-review id="ab-visual" source="ab-run"></lf-visual-review>
 """,
 )
 
@@ -1078,23 +1094,27 @@ diff --git a/ab/bracket.py b/ab/bracket.py
 # set of them puts each card where its own rank says, whichever other moves stand. The
 # ranks are the ones lf-board sends: importer before the authored notes ("1"), then
 # notes before importer.
+# Each act with the fields its gesture adds: the word an asking widget sends, which a
+# `multiple` pick or a tune leaves open until its Done or choice.
+ANSWERED = {"answered": True}
+OPEN = {"answered": False}
 ACTIONS_IN_FORCE = [
-    ("ab-pick", "choose", {"value": ["ab-stage"]}),
-    ("ab-pick", "answer", {}),
-    ("ab-pick", "add", {"option": "ab-rewrite", "text": "Rewrite the callers first"}),
-    ("ab-work", "move", {"unit": "ab-importer", "value": "ab-done", "rank": "0i"}),
-    ("ab-work", "move", {"unit": "ab-notes", "value": "ab-done", "rank": "09"}),
-    ("ab-email", "edit", {"value": "The words as the user rewrote them."}),
-    ("ab-sug-410", "decide", {"outcome": "accept"}),
-    ("ab-sug-logs", "decide", {"outcome": "reject"}),
-    ("ab-triage", "choose", {"value": ["ab-capacity"]}),
-    ("ab-triage", "answer", {}),
+    ("ab-pick", "choose", {"value": ["ab-stage"]}, ANSWERED),
+    ("ab-pick", "answer", {}, ANSWERED),
     (
-        "ab-visual",
-        "review",
-        {"case": "status-column", "approved": True},
+        "ab-pick",
+        "add",
+        {"option": "ab-rewrite", "text": "Rewrite the callers first"},
+        ANSWERED,
     ),
-    ("ab-card", "tune", {"values": {"radius": 20, "tone": "bold"}}),
+    ("ab-work", "move", {"unit": "ab-importer", "value": "ab-done", "rank": "0i"}, {}),
+    ("ab-work", "move", {"unit": "ab-notes", "value": "ab-done", "rank": "09"}, {}),
+    ("ab-email", "edit", {"value": "The words as the user rewrote them."}, ANSWERED),
+    ("ab-sug-410", "decide", {"outcome": "accept"}, ANSWERED),
+    ("ab-sug-logs", "decide", {"outcome": "reject"}, ANSWERED),
+    ("ab-triage", "choose", {"value": ["ab-capacity"]}, OPEN),
+    ("ab-triage", "answer", {}, ANSWERED),
+    ("ab-card", "tune", {"values": {"radius": 20, "tone": "bold"}}, OPEN),
     (
         "ab-card",
         "choose",
@@ -1102,6 +1122,7 @@ ACTIONS_IN_FORCE = [
             "values": {"radius": 20, "tone": "bold"},
             "instruction": "Use a 20px corner radius and a bold tone.",
         },
+        ANSWERED,
     ),
 ]
 RELATIVE_WIDGET_PAGE = leaf_page(
@@ -1183,7 +1204,7 @@ def drifting_widget(tmp_path, monkeypatch, deep=False, bare=False):
 # A suggestion whose losing slot holds a widget. lf-old takes prose, and prose takes
 # widgets, so a generated label can sit inside the half a decision removes.
 # `settled`, because that is the shape that bites: the summary a retired group collapses
-# to is written by the module and declares its words the page's (`says: true`), which is
+# to is written by the module and declares its words the page's (`data-lf-said`), which is
 # what lets a quote land on them. A pick mark is not that shape — it names the option for
 # a listening user and says nothing the page speaks — so a group offering a live pick
 # would leave this case unexercised.
@@ -1305,23 +1326,17 @@ SEATED_OBLIGATION_ENTRY: dict[str, Any] = {
     "description": "A proposal the user settles with one press and may talk over first in a seat "
     "of its own. `asks` opens the decision; the press settles it.",
     "attributes": {
-        "type": "object",
         "properties": {
-            "id": {"type": "string"},
             "asks": {"type": "boolean"},
-            "restated": {"type": "boolean"},
         },
         "required": ["id"],
-        "additionalProperties": False,
     },
     "content": "markup",
     "verbs": {
         "settle": {
             "detail": {
-                "type": "object",
                 "properties": {"answer": {"type": "string", "enum": ["yes", "no"]}},
                 "required": ["answer"],
-                "additionalProperties": False,
             },
             "unit": "widget",
         }
@@ -1329,7 +1344,6 @@ SEATED_OBLIGATION_ENTRY: dict[str, Any] = {
     "awaits": {
         "value": "settle",
         "when": {"asks": [True]},
-        "answered": {"settle": {}},
     },
     "example": '<lf-verdict id="verdict-example" asks>Ship it?</lf-verdict>',
 }

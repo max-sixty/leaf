@@ -2,6 +2,7 @@
 switching a document between its rendered and source readings as its source changes."""
 
 import json
+import re
 
 import pytest
 from interact_support import append_carried_log_record
@@ -24,10 +25,10 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import exporting as exporting_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.pages import exporting as exporting_model
+from leaf.records import page_data as page_data_model
+from leaf.source.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -66,7 +67,7 @@ def test_a_markdown_document_switches_between_rendered_content_and_exact_source(
             "</lf-text-document>",
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "document-text", text)
+    page_data_model.cmd_data_set(serve.page_dir, "document-text", text)
     page = open_page(browser, url)
     document = page.locator("#document")
     preview = document.get_by_role("tab", name="Preview", exact=True)
@@ -108,7 +109,7 @@ def test_a_written_markdown_passage_reads_rendered_over_its_exact_source(
     """A passage the page writes in the document's <pre> needs no data source: the
     preview renders it, in a box as tall as its rendering rather than the bound a
     bound document keeps, and the Source tab holds it character for character."""
-    text = "**Fixed** a crash when `--config` names <missing> files.\n"
+    text = "**Fixed** a crash when `--config` names \\<missing> files.\n"
     url = serve(
         leaf_page(
             "Written passage",
@@ -147,12 +148,12 @@ def test_a_written_markdown_passage_reads_rendered_over_its_exact_source(
     assert document.locator(".lf-text-document-listing code").text_content() == text
 
 
-def test_a_written_markdown_source_keeps_the_preview_height_until_shown_whole(
-    browser, serve
-):
-    """A written Markdown preview's Source tab takes the preview's height, so neither
-    switching to it nor reloading on it moves what follows the document. Where that
-    height cuts the source, a press shows every line and puts focus on them."""
+def test_a_written_markdown_source_takes_its_preview_s_height(browser, serve):
+    """A written Markdown preview's Source tab takes the preview's height, so switching
+    to it moves nothing that follows the document, and a source longer than the preview
+    scrolls inside that box: the preview shows the whole document, so neither tab
+    offers to. Reloaded on the Source tab, the document first paints its source, and the
+    module draws the tab where that paint stood."""
     links = "".join(f"[#{n}]: https://example.com/pull/{n}\n" for n in range(800, 812))
     text = (
         "## 2.4.0\n\n- Fixed a crash when `--config` is missing ([#800]).\n\n" + links
@@ -172,15 +173,17 @@ def test_a_written_markdown_source_keeps_the_preview_height_until_shown_whole(
     preview = page.evaluate(read)
     document.get_by_role("tab", name="Source", exact=True).click()
     assert page.evaluate(read) == preview
-    lines = len(text.split("\n"))
-    press = document.get_by_role("button", name=f"Show all {lines} lines")
-    expect(press).to_be_visible()
+    source = document.locator("lf-tab:not([hidden])").evaluate(
+        "tab => [tab.clientHeight, tab.scrollHeight, getComputedStyle(tab).overflowY]"
+    )
+    assert source[0] < source[1] and source[2] == "auto", source
+    expect(document.get_by_role("button", name=re.compile("^Show all"))).to_be_hidden()
     held = []
     page.route("**/leaf.js", lambda route: held.append(route))
     page.reload(wait_until="commit")
     page.locator("#after").wait_for(state="attached")
     holding(page, held, 1, "the runtime")
-    assert page.evaluate(read) == preview
+    first = page.evaluate(read)
     for route in held:
         route.continue_()
     page.unroute("**/leaf.js")
@@ -188,15 +191,156 @@ def test_a_written_markdown_source_keeps_the_preview_height_until_shown_whole(
     expect(document.get_by_role("tab", name="Source", exact=True)).to_have_attribute(
         "aria-selected", "true"
     )
-    expect(press).to_be_visible()
-    assert page.evaluate(read) == preview
-    press.click()
-    expect(press).to_be_hidden()
-    expect(document.locator(".lf-text-document-listing > pre")).to_be_focused()
-    whole = document.locator("lf-tab:not([hidden])").evaluate(
-        "tab => [tab.clientHeight, tab.scrollHeight]"
+    assert page.evaluate(read) == first
+
+
+# Forty paragraphs, eighty lines: longer than a document's default bound in either
+# reading.
+LONG_RULES = "\n\n".join(f"Paragraph {n} of the quoted rules." for n in range(1, 41))
+
+
+@pytest.mark.parametrize("preview", ["markdown", None], ids=["preview", "listing"])
+def test_a_document_longer_than_its_bound_scrolls_and_shows_whole_on_a_press(
+    browser, serve, preview
+):
+    """A document longer than its bound scrolls inside it, with a press under the box.
+    Focusing the press changes nothing; pressing it shows the whole document, in every
+    reading, and puts focus on the text it showed."""
+    attribute = f' preview="{preview}"' if preview else ""
+    url = serve(
+        leaf_page(
+            "Long quote",
+            '<h1>Long quote</h1><lf-text-document id="rules" label="RULES.md"'
+            f"{attribute}><pre>\n{LONG_RULES}\n</pre></lf-text-document>"
+            '<p id="after">After the rules.</p>',
+        )
     )
-    assert whole[0] == whole[1] and whole[0] > preview[0] - 80, (whole, preview)
+    page = open_page(browser, url)
+    document = page.locator("#rules")
+    shown = document.locator(
+        "lf-tab:not([hidden])" if preview else ".lf-text-document-listing > pre"
+    )
+    bound = page.evaluate(
+        "parseFloat(getComputedStyle(document.documentElement).fontSize) * 28"
+    )
+    box = shown.evaluate("box => [box.clientHeight, box.scrollHeight]")
+    assert box[0] <= bound + 1 < box[1], (box, bound)
+    assert shown.evaluate("box => getComputedStyle(box).overflowY") == "auto"
+    press = document.get_by_role("button", name="Show all 80 lines")
+    below = press.evaluate(
+        "(press, box) => press.getBoundingClientRect().top"
+        " >= box.getBoundingClientRect().bottom",
+        shown.element_handle(),
+    )
+    assert below, "the press stands under the box"
+    press.focus()
+    expect(press).to_be_focused()
+    expect(press).to_be_visible()
+    page.keyboard.press("Enter")
+    expect(press).to_be_hidden()
+    expect(shown).to_be_focused()
+    whole = shown.evaluate("box => [box.clientHeight, box.scrollHeight]")
+    assert whole[0] == whole[1] > 2 * bound, (whole, bound)
+    if not preview:
+        return
+    document.get_by_role("tab", name="Source", exact=True).click()
+    expect(press).to_be_hidden()
+    source = document.locator("lf-tab:not([hidden])")
+    held = source.evaluate("tab => [tab.clientHeight, tab.scrollHeight]")
+    assert held[0] == held[1] > bound, held
+
+
+def test_a_long_document_reloaded_on_its_source_offers_the_press(browser, serve):
+    """A long document reloaded on its Source tab, whose preview hasn't shown, offers
+    the press under that tab, and switching to the preview moves nothing below it."""
+    url = serve(
+        leaf_page(
+            "Long quote",
+            '<h1>Long quote</h1><lf-text-document id="rules" label="RULES.md" '
+            f'preview="markdown"><pre>\n{LONG_RULES}\n</pre></lf-text-document>'
+            '<p id="after">After the rules.</p>',
+        )
+    )
+    page = open_page(browser, url)
+    document = page.locator("#rules")
+    document.get_by_role("tab", name="Source", exact=True).click()
+    page.reload()
+    wait_until_ready(page)
+    press = document.get_by_role("button", name="Show all 80 lines")
+    expect(press).to_be_visible()
+    after = "() => document.getElementById('after').getBoundingClientRect().top"
+    before = page.evaluate(after)
+    document.get_by_role("tab", name="Preview", exact=True).click()
+    rendered(page)
+    expect(press).to_be_visible()
+    assert page.evaluate(after) == before
+
+
+def test_a_short_document_takes_its_text_s_height(browser, serve):
+    """A document shorter than its bound takes its text's height, with no press: under
+    its last line stands only the room every code block keeps for a scrollbar."""
+    url = serve(
+        leaf_page(
+            "Short file",
+            '<h1>Short file</h1><lf-text-document id="config" label="config.toml">'
+            '<pre><code class="language-toml">a = 1\nb = 2\n</code></pre>'
+            "</lf-text-document>",
+        )
+    )
+    page = open_page(browser, url)
+    listing = page.locator("#config .lf-text-document-listing > pre")
+    rows = listing.evaluate(
+        "pre => [pre.getBoundingClientRect().height, "
+        "pre.querySelector('code').getBoundingClientRect().height, "
+        "parseFloat(getComputedStyle(pre).getPropertyValue('--lf-text-scroll-clearance'))]"
+    )
+    assert rows[0] == pytest.approx(rows[1] + rows[2], abs=1), rows
+    expect(page.get_by_role("button", name=re.compile("^Show all"))).to_have_count(0)
+
+
+def test_travel_to_a_comment_past_a_document_s_bound_scrolls_to_it(browser, serve):
+    """A comment on words past a document's bound stays reachable: opening its thread
+    scrolls the document's box to the words, which the reader can scroll back from."""
+    url = serve(
+        leaf_page(
+            "Long quote",
+            '<h1>Long quote</h1><lf-text-document id="rules" label="RULES.md" '
+            f'preview="markdown"><pre>\n{LONG_RULES}\n</pre></lf-text-document>'
+            '<p id="after">After the rules.</p>',
+        )
+    )
+    page = open_page(browser, url)
+    document = page.locator("#rules")
+    words = document.locator("p", has_text="Paragraph 38 of")
+    words.scroll_into_view_if_needed()
+    select_words(page, "#rules p:nth-of-type(38)")
+    write(page.locator(".lf-composer leaf-text"), "Does this one still hold?")
+    with sending(page, "the comment on a late paragraph"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    told(page)
+    root = next(
+        e for e in events_model.read_events(serve.page_dir) if e["kind"] == "comment"
+    )
+    page.close()
+    page = open_page(browser, url)
+    document = page.locator("#rules")
+    shown = document.locator("lf-tab:not([hidden])")
+    assert shown.evaluate("tab => tab.scrollTop") == 0
+    joined = "&" if "?" in page.url else "?"
+    page.goto(f"{page.url}{joined}thread={root['id']}")
+    wait_until_ready(page)
+    scroll_settled(page)
+    scroll_settled(page, "#rules lf-tab:not([hidden])")
+    words = document.locator("p", has_text="Paragraph 38 of")
+    assert words.evaluate(
+        """p => {
+          const r = p.getBoundingClientRect();
+          const box = p.closest('lf-tab').getBoundingClientRect();
+          return r.top >= Math.max(0, box.top) && r.bottom <= Math.min(innerHeight, box.bottom);
+        }"""
+    )
+    assert shown.evaluate("tab => tab.scrollTop") > 0
+    expect(document.get_by_role("button", name="Show all 80 lines")).to_be_visible()
 
 
 def test_a_widget_document_updates_both_readings_and_keeps_the_selected_view(
@@ -252,10 +396,13 @@ def test_a_widget_document_updates_both_readings_and_keeps_the_selected_view(
     [("markdown", None), ("html", 240)],
     ids=["markdown-default-height", "html-authored-height"],
 )
-def test_document_readings_share_a_stable_viewport_and_keep_their_scroll(
+def test_document_readings_share_one_height_keep_their_scroll_and_fit_their_text(
     browser, serve, preview, height
 ):
-    """Changing readings or evidence length leaves the surrounding page in place."""
+    """Both readings of a document take the preview's height, up to the bound, and
+    keep their own scroll, so switching between them leaves the page in place. A
+    shorter text gives a Markdown preview a shorter box; an HTML preview's frame keeps
+    the bound's."""
     paragraphs = [f"Evidence paragraph {i}: a passage to inspect." for i in range(70)]
     if preview == "markdown":
         long = "# Document title\n\n" + "\n\n".join(paragraphs)
@@ -277,7 +424,7 @@ def test_document_readings_share_a_stable_viewport_and_keep_their_scroll(
             head=style,
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "document-text", long)
+    page_data_model.cmd_data_set(serve.page_dir, "document-text", long)
     page = open_page(browser, url)
     resized(page, 1280, 1000)
     document = page.locator("#document")
@@ -297,8 +444,10 @@ def test_document_readings_share_a_stable_viewport_and_keep_their_scroll(
     }"""
     before = page.evaluate(geometry)
     preview_height = preview_panel.bounding_box()["height"]
-    if height:
-        assert preview_height == pytest.approx(height, abs=1)
+    bound = height or page.evaluate(
+        "parseFloat(getComputedStyle(document.documentElement).fontSize) * 28"
+    )
+    assert preview_height == pytest.approx(bound, abs=1)
 
     if preview == "markdown":
         preview_tab.click()
@@ -356,21 +505,24 @@ def test_document_readings_share_a_stable_viewport_and_keep_their_scroll(
     assert source_panel.evaluate("el => el.scrollTop") == source_scroll
     assert page.evaluate(geometry) == before
 
-    data_model.cmd_data_set(serve.page_dir, "document-text", short)
+    page_data_model.cmd_data_set(serve.page_dir, "document-text", short)
     told(page)
     rendered(page)
     assert document.locator("code").text_content() == short
-    assert page.evaluate(geometry) == before
     source_tab.press("Home")
     expect(preview_tab).to_have_attribute("aria-selected", "true")
-    assert page.evaluate(geometry) == before
     if preview == "markdown":
         expect(document.get_by_role("heading", name="Short document")).to_be_visible()
+        assert preview_panel.bounding_box()["height"] < preview_height / 2
     else:
         expect(frame.get_by_role("heading", name="Short document")).to_be_visible()
-    assert preview_panel.bounding_box()["height"] == pytest.approx(
-        preview_height, abs=1
-    )
+        assert page.evaluate(geometry) == before
+    # The press goes once the preview it measures has drawn at its new height.
+    rendered(page)
+    after = page.evaluate(geometry)
+    source_tab.click()
+    expect(source_panel).to_be_visible()
+    assert page.evaluate(geometry) == after
 
 
 def test_a_document_source_follows_appends_only_while_its_reader_is_at_the_end(
@@ -386,7 +538,7 @@ def test_a_document_source_follows_appends_only_while_its_reader_is_at_the_end(
         )
     )
     text = "\n".join(f"Evidence line {i}" for i in range(80)) + "\n"
-    data_model.cmd_data_set(serve.page_dir, "document-text", text)
+    page_data_model.cmd_data_set(serve.page_dir, "document-text", text)
     page = open_page(browser, url)
     document = page.locator("#document")
     source_tab = document.get_by_role("tab", name="Source", exact=True)
@@ -398,7 +550,7 @@ def test_a_document_source_follows_appends_only_while_its_reader_is_at_the_end(
         f"({at_end})(document.querySelector('#document [role=tabpanel]:not([hidden])'))"
     )
     text += "A newly appended line\n"
-    data_model.cmd_data_set(serve.page_dir, "document-text", text)
+    page_data_model.cmd_data_set(serve.page_dir, "document-text", text)
     told(page)
     rendered(page)
     assert source.evaluate(at_end)
@@ -414,7 +566,7 @@ def test_a_document_source_follows_appends_only_while_its_reader_is_at_the_end(
     scroll_settled(page, "#document [role=tabpanel]:not([hidden])")
     position = source.evaluate("el => el.scrollTop")
     text += "Another newly appended line\n"
-    data_model.cmd_data_set(serve.page_dir, "document-text", text)
+    page_data_model.cmd_data_set(serve.page_dir, "document-text", text)
     told(page)
     rendered(page)
     assert source.evaluate("el => el.scrollTop") == position
@@ -438,7 +590,7 @@ def test_a_hidden_document_preview_opens_at_its_fragment_without_resizing(
         )
     )
     text = "# Document\n\n" + "A paragraph of evidence.\n\n" * 30
-    data_model.cmd_data_set(serve.page_dir, "document-text", text)
+    page_data_model.cmd_data_set(serve.page_dir, "document-text", text)
     page = open_page(browser, url)
     document = page.locator("#document")
     document.get_by_role("tab", name="Source", exact=True).click()
@@ -522,7 +674,9 @@ def test_find_reaches_the_text_of_a_document_in_a_tab_nobody_opened(
     )
     for at in range(3):
         words = [*lines, f"needle_{at} = {at}"]
-        data_model.cmd_data_set(serve.page_dir, f"text-{at}", "\n".join(words) + "\n")
+        page_data_model.cmd_data_set(
+            serve.page_dir, f"text-{at}", "\n".join(words) + "\n"
+        )
     page = open_page(request.getfixturevalue(engine), url)
     expect(page.locator("lf-text-document.lf-rendered")).to_have_count(3)
     closed = page.locator("#doc-2 code")
@@ -566,7 +720,7 @@ def test_opening_a_closed_tab_draws_only_the_lines_in_view(request, serve, engin
         )
     )
     text = "".join(f"value_{line} = {line}  # line {line}\n" for line in range(4000))
-    data_model.cmd_data_set(serve.page_dir, "log-text", text)
+    page_data_model.cmd_data_set(serve.page_dir, "log-text", text)
     page = open_page(request.getfixturevalue(engine), url)
     expect(page.locator("#log.lf-rendered")).to_have_count(1)
     runs = page.locator("#log .lf-text-document-run")
@@ -612,7 +766,9 @@ def test_a_closed_tab_gives_up_its_document_s_colour_and_wears_it_as_it_opens(
     )
     lines = [f"value_{line} = 'text'  # line {line}" for line in range(1000)]
     for at in range(2):
-        data_model.cmd_data_set(serve.page_dir, f"text-{at}", "\n".join(lines) + "\n")
+        page_data_model.cmd_data_set(
+            serve.page_dir, f"text-{at}", "\n".join(lines) + "\n"
+        )
     page = open_page(request.getfixturevalue(engine), url)
     expect(page.locator("lf-text-document.lf-rendered")).to_have_count(2)
     page.locator("#doc-0 .lf-text-document-run > * >> nth=140").evaluate(
@@ -655,7 +811,7 @@ def test_a_closed_tab_gives_up_its_document_s_colour_and_wears_it_as_it_opens(
     page.get_by_role("tab", name="Doc 1", exact=True).click()
     page.wait_for_function(f"() => !({TOKENS_IN})('#doc-0 code')")
     grown = [*lines[:101], *(f"added_{at} = {at}" for at in range(200)), *lines[101:]]
-    data_model.cmd_data_set(serve.page_dir, "text-0", "\n".join(grown) + "\n")
+    page_data_model.cmd_data_set(serve.page_dir, "text-0", "\n".join(grown) + "\n")
     told(page)
     expect(page.locator("#doc-0 code")).to_contain_text("added_199 = 199")
     reopened()
@@ -700,7 +856,7 @@ def test_opening_a_closed_tab_reads_none_of_its_document_s_lines_for_tab_stops(
         )
     )
     text = "".join(f"value_{line} = {line}  # line {line}\n" for line in range(2000))
-    data_model.cmd_data_set(serve.page_dir, "log-text", text)
+    page_data_model.cmd_data_set(serve.page_dir, "log-text", text)
     page = open_page(request.getfixturevalue(engine), url)
     expect(page.locator("#log.lf-rendered")).to_have_count(1)
     # Every line asked for its `tabindex` from the press until the tab has settled.
@@ -743,7 +899,9 @@ def test_the_page_presents_without_waiting_for_a_closed_tab_s_document(browser, 
         leaf_page("Documents", f'<lf-tabs id="docs" list="side">{tabs}</lf-tabs>')
     )
     for at in range(3):
-        data_model.cmd_data_set(serve.page_dir, f"text-{at}", f"document {at}\n" * 40)
+        page_data_model.cmd_data_set(
+            serve.page_dir, f"text-{at}", f"document {at}\n" * 40
+        )
     order = """(() => {
       window.order = [];
       document.addEventListener('drawn', ({target}) => order.push('announced ' + target.id),
@@ -801,7 +959,7 @@ def closed_documents(serve, count):
     )
     for at in range(count):
         lines = "".join(f"line {line} of document {at}\n" for line in range(40))
-        data_model.cmd_data_set(serve.page_dir, f"text-{at}", lines)
+        page_data_model.cmd_data_set(serve.page_dir, f"text-{at}", lines)
     return url
 
 
@@ -860,7 +1018,7 @@ def test_a_listing_s_scroll_mark_changes_nothing_its_rows_inherit(browser, serve
             "Log", '<lf-text-document id="log" source="log-text"></lf-text-document>'
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "log-text", "a line\n" * 400)
+    page_data_model.cmd_data_set(serve.page_dir, "log-text", "a line\n" * 400)
     page = open_page(browser, url)
     pre = page.locator("#log pre")
     expect(pre).to_have_attribute("data-lf-scrolls", "")
@@ -905,8 +1063,8 @@ def test_document_views_remember_independently_and_follow_live_source_updates(
             'preview="markdown"></lf-text-document>',
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "first-text", "# First original\n")
-    data_model.cmd_data_set(serve.page_dir, "second-text", "# Second original\n")
+    page_data_model.cmd_data_set(serve.page_dir, "first-text", "# First original\n")
+    page_data_model.cmd_data_set(serve.page_dir, "second-text", "# Second original\n")
     page = open_page(browser, url)
     first = page.locator("#first")
     second = page.locator("#second")
@@ -932,7 +1090,7 @@ def test_document_views_remember_independently_and_follow_live_source_updates(
         "aria-selected", "true"
     )
     updated = "# First updated\n\nFresh **evidence**.\n"
-    data_model.cmd_data_set(serve.page_dir, "first-text", updated)
+    page_data_model.cmd_data_set(serve.page_dir, "first-text", updated)
     told(page)
     rendered(page)
     assert first.locator("code").text_content() == updated
@@ -959,7 +1117,7 @@ def test_an_exported_markdown_document_keeps_its_preview_and_source_switch(
         )
     )
     text = "# Captured heading\n\nA **captured** paragraph.\n"
-    data_model.cmd_data_set(serve.page_dir, "document-text", text)
+    page_data_model.cmd_data_set(serve.page_dir, "document-text", text)
     out = tmp_path / "document.html"
     exporting_model.cmd_export(serve.page_dir, out, None, runtime=True)
     page = open_page(browser, out.as_uri())
@@ -1007,7 +1165,7 @@ def test_an_html_document_previews_its_own_styles_and_refreshes_from_its_source(
             "</lf-text-document>",
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "html-text", text)
+    page_data_model.cmd_data_set(serve.page_dir, "html-text", text)
     page = open_page(browser, url)
     document = page.locator("#document")
     frame = document.frame_locator("iframe")
@@ -1031,7 +1189,7 @@ def test_an_html_document_previews_its_own_styles_and_refreshes_from_its_source(
     updated = text.replace("Isolated document", "Updated document").replace(
         "</head>", '<link rel="stylesheet" href="/preview-style.css"></head>'
     )
-    data_model.cmd_data_set(serve.page_dir, "html-text", updated)
+    page_data_model.cmd_data_set(serve.page_dir, "html-text", updated)
     holding(page, held, 1, "the HTML preview's stylesheet")
     assert (
         page.evaluate(
@@ -1041,7 +1199,7 @@ def test_an_html_document_previews_its_own_styles_and_refreshes_from_its_source(
     )
     # A rerun publishes a new receipt without changing its value revision, even
     # while the frame's stylesheet is loading. The reading keeps that load pending.
-    data_model.cmd_data_set(serve.page_dir, "html-text", updated)
+    page_data_model.cmd_data_set(serve.page_dir, "html-text", updated)
     answer = page.request.get(f"{page.evaluate('location.origin')}/api/state")
     assert answer.ok
     snapshot = answer.json()["data"]["sources"]["html-text"]
@@ -1122,26 +1280,47 @@ def test_an_html_document_previews_its_own_styles_and_refreshes_from_its_source(
 
 def test_a_text_document_refresh_keeps_selection_in_unchanged_text(browser, serve):
     """Changing evidence beside a selected passage keeps its native selection, in a
-    plain document and in one whose tokens split the text into coloured spans."""
+    plain document, in one whose tokens split the text into coloured spans, and in a
+    Markdown preview's coloured code block or list."""
     tags = (
         '<lf-text-document id="plain-document" source="plain-text"></lf-text-document>'
         '<lf-text-document id="python-document" source="python-text" class="language-python">'
         "</lf-text-document>"
+        '<lf-text-document id="markdown-document" source="markdown-text" '
+        'label="NOTES.md" preview="markdown"></lf-text-document>'
+        '<lf-text-document id="markdown-list" source="markdown-list" '
+        'label="LIST.md" preview="markdown"></lf-text-document>'
     )
     source = LONG_LINE_DIFF_PAGE.replace(
         '<lf-diff id="patch" source="review-patch"></lf-diff>', tags
     )
     url = serve(source)
-    for name in ("plain-text", "python-text"):
-        data_model.cmd_data_set(
-            serve.page_dir, name, 'first = "old"\nsecond = "selected"\n'
-        )
+    for name in SELECTED_TEXTS:
+        page_data_model.cmd_data_set(serve.page_dir, name, SELECTED_TEXTS[name][0])
     page = open_page(browser, url)
     for document, name in (
         ("#plain-document", "plain-text"),
         ("#python-document", "python-text"),
+        ("#markdown-document .lf-text-document-preview", "markdown-text"),
+        ("#markdown-list .lf-text-document-preview", "markdown-list"),
     ):
         refresh_keeps_selection(page, serve, document, name)
+
+
+# Each source before and after a change beside its selected word.
+CODE_TEXTS = ('first = "old"\nsecond = "selected"\n', 'first = "new beginning"\n')
+SELECTED_TEXTS = {
+    "plain-text": CODE_TEXTS,
+    "python-text": CODE_TEXTS,
+    "markdown-text": (
+        'First, old.\n\n```python\nsecond = "selected"\n```\n',
+        "First, new beginning.\n",
+    ),
+    "markdown-list": (
+        '- First, old.\n- Second:\n\n  ```python\n  second = "selected"\n  ```\n',
+        "- First, new beginning.\n",
+    ),
+}
 
 
 def refresh_keeps_selection(page, serve, document, name):
@@ -1164,12 +1343,11 @@ def refresh_keeps_selection(page, serve, document, name):
     reading = "() => ({selection: getSelection().toString(), scroll: scrollY})"
     before = page.evaluate(reading)
     assert before["selection"] == "selected"
-    data_model.cmd_data_set(
-        serve.page_dir, name, 'first = "new beginning"\nsecond = "selected"\n'
-    )
+    old, changed = SELECTED_TEXTS[name]
+    page_data_model.cmd_data_set(serve.page_dir, name, changed + old.split("\n", 1)[1])
     told(page)
     rendered(page)
-    expect(code).to_contain_text('first = "new beginning"')
+    expect(page.locator(document)).to_contain_text(changed.strip("-\n "))
     assert page.evaluate(reading) == before, document
 
 
@@ -1194,7 +1372,7 @@ def test_a_text_document_update_keeps_a_selection_it_carries_into_another_run(
             "</lf-text-document>",
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(lines) + "\n")
+    page_data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(lines) + "\n")
     page = open_page(request.getfixturevalue(engine), url)
     select_words(page, f"{ROWS} >> nth=127")
     selected = page.evaluate("() => getSelection().toString()")
@@ -1203,7 +1381,9 @@ def test_a_text_document_update_keeps_a_selection_it_carries_into_another_run(
         at = next(i for i, line in enumerate(lines) if line.startswith("selected"))
         lines[at] += edit
         lines = [f"added {added} {i}" for i in range(added)] + lines
-        data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(lines) + "\n")
+        page_data_model.cmd_data_set(
+            serve.page_dir, "log-text", "\n".join(lines) + "\n"
+        )
         told(page)
         rendered(page)
         row = page.locator(ROWS).nth(at + added)
@@ -1274,7 +1454,7 @@ def test_a_text_document_rewrite_changes_only_the_rows_of_the_lines_it_changes(
             "</lf-text-document>",
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(lines) + "\n")
+    page_data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(lines) + "\n")
     page = open_page(browser, url)
     expect(page.locator("#log .lf-text-document-run")).to_have_count(8)
     page.evaluate(ROW_CHANGES)
@@ -1293,7 +1473,7 @@ def test_a_text_document_rewrite_changes_only_the_rows_of_the_lines_it_changes(
         (removed, {"edited": [], "added": 0, "removed": 1, "runs": 1}),
         (grown, {"edited": [], "added": 100, "removed": 0, "runs": 1}),
     ):
-        data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(text) + "\n")
+        page_data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(text) + "\n")
         told(page)
         rendered(page)
         assert page.locator("#log code").text_content() == "\n".join(text) + "\n"
@@ -1301,7 +1481,7 @@ def test_a_text_document_rewrite_changes_only_the_rows_of_the_lines_it_changes(
     # A run filled to twice its rows splits, and the text stays whole.
     runs = page.locator("#log .lf-text-document-run").count()
     split = [*grown[:600], *[f"split {at}" for at in range(200)], *grown[600:]]
-    data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(split) + "\n")
+    page_data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(split) + "\n")
     told(page)
     rendered(page)
     assert page.locator("#log code").text_content() == "\n".join(split) + "\n"
@@ -1321,7 +1501,7 @@ def test_a_text_document_rewrite_changes_only_the_rows_of_the_lines_it_changes(
     selected = page.evaluate("() => getSelection().toString()").strip()
     assert selected == split[1000], selected
     indented = ["# added", *(f"    {line}" for line in split)]
-    data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(indented) + "\n")
+    page_data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(indented) + "\n")
     told(page)
     rendered(page)
     assert page.locator("#log code").text_content() == "\n".join(indented) + "\n"
@@ -1329,7 +1509,9 @@ def test_a_text_document_rewrite_changes_only_the_rows_of_the_lines_it_changes(
     # Past the cap again with every line in its place, so each run keeps its first
     # line and first row: the rows still count their places.
     reindented = [f"  {line}" for line in indented]
-    data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(reindented) + "\n")
+    page_data_model.cmd_data_set(
+        serve.page_dir, "log-text", "\n".join(reindented) + "\n"
+    )
     told(page)
     rendered(page)
     page.locator(ROWS).nth(1000).evaluate(
@@ -1369,7 +1551,7 @@ def test_a_split_run_colours_from_its_own_grammar_state(browser, serve):
             "</lf-text-document>",
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(lines) + "\n")
+    page_data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(lines) + "\n")
     page = open_page(browser, url)
     # 122 lines in the second run, which grows to 250 rows, with a string over lines
     # 250 to 260.
@@ -1384,7 +1566,7 @@ def test_a_split_run_colours_from_its_own_grammar_state(browser, serve):
         for at in range(140, 262)
     ]
     grown = [*lines[:140], *block, *lines[140:]]
-    data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(grown) + "\n")
+    page_data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(grown) + "\n")
     told(page)
     rendered(page)
     page.locator(ROWS).nth(258).evaluate("row => row.scrollIntoView({block: 'center'})")
@@ -1393,7 +1575,7 @@ def test_a_split_run_colours_from_its_own_grammar_state(browser, serve):
     # Ten lines added below the split point: the run splits at line 256, and the new
     # text's first change, at line 328, falls in its second part.
     split = [*grown[:328], *(f"added_{at} = {at}" for at in range(10)), *grown[328:]]
-    data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(split) + "\n")
+    page_data_model.cmd_data_set(serve.page_dir, "log-text", "\n".join(split) + "\n")
     told(page)
     rendered(page)
     fresh = open_page(browser, url)

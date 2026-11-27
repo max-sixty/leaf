@@ -10,6 +10,7 @@ from render_harness import (
     REPLY_HOST_PAGE,
     consume_browser_errors,
     holding,
+    leaf_page,
     open_latest,
     open_page,
     panel_field,
@@ -21,12 +22,14 @@ from render_harness import (
     select_words,
     sending,
     stamp_page,
+    stored_draft,
     stored_draft_text,
     ticked,
     told,
     wait_for_check_api,
     wait_for_revision,
     write,
+    write_draft_elsewhere,
 )
 
 from browser.drafts import (
@@ -36,8 +39,9 @@ from browser.drafts import (
     replace_editing_document,
 )
 from browser.threads import open_panel_thread
-from leaf import event_log as events_model
-from leaf.render_checks import one_frame, rendered, wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import one_frame, rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD, text_field
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -130,6 +134,7 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
                 "widget": "draft-ops",
                 "action": "edit",
                 "detail": {"value": text},
+                "answered": True,
             },
         )
     append_command(
@@ -175,7 +180,7 @@ def test_an_untouched_and_an_emptied_reply_follow_live_revisions(browser, serve)
     )
     reply = thread.locator("leaf-text")
     expect(thread).to_be_focused()
-    thread.get_by_role("textbox", name="Reply", exact=True).click()
+    text_field(thread, name="Reply", exact=True).click()
     expect(reply).to_be_focused()
 
     d = serve.page_dir
@@ -191,7 +196,7 @@ def test_an_untouched_and_an_emptied_reply_follow_live_revisions(browser, serve)
     write(reply, "A thought I changed my mind about.")
     write(reply, "")
     # A thread's reply draft is keyed by the name the log's answer does not change —
-    # the attempt the user's own comment opened it with (thread/model.js).
+    # the attempt the user's own comment opened it with (state/thread/model.js).
     assert stored_draft_text(page, f"reply:{sent['attempt']}") == ""
     v3 = v2.replace(
         "A revised short second passage.", "A twice-revised short second passage."
@@ -282,6 +287,104 @@ def test_executable_revision_preserves_each_editor_identity(browser, serve, kind
     assert after == before
 
 
+def test_a_revision_that_redraws_a_chosen_option_keeps_the_choice(browser, serve):
+    """An option the user chose among radios stays chosen through a revision installed
+    in place that replaces the radios, as one rewrapping them does: the choice carries
+    to the replacements, which no input of the user's has touched since."""
+
+    def page_with(wrapper):
+        return leaf_page(
+            "Pace",
+            f'<h1 id="subject">Pace</h1><form id="f"><{wrapper} id="group">'
+            '<label><input type="radio" name="pace" id="slow"> slow</label>'
+            '<label><input type="radio" name="pace" id="steady" checked> steady</label>'
+            f"</{wrapper}></form>",
+        )
+
+    page = open_page(browser, live_url(serve(page_with("p"))))
+    page.locator("#slow").check()
+    birth = page.evaluate("performance.timeOrigin")
+    revision = int(
+        page.locator('meta[name="lf-revision"][data-lf-runtime]').get_attribute(
+            "content"
+        )
+    )
+    stamp_page(serve.page_dir, page_with("div"), "Rewrap the options")
+    wait_for_revision(page, revision + 1)
+    assert page.evaluate("performance.timeOrigin") == birth
+    expect(page.locator("div#group #slow")).to_be_checked()
+
+
+def test_a_field_a_fresh_revision_makes_a_file_input_leaves_its_words_behind(
+    browser, serve
+):
+    """A revision that needs a fresh document and turns a field the user typed into into
+    a file input carries no words into it, since a file input takes none, and the words
+    typed into the page's other fields still come back."""
+    body = (
+        '<h1 id="subject">Form</h1>'
+        '<p><input id="who" aria-label="Name" autocomplete="off">'
+        '<input id="where" aria-label="Place" autocomplete="off"></p>'
+    )
+    page = open_page(browser, live_url(serve(editing_revision_source("before", body))))
+    page.locator("#who").fill("Ada")
+    page.locator("#where").fill("Rome")
+    birth = page.evaluate("performance.timeOrigin")
+    stamp_page(
+        serve.page_dir,
+        editing_revision_source(
+            "after", body.replace('id="who"', 'id="who" type="file"')
+        ),
+        "Make the name a file",
+    )
+    told(page)
+    if page.evaluate("performance.timeOrigin") == birth:
+        open_latest(page)
+    wait_for_revision(page, 2)
+    assert page.evaluate("performance.timeOrigin") != birth
+    expect(page.locator("#where")).to_have_value("Rome")
+
+
+def test_a_reload_after_staying_at_a_revision_s_reload_keeps_the_words_typed_since(
+    browser, serve
+):
+    """Words typed after the user stays at a page's own leave prompt that a revision's
+    reload raised, and steps Back to an earlier entry of the page, come back after
+    they reload the page."""
+    body = (
+        '<h1 id="subject">Form</h1>'
+        '<p><input id="who" aria-label="Name" autocomplete="off"></p>'
+        '<p id="later">Later.</p>'
+    )
+    page = open_page(browser, live_url(serve(editing_revision_source("before", body))))
+    page.locator("#who").click()
+    page.locator("#who").fill("Ada")
+    page.evaluate("document.activeElement.blur()")
+    page.wait_for_function("navigation.transition === null")
+    page.evaluate("location.hash = '#later'")
+    page.wait_for_function("navigation.transition === null")
+    page.on("dialog", lambda dialog: dialog.dismiss())
+    page.evaluate(
+        """() => {
+          window.ownPrompt = (event) => { event.preventDefault(); event.returnValue = ""; };
+          addEventListener("beforeunload", window.ownPrompt);
+        }"""
+    )
+    with page.expect_event("dialog"):
+        stamp_page(
+            serve.page_dir,
+            editing_revision_source("after", body),
+            "Change the page's module",
+        )
+    page.evaluate("history.back()")
+    page.wait_for_function("location.hash === ''")
+    page.locator("#who").fill("Grace")
+    page.evaluate('() => removeEventListener("beforeunload", window.ownPrompt)')
+    page.reload()
+    wait_until_ready(page)
+    expect(page.locator("#who")).to_have_value("Grace")
+
+
 def test_executable_revision_preserves_non_editor_thread_current_location(
     browser, serve
 ):
@@ -299,8 +402,170 @@ def test_executable_revision_preserves_non_editor_thread_current_location(
     )
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize("reader", ["panel", "card"])
+def test_executable_revision_keeps_the_user_on_the_message_they_were_on(
+    request, serve, engine, reader
+):
+    """A revision that reloads the page brings the user back to the message they were
+    on in the thread it reopens, the panel's view or a card, rather than to the
+    thread as a whole: the same place Back returns them to."""
+    url = serve(editing_revision_source("before"))
+    root = panel_comment(
+        serve.page_dir,
+        "What does this passage hold?",
+        {"section": "passage", "quote": "A stable passage"}
+        if reader == "card"
+        else None,
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "revision": 1,
+            "text": "It holds the words a revision keeps exact.",
+        },
+    )
+    page = open_page(request.getfixturevalue(engine), live_url(url))
+    page.keyboard.press("g")
+    page.keyboard.press("u")
+    page.wait_for_function(
+        "() => document.activeElement?.matches('.lf-msg[data-lf-message]')"
+    )
+    key = page.evaluate("document.activeElement.dataset.lfMessage")
+    replace_editing_document(page, serve)
+    expect(page.locator(f'.lf-msg[data-lf-message="{key}"]')).to_be_focused()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_executable_revision_keeps_a_reply_where_it_was_written(request, serve, engine):
+    """A reply the user writes in the floating panel's view of a thread goes on there,
+    with its words and selection, through a revision that reloads the page, rather
+    than moving into a card beside the thread's passage."""
+    page = editing_reply_page(request.getfixturevalue(engine), serve)
+    root = next(
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )
+    page.keyboard.press("Escape")
+    open_panel_thread(page, root)
+    reply = panel_field(page)
+    reply.focus()
+    expect(reply).to_have_attribute("name", "reply")
+    write(reply, "Words written in the panel's view.")
+    reply.evaluate("el=>el.setSelectionRange(6,13,'backward')")
+    before = editing_read(reply)
+    replace_editing_document(page, serve)
+    expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')).to_be_visible()
+    expect(reply).to_be_focused()
+    assert editing_read(reply) == before
+    expect(page.locator(".lf-margin-preview")).to_be_hidden()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_executable_revision_whose_reply_another_tab_cleared_returns_to_the_entry(
+    request, serve, engine
+):
+    """A revision that reloads the page while the user writes a reply, whose words
+    another tab clears before the reload arrives, still returns the user to the entry:
+    the thread they were in opens again, though no words are left to put back."""
+    page = editing_reply_page(request.getfixturevalue(engine), serve)
+    root = next(
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    )
+    editor = page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
+    expect(editor).to_be_focused()
+    write(editor, "Words another tab clears.")
+    reply = page.evaluate(
+        "async()=> (await window.__lfCheckApi()).captureDraftEditing().context"
+    )
+    written = stored_draft(page, reply)
+    assert written and written["text"] == "Words another tab clears."
+    # The reload's document waits until the words are cleared, so it is served the
+    # drafts as they stand then (runtime/records/drafts.js, `lf-drafts`).
+    held = []
+
+    def hold_reload(route):
+        if route.request.resource_type == "document" and "_leaf-revision" in (
+            route.request.url
+        ):
+            held.append(route)
+        else:
+            route.fallback()
+
+    page.route("**/*", hold_reload)
+    try:
+        stamp_page(
+            serve.page_dir, editing_revision_source("after"), "Change the module"
+        )
+        told(page)
+        # Open latest, as `open_latest` runs it, without waiting on the reload it
+        # starts, which waits here on the held document.
+        page.evaluate(
+            "async () => { void (await window.__lfCheckApi()).versionPicker.latest(); }"
+        )
+        holding(page, held, 1, "the reload's document")
+        write_draft_elsewhere(page, reply, "", over=written)
+        page.unroute("**/*", hold_reload)
+        for route in held:
+            route.continue_()
+        held.clear()
+        wait_for_revision(page, 2)
+        expect(
+            page.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
+        ).to_be_visible()
+    finally:
+        for route in held:
+            route.continue_()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_executable_revision_leaves_a_put_away_comment_shut(request, serve, engine):
+    """A comment the user put away with Escape stays put away through a revision that
+    reloads the page, as through any reload: its words don't take focus."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        live_url(serve(editing_revision_source("before"))),
+    )
+    page.locator("#passage").click(click_count=3)
+    page.keyboard.press("c")
+    composer = page.locator(".lf-composer leaf-text")
+    write(composer, "Words put away for later.")
+    page.keyboard.press("Escape")
+    if composer.is_visible():
+        page.keyboard.press("Escape")
+    expect(composer).to_be_hidden()
+    page.evaluate("document.activeElement?.blur?.(); getSelection().removeAllRanges()")
+    replace_editing_document(page, serve)
+    expect(composer).to_be_hidden()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_executable_revision_keeps_the_page_selection(request, serve, engine):
+    """Words the user selected in prose a revision leaves as it was stay selected
+    through the revision's reload, as through any reload."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        live_url(serve(editing_revision_source("before"))),
+    )
+    page.evaluate("""() => {
+      const text = document.getElementById('passage').firstChild;
+      const at = text.data.indexOf('stable passage');
+      getSelection().setBaseAndExtent(text, at, text, at + 'stable passage'.length);
+    }""")
+    replace_editing_document(page, serve)
+    page.wait_for_function("() => getSelection().toString() === 'stable passage'")
+
+
 def test_live_executable_replacement_keeps_a_resolved_reply_session(browser, serve):
-    """A live replacement continues actual editing; an ordinary reload only saves words."""
+    """A live replacement continues actual editing, with its selection; an ordinary
+    reload returns the user to the reply with the selection's ends."""
     page = editing_reply_page(browser, serve)
     root = next(
         event["id"]
@@ -330,7 +595,12 @@ def test_live_executable_replacement_keeps_a_resolved_reply_session(browser, ser
 
     page.reload()
     wait_until_ready(page)
-    expect(page.locator(".lf-thread-reply leaf-text")).not_to_be_visible()
+    # The entry's record names the reply focus was in, so the reload opens the thread
+    # again with focus in its reply.
+    reply = page.locator(".lf-thread-reply leaf-text:focus")
+    expect(reply).to_have_count(1)
+    expect(reply).to_have_js_property("value", words)
+    assert reply.evaluate("el=>[el.selectionStart,el.selectionEnd]") == [5, 12]
     assert stored_draft_text(page, context) == words
 
 
@@ -490,7 +760,7 @@ def test_a_fresh_revision_caret_failure_does_not_strand_deferred_arrivals(
     editor.evaluate("el=>el.setSelectionRange(4,9,'backward')")
     revised = editing_revision_source("after").replace(
         "window.__rendererLifetime=",
-        "import {afterPresentation,TEXT_FIELD} from '/runtime/widget-api.js';afterPresentation(()=>window.__deferredArrivalRan=true);document.addEventListener('lf-presentation',()=>window.__presentationDispatched=true);\nconst field=customElements.get(TEXT_FIELD).prototype;const setRange=field.setSelectionRange;\nfield.setSelectionRange=function(a,b,d){if(a===4&&b===9)throw new Error('fresh mechanical caret fixture failed');return setRange.call(this,a,b,d)};\nwindow.__rendererLifetime=",
+        "import {afterPresentation} from '/runtime/widget-api.js';afterPresentation(()=>window.__deferredArrivalRan=true);document.addEventListener('lf-presentation',()=>window.__presentationDispatched=true);\nconst field=customElements.get('leaf-text').prototype;const setRange=field.setSelectionRange;\nfield.setSelectionRange=function(a,b,d){if(a===4&&b===9)throw new Error('fresh mechanical caret fixture failed');return setRange.call(this,a,b,d)};\nwindow.__rendererLifetime=",
     )
     stamp_page(serve.page_dir, revised, "Fresh executable with mechanical failure")
     told(page)
@@ -539,6 +809,7 @@ def test_saved_widget_words_cannot_dismiss_an_unfinished_comment(
                 "widget": "mutable",
                 "action": "edit",
                 "detail": {"value": value},
+                "answered": bool(value),
             },
         )
 
@@ -608,6 +879,11 @@ def test_saved_widget_words_cannot_dismiss_an_unfinished_comment(
     if change == "reloaded-revision":
         page.reload()
         wait_until_ready(page)
+        # The reload leaves the box the user put away shut; Resume writing opens it.
+        expect(editor).to_be_hidden()
+        page.keyboard.press("g")
+        page.keyboard.press("i")
+        expect(editor).to_be_focused()
     elif change == "hidden-revision":
         page.keyboard.press("g")
         page.keyboard.press("i")

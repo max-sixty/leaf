@@ -16,7 +16,7 @@ vars:
 
     ```json
     {
-     "format": "leaf-delivery/51",
+     "format": "leaf-delivery/59",
      "id": "e7f1a2c3",
      "created_at": 1791448199.576215,
      "acknowledge": null,
@@ -31,6 +31,7 @@ vars:
          "title": "Owner in the opening",
          "anchor": null,
          "detached_from": null,
+         "rewritten_from": null,
          "resolved": null,
          "elided": {
           "messages": 0,
@@ -130,7 +131,7 @@ variants:
 
         ```json
         {
-         "format": "leaf-delivery/51",
+         "format": "leaf-delivery/59",
          "id": "e7f1a2c3",
          "created_at": 1791448199.576215,
          "acknowledge": null,
@@ -145,6 +146,7 @@ variants:
              "title": "Owner in the opening",
              "anchor": null,
              "detached_from": null,
+             "rewritten_from": null,
              "resolved": null,
              "elided": {
               "messages": 0,

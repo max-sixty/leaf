@@ -29,8 +29,7 @@ lf-text-document > .lf-text-document-view {
    under the reading measure its rule stopped 53px short of a 795px frame. Before the
    document draws, the host stands in for its frame and caption (below). */
 lf-text-document figcaption,
-html[data-lf-interactive]
-  lf-text-document:not(:has(> :not(pre, [data-lf-prepaint])))::before {
+html[data-lf-interactive] lf-text-document:not(:has(> :not(pre)))::before {
   max-inline-size: none;
   padding: 7px 11px;
   border-bottom: 1px solid var(--lf-rule);
@@ -46,13 +45,16 @@ html[data-lf-interactive]
    which is the whole reason lf-diff makes its own wrap the user's switch and this is
    simply the default. The frame keeps `overflow-x: auto` for what no line box can break:
    a path, a URL, minified data. An author whose capture is columnar has no attribute to
-   say so yet; add one when a page needs it. */
+   say so yet; add one when a page needs it. A row wraps under its own start, which the
+   module's height for an undrawn row counts on (lf-text-document.js, `rowLines`), so
+   the hang a code block gives its wrapped rows (reading.css, `pre`) stops here. */
 lf-text-document pre {
   margin: 0;
   padding: 0;
   border: 0;
   border-radius: 0;
   white-space: pre-wrap;
+  text-indent: 0;
 }
 /* The listing (lf-text-document.js, `listing`) takes the type and paper of Leaf's code
    blocks. Each row is one line, wrapped under its own start, with its number in the
@@ -159,26 +161,19 @@ lf-text-document .lf-text-document-run:only-child {
     content: none;
   }
 }
-/* A document scrolls its listing in a box `--lf-bound` tall under a caption that
-   stays put: the Source tab's box with a preview, the listing's own without one. The
-   box's height is the bound, not the text's, so the page keeps the document's final
-   size from its first paint. Bound text arrives with the state answer after that
-   paint, and a listing as tall as its text pushed what followed it down by that
-   height. A short document leaves room under its last line, and a long one reads by
-   scrolling inside the box rather than at full length in the page.
-
-   A Markdown preview of written text is the exception the first paint allows: Leaf
-   draws its rendering beside the `<pre>` before the module does (`prepaint`), so the
-   page first paints at the preview's own height up to the bound, which the Source tab
-   takes too. A one-paragraph quote in a 28rem box drew a 530px frame around 156px of
-   text.
+/* A document takes its text's height up to `--lf-bound` under a caption that stays
+   put, and scrolls inside that box past it, with a press under it that shows the whole
+   document (lf-text-document.js, `more`): the tab shown with a preview, the listing's
+   `pre` without one. A preview's Source tab takes the preview's height
+   (`holdSource`), so switching tabs keeps the page still.
 
    The module draws the figure once it loads, after first paint, so until then the
    host wears the figure's frame in place of its written `<pre>`, draws its label as the
-   caption, wrapping as the caption will, and keeps the room the tab strip and the box
-   will take, or shows the server's rendering under the strip's room. Without the
-   runtime, as in a page read with scripts off, the `<pre>` shows its text, or the
-   server's rendering of a Markdown preview in its place (base.css). */
+   caption, wrapping as the caption will, and shows the written source in the room the
+   tab strip and the text will take (below). Bound text arrives with the state answer
+   after that paint, so a bound document keeps the bound's room until it draws, and
+   then takes its text's height. Without the runtime, as in a page read with scripts
+   off, the `<pre>` shows its text. */
 @media screen {
   lf-text-document[data-lf-bound] {
     max-block-size: none;
@@ -191,7 +186,6 @@ lf-text-document .lf-text-document-run:only-child {
      skips too (notes/browser-support.md, "Styling content Firefox skips"), so a mark
      that changed the values would restyle every row of a long listing. */
   lf-text-document:not([preview])[data-lf-bound] pre {
-    block-size: var(--lf-bound, 28rem);
     overflow: auto;
     --lf-holds-height: 1;
     --lf-top: var(--lf-top-start);
@@ -202,8 +196,7 @@ lf-text-document .lf-text-document-run:only-child {
   lf-text-document:not([preview])[data-lf-bound] {
     --lf-bound-box: .lf-text-document-listing > pre;
   }
-  html[data-lf-interactive]
-    lf-text-document:not(:has(> :not(pre, [data-lf-prepaint]))) {
+  html[data-lf-interactive] lf-text-document:not(:has(> :not(pre))) {
     border: 1px solid var(--lf-code-border);
     border-radius: var(--lf-r);
     background: var(--lf-pre-bg);
@@ -225,31 +218,27 @@ lf-text-document .lf-text-document-run:only-child {
     &[preview]::after {
       block-size: calc(var(--lf-tabstrip-h) + var(--lf-bound, 28rem));
     }
-    /* The frame's ground under the caption is the figure's, and the strip and panel
-       below it are the tabs' card (tabs.css), which the rendering wears from the strip's
-       room down, clipped at the frame's rounded corners as the figure clips the tabs. */
-    &:has(> [data-lf-prepaint]) {
-      background: var(--lf-paper);
-      overflow: clip;
+    /* A written document shows its source where its reading will stand, under the
+       strip's room where it has tabs and to the bound, so its words read before the
+       module draws, and its box then changes only by how far the drawn reading's
+       height differs from the source's. */
+    &:has(> pre) {
       &::after {
         content: none;
       }
+      & > pre {
+        display: block;
+        box-sizing: border-box;
+        max-block-size: var(--lf-bound, 28rem);
+        padding: var(--lf-sp-4);
+        overflow: hidden;
+      }
     }
-    & > [data-lf-prepaint] {
-      box-sizing: border-box;
+    &[preview]:has(> pre) > pre {
       max-block-size: calc(var(--lf-tabstrip-h) + var(--lf-bound, 28rem));
       padding-block-start: calc(var(--lf-tabstrip-h) + var(--lf-sp-4));
-      overflow: hidden;
-      background: var(--lf-card);
     }
   }
-}
-/* The server's rendering stands where the preview will, in the page's type, which the
-   drawn widget takes rather than the source face an undrawn data widget wears
-   (reading.css), with scripts or without them. */
-lf-text-document:has(> [data-lf-prepaint]) {
-  font: inherit;
-  color: inherit;
 }
 /* A long capture's `pre` becomes a keyboard-reachable scroller inside the evidence
    frame. Its lines are positioned boxes on the capture's ground, which paint over an
@@ -267,8 +256,9 @@ lf-text-document .lf-text-document-listing::after {
   z-index: 1;
 }
 
-/* Source and preview share one inspection viewport. Its height doesn't follow the tab
-   shown, so switching keeps the strip and following page still. */
+/* Source and preview share one inspection viewport, whose height the preview sets
+   (lf-text-document.js, `holdSource`), so switching keeps the strip and following page
+   still. */
 lf-text-document[preview] > .lf-text-document-view {
   background: var(--lf-paper);
 }
@@ -291,14 +281,21 @@ lf-text-document[preview]
   background: var(--lf-pre-bg);
 }
 /* The rendered Markdown is Leaf's reading of the file, so it wears markup's reading face
-   (`reading.css`) whatever theme the page takes, as `.lf-markdown-body` does, the
-   server's first paint of it included. */
-lf-text-document div.lf-text-document-preview,
-lf-text-document > [data-lf-prepaint] {
+   (`reading.css`) whatever theme the page takes, as `.lf-markdown-body` does, and breaks
+   words as the page does: only code breaks anywhere. Breaking every word anywhere let a
+   table squeeze a column of short names, splitting "symbol" across two lines. */
+lf-text-document div.lf-text-document-preview {
   --lf-reading-face: 1;
   --lf-block-frame: 1;
   padding: var(--lf-sp-4);
-  overflow-wrap: anywhere;
+}
+/* A file's pictures stand bare, as on GitHub, without the frame the reading face draws
+   round a picture (`reading.css`): a README draws its logos and badges to stand on the
+   page itself. */
+lf-text-document div.lf-text-document-preview img {
+  border-radius: 0;
+  box-shadow: none;
+  outline: none;
 }
 lf-text-document iframe.lf-text-document-preview {
   display: block;
@@ -309,37 +306,99 @@ lf-text-document iframe.lf-text-document-preview {
 }
 @media screen {
   lf-text-document[preview] .lf-text-document-view > lf-tabs > lf-tab:not([hidden]) {
-    block-size: var(--lf-bound, 28rem);
     overscroll-behavior: auto;
   }
-  /* A written Markdown preview sets the height both tabs take, its rendering's up to
-     the bound, which the module gives the Source tab (lf-text-document.js,
-     `holdSource`). A source that height cuts ends in a fade and a press showing the
-     rest (`cut`), after which the Source takes its own height in the page. */
-  lf-text-document[preview="markdown"]:not([source], [for])
-    .lf-text-document-view
-    > lf-tabs {
-    & > lf-tab:not([hidden]) {
-      block-size: auto;
-      max-block-size: var(--lf-bound, 28rem);
+  /* Each reading scrolls inside the bound (`[data-lf-bound]`, base.css), at its text's
+     height up to it. The preview sets the height both tabs take, which the module
+     gives the Source tab (lf-text-document.js, `holdSource`). While the reading shown
+     scrolls, a press under it shows the whole document (`more`), after which each
+     reading takes its own height in the page. Told it has a definite height to fill
+     (below), a document fills that height instead and scrolls inside it, with no
+     press. */
+  @container not style(--lf-full-height: 1) {
+    lf-text-document:not([data-lf-bound="end"]) > .lf-text-document-view {
+      &:not([data-lf-all]) > .lf-text-document-listing > pre {
+        max-block-size: var(--lf-bound, 28rem);
+      }
+      &:not([data-lf-all]) > lf-tabs > lf-tab:has(> .lf-text-document-listing) {
+        block-size: min(var(--lf-preview-block), var(--lf-bound, 28rem));
+      }
+      &[data-lf-all] > lf-tabs > lf-tab {
+        max-block-size: none;
+        overflow: visible;
+      }
+      /* A whole listing scrolls only sideways, as a code block does (reading.css,
+         `pre`), which keeps the room under its last line inside its box. */
+      &[data-lf-all] > .lf-text-document-listing > pre {
+        max-block-size: none;
+        overflow-y: hidden;
+      }
+      & > .lf-text-document-foot:not([hidden]) {
+        display: block;
+      }
     }
-    & > lf-tab:has(> .lf-text-document-listing):not([data-lf-all]) {
-      block-size: min(var(--lf-preview-block), var(--lf-bound, 28rem));
-      overflow: hidden;
-    }
-    & > lf-tab[data-lf-all] {
-      max-block-size: none;
-      overflow: visible;
+    /* A document that follows its newest line, as a log does (`data-bound="end"`),
+       keeps a box the bound's height, which keeps that line in view as lines arrive
+       while the reader is at the end (bounds.js). */
+    lf-text-document[data-lf-bound="end"] {
+      & .lf-text-document-view > lf-tabs > lf-tab:not([hidden]),
+      &:not([preview]) .lf-text-document-listing > pre {
+        block-size: var(--lf-bound, 28rem);
+      }
     }
   }
-  lf-text-document .lf-text-document-cut {
-    position: absolute;
-    inset: auto 0 0;
-    padding: calc(2 * var(--lf-sp-5)) var(--lf-sp-4) var(--lf-sp-2);
-    background: linear-gradient(transparent, var(--lf-pre-bg) 70%);
+  lf-text-document .lf-text-document-foot {
+    display: none;
+    padding: var(--lf-sp-2) var(--lf-sp-4);
+    border-top: 1px solid var(--lf-rule);
     text-align: center;
   }
-  lf-text-document iframe.lf-text-document-preview {
-    block-size: 100%;
+}
+/* As a pane's body, the document wears the pane's frame rather than a second one inside
+   it, with no inset or margin of its own, as a file editor there does. */
+[data-lf-reading-role="pane"] > lf-text-document {
+  margin: 0;
+  padding: 0;
+  --lf-pane-top: 0px;
+  & > .lf-text-document-view {
+    border: 0;
+    border-radius: 0;
+  }
+}
+/* Told it has a definite height to fill (`--lf-full-height`, layouts.css), as a
+   workspace pane's body is, a document fills it: the tab shown, or a plain listing,
+   takes what the caption and strip leave, in place of the bound, and scrolls inside
+   it. A written Markdown preview fills it too, rather than stopping at the bound with
+   the pane empty below. Each box passes the height on to the next, since the property
+   doesn't inherit. */
+@media screen {
+  @container style(--lf-full-height: 1) {
+    lf-text-document[data-lf-bound],
+    lf-text-document > .lf-text-document-view,
+    lf-text-document > .lf-text-document-view > .lf-text-document-listing,
+    lf-text-document[preview] > .lf-text-document-view > lf-tabs {
+      --lf-full-height: inherit;
+      display: flex;
+      flex-direction: column;
+      block-size: 100%;
+      min-block-size: 0;
+      margin-block: 0;
+    }
+    lf-text-document > .lf-text-document-view > lf-tabs,
+    lf-text-document > .lf-text-document-view > .lf-text-document-listing,
+    lf-text-document > .lf-text-document-view > .lf-text-document-listing > pre,
+    lf-text-document[preview]
+      > .lf-text-document-view
+      > lf-tabs
+      > lf-tab:not([hidden]) {
+      flex: 1 1 0;
+      min-block-size: 0;
+    }
+    lf-text-document[preview] > .lf-text-document-view > lf-tabs > lf-tab:not([hidden]),
+    lf-text-document:not([preview])[data-lf-bound] pre,
+    lf-text-document iframe.lf-text-document-preview {
+      block-size: 100%;
+      max-block-size: none;
+    }
   }
 }

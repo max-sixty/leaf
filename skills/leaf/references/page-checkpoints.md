@@ -58,8 +58,9 @@ user's On Me list.
 
 If you can't see the rendered page, review the words, evidence and choices from the
 active HTML and `leaf page state <page>`, and report the visual and keyboard review as
-not done. When the check's `browser` field is `unavailable`, report the render check as
-unfinished, along with the run of the page's code if it needed one.
+not done. When the check's `browser.ran` leaves out a gate its `asked` names, as where
+no browser could launch or the browser failed, report that gate as unfinished; a
+finding says why.
 
 ## Page diagnostics
 
@@ -111,8 +112,9 @@ unstamped page can close directly. Then run:
 leaf page close <page>
 ```
 
-`page close` ends the agent's side of the page, and refuses while events are pending or an
-update still owes its answer. It takes the page off the watch, and closing the last
+`page close` ends the agent's side of the page. It refuses while an update, a worker's
+report or a page error is unread, an update still owes its answer, or one of your
+to-dos is open, and it settles no obligation. It takes the page off the watch, and closing the last
 watched page ends the watcher. It doesn't stop the server or delete the page
 (`serving-pages.md`, "Page lifetime"). Don't close a persistent page because one
 session's work on it is done.

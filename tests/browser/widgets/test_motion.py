@@ -17,7 +17,7 @@ from render_harness import (
     wait_for_revision,
 )
 
-from leaf.render_checks import wait_until_ready
+from leaf.source.render_checks import wait_until_ready
 
 
 def test_motion_views_seek_together_and_play_only_while_requested(browser, serve):
@@ -42,7 +42,7 @@ def test_motion_views_seek_together_and_play_only_while_requested(browser, serve
             packages=("motion",),
             page_files={
                 "draw.js": """
-import { keeps } from '/runtime/widget-api.js';
+import { keeps } from '/runtime/lib/keeps.js';
 await customElements.whenDefined('lf-motion');
 const study = document.getElementById('study');
 const forward = study.querySelector('#forward');
@@ -181,7 +181,7 @@ document.getElementById('sketch').renderFrame = time => {
     )
     time = sketch.get_by_role("slider", name="Time", exact=True)
     time.press("End")
-    box = sketch.locator(":scope > .lf-error")
+    box = sketch.locator(".lf-error")
     expect(box).to_have_text("<lf-motion> failed: the frame broke")
     time.press("ArrowLeft")
     sketch.locator(".lf-motion-play").click()
@@ -196,17 +196,16 @@ document.getElementById('sketch').renderFrame = time => {
     expect(box).to_have_count(0)
 
 
-# Record each Play button's first observable availability when its widget draws.
-# Authored content precedes modules; generated controls arrive with their behavior.
+# Record each Play button's availability in the first frame after its widget defines
+# itself: authored content precedes modules, and generated controls arrive with their
+# behavior.
 FIRST_PAINT_PLAY = """
 window.firstPlay = {};
-new MutationObserver(() => {
-  for (const study of document.querySelectorAll('lf-motion')) {
-    const play = study.querySelector('.lf-motion-play');
-    if (play && !(study.id in window.firstPlay))
-      window.firstPlay[study.id] = play.getAttribute('aria-disabled');
-  }
-}).observe(document, {childList:true, subtree:true});
+customElements.whenDefined('lf-motion').then(() => requestAnimationFrame(() => {
+  for (const study of document.querySelectorAll('lf-motion'))
+    window.firstPlay[study.id] =
+      study.shadowRoot.querySelector('.lf-motion-play').getAttribute('aria-disabled');
+}));
 """
 
 
@@ -231,6 +230,7 @@ def test_play_arrives_available_only_where_there_is_something_to_play(browser, s
         ),
         context=context,
     )
+    page.wait_for_function("Object.keys(window.firstPlay).length === 2")
     assert page.evaluate("window.firstPlay") == {"recording": None, "sketch": "true"}
     recording = page.locator("#recording .lf-motion-play")
     sketch = page.locator("#sketch .lf-motion-play")
@@ -263,8 +263,8 @@ def revised_study(added=""):
 def test_a_revision_inside_a_study_keeps_the_paragraph_read_where_it_stood(
     request, serve, engine
 ):
-    """A study builds its transport beside the authored previews and reads none of
-    them (`lfPatch`), so a revision adding paragraphs above the one the reader
+    """A study draws its transport in its shadow root and reads none of the authored
+    previews (`lfPatch`), so a revision adding paragraphs above the one the reader
     reads inside it edits the study in place: the paragraph stays the node the browser's
     scroll anchoring holds, and stands where it stood. Replaced whole, the study took
     that node away."""
@@ -293,9 +293,8 @@ def test_a_revision_inside_a_study_keeps_the_paragraph_read_where_it_stood(
     assert read.evaluate("el => el.getBoundingClientRect().top") == pytest.approx(
         before, abs=1
     )
-    # The transport the study built stays first, where it sticks over the previews.
+    # The transport the study drew stays, where it sticks over the previews.
     expect(page.locator("#study .lf-motion-controls")).to_have_count(1)
-    expect(page.locator("#study > .lf-motion-transport:first-child")).to_have_count(1)
 
 
 def test_recordings_a_revision_adds_join_the_studys_clock(browser, serve):

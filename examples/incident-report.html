@@ -13,7 +13,7 @@
         <p>postmortem · checkout</p>
         <h1>Why checkout got twice as slow on Tuesday</h1>
       </hgroup>
-      <p class="lede" id="incident-lede">
+      <p class="lf-lede" id="incident-lede">
         The 4.2 release added the currency to the cart cache key, so no cached cart
         matched and every checkout read the cart from Postgres. Rolling the key back
         restored latency; the lasting fix needs your pick below.
@@ -26,7 +26,7 @@
           For 3 hours 42 minutes, checkout p99 sat at 410 ms instead of 180 ms; no
           orders failed, but conversion fell 2.1% against the same hours last week.
         </p>
-        <figure id="incident-impact-chart">
+        <figure class="gist" id="incident-impact-chart">
           <lf-chart id="incident-latency" data-height="240">
             <pre>
 {
@@ -64,9 +64,9 @@
     Plot.text(["rollback complete"], {
       x: new Date("2026-11-17T17:50Z"),
       y: 196,
-      dx: 6,
-      dy: -12,
-      textAnchor: "start",
+      dx: -10,
+      dy: -8,
+      textAnchor: "end",
       fill: "var(--lf-muted)",
     }),
   ],
@@ -93,25 +93,25 @@
           <thead>
             <tr>
               <th>Measure</th>
-              <th>Before</th>
-              <th>During</th>
+              <th class="lf-numeric">Before</th>
+              <th class="lf-numeric">During</th>
             </tr>
           </thead>
           <tbody>
             <tr>
               <td>Checkout p99</td>
-              <td class="num">180 ms</td>
-              <td class="num">410 ms</td>
+              <td class="lf-numeric">180 ms</td>
+              <td class="lf-numeric">410 ms</td>
             </tr>
             <tr>
               <td>Cart cache hit rate</td>
-              <td class="num">94%</td>
-              <td class="num">3%</td>
+              <td class="lf-numeric">94%</td>
+              <td class="lf-numeric">3%</td>
             </tr>
             <tr>
               <td>Postgres CPU</td>
-              <td class="num">22%</td>
-              <td class="num">61%</td>
+              <td class="lf-numeric">22%</td>
+              <td class="lf-numeric">61%</td>
             </tr>
           </tbody>
         </table>

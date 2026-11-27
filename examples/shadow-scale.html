@@ -14,10 +14,10 @@
         --ws-rule: light-dark(#e1dfd8, #34322d);
         --ws-ink: light-dark(#1d1c19, #ecebe6);
         --ws-ink-2: light-dark(#45433e, #c9c7c0);
-        --ws-quiet: light-dark(#75736c, #9a978f);
+        --ws-quiet: light-dark(#66645d, #9a978f);
         --ws-faint: light-dark(#a9a69e, #6b6962);
         --ws-focus: light-dark(#3b74e0, #7aa5f0);
-        --ws-save: light-dark(#14655f, #3f9d94);
+        --ws-save: light-dark(#14655f, #2b8079);
         --ws-card: light-dark(#ffffff, #f7f6f2);
         --ws-card-ink: #1d1c19;
         --ws-sans: Inter, system-ui, sans-serif;
@@ -212,7 +212,7 @@
         font-weight: 500;
       }
       .ws-row span {
-        color: var(--ws-faint);
+        color: var(--ws-quiet);
       }
       shadow-workshop .ws-add {
         color: var(--ws-quiet);
@@ -238,7 +238,7 @@
         font-size: 11px;
         line-height: 26px;
         padding-left: 8px;
-        color: #75736c;
+        color: #66645d;
         transition: box-shadow 160ms ease-out;
       }
       .ws-layer[aria-pressed="true"] .ws-layer-tile {
@@ -379,7 +379,7 @@
       .decision-card__eyebrow {
         display: block;
         font-size: 11px;
-        color: #75736c;
+        color: #66645d;
         margin-bottom: 6px;
       }
       .decision-card__title {
@@ -415,13 +415,9 @@
       }
     </style>
     <script type="module">
-      import {
-        generatedElement,
-        keeps,
-        keepsText,
-        once,
-        whileInterfaceConnected,
-      } from "/runtime/widget-api.js";
+      import { whileInterfaceConnected } from "/runtime/widget-api.js";
+      import { once } from "/runtime/lib/once.js";
+      import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
       // The app's current tokens (tokens.css), as layers.
       const L = (x, y, blur, spread, opacity) => ({ x, y, blur, spread, opacity });
@@ -633,7 +629,10 @@
             sliders.append(colour);
 
             inspector.append(head, presets, row, this.#parts.layers, sliders);
-            for (const box of [stage, inspector]) generatedElement(box, { says: true });
+            for (const box of [stage, inspector]) {
+              keeps(box, "data-lf-gen", "1");
+              box.toggleAttribute("data-lf-said", true);
+            }
             this.append(stage, inspector);
           }
 

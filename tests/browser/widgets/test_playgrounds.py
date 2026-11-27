@@ -19,6 +19,7 @@ from render_harness import (
     put_preview_away,
     resized,
     round_trip,
+    scroll_settled,
     sending,
     stamp_page,
     undo,
@@ -30,8 +31,9 @@ from browser.threads import open_panel_thread
 from browser.widgets import (
     PLAYGROUND_PAGE,
 )
-from leaf import event_log as events_model
-from leaf.render_checks import wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import wait_until_ready
+from leaf_dev.browser import text_field
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -55,8 +57,7 @@ CONTRIBUTOR_PAGE = leaf_page(
   <lf-playground-output>Implement the selected query.</lf-playground-output>
 </lf-playground></lf-group>
 <script type="module">
-import {PAGE_INTERFACE} from "/runtime/widget-api.js";
-document.addEventListener(PAGE_INTERFACE, event => {
+document.addEventListener("lf-page-interface", event => {
   event.detail.present(Promise.resolve().then(() => {
     if (sessionStorage.getItem('delay-query-contributors')) return;
     const playground = document.querySelector('#query-config');
@@ -74,6 +75,22 @@ document.addEventListener(PAGE_INTERFACE, event => {
 </script>
 """,
 )
+
+
+# Whether a node stands whole in the window.
+IN_WINDOW = """node => {
+  const box = node.getBoundingClientRect();
+  return box.top >= 0 && box.left >= 0 && box.bottom <= innerHeight
+    && box.right <= innerWidth;
+}"""
+# Whether nothing stands over a node, the floating panel included, at four points
+# inside its box.
+UNCOVERED = """node => {
+  const box = node.getBoundingClientRect();
+  return [box.left + box.width / 4, box.right - box.width / 4].every(x =>
+    [box.top + box.height / 4, box.bottom - box.height / 4].every(y =>
+      node.contains(document.elementFromPoint(x, y))));
+}"""
 
 
 def test_playground_contributor_needs_no_field(browser, serve):
@@ -474,6 +491,52 @@ def test_playground_select_keeps_the_same_working_configuration(browser, serve):
     expect(stream).to_have_value("billing")
 
 
+def test_a_multiple_select_sends_and_restores_every_option_it_selects(browser, serve):
+    """A `<select multiple>` holds every option it selects: the instruction and the
+    choice name each pick, a reload selects them all again, and a preset that names its
+    options in any order selects them and still reads as pressed after a reload."""
+    source = leaf_page(
+        "Rollout regions",
+        '<lf-group id="rollout-q" label="Which regions?"><lf-playground id="rollout">'
+        '<aside><label id="regions">Regions <select name="regions" multiple>'
+        '<option value="eu-west" selected>EU West</option>'
+        '<option value="us-east">US East</option>'
+        '<option value="ap-south">AP South</option></select></label></aside>'
+        '<lf-playground-preset id="preset-east" label="East">'
+        '<lf-playground-setting for="regions" value="ap-south us-east">'
+        "</lf-playground-setting></lf-playground-preset><p>Preview</p>"
+        '<lf-playground-output>Roll out to <output for="regions"></output>.'
+        "</lf-playground-output></lf-playground></lf-group>",
+    )
+    page = open_page(browser, serve(source))
+    playground = page.locator("#rollout")
+    regions = playground.get_by_role("listbox", name="Regions")
+    regions.select_option(["eu-west", "ap-south"])
+    expect(playground.locator("lf-playground-output")).to_have_text(
+        "Roll out to eu-west, ap-south."
+    )
+    expect(playground).to_have_attribute("data-playground-regions", "eu-west ap-south")
+    with sending(page, "the chosen regions"):
+        playground.get_by_role("button", name="Use these settings").click()
+    choice = next(
+        event
+        for event in reversed(events_model.read_events(serve.page_dir))
+        if event.get("widget") == "rollout" and event.get("action") == "choose"
+    )
+    assert choice["detail"]["values"] == {"regions": ["eu-west", "ap-south"]}
+    page.reload()
+    wait_until_ready(page)
+    expect(regions).to_have_values(["eu-west", "ap-south"])
+    east = playground.get_by_role("button", name="East", exact=True)
+    with sending(page, "the preset's regions"):
+        east.click()
+    expect(regions).to_have_values(["us-east", "ap-south"])
+    page.reload()
+    wait_until_ready(page)
+    expect(regions).to_have_values(["us-east", "ap-south"])
+    expect(east).to_have_attribute("aria-pressed", "true")
+
+
 def test_playground_preview_stays_readable_until_its_controls_load(browser, serve):
     """Authored content is readable while loading; upgrade applies control defaults."""
     page = browser.new_page(viewport={"width": 1280, "height": 900})
@@ -720,10 +783,14 @@ SHORT_WORKSPACE_PLAYGROUND = leaf_page(
 
 def test_inline_playground_keeps_half_a_short_workspace_for_its_stage(browser, serve):
     """With its controls on the stage, a playground in a short workspace keeps at least
-    half the window for the stage. Presets stay visible and Tab brings its actions
-    above the floating panel; a long instruction scrolls inside its popover."""
+    half the window for the stage. Presets stay visible and Tab brings its actions into
+    the window: where the floating panel's row would stand over all of one at the
+    window's foot, the panel folds to the leaf, so the next Tab moves on from it rather
+    than letting go of a control out of sight. A long instruction scrolls inside its
+    popover."""
     page = open_page(browser, serve(SHORT_WORKSPACE_PLAYGROUND))
     resized(page, 900, 500)
+    panel = page.locator(".lf-floating-panel")
     playground = page.locator("#short-config")
     preview = playground.locator(".lf-playground-preview-body")
     expect(
@@ -736,17 +803,17 @@ def test_inline_playground_keeps_half_a_short_workspace_for_its_stage(browser, s
     submit = playground.get_by_role("button", name="Use these settings")
     slider = playground.get_by_role("slider", name="Latency window")
     slider.press("ArrowRight")
+    expect(panel).to_have_attribute("data-lf-rest", "row")
     reset = playground.get_by_role("button", name="Reset", exact=True)
     reveal = playground.get_by_role("button", name="Show instruction")
     for key, target in [("Tab", reset), ("Tab", reveal), ("Shift+Tab", reset)]:
         page.keyboard.press(key)
         expect(target).to_be_focused()
-        assert target.evaluate("""node => {
-          const box = node.getBoundingClientRect();
-          return [box.left + box.width / 4, box.right - box.width / 4].every(x =>
-            [box.top + box.height / 4, box.bottom - box.height / 4].every(y =>
-              node.contains(document.elementFromPoint(x, y))));
-        }"""), f"{key} left {target.get_attribute('aria-label')} covered"
+        expect(panel).to_have_attribute("data-lf-rest", "mark")
+        scroll_settled(page, "#tune")
+        assert target.evaluate(UNCOVERED), (
+            f"{key} left {target.get_attribute('aria-label')} covered"
+        )
     page.keyboard.press("Enter")
     expect(slider).to_have_value("5")
     page.keyboard.press("Tab")
@@ -772,15 +839,12 @@ def test_inline_playground_keeps_half_a_short_workspace_for_its_stage(browser, s
     }
 
 
-def test_a_playground_in_a_short_page_tab_keeps_its_actions_clear_of_the_panel(
-    browser, serve
-):
+def test_a_playground_in_a_short_page_tab_keeps_its_actions_in_reach(browser, serve):
     """A page tab that is one block, a playground's question group, passes the window's
     height to the playground, and where the window is shorter than the playground's
     stage and bar the tab keeps the playground's height, so the tab set scrolls to the
-    panel's room after the bar. Tab reaches each action clear of the floating panel.
-    Were the tab to shrink to the window, the group would run past it, the set would
-    scroll only to the window's foot, and the panel would stand over Reset."""
+    bar, and Tab brings each action into the window. Were the tab to shrink to the
+    window, the group would run past it and the set would never bring Reset in."""
     source = leaf_page(
         "Alert tabs",
         '<header><h1 id="tabs-h">Tune alert policies</h1></header>'
@@ -811,12 +875,9 @@ def test_a_playground_in_a_short_page_tab_keeps_its_actions_clear_of_the_panel(
     ]:
         page.keyboard.press("Tab")
         expect(target).to_be_focused()
-        assert target.evaluate("""node => {
-          const box = node.getBoundingClientRect();
-          return [box.left + box.width / 4, box.right - box.width / 4].every(x =>
-            [box.top + box.height / 4, box.bottom - box.height / 4].every(y =>
-              node.contains(document.elementFromPoint(x, y))));
-        }"""), f"{target.get_attribute('aria-label')} stands under the panel"
+        assert target.evaluate(IN_WINDOW), (
+            f"{target.get_attribute('aria-label')} is out of the window"
+        )
 
 
 @pytest.mark.parametrize("over", ["stage", "presets"])
@@ -986,8 +1047,8 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
     }"""
 
     # Without a Controls label or a Starting points label over them, the list fits
-    # at 700px tall; 600 still runs it past the rail's foot, so it scrolls.
-    resized(page, 1100, 600)
+    # at 600px tall; 530 still runs it past the rail's foot, so it scrolls.
+    resized(page, 1100, 530)
     expect(actions).to_be_visible()
     bounded = page.evaluate(reading)
     assert bounded == {
@@ -1085,12 +1146,10 @@ def test_notification_playground_sets_regions_side_by_side_while_its_workspace_i
     assert preview.evaluate("body => body.scrollTop") == 0
     action_box = actions.bounding_box()
     playground_box = playground.bounding_box()
-    panel_box = page.locator(".lf-fp-row").bounding_box()
     assert (
         action_box["y"] + action_box["height"]
         <= playground_box["y"] + playground_box["height"] + 1
     )
-    assert action_box["y"] + action_box["height"] <= panel_box["y"] + 1
 
     for width, height in [(1100, 300), (700, 500), (500, 900)]:
         resized(page, width, height)
@@ -1402,7 +1461,8 @@ PAGE_ACTIONS_PAGE = leaf_page(
   <lf-playground-output>Keep the tile size.</lf-playground-output>
 </lf-playground></lf-group>
 <script type="module">
-import {generatedElement, once, whileInterfaceConnected} from "/runtime/widget-api.js";
+import {whileInterfaceConnected} from "/runtime/widget-api.js";
+import {once} from "/runtime/lib/once.js";
 customElements.define("tile-tool", class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
@@ -1414,7 +1474,9 @@ customElements.define("tile-tool", class extends HTMLElement {
     };
     const grow = button("Grow");
     const save = this.querySelector(".tile-save"), reset = this.querySelector('[type="reset"]');
-    const tools = generatedElement(document.createElement("div"), {says: true});
+    const tools = document.createElement("div");
+    tools.setAttribute("data-lf-gen", "1");
+    tools.toggleAttribute("data-lf-said", true);
     tools.append(grow, save, reset);
     this.append(tools);
     const playground = this.closest("lf-playground");
@@ -1712,9 +1774,7 @@ def test_a_comment_names_the_playground_member_it_points_at(browser, serve, subt
     page.mouse.down()
     page.mouse.up()
     page.keyboard.up("Alt")
-    field = page.get_by_role(
-        "textbox", name=re.compile(r"^Comment on .* · Reply, Comment$")
-    )
+    field = text_field(page, name=re.compile(r"^Comment on .* · Reply, Comment$"))
     expect(field).to_be_focused()
     page.keyboard.type("Could this say less?")
     with sending(page, "the comment on the option"):
@@ -1818,9 +1878,11 @@ def test_a_choice_made_while_the_settings_hold_a_retired_field_reads_as_chosen(
             "widget": "notification-playground",
             "action": "tune",
             "detail": {"values": {**values, "retired": "kept"}},
+            # A tune answers nothing until the choice that follows it.
+            "answered": False,
         },
     )
-    assert response.ok
+    assert response.ok, response.text()
     wait_for(
         lambda: playground.evaluate(
             "root => root.state?.tune?.detail?.values?.retired"

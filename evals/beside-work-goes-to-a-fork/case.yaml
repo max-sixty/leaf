@@ -1,0 +1,432 @@
+# A Claude Code session gets a thread message whose work, a lookup in the repository,
+# could run beside the change the session is partway through. Leaf marks nothing: the
+# session judges who does the work. The rule is in `references/harness-claude-code.md`,
+# "Subagents": give work that touches and awaits nothing of the session's to a fork in
+# the background, which answers it itself, start the message, since the line fork's
+# working line doesn't start it, and send the thread's later messages to a fork. The
+# failures it invites are doing the work inline, which holds up both the user and the
+# session's change, and skipping the start because the thread already shows a working
+# line. Each context is the hook's output as Leaf writes it (`hook_transport.carry_turn`
+# through `delivery.inline_context`), rendered from `delivery.handled` with the kernel
+# registry's clauses, its ids, page and claim substituted. The `later`
+# variant is the thread's next message after the fork answered. The `next-turn`
+# variant is a turn opened for a message in another thread while the fork still works
+# on the message the session started, which Leaf names nowhere then
+# (`activity.start_holds`); the failure it invites is starting that message again or
+# doing its work. `fork-ended` is Leaf's reminder once the fork has ended without
+# answering, which the session answers or puts to work again. The subject can't run
+# the Agent tool, so it writes the operations out.
+description: beside-work-goes-to-a-fork
+metadata:
+  purpose:
+    A thread message whose work can run beside the session's own goes to a fork the
+    session spawns in the background, which answers it, the session starts it, and the
+    thread's later messages go to a fork too.
+  tags:
+    - wait-loop
+    - forks
+    - threads
+  harnesses: [claude-code]
+vars:
+  prompt: |
+    You are a Claude Code session using Leaf, serving the page /Users/max/.local/state/leaf/pages/importer-review to the user. The user asked you to move the importer's retry loop out of `importer/worker.py` into a new `importer/retry.py`, and you have moved it and edited two of its five call sites. Your last command, `uv run pytest tests/test_retry.py -q`, passed, and with its result Leaf's tool-boundary hook added this to your context:
+
+    Leaf has new input for your turn. Read this complete delivery before answering.
+
+    ```json
+    {
+     "format": "leaf-delivery/59",
+     "id": "c31f7a52",
+     "created_at": 1795050000.0,
+     "acknowledge": null,
+     "batches": [
+      {
+       "page": "/Users/max/.local/state/leaf/pages/importer-review",
+       "claim": "4c8b14ff-072d-482b-99b1-c131ab44cf51",
+       "through_seq": 21,
+       "threads": [
+        {
+         "id": "70a0f2c6",
+         "title": null,
+         "anchor": {
+          "section": "poll-interval"
+         },
+         "detached_from": null,
+         "rewritten_from": null,
+         "resolved": null,
+         "elided": {
+          "messages": 0,
+          "actions": 0
+         },
+         "messages": [
+          {
+           "id": "b81e3d07",
+           "seq": 21,
+           "ts": "2026-11-18T19:38:58.904-08:00",
+           "author": "agent",
+           "agent": "Claude",
+           "text": "checking the lease's renewal interval in the source",
+           "ephemeral": true
+          }
+         ],
+         "summaries": [],
+         "actions": []
+        }
+       ],
+       "handling": {
+        "h1": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.",
+        "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn, with `--waiting-on \"<what>\"` where it can't start until something you don't control happens. `--done` when it leaves nobody a move.",
+        "h3": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply."
+       },
+       "events": [
+        {
+         "kind": "comment",
+         "text": "Why does the importer poll every 2 seconds? Check what the lease allows.",
+         "anchor": {
+          "section": "poll-interval"
+         },
+         "revision": 2,
+         "author": "user",
+         "id": "70a0f2c6",
+         "attention": true,
+         "ts": "2026-11-18T19:38:56.497-08:00",
+         "seq": 20,
+         "subject": {
+          "kind": "thread",
+          "id": "70a0f2c6"
+         },
+         "threads": [
+          "70a0f2c6"
+         ],
+         "handling": [
+          "h1",
+          "h2",
+          "h3"
+         ],
+         "answer": {
+          "kind": "reply",
+          "parent": "70a0f2c6",
+          "responds": "70a0f2c6",
+          "ref": "c31f7a52:0:70a0f2c6",
+          "writer": "agent"
+         }
+        }
+       ]
+      }
+     ]
+    }
+    ```
+    The repository is /Users/max/src/importer.
+
+    Only Skill and Read run in this probe, so describe the operations you would perform next, in order, including each command with its full arguments, the words you would put in the thread and the full brief of any subagent you would start or message. Then end your answer.
+
+assert:
+  - type: llm-rubric
+    metric: spawns-a-fork
+    value: |
+      Pass only if the agent starts a background subagent for the user's message
+      70a0f2c6 whose brief has it do the work the message asks (reading what the lease
+      allows) and answer the user there itself, with `leaf thread reply` and the
+      reference `c31f7a52:0:70a0f2c6`, and the agent itself goes on with the retry
+      change rather than doing that work. Posting a progress line on the message
+      (`--ephemeral`) or starting it with `leaf task start` is fine. Fail if the agent
+      reads the lease or answers the message itself, waits for the subagent before
+      going on, or starts no subagent for it.
+  - type: llm-rubric
+    metric: starts-the-message
+    value: |
+      Pass only if the agent itself takes the user's message 70a0f2c6 in hand in this
+      turn, before it ends the turn, with `leaf task start
+      /Users/max/.local/state/leaf/pages/importer-review 70a0f2c6 --text "<a line>"` or
+      a progress line `leaf thread reply c31f7a52:0:70a0f2c6 --ephemeral --text "<a
+      line>"`. Fail if it leaves that to the subagent, or starts nothing because Leaf's
+      line fork already posted a working line.
+  - type: llm-rubric
+    metric: fork-type
+    value: |
+      Pass only if the subagent the agent starts for the user's message 70a0f2c6 is a
+      fork of its own conversation, such as the Agent tool with `subagent_type:
+      "fork"`. Fail if it starts a fresh subagent of another type, or none.
+variants:
+  later:
+    metadata:
+      purpose:
+        The thread's next message, whose work can run beside the session's too, goes
+        to a fork, the one that answered the thread or a new one, rather than to the
+        session itself.
+    vars:
+      prompt: |
+        You are a Claude Code session using Leaf, serving the page /Users/max/.local/state/leaf/pages/importer-review to the user. The user asked you to move the importer's retry loop out of `importer/worker.py` into a new `importer/retry.py`, and you are editing its call sites. Earlier in this turn you gave the user's question "Why does the importer poll every 2 seconds? Check what the lease allows." in thread 70a0f2c6 on that page to a fork of yourself in the background, agent id a7c31e9f04b2d58e6, which answered the user there and reported back to you that the lease renews every 10 s. Your last command, `uv run pytest tests/test_retry.py -q`, passed, and with its result Leaf's tool-boundary hook added this to your context:
+
+        Leaf has new input for your turn. Read this complete delivery before answering.
+
+        ```json
+        {
+         "format": "leaf-delivery/59",
+         "id": "5d08e6b1",
+         "created_at": 1795050000.0,
+         "acknowledge": null,
+         "batches": [
+          {
+           "page": "/Users/max/.local/state/leaf/pages/importer-review",
+           "claim": "4c8b14ff-072d-482b-99b1-c131ab44cf51",
+           "through_seq": 27,
+           "threads": [
+            {
+             "id": "70a0f2c6",
+             "title": "Importer poll interval",
+             "anchor": {
+              "section": "poll-interval"
+             },
+             "detached_from": null,
+             "rewritten_from": null,
+             "resolved": null,
+             "elided": {
+              "messages": 0,
+              "actions": 0
+             },
+             "messages": [
+              {
+               "id": "70a0f2c6",
+               "seq": 20,
+               "ts": "2026-11-18T19:38:56.497-08:00",
+               "author": "user",
+               "text": "Why does the importer poll every 2 seconds? Check what the lease allows."
+              },
+              {
+               "id": "a41f09d2",
+               "seq": 24,
+               "ts": "2026-11-18T19:39:31.112-08:00",
+               "author": "agent",
+               "agent": "Claude",
+               "text": "It matches nothing the lease needs: `importer/lease.py` renews every 10 s (`RENEWAL = timedelta(seconds=10)`), so a 5 s poll would still notice a dead worker within one renewal."
+              },
+              {
+               "id": "70c4b9e3",
+               "seq": 27,
+               "ts": "2026-11-18T19:41:07.630-08:00",
+               "author": "agent",
+               "agent": "Claude",
+               "text": "checking how a late renewal is handled",
+               "ephemeral": true
+              }
+             ],
+             "summaries": [],
+             "actions": []
+            }
+           ],
+           "handling": {
+            "h1": "The batch's `threads` holds the thread's context; `leaf page state <page> <message>` reads its full history.",
+            "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn, with `--waiting-on \"<what>\"` where it can't start until something you don't control happens. `--done` when it leaves nobody a move.",
+            "h3": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply."
+           },
+           "events": [
+            {
+             "kind": "reply",
+             "text": "What happens to a worker that renews late?",
+             "parent": "70a0f2c6",
+             "author": "user",
+             "id": "e2b85c17",
+             "attention": true,
+             "ts": "2026-11-18T19:41:05.218-08:00",
+             "seq": 26,
+             "subject": {
+              "kind": "thread",
+              "id": "70a0f2c6"
+             },
+             "threads": [
+              "70a0f2c6"
+             ],
+             "handling": [
+              "h1",
+              "h2",
+              "h3"
+             ],
+             "answer": {
+              "kind": "reply",
+              "parent": "70a0f2c6",
+              "responds": "e2b85c17",
+              "ref": "5d08e6b1:0:e2b85c17",
+              "writer": "agent"
+             }
+            }
+           ]
+          }
+         ]
+        }
+        ```
+        The repository is /Users/max/src/importer.
+
+        Only Skill and Read run in this probe, so describe the operations you would perform next, in order, including each command with its full arguments, the words you would put in the thread and the full brief of any subagent you would start or message. Then end your answer.
+
+    assert:
+      - type: llm-rubric
+        metric: spawns-a-fork
+        value: |
+          Pass only if the agent gives the user's message e2b85c17 to a fork of its
+          conversation in the background, either the fork that answered the thread,
+          agent a7c31e9f04b2d58e6, with SendMessage to that id, or a new one, with the
+          message and its reference `5d08e6b1:0:e2b85c17` for the fork's answer, and the
+          agent itself goes on with the retry change. Posting a progress line on the
+          message (`--ephemeral`) is fine. Fail if the agent answers the message or
+          does its work itself, waits for the fork before going on, or starts a fresh
+          subagent of another type for it.
+      - type: llm-rubric
+        metric: starts-the-message
+        value: |
+          Pass only if the agent itself takes the user's message e2b85c17 in hand in
+          this turn, before it ends the turn, with `leaf task start
+          /Users/max/.local/state/leaf/pages/importer-review e2b85c17 --text "<a line>"`
+          or a progress line `leaf thread reply 5d08e6b1:0:e2b85c17 --ephemeral --text
+          "<a line>"`. Fail if it leaves that to the fork, or starts nothing because
+          Leaf's line fork already posted a working line.
+  next-turn:
+    metadata:
+      purpose: In a later turn, a message the session started and gave to a fork that is
+        still working stays with that fork, and the session takes the new message.
+    vars:
+      prompt: |
+        You are a Claude Code session using Leaf, serving the page /Users/max/.local/state/leaf/pages/importer-review to the user. The user asked you to move the importer's retry loop out of `importer/worker.py` into a new `importer/retry.py`. In your previous turn the user asked in thread 70a0f2c6 on that page: "Why does the importer poll every 2 seconds? Check what the lease allows." You ran `leaf task start /Users/max/.local/state/leaf/pages/importer-review 70a0f2c6 --text "checking the lease's renewal interval in the source"`, gave the question to a fork of yourself in the background, agent id a7c31e9f04b2d58e6, with its answer reference `c31f7a52:0:70a0f2c6`, finished moving the retry loop and editing its five call sites, and ended your turn. The fork has not reported back yet.
+
+        A new turn has begun. Leaf's watch woke you with "/Users/max/.local/state/leaf/pages/importer-review has new input; Leaf's prompt hook puts it in your context with this notification", and Leaf's prompt hook added this to your context:
+
+        Leaf has new input for your turn. Read this complete delivery before answering.
+
+        ```json
+        {
+         "format": "leaf-delivery/59",
+         "id": "e7a20c94",
+         "created_at": 1795050600.0,
+         "acknowledge": null,
+         "batches": [
+          {
+           "page": "/Users/max/.local/state/leaf/pages/importer-review",
+           "claim": "4c8b14ff-072d-482b-99b1-c131ab44cf51",
+           "through_seq": 32,
+           "threads": [
+            {
+             "id": "8d41c2a0",
+             "title": null,
+             "anchor": {
+              "section": "retry-loop"
+             },
+             "detached_from": null,
+             "rewritten_from": null,
+             "resolved": null,
+             "elided": {
+              "messages": 0,
+              "actions": 0
+             },
+             "messages": [
+              {
+               "id": "5b27e1f6",
+               "seq": 32,
+               "ts": "2026-11-18T19:49:12.381-08:00",
+               "author": "agent",
+               "agent": "Claude",
+               "text": "checking whether retry.py keeps the old loop's jitter",
+               "ephemeral": true
+              }
+             ],
+             "summaries": [],
+             "actions": []
+            }
+           ],
+           "handling": {
+            "h1": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.",
+            "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn, with `--waiting-on \"<what>\"` where it can't start until something you don't control happens. `--done` when it leaves nobody a move.",
+            "h3": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply."
+           },
+           "events": [
+            {
+             "kind": "comment",
+             "text": "Does the new retry.py keep the jitter the old loop had?",
+             "anchor": {
+              "section": "retry-loop"
+             },
+             "revision": 3,
+             "author": "user",
+             "id": "8d41c2a0",
+             "attention": true,
+             "ts": "2026-11-18T19:49:10.044-08:00",
+             "seq": 31,
+             "subject": {
+              "kind": "thread",
+              "id": "8d41c2a0"
+             },
+             "threads": [
+              "8d41c2a0"
+             ],
+             "handling": [
+              "h1",
+              "h2",
+              "h3"
+             ],
+             "answer": {
+              "kind": "reply",
+              "parent": "8d41c2a0",
+              "responds": "8d41c2a0",
+              "ref": "e7a20c94:0:8d41c2a0",
+              "writer": "agent"
+             }
+            }
+           ]
+          }
+         ]
+        }
+        ```
+        The repository is /Users/max/src/importer.
+
+        Only Skill and Read run in this probe, so describe the operations you would perform next, in order, including each command with its full arguments, the words you would put in the thread and the full brief of any subagent you would start or message. Then end your answer.
+
+    assert:
+      - type: llm-rubric
+        metric: leaves-the-fork-its-message
+        value: |
+          Pass only if the agent leaves the user's message 70a0f2c6 to the fork still
+          working on it: it runs no `leaf task start` naming 70a0f2c6, posts nothing
+          with the reference `c31f7a52:0:70a0f2c6`, does none of that message's work
+          (reading what the lease allows), and sends the fork no new brief for it.
+          Noting that the fork is still running, or waiting for its report, is fine.
+          Fail if it starts 70a0f2c6 again, answers it, or does its work.
+      - type: llm-rubric
+        metric: takes-the-new-message
+        value: |
+          Pass only if the agent sees to the new message 8d41c2a0: it answers it with
+          `leaf thread reply e7a20c94:0:8d41c2a0`, after whatever check of
+          `importer/retry.py` the question needs, or gives it to a fork with that
+          reference. Fail if it leaves 8d41c2a0 unanswered with nothing at work on it.
+  fork-ended:
+    metadata:
+      purpose: Once the fork that held a started message has ended without answering it,
+        Leaf's reminder has the session answer the message or put it to work again.
+    vars:
+      prompt: |
+        You are a Claude Code session using Leaf, serving the page /Users/max/.local/state/leaf/pages/importer-review to the user. The user asked you to move the importer's retry loop out of `importer/worker.py` into a new `importer/retry.py`, and you have finished that change. Earlier the user asked in thread 70a0f2c6 on that page: "Why does the importer poll every 2 seconds? Check what the lease allows." You ran `leaf task start /Users/max/.local/state/leaf/pages/importer-review 70a0f2c6 --text "checking the lease's renewal interval in the source"` and gave the question to a fork of yourself in the background, agent id a7c31e9f04b2d58e6, with its answer reference `c31f7a52:0:70a0f2c6`. The fork has since finished, and its report read: "Found the renewal in importer/lease.py: RENEWAL = timedelta(seconds=10). Ran out of time before checking how the poll interval is chosen, and did not reply in the thread." Your last turn read that report and ended.
+
+        Leaf's watch then woke you with "/Users/max/.local/state/leaf/pages/importer-review has an update still owed an answer; Leaf's prompt hook names it in your context with this notification", and Leaf's prompt hook added this to your context:
+
+        Leaf needs attention:
+        - /Users/max/.local/state/leaf/pages/importer-review: 1 acknowledged user update with no answer (`leaf thread reply c31f7a52:0:70a0f2c6`); your start on 70a0f2c6 lapsed when its turn ended with no agent of yours working in the background, or predates the pickup of a newer update in its thread. Answer once that work is done, or, while it runs, start it again with `leaf task start <page> <id> --text "<what is still running>"`.
+
+        `leaf page state <page>` lists what is owed, and `leaf page state <page> <message>` reads a thread's history.
+        Read these unanswered updates and their exact answer references:
+
+        ```xml
+        <leaf-delivery id="c31f7a52" operation="delivery read" />
+        ```
+
+        The repository is /Users/max/src/importer.
+
+        Only Skill and Read run in this probe, so describe the operations you would perform next, in order, including each command with its full arguments, the words you would put in the thread and the full brief of any subagent you would start or message. Then end your answer.
+
+    assert:
+      - type: llm-rubric
+        metric: answers-or-restarts
+        value: |
+          Pass only if the agent sees to the user's message 70a0f2c6: it answers it
+          with `leaf thread reply c31f7a52:0:70a0f2c6`, after whatever check of the
+          poll interval the question still needs, or gives that work to a fork again
+          and starts the message (`leaf task start ... 70a0f2c6` or a progress line on
+          that reference). Fail if it leaves 70a0f2c6 unanswered with nothing at work
+          on it, or waits for the ended fork.

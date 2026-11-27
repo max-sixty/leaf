@@ -17,7 +17,7 @@ from render_harness import (
     scroll_settled,
 )
 
-from leaf.render_checks import wait_until_ready
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -50,8 +50,9 @@ def _whole_and_apart(*marks):
 def test_a_control_s_badges_stand_apart_whichever_show(browser, serve, direction):
     """Every badge on a control stays whole beside the others, a two-digit count among
     them: a margin entry's count and unread dot, in the rail and as a pin, and the
-    folded leaf's count, news and error, which are wider together than the leaf, in
-    either direction (`.lf-badges`, controls.css)."""
+    leaf's count, news and error, which are wider together than the leaf, clear inside
+    the panel in its row and on the folded tile's outline, in either direction
+    (`.lf-badges`, controls.css)."""
     source = leaf_page(
         "Badges",
         '<p id="answered">Twelve answers wait here.</p><p id="asked">One question.</p>',
@@ -99,16 +100,140 @@ def test_a_control_s_badges_stand_apart_whichever_show(browser, serve, direction
         )
 
     resized(page, 1440, 900)
+    # Two errors, so one waits unseen in the menu while the row's field says the other.
+    page.evaluate(
+        """async () => {
+          const api = await window.__lfCheckApi();
+          api.raiseError('Not saved');
+          api.raiseError('Not sent');
+        }"""
+    )
+    leaf = page.locator(".lf-fp-leaf > .lf-badges")
+    marks = [
+        leaf.locator(name)
+        for name in (".lf-fp-badge", ".lf-fp-news-dot", ".lf-fp-error-dot")
+    ]
+    for rest in ("row", "mark"):
+        if rest == "mark":
+            page.keyboard.press(".")
+        expect(page.locator(".lf-floating-panel")).to_have_attribute(
+            "data-lf-rest", rest
+        )
+        # The fold's motion starts in the frame after the press.
+        rendered(page)
+        panel_settled(page, open=False)
+        for mark in marks:
+            expect(mark).to_be_visible()
+        assert _whole_and_apart(*marks)
+        stands = page.evaluate(_BADGE_STANDING, [m.element_handle() for m in marks])
+        if rest == "row":
+            # In the row the panel's card clips what crosses its edge, so each badge
+            # stands clear inside it, whichever end of the row the leaf stands at.
+            assert all(clear >= 4 - 0.5 for clear in stands["clear"]), stands
+        else:
+            # Folded, each badge is centred on the tile's outline: one at a corner on
+            # its curve, one beside it on the straight edge.
+            assert all(abs(off) <= 1 for off in stands["outline"]), stands
+
+
+# How each of the leaf's badges stands against the panel's card: how far its box
+# stands inside the card's edges (`clear`), and how far the centre of its end, a
+# circle the badge's height across, stands from the card's outline, a rectangle
+# with rounded corners (`outline`, positive outside).
+_BADGE_STANDING = """marks => {
+  const card = document.querySelector('.lf-fp-card');
+  const k = card.getBoundingClientRect();
+  const r = parseFloat(getComputedStyle(card).borderTopLeftRadius);
+  const outline = (x, y) => {
+    const qx = Math.abs(x - (k.left + k.right) / 2) - (k.width / 2 - r);
+    const qy = Math.abs(y - (k.top + k.bottom) / 2) - (k.height / 2 - r);
+    return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r;
+  };
+  const clear = [], centres = [];
+  for (const mark of marks) {
+    const b = mark.getBoundingClientRect();
+    clear.push(Math.min(b.left - k.left, k.right - b.right, b.top - k.top, k.bottom - b.bottom));
+    const cap = b.height / 2;
+    const x = b.right - cap < (k.left + k.right) / 2 ? b.left + cap : b.right - cap;
+    centres.push(outline(x, b.top + cap));
+  }
+  return { clear, outline: centres };
+}"""
+
+
+def _dot_places(browser, serve, events, counted):
+    """How far each control's dot stands from the left end of its badges' row, on a
+    page whose controls show a count or none: the margin entry for `answered` in the
+    rail and as a pin, and the folded leaf. Each reading finds the row and its dot in
+    one call, since the runtime redraws an entry's badges."""
+    source = leaf_page(
+        "Dots", '<p id="answered">Answers wait here.</p><p id="asked">A question.</p>'
+    )
+    page = open_page(browser, serve(source, events=events))
+    offset = """([row, dot]) => {
+      const badges = document.querySelector(row);
+      const left = badges.querySelector(dot).getBoundingClientRect().left;
+      return Math.round(left - badges.getBoundingClientRect().left);
+    }"""
+    entry = page.locator('[data-lf-margin-for="answered"]')
+    row = '[data-lf-margin-for="answered"] .lf-margin-marker > .lf-badges'
+    places = {}
+    for width, place in ((1440, "rail"), (700, "pin")):
+        resized(page, width, 900)
+        expect(entry).to_have_attribute("data-lf-place", place)
+        expect(entry.locator(".lf-badge-count")).to_have_count(int(counted))
+        places[place] = page.evaluate(offset, [row, ".lf-unread-dot"])
+
+    resized(page, 1440, 900)
     page.keyboard.press(".")
     expect(page.locator(".lf-floating-panel")).to_have_attribute("data-lf-rest", "mark")
-    page.evaluate("async () => (await window.__lfWidgetApi()).raiseError('Not saved')")
     panel_settled(page, open=False)
-    leaf = page.locator(".lf-fp-leaf > .lf-badges")
-    marks = [leaf.locator(name) for name in (".lf-fp-badge", ".lf-fp-news-dot")]
-    marks.append(leaf.locator(".lf-fp-error-dot"))
-    for mark in marks:
-        expect(mark).to_be_visible()
-    assert _whole_and_apart(*marks)
+    expect(page.locator(".lf-fp-leaf .lf-fp-badge:visible")).to_have_count(int(counted))
+    places["leaf"] = page.evaluate(
+        offset, [".lf-fp-leaf > .lf-badges", ".lf-fp-news-dot"]
+    )
+    return places
+
+
+def test_a_control_s_dot_keeps_its_corner_whether_a_count_shows(browser, serve):
+    """A control's dot stands where it stood without a count once a count shows beside
+    it: a margin entry's unread dot beside its count of threads, in the rail and as a
+    pin, and the folded leaf's news dot beside its count of what is On me (`.lf-badges`,
+    controls.css)."""
+    answer = {
+        "kind": "comment",
+        "author": "agent",
+        "agent": "Claude",
+        "revision": 1,
+        "text": "One answer.",
+        "anchor": {"section": "answered"},
+    }
+    asked = {
+        "kind": "comment",
+        "author": "user",
+        "revision": 1,
+        "id": "q",
+        "text": "Which comes first?",
+        "anchor": {"section": "asked"},
+    }
+    owed = {
+        "kind": "reply",
+        "author": "agent",
+        "agent": "Claude",
+        "revision": 1,
+        "parent": "q",
+        "responds": "q",
+        "obligation": True,
+        "text": "The hatch or the window?",
+    }
+    alone = _dot_places(browser, serve, [answer], counted=False)
+    beside = _dot_places(
+        browser,
+        serve,
+        [answer, {**answer, "text": "Another answer."}, asked, owed],
+        counted=True,
+    )
+    assert beside == alone
 
 
 @pytest.mark.parametrize("width", [390])
@@ -155,7 +280,8 @@ def test_merge_film_play_continues_from_the_displayed_moment(browser, serve, wid
 def test_sample_browser_boundary_contains_focus_scroll_and_parent_access(
     browser, serve
 ):
-    """Leaf navigation stays local without changing authored native browser APIs."""
+    """Leaf navigation stays local, and a script's own focus and reveal calls still do
+    what the browser's do."""
     filler = "".join(f"<p>Child passage {number}.</p>" for number in range(40))
     source = leaf_page(
         "Isolated sample",
@@ -175,7 +301,8 @@ def test_sample_browser_boundary_contains_focus_scroll_and_parent_access(
     <div id="practice-popover" popover><input></div>
     <iframe title="Authored embedded page" srcdoc="<p>Embedded content is allowed</p>"></iframe>
     <script type="module">
-      import {{ closeNativeLayer, focusDestination, scrollIntoView, showNativeLayer }} from '/runtime/widget-api.js';
+      import {{ focusDestination, scrollIntoView }} from '/runtime/widget-api.js';
+      const {{ closeNativeLayer, showNativeLayer }} = await window.__lfCheckApi();
       window.leafNavigation = {{ closeNativeLayer, focusDestination, scrollIntoView, showNativeLayer }};
       for (const input of document.querySelectorAll('dialog input, [popover] input'))
         input.autofocus = true;
@@ -216,6 +343,8 @@ def test_sample_browser_boundary_contains_focus_scroll_and_parent_access(
     sample = page.locator("#isolated-practice")
     sample.evaluate("async sample => await sample.ready")
     child = sample.locator("iframe").element_handle().content_frame()
+    # The practice script takes the runtime's layer calls after an await.
+    child.wait_for_function("() => window.leafNavigation")
     assert child.evaluate(
         """() => {
           try { parent.document; return false; }
@@ -243,11 +372,12 @@ def test_sample_browser_boundary_contains_focus_scroll_and_parent_access(
     assert external_requests[0]["origin"] == "null"
     assert "cookie" not in external_requests[0]
     page.unroute(remote)
-    # Scripts and nested embeds are still admitted; native methods are untouched.
-    assert child.evaluate("""() =>
-      [HTMLElement.prototype.focus, Element.prototype.scrollIntoView]
-        .every(method => Function.prototype.toString.call(method).includes('[native code]'))
-    """)
+    # Scripts and nested embeds are still admitted, and a script's own focus call is the
+    # browser's.
+    assert child.evaluate(
+        "() => Function.prototype.toString.call(HTMLElement.prototype.focus)"
+        ".includes('[native code]')"
+    )
     expect(child.locator('iframe[title="Authored embedded page"]')).to_have_count(1)
     outer = page.locator("#outer-control")
     outer.click()
@@ -279,8 +409,20 @@ def test_sample_browser_boundary_contains_focus_scroll_and_parent_access(
     assert page.evaluate("scrollY") == before
     assert page.evaluate("outerTransitions") == []
     assert child.evaluate("leafFocusEvents") == []
-    assert child.evaluate("scrollY") > 0
+    landed = child.evaluate("scrollY")
+    assert landed > 0
     assert child.locator("#inner-scroll").evaluate("node => node.scrollTop") > 0
+
+    # A script's own reveal still does what the browser's does. Leaf hears the call
+    # (runtime/dom/arrivals.js) and doesn't contain it, so it shows its target in the sample
+    # and, through the sample's frame, in the page around it.
+    revealed = child.evaluate("""() => {
+      document.querySelector('#child-control').scrollIntoView({behavior: 'instant'});
+      return scrollY;
+    }""")
+    assert revealed < landed
+    page.wait_for_function("before => scrollY > before", arg=before)
+    scroll_settled(page)
 
     # A deliberate pointer entry gets real child focus and ordinary local keys.
     sample.scroll_into_view_if_needed()

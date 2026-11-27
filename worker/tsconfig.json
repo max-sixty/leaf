@@ -6,6 +6,7 @@
     "customConditions": ["workerd"],
     "noEmit": true,
     "noUnusedLocals": true,
+    "noUnusedParameters": true,
     "skipLibCheck": true,
     "strict": true,
     "types": ["@cloudflare/workers-types", "node"],
@@ -16,5 +17,6 @@
     "allowUnusedLabels": false,
     "noUncheckedSideEffectImports": true
   },
-  "include": ["src/**/*.ts", "test/**/*.ts"]
+  "include": ["src/**/*.ts", "test/**/*.ts"],
+  "exclude": ["test/runtime-preloads.test.ts", "test/bundle-runtime.test.ts"]
 }

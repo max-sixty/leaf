@@ -6,7 +6,23 @@ import { dirname, join } from "node:path";
 import { pathToFileURL } from "node:url";
 import { test } from "node:test";
 
-import { kernelOutputs } from "./runtime-bundle.mjs";
+import { kernelOutputs, runtimeEntries } from "./runtime-bundle.mjs";
+
+// The entries the fixture below writes a source of its own for, to follow state
+// through them.
+const traced = new Set([
+  "leaf.js",
+  "runtime/transport/layer-client.js",
+  "runtime/records/media.js",
+  "runtime/widget-api.js",
+  "runtime/portable-api.js",
+  "runtime/check-api.js",
+]);
+// Every other entry of the kernel's, such as the library's modules. A stub stands for
+// each one the bundler lists, so a module that joins the public ones changes nothing
+// here.
+const library = runtimeEntries.filter((path) => !traced.has(path));
+const besideLibrary = (paths) => paths.filter((path) => !library.includes(path));
 
 /** The runtime a Leaf serves with the kernel: the source minus what it replaces. */
 async function vendor(layer, kernel, output) {
@@ -27,29 +43,34 @@ test("the kernel preserves native packages and shared state", async () => {
   const output = join(temporary, "output");
   const sources = {
     "leaf.js":
-      'export { state } from "./runtime/state.js"; export const annotations = () => import("./runtime/annotation-overlay/index.js"); export const widget = () => import("./widgets/custom.js");',
+      'export { state } from "./runtime/state.js"; export const annotations = () => import("./runtime/annotations/annotation-overlay/index.js"); export const widget = () => import("./widgets/custom.js");',
     "runtime/state.js": "export const state = { clicks: 0, annotations: false };",
     "runtime/vendor-bridge.js": 'export { state } from "./state.js";',
     "runtime/widget-api.js": 'export { state } from "./state.js";',
     "runtime/portable-api.js":
-      'export const clock = () => import("./document-inputs.js"); export { state } from "./state.js";',
-    "runtime/document-inputs.js": "(() => {})();",
+      'export const clock = () => import("./base/document-inputs.js"); export { state } from "./state.js";',
+    "runtime/base/document-inputs.js": "(() => {})();",
     "runtime/check-api.js": 'export { state } from "./state.js";',
-    "runtime/annotation-overlay/check-api.js": 'export { state } from "../state.js";',
-    "runtime/media.js":
-      'export { state } from "./state.js"; export { rendered } from "./framework.js";',
-    "runtime/layer-client.js": 'export { state } from "./state.js";',
-    "runtime/annotation-overlay/index.js":
-      'import { state } from "../state.js"; export { state }; state.annotations = true; export const vendor = () => import("../../vendor/example.js");',
+    "runtime/annotations/annotation-overlay/check-api.js":
+      'export { state } from "../../state.js";',
+    "runtime/records/media.js":
+      'export { state } from "../state.js"; export { rendered } from "./framework.js";',
+    "runtime/transport/layer-client.js": 'export { state } from "../state.js";',
+    "runtime/annotations/annotation-overlay/index.js":
+      'import { state } from "../../state.js"; export { state }; state.annotations = true; export const vendor = () => import("../../../vendor/example.js");',
     "runtime/bootstrap.js": "(() => { window.boot = true; })();",
     "widgets/custom.js":
       'import { state } from "/runtime/widget-api.js"; state.clicks += 1;',
     "vendor/example.js": 'export { state } from "/runtime/vendor-bridge.js";',
     "vendor/lit.js": "export const html = (strings) => strings.join('');\n",
     "vendor/signals-core.js": "export const signal = (value) => ({ value });\n",
-    "runtime/framework.js": 'export { rendered } from "./framework/render.js";\n',
-    "runtime/framework/render.js":
-      'import { html } from "/vendor/lit.js";\nimport { signal } from "/vendor/signals-core.js";\nimport { state } from "../state.js";\n\nexport const rendered = () => html([signal(state).value]);\n',
+    "runtime/records/framework.js":
+      'export { rendered } from "./framework/render.js";\n',
+    "runtime/records/framework/render.js":
+      'import { html } from "/vendor/lit.js";\nimport { signal } from "/vendor/signals-core.js";\nimport { state } from "../../state.js";\n\nexport const rendered = () => html([signal(state).value]);\n',
+    ...Object.fromEntries(
+      library.map((path) => [path, `export const home = ${JSON.stringify(path)};\n`]),
+    ),
   };
   try {
     for (const [path, source] of Object.entries(sources)) {
@@ -61,8 +82,8 @@ test("the kernel preserves native packages and shared state", async () => {
     assert.deepEqual(await kernelOutputs(layer), kernel);
     const record = await vendor(layer, kernel, output);
     assert.equal(
-      await readFile(join(output, "runtime/document-inputs.js"), "utf8"),
-      sources["runtime/document-inputs.js"],
+      await readFile(join(output, "runtime/base/document-inputs.js"), "utf8"),
+      sources["runtime/base/document-inputs.js"],
     );
     await writeFile(join(output, "package.json"), '{"type":"module"}');
 
@@ -75,7 +96,8 @@ test("the kernel preserves native packages and shared state", async () => {
       pathToFileURL(join(output, "runtime/portable-api.js")).href
     );
     const overlayChecks = await import(
-      pathToFileURL(join(output, "runtime/annotation-overlay/check-api.js")).href
+      pathToFileURL(join(output, "runtime/annotations/annotation-overlay/check-api.js"))
+        .href
     );
     assert.equal(leaf.state.annotations, false);
     assert.equal(checks.state, leaf.state);
@@ -95,32 +117,34 @@ test("the kernel preserves native packages and shared state", async () => {
     // The kernel is runtime modules and chunks named after their modules, but for
     // the one holding what the portable helpers reach, the shared state here; it
     // absorbs the framework and its signals and leaves widgets, upstream vendor
-    // modules, and the classic scripts nothing imports native.
-    assert.deepEqual([...kernel.keys()].sort(), [
+    // modules, and the classic scripts nothing imports native. Each library module
+    // keeps its own path, for the package that imports it there.
+    for (const path of library) assert(kernel.has(path), path);
+    assert.deepEqual(besideLibrary([...kernel.keys()].sort()), [
       "kernel.json",
       "leaf.js",
-      "runtime/annotation-overlay/check-api.js",
+      "runtime/annotations/annotation-overlay/check-api.js",
       "runtime/bundle-annotation-overlay.js",
       "runtime/bundle-portable.js",
       "runtime/check-api.js",
-      "runtime/layer-client.js",
-      "runtime/media.js",
       "runtime/portable-api.js",
+      "runtime/records/media.js",
+      "runtime/transport/layer-client.js",
       "runtime/vendor-bridge.js",
       "runtime/widget-api.js",
     ]);
     assert.deepEqual(Object.keys(record.inputs), Object.keys(sources).sort());
-    assert.deepEqual(record.replaces, [
+    assert.deepEqual(besideLibrary(record.replaces), [
       "leaf.js",
-      "runtime/annotation-overlay/check-api.js",
-      "runtime/annotation-overlay/index.js",
+      "runtime/annotations/annotation-overlay/check-api.js",
+      "runtime/annotations/annotation-overlay/index.js",
       "runtime/check-api.js",
-      "runtime/framework.js",
-      "runtime/framework/render.js",
-      "runtime/layer-client.js",
-      "runtime/media.js",
       "runtime/portable-api.js",
+      "runtime/records/framework.js",
+      "runtime/records/framework/render.js",
+      "runtime/records/media.js",
       "runtime/state.js",
+      "runtime/transport/layer-client.js",
       "runtime/vendor-bridge.js",
       "runtime/widget-api.js",
       "vendor/signals-core.js",

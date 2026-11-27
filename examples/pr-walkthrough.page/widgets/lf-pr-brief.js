@@ -1,17 +1,12 @@
 /* This review packet owns its forge facts and composition. Leaf supplies typed
  * source delivery, safe Markdown, the shared clock and identity-aware comments. */
 import { html, keyed, noChange, repeat, unsafeHTML } from "/vendor/lit.js";
-import {
-  ago,
-  dressCode,
-  keeps,
-  LeafElement,
-  loadMarkdown,
-  markdownReady,
-  renderMarkdown,
-} from "/runtime/widget-api.js";
+import { dressCode, pageLinks } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { loadMarkdown, markdownReady, renderMarkdown } from "/runtime/lib/markdown.js";
+import { keeps } from "/runtime/lib/keeps.js";
 
-// A check's state is a status, drawn as the page's other statuses are (`.tag`), toned
+// A check's state is a status, drawn as the page's other statuses are (`.lf-tag`), toned
 // where the forge's word says how it went.
 const TONES = { passed: "ok", success: "ok", failed: "danger", failure: "danger" };
 
@@ -73,7 +68,7 @@ customElements.define(
                 <p>Opened by ${record.author}</p>
                 <p>${record.base} → ${record.head} · revision ${record.revision}</p>
               </header>
-              <dl class="facts">
+              <dl class="lf-facts">
                 <dt>Files</dt>
                 <dd>${record.diff.files}</dd>
                 <dt>Added</dt>
@@ -86,7 +81,7 @@ customElements.define(
               <section class="pr-description">
                 <h4>Author's description</h4>
                 <div>
-                  ${unsafeHTML(renderMarkdown(record.description || "No description was provided by the author."))}
+                  ${unsafeHTML(renderMarkdown(record.description || "No description was provided by the author.", pageLinks))}
                 </div>
               </section>
               <table class="pr-checks">
@@ -105,7 +100,7 @@ customElements.define(
                             html`<tr>
                               <th scope="row">${name}</th>
                               <td>
-                                <small class=${`tag ${TONES[status] ?? ""}`}
+                                <small class=${`lf-tag ${TONES[status] ?? ""}`}
                                   >${status}</small
                                 >
                               </td>
@@ -117,8 +112,8 @@ customElements.define(
                   }
                 </tbody>
               </table>
-              <p class="pr-observed" title=${record.observedAt}>
-                Observed ${ago(record.observedAt)}
+              <p class="pr-observed">
+                Observed <lf-age datetime=${record.observedAt}></lf-age>
               </p>
             </article>`
           : html`<p>Waiting for pull request data.</p>`,

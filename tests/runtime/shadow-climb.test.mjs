@@ -13,7 +13,7 @@ import {
   renderedUnder,
   under,
   upFrom,
-} from "/runtime/shadow-tree.js";
+} from "/runtime/lib/shadow-tree.js";
 
 test("a climb crosses a shadow root to its host", () => {
   const host = document.createElement("div");

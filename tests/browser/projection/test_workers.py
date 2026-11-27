@@ -24,12 +24,14 @@ from render_cases_interaction import (
 from render_cases_navigation import source_revision
 from render_harness import (
     compare_with,
+    comparison_view,
     draft_control,
     holding,
     leaf_page,
     open_page,
     panel_field,
     panel_menu,
+    press_draft_control,
     refuse,
     sending,
     stamp_page,
@@ -39,9 +41,9 @@ from render_harness import (
     write,
 )
 
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import event_log as events_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -65,7 +67,9 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     fraction = page.locator("#t-feeders > .work-progress")
     expect(fraction).to_contain_text("1/2 done")
     # Nothing waits on the user.
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On Me")
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", re.compile(r"^Page menu · ")
+    )
 
     sent = CliRunner().invoke(
         cli_model.cli,
@@ -88,7 +92,9 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     # The visible status line follows the reported attribute, so a user listening
     # hears the current state too.
     assert "review" in task.aria_snapshot()
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On Me")
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", re.compile(r"^Page menu · ")
+    )
 
     # A second report supersedes the first — absolute values fold — and the
     # progress fraction recounts across the tree.
@@ -102,7 +108,9 @@ def test_a_workers_report_paints_live_and_ends_at_the_version_that_answers_it(
     said = task.aria_snapshot()
     assert "done" in said and "review" not in said, said
     expect(fraction).to_contain_text("2/2 done")
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On Me")
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", re.compile(r"^Page menu · ")
+    )
 
     # The overruling version: its markup keeps `active` and publishes typed report
     # settlements resolved from `overruled`, so replay stops them
@@ -157,9 +165,9 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
         else:
             route.continue_()
 
-    page.route("**/api/view*", hold_first_view)
+    page.route(comparison_view, hold_first_view)
     try:
-        with page.expect_request("**/api/view*"):
+        with page.expect_request(lambda request: comparison_view(request.url)):
             compare_with(page, 1)
         holding(page, held, 1, "the first comparison view")
         assert held, "the first comparison view was not held"
@@ -179,7 +187,7 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
         told(page)
         expect(page.locator("#t-parser")).to_have_attribute("status", "done")
 
-        with page.expect_request("**/api/view*"):
+        with page.expect_request(lambda request: comparison_view(request.url)):
             held[0][0].fulfill(response=held[0][1])
             held[0][2] = True
         holding(page, requests, 2, "the retried comparison view")
@@ -191,13 +199,13 @@ def test_a_comparison_retries_when_the_live_projection_advances(browser, serve):
             "v2"
         )
         expect(
-            versions.get_by_role("button", name=re.compile(r"^Compare with v1\b"))
+            versions.get_by_role("button", name=re.compile(r"\bCompare with v1\b"))
         ).to_have_attribute("aria-pressed", "true")
         page.keyboard.press("Escape")
     finally:
         if held and not held[0][2]:
             held[0][0].fulfill(response=held[0][1])
-        page.unroute("**/api/view*")
+        page.unroute(comparison_view)
 
 
 def test_a_comparison_reaches_a_version_stamped_before_a_re_vendor(browser, serve):
@@ -339,13 +347,13 @@ def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
     in hand is no report: it is the workflows' Working stage and the tasks' starts."""
     page = open_page(browser, live_url(serve(ROSTER_PAGE)))
     d = serve.page_dir
-    # Event ids and authored element ids belong to different identity spaces. Give
-    # the thread and widget the same spelling so only the typed target can separate
-    # their reports; a bare id or target lookup by store would merge them.
+    # A page refuses an element id its log already gives an event, so the thread
+    # takes its own id. A thread target spelled as the widget's id still reads none
+    # of the widget's reports, and a bare id is refused rather than guessed at.
     thread = append_carried_log_record(
         d,
         {
-            "id": "ag-wren",
+            "id": "c-wren",
             "kind": "comment",
             "author": "user",
             "revision": 1,
@@ -383,7 +391,7 @@ def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
     told(page)
 
     reports = page.evaluate(
-        "async () => (await window.__lfWidgetApi()).reportSequence()"
+        "async () => (await window.__lfWidgetApi()).readReports().reports"
     )
     by_source = {report["source"]: report for report in reports}
     assert set(by_source) == {"report"}
@@ -406,10 +414,10 @@ def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
         """async () => {
             const feed = await window.__lfWidgetApi();
             return {
-                widget: feed.reportSequence(document.querySelector('#ag-wren')),
-                thread: feed.reportSequence({kind: 'thread', id: 'ag-wren'}),
+                widget: feed.readReports(document.querySelector('#ag-wren')).reports,
+                thread: feed.readReports({kind: 'thread', id: 'ag-wren'}).reports,
                 bare: (() => {
-                    try { feed.reportSequence('ag-wren'); }
+                    try { feed.readReports('ag-wren'); }
                     catch (error) { return `${error.name}: ${error.message}`; }
                 })(),
             };
@@ -436,7 +444,7 @@ def test_the_report_feed_reads_reports_by_typed_target(browser, serve):
     wait_for_revision(page, 2)
 
     reports = page.evaluate(
-        "async () => (await window.__lfWidgetApi()).reportSequence()"
+        "async () => (await window.__lfWidgetApi()).readReports().reports"
     )
     by_source = {report["source"]: report for report in reports}
     assert by_source["report"]["disposition"] == "settled"
@@ -474,17 +482,33 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
     page.evaluate(
         """async holding => {
           const api = await window.__lfWidgetApi();
-          const {projectionRegionsPresented, readApplicationPresentation} =
-            await window.__lfCheckApi();
+          const {LeafElement} = await window.__lfLibImport('leaf-element.js');
+          const {
+            projectionRegionsPresented,
+            readApplicationPresentation,
+            whenApplicationRegionsPresented,
+          } = await window.__lfCheckApi();
           const {noChange} = await window.__lfVendorImport('lit.js');
           const owner = document.getElementById('ag-wren');
           window.__proofClock = 0;
           window.__proofReads = [];
-          customElements.define('lf-report-proof', class extends api.LeafElement {
+          customElements.define('lf-report-proof', class extends LeafElement {
             render() {
-              if (!this.whenReady(() => projectionRegionsPresented([owner.id]))) return noChange;
+              // The watcher draws nothing until the owner's own drawing is in, and
+              // asks to draw again once it is.
+              if (!projectionRegionsPresented([owner.id])) {
+                this.waiting ??= whenApplicationRegionsPresented([
+                  'projection:chrome',
+                  `widget:${owner.id}:render`,
+                  `widget:${owner.id}:preparation`,
+                ]).then(() => {
+                  this.waiting = null;
+                  this.requestUpdate();
+                });
+                return noChange;
+              }
               api.clockValue(() => window.__proofClock);
-              window.__proofReads.push(api.reportSequence(owner).map(report => report.text));
+              window.__proofReads.push(api.readReports({kind: 'widget', id: owner.id}).reports.map(report => report.text));
               return noChange;
             }
           });
@@ -494,22 +518,27 @@ def test_report_narration_and_coverage_wait_for_the_widgets_own_presentation(
           window.__proofTick = () => { window.__proofClock += 1; };
           window.__proofPending = () => {
             const proof = readApplicationPresentation();
-            return api.reportSequence(owner).some(report => report.text === 'held report') &&
+            return api.readReports({kind: 'widget', id: owner.id}).reports.some(report => report.text === 'held report') &&
               proof.pending.some(region => region.startsWith('widget:ag-wren:')) &&
               !proof.pending.includes('projection:chrome');
           };
           // The watcher gets its first clock reading before the held publication.
           await Promise.resolve();
-          const other = api.widgetController(document.getElementById('ag-finch'));
-          other.present(new Promise(resolve => { window.__proofOtherResume = resolve; }));
+          const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
+          // Said from inside a worker, the work is that worker's preparation.
+          const prepare = (worker, promise) =>
+            worker.querySelector('strong').dispatchEvent(new PendingTaskEvent(promise));
+          prepare(
+            document.getElementById('ag-finch'),
+            new Promise(resolve => { window.__proofOtherResume = resolve; }),
+          );
           window.__proofOtherPending = () =>
             readApplicationPresentation().pending.includes('widget:ag-finch:preparation');
-          const controller = api.widgetController(owner);
           if (holding === 'defer') {
-            window.__proofResume = controller.defer();
+            window.__proofResume = owner.defer();
           } else {
             let resolve;
-            controller.present(new Promise(done => { resolve = done; }));
+            prepare(owner, new Promise(done => { resolve = done; }));
             window.__proofResume = resolve;
           }
         }""",
@@ -581,7 +610,7 @@ def test_worktree_identity_does_not_follow_the_missing_evidence_placeholder(
         "tests": "passing",
         "observedAt": "2026-09-25T10:00:00-07:00",
     }
-    data_model.cmd_data_set(serve.page_dir, "atlas-worktrees", {"proof": record})
+    page_data_model.cmd_data_set(serve.page_dir, "atlas-worktrees", {"proof": record})
     page = open_page(browser, url)
     datum = page.locator('#proof > [data-lf-datum="proof"]')
     seen = source_revision(serve.page_dir, "atlas-worktrees")
@@ -602,10 +631,10 @@ def test_worktree_identity_does_not_follow_the_missing_evidence_placeholder(
 
     expect(datum).to_have_attribute("data-lf-identity", "proof")
     assert status() == "exact"
-    data_model.cmd_data_set(serve.page_dir, "atlas-worktrees", {})
+    page_data_model.cmd_data_set(serve.page_dir, "atlas-worktrees", {})
     expect(datum).not_to_have_attribute("data-lf-identity")
     assert status() == "outdated"
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir, "atlas-worktrees", {"proof": {**record, "head": "def456"}}
     )
     expect(datum).to_have_attribute("data-lf-identity", "proof")
@@ -632,7 +661,6 @@ def test_command_goal_can_pause_after_an_ordinary_thread_started(browser, serve)
     with sending(page, "the held send"):
         seat.get_by_role("button", name="Send & pause", exact=True).click()
 
-    expect(goal).to_have_attribute("data-lf-held")
     roots = [
         event for event in events_model.read_events(d) if event["kind"] == "comment"
     ]
@@ -729,7 +757,7 @@ def test_atlas_input_is_trimmed_before_it_enters_the_record(browser, serve):
         "ledger_id,customer_name,billing_email,amount\n7,[redacted],[redacted],42",
     )
     with sending(page, "the saved edit"):
-        draft_control(page, "save", "ledger-cargo").click()
+        press_draft_control(page, "save", "ledger-cargo")
 
     edit = next(
         event

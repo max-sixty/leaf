@@ -1,0 +1,54 @@
+{
+  "$data": {
+    "description": "A run of cases keyed by a stable id, for the tests of threads seated on a datum that keeps its identity across new values.",
+    "contracts": {
+      "lf-test-run": {
+        "description": "An ordered list of cases, each keyed by its id.",
+        "records": {
+          "items": "cases",
+          "key": "id"
+        },
+        "schema": {
+          "type": "object",
+          "properties": {
+            "cases": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "id": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9-]*$"
+                  },
+                  "title": {
+                    "type": "string",
+                    "minLength": 1
+                  }
+                },
+                "required": ["id", "title"],
+                "additionalProperties": false
+              }
+            }
+          },
+          "required": ["cases"],
+          "additionalProperties": false
+        }
+      }
+    }
+  },
+  "lf-test-review": {
+    "description": "Shows the cases of a bound run one at a time, each seating the threads on it.",
+    "attributes": {
+      "required": ["id", "source"]
+    },
+    "content": "empty",
+    "inputs": {
+      "run": {
+        "contract": "lf-test-run",
+        "source": "source",
+        "property": "value"
+      }
+    },
+    "example": "<lf-test-review id=\"review\" source=\"run\"></lf-test-review>"
+  }
+}

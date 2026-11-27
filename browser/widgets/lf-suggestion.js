@@ -19,30 +19,25 @@
  * reads rendered descendants when a project makes the target `display: contents`. A suggestion never creates a second RHS surface or
  * geometry model of its own. */
 import { nothing } from "/vendor/lit.js";
-import {
-  commandScope,
-  commandsChanged,
-  keeps,
-  LeafElement,
-  contributionEntry,
-  failSoft,
-  quoted,
-  registerContribution,
-  says,
-} from "/runtime/widget-api.js";
-import { foldBlock } from "../runtime/motion.js";
-import { renderRetired, textNodesUnder } from "../runtime/passages.js";
-import { alignText } from "../runtime/text-alignment.js";
-import { shownParts } from "../runtime/geometry.js";
+import { registerContribution, says } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { failSoft } from "/runtime/lib/failure.js";
+import { keeps } from "/runtime/lib/keeps.js";
+import { foldBlock } from "../runtime/dom/motion.js";
+import { renderRetired, textNodesUnder } from "../runtime/readings/passages.js";
+import { alignText } from "/runtime/lib/text-alignment.js";
+import { shownParts } from "../runtime/dom/geometry.js";
 
 /** @typedef {"accept" | "reject"} Outcome */
 /** @typedef {{decide?: {detail?: {outcome?: Outcome}}}} SuggestionState */
 /** @typedef {ReturnType<typeof textNodesUnder>[number]} TextSegment */
+/** @typedef {import("../runtime/features/contribution-controls.js").EntryInput} EntryInput */
 const WORDS = { accept: "Accept", reject: "Reject" };
-// The outcome of the decision in force, or null while the suggestion is undecided.
-/** @param {SuggestionState} state */
-const outcomeOf = (state) => state.decide?.detail?.outcome ?? null;
-/** @type {Record<Outcome, Pick<import("../runtime/contribution-model.js").EntryInput, "action" | "tone" | "rank">>} */
+// The outcome of the decision in force, or null while the suggestion is undecided or
+// has no reading.
+/** @param {SuggestionState | undefined} state */
+const outcomeOf = (state) => state?.decide?.detail?.outcome ?? null;
+/** @type {Record<Outcome, Pick<EntryInput, "action" | "tone" | "rank">>} */
 const FACE = {
   accept: { action: "accept", tone: "positive", rank: "primary" },
   reject: { action: "reject", tone: "negative", rank: "secondary" },
@@ -59,12 +54,12 @@ const FACE = {
 // The two highlights are registered once and shared. A suggestion's ranges arrive
 // and leave through `arriving` and `leaving`, applied together in a microtask at the
 // end of the task, so the paint still lands before the next frame. In Firefox a
-// highlight changed one range at a time costs more the larger it is: it walks the
-// list to delete a range, and an add made as each suggestion upgraded grew with the
-// highlight too. So applying each suggestion's ranges as it came, like rebuilding
-// both highlights from every suggestion for each one, cost the square of the ranges
-// when a page upgraded or removed many suggestions. A removal rebuilds each
-// highlight once from the ranges it keeps, as lf-text-document.js's `unpaint` does.
+// highlight's delete costs more the larger the highlight is, since it walks the list
+// to find the range; an add doesn't. So taking each suggestion's ranges off as it
+// left, like rebuilding both highlights from every suggestion for each one, would
+// cost the square of the ranges when a page removed or upgraded many suggestions. A
+// removal rebuilds each highlight once from the ranges it keeps, as
+// lf-text-document.js's `unpaint` does.
 const EMPHASIS = { del: "lf-sug-del", ins: "lf-sug-ins" };
 /** @type {Map<Element, Range[]>} */
 const emphasized = new Map(); // suggestion element → its ranges in either highlight
@@ -199,8 +194,8 @@ customElements.define(
 
     /** @type {ReturnType<typeof registerContribution> | null} */
     #margin = null;
-    /** @type {ReturnType<typeof commandScope> | null} */
-    #commandScope = null;
+    /** @type {HTMLElement["lfCommands"]} */
+    #commands = null;
     /** @type {Outcome | null} */
     #presentedOutcome = null;
 
@@ -213,8 +208,8 @@ customElements.define(
 
     setup() {
       // Presentation, not input, so an exhibited pending change gets it too: quoting
-      // gates the action channel, never what a change looks like. Both consume the
-      // controller's application selection; painted attributes are output only.
+      // gates the action channel, never what a change looks like. Both read the
+      // state Leaf set; painted attributes are output only.
       this.#emphasize();
       this.#voice();
     }
@@ -230,7 +225,7 @@ customElements.define(
       // Quoted material is exhibited, not offered: a suggestion inside an
       // exhibit shows what a pending change looks like, so it keeps the marks
       // the theme draws and never grows controls to decide it with.
-      if (quoted(this) || this.#margin) return;
+      if (this.matches("[data-lf-exhibit] *") || this.#margin) return;
       this.#ensureCommands();
       this.#margin = registerContribution({
         key: `suggestion:${this.id}`,
@@ -260,7 +255,9 @@ customElements.define(
     /** @returns {(Outcome | "undo")[]} */
     #offered() {
       const outcome = this.#outcome();
-      if (outcome) return this.#undoable(outcome) ? ["undo"] : [];
+      const decide = this.state?.decide;
+      if (outcome)
+        return decide && "undoable" in decide && decide.undoable ? ["undo"] : [];
       /** @type {Outcome[]} */
       const decisions = ["accept", "reject"];
       return decisions;
@@ -272,40 +269,39 @@ customElements.define(
       let words;
       const change = () => (words ??= this.#label());
       const entry = {
-        undo: () =>
-          contributionEntry({
-            key: "undo",
-            action: "undo",
-            label: "Undo",
-            accessibleLabel: `Undo ${outcome === "accept" ? "accepting" : "rejecting"} the suggested change: ${change()}`,
-            rank: "primary",
-            activation: "undo",
-            scope: this.#commandScope,
-          }),
+        /** @returns {EntryInput} */
+        undo: () => ({
+          key: "undo",
+          action: "undo",
+          label: "Undo",
+          accessibleLabel: `Undo ${outcome === "accept" ? "accepting" : "rejecting"} the suggested change: ${change()}`,
+          rank: "primary",
+          activation: "undo",
+          scope: this.#commands,
+        }),
       };
-      /** @param {Outcome} kind */
-      const decision = (kind) =>
-        contributionEntry({
-          key: kind,
-          ...FACE[kind],
-          label: WORDS[kind],
-          accessibleLabel: `${WORDS[kind]} the suggested change: ${change()}`,
-          disabled: !this.controller.read().actions.decide?.available,
-          activation: kind,
-          scope: this.#commandScope,
-        });
+      /** @param {Outcome} kind @returns {EntryInput} */
+      const decision = (kind) => ({
+        key: kind,
+        ...FACE[kind],
+        label: WORDS[kind],
+        accessibleLabel: `${WORDS[kind]} the suggested change: ${change()}`,
+        disabled: !this.state?.decide?.available,
+        activation: kind,
+        scope: this.#commands,
+      });
       return this.#offered().map((key) =>
         key === "undo" ? entry.undo() : decision(key),
       );
     }
 
-    /** @returns {import("../runtime/contribution-model.js").ReadingOptions} */
+    /** @returns {import("../runtime/features/contribution-controls.js").ReadingOptions} */
     #readMargin() {
       const outcome = this.#outcome();
       const entries = this.#entries();
       return {
         // What a suggestion is, for a face that stands for it: a pin folded for want of
-        // room wears this kind's (margin-model.js, `clusterProjection`).
+        // room wears this kind's (features/margin-model.js, `clusterProjection`).
         kind: "change",
         // The slots use tint and strike/insert paint to carry their relationship on the
         // page. Away from that paint, concatenating them turns `red` → `blue` into the
@@ -344,20 +340,22 @@ customElements.define(
         immediate,
         focus: focus ?? (held ? this.#focusKey() : null),
       });
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     #ensureCommands() {
-      if (this.#commandScope) return;
+      if (this.#commands) return;
       /** @type {[Outcome | "undo", string][]} */
       const labels = [
         ["accept", "Accept"],
         ["reject", "Reject"],
         ["undo", "Undo"],
       ];
-      this.#commandScope = commandScope(
-        "On a suggested change",
-        labels.map(([key, label]) => ({
+      this.#commands = {
+        title: "On a suggested change",
+        rows: labels.map(([key, label]) => ({
           id: `suggestion.${key}`,
           contextKeys: () => {
             const position = this.#offered().indexOf(key);
@@ -370,9 +368,11 @@ customElements.define(
           when: () => this.#offered().includes(key),
           run: () => this.#margin?.activate(key),
         })),
+      };
+      this.lfCommands = this.#commands;
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
       );
-      this.lfCommands = this.#commandScope;
-      commandsChanged(this);
     }
 
     // What the change is about, for the button's label and failure receipt: the
@@ -406,7 +406,7 @@ customElements.define(
     /** @param {Outcome} outcome @param {((key: string) => void) | null} [focus] */
     #decide(outcome, focus = null) {
       if (this.#outcome()) return;
-      if (!this.controller.read().actions.decide?.available) return;
+      if (!this.state?.decide?.available) return;
       // Read before deciding: deciding retires a slot, a retired slot leaves the page's
       // reading, and `says` on what has left the reading answers nothing — the
       // announcement then named the widget's id instead of the words the user just judged.
@@ -416,12 +416,13 @@ customElements.define(
       // pointer, Enter, Space, or an address route; otherwise later reconciliation can
       // reconstruct the relocated range and raise its Comment field again.
       getSelection()?.removeAllRanges();
-      const dispatched = this.controller.dispatch({
-        kind: "action",
-        verb: "decide",
-        detail: { outcome },
-        says: `${outcome === "accept" ? "Accepted" : "Rejected"} suggested change: ${label}`,
-      });
+      const dispatched = this.record(
+        "decide",
+        { outcome },
+        {
+          says: `${outcome === "accept" ? "Accepted" : "Rejected"} suggested change: ${label}`,
+        },
+      );
       if (!dispatched) return;
       // The gesture has decided the slot's visible state. Fold it before the
       // document-wide settlement paint can hide the old words without motion. Undo takes
@@ -435,23 +436,8 @@ customElements.define(
       focus?.("undo");
     }
 
-    /** @param {Outcome} outcome */
-    #undoable(outcome) {
-      return this.controller
-        .read()
-        .actions.decide?.undo.find(
-          (event) => event.kind === "action" && event.detail.outcome === outcome,
-        );
-    }
-
     #undoOutcome() {
-      const outcome = this.#outcome();
-      const event = outcome && this.#undoable(outcome);
-      if (!event) return;
-      this.controller.dispatch({
-        kind: "undo",
-        target: ("attempt" in event ? event.attempt : null) ?? event.id,
-      });
+      if (this.#outcome()) this.takeBack("decide");
     }
 
     /** @param {Outcome} outcome */
@@ -579,9 +565,9 @@ customElements.define(
     }
 
     render() {
-      const { state } = this.controller.read();
+      const { state } = this;
       this.#draw(state);
-      if (quoted(this) || !this.#margin) return nothing;
+      if (this.matches("[data-lf-exhibit] *") || !this.#margin) return nothing;
       // Signals publish before the projection adapter. Keep the currently focused entry
       // until that adapter applies the new state: the next complete reading can hand
       // focus directly to its semantic replacement instead of losing the user's place
@@ -595,7 +581,7 @@ customElements.define(
       return nothing;
     }
 
-    /** @param {SuggestionState} state */
+    /** @param {SuggestionState | undefined} state */
     #draw(state) {
       const outcome = outcomeOf(state);
       if (outcome) return this.#settle(outcome);
@@ -611,8 +597,7 @@ customElements.define(
     }
 
     #outcome() {
-      const state = this.reading?.state;
-      return state ? outcomeOf(state) : null;
+      return outcomeOf(this.state);
     }
   },
 );

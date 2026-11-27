@@ -16,7 +16,7 @@
  * (lf-tabs.js). */
 
 :where(lf-tabs) {
-  --lf-tab-end: calc(var(--lf-sp-4) + var(--lf-end-room));
+  --lf-tab-end: var(--lf-sp-4);
   display: block;
   margin: 14px 0;
 }
@@ -25,7 +25,16 @@ lf-parts,
 lf-part {
   display: block;
 }
-/* A stacked panel's name takes the label font (base.css, `.lf-label`), which a
+/* One row of a strip: its 8px head, a name's 38px face or the aim floor where that is
+ * taller, and its 1px rule. Each set states it, and so does a text document, whose
+ * preview draws a set (text-document.css), so the room either keeps for the strip
+ * before upgrade is the strip's own height. */
+lf-tabs,
+lf-parts,
+lf-text-document {
+  --lf-tabstrip-h: calc(9px + max(38px, var(--lf-aim-floor)));
+}
+/* A stacked panel's name takes the label font (elements.css, `.lf-label`), which a
  * generated name can't wear as a class. A side list's group label is a list's group
  * heading (controls.css, `.lf-rows-head`). */
 lf-tab::before,
@@ -33,7 +42,7 @@ lf-part::before {
   content: attr(label);
   display: block;
   margin: 18px 0 8px;
-  font: var(--lf-font-label);
+  font: var(--lf-font-heading);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--lf-muted);
@@ -187,11 +196,6 @@ lf-tabs[data-lf-views] > lf-tab {
  * offered only in the live page and the rest is what the markup already says.
  * A control whose state the browser owns needs no such block. */
 @media screen {
-  lf-tabs,
-  lf-tab,
-  .lf-tabstrip {
-    scroll-padding-block-end: var(--lf-end-room);
-  }
   @scope (html[data-lf-interactive]) {
     /* :where keeps the frame face below the generic edge trim's specificity. */
     :where(lf-tabs[data-lf-views]) {
@@ -210,7 +214,7 @@ lf-tabs[data-lf-views] > lf-tab {
      * which push the open panel down. A scrollbar would add to its height, so it draws
      * none, and a press at either edge scrolls the names that run past it (lf-tabs.js),
      * shown while the layer reads more that way (`data-lf-more-before`,
-     * `data-lf-more-after`, reach.js). A side list's column runs down instead, and
+     * `data-lf-more-after`, dom/reach.js). A side list's column runs down instead, and
      * scrolls down past the window's height (below). The press's own face fades the
      * names under it into the strip's background, so the layer's edge fade is off. A
      * finger or a trackpad scrolls the strip itself, and an opened tab brings itself
@@ -230,7 +234,7 @@ lf-tabs[data-lf-views] > lf-tab {
       --lf-tabstrip-pad: 8px;
       box-sizing: border-box;
       min-block-size: var(--lf-tabstrip-h);
-      border-radius: calc(var(--lf-r) - 1px) calc(var(--lf-r) - 1px) 0 0;
+      border-radius: var(--lf-r-in) var(--lf-r-in) 0 0;
       --lf-tabstrip-bg: var(--lf-card);
       background: var(--lf-tabstrip-bg);
       flex-wrap: nowrap;
@@ -255,7 +259,6 @@ lf-tabs[data-lf-views] > lf-tab {
       /* A panel made scrollable starts nested headers at the scrollport's edge,
        not below its padding, where fragments of the scrolled output show through. */
       --lf-top-start: calc(-1 * var(--lf-sp-4));
-      --lf-end-room: inherit;
       --lf-block-frame: 1;
     }
     /* The set is its panel's ring frame (surfaces.css, `.lf-ring-frame`), and its
@@ -318,7 +321,7 @@ lf-tabs[data-lf-views] > lf-tab {
      * ground that spans the set's height (below). A walk down a long queue then leaves
      * the item where the user is reading it, and the focused tab stays on screen while
      * they read. A column that scrolled with the page moved the item at each step and
-     * left the tab off screen, so the next arrow let go of it (keyboard/controller.js). */
+     * left the tab off screen, so the next arrow let go of it (panel/page-keys/controller.js). */
     lf-tabs[list="side"],
     lf-parts {
       --lf-tab-context-h: 0px;
@@ -356,8 +359,8 @@ lf-tabs[data-lf-views] > lf-tab {
         align-self: stretch;
         background: var(--lf-field);
         border-inline-end: 1px solid var(--lf-border);
-        border-start-start-radius: calc(var(--lf-r) - 1px);
-        border-end-start-radius: calc(var(--lf-r) - 1px);
+        border-start-start-radius: var(--lf-r-in);
+        border-end-start-radius: var(--lf-r-in);
       }
       lf-tabs[list="side"][data-lf-views] > .lf-tabstrip {
         background: none;
@@ -374,17 +377,15 @@ lf-tabs[data-lf-views] > lf-tab {
        * from its heading to a tab, as wide as the column, fits it (lf-tabs.js,
        * `#showTab`). */
       scroll-padding-inline: 0;
-      padding: 8px 8px calc(8px + var(--lf-end-room));
+      padding: 8px;
       border-bottom: 0;
       border-radius: 0;
       align-self: stretch;
     }
     /* Outside a full-height workspace the page scrolls the open item, and the list
      * sticks beside it. It sticks a landing's room (`--lf-landing-room`) below the
-     * sticky-header slot and ends a landing's room above the floating panel's row
-     * (`--lf-foot-room`): the band the root lands things in, as a column's sidebar
-     * does (layouts.css, `.layout-track`). So a row the list lands on is inside the
-     * root's band too, and showing it scrolls no page. The list is as tall as its rows,
+     * sticky-header slot and ends a landing's room above the window's foot, as a
+     * column's sidebar does (layouts.css, `.layout-track`). The list is as tall as its rows,
      * up to that band's height, and scrolls on its own beyond it (lf-tabs.js,
      * `#showTab`). Standing at the top of its cell rather than stretched down it, a
      * short list sticks until the item beside it ends. A tab it lands keeps a tab's
@@ -397,8 +398,7 @@ lf-tabs[data-lf-views] > lf-tab {
           position: sticky;
           top: calc(var(--lf-top-outer) + var(--lf-landing-room));
           max-block-size: calc(
-            100dvh - var(--lf-top-outer) - 2 * var(--lf-landing-room) -
-              var(--lf-foot-room)
+            100dvh - var(--lf-top-outer) - 2 * var(--lf-landing-room)
           );
           align-self: start;
           overflow: hidden auto;
@@ -481,7 +481,7 @@ lf-tabs[data-lf-views] > lf-tab {
     [data-lf-down] > .lf-tabstrip .lf-tab-answer::before {
       content: "✓" / "";
       flex: none;
-      color: var(--lf-settled-ink);
+      color: var(--lf-ink);
     }
     [data-lf-down] > .lf-tabstrip .lf-tab-answer[data-lf-obligations="open"] {
       font: var(--lf-font-small);
@@ -555,7 +555,7 @@ lf-tabs[data-lf-views] > lf-tab {
         padding: 8px var(--lf-tabstrip-pad) 0;
         border-inline-end: 0;
         border-bottom: 1px solid var(--lf-border);
-        border-radius: calc(var(--lf-r) - 1px) calc(var(--lf-r) - 1px) 0 0;
+        border-radius: var(--lf-r-in) var(--lf-r-in) 0 0;
       }
       lf-tabs[list="side"][data-lf-views]::before,
       lf-tabs[list="side"][data-lf-views] > .lf-tabstrip {
@@ -580,7 +580,7 @@ lf-tabs[data-lf-views] > lf-tab {
       /* The label sticks at the row's start while its run scrolls under it, and the run's
        * end pushes it out as the next run's label comes in, so the open item's group
        * stays named however far along a long run the user is. It stands clear of the
-       * start press while that shows (`data-lf-more-before`, reach.js), which is the
+       * start press while that shows (`data-lf-more-before`, dom/reach.js), which is the
        * only time a label can be stuck, and covers the whole height of the names that
        * slide under it, its word still centred on theirs, so a tab landing in the row
        * keeps the label's room before it: the module measures the label for this
@@ -769,8 +769,8 @@ lf-tabs[data-lf-views] > lf-tab {
    * that is one block, such as a playground's question group, passes that height on and
    * says so, so the playground fills the window as it does when its group is the body.
    * The tab keeps at least its block's own height, so where the window is shorter than
-   * that the set scrolls to the tab's end, which keeps the panel's room after the
-   * playground's bar; a block that holds the height it is given and scrolls inside, such
+   * that the set scrolls to the tab's end, the playground's bar; a block that holds the
+   * height it is given and scrolls inside, such
    * as a pane or a side list, asks no more than that height. A tab of reading keeps its
    * flow, and where it runs longer the body scrolls under the sticky strip. */
     @container style(--lf-full-height: 1) {
@@ -780,22 +780,22 @@ lf-tabs[data-lf-views] > lf-tab {
      * strip and the panel keep the edges they had. */
     }
 
-    /* A page's parts (lf-parts.js). Where they stand in a `main` that carries no Layout,
-   * the page lays them out (layouts.css, "A page of parts"): the list in a column down
-   * the left and the open part beside it, arranged by its own Layout. The holder draws
-   * no frame; its list stands on the page's ground under the page's title, and marks
-   * the open part as every strip marks its open tab, by the way it runs (above): a
-   * painted face in the column, a rule under the tab in a row. The open part is ruled off
-   * from the column. The list stands fixed under the title (layouts.css), so it stands in
-   * one place whichever part is open and wherever it is read, and scrolls on its own
-   * where it holds more names than the window's height leaves under the title, a height
-   * it holds on purpose (`--lf-holds-height`), as a sticking block does. It reaches the window's
-   * foot, as the open part does (layouts.css), and keeps the foot's room inside its
-   * scroll and its landing band, as the root does, so its last name scrolls and lands
-   * clear of the floating panel's row where a narrow window puts the row over the
-   * column. On a phone it is
-   * a row sticking over the part, scrolled sideways. Placed anywhere else, as when the corpus
-   * embeds a page of parts, the list is a strip's row over the open part.
+    /* A page's parts (lf-parts.js). Where they stand in the page's `main` and it carries
+   * no Layout, the page lays them out (layouts.css, "A page of parts"): the list fixed in
+   * a column down the left, under the title, and the open part beside it, arranged by
+   * its own Layout; on a phone, the list a row sticking over the part. This sheet sets
+   * only how the list looks there. The holder draws no frame; its list stands on the
+   * page's ground under the page's title, and marks the open part as every strip marks
+   * its open tab, by the way it runs (above): a painted face in the column, a rule under
+   * the tab in a row. The open part is ruled off from the column. On a phone the row is
+   * a strip's, scrolled sideways. Placed anywhere else, as when the corpus embeds a page
+   * of parts or a `main` that carries a Layout holds them (`page check` advises
+   * against it, `parts-in-layout`), the list is a strip's row over the open part.
+   *
+   * The holder asks its `main` whether it carries a Layout (`--lf-layout-box`, which
+   * doesn't inherit), and tells what it holds by `--lf-parts-column`, this sheet's own,
+   * since a style query asks only an element's parent. So no rule here names a
+   * Layout.
    *
    * A part is a section of the page, not a box on it: like `main`, it trims its edges
    * and draws nothing, and its Layout sets its padding. Its focus ring is a tab
@@ -819,76 +819,65 @@ lf-tabs[data-lf-views] > lf-tab {
       overflow: clip;
       pointer-events: none;
     }
-    @scope (body > main:not(.layout-column, .layout-sidebar, .layout-workspace) > lf-parts) {
-      :scope:is(lf-parts)[data-lf-views]::before {
-        content: none;
-      }
-      :scope:is(lf-parts)[data-lf-views] > .lf-tabstrip {
-        position: fixed;
-        position-anchor: --lf-parts-title;
-        top: anchor(bottom, var(--lf-top));
-        inline-size: var(--lf-parts-list);
-        box-sizing: border-box;
-        align-self: start;
-        block-size: calc(100dvh - var(--lf-head-room) - anchor-size(height, 0px));
-        min-block-size: 0;
-        --lf-tabstrip-flow: column;
-        gap: 0;
-        padding: calc(var(--lf-sp-4) - var(--lf-focus-ring-room)) 8px
-          calc(var(--lf-sp-4) + var(--lf-foot-room));
-        scroll-padding-block-end: var(--lf-foot-room);
-        overflow-x: hidden;
-        overflow-y: auto;
-        --lf-holds-height: 1;
-        border-bottom: 0;
-        border-radius: 0;
-        --lf-tabstrip-bg: var(--lf-paper);
-      }
-      :scope:is(lf-parts)[data-lf-views] > .lf-tabstrip > .lf-tabstrip-scroll {
-        display: none;
-      }
-      :scope:is(lf-parts)[data-lf-views] > lf-part:not([hidden]) {
-        border-inline-start: 1px solid var(--lf-rule);
-      }
-      /* On a phone the list is a row that sticks over the open part as the page tabs'
-     * strip does, a header of the root (lf-tabs.js, `#declareHeader`), so the reader
-     * reaches another part from anywhere in this one, and what sticks inside the part
-     * stacks under it. Its tabs are names alone, as theirs are, so it stays one line
-     * high over the part. */
-      @container lf-shell (width < 640px) {
-        :scope:is(lf-parts)[data-lf-views]:not(:has(> .lf-tabstrip))::before {
-          content: "";
-          grid-column: 1;
-          grid-row: auto;
+    @scope (body > main > lf-parts) {
+      @container not style(--lf-layout-box: 1) {
+        :scope:is(lf-parts)[data-lf-views] {
+          --lf-parts-column: 1;
         }
-        :scope:is(lf-parts) {
-          --lf-top-outer: var(--lf-top);
+        @container lf-shell (width < 640px) {
+          :scope:is(lf-parts) {
+            --lf-top-outer: var(--lf-top);
+          }
         }
-        :scope:is(lf-parts) > lf-part {
-          --lf-top: calc(var(--lf-top-outer) + var(--lf-tabstrip-h));
+      }
+      @container style(--lf-parts-column: 1) {
+        :scope:is(lf-parts)[data-lf-views]::before {
+          content: none;
         }
         :scope:is(lf-parts)[data-lf-views] > .lf-tabstrip {
-          position-anchor: normal;
-          position: sticky;
-          --lf-head-inset: 0px;
-          top: var(--lf-top);
-          inline-size: auto;
-          z-index: 2;
-          block-size: var(--lf-tabstrip-h);
-          --lf-tabstrip-flow: row;
-          gap: 2px;
-          padding: 8px var(--lf-tabstrip-pad) 0;
-          overflow-x: auto;
-          overflow-y: hidden;
-          border-bottom: 1px solid var(--lf-border);
+          --lf-tabstrip-flow: column;
+          gap: 0;
+          /* Room for a focus ring at the header's foot, where it scrolls (layouts.css). */
+          padding: calc(var(--lf-sp-4) - var(--lf-focus-ring-room)) 8px var(--lf-sp-4);
+          border-bottom: 0;
+          border-radius: 0;
+          --lf-tabstrip-bg: var(--lf-paper);
         }
-        :scope:is(lf-parts)[data-lf-views]
-          > .lf-tabstrip
-          :is(.lf-tab-summary, .lf-tab-answer, .lf-tab-on-me) {
+        :scope:is(lf-parts)[data-lf-views] > .lf-tabstrip > .lf-tabstrip-scroll {
           display: none;
         }
         :scope:is(lf-parts)[data-lf-views] > lf-part:not([hidden]) {
-          border-inline-start: 0;
+          border-inline-start: 1px solid var(--lf-rule);
+        }
+        /* On a phone the list is a row that sticks over the open part as the page tabs'
+         * strip does (layouts.css), a header of the root (lf-tabs.js, `#declareHeader`),
+         * so the reader reaches another part from anywhere in this one, and what sticks
+         * inside the part stacks under it. Its tabs are names alone, as theirs are, so it
+         * stays one line high over the part. */
+        @container lf-shell (width < 640px) {
+          :scope:is(lf-parts)[data-lf-views]:not(:has(> .lf-tabstrip))::before {
+            content: "";
+            grid-column: 1;
+            grid-row: auto;
+          }
+          :scope:is(lf-parts) > lf-part {
+            --lf-top: calc(var(--lf-top-outer) + var(--lf-tabstrip-h));
+          }
+          :scope:is(lf-parts)[data-lf-views] > .lf-tabstrip {
+            block-size: var(--lf-tabstrip-h);
+            --lf-tabstrip-flow: row;
+            gap: 2px;
+            padding: 8px var(--lf-tabstrip-pad) 0;
+            border-bottom: 1px solid var(--lf-border);
+          }
+          :scope:is(lf-parts)[data-lf-views]
+            > .lf-tabstrip
+            :is(.lf-tab-summary, .lf-tab-answer, .lf-tab-on-me) {
+            display: none;
+          }
+          :scope:is(lf-parts)[data-lf-views] > lf-part:not([hidden]) {
+            border-inline-start: 0;
+          }
         }
       }
     }
@@ -900,32 +889,6 @@ lf-tabs[data-lf-views] > lf-tab {
    * stands over the panels to say it. */
   lf-tabs[list="side"] > lf-tab[group]::before {
     content: attr(group) " · " attr(label);
-  }
-}
-
-/* A region reaching the window's foot keeps clearance after its reading content.
- * A tab holding only another view or pane transfers that edge instead. */
-@media screen {
-  @scope (html[data-lf-interactive]) {
-    @container not style(--lf-end-room: 0px) {
-      lf-tabs
-        > lf-tab:not([hidden]):has(
-          > :is(lf-tabs, [data-lf-reading-role="pane"]):only-child
-        ) {
-        --lf-tab-end: 0px;
-      }
-      lf-tabs
-        > lf-tab:not([hidden])
-        > :is(lf-tabs, [data-lf-reading-role="pane"]):only-child {
-        --lf-end-room: inherit;
-        margin-block-end: 0;
-      }
-      @container (width >= 36rem) {
-        lf-tabs[list="side"] > .lf-tabstrip {
-          --lf-end-room: inherit;
-        }
-      }
-    }
   }
 }
 
@@ -943,9 +906,8 @@ lf-tabs[data-lf-views] > lf-tab {
         container-type: normal;
       }
       :where(:scope:is(lf-tabs)) {
-        --lf-tab-end: var(--lf-end-room);
+        --lf-tab-end: 0px;
         margin-block: 0 32px;
-        min-block-size: calc(100dvh - var(--lf-top));
         border: 0;
         border-radius: 0;
         background: transparent;

@@ -15,8 +15,8 @@ from render_harness import (
     told,
 )
 
-from leaf import cli
-from leaf.render_checks import asked_again, wait_until_ready
+from leaf.commands import cli
+from leaf.source.render_checks import asked_again, wait_until_ready
 
 
 def _source():
@@ -58,8 +58,8 @@ def test_reading_precedes_modules_and_widgets_restore_their_view(browser, serve)
         expect(page.locator("#feed .lf-activity-news")).to_have_attribute(
             "aria-expanded", "true"
         )
-        page.keyboard.press("Tab")
-        expect(page.locator("#early-link")).to_be_focused()
+        # The reload returns focus to the control the user last pressed.
+        expect(page.locator("#feed .lf-activity-news")).to_be_focused()
         summary = page.locator("#contents summary")
         summary.press("Enter")
         expect(page.locator("#contents details")).not_to_have_attribute("open", "")
@@ -170,21 +170,19 @@ def test_source_capture_precedes_authored_scripts_while_registry_loads(browser, 
 
 
 PROGRESSIVE_WIDGET = """import { html } from '/vendor/lit.js';
-import { LeafElement } from '/runtime/widget-api.js';
+import { LeafElement } from '/runtime/lib/leaf-element.js';
 customElements.define('lf-progressive-proof',class extends LeafElement {
  static lfPatch='members';
+ static shadow=true;
  render(){return html`<button class="proof-control">${this.getAttribute('label')}</button><slot></slot>`;}
 });"""
 PROGRESSIVE_REGISTRY = {
     "lf-progressive-proof": {
         "description": "A progressive widget retaining native authored children.",
         "attributes": {
-            "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "label": {"type": "string"},
             },
-            "additionalProperties": False,
             "required": ["id"],
         },
         "content": "markup",

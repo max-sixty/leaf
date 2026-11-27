@@ -1,0 +1,115 @@
+/* A drawing: a schematic the page draws itself as inline SVG (`svg.lf-drawing`, a
+ * kernel idiom in registry.json). Leaf draws it on every page, whatever theme the page
+ * takes, and on a page that takes none. Leaf's instructions tell every author to draw a
+ * layout, a wireframe or an option's picture in it, and an SVG's shapes paint black
+ * where no rule reaches them. The user chose this. Left with the reading theme, the
+ * idiom would draw black shapes on a page without that theme, and a look that replaced
+ * `reading` would have to copy these rules.
+ *
+ * Every mark takes a token, so a drawing follows the page's palette and colour scheme
+ * as its prose does, which an SVG loaded as an image cannot. A theme restyles a drawing
+ * through those tokens, or with rules of its own, which outrank these whatever their
+ * weight, since these stand in the idioms' cascade layer (idioms.css says where it
+ * ranks). A drawing's words take the two drawing sizes (tokens.css,
+ * `--lf-drawing-size`), which are in the drawing's own units and scale with its
+ * viewBox. A drawing without a width of its own fills its figure; a thumbnail states
+ * one.
+ *
+ * The marks an author writes inside a drawing keep plain names, such as `.box` and
+ * `.frame`. Each rule here reaches only an element inside the idiom's own class, so a
+ * page's `.box` anywhere else keeps its author's look
+ * (`test_the_kernel_styles_no_class_a_page_coins`). An `lf-` name for every mark would
+ * add one of Leaf's names per mark for an author to learn. */
+@layer lf-idioms {
+  svg.lf-drawing {
+    display: block;
+    height: auto;
+    font-family: var(--lf-sans);
+    font-size: var(--lf-drawing-size);
+  }
+  svg.lf-drawing:not([width]) {
+    width: 100%;
+  }
+  svg.lf-drawing text {
+    fill: var(--lf-muted);
+  }
+  svg.lf-drawing .strong {
+    fill: var(--lf-ink);
+    font-weight: 600;
+  }
+  svg.lf-drawing .small {
+    font-size: var(--lf-drawing-small-size);
+  }
+  svg.lf-drawing .mono {
+    font-family: var(--lf-mono);
+    font-size: var(--lf-drawing-small-size);
+    fill: var(--lf-ink-2);
+  }
+  svg.lf-drawing .frame {
+    fill: var(--lf-paper);
+    stroke: var(--lf-border);
+  }
+  svg.lf-drawing .frame-head {
+    fill: color-mix(in srgb, var(--lf-ink) 7%, transparent);
+  }
+  svg.lf-drawing .box {
+    fill: var(--lf-card);
+    stroke: var(--lf-border);
+  }
+  svg.lf-drawing .box.hot {
+    fill: color-mix(in srgb, var(--lf-accent) 9%, var(--lf-card));
+    stroke: var(--lf-accent);
+  }
+  svg.lf-drawing .line {
+    fill: color-mix(in srgb, var(--lf-ink) 20%, transparent);
+  }
+  svg.lf-drawing .line.soft {
+    fill: color-mix(in srgb, var(--lf-ink) 11%, transparent);
+  }
+  svg.lf-drawing .highlight {
+    fill: color-mix(in srgb, var(--lf-accent) 24%, transparent);
+  }
+  svg.lf-drawing .ghost {
+    fill: none;
+    stroke: var(--lf-muted);
+    stroke-dasharray: 3 3;
+  }
+  svg.lf-drawing .guide {
+    fill: none;
+    stroke: var(--lf-accent);
+    stroke-opacity: 0.5;
+    stroke-dasharray: 2 3;
+  }
+  svg.lf-drawing .dim {
+    fill: none;
+    stroke: var(--lf-ink-2);
+  }
+  svg.lf-drawing .arrow {
+    fill: none;
+    stroke: var(--lf-muted);
+    stroke-width: 1.2;
+  }
+  svg.lf-drawing .tip {
+    fill: var(--lf-muted);
+  }
+  svg.lf-drawing .mark,
+  svg.lf-drawing .tip.hot {
+    fill: var(--lf-accent);
+  }
+  svg.lf-drawing .glyph {
+    fill: var(--lf-paper);
+    font-size: var(--lf-drawing-small-size);
+    font-weight: 700;
+    text-anchor: middle;
+    dominant-baseline: central;
+  }
+  svg.lf-drawing .ok {
+    fill: var(--lf-ok);
+  }
+  svg.lf-drawing .warn {
+    fill: var(--lf-warn);
+  }
+  svg.lf-drawing .danger {
+    fill: var(--lf-danger);
+  }
+}

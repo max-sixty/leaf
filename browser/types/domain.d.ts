@@ -7,13 +7,14 @@ import type {
   BrowserCommand,
   CompleteUnion,
   MessageKind,
+  ServedReading,
   ServedState,
   ServedVerb,
-  ServedAttention,
+  ServedWorkflow,
   WidgetKind,
 } from "./contract.js";
 export type { Event, BrowserCommand };
-import type { Immutable } from "../runtime/framework/snapshot.js";
+import type { Immutable } from "../runtime/base/snapshot.js";
 export type StateRecord = NonNullable<ServedVerb["record"]>;
 export interface ActionSpec {
   unit: string;
@@ -28,7 +29,57 @@ type OptionalAttempt<T> = T extends unknown
   ? Omit<T, "attempt"> & { attempt?: string }
   : never;
 export type PendingCommand = OptionalAttempt<Command>;
+/** One piece of news a reading carries (host/semantic-news.js), as the announcer queues
+ * it (transport/notifications.js). */
+export type SemanticNews = ContentNews | FailureNews | ObligationNews | EmptiedNews;
+type ContentNews = {
+  kind: "agent_content";
+  key: string;
+  thread: string;
+  message: Message;
+  version: string;
+};
+type FailureNews = {
+  kind: "response_failure";
+  key: string;
+  condition: "failed" | "interrupted";
+  input: string;
+  thread: string | null;
+  seq: number;
+};
+export type ObligationNews = {
+  kind: "user_obligation";
+  key: string;
+  sourceKey: string;
+  episode: number;
+  source: string;
+  thread: string | null;
+  message: string | null;
+};
+type EmptiedNews = {
+  kind: "on_me_empty";
+  key: string;
+};
+/** A publication as `leaf.source.data.read_source` serves it, before widget delivery. */
+export type SourceReading = NonNullable<ServedReading["data"]["sources"]>[string];
+/** A workflow as the application state publishes it, local sends included before the
+ * server can classify them: a `local` send waits on the agent, or is blocked where the
+ * server refused it, and a widget move has no coordinate the server has read. A send
+ * `launching` waits for the server to launch the page's agent first. */
+export type Workflow = Published<ServedWorkflow>;
+type Published<T> = T extends unknown
+  ? Omit<T, "coordinate"> & {
+      coordinate: readonly (string | null)[] | null;
+      local?: boolean;
+      launching?: boolean;
+    }
+  : never;
 export type Anchor = NonNullable<EventMap["comment"]["anchor"]>;
+/** A comment's drawing as its draft holds it, with `at`, the matrix from its local frame
+ * into its anchor's section when last drawn on (annotations/composing/drawing-record.js). */
+export type DraftDrawing = NonNullable<EventMap["comment"]["drawing"]> & {
+  at?: readonly [number, number, number, number, number, number];
+};
 export interface ContentVersion {
   message: string;
   version: string;
@@ -79,7 +130,9 @@ export type Message = CompleteUnion<ServedMessage | LocalMessage> & {
   addressable?: boolean;
   plainText?: string;
 };
-export type Attention = ServedAttention;
+/** The id of the obligation record that speaks for a thread (`standing.leading`), or
+ * null where nobody owes a move there. */
+export type Attention = string | null;
 export interface Thread {
   id: string;
   root: Message;
@@ -102,12 +155,11 @@ export interface Thread {
     "id" | "seq" | "from" | "through" | "text" | "label"
   > & {
     covers: readonly string[];
-    protected: readonly string[];
   })[];
   unread: Readonly<Record<string, string>>;
   attention: Attention;
 }
-export type Settlement = Extract<Command, { kind: "resolve" | "unresolve" }> & {
+type Settlement = Extract<Command, { kind: "resolve" | "unresolve" }> & {
   localParent?: string;
 };
 type WidgetEvent = EventMap[WidgetKind];
@@ -140,7 +192,7 @@ export type PendingProjection =
       localOrder: number;
     };
 // A widget event or undo in the log, at the coordinate its view classifies it at, an
-// undo at its target's, or null (`logCoverage` in `framework/application.js`).
+// undo at its target's, or null (`logCoverage` in `state/semantic-application.js`).
 export interface Coverage {
   event: Event;
   coordinate: readonly string[] | null;
@@ -153,12 +205,12 @@ export interface ProjectionInput {
   coverage?: readonly Coverage[];
   pendingEntries?: readonly PendingProjection[];
 }
-export interface ActionValue {
+interface ActionValue {
   action: string | null;
   value: unknown;
   detail: Record<string, unknown>;
 }
-export interface UnitValue {
+interface UnitValue {
   detail?: never;
   value: Record<string, string[]>;
   units: Record<string, ActionValue>;
@@ -172,6 +224,24 @@ export interface AuthoredWidget {
   specs: ReadonlyMap<string, ActionSpec>;
 }
 export type AuthoredMap = ReadonlyMap<string, Immutable<AuthoredWidget>>;
+/** A widget's reading as the `state` property Leaf sets on an element it drives
+ * (host/widget-controller.js, `widgetState`): each declared verb's folded state, whether
+ * the user may act on it now and the reason they may not, and whether Undo would take
+ * back the action in force, on each unit of a verb that holds a state for each. */
+export type WidgetState = Immutable<
+  Record<
+    string,
+    | (UndoableAction & OfferedVerb)
+    | (Omit<UnitValue, "units"> & {
+        units: Record<string, UndoableAction>;
+      } & OfferedVerb)
+    | (Omit<PositionValue, "units"> & {
+        units: Record<string, UndoableAction>;
+      } & OfferedVerb)
+  >
+>;
+type UndoableAction = ActionValue & { undoable: boolean };
+type OfferedVerb = { available: boolean; unavailable: string | null };
 
 export type ClassifiedEntry =
   | ProjectionEntry

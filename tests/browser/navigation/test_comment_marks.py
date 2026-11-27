@@ -2,7 +2,6 @@
 the notes that tell a screen reader of them."""
 
 import io
-import itertools
 import math
 import re
 import struct
@@ -27,10 +26,8 @@ from render_cases_navigation import (
     wait_for_pending_mark,
 )
 from render_harness import (
-    CHROME_ROOT,
     INLINE_PAGE,
     PANEL,
-    RELEASE_FOCUS,
     accessible_details,
     comment_note,
     expect_comment_notes,
@@ -48,8 +45,8 @@ from render_harness import (
 from browser.navigation import (
     color_cue_markup,
 )
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -287,7 +284,7 @@ def _point_at(page, passage):
 
 
 def _comment_on(passage, **fields):
-    """The user's comment on a passage's words, or with `token` their reaction to them."""
+    """The user's comment on a passage's words, or with `emoji` their reaction to them."""
     section, quote = passage
     return {
         "kind": "comment",
@@ -296,92 +293,6 @@ def _comment_on(passage, **fields):
         "anchor": {"section": section, "quote": quote},
         **fields,
     }
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
-def test_marked_words_are_seen_and_told_apart(request, serve, engine):
-    """A mark on words is the user's notice that somebody said something about them,
-    and each state a gesture puts it in is the answer to that gesture: the words the
-    pointer rests on, those of the thread the user opened, and those their draft is on.
-
-    The wash alone can't be that notice: --lf-mark composites to 1.13:1 over the light
-    paper, and no alpha of its hue reaches 1.5:1. So the words take the mark's ink, and
-    each state's paint, read off the drawn page in both schemes, is seen against the
-    words' own colour, keeps its words legible on its ground, and differs from every
-    other state's in its ground or its ink.
-
-    Read from screenshots rather than computed styles, because what a highlight
-    pseudo may carry is the browser's to decide, and a declaration that stopped
-    applying would say nothing."""
-    page = open_page(
-        request.getfixturevalue(engine),
-        serve(
-            MARKED_PAGE,
-            events=[
-                _comment_on(PASSAGES[state], id=f"c-{n}", text="Why these words?")
-                for n, state in enumerate(("mark", "pointed at", "open thread"))
-            ]
-            + [_comment_on(PASSAGES["reaction"], token="keep")],
-        ),
-    )
-    page.wait_for_function(
-        "() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 3"
-        " && (CSS.highlights.get('lf-react')?.size ?? 0) === 1"
-    )
-    for scheme in ("light", "dark"):
-        page.emulate_media(color_scheme=scheme)
-        drawn = {
-            state: _drawn(page, PASSAGES[state])
-            for state in ("mark", "reaction", "unmarked")
-        }
-
-        page.mouse.move(*_point_at(page, PASSAGES["pointed at"]))
-        page.wait_for_function("() => (CSS.highlights.get('lf-mark-hover')?.size ?? 0)")
-        drawn["pointed at"] = _drawn(page, PASSAGES["pointed at"])
-
-        page.mouse.click(*_point_at(page, PASSAGES["open thread"]))
-        wait_current_location(page, PASSAGES["open thread"][1])
-        page.mouse.move(0, 0)
-        page.wait_for_function("() => !CSS.highlights.get('lf-mark-hover')?.size")
-        drawn["open thread"] = _drawn(page, PASSAGES["open thread"])
-        # Out of the thread to its passage, then off the passage, so the card stands
-        # over nothing the next gesture aims at.
-        page.keyboard.press("Escape")
-        page.keyboard.press("Escape")
-        expect(page.locator(".lf-margin-preview")).to_be_hidden()
-
-        box = page.evaluate(WORDS_BOX, list(PASSAGES["draft"]))["box"]
-        middle = box["y"] + box["height"] / 2
-        select(page, (box["x"] + 1, middle), (box["x"] + box["width"] - 1, middle))
-        page.locator(".lf-fab-input").click()
-        wait_for_pending_mark(page)
-        assert pending_text(page) == PASSAGES["draft"][1]
-        page.mouse.move(0, 0)
-        drawn["draft"] = _drawn(page, PASSAGES["draft"])
-        page.keyboard.press("Escape")
-        page.wait_for_function("() => !CSS.highlights.get('lf-pending')?.size")
-
-        # The control: words nobody marked come back in their own colour, so a reading
-        # of marked words that does is reading words the mark left alone.
-        _, ink, own = drawn.pop("unmarked")
-        assert _apart(ink, own) < SEEN_APART, (scheme, ink, own)
-        for state, (ground, words, own) in drawn.items():
-            assert _apart(words, own) >= 10, (
-                f"the {scheme} page's {state} words wear {words}, too near their own "
-                f"{own} for the user to see that anything was said: {drawn}"
-            )
-            assert _contrast(words, ground) >= 3, (
-                f"the {scheme} page's {state} words wear {words} on {ground}, "
-                f"{_contrast(words, ground):.2f}:1: {drawn}"
-            )
-        for one, other in itertools.combinations(drawn, 2):
-            assert (
-                max(
-                    _apart(drawn[one][0], drawn[other][0]),
-                    _apart(drawn[one][1], drawn[other][1]),
-                )
-                >= SEEN_APART
-            ), f"the {scheme} page draws {one} and {other} alike: {drawn}"
 
 
 # A light page holding a panel with a scheme of its own, drawn in the paper and ink a
@@ -460,108 +371,6 @@ OWN_COLOURS = {
     "string": ("doc", '"resend now"'),
 }
 UNMARKED_STRING = ("doc", '"retry later"')
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
-def test_o_gives_marked_words_their_own_colours_back(request, serve, engine):
-    """Hiding the annotations (`o`) takes the durable marks down, and the words they
-    covered wear the page's own colours again: a link's blue, prose's ink, and a text
-    document's syntax colour, which is a highlight under the mark's. While the marks
-    show, their ink is over the syntax colour however late the document colours the
-    words, and showing them again brings the ink back. Standing in a thread while they
-    are hidden washes its words and leaves them their own colour."""
-    page = open_page(
-        request.getfixturevalue(engine),
-        serve(
-            OWN_COLOURS_PAGE,
-            events=[
-                _comment_on(PASSAGES["mark"], id="c-link", text="Why this link?"),
-                _comment_on(PASSAGES["reaction"], token="keep"),
-                # Words in a text document are anchored on its one datum, as capture
-                # writes them.
-                {
-                    "kind": "comment",
-                    "author": "user",
-                    "revision": 1,
-                    "anchor": {
-                        "section": "doc",
-                        "datum": "document",
-                        "identity": "document",
-                        "quote": 'message = "resend now"',
-                    },
-                    "id": "c-doc",
-                    "text": "Why now?",
-                },
-            ],
-        ),
-    )
-    page.wait_for_function(
-        "() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 2"
-        " && (CSS.highlights.get('lf-react')?.size ?? 0) === 1"
-    )
-    assert not page.evaluate("CSS.highlights.has('lf-token-syn-string')"), (
-        "the document coloured a string before it was scrolled to, so this page no "
-        "longer registers a syntax colour after the marks"
-    )
-    page.evaluate(WORDS_BOX, list(UNMARKED_STRING))
-    page.wait_for_function(
-        "() => (CSS.highlights.get('lf-token-syn-string')?.size ?? 0) >= 2"
-    )
-    for scheme in ("light", "dark"):
-        page.emulate_media(color_scheme=scheme)
-        # WebKit can screenshot the words before it paints a newly registered syntax
-        # colour or the scheme's colours, so read them after a rendering update.
-        rendered(page)
-        owed = {"string": _drawn(page, UNMARKED_STRING)[1]}
-        shown = {name: _drawn(page, passage) for name, passage in OWN_COLOURS.items()}
-        for name, (_, words, own) in shown.items():
-            assert _apart(words, owed.get(name, own)) >= 10, (
-                f"the {scheme} {name} wears {words} under its mark, its own colour "
-                f"{owed.get(name, own)}: {shown}"
-            )
-        page.evaluate(RELEASE_FOCUS)
-        page.keyboard.press("o")
-        expect(page.locator(CHROME_ROOT)).to_have_attribute(
-            "data-lf-annotations-hidden", ""
-        )
-        hidden = {name: _drawn(page, passage) for name, passage in OWN_COLOURS.items()}
-        for name, (_, words, own) in hidden.items():
-            assert _apart(words, owed.get(name, own)) < SEEN_APART, (
-                f"with the annotations hidden, the {scheme} {name} wears {words}, "
-                f"where its own colour is {owed.get(name, own)}: {hidden}"
-            )
-        # Standing in a thread with the annotations hidden washes its words, and they
-        # keep their own colour under the wash rather than take the mark's ink. Read
-        # against both, since a translucent wash shifts the drawn cores of thin strokes.
-        page.keyboard.press("t")
-        wait_current_location(page, PASSAGES["mark"][1])
-        page.mouse.move(0, 0)
-        ground, words, own = _drawn(page, PASSAGES["mark"])
-        ink = shown["link"][1]
-        assert ground != hidden["link"][0], (
-            f"standing in the {scheme} link's thread drew no wash under its words"
-        )
-        assert _apart(words, own) < _apart(words, ink), (
-            f"standing in the {scheme} link's thread with the annotations hidden, its "
-            f"words wear {words}, nearer the mark's ink {ink} than their own {own}"
-        )
-        page.keyboard.press("Escape")
-        page.keyboard.press("Escape")
-        wait_current_location(page, "")
-        expect(page.locator(".lf-margin-preview")).to_be_hidden()
-        page.evaluate(RELEASE_FOCUS)
-        page.keyboard.press("o")
-        expect(page.locator(CHROME_ROOT)).not_to_have_attribute(
-            "data-lf-annotations-hidden", re.compile(".*")
-        )
-        page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) === 2")
-        # The highlight is registered at once, but WebKit can screenshot the link before
-        # it paints the re-registered mark, so read it after a rendering update.
-        rendered(page)
-        again = {name: _drawn(page, passage) for name, passage in OWN_COLOURS.items()}
-        assert all(
-            _apart(again[name][1], shown[name][1]) < SEEN_APART for name in shown
-        ), (scheme, shown, again)
 
 
 def test_composer_marks_the_passage_instead_of_quoting_it(browser, serve):
@@ -1058,7 +867,9 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     expect(page.locator("#p1")).to_be_in_viewport()
     expect(page.locator("[data-lf-proxied]")).to_have_count(1)
     assert _ring_round(page, "#p1")
-    page.locator("#p1").evaluate("p => { p.style.marginTop = ''; }")
+    page.locator("#p1").evaluate(
+        "p => { p.style.marginTop = ''; scrollTo({top: 0, behavior: 'instant'}); }"
+    )
     note.press("Enter")
     expect(inline1).to_be_focused()
     expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
@@ -1157,7 +968,7 @@ def _ring_round(page, selector):
         and mark["style"] == "solid"
         and not mark["brackets"]
         and mark["offset"] > 0
-        and mark["color"] == token_colour(page, "--lf-accent")
+        and mark["color"] == token_colour(page, "--lf-ok")
     )
 
 
@@ -1187,7 +998,7 @@ def test_any_focus_on_a_note_rings_its_block_and_follows_it_redrawn(browser, ser
     assert _ring_round(page, "#p1")
     # From the keys, the block also wears the trace of the note's margin entry, whose
     # grey the ring's accent outranks. The Tab leaves the page, which the runtime reads a
-    # task later (focus.js, the `focusout` reading), and the ring coming off is that
+    # task later (dom/focus.js, the `focusout` reading), and the ring coming off is that
     # reading. Focus back on the note before it is no arrival, since the user never left.
     page.keyboard.press("Tab")
     expect(page.locator("#p1")).not_to_have_attribute("data-lf-proxied", "")
@@ -1297,7 +1108,7 @@ def test_a_note_follows_its_words_into_another_block_while_their_first_stays(
 def test_a_focused_note_rings_its_block_where_the_page_draws_its_own_annotations(
     browser, serve
 ):
-    """The ring a focused note draws round its block is the chrome's own (target-paint.js),
+    """The ring a focused note draws round its block is the chrome's own (readings/target-paint.js),
     not the annotation overlay's, so a page that presents its own annotations, which loads
     no overlay, still shows a sighted screen reader user where they are."""
     url = serve(NOTED_PAGE.replace("<body>", '<body data-annotations="page">', 1))

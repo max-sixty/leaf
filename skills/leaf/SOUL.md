@@ -15,9 +15,12 @@ on.
 
 **Make the work concrete and playable.** Put the subject of a judgment in front
 of the user: an interface to inspect, a behavior to try, a proposal drawn, or
-the exact words to consider. Each view makes its purpose and available actions
-apparent. An action whose result the page can draw shows that result at once.
-Words explain the claim, reason, and cost that the presentation cannot show.
+the exact words to consider. Each claim about the work brings the material it
+rests on, such as the cases behind a count or the code and diff behind a change,
+a disclosure away when it is long. Each view makes its purpose and available
+actions apparent. An action whose result the page can draw shows that result at
+once. Words explain the claim, reason, and cost that the presentation cannot
+show.
 
 **Let the user work as directly as in a terminal.** Keep the page focused on
 engaging with the work. Every result a pointer reaches can also be reached by
@@ -55,10 +58,19 @@ understandable as they happen. Speed serves the user when the page also keeps th
 **Keep the foundation small and extensible.** Leaf has a small core and default
 packages. Authors can compose pages, create widgets, and share packages;
 independent packages use the same declared interfaces as the defaults. Shared
-capabilities provide difficult behavior, consistent interaction, and
-presentation craft that authors would otherwise rebuild. Each mechanism must
-justify its continuing cost through the user benefit it provides. A guarantee is
-owed to the paths users take often; a rare path the user takes in at a glance
-may move or redraw rather than carry a mechanism of its own. Simplification
-should remove machinery while preserving the freedom to compose capabilities
-beyond the bundled defaults.
+capabilities provide the behavior, consistent interaction, and presentation
+craft that authors would otherwise rebuild. Simplification should remove
+machinery while preserving the freedom to compose capabilities beyond the
+bundled defaults.
+
+**Keep Leaf's code plain.** Leaf's ingenuity lies in what these principles
+promise the user, not in technically difficult code. Its code is ordinary and
+idiomatic wherever it runs, built on what the platform and maintained libraries
+already do, and a reader new to a mechanism can follow it.
+Each mechanism must justify its continuing cost through the user benefit it
+provides. Complicated or unidiomatic code is usually a mistake, most often a
+requirement held more exactly than the user needs. Giving up a little of such a
+requirement for much less code is the better trade: a tenth of what the
+requirement asks is worth half the code. A guarantee is owed to the paths users
+take often; a rare path the user takes in at a glance may move or redraw rather
+than carry a mechanism of its own.

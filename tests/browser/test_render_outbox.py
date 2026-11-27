@@ -83,11 +83,11 @@ from render_harness import (
 
 from browser.test_render_application_boundary import long_thread
 from browser.threads import open_panel_thread
-from leaf import event_log as events_model
-from leaf import schema as schema_model
-from leaf.registry.contract import RANK
-from leaf.render_checks import rendered
-from leaf.render_gate.scheme import console_finding
+from leaf.base import schema as schema_model
+from leaf.log import event_log as events_model
+from leaf.pages.render_gate.scheme import console_finding
+from leaf.source.registry.contract import RANK
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import PANEL_THREAD, panel_view, threads_tab
 
 DRAG_HELD = "async () => (await window.__lfCheckApi()).dragHeld()"
@@ -299,7 +299,8 @@ def test_undo_names_what_it_takes_and_how_long_ago_in_a_fresh_tab(browser, serve
     take back, read from the log rather than from the tab that made it: the leaf's
     menu names the thread they resolved and how long ago, and so does the undo's
     notice. An action is named in its own document's words, under the name the page
-    gives its widget."""
+    gives its widget. However long the words, the row stands on one line beside its
+    age, cut where the line runs out."""
     url = serve(UNDO_PAGE, comments=1)
     [comment] = [
         event["id"]
@@ -345,6 +346,7 @@ def test_undo_names_what_it_takes_and_how_long_ago_in_a_fresh_tab(browser, serve
             "widget": "picks",
             "action": "choose",
             "detail": {"value": ["opt-a"]},
+            "answered": True,
         },
     )
     told(page)
@@ -353,6 +355,29 @@ def test_undo_names_what_it_takes_and_how_long_ago_in_a_fresh_tab(browser, serve
         "Undo: chose “Keep the mounts” in “Should we keep the mounts?”"
     )
     expect(row.locator(".lf-fp-value")).to_have_text("just now")
+
+    # A comment's words run past the row's line: they stand on it cut, beside the
+    # age, and the row stands as tall as the menu's one-line rows.
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "text": "The CLI exiting does not mean its background jobs have finished.",
+            "anchor": {"quote": "Second paragraph of the note."},
+        },
+    )
+    told(page)
+    row = panel_control(page, "command:history.undo")
+    label = row.locator(".lf-fp-label")
+    expect(label).to_have_text(
+        "Undo: commented “The CLI exiting does not mean its background…”"
+    )
+    expect(row.locator(".lf-fp-value")).to_have_text("just now")
+    assert label.evaluate("el => el.scrollWidth > el.clientWidth")
+    about = panel_control(page, "inspection")
+    assert row.bounding_box()["height"] == about.bounding_box()["height"]
 
 
 def _undos(page_dir):
@@ -430,6 +455,7 @@ def test_undo_takes_a_gesture_in_view_at_once_whatever_the_agent_has_received(
             "widget": "picks",
             "action": "choose",
             "detail": {"value": ["opt-a"]},
+            "answered": True,
         },
     )
     append_carried_log_record(
@@ -470,8 +496,9 @@ FAR_CHOICE_PAGE = leaf_page(
 
 
 def test_undo_takes_a_choice_out_of_view_then_travels_to_it(browser, serve):
-    """A choice out of view is taken back by one press, which then travels to it as a
-    link to it would, so Back returns the user to where they pressed."""
+    """A choice out of view is taken back by one press, which then brings it into view
+    with the user on it, as no navigation: the address keeps no fragment for it and Back
+    adds no step back to where they pressed."""
     url = serve(FAR_CHOICE_PAGE)
     choice = append_command(
         serve.page_dir,
@@ -482,17 +509,20 @@ def test_undo_takes_a_choice_out_of_view_then_travels_to_it(browser, serve):
             "widget": "picks",
             "action": "choose",
             "detail": {"value": ["opt-a"]},
+            "answered": True,
         },
     )
     page = open_page(browser, url)
     picks = page.locator("#picks")
     expect(picks).not_to_be_in_viewport()
+    address = "() => [location.hash, history.length]"
+    before = page.evaluate(address)
     undo(page)
     assert _undos(serve.page_dir) == [choice["id"]]
     expect(picks).to_be_in_viewport()
+    expect(picks).to_be_focused()
     expect(page.locator("lf-option[selected]")).to_have_attribute("id", "opt-b")
-    page.go_back()
-    expect(picks).not_to_be_in_viewport()
+    assert page.evaluate(address) == before
 
 
 def test_undo_pressed_as_a_walk_starts_reads_the_page_its_scroll_leaves(browser, serve):
@@ -516,12 +546,12 @@ def test_undo_pressed_as_a_walk_starts_reads_the_page_its_scroll_leaves(browser,
         page.keyboard.press("Shift+t")
         page.keyboard.press("ControlOrMeta+z")
     assert _undos(serve.page_dir) == [choice["id"]]
-    expect(page).to_have_url(re.compile("#picks$"))
+    expect(picks).to_be_focused()
     scroll_settled(page)
     expect(picks).to_be_in_viewport()
 
 
-# Whether the options with id `arg` are taking the tint of a change now (motion.js,
+# Whether the options with id `arg` are taking the tint of a change now (dom/motion.js,
 # `backgroundFlash`), rows and all: each row paints its own ground over the box's.
 TINTED = """(id) => [document.getElementById(id), ...document.querySelectorAll(`#${id} > lf-option`)]
   .every((box) => box.getAnimations().some((played) =>
@@ -582,6 +612,7 @@ def _choose(page_dir, option="opt-a"):
             "widget": "picks",
             "action": "choose",
             "detail": {"value": [option]},
+            "answered": True,
         },
     )
 
@@ -681,13 +712,26 @@ def test_undo_takes_a_comment_back_without_opening_its_thread(browser, serve):
 def test_the_undo_rows_age_follows_the_clock_while_the_page_stays_open(browser, serve):
     """The age Undo's row says, at its end and whole in its hover, is read where the
     menu paints, so a page left open keeps it true: a gesture made just now reads
-    minutes old once minutes pass, with no new reading of the log."""
+    minutes old once minutes pass, with no new reading of the log. The agent has
+    answered the thread the user resolves, so nothing is owed whose next change the
+    page would ask the server about instead."""
     url = serve(UNDO_PAGE, comments=1)
     [comment] = [
         event["id"]
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     ]
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "revision": 1,
+            "parent": comment,
+            "responds": comment,
+            "text": "Done.",
+        },
+    )
     append_carried_log_record(
         serve.page_dir,
         {
@@ -875,9 +919,9 @@ def test_one_supplied_attempt_cannot_name_two_queued_actions(browser, serve):
     page = open_page(browser, serve(BOARD_PAGE))
     outcome = page.evaluate(
         """async () => {
-          const {widgetController} = await window.__lfWidgetApi();
+          const {controllerOf} = await window.__lfCheckApi();
           const board = document.querySelector('#sprint');
-          const controller = widgetController(board);
+          const controller = controllerOf(board);
           const attempt = 'one-attempt-two-actions';
           const first = controller.dispatch({
             kind: 'action', verb: 'move', attempt,
@@ -1346,7 +1390,7 @@ def test_a_refused_position_reconciles_the_logged_order_of_sibling_units(
             page.keyboard.press(key)
         # The drop lands while the card still slides from where it stood, outside the
         # board that shrank under it: a slide held paused carries the user nowhere
-        # (user-place.js, `carried`), so it runs, too slowly to end before the refusal.
+        # (readings/user-place.js, `carried`), so it runs, too slowly to end before the refusal.
         page.evaluate(
             "() => __lfHeld.forEach(motion => {"
             " motion.playbackRate = 1e-6; motion.play(); })"
@@ -1424,11 +1468,11 @@ def test_a_refused_position_restores_the_complete_sibling_order(browser, serve):
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
         page.evaluate(
-            """() => { void window.__lfWidgetApi().then(({widgetController}) => {
+            """() => { void window.__lfCheckApi().then(({controllerOf}) => {
               const widget = document.querySelector('#sprint');
               const detail = {unit: 'card-baffle', value: 'col-todo', rank: 's'};
               document.getElementById(detail.value).append(document.getElementById(detail.unit));
-              widgetController(widget).dispatch({kind: 'action', verb: 'move', detail});
+              controllerOf(widget).dispatch({kind: 'action', verb: 'move', detail});
             }); }"""
         )
     expect(page.locator("#col-todo > lf-card")).to_have_count(3)
@@ -1493,7 +1537,7 @@ def test_an_outer_refusal_preserves_a_different_nested_widgets_state(
     declarations["lf-column"]["owners"].append("lf-outer-board")
     registry_path.write_text(json.dumps(declarations))
     (tmp_path / ".leaf" / "widgets" / "lf-outer-board.js").write_text(
-        """import { LeafElement } from "/runtime/widget-api.js";
+        """import { LeafElement } from "/runtime/lib/leaf-element.js";
 customElements.define("lf-outer-board", class extends LeafElement {
   render() {
     for (const [id, order] of Object.entries(this.state.move.value)) {
@@ -1525,20 +1569,20 @@ customElements.define("lf-outer-board", class extends LeafElement {
 
     with page.expect_request("**/api/event"):
         page.evaluate(
-            """() => { void window.__lfWidgetApi().then(({widgetController}) => {
+            """() => { void window.__lfCheckApi().then(({controllerOf}) => {
               const widget = document.querySelector('#outer');
               const detail = {unit: 'outer-card', value: 'outer-done', rank: '0i'};
               document.getElementById(detail.value).append(document.getElementById(detail.unit));
-              widgetController(widget).dispatch({kind: 'action', verb: 'move', detail});
+              controllerOf(widget).dispatch({kind: 'action', verb: 'move', detail});
             }); }"""
         )
     holding(page, held, 1, "the outer-board move")
     page.evaluate(
-        """() => { void window.__lfWidgetApi().then(({widgetController}) => {
+        """() => { void window.__lfCheckApi().then(({controllerOf}) => {
           const widget = document.querySelector('#inner');
           const detail = {unit: 'inner-card', value: 'inner-done', rank: '0i'};
           document.getElementById(detail.value).append(document.getElementById(detail.unit));
-          widgetController(widget).dispatch({kind: 'action', verb: 'move', detail});
+          controllerOf(widget).dispatch({kind: 'action', verb: 'move', detail});
         }); }"""
     )
     expect(page.locator("#inner-done #inner-card")).to_have_count(1)
@@ -1920,6 +1964,7 @@ def test_an_older_settlement_cannot_repaint_over_a_newer_decision(browser, serve
             "widget": "sug-refill",
             "action": "decide",
             "detail": {"outcome": "reject"},
+            "answered": True,
         },
     )
 
@@ -2160,6 +2205,7 @@ def test_a_refused_draft_keeps_newer_authoritative_words_under_its_editor(
             "widget": "note-cli",
             "action": "edit",
             "detail": {"value": "Remote B"},
+            "answered": True,
         },
     )
     told(page)
@@ -2214,6 +2260,7 @@ def test_a_draft_commit_stages_before_deferred_projection_retries(browser, serve
             "widget": "note-cli",
             "action": "edit",
             "detail": {"value": "Remote B"},
+            "answered": True,
         },
     )
     told(page)
@@ -2302,7 +2349,12 @@ def test_an_undo_reveals_the_prior_winner_before_its_send_finishes(
     holding(page, held, 1, "the optimistic withdrawal")
     other_undo = append_command(
         serve.page_dir,
-        {"kind": "undo", "author": "user", "undoes": actions(serve.page_dir)[-1]["id"]},
+        {
+            "kind": "undo",
+            "author": "user",
+            "undoes": actions(serve.page_dir)[-1]["id"],
+            "answered": True,
+        },
     )
     response, refusal = fetch_whole_state(held[0])
     assert response.status == 400 and refused_on(refusal).code == "withdrawn-gesture"
@@ -2407,7 +2459,7 @@ def test_a_held_suggestion_delivery_does_not_reclaim_focus(held_events, serve):
     holding(page, held, 1, "the accepted suggestion")
     expect(suggestion_control(page, "sug-refill", "undo")).to_be_focused()
 
-    elsewhere = page.locator(".lf-fp-on-user")
+    elsewhere = page.locator(".lf-fp-leaf")
     elsewhere.focus()
     held.pop(0).continue_()
     round_trip(page)
@@ -2902,10 +2954,8 @@ def _serve_preparing_thread(serve, page=SUGGESTION_PAGE):
             "lf-preparation": {
                 "description": "A reply whose presentation waits for its content.",
                 "attributes": {
-                    "type": "object",
-                    "properties": {"id": {"type": "string"}},
+                    "properties": {},
                     "required": ["id"],
-                    "additionalProperties": False,
                 },
                 "content": "markup",
                 "example": '<lf-preparation id="example"><p>Ready</p></lf-preparation>',
@@ -2913,13 +2963,14 @@ def _serve_preparing_thread(serve, page=SUGGESTION_PAGE):
         },
         layer_widgets={
             "lf-preparation.js": """
-import {once, widgetController} from '/runtime/widget-api.js';
+import {PendingTaskEvent} from '/runtime/lib/pending-task.js';
+import {once} from '/runtime/lib/once.js';
 customElements.define('lf-preparation', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
-    widgetController(this).present(fetch('/preparation-content').then(() => {
+    this.dispatchEvent(new PendingTaskEvent(fetch('/preparation-content').then(() => {
       this.dataset.ready = 'yes';
-    }));
+    })));
   }
 });
 """
@@ -2969,6 +3020,7 @@ def test_undo_waits_while_the_candidate_is_applying_then_reads_accepted_truth(
             "widget": "sug-thistle",
             "action": "decide",
             "detail": {"outcome": "accept"},
+            "answered": True,
         },
     )
     holding(page, held_states, 1, "candidate read")

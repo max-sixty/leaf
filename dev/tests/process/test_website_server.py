@@ -36,10 +36,10 @@ from process.website_server import (  # noqa: F401
 )
 
 import leaf_website as website_server
-from leaf.event_log import read_events
-from leaf.files import revision_path
-from leaf.render_checks import OUTSTANDING
-from leaf.state import session_record
+from leaf.base.files import revision_path
+from leaf.base.state import session_record
+from leaf.log.event_log import read_events
+from leaf.source.render_checks import HANDOVER_DEADLINE_MS, OUTSTANDING
 from leaf_dev import ROOT, startup, website
 from leaf_dev.commands.journey import _journey as journey
 from leaf_dev.commands.journey import chart as journey_chart
@@ -197,7 +197,7 @@ class _FailedTurn:
         ]
         return {
             "active": {"revision": 1, "url": "revisions/1.html"},
-            "activity": {"kind": "away", "obligations": []},
+            "activity": {"presence": "away", "state": "done", "obligations": []},
             "events": events,
         }
 
@@ -230,8 +230,10 @@ class _DeployedPage:
             presented_at if initial_presented_at is None else initial_presented_at
         )
         self.init_scripts: list[Path] = []
-        self.presentation_waits: list[int] = []
-        self.revision_waits: list[tuple[int, int]] = []
+        # The context that opened the page, which sets its default deadline.
+        self.context: object = None
+        self.presentation_waits: list[int | None] = []
+        self.revision_waits: list[int] = []
 
     def add_init_script(self, *, path: Path) -> None:
         self.init_scripts.append(path)
@@ -251,7 +253,9 @@ class _DeployedPage:
         answered.ok = self.reload_ok
         return answered
 
-    def wait_for_function(self, expression: str, *, arg, timeout: int):
+    def wait_for_function(
+        self, expression: str, *, arg, timeout: int | None = None, polling=None
+    ):
         if expression == OUTSTANDING:
             return SimpleNamespace(json_value=lambda: self.reload_stalls_at)
         if expression != "window.__leafVerifier.revisionAtLeast":
@@ -261,7 +265,7 @@ class _DeployedPage:
             if self.reloaded and self.reload_stalls_at is not None:
                 raise PlaywrightTimeout("the page never got ready")
             return SimpleNamespace(json_value=lambda: "ready")
-        self.revision_waits.append((arg, timeout))
+        self.revision_waits.append(arg)
         if self.revision >= arg and not self.presentation_pending:
             return
         if self.follows_revision:
@@ -324,7 +328,11 @@ class _DeployedContainer:
         self.request = self
         self.closed = False
 
+    def set_default_timeout(self, timeout: int) -> None:
+        pass
+
     def new_page(self) -> _DeployedPage:
+        self.page.context = self
         return self.page
 
     def get(self, url: str, headers: dict | None = None, **kwargs) -> _Read:
@@ -363,7 +371,11 @@ class _PreviousImageContainer:
         self.request = self
         self.closed = False
 
+    def set_default_timeout(self, timeout: int) -> None:
+        pass
+
     def new_page(self) -> _DeployedPage:
+        self.page.context = self
         return self.page
 
     def get(self, url: str, headers: dict | None = None, **kwargs) -> _Read:
@@ -520,10 +532,6 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
     refused = runner.invoke(journey_run.journey, ["website-adapter", "--http"])
     assert refused.exit_code == 2
     assert "a website's journey is its page in a browser" in refused.output
-    for target in ("website-adapter", "claude-code", "pi"):
-        refused = runner.invoke(journey_run.journey, [target, "--preview"])
-        assert refused.exit_code == 2
-        assert "--preview is an option of the codex targets" in refused.output
     # A remote journey needs no local build: the origin names its release.
     remote_result = runner.invoke(journey_run.journey, ["https://leaf-dev.example/"])
     assert remote_result.exit_code == 0, remote_result.output
@@ -649,7 +657,7 @@ def test_a_turn_that_never_answered_is_reported_before_the_threads_panel():
     stalled = journey.TurnReading(
         {
             "active": {"revision": 1},
-            "activity": {"kind": "answering"},
+            "activity": {"state": "blocked", "reason": "stopped"},
             "source_error": None,
         },
         None,
@@ -667,13 +675,13 @@ def test_a_turn_that_never_answered_is_reported_before_the_threads_panel():
     assert str(stopped.value) == (
         "https://leaf.page/examples/triage-board/ agent did not publish a revision "
         "naming ‘446b8fe9’; it reached revision 1 from 1 "
-        "with the page reading answering and did not reply; source validation: no error"
+        "with the page reading blocked and did not reply; source validation: no error"
     )
 
     answered = journey.TurnReading(
         {
             "active": {"revision": 2},
-            "activity": {"kind": "listening"},
+            "activity": {"presence": "here", "state": "done"},
             "source_error": None,
         },
         {"revision": 2},
@@ -725,7 +733,7 @@ def test_a_missing_publication_reports_the_real_source_validation_reading(
     assert str(stopped.value) == (
         "https://leaf.page/examples/triage-board/ agent did not publish a revision "
         f"naming ‘446b8fe9’; it reached revision {revision} from {revision} "
-        f"with the page reading {state['activity']['kind']}; it replied: deployment verified"
+        f"with the page reading {state['activity']['state']}; it replied: deployment verified"
         f"; source validation: {state['source_error'] or 'no error'}"
     )
 
@@ -796,7 +804,7 @@ def test_local_worker_name_is_valid_when_run_suffix_starts_with_underscore(
     ):
         pass
 
-    name = calls[0][-1].removeprefix("name=^workerd-").removesuffix("-")
+    name = calls[0][-1].removeprefix("name=^workerd-[0-9a-f]+-").removesuffix("-")
     assert re.fullmatch(r"[a-z0-9]+(?:[._]|__|[-]+[a-z0-9]+)*", name)
 
 
@@ -850,7 +858,7 @@ def test_the_deploy_gate_waits_on_the_page_rather_than_its_own_clock(page_dir):
     accept_in_turn("hosted-thread")
 
     handling = page_state(page_dir)
-    assert handling["activity"]["kind"] == "working"
+    assert handling["activity"]["state"] == "running"
     assert journey.still_answering(handling, comment["id"])
     # Another page's comment is not this gate's turn, whatever this page is doing.
     assert not journey.still_answering(handling, "another-event")
@@ -874,17 +882,23 @@ def test_the_deploy_gate_stops_waiting_on_a_page_with_no_agent_on_the_comment():
     behind it. Extending the wait there would spend the step's whole budget to raise
     the failure it could already raise.
     """
-    for kind in ("away", "unheld", "stalled", "closed", "listening"):
-        state = {"activity": {"kind": kind, "obligations": ["update:comment-id"]}}
-        assert not journey.still_answering(state, "comment-id")
-    working = {"activity": {"kind": "working", "obligations": ["update:comment-id"]}}
-    assert journey.still_answering(working, "comment-id")
+    owed = ["update:comment-id"]
+    for standing in (("waiting", None), ("blocked", "stopped"), ("blocked", "quiet")):
+        state = dict(zip(("state", "reason"), standing, strict=True))
+        assert not journey.still_answering(
+            {"activity": {**state, "obligations": owed}}, "comment-id"
+        )
+    for standing in (("running", None), ("blocked", "terminal")):
+        state = dict(zip(("state", "reason"), standing, strict=True))
+        assert journey.still_answering(
+            {"activity": {**state, "obligations": owed}}, "comment-id"
+        )
     assert not journey.still_answering({}, "comment-id")
 
 
 def test_the_deploy_gate_reads_a_durable_harness_failure(page_dir):
-    from leaf.event_contracts import event_record_error
-    from leaf.registry.storage import load_registry
+    from leaf.records.event_contracts import event_record_error
+    from leaf.source.vocabulary import load_registry
 
     harness = website_server.WebsiteCodexHarness("codex")
     comment = append_event(
@@ -1013,7 +1027,12 @@ def test_the_deploy_gate_stops_reading_a_turn_the_container_has_closed(
     comment = {"id": "comment-id"}
     working = {
         "active": {"revision": 1, "url": "revisions/1.html"},
-        "activity": {"kind": "working", "obligations": ["update:comment-id"]},
+        "activity": {
+            "presence": "here",
+            "state": "running",
+            "reason": None,
+            "obligations": ["update:comment-id"],
+        },
         "events": [
             {
                 "kind": "reply",
@@ -1061,8 +1080,8 @@ def test_a_title_written_after_the_reply_is_still_timed(tmp_path):
     after the reply that ended the turn's wait; the journey reads on for it rather
     than reporting the title as never written. The state it reads is the one a page
     server serves, since the journey reads titles from it."""
-    from leaf.event_log import append_event
-    from leaf.thread import title_event
+    from leaf.agents.thread import title_event
+    from leaf.log.event_log import append_event
     from leaf_dev.arms import PageClient, serving
     from leaf_dev.review_scenario import prepare
 
@@ -1258,7 +1277,7 @@ def test_a_rollout_that_never_lands_ends_the_agent_pass_naming_it(monkeypatch):
 
 
 def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentation(
-    monkeypatch, capsys
+    monkeypatch, capfd
 ):
     """One bound cannot serve both pages this gate reads, so the reload states its own.
 
@@ -1294,9 +1313,9 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
     profile.acknowledged = [0.250]
     profile.event_ids = ["test-comment"]
     profile.activities = [
-        (0.250, "queued", ""),
-        (1.0, "working", "Editing the page"),
-        (12.5, "away", ""),
+        (0.250, "waiting", ""),
+        (1.0, "running", "Editing the page"),
+        (12.5, "done", ""),
     ]
     monkeypatch.setattr(
         journey,
@@ -1305,7 +1324,11 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             journey.TurnReading(
                 {
                     "active": {"revision": 2},
-                    "activity": {"kind": "away", "obligations": []},
+                    "activity": {
+                        "presence": "away",
+                        "state": "done",
+                        "obligations": [],
+                    },
                     "source_error": None,
                     "events": TURN_LOG,
                     "browser": {
@@ -1344,15 +1367,15 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             )
         )
 
-    # The ordinary first load uses the edge-page presentation bound. The post-turn
-    # reload gets its own bound for both presentation and the later revision follow.
-    assert page.presentation_waits == [30_000, journey.TURN_PRESENTATION]
-    assert page.revision_waits == [(2, journey.TURN_PRESENTATION)]
-    assert journey.TURN_PRESENTATION > 30_000
+    # The first load and the post-turn reload each present within the handover's own
+    # bound on progress, which a container slow to answer its first read stays
+    # inside, and the reload then follows the published revision.
+    assert page.presentation_waits == [HANDOVER_DEADLINE_MS] * 2
+    assert page.revision_waits == [2]
     # The startup profile the run reports, and the verifier's own readings.
     assert page.init_scripts == [startup.SCRIPT, website.SCRIPT]
     # A green run reports startup and the post-presentation revision follow separately.
-    reported = capsys.readouterr().err
+    reported = capfd.readouterr().err
     assert "followed it 2500 ms after presentation" in reported
     assert '"responseVisible": 12500.0' in reported
     # On a website the journey reads the log the page serves, which says when the
@@ -1393,13 +1416,13 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
             },
             "responseShownBy": "message",
             "activity": [
-                {"atMs": 250.0, "kind": "queued", "detail": ""},
+                {"atMs": 250.0, "state": "waiting", "detail": ""},
                 {
                     "atMs": 1000.0,
-                    "kind": "working",
+                    "state": "running",
                     "detail": "Editing the page",
                 },
-                {"atMs": 12500.0, "kind": "away", "detail": ""},
+                {"atMs": 12500.0, "state": "done", "detail": ""},
             ],
         },
         "change": {
@@ -1439,7 +1462,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
                 direct_agent=False,
             )
         )
-    assert refused.presentation_waits == [30_000]
+    assert refused.presentation_waits == [HANDOVER_DEADLINE_MS]
     assert refused.revision_waits == []
 
     pending = _DeployedPage(
@@ -1454,7 +1477,7 @@ def test_the_page_a_turn_has_just_written_waits_for_its_revision_after_presentat
                 direct_agent=False,
             )
         )
-    assert pending.revision_waits == [(2, journey.TURN_PRESENTATION)]
+    assert pending.revision_waits == [2]
 
 
 def test_a_reload_that_never_heard_its_server_is_told_apart_from_a_stale_answer(
@@ -1485,7 +1508,11 @@ def test_a_reload_that_never_heard_its_server_is_told_apart_from_a_stale_answer(
             journey.TurnReading(
                 {
                     "active": {"revision": 2},
-                    "activity": {"kind": "away", "obligations": []},
+                    "activity": {
+                        "presence": "away",
+                        "state": "done",
+                        "obligations": [],
+                    },
                     "source_error": None,
                     "events": TURN_LOG,
                     "browser": {
@@ -1525,7 +1552,7 @@ def test_a_reload_that_never_heard_its_server_is_told_apart_from_a_stale_answer(
     assert "never presented" in str(reported.value)
     assert "never finished replaying the log" in str(reported.value)
     # Reported once the gate's own patience ran out, at presentation.
-    assert offline.presentation_waits == [30_000, journey.TURN_PRESENTATION]
+    assert offline.presentation_waits == [HANDOVER_DEADLINE_MS] * 2
     assert offline.revision_waits == []
 
     # A page whose read answered is standing under an ordinary activity line rather
@@ -1549,7 +1576,7 @@ def test_a_reload_that_never_heard_its_server_is_told_apart_from_a_stale_answer(
     assert "stands on revision 1" in str(named.value)
     assert "Claude is handling 1 update" in str(named.value)
     assert "Server offline" not in str(named.value)
-    assert told.revision_waits == [(2, journey.TURN_PRESENTATION)]
+    assert told.revision_waits == [2]
 
 
 def test_saved_state_verifier_fixture_returns_the_admitted_event_ids(
@@ -1747,3 +1774,26 @@ def test_the_direct_agent_handoff_runs_the_local_adapter_workflow():
             {"event": "comment-id"},
         ),
     ]
+
+
+WRITE_THROUGH_DRIVER = """
+import sys
+from playwright.sync_api import sync_playwright
+from leaf_dev import website
+
+with sync_playwright():
+    website.write_fully(2, b"x" * int(sys.argv[1]))
+"""
+
+
+def test_script_evidence_reaches_a_stderr_pipe_the_driver_made_non_blocking():
+    # The Node driver leaves the inherited stderr pipe non-blocking, so a dump
+    # larger than the pipe's buffer must wait for the reader rather than stop.
+    size = 4 << 20
+    run = subprocess.run(
+        [sys.executable, "-c", WRITE_THROUGH_DRIVER, str(size)],
+        stderr=subprocess.PIPE,
+        check=False,
+    )
+    assert run.returncode == 0, run.stderr[-2000:].decode(errors="replace")
+    assert run.stderr == b"x" * size

@@ -3,10 +3,14 @@
  * browser geometry are exercised by the existing composer browser journeys. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { signal } from "/runtime/framework.js";
-import { createCompositionInputs, syncInput } from "/runtime/composing/input.js";
-import { raiseError } from "/runtime/errors.js";
-import { focusDestination } from "/runtime/focus.js";
+import { signal } from "/vendor/signals-core.js";
+import {
+  coveredFrame,
+  createCompositionInputs,
+  syncInput,
+} from "/runtime/annotations/composing/input.js";
+import { raiseError } from "/runtime/transport/errors.js";
+import { focusDestination } from "/runtime/dom/focus.js";
 
 function composer(t, options = {}, owner = null) {
   const row = document.createElement("div");
@@ -112,6 +116,18 @@ test("focus, contextual hints and errors leave unrelated composition readings al
   assert.equal(reads[0], before[0] + 1);
   assert.equal(reads[2], before[2]);
   failure.clear();
+});
+
+test("a box whose words cover its placeholder offers its frame for the key that enters them", (t) => {
+  const { input, field, sync } = composer(t);
+  assert.equal(coveredFrame(input), field.querySelector("div.lf-compose-field"));
+  // In the words, the key is a letter typed.
+  focusDestination(input, "move");
+  assert.equal(coveredFrame(input), null);
+  input.blur();
+  // An empty box says the key in its placeholder.
+  sync.load("");
+  assert.equal(coveredFrame(input), null);
 });
 
 test("dictation and send trade the same field seat as its draft changes", async (t) => {

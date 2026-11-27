@@ -176,7 +176,7 @@ function literals() {
 
 // The builders that give an element a role's face (control-faces.js, `ACTION_FACES`), and
 // the calls that make an element of the tag they are handed first.
-// `roleElement` is element-markers.js's own writer behind them, and `actionClass` the
+// `roleElement` is lib/controls.js's own writer behind them, and `actionClass` the
 // role's face a pure template writes into its `class` (control-faces.js).
 const ROLE_BUILDERS = new Set([
   "offerAction",
@@ -345,6 +345,25 @@ function dressing(node, parents, depth) {
   );
 }
 
+// Whether a made button only carries a request's argument: it is the `source` of a
+// `new CommandEvent(…)`, alone or as `Object.assign`'s target, and so never stands in
+// the page (package-data.md, "Asking another widget to act").
+function carriesRequest(made, parents) {
+  const assigned = parents.get(made);
+  const value =
+    assigned && method(assigned) === "assign" && assigned.arguments[0] === made
+      ? assigned
+      : made;
+  const property = parents.get(value);
+  const event = parents.get(parents.get(property));
+  return (
+    property?.type === "Property" &&
+    property.key?.name === "source" &&
+    event?.type === "NewExpression" &&
+    event.callee.name === "CommandEvent"
+  );
+}
+
 // Every press a module builds: `{line, site, kind, built}`, where `built` says how a
 // role's builder dresses it, or is null.
 //
@@ -356,9 +375,10 @@ function dressing(node, parents, depth) {
 //   selectable offer names its face, "role through a name" when the part names a
 //   directive kept in a constant, or a callback handed to `ref`, whose binding calls
 //   one, directly or through a function it calls.
-// - "made": a "button" made by `offer`, `el` or `createElement`; "role as it is made"
-//   when it is made as the element of `offerActionElement` or `offerContentElement`,
-//   or the variable that holds it, and only it, is later handed to one.
+// - "made": a "button" made by `offer`, `el` or `createElement`, other than one that
+//   only carries a request (`carriesRequest`); "role as it is made" when it is made as
+//   the element of `offerActionElement` or `offerContentElement`, or the variable that
+//   holds it, and only it, is later handed to one.
 // - "selectable": a selectable button, `selectableOffer("button", …)`; "role as it is
 //   made" when it names its face (the fourth argument). A selectable offer of another
 //   role, such as a tab, chooses rather than presses, as a native choice does, and is
@@ -419,7 +439,11 @@ function presses() {
         templatePresses(node, parents, press);
       const name = callee(node);
       const args = node.arguments ?? [];
-      if (MAKERS.has(name) && words(args[0], parents).includes("button")) {
+      if (
+        MAKERS.has(name) &&
+        words(args[0], parents).includes("button") &&
+        !carriesRequest(node, parents)
+      ) {
         const parent = parents.get(node);
         const binding = bindingOf(node);
         const later = dressedLater(binding);

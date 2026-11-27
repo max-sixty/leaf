@@ -1,11 +1,12 @@
 [
+  "reading",
   "code-review",
   "diagram",
   "diff",
   "playground",
   "monitoring",
-  "visual-review",
   "playwright",
   "timeline",
-  "./docs/package"
+  "./docs/package",
+  "./docs/verdict"
 ]

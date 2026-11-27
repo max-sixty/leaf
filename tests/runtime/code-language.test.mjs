@@ -5,7 +5,7 @@
 
 import assert from "node:assert/strict";
 import test from "node:test";
-import { codeLanguage } from "/runtime/syntax-tokens.js";
+import { codeLanguage } from "/runtime/lib/syntax-tokens.js";
 
 /** @param {string} markup */
 const element = (markup) => {

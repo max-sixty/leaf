@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { summaryRanges, workingPlace } from "/runtime/thread/summary-ranges.js";
+import { summaryRanges, workingPlace } from "/runtime/records/thread/summary-ranges.js";
 
 const messages = ["a", "b", "c", "d", "e"].map((id) => ({ id, key: id }));
 
@@ -9,7 +9,6 @@ test("summary ranges replace their contiguous originals without taking later mes
   const summary = {
     id: "s1",
     covers: ["b", "c", "d"],
-    protected: [],
     text: "Checkpoint",
   };
   const ranges = summaryRanges(messages, [summary]);
@@ -26,7 +25,6 @@ test("reaction ids inside canonical coverage do not break the visible range", ()
     {
       id: "s1",
       covers: ["b", "reaction", "c"],
-      protected: [],
       text: "Includes an omitted reaction",
     },
   ]);
@@ -49,7 +47,6 @@ test("a face stands after the range holding the last message said before it, or 
   const folded = {
     id: "s1",
     covers: ["b", "c", "d"],
-    protected: [],
     text: "Checkpoint",
   };
   const ranges = summaryRanges(thread, [folded]);

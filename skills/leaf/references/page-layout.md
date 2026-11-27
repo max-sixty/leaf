@@ -167,12 +167,14 @@ Use a `layout-column` body for a reading document with wider exhibits. Its prose
 stands where a column page's would, moving toward the end only as far as the sidebar
 needs, and exhibits use the body's width on either side of it. Where its
 sidebar comes before the body and its track holds only the contents map, under a mouse
-the sidebar narrows to the map's spine, and the map shows its labels over the page when
-the reader points at it. Under touch, after the body, or with anything else in the track, the sidebar
-keeps a column's room. So put a status the
-reader should see at once at the top of the body rather than beside the map. For a
-board or dashboard, the body can instead be an ordinary `div` with the page's own
-layout; a `header` and `footer` on the outer Layout span both regions.
+the sidebar narrows to the map's spine, which draws the document's sections to scale,
+and the map shows its labels over the page when the reader points at it. Under touch,
+after the body, or with anything else in the track, the sidebar keeps a column's room
+and the map stands open as an outline. So put a status the reader should see at once at
+the top of the body rather than beside the map. A sidebar that has wrapped above or
+below the body shows the map as a disclosure. For a board or dashboard, the body can
+instead be an ordinary `div` with the page's own layout, beside which a sidebar keeps
+its outline open; a `header` and `footer` on the outer Layout span both regions.
 
 The browser wraps the regions in source order when they no longer fit. Put the
 `aside` before the body when its contents should be read first on a narrow screen,
@@ -188,8 +190,8 @@ Style its blocks by their classes or ids, or as `.layout-track > p`.
 ## A workspace
 
 `<main class="layout-workspace">` fills the window behind Leaf's floating panel, and the reader
-works in its regions rather than scrolling the page. Pane scrollers leave room at their
-ends so the panel does not cover their last lines. The `header` and `footer` take
+works in its regions rather than scrolling the page. The panel stands over the regions'
+feet and the user folds it where it covers them. The `header` and `footer` take
 their content's height and the body takes the rest. Keep shared context concise enough
 to leave the working regions usable; place region-specific explanation with its subject.
 
@@ -200,7 +202,7 @@ the page's own grid of panes:
 <main class="layout-workspace density-working">
   <header>
     <h1>…</h1>
-    <p><span class="tag warn">…</span></p>
+    <p><span class="lf-tag warn">…</span></p>
   </header>
   <div id="regions">
     <lf-pane id="log" label="Log">…</lf-pane>
@@ -220,6 +222,14 @@ the page's own grid of panes:
   }
 }
 ```
+
+Give material beside the regions' work, such as a list of open items or a report, a view
+of its own, so the regions keep the room the reader works in. Make the body a tab set
+with `flow="page"`, put the regions in its first tab, so the page still opens on them,
+and add a tab for the material. A grid of panes that is a tab's one block fills the
+window below the tab strip, as it does as the body. Written as a second block beside the
+body, the material would split the window's height with it, and written as another
+region, it would take room from the others.
 
 A widget that asks, such as a playground, stands in its question's group
 (`authoring-on-me.md`, "On the page"), and that group is the body. Where the header's
@@ -262,7 +272,9 @@ neighbours, such as its age or suggested outcome. Leave out the item's group, wh
 heading shows. Where items fall into kinds the user works through in turn, such as
 merge, close and FYI, give each item its kind as `group` and place each kind's items
 together in the order to take them; adjacent tabs with the same group share one
-heading.
+heading. Where the user would rather take the items one at a time than see the list,
+make the body a pile of cards that shows one at a time and counts what is left, such
+as a deck.
 
 ## Bounds and widths
 
@@ -276,9 +288,6 @@ keeps the reader's place in a bounded box across revisions, and in no other scro
 `data-bound="start"` opens at the top, and `data-bound="end"`, for a stream that grows
 downward, follows the newest entry while the user is at the end. The box takes the
 height page CSS gives it, as `max-block-size` or `--lf-bound`, and 28rem otherwise.
-It clips at its sides too, with no room there, so a control that starts a line in it,
-such as a link, a summary or a field, loses that side of its focus ring. Give a bounded
-box that holds such a control `padding-inline: var(--lf-sp-2)`.
 
 `data-width` widens one block, overriding its widget's default. Put it on the block
 itself, such as a `table` or `lf-code`, and write no CSS that copies its widths or
@@ -292,7 +301,8 @@ column and sidebar pages:
   and extends toward its end edge to `--lf-wide`, as far as the window allows.
 - `data-width="available"` is for a surface that uses every pixel, such as a board, a
   large drawing or a playground. It takes all the width Leaf's chrome and the margin
-  leave free, into both margins.
+  leave free, into both margins. A `figure` with it keeps its `figcaption` under the
+  prose by the caption's inline margins, so space the caption with `margin-block`.
 
 A `table` with either value is only as wide as its columns need, up to that width.
 A block widens when it is a child of the `layout-column`, or of a `section`,
@@ -301,9 +311,8 @@ so its words stay on the column beside a wider one. A framed holder, such as a
 callout, needs its own `data-width` to widen; its children use the room inside it. A
 wide child alone does not widen its holder. Write a box that arranges its own
 contents, such as a grid of cards, as a `div`, which keeps them inside it.
-Under the reading face a table scrolls sideways when needed; a page without the face
-gives a table that can outgrow its width a box of its own that scrolls sideways
-(`page-authoring.md`, "Markup").
+`page-authoring.md`, "Markup", says how a table that outgrows its box scrolls sideways,
+with the reading face and without it.
 
 A widget whose entry declares `height`, such as `lf-chart`, reserves that height
 before it draws; `data-height` on the element overrides it. A widget whose drawing sets
@@ -318,11 +327,9 @@ whether `data-height` was missing, too small or too large.
 
 ## The rail and the margin
 
-A document's explicit sidebar keeps its route beside the body. Before the body and
-holding only a contents map, under a mouse it narrows to the map's spine, which draws
-the document's sections to scale and shows their labels over the page when the reader
-points at it; stacked, it returns to its native outline. A dashboard sidebar, or a document's
-under touch, keeps its outline open beside the body. These placements are CSS layout, present before widgets load. Page CSS does not read runtime placement
+A document's explicit sidebar keeps its route beside the body, narrowed to the contents
+map's spine or at a column's width as "A sidebar page" says. Both are CSS layout,
+present before widgets load. Page CSS does not read runtime placement
 attributes. To change where a route stands, compose its sidebar and body explicitly.
 
 `data-rail="right"` on `body` gives a sidebar page a rail, and `data-rail="none"` gives
@@ -341,22 +348,34 @@ rather than rebuilding the event log in page code.
 
 ## Page CSS and Leaf's controls
 
-The page's CSS is ordinary CSS over the whole document: a rule for `button` styles the
-buttons widgets build as well as the page's own. Give each rule a selector that names
-what it means to style, such as a class on your own controls or a widget's id before
-its controls (`#triage button`). Leaf's panel and thread cards keep their own look
-against a page rule as light as one class (`button`, `.card`); a heavier selector such
-as `button:hover`, an `!important` declaration or a rule in a cascade layer of the
-page's own reaches them too, so name your own content in it.
+The page's CSS is ordinary CSS over the whole document. Its unlayered rules outrank
+Leaf's, so a rule for `button` styles the buttons widgets build as well as the page's
+own. Give each rule a selector that names what it means to style, such as a class on
+your own controls or a widget's id before its controls (`#triage button`). Leaf's panel
+and thread cards keep their own look against a page rule as light as one class
+(`button`, `.card`); a heavier selector such as `button:hover` or an `!important`
+declaration reaches them too, so name your own content in it.
 
-A CSS reset clears the margins, borders and faces of every element, the controls
-Leaf's widgets build among them. Put one in a cascade layer named `reset`, as in
-`@layer reset { … }`. Leaf ranks that layer below its own and below the page's
-theme, so the reset applies wherever neither says anything, and Leaf's widgets,
-panel and thread cards keep their faces. A framework that keeps its reset in a
-layer of another name, as Tailwind keeps preflight in `base` beside the element
-rules its author writes there, outranks Leaf's faces from it: import or rename the
-reset into `reset`, and leave the author's rules where they are.
+Two layer names rank among Leaf's own. A rule in `@layer reset` ranks below every rule
+of Leaf's and of the page's theme, so it applies wherever neither says anything. A rule
+in `@layer base`, where Tailwind keeps its reset and the element rules its author
+writes, outranks the page's theme and ranks below Leaf's rules for what Leaf draws: its
+widgets, idioms, controls, panel, thread cards and messages. So a framework such as
+Tailwind needs no change to leave them their faces. Every other layer the page names
+outranks Leaf's rules, as unlayered CSS does, so a utility class on a widget, such as
+Tailwind's `mt-0`, restyles it. To restyle what Leaf draws, write the rule in such a
+layer or unlayered, not in `base`.
+
+A reset in `base` also outranks the theme's look, on the page's own markup and on the
+code a widget such as `lf-code` shows in that look: lists lose their bullets and code
+blocks their frames. A page that wants the theme's look imports the reset into `reset`
+instead, as Tailwind 4 allows:
+
+```css
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/preflight.css" layer(reset);
+@import "tailwindcss/utilities.css" layer(utilities);
+```
 
 A page whose framework has design tokens hands Leaf three of them, so
 what Leaf draws takes the framework's colours:
@@ -382,9 +401,8 @@ On a page that takes a theme, the buttons, fields and choices you write in plain
 wear the faces of Leaf's own controls; the vocabulary's `button` and `input, select`
 entries say how to write each. Any rule of yours outranks that face, so a
 control drawn for the task, such as a stack of layer tiles or a curve's handles, takes
-the page's own design (`page-authoring.md`, "Style the page"), and
-`--lf-reading-face: initial` on a box leaves the controls in it the browser's, as on a
-page that takes no theme.
+the page's own design. `page-authoring.md`, "Style the page", says how to leave the
+controls in one box with the browser's look.
 
 Leaf's panel, thread cards and markers draw over everything in `body`, whatever its
 `z-index`. Open a modal or menu of the page's own in the top layer: a `<dialog>` shown

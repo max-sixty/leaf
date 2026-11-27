@@ -3,14 +3,10 @@
 import hashlib
 import io
 import math
-import re
 import struct
 import zlib
-from weakref import WeakKeyDictionary
 
-import tinycss2
 from axe_playwright_python.sync_playwright import Axe
-from browser_sources import browser_function
 from PIL import Image
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
@@ -21,11 +17,13 @@ from render_harness import (
     rgb_pixel,
 )
 
-from leaf import render_checks as render_checks_model
-from leaf.registry import storage as registry_storage
-from leaf.registry.contract import element_declarations
-from leaf.render_checks import rendered
-from leaf.render_gate import scheme as render_gate_model
+from leaf.pages.render_gate import scheme as render_gate_model
+from leaf.source import render_checks as render_checks_model
+from leaf.source import vocabulary as vocabulary_model
+from leaf.source.registry.contract import element_declarations
+from leaf.source.render_checks import rendered
+from leaf_dev.browser import open_on_me
+from leaf_dev.rings import NAMED
 
 CUSTOM_WIDGET_PAGE = leaf_page(
     "custom widget",
@@ -256,12 +254,12 @@ def prose_beside_identifiers(held):
         (
             "Log shape",
             (
-                "<code>token</code> in place of <code>text</code> on <code>comment</code>"
-                " and <code>reply</code>; a record is one or the other, and a token rides"
+                "<code>emoji</code> in place of <code>text</code> on <code>comment</code>"
+                " and <code>reply</code>; a record is one or the other, and an emoji rides"
                 " no suggestion, hold, or markup."
             ),
             [
-                "test_the_door_admits_a_reaction_only_as_a_token_the_layer_declares_and_refuses_one_it_does_not"
+                "test_the_door_admits_a_reaction_only_as_an_emoji_the_layer_declares_and_refuses_one_it_does_not"
             ],
         ),
         (
@@ -310,12 +308,17 @@ BARE_IDENTIFIERS_PAGE = prose_beside_identifiers(lambda name: name)
 # The honest third case with every line an author can write and no wrap: a token split
 # around an inline <code>, which is set smaller and stands 3px lower on the same line
 # (a reading of rect tops called it a wrap and told the author to write <code>); a
-# <br>; a newline under <pre>; loose words either side of a nested table. Each is a
-# line the author drew, and none stands shorter with soft wrapping off.
+# <br>; a newline under a <pre> that keeps its lines (the reading face wraps a <pre>
+# otherwise, and the squeezed cell would wrap its longer line on fonts as wide as
+# macOS's); loose words either side of a nested table. Each is a line the author
+# drew, and none stands shorter with soft wrapping off.
 AUTHORED_LINES_PAGE = (
     WIDE_TABLE_PAGE.replace("<td>value_number_7</td>", "<td>value <code>7</code></td>")
     .replace("<td>value_number_6</td>", "<td>value<br>six</td>")
-    .replace("<td>value_number_5</td>", "<td><pre>def go():\n    return 5</pre></td>")
+    .replace(
+        "<td>value_number_5</td>",
+        '<td><pre style="white-space: pre">def go():\n    return 5</pre></td>',
+    )
     .replace(
         "<td>value_number_4</td>",
         "<td>before <table><tr><td>four</td></tr></table> after</td>",
@@ -480,10 +483,8 @@ DRAWING_CONTROL_LAYER = {
     "lf-test-drawing-control": {
         "description": "A native offered control inside a drawing viewport.",
         "attributes": {
-            "type": "object",
-            "properties": {"id": {"type": "string"}},
+            "properties": {},
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "example": '<lf-test-drawing-control id="control"></lf-test-drawing-control>',
@@ -491,7 +492,8 @@ DRAWING_CONTROL_LAYER = {
 }
 DRAWING_CONTROL_WIDGETS = {
     "lf-test-drawing-control.js": """
-import { once, offer } from '/runtime/widget-api.js';
+import { offer } from '/runtime/lib/controls.js';
+import { once } from '/runtime/lib/once.js';
 customElements.define('lf-test-drawing-control', class extends HTMLElement {
   connectedCallback() {
     if (!once(this)) return;
@@ -580,9 +582,12 @@ def with_one_obligation(html):
 
 
 def toggle_queue(page, open=True):
-    """Open the panel's On Me view from its mark, or close it from the same seat, where
-    its ✕ stands while the view does, and wait for it to stand or go."""
-    page.locator(".lf-fp-on-user" if open else ".lf-fp-close").click()
+    """Open the panel's On Me view from the leaf, or close it by its ✕, and wait for it
+    to stand or go."""
+    if open:
+        open_on_me(page)
+    else:
+        page.locator(".lf-fp-close").click()
     panel_settled(page, open=open, view="queue" if open else None)
 
 
@@ -683,7 +688,6 @@ PRESS = "[data-lf-offer], [role=tab], [role=button], .lf-btn, .lf-pick, button, 
 # it was pressed for. `[hidden]` is asked separately because hidden="until-found", which is
 # what a folded region wears, measures zero and still reports itself visible.
 RENDERED = "(n) => n.checkVisibility() && !n.closest('[hidden]') && n.offsetWidth > 0"
-NAMED = browser_function("control_name.js", "named")
 NEIGHBOURHOOD = f"""(el, sel) => {{
   const band = el.getBoundingClientRect();
   const sameLine = (n) => {{
@@ -791,7 +795,7 @@ def aim_targets(page_dir):
     clicking its prose. The vocabulary is read from the page's own registry rather than
     listed, so the twelfth widget is swept by existing. Prose has no handler at all, so
     one press into it proves what fifty would."""
-    tags = ", ".join(element_declarations(registry_storage.load_registry(page_dir)))
+    tags = ", ".join(element_declarations(vocabulary_model.load_registry(page_dir)))
     return f":is({PRESS}, {tags}):not(.lf-chrome *)"
 
 
@@ -810,7 +814,7 @@ AIM_POINT = """(el) => {
   return null;
 }"""
 # The promise itself, read where the runtime states it: the aimed box wears `data-lf-aimed`
-# (target-paint.js, `paintAim`) and draws the aim round itself. The composer's own mark
+# (readings/target-paint.js, `paintAim`) and draws the aim round itself. The composer's own mark
 # then stands on that same item once the press is made, so the aim's answer before the
 # press and the draft's after it agreeing is the promise being kept.
 AIMED = (
@@ -871,7 +875,7 @@ DRAFT_MARK = """() =>
 # What the arm says about the next press, in the one property that is on screen before
 # the box is read: the cursor of the deepest element at the point, where the aim stands
 # its hand, and whether that element is in a control, which keeps a cursor of its own
-# (page-geometry.js).
+# (panel/page-geometry.js).
 AIM_CURSOR = """async ([x, y]) => {
   const {WORKS} = await window.__lfCheckApi();
   let el = document.elementFromPoint(x, y);
@@ -904,10 +908,16 @@ FOCUS_IN_PAGE = """() => {
 # What the check is for survives untouched — a stray pick writes `selected` on the option
 # and a stray tab switch moves the panels' attributes, both of them authored rather than
 # generated, and structure is compared either way.
-# The page as a press leaves it. Where the pointer is resting, the marks Leaf has a box
-# draw round itself (surfaces.css), and the generated binding seat are not authored
-# state, so none belongs in this reading.
-PAGE_MARKUP = r"""() => [...document.body.children]
+# The page as a press leaves it. The runtime's paint (`RUNTIME_PAINT_ATTRIBUTE`,
+# base/page-paint.js), such as where the pointer rests, the marks Leaf has a box draw
+# round itself and the room it reads for them, is read from the runtime's own list, as
+# source snapshots read it. The element marks' attributes (visual-mark-paint.js) and the
+# generated binding seat are not authored state either, so none belongs in this reading.
+PAGE_MARKUP = r"""async () => {
+  const {RUNTIME_PAINT_ATTRIBUTE} = await import("/runtime/base/page-paint.js");
+  const paints = [...Object.values(RUNTIME_PAINT_ATTRIBUTE), "data-lf-mark",
+                  "data-lf-projected-mark"];
+  return [...document.body.children]
     .filter((n) => !n.classList.contains("lf-chrome"))
     .map((n) => {
         const c = n.cloneNode(true);
@@ -918,20 +928,16 @@ PAGE_MARKUP = r"""() => [...document.body.children]
                 "lf-mark-hover",
                 "lf-binding-seat",
             );
-            for (const paint of ["data-lf-mark", "data-lf-aimed", "data-lf-traced",
-                "data-lf-proxied", "data-lf-projected-location", "data-lf-projected-mark",
-                "data-lf-over-mark", "data-lf-over-item"])
-                el.removeAttribute?.(paint);
-            // Anchor naming is presentation state. A heading borrows a name by
-            // attribute while its link shows, and the layout may copy a name
-            // from a stylesheet into inline style while positioning a comment.
-            el.removeAttribute?.("data-lf-heading-link");
+            for (const paint of paints) el.removeAttribute?.(paint);
+            // The layout may copy an anchor name from a stylesheet into inline style
+            // while positioning a comment, which is presentation state too.
             el.style?.removeProperty("anchor-name");
             if (!el.getAttribute("style")) el.removeAttribute("style");
         }
         return c.outerHTML;
     })
-    .join("").replaceAll(' class=""', "")"""
+    .join("").replaceAll(' class=""', "");
+}"""
 # Every legend box stands on its addressable element: same corner, one pixel out, for every element wholly
 # on screen. Items partly off it are clipped to the scroller (shownRect) and are not
 # compared, and items off it have no box shown at all. An item with no box of its own —
@@ -1212,7 +1218,7 @@ UNBREAKABLE_PAGE = leaf_page(
     """
 <h1 id="h">Nothing to break on</h1>
 <div class="layout-tiles" id="numbers">
-  <dl id="m-token" class="metric"><dt>Bucket key</dt><dd><strong>a_very_long_unbroken_identifier</strong></dd></dl>
+  <dl id="m-token" class="lf-metric"><dt>Bucket key</dt><dd><strong>a_very_long_unbroken_identifier</strong></dd></dl>
 </div>
 <p id="p-token">The one it fails on is
 gateway_middleware_authentication_token_bucket_refill_strategy.py, every time.</p>
@@ -1467,289 +1473,3 @@ UNPARSABLE_DIAGRAM = LONG_PAGE.replace(
     "</main>",
     "<lf-diagram id='d-broken'><pre>\nleaf-unsupported\n  Ada,Review,3\n</pre></lf-diagram>\n</main>",
 )
-
-
-RINGS_DRAWN = browser_function("focus_rings.js", "ringsDrawn", using="control_name.js")
-RING_CANDIDATES = browser_function(
-    "focus_rings.js", "ringCandidates", using="control_name.js"
-)
-
-
-# Which focus ring a box wears is which rule drew it, and the browser says so: the
-# DevTools protocol's matched styles for a node already resolve nesting, `@scope`,
-# shadow trees, adopted sheets and pseudo-elements, the cases a test re-matching the
-# layer's selectors got wrong one after another. So a rule draws a ring and names none,
-# and a test asks the browser which rule drew the one it sees. Chromium only.
-#
-# A ring is identified by its winning rule's selector as matched: the one selector of
-# the rule's list that matched the box, under the nesting and `@scope` it sits in.
-# That survives what leaves the ring alone (another declaration, a reordered sheet,
-# another selector added to the list, the rule moving file) and changes when what
-# selects the ring does. Tests assert on the part of it that makes the rule the
-# control's own, such as `.lf-grip`, rather than on the whole text.
-# Read the browser's serialized selector list, not each selector's source range:
-# formatting is not part of a ring's identity. Only top-level commas divide the
-# list; commas and whitespace within functions or strings keep their meaning.
-#
-# Only a declaration that draws with the ring's own token is a ring rule: `--lf-focus-ring`
-# for an outline, `--lf-focus-shadow` for the band cast as a shadow, or the mark a box
-# draws round itself (`--lf-band-ink`, surfaces.css), which is the ring wherever it is
-# whole: the location ring, the proxy ring and a comment's focus state. Its brackets,
-# a gesture's mark, are never read as a ring (`bracketed`, focus_rings.js). A contour
-# written out as `2px solid var(--lf-accent)`, such as an element mark's pointer feedback,
-# paints the same pixels and is not one.
-RING_CARRIERS = {
-    "outline": ("outline", "outline-style"),
-    "box-shadow": ("box-shadow",),
-}
-RING_TOKEN = {
-    "outline": re.compile(r"--lf-(?:focus-ring|band-ink)(?![\w-])"),
-    "box-shadow": re.compile(r"--lf-focus-shadow(?![\w-])"),
-}
-_ring_sessions = WeakKeyDictionary()
-
-
-def _ring_session(page):
-    cdp = _ring_sessions.get(page)
-    if cdp is None:
-        cdp = _ring_sessions[page] = page.context.new_cdp_session(page)
-        cdp.send("DOM.enable")
-        cdp.send("CSS.enable")
-    return cdp
-
-
-def _matched_selector(match):
-    rule = match["rule"]
-    if rule["origin"] == "inline":
-        return "style attribute"
-    selectors = [[]]
-    for token in tinycss2.parse_component_value_list(rule["selectorList"]["text"]):
-        if token.type == "literal" and token.value == ",":
-            selectors.append([])
-        else:
-            selectors[-1].append(token)
-    said = ", ".join(
-        tinycss2.serialize(selectors[i]).strip() for i in match["matchingSelectors"]
-    )
-    context = [f"@scope {scope['text']}" for scope in rule.get("scopes", [])]
-    context += reversed(rule.get("nestingSelectors", []))
-    return " { ".join([*context, said])
-
-
-def _winning_declaration(matches, carrier):
-    """The match and value of the declaration that wins `carrier` among `matches`,
-    which the protocol lists in cascade order. Important beats normal; within each,
-    the later wins. Important declarations in different cascade layers would reverse
-    that order, which no ring rule in the layer meets."""
-    won = {}
-    for match in matches:
-        style = match["rule"]["style"]
-        # The longhands the protocol expands a shorthand into carry no source text, so
-        # the declarations are the properties that do. A sheet whose source the protocol
-        # has not read lists none with text, and names its shorthands only among
-        # `shorthandEntries`: Chromium on CI's Linux runner listed the chrome sheet's
-        # target hint rule that way.
-        props = [prop for prop in style["cssProperties"] if "text" in prop] or [
-            *style["cssProperties"],
-            *style.get("shorthandEntries", []),
-        ]
-        for prop in props:
-            if (
-                prop["name"] in RING_CARRIERS[carrier]
-                and not prop.get("disabled")
-                and prop.get("parsedOk", True)
-            ):
-                won[bool(prop.get("important"))] = (match, prop["value"])
-    return won.get(True) or won.get(False)
-
-
-def _read_ring_boxes(page, wants, *, geometry=False):
-    """For each box the last probe stashed (`stash`, focus_rings.js), the selector of
-    the rule that drew its ring with the ring's token, or "" where none did.
-
-    `wants` holds one `(pseudo, carrier)` pair per box: the pseudo-element the ring is
-    on, if any, and whether it is an outline or a box shadow. With `geometry`, also
-    return pseudo border rectangles from the browser's layout, aligned with `wants`."""
-    if not wants:
-        return []
-    cdp = _ring_session(page)
-    cdp.send("DOM.getDocument", {"depth": 0})
-    group = {"objectGroup": "lf-rings"}
-    boxes = cdp.send(
-        "Runtime.evaluate", {"expression": "globalThis.__lfRingBoxes", **group}
-    )["result"]["objectId"]
-    cdp.send("Runtime.evaluate", {"expression": "delete globalThis.__lfRingBoxes"})
-    listed = cdp.send(
-        "Runtime.getProperties", {"objectId": boxes, "ownProperties": True}
-    )["result"]
-    ids = {
-        int(p["name"]): p["value"]["objectId"] for p in listed if p["name"].isdigit()
-    }
-    rules = []
-    rectangles = []
-    for index, (pseudo, carrier) in enumerate(wants):
-        node = cdp.send("DOM.requestNode", {"objectId": ids[index]})["nodeId"]
-        styles = cdp.send("CSS.getMatchedStylesForNode", {"nodeId": node})
-        if pseudo:
-            matches = next(
-                entry["matches"]
-                for entry in styles["pseudoElements"]
-                if entry["pseudoType"] == pseudo
-            )
-            if geometry:
-                described = cdp.send("DOM.describeNode", {"nodeId": node})["node"]
-                pseudo_node = next(
-                    entry
-                    for entry in described["pseudoElements"]
-                    if entry["pseudoType"] == pseudo
-                )
-                border = cdp.send(
-                    "DOM.getBoxModel",
-                    {"backendNodeId": pseudo_node["backendNodeId"]},
-                )["model"]["border"]
-                rectangles.append(
-                    {
-                        "left": min(border[::2]),
-                        "right": max(border[::2]),
-                        "top": min(border[1::2]),
-                        "bottom": max(border[1::2]),
-                    }
-                )
-        else:
-            matches = list(styles["matchedCSSRules"])
-            if inline := styles.get("inlineStyle"):
-                matches.append({"rule": {"origin": "inline", "style": inline}})
-        if geometry and not pseudo:
-            rectangles.append(None)
-        won = _winning_declaration(matches, carrier)
-        drew = won and RING_TOKEN[carrier].search(won[1])
-        rules.append(_matched_selector(won[0]) if drew else "")
-    cdp.send("Runtime.releaseObjectGroup", group)
-    return (rules, rectangles) if geometry else rules
-
-
-def ring_rules(page, wants):
-    """The winning ring selector for each stashed box and `(pseudo, carrier)` pair."""
-    return _read_ring_boxes(page, wants)
-
-
-def ring_rule(target, pseudo=None, carrier="outline"):
-    """The selector of the rule drawing the ring on `target`, a locator, as
-    `ring_rules` reads it."""
-    target.evaluate("(box) => { globalThis.__lfRingBoxes = [box]; }")
-    return ring_rules(target.page, [(pseudo, carrier)])[0]
-
-
-def rings_drawn(page):
-    """Every focus ring the page is drawing, each with the rule that drew it (`rule`,
-    as `ring_rules` reads it) and what is wrong with it.
-
-    A non-focused element mark painting the band with no ring rule behind it is the
-    pointer's feedback contour rather than a ring, so it is left out.
-
-    It reads once the runtime has rendered what the input so far asked for. The probe
-    and the browser's matched styles are two reads, and a carrier the runtime replaces
-    between them, such as the projected focus mark after a focus move, has no styles
-    left to read."""
-    rendered(page)
-    candidates = page.evaluate(RING_CANDIDATES)
-    if not candidates:
-        return []
-    rules, rectangles = _read_ring_boxes(
-        page,
-        [(seen["pseudo"], seen["carrier"]) for seen in candidates],
-        geometry=True,
-    )
-    answers = page.evaluate(RINGS_DRAWN, rectangles)
-    _read_ring_pixels(page, answers)
-    drawn = []
-    for seen, rule in zip(answers, rules, strict=True):
-        if seen.pop("mark") and not seen["focused"] and not rule:
-            continue
-        seen["rule"] = rule
-        drawn.append(seen)
-    return drawn
-
-
-# The share of a run's samples the ring's colour must cover. A run hit testing found
-# clear but painted over, or never painted, reads near nought.
-RUN_DRAWN = 0.9
-# The fewest unpainted samples, 4px apart, that count: a neighbour's edge blending into
-# a short run's end sample is one.
-RUN_MISSED = 3
-# How far a sample's channels may stray from the ring's, summed: a band on a fractional
-# edge blends a little of the ground into its middle pixel, and ground or text that
-# covers it differs by far more.
-RUN_INK = 90
-
-
-def _read_ring_pixels(page, answers):
-    """Add to each ring's `covers` the runs its colour is missing from in a screenshot,
-    at the samples `ringsDrawn` (focus_rings.js) found nothing in front of that takes
-    hits. Confirm candidate covers at their sampled pixel too: an outline is not a
-    hit surface, so hit testing alone can mistake a box beneath it for a cover.
-    Drop the samples, ink and rectangle from each answer.
-
-    The screenshot is taken a round trip after the reading, so a caller reads a page at
-    rest (`rendered`); one still repainting can read a ring where it no longer is."""
-    sampled = [seen for seen in answers if seen["runs"] or seen["coverPoints"]]
-    if sampled:
-        points = [p for seen in sampled for run in seen["runs"] for p in run["points"]]
-        points.extend(c["point"] for seen in sampled for c in seen["coverPoints"])
-        # Whole CSS pixels, since Chrome truncates a clip to them before it scales.
-        left = math.floor(min(x for x, _ in points))
-        top = math.floor(min(y for _, y in points))
-        clip = {
-            "x": left,
-            "y": top,
-            "width": math.floor(max(x for x, _ in points)) + 1 - left,
-            "height": math.floor(max(y for _, y in points)) + 1 - top,
-        }
-        image = Image.open(io.BytesIO(page.screenshot(clip=clip))).convert("RGB")
-        scale = image.width / clip["width"]
-    for seen in answers:
-        runs, ink, ring = seen.pop("runs"), seen.pop("ink"), seen.pop("ringAt")
-
-        def painted_at(point, ink=ink):
-            x, y = point
-            pixel = rgb_pixel(
-                image,
-                (
-                    min(int((x - left) * scale), image.width - 1),
-                    min(int((y - top) * scale), image.height - 1),
-                ),
-            )
-            return sum(abs(a - b) for a, b in zip(pixel, ink, strict=True)) < RUN_INK
-
-        visible = {
-            c["index"] for c in seen.pop("coverPoints") if painted_at(c["point"])
-        }
-        seen["covers"] = [c for i, c in enumerate(seen["covers"]) if i not in visible]
-        for run in runs:
-            painted = [painted_at(point) for point in run["points"]]
-            share = sum(painted) / len(painted)
-            if share < RUN_DRAWN and painted.count(False) >= RUN_MISSED:
-                seen["covers"].append(
-                    f"its {run['side']} edge shows the ring at {share:.0%} of its "
-                    f"{len(painted)} samples where nothing in front takes hits: paint "
-                    f"hit testing can't see is over it, or it isn't painted (ring {ring})"
-                )
-
-
-def current_location_ring(page):
-    """The ring on the control at the current keyboard location, or None if it wears none."""
-    return next((seen for seen in rings_drawn(page) if seen["focused"]), None)
-
-
-def ring_faults(drawn, where):
-    """The complaints about a page's rings, in the failure's own words.
-
-    Takes a reading rather than a page: a caller that also wants what the rings
-    credit would otherwise sweep the page twice and describe two instants of it.
-    """
-    return [
-        f"{where}, the ring on {seen['who']} is not all there: "
-        + "; ".join(seen["cuts"] + seen["covers"])
-        for seen in drawn
-        if seen["cuts"] or seen["covers"]
-    ]

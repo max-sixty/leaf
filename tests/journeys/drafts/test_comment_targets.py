@@ -16,7 +16,7 @@ from render_harness import (
     write,
 )
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import slow_cpu
 
 
@@ -68,7 +68,9 @@ def test_comment_follows_a_thread_current_location_instead_of_an_earlier_draft(
               queueMicrotask(() => executeCommand('writing.resume'));
             })""",
         )
-    page.keyboard.press("t")
+    # The thread walk's first stop is the comment kept at Paragraph 3, so walking back
+    # from it wraps to the thread in one trip.
+    page.keyboard.press("Shift+t")
     if resume_before_scroll:
         page.wait_for_function("window.earlyResumeBoxes !== undefined")
         boxes = page.evaluate("earlyResumeBoxes")
@@ -97,7 +99,7 @@ def test_comment_follows_a_thread_current_location_instead_of_an_earlier_draft(
     expect(earlier).to_have_js_property("selectionEnd", 1)
     assert earlier.evaluate("node => node === window.earlierEditor")
     page.keyboard.press("Shift+Tab")
-    page.keyboard.press("t")
+    page.keyboard.press("Shift+t")
     expect(thread).to_be_focused()
     expect(page.locator("#p3")).not_to_be_in_viewport()
     expect(earlier).not_to_be_in_viewport()

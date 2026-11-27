@@ -6,14 +6,14 @@ from datetime import datetime
 
 from click.testing import CliRunner
 
-from leaf import interaction_log
-from leaf.event_log import append_event
-from leaf.interaction_log import append_interactions, client_records
+from leaf.log import event_log
+from leaf.log.event_log import append_event
+from leaf.log.interaction_log import append_interactions, client_records
 from leaf_dev.cli import cli
 
 
 def test_query_keeps_input_identity_and_missing_observations(tmp_path, monkeypatch):
-    original_context = interaction_log.session_context
+    original_context = event_log.session_context
 
     def context(session, claim=None):
         if session == "session":
@@ -34,7 +34,7 @@ def test_query_keeps_input_identity_and_missing_observations(tmp_path, monkeypat
             }
         return original_context(session, claim)
 
-    monkeypatch.setattr(interaction_log, "session_context", context)
+    monkeypatch.setattr(event_log, "session_context", context)
 
     def event(kind, identity, second, **fields):
         return {
@@ -108,7 +108,7 @@ def test_query_keeps_input_identity_and_missing_observations(tmp_path, monkeypat
             responds="third",
             failure="startup_failed",
         ),
-        event("comment", "reaction", 13, author="user", token="keep"),
+        event("comment", "reaction", 13, author="user", emoji="👍"),
         event(
             "pickup",
             "delivery-failed",
@@ -149,8 +149,11 @@ def test_query_keeps_input_identity_and_missing_observations(tmp_path, monkeypat
                 "session": "session",
                 "thread": "first",
                 "inputs": ["second"],
-                "outcome": "hand_over",
-                "why": "it asks for a measurement",
+                "outcome": "posted",
+                "text": "Measuring it again.",
+                # A line whose event this log doesn't hold, so the agent's own
+                # progress stays the edit's first reply.
+                "line": "fork-line",
                 "elapsedMs": 2100.0,
             }
         ],
@@ -168,16 +171,16 @@ def test_query_keeps_input_identity_and_missing_observations(tmp_path, monkeypat
     assert result.exit_code == 0, result.output
     report = json.loads(result.output)
     rows = {row["input_id"]: row for row in report["samples"]}
-    # The fork that handed the message over decided its edit too, and the update
-    # read Delivered from its opened pickup to the agent's first words.
+    # The line fork run on the message is its edit's too, so `forked` times both,
+    # and the update read Delivered from its opened pickup to the agent's first words.
     assert rows["edited"]["fork"] == {
-        "outcome": "hand_over",
+        "outcome": "posted",
         "elapsed_s": 2.1,
-        "why": "it asks for a measurement",
+        "why": None,
     }
     assert rows["first"]["fork"] is None
-    assert report["summary"]["fork_hand_over"]["inputs"] == 2
-    assert report["summary"]["fork_hand_over"]["p50_s"] == 5
+    assert report["summary"]["forked"]["inputs"] == 2
+    assert report["summary"]["forked"]["p50_s"] == 5
     assert report["summary"]["delivered"]["p50_s"] == 2
     assert set(rows) == {"first", "second", "edited", "third"}
     assert rows["first"]["superseded_by_edit"] == "quiet-edit"
@@ -426,7 +429,7 @@ def test_query_joins_one_browser_clock_and_selects_declared_purpose(
             },
         ],
     )
-    monkeypatch.setattr("leaf.interaction_log.now_iso", lambda: at(20))
+    monkeypatch.setattr("leaf.log.interaction_log.now_iso", lambda: at(20))
 
     def row(sequence, type, monotonic_ms, **fields):
         return {

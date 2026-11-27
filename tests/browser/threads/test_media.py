@@ -21,17 +21,19 @@ from render_harness import (
     sending,
     stamp_page,
     told,
+    without_end_room,
     write,
 )
 
+from browser.test_render_drawing import NATIVE_FRAME_PAGE, draw_over
 from browser.threads import (
     capture_page,
     open_capture_area,
     paste_image,
 )
-from leaf import event_log as events_model
-from leaf import media as media_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.serving import media as media_model
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -329,6 +331,45 @@ def test_a_tap_at_the_comment_field_s_edge_stays_the_field_s(
     expect(field).to_be_focused()
 
 
+@pytest.mark.parametrize("picture", ["drawn", "pasted"])
+def test_a_box_held_at_the_window_s_top_hangs_its_pictures_inside_the_window(
+    browser, serve, picture
+):
+    """A figure filling the window puts the comment box over it, held in at the
+    window's top with no room over its field. The draft's pictures and the marks on
+    their corners hang under the field there, inside the window, rather than past its
+    top, whether a stroke's drawing opened the box or an image joined it already open.
+    The window shows the figure without scrolling, so no scroll carries the box, which
+    rides its figure, down from the window's edge."""
+    page = open_page(browser, serve(NATIVE_FRAME_PAGE))
+    # With no room below the page's end, no scroll brings room under the figure.
+    without_end_room(page)
+    resized(page, 1200, 1000)
+    sketch = page.locator("#visuals svg").nth(1)
+    if picture == "drawn":
+        draw_over(page, sketch)
+    else:
+        sketch.click(modifiers=["Alt"], position={"x": 200, "y": 100})
+        field = page.locator(".lf-fab-input")
+        field.click()
+        paste_image(field, solid_png(240, 160, (64, 64, 64)))
+    assert page.evaluate("scrollY") == 0
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("data-lf-placement", "top-start")
+    shelf = bar.locator(".lf-composer-media")
+    controls = shelf.get_by_role("button")
+    expect(controls).to_have_count(3 if picture == "drawn" else 2)
+    for control in controls.all():
+        expect(control).to_be_in_viewport(ratio=1)
+    field_box = bar.locator(".lf-compose-field").bounding_box()
+    assert (
+        shelf.locator(".lf-composer-media-open").bounding_box()["y"]
+        >= field_box["y"] + field_box["height"]
+    )
+    shelf.get_by_role("button", name=re.compile("^Remove")).click()
+    expect(shelf).to_be_hidden()
+
+
 def test_capture_leaves_selected_content_visible_through_the_drag(browser, serve):
     page = capture_page(browser, serve)
     baseline = Image.open(io.BytesIO(page.screenshot())).convert("RGB")
@@ -508,7 +549,7 @@ def test_a_capture_attaches_to_the_box_an_error_stood_over(browser, serve):
     box = page.locator(".lf-fab-input")
     write(box, "Words a refusal handed back.")
     page.evaluate(
-        """async () => (await window.__lfWidgetApi()).raiseError(
+        """async () => (await window.__lfCheckApi()).raiseError(
           "Couldn't take this — refused before append",
           { subject: document.querySelector('.lf-fab-input') })"""
     )

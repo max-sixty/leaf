@@ -1,16 +1,18 @@
 # Widgets get the runtime's own focus primitives through widget-api.js: a keyed hold
-# for a list a render replaces, closeLayer for a layer the widget opens, and
-# focusDestination with a cause. A row removal dropped the user to the body whenever
+# for a list a render replaces and focusDestination with a cause, and their own layer
+# is a native popover or dialog. A row removal dropped the user to the body whenever
 # Remove re-rendered its list; this asks for the same shape from the shipped
 # references alone, through module-authoring.md's paragraph on those exports. The
 # immediate receipt exercises same-turn paint alongside focus continuity. Command rows
 # have `lands(from)`, which tempts authors to compute the nearest surviving row in it
 # themselves; module-input.md says a keyed hold tries its stand-ins last and leaves
-# `lands` to presses that go elsewhere. A native popover Add item opens through
-# popovertarget passes, since Leaf returns the user to that control on closing.
+# `lands` to presses that go elsewhere. The popup is a native popover Add item opens
+# through popovertarget, and a choice returns the user to Add item itself, since a
+# pointer press in Safari or Firefox on macOS leaves no focus inside the popover for
+# the browser's own return.
 description: widget-list-keeps-focus
 metadata:
-  purpose: A widget paints a removal synchronously, keeps the user in its keyed list, and hands them back when its own popup closes, through the runtime's public primitives.
+  purpose: A widget paints a removal synchronously, keeps the user in its keyed list through the runtime's public primitives, and makes its popup a native popover that returns them as it closes.
   tags:
     - packages
     - keyboard
@@ -36,22 +38,22 @@ assert:
       Pass only if the response imports its focus helpers from /runtime/widget-api.js
       and:
       - draws the changed list before the remove handler returns, so the caller's
-        receipt reads the changed view: through Leaf's render(), or performUpdate()
-        on a LeafElement, which module-authoring.md names for drawing at once; it
-        does not wait for a reactive update to land later;
+        receipt reads the changed view: through Leaf's render(), performUpdate() on a
+        LeafElement, or the `state` setter Leaf calls before the dispatch of the
+        `lf-action` that records the removal returns; it does not wait for a reactive
+        update to land later;
       - holds focus across the list render with holdFocus(list, { key: <the row's
         key attribute> }), sets that attribute on each row, and calls the returned
         restore after rendering with the Add item button as its last stand-in;
-      - closes the popup with closeLayer(close, land), where land hands the user back
-        to the Add item button: handBack(openerOf(popup)) after openLayer(popup) as it
-        opens, or handBack naming the button; or makes the popup a native popover that
-        Add item opens through popovertarget and closes it with closeNativeLayer,
-        placing no return focus of its own, since Leaf puts the user on a
-        popovertarget control as its popover opens and closing returns them there;
+      - makes the popup a native popover that Add item opens through
+        popovertarget, and on a choice hides it with hidePopover() and puts the user
+        on Add item with focusDestination(addItem, "return"), since the browser's own
+        return needs focus inside the popover, which a pointer press in Safari or
+        Firefox on macOS doesn't keep, and a manual popover makes none;
       - any focus it places itself goes through focusDestination with a cause;
       - the popup's Escape, if shown, is a command row in an element's lfCommands,
         not a listener.
       Fail if it calls element.focus() directly, searches for the nearest surviving
-      row itself, keeps the opener in a variable of its own, or installs focus or
-      keydown listeners.
+      row itself, hides the popup by any means but a native popover, or installs
+      focus or keydown listeners.
       Execution is unavailable, so not running checks is not a failure.

@@ -2,21 +2,12 @@
 it."""
 
 import json
-import subprocess
-from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[2]
+from interact_support import js_facts
 
 
 def facts(command, module):
-    result = subprocess.run(
-        ["node", "tests/js_facts.mjs", command, str(module)],
-        cwd=ROOT,
-        capture_output=True,
-        text=True,
-        check=True,
-    )
-    return json.loads(result.stdout)[str(module)]
+    return json.loads(js_facts(command, [module]))[str(module)]
 
 
 # One press a line, each in a block of its own. The first four are presses the press

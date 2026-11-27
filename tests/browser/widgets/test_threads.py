@@ -21,16 +21,18 @@ from render_harness import (
     open_page,
     page_comment,
     resized,
+    round_trip,
     select,
     stamp_page,
     told,
+    undo,
     wait_for_revision,
     write,
 )
 
 from browser.threads import open_panel_thread
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -407,6 +409,62 @@ def thread_on_a_sent_widget(serve):
         },
     )
     return url
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_suggestion_an_agent_sent_accepts_and_undoes_in_its_thread(
+    engine, request, serve
+):
+    """A suggestion in an agent's message decides as one on the page does: accepting it
+    retires the words it replaces and shows the ones it proposes, and undo brings the
+    proposal back, all inside the thread, since no version settles a message."""
+    browser = request.getfixturevalue(engine)
+    url = serve(REPLY_HOST_PAGE)
+    d = serve.page_dir
+    append_carried_log_record(
+        d,
+        {
+            "kind": "comment",
+            "id": "c-wording",
+            "author": "user",
+            "revision": 1,
+            "text": "How should the fallback read?",
+        },
+    )
+    append_carried_log_record(
+        d,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "parent": "c-wording",
+            "revision": 1,
+            "text": (
+                "Reads fall back "
+                '<lf-suggestion id="ms-when"><lf-old>daily</lf-old>'
+                "<lf-new>weekly</lf-new></lf-suggestion>."
+            ),
+        },
+    )
+    page = open_page(browser, url)
+    view = open_panel_thread(page, "c-wording")
+    old, new = view.locator("#ms-when lf-old"), view.locator("#ms-when lf-new")
+    expect(old).to_be_visible()
+    expect(new).to_be_visible()
+
+    accept = page.locator(
+        "[data-lf-margin-for='ms-when'] [data-lf-margin-entry-key=accept]"
+    )
+    accept.click()
+    round_trip(page)
+    expect(old).to_be_hidden()
+    expect(new).to_be_visible()
+    assert page.locator("#ms-when").get_attribute("data-lf-state") == "accept"
+
+    undo(page)
+    round_trip(page)
+    expect(old).to_be_visible()
+    expect(new).to_be_visible()
+    assert page.locator("#ms-when").get_attribute("data-lf-state") is None
 
 
 def test_a_thread_on_a_widget_an_agent_sent_stands_in_its_message(

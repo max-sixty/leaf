@@ -1,6 +1,7 @@
-// Publish a document through Leaf's shared output binding; the reader owns its views.
+// Hold a document as the `document` output and say `change`; the reader that names this
+// element owns its views.
 import { html } from "/vendor/lit.js";
-import { LeafElement, publishOutput } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 
 customElements.define(
   "lf-document-gallery",
@@ -10,11 +11,8 @@ customElements.define(
       this.publish();
     }
     publish() {
-      publishOutput(
-        this,
-        "document",
-        `# Release note ${this.edition}\n\nThe library opens on **Sunday**.\n`,
-      );
+      this.document = `# Release note ${this.edition}\n\nThe library opens on **Sunday**.\n`;
+      this.dispatchEvent(new Event("change"));
     }
     render() {
       return html`<button

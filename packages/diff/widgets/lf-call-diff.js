@@ -2,7 +2,9 @@
  * This widget draws trees[].tree as commentable evidence, retaining unchanged nodes
  * and deriving only the visible tree rails. Its optional locations are used directly,
  * including paths with whitespace; terminal output is never read back as data.
- * Each root keeps its disclosure separate from its source link.
+ * Each root keeps its disclosure separate from its source link. Every root opens as it
+ * arrives, the maintainer's choice, so the whole capture reads at once; the toolbar's
+ * Collapse all folds a long one.
  * Ordinary activation travels to the exact line; modified activation keeps the
  * native link's separate-tab, separate-window and context-menu routes. CallDiff
  * locations name the after tree for added and unchanged rows, and the before tree
@@ -13,22 +15,12 @@
  * a capture can move a call under another root, and a row leaving one repeat list
  * for another is recreated, which would drop the focus of a user on it. */
 import { html, render, nothing } from "/vendor/lit.js";
-import {
-  announce,
-  nameAction,
-  el,
-  generated,
-  generatedElement,
-  keeps,
-  keepsText,
-  LeafElement,
-  navigateToDatum,
-  offerAction,
-  setChildLists,
-  setChildren,
-  plainPress,
-  focused,
-} from "/runtime/widget-api.js";
+import { navigateToDatum, setChildLists, setChildren } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { el } from "/runtime/lib/elements.js";
+import { nameAction, offerAction } from "/runtime/lib/controls.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
+import { plainPress } from "/runtime/lib/keys.js";
 
 import { diffLocationKey } from "./diff-coordinates.js";
 
@@ -127,7 +119,7 @@ function buildToolbar(owner) {
   // cell — the marker `lf-diff` puts on its own injected stat. It does not stop a drag
   // quoting them: that is `.lf-ui`, which `lf-diff` adds beside it on its line numbers.
   const summary = el("p", "lf-call-summary");
-  generatedElement(summary, { says: false });
+  keeps(summary, "data-lf-gen", "1");
   // An offer, not a bare button: the disclosure control is chrome this widget injected,
   // and the offer gives it the press markers the theme and the keyboard read.
   const button = offerAction("symbol", "lf-call-toggle", undefined, {
@@ -141,16 +133,20 @@ function buildToolbar(owner) {
     const open = groups.some((group) => !group.open);
     for (const group of groups) if (group.open !== open) group.open = open;
     updateDisclosureControl(owner);
-    announce(`${open ? "Expanded" : "Collapsed"} all call-tree roots`);
+    window.dispatchEvent(
+      new CustomEvent("lf-announce", {
+        detail: `${open ? "Expanded" : "Collapsed"} all call-tree roots`,
+      }),
+    );
   });
   toolbar.append(summary, button);
   return { element: toolbar, summary };
 }
 
-/** @param {HTMLElement} owner @param {string} key @param {boolean} open */
-function buildGroup(owner, key, open) {
+/** @param {HTMLElement} owner @param {string} key */
+function buildGroup(owner, key) {
   const group = el("details", "lf-call-group");
-  group.open = open;
+  group.open = true;
   // Source navigation and disclosure are separate controls: a link nested in summary
   // disappears from some accessibility readings. Keep the summary as the tight root
   // datum, and its source control beside it rather than around the whole call tree.
@@ -201,6 +197,7 @@ function locationLink(record, owner) {
         class="lf-call-location"
         href=${`#${owner.getAttribute("diff")}`}
         @click=${async (/** @type {MouseEvent} */ event) => {
+          // A modified click keeps the link's own meaning, such as opening a new tab.
           if (event.defaultPrevented || !plainPress(event)) return;
           event.preventDefault();
           event.stopPropagation();
@@ -227,9 +224,7 @@ function renderLine(record, line, owner, count = null) {
       }${
         count === null
           ? ""
-          : html`<span class="lf-call-group-count" ${generated({ says: false })}
-              >${count}</span
-            >`
+          : html`<span class="lf-call-group-count" data-lf-gen="1">${count}</span>`
       }`,
     line,
   );
@@ -320,9 +315,8 @@ customElements.define(
         return node;
       };
       const meta = draw(records.meta, () => buildLine());
-      const placements = records.groups.map(({ root, children }, index) => {
-        const owned =
-          this.groups.get(root.key) ?? buildGroup(this, root.key, index === 0);
+      const placements = records.groups.map(({ root, children }) => {
+        const owned = this.groups.get(root.key) ?? buildGroup(this, root.key);
         const summary = draw(
           root,
           () => owned.summary,
@@ -337,7 +331,8 @@ customElements.define(
           children: children.map((record) => draw(record, () => buildLine())),
         };
       });
-      const currentLocation = focused(this.getRootNode());
+      const currentLocation = /** @type {Document | ShadowRoot} */ (this.getRootNode())
+        .activeElement;
       for (const { group, body, children } of placements)
         if (
           children.some(

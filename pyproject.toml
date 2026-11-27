@@ -108,7 +108,17 @@ dev = [
   # Draws the edits and placements that move a floating box
   # (`journeys/test_floating_box_motion.py`).
   "hypothesis>=6",
+  # Holds `src/leaf`'s layer packages to one order (`.config/importlinter.ini`).
+  "import-linter>=2.17",
 ]
+
+# `uv lock` resolves only releases at least three days old, the window
+# `.github/dependabot.yml` sets for every ecosystem. uv reads a relative
+# `exclude-newer` from 0.9.17, the minimum `README.md` states. An older uv can't parse
+# this table, so it ignores all of it with a warning, a `required-version` here
+# included, and re-resolves the lock without the window.
+[tool.uv]
+exclude-newer = "3 days"
 
 # An install never syncs the members, but uv reads their `pyproject.toml` files to
 # check the lock on every unfrozen run, so a partial copy of the tree that runs
@@ -170,7 +180,7 @@ extra-paths = ["tests"]
 
 # SessionEnd runs before a managed environment exists (bin/leaf), on system Python.
 [tool.ruff.per-file-target-version]
-"src/leaf/state.py" = "py39"
+"src/leaf/base/state.py" = "py39"
 
 # The suite is round trips through a real browser rather than computation, so tests
 # shard independently: every test gets its own tmp_path, XDG homes, and server.
@@ -192,11 +202,13 @@ markers = [
 # A test still running after half an hour is taken as hung. The limit guards the run
 # against a hang, and isn't held to the ten-times margin tests/AGENTS.md ("Results do not
 # depend on execution speed") gives an operation's deadline. The worker prints every
-# thread's stack, which names the call that blocked, and exits. xdist reports the test
-# as crashed, and `--max-worker-restart=0` (addopts) then ends the run once the other
-# workers finish the tests already sent to them. Replacing the crashed worker instead
-# leaves a `--dist loadgroup` run with every worker idle, waiting for a test that never
-# comes, until something kills it (xdist 3.8.0). Without the timeout, a call with no
+# thread's stack and exits. A minute earlier `tests/conftest.py` prints every
+# greenlet's stack, since Playwright's sync API waits in its event loop's thread while
+# the test's own stack, which names the call that blocked, sits in a greenlet. xdist
+# reports the test as crashed, and `--max-worker-restart=0` (addopts) then ends the
+# run once the other workers finish the tests already sent to them. Replacing the
+# crashed worker instead leaves a `--dist loadgroup` run with every worker idle,
+# waiting for a test that never comes, until something kills it (xdist 3.8.0). Without the timeout, a call with no
 # deadline of its own (`page.evaluate`, a new page, a lock) holds the run until the CI
 # job's six-hour limit. Pytest cancels this timer when a test reports a failure,
 # so it does not bound that test's cleanup. CI also bounds the whole Python/profile
@@ -286,6 +298,8 @@ backfil = "backfil"
 seeked = "seeked"
 # A simulator's device id, as `simctl` and safaridriver name it (leaf_dev/ios_safari.py).
 udid = "udid"
+# A variable in Pele's minified bundle that a seam in build/vendor.mjs names.
+ue = "ue"
 
 [tool.typos.default.extend-identifiers]
 # typos splits the plural of PNG into `PN` + `Gs` and "corrects" it to ONGs.

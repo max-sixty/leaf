@@ -7,21 +7,25 @@
    pages with threads and on pages holding only a draft, every thread's placement, the
    draft's and a saved draft's, stands
    where a resolution of its anchor read afresh puts it: no reader reads placement older
-   than the page (anchor-placement.js, `settle`), a reading kept from it included. A fresh resolution names the quote
+   than the page (annotations/anchor-placement.js, `settle`), a reading kept from it included. A fresh resolution names the quote
    with a space before it, which the page's index of quotes doesn't keep, so it reads
-   the page by a pass of its own (passages.js, `copiesOf`). */
+   the page by a pass of its own (readings/passages.js, `copiesOf`). */
 // Stages watched as the page's are, which the reading watcher hears inside.
 import "/runtime/stage-integration.js";
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { createAnchorPlacement } from "/runtime/anchor-placement.js";
-import { kept } from "/runtime/kept.js";
-import { resolveAnchor, setAnchoringReady } from "/runtime/anchor-resolution.js";
-import { neighbourhood, pageText, spanIn } from "/runtime/passages.js";
-import { registry } from "/runtime/registry.js";
-import { shadowStage } from "/runtime/shadow-stage.js";
-import { registerVisualParts } from "/runtime/visual-parts.js";
+import { createAnchorPlacement } from "/runtime/annotations/anchor-placement.js";
+import { kept } from "/runtime/state/kept.js";
+import {
+  resolveAnchor,
+  setAnchoringReady,
+} from "/runtime/readings/anchor-resolution.js";
+import { neighbourhood, pageText, spanIn } from "/runtime/readings/passages.js";
+import { registry } from "/runtime/state/registry.js";
+import { shadowStage } from "/runtime/dom/shadow-stage.js";
+
+import { random } from "./seeded.mjs";
 
 const STAGED = '<p id="s4">Mu nu shared phrase xi.</p>';
 const PAGE =
@@ -32,13 +36,6 @@ const PAGE =
   "</lf-staged></main>";
 const WORDS = ["alpha", "beta", "shared", "phrase", "zeta", "x", " ", "."];
 const IDS = ["s1", "s2", "s3", "s4", "all", "x"];
-
-// A seeded generator, so a failure names its run.
-/** @param {number} seed */
-function random(seed) {
-  let s = seed >>> 0;
-  return () => (s = (Math.imul(s, 1664525) + 1013904223) >>> 0) / 2 ** 32;
-}
 
 /** @param {{section: string, quote?: string, prefix?: string, suffix?: string}} anchor */
 const fresh = (anchor) =>
@@ -198,7 +195,7 @@ test("placement stands where a fresh resolution does, after every change", async
       draft: where(placement.pendingAt()),
       saved: where(placement.savedAt("kept")),
     });
-    // A reading kept from placement (kept.js, `kept`), which no change leaves older
+    // A reading kept from placement (state/kept.js, `kept`), which no change leaves older
     // than placement, a saved draft's placement included.
     const keptPlaces = kept(placedNow);
     keptPlaces();
@@ -272,10 +269,11 @@ test("placement keeps a range over a passage's words, a thread's and the draft's
   read();
   assert.equal(placement.placedAt("t").ranges[0], placed);
   assert.equal(placement.pendingAt().ranges[0], drafted);
-  // Words taken out of the passage itself leave nothing to place.
+  // Words taken out of the passage itself leave the draft on what held them.
   const words = /** @type {Text} */ (document.getElementById("b")?.firstChild);
   words.data = "Both exports run.";
-  assert.equal(placement.pendingAt(), null);
+  assert.equal(placement.pendingAt()?.status, "fallback");
+  assert.equal(placement.pendingAt()?.place, document.getElementById("b"));
   document.body.replaceChildren();
 });
 
@@ -291,11 +289,12 @@ test("a saved draft on a part the picture draws later stands on the part at the 
   const plot = /** @type {Element} */ (document.getElementById("plot"));
   const point = /** @type {Element} */ (document.getElementById("p"));
   let drawn = false;
-  registerVisualParts(plot, () => [], {
+  plot.lfParts = {
+    read: () => [],
     find: (id) =>
       drawn && id === "point:p" ? { id, element: point, label: "x 1" } : null,
     label: (id) => (id === "point:p" ? "x 1" : null),
-  });
+  };
   const placement = createAnchorPlacement();
   const read = () =>
     placement.read({
@@ -340,7 +339,7 @@ test("placement's hearers never hear a saved draft as a thread", async () => {
     read([{ context: "kept", anchor: { section: "a", quote: "one file per tenant" } }]);
     const words = /** @type {Text} */ (document.getElementById("a")?.firstChild);
     words.data = "The nightly export keeps nothing.";
-    assert.equal(placement.savedAt("kept"), undefined);
+    assert.equal(placement.savedAt("kept")?.status, "fallback");
     read([]);
     await new Promise((done) => setTimeout(done, 0));
     assert.deepEqual(heard, []);

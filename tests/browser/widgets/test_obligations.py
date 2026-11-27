@@ -18,6 +18,7 @@ from render_cases_interaction import (
     SUGGESTION_IN_CONTEXT_PAGE,
     answered_comment,
     live_url,
+    serve_obligations,
 )
 from render_cases_layout import SHOT_SRC, SHOTS
 from render_cases_navigation import BINDING_BADGE_PAGE, actions
@@ -43,7 +44,8 @@ from browser.widgets import (
     expect_accept_all,
     observe_live_region,
 )
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
+from leaf_dev.browser import text_field
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -53,9 +55,9 @@ ACROSS_OBLIGATION = """
   <lf-group id="{id}" label="How long should logs be kept?">
     <hgroup><p>Retention</p><h3 id="{id}-h">How long should logs be kept?</h3></hgroup>
     <figure><table id="{id}-figure">
-      <thead><tr><th>Store</th><th class="num">Daily GB</th></tr></thead>
-      <tbody><tr><td>Hot</td><td class="num">40</td></tr>
-        <tr><td>Warm</td><td class="num">120</td></tr></tbody>
+      <thead><tr><th>Store</th><th class="lf-numeric">Daily GB</th></tr></thead>
+      <tbody><tr><td>Hot</td><td class="lf-numeric">40</td></tr>
+        <tr><td>Warm</td><td class="lf-numeric">120</td></tr></tbody>
     </table></figure>
     <lf-options id="{id}-choice"{across}{width}>
       <lf-option id="{id}-7" label="7 days"><strong>7 days</strong> The cheapest.
@@ -94,13 +96,13 @@ PICTURED_OBLIGATION = """
     <h3 id="{id}-h">Should each item say where it sits in the plan?</h3>
     <lf-options id="{id}-choice"{width}>
       <lf-option id="{id}-yes" label="Show the goal and step"><strong>Show the goal and step</strong> A line over each item.
-        <p><a href="#{id}-yes-picture"><svg id="{id}-yes-picture" class="drawing"
+        <p><a href="#{id}-yes-picture"><svg id="{id}-yes-picture" class="lf-drawing"
           viewBox="0 0 480 240" width="480" height="240" role="img"
           aria-label="Items under their step">
           <rect width="480" height="240" fill="none" stroke="currentColor" /></svg></a></p>
       </lf-option>
       <lf-option id="{id}-no" label="Leave the list as it is"><strong>Leave the list as it is</strong> Items as today.
-        <p><a href="#{id}-no-picture"><svg id="{id}-no-picture" class="drawing"
+        <p><a href="#{id}-no-picture"><svg id="{id}-no-picture" class="lf-drawing"
           viewBox="0 0 480 240" width="480" height="240" role="img" aria-label="Items as today">
           <rect width="480" height="240" fill="none" stroke="currentColor" /></svg></a></p>
       </lf-option>
@@ -113,10 +115,8 @@ PLATE_PACKAGE = {
     "lf-plate": {
         "description": "A project package's picture, under a name the theme never sees.",
         "attributes": {
-            "type": "object",
-            "properties": {"id": {"type": "string"}},
+            "properties": {},
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "markup",
         "visual": "whole",
@@ -136,7 +136,7 @@ CAPTURED_OPTION = """
 
 ROWED_OPTION = """
       <lf-option id="rowed-{side}">{title}
-        <svg id="rowed-{side}-picture" class="drawing" viewBox="0 0 300 60" width="300"
+        <svg id="rowed-{side}-picture" class="lf-drawing" viewBox="0 0 300 60" width="300"
           height="60" role="img" aria-label="{title}">
           <rect width="300" height="60" fill="none" stroke="currentColor" /></svg>
       </lf-option>"""
@@ -278,13 +278,13 @@ def chipped_obligation(id, cards):
     (chips, title, attributes), its chips written before its title."""
     options = "".join(
         f'<lf-option id="{id}-{n}" label="{title}"{attributes}>'
-        + "".join(f'<small class="tag">{chip}</small>' for chip in chips)
+        + "".join(f'<small class="lf-tag">{chip}</small>' for chip in chips)
         + f"<strong>{title}</strong><p>Its consequence.</p></lf-option>"
         for n, (chips, title, attributes) in enumerate(cards)
     )
     return (
         f'<lf-group id="{id}" label="Which fix first?"><h3 id="{id}-h">Which fix first?</h3>'
-        '<svg class="drawing" viewBox="0 0 480 60" role="img" aria-label="Loss by fix">'
+        '<svg class="lf-drawing" viewBox="0 0 480 60" role="img" aria-label="Loss by fix">'
         '<rect width="480" height="60" fill="none" stroke="currentColor" /></svg>'
         f'<lf-options id="{id}-choice" across>{options}</lf-options></lf-group>'
     )
@@ -457,16 +457,14 @@ def test_the_obligation_reading_counts_completed_obligations_against_the_active_
     suggestions, and silently nothing for every other thing a page waits on. What
     makes an instance an obligation is the entry's own attribute condition, and the entry
     explicitly names which state verbs answer it — so this page's five active obligations are
-    one authored answer, a live question, a change nobody has decided, and two explicit
-    questions nested in tasks.
+    one the user's logged pick answers, a live question, a change nobody has decided, and
+    two explicit questions nested in tasks.
 
     The rest of the page is every way of not being one, and each is a way of getting
-    it wrong: a group whose pick the version already carries (`selected`, with nothing in
-    the log — a fold-only reading counts it as open on every shipped example), one the
-    author has settled, one that takes no picks at all, an exhibited decision inside a
-    lf-sample, and a milestone at `blocked`, which is the same word on a widget whose
-    entry does not declare it."""
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    it wrong: a group the author has settled, one that takes no picks at all, an
+    exhibited decision inside a lf-sample, and a milestone at `blocked`, which is the same
+    word on a widget whose entry does not declare it."""
+    page = open_page(browser, serve_obligations(serve))
     expect_obligations_answered(page, "1/5")
     # The blanket answer counts the same list, narrowed to the one kind that declares
     # a verb for it, so the two numbers cannot describe different sets.
@@ -501,7 +499,7 @@ def test_a_key_walks_the_page_s_open_obligations(browser, serve, subtests):
     the control instead would put them on whatever the decision's context and evidence
     had pushed off the bottom of the screen. Its contributed actions are directly
     addressable there; the controls themselves remain the next Tab stops."""
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    page = open_page(browser, serve_obligations(serve))
     expect_obligations_answered(page, "1/5")
 
     with subtests.test("the obligation stood on survives the window losing focus"):
@@ -610,7 +608,7 @@ def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, s
     """The decision is the question's whole reading region, not only its answer control.
 
     Were an options group both the state owner and the navigation target, then when the
-    heading, premise, and evidence stood immediately above it, `d` would centre the
+    heading, premise, and evidence stood immediately above it, `m` would centre the
     options and make the user scroll backward before they could answer. The group the
     author names round the question encodes that broader unit while the nested
     `awaits` widget still owns the action: the walk rings the region, aligns its
@@ -660,12 +658,11 @@ def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, s
     # the walk could stand them on instead is the measurement that says the two cannot
     # both be.
     position = page.evaluate(
-        """() => {
+        """async () => {
           const box = document.activeElement.getBoundingClientRect();
           const pick = document.querySelector('#storage-options .lf-pick')
             .getBoundingClientRect();
-          const foot = parseFloat(
-            getComputedStyle(document.scrollingElement).scrollPaddingBottom);
+          const foot = (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom;
           return {top: box.top, pick: pick.top, height: innerHeight - foot};
         }"""
     )
@@ -717,7 +714,7 @@ def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, s
 
 
 def test_the_obligation_itself_binds_each_contributed_action(browser, serve):
-    """a lands semantic focus on the obligation; digits work its exact action list there.
+    """m lands semantic focus on the obligation; digits work its exact action list there.
 
     The list is contributed by the decision widget rather than inferred from generated
     descendants: options own controls inside the obligation, while a suggestion's margin entries are
@@ -725,7 +722,7 @@ def test_the_obligation_itself_binds_each_contributed_action(browser, serve):
     the keyboard layer; a digit activates the original command without first moving
     focus into the widget.
     """
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    page = open_page(browser, serve_obligations(serve))
     resized(page, 900, 900)
 
     page.keyboard.press("m")
@@ -769,7 +766,6 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
 
     page.evaluate(
         """async () => {
-          const {commandsChanged} = await window.__lfWidgetApi();
           const suggestion = document.getElementById('sug');
           const source = document.createElement('span');
           const inspect = document.createElement('button');
@@ -789,7 +785,7 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
               run: () => { inspect.dataset.activated = '1'; },
             },
           ] };
-          commandsChanged(source);
+          source.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
         }"""
     )
 
@@ -841,7 +837,6 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
     # collapsing the command's equivalent bindings into whichever one came first.
     page.evaluate(
         """async () => {
-          const {commandsChanged} = await window.__lfWidgetApi();
           const inspect = document.getElementById('inspect-action');
           inspect.lfCommands = { title: 'Inspect control', rows: [{
             id: 'test.dead-local-x', keys: ['x'],
@@ -849,7 +844,7 @@ def test_obligation_contextual_bindings_are_independent_of_widget_bindings(
             line: 'unavailable local command', when: () => false,
             run: () => { inspect.dataset.deadLocalX = '1'; },
           }] };
-          commandsChanged(inspect);
+          inspect.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
         }"""
     )
     rendered(page)
@@ -881,7 +876,6 @@ def test_a_widget_digit_shadows_only_the_matching_obligation_alias(browser, serv
     page = open_page(browser, serve(SHORT_SUGGESTION))
     page.evaluate(
         """async () => {
-          const {commandsChanged} = await window.__lfWidgetApi();
           const suggestion = document.getElementById('sug');
           const inspect = document.createElement('button');
           inspect.textContent = 'Inspect';
@@ -898,7 +892,7 @@ def test_a_widget_digit_shadows_only_the_matching_obligation_alias(browser, serv
               run: () => { inspect.dataset.localThree = '1'; },
             },
           ] };
-          commandsChanged(inspect);
+          inspect.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
         }"""
     )
 
@@ -932,7 +926,6 @@ def test_an_obligation_alias_runs_the_original_command_in_its_own_scope(browser,
 
     page.evaluate(
         """async () => {
-          const { commandsChanged } = await window.__lfWidgetApi();
           const suggestion = document.getElementById('sug');
           const control = document.createElement('button');
           control.textContent = 'Configure';
@@ -948,13 +941,13 @@ def test_an_obligation_alias_runs_the_original_command_in_its_own_scope(browser,
             decision: true, title: 'Configure', line: 'configure',
             run: () => { layer.hidden = false; inside.focus(); },
           }] };
-          commandsChanged(control);
+          control.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
           inside.lfCommands = { title: 'In the configuration layer', rows: [{
             id: 'test.configure.close', keys: ['Escape'],
             title: 'Close configuration', line: 'close configuration',
             run: () => { layer.hidden = true; control.focus(); },
           }] };
-          commandsChanged(inside);
+          inside.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
         }"""
     )
 
@@ -974,11 +967,12 @@ def test_obligation_action_binding_badges_use_the_available_card_action_seats(
     """The draft route borrows an empty Add seat and moves beside a live Add press.
 
     The cards share one trailing column. An empty draft has only the route into its
-    field, so that badge sits over the hidden Add press. Once content reveals Add and
+    field, so that badge stands over the hidden Add press, in the digit column every
+    card's badge shares. Once content reveals Add and
     focus leaves the field, both actions are available and the route takes the inner
     seat. The field reserves both seats before either face appears.
     """
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    page = open_page(browser, serve_obligations(serve))
     resized(page, 900, 900)
 
     page.keyboard.press("m")
@@ -998,9 +992,13 @@ def test_obligation_action_binding_badges_use_the_available_card_action_seats(
     submit = addition.locator(".lf-compose-submit")
     empty_submit = submit.evaluate(
         """el => { const box = el.getBoundingClientRect();
-                    return {x: box.left + box.width / 2}; }"""
+                    return {x: box.left + box.width / 2, left: box.left,
+                            right: box.right}; }"""
     )
-    assert obligation_centers[-1]["x"] == pytest.approx(empty_submit["x"], abs=0.5)
+    assert obligation_centers[-1]["x"] == pytest.approx(
+        obligation_centers[0]["x"], abs=0.5
+    )
+    assert empty_submit["left"] < obligation_centers[-1]["x"] < empty_submit["right"]
 
     page.keyboard.press("Tab")
     focused = page.locator(selector)
@@ -1024,7 +1022,7 @@ def test_obligation_action_binding_badges_use_the_available_card_action_seats(
         }), {once: true});
       });
     }""")
-    write(addition.get_by_role("textbox", name="Another option"), "A fourth option")
+    write(text_field(addition, name="Another option"), "A fourth option")
     page.keyboard.press("Tab")
     expect(submit).to_be_focused()
     assert page.evaluate("window.__addEmptyBeforeFrame") is False
@@ -1060,7 +1058,6 @@ def test_obligation_actions_replace_unusable_package_binding_badge_faces(
 
     page.evaluate(
         """async () => {
-           const {commandsChanged} = await window.__lfWidgetApi();
            const source = document.getElementById('sug');
            const face = (id, top) => {
              const bindingBadge = document.createElement('span');
@@ -1081,7 +1078,7 @@ def test_obligation_actions_replace_unusable_package_binding_badge_faces(
               decision: true, title: `Activate ${id}`, line: id,
               run: () => { control.dataset.activated = '1'; },
             }] };
-            commandsChanged(control);
+            control.dispatchEvent(new CustomEvent('lf-commands', { bubbles: true, composed: true }));
           };
 
            add('disconnected-face', 220, face('detached-binding-badge', 100));
@@ -1294,8 +1291,7 @@ def test_an_arrival_on_a_change_takes_in_the_words_that_explain_it_and_stops_the
         # The press moves the ring and the focus and leaves the page where it stands.
         # Rebuilding a view the user is already looking at is motion that says nothing,
         # and it costs them whatever adjustment they had made within it. The gate reads
-        # what the page shows of the obligation rather than what its own box claims,
-        # which is the reading commentOnAddressable makes before its own travel.
+        # what the page shows of the obligation rather than what its own box claims.
         #
         # The walk above is the control: it did travel, from a page that opens above
         # the change, so a second press standing still is this gate rather than a walk
@@ -1338,7 +1334,7 @@ def test_an_arrival_on_a_change_takes_in_the_words_that_explain_it_and_stops_the
         # for under the row. The window is sized so the sentence fits in the window but not
         # above the panel's band: the arrival lands on the change alone, and the change
         # stays where the user can read it.
-        measure = """() => {
+        measure = """async () => {
           const at = (id) => document.getElementById(id).getBoundingClientRect();
           const style = getComputedStyle(document.scrollingElement);
           return {
@@ -1346,7 +1342,7 @@ def test_an_arrival_on_a_change_takes_in_the_words_that_explain_it_and_stops_the
             foot: at('sc-sug').bottom,
             view: document.scrollingElement.clientHeight,
             top: parseFloat(style.scrollPaddingTop),
-            bottom: parseFloat(style.scrollPaddingBottom),
+            bottom: (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom,
           };
         }"""
         before = page.evaluate(measure)
@@ -1420,16 +1416,16 @@ def test_the_obligation_walk_starts_from_where_the_user_is(browser, serve):
     """The walk measures from the user, the way Space page travel measures from the scroll position
     and t/T from the focused thread. A walk that kept an id of its own would start every
     walk the user had not made with this key at the top of the page: scroll halfway
-    down and press `d` and you would be taken back past everything you had read, and so
+    down and press `m` and you would be taken back past everything you had read, and so
     would anyone who had just selected a paragraph to comment on.
 
     Reading an obligation is being at it without being on it, so the walk arrives
-    there. The panel's On Me mark is no place: pressing it opens On Me and leaves the
+    there. The panel's On Me tab is no place: pressing it opens On Me and leaves the
     focus in the panel, which holds the user's place on the page, so the walk after it
     steps on from the obligation they stood on rather than restarting. A selected
     passage enters its comment field immediately; while that field stands, letters
     are text rather than page-navigation keys."""
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    page = open_page(browser, serve_obligations(serve))
 
     # A window short enough that reading down the page leaves the top of it behind,
     # which is the whole of what the user has to do to be somewhere.
@@ -1442,7 +1438,7 @@ def test_the_obligation_walk_starts_from_where_the_user_is(browser, serve):
     expect(page.locator("#sug-refill")).to_have_attribute("data-lf-obligation", "1")
     scroll_settled(page)
 
-    # The mark's press opens On Me and takes the focus into the panel, which holds the
+    # The tab's press opens On Me and takes the focus into the panel, which holds the
     # suggestion as the user's place, so the walk steps on rather than restarting.
     panel_control(page, "queue").click()
     page.keyboard.press("m")
@@ -1458,7 +1454,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     the box left out — would measure (0,0) at the document's origin, as an element with
     none does, which is not a degenerate answer but a wrong one. Everything that asked
     the wrapper where it was would believe it, so the travel would centre the top of the
-    document and a page whose open decisions were all suggestions would answer `d` by
+    document and a page whose open decisions were all suggestions would answer `m` by
     appearing to do nothing at all.
 
     Hanging the ring on the pieces instead covers that and says the wrong thing about
@@ -1466,7 +1462,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     two block slots, read as two boxes touching rather than as the one decision the user is
     located in. So what is asserted here is that the user is taken to the change, and
     that the wrapper alone wears the mark, in one box reaching round both slots."""
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    page = open_page(browser, serve_obligations(serve))
 
     # Short enough that reaching the change is travel rather than a press with the
     # change already on screen.
@@ -1612,7 +1608,7 @@ def test_the_walk_travels_to_an_obligation_a_page_left_boxless(browser, serve):
     ], f"the mark went somewhere else than the decision and its shown boxes: {marks}"
     expect(page.locator(CURRENT_OBLIGATION)).to_have_count(1)
     # The decision draws no box, so each box it shows through draws the location ring
-    # round itself (target-paint.js, `paintLocation`).
+    # round itself (readings/target-paint.js, `paintLocation`).
     rings = page.evaluate("""() => ['lf-old', 'lf-new'].map(tag => {
       const slot = document.querySelector(`#sug-refill > ${tag}`);
       return slot.hasAttribute('data-lf-projected-location')

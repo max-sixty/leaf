@@ -9,7 +9,7 @@ import subprocess
 
 import pytest
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND
+from conftest import LEAF_COMMAND, hooks_run_this_tree
 from interact_support import (
     STATED_TIMEOUT,
     _interaction_prompt_evidence,
@@ -29,19 +29,21 @@ from interact_support import (
     yaml_document,
 )
 
-from leaf import cli as cli_model
-from leaf import codex as codex_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import harness as harness_model
-from leaf import leases as leases_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as cleanup_model
+from leaf.agents import codex as codex_model
+from leaf.agents import delivery as delivery_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.commands import cli as cli_model
+from leaf.commands import delivery_ack as delivery_ack_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.records import transaction as transaction_model
 
 
 def test_receipt_uses_an_immutable_delivery_and_advances_monotonically(page_dir):
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     first = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "first"}
     )
@@ -56,7 +58,7 @@ def test_receipt_uses_an_immutable_delivery_and_advances_monotonically(page_dir)
     assert "unknown delivery" in missing.output
     assert acknowledged_through(page_dir) == 0
     for payload in (newer, newer, older):
-        assert delivery_model.receive_delivery(payload["id"]) == [page_dir]
+        assert delivery_ack_model.receive_delivery(payload["id"]) == [page_dir]
         assert acknowledged_through(page_dir) == 2
     pickups = [
         event
@@ -74,7 +76,7 @@ def test_receipt_uses_an_immutable_delivery_and_advances_monotonically(page_dir)
 
 
 def test_interrupted_pickup_leaves_the_delivery_unreceived(page_dir, monkeypatch):
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     comment = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Answer"}
     )
@@ -86,10 +88,10 @@ def test_interrupted_pickup_leaves_the_delivery_unreceived(page_dir, monkeypatch
     with monkeypatch.context() as patch:
         patch.setattr(delivery_model, "record_pickup", failed_pickup)
         with pytest.raises(OSError, match="pickup write interrupted"):
-            delivery_model.receive_delivery(payload["id"])
+            delivery_ack_model.receive_delivery(payload["id"])
     assert acknowledged_through(page_dir) == 0
     assert page_state(page_dir)["pending"] == 1
-    delivery_model.receive_delivery(payload["id"])
+    delivery_ack_model.receive_delivery(payload["id"])
     assert acknowledged_through(page_dir) == 1
     [pickup] = [
         event
@@ -98,11 +100,12 @@ def test_interrupted_pickup_leaves_the_delivery_unreceived(page_dir, monkeypatch
     ]
     assert pickup["events"] == [comment["id"]]
     assert pickup["phase"] == "opened"
-    assert owed_answers(page_dir)[0]["stage"] == "picked_up"
+    [owed_move] = owed_answers(page_dir)
+    assert (owed_move["state"], owed_move["seen"]) == ("waiting", True)
 
 
 def test_receipt_refuses_a_delivery_from_a_replaced_log(page_dir):
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     original = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Original"}
     )
@@ -114,7 +117,7 @@ def test_receipt_refuses_a_delivery_from_a_replaced_log(page_dir):
     [replacement] = events_model.read_events(page_dir)
     assert replacement["seq"] == payload["batches"][0]["through_seq"]
     with pytest.raises(delivery_model.ReceiptRefused):
-        delivery_model.receive_delivery(payload["id"])
+        delivery_ack_model.receive_delivery(payload["id"])
     assert acknowledged_through(page_dir) == 0
     assert events_model.read_events(page_dir) == [replacement]
 
@@ -124,11 +127,11 @@ def test_receiving_a_delivery_keeps_each_pages_response_obligation(page_dir, tmp
     shutil.copytree(page_dir, other)
     batches = []
     for page in (page_dir, other):
-        service_model.claim_page(page)
+        transaction_model.claim_page(page)
         append_carried_log_record(
             page, {"kind": "comment", "author": "user", "text": "Please answer"}
         )
-        with service_model.PageTransaction(page) as transaction:
+        with transaction_model.PageTransaction(page) as transaction:
             batches.append(
                 delivery_model.batch_data(page, transaction, transaction.events)
             )
@@ -136,14 +139,14 @@ def test_receiving_a_delivery_keeps_each_pages_response_obligation(page_dir, tmp
     later = append_carried_log_record(
         other, {"kind": "comment", "author": "user", "text": "Later"}
     )
-    assert delivery_model.receive_delivery(payload["id"]) == [page_dir, other]
+    assert delivery_ack_model.receive_delivery(payload["id"]) == [page_dir, other]
     for page in (page_dir, other):
         assert acknowledged_through(page) == 1
         obligations = owed_answers(page)
-        assert obligations[0]["stage"] == "picked_up"
+        assert (obligations[0]["state"], obligations[0]["seen"]) == ("waiting", True)
     assert page_state(other)["pending"] == 1
     assert (
-        service_model.unacknowledged(events_model.read_events(other), 1)[0]["id"]
+        transaction_model.unacknowledged(events_model.read_events(other), 1)[0]["id"]
         == later["id"]
     )
 
@@ -151,24 +154,25 @@ def test_receiving_a_delivery_keeps_each_pages_response_obligation(page_dir, tmp
 def test_receipt_checks_the_owner_after_acquiring_the_page_lock(
     page_dir, spawn, monkeypatch
 ):
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     event = append_carried_log_record(
         page_dir, {"kind": "comment", "author": "user", "text": "Answer"}
     )
     payload = freeze_events(page_dir, [event])
-    with service_model.PageTransaction(page_dir):
+    with transaction_model.PageTransaction(page_dir):
         # The command must wait behind the same lock that protects ownership changes.
         receiving = spawn_probe(
             spawn,
             page_dir,
             """
-from leaf import delivery, service
-original_enter = service.PageTransaction.__enter__
+from leaf.commands import delivery_ack
+from leaf.records import transaction
+original_enter = transaction.PageTransaction.__enter__
 def entered(transaction):
     print("locking", flush=True)
     return original_enter(transaction)
-service.PageTransaction.__enter__ = entered
-delivery.receive_delivery(os.environ["DELIVERY"])
+transaction.PageTransaction.__enter__ = entered
+delivery_ack.receive_delivery(os.environ["DELIVERY"])
 """,
             DELIVERY=payload["id"],
         )
@@ -182,7 +186,8 @@ delivery.receive_delivery(os.environ["DELIVERY"])
         item["kind"] == "pickup" for item in events_model.read_events(page_dir)
     )
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "successor")
-    assert delivery_model.receive_delivery(payload["id"]) == [page_dir]
+    hooks_run_this_tree("successor")
+    assert delivery_ack_model.receive_delivery(payload["id"]) == [page_dir]
     assert acknowledged_through(page_dir) == 1
 
 
@@ -193,7 +198,7 @@ def test_the_wait_after_an_ack_delivers_only_later_input(page_dir, spawn, codex_
     first = append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "one"}
     )
-    delivery_model.cmd_delivery_ack(delivery_through(page_dir, first["seq"]))
+    delivery_ack_model.cmd_delivery_ack(delivery_through(page_dir, first["seq"]))
     waiting = spawn(
         [*LEAF_COMMAND, "wait"],
         stdout=subprocess.PIPE,
@@ -232,7 +237,7 @@ def test_ack_success_outlives_a_refused_rearm(page_dir, snapshot):
     """A persistent watcher ends the wait after an acknowledgement as it ends any
     `leaf wait`, on 2. The acknowledgement still landed: the cursor names the
     event the batch reached."""
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     append_carried_log_record(
         page_dir, {"kind": "comment", "id": "c1", "author": "user", "text": "hi"}
     )
@@ -309,13 +314,13 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
     the successor's live page as an ended leaf.
     """
     serving(page_dir, 1)
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     session_model.cmd_waiting(page_dir)
     first = append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "first", "author": "user", "text": "one"},
     )
-    delivery_model.cmd_delivery_ack(delivery_through(page_dir, first["seq"]))
+    delivery_ack_model.cmd_delivery_ack(delivery_through(page_dir, first["seq"]))
     selected = page_dir.parent / "selected"
     waiting = spawn(
         held_selection(selected, page_dir, "wait"),
@@ -335,8 +340,9 @@ def test_ack_rearm_reports_when_its_only_page_transfers_after_selection(
     assert waiting.poll() is None
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "successor")
+    hooks_run_this_tree("successor")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
 
     out, err = waiting.communicate(input="continue\n", timeout=STATED_TIMEOUT)
     assert waiting.returncode == 2, out + err
@@ -374,7 +380,7 @@ def test_an_explicit_acknowledgement_cannot_reopen_a_known_provider_turn(
     assert session_model.cmd_wait(claimed) == 0
     payload, _, _ = printed(capsys.readouterr().out)
     with pytest.raises(delivery_model.ReceiptRefused, match="turn has ended"):
-        delivery_model.cmd_delivery_ack(payload["id"])
+        delivery_ack_model.cmd_delivery_ack(payload["id"])
     assert cleanup_model.session_record("s1") == ended
     assert page_state(claimed)["pending"] == 1
 
@@ -384,7 +390,7 @@ def test_reading_a_pointer_never_confirms_unread_input(claimed):
     event = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "Please answer"}
     )
-    with service_model.PageTransaction(claimed) as page:
+    with transaction_model.PageTransaction(claimed) as page:
         payload = delivery_model.freeze_delivery(
             [delivery_model.batch_data(claimed, page, [event])]
         )
@@ -394,8 +400,8 @@ def test_reading_a_pointer_never_confirms_unread_input(claimed):
         events_model.read_events(claimed), phase="opened"
     )
     assert f"leaf delivery ack {payload['id']}" in output["acknowledge"]
-    delivery_model.cmd_delivery_ack(payload["id"])
-    delivery_model.cmd_delivery_ack(payload["id"])
+    delivery_ack_model.cmd_delivery_ack(payload["id"])
+    delivery_ack_model.cmd_delivery_ack(payload["id"])
     assert acknowledged_through(claimed) == event["seq"]
     assert (
         len(
@@ -423,14 +429,14 @@ def test_a_large_pointer_read_is_bounded_and_losslessly_paged(claimed, transport
         claimed,
         {"kind": "comment", "author": "user", "text": ("A\\B\n🪴" * 9000)},
     )
-    with service_model.PageTransaction(claimed) as page:
+    with transaction_model.PageTransaction(claimed) as page:
         payload = delivery_model.freeze_delivery(
             [delivery_model.batch_data(claimed, page, [event])]
         )
     if transport == "pointer":
         output = read_part(payload["id"])
     else:
-        with service_model.PageTransaction(claimed) as page:
+        with transaction_model.PageTransaction(claimed) as page:
             reading = session_model.PageTick(
                 claimed, page.status, [event], True, "watching", False, None, page
             )
@@ -460,7 +466,7 @@ def test_a_large_pointer_read_is_bounded_and_losslessly_paged(claimed, transport
         else f"leaf delivery ack {payload['id']} && leaf wait {claimed}"
     ) in reading["acknowledge"]
     assert acknowledged_through(claimed) == 0
-    delivery_model.cmd_delivery_ack(payload["id"])
+    delivery_ack_model.cmd_delivery_ack(payload["id"])
     assert acknowledged_through(claimed) == event["seq"]
 
 
@@ -489,7 +495,7 @@ def test_explicit_pointer_confirmation_refuses_a_transferred_page(
         codex_model.accept_codex_delivery(
             "reader", prepared.payload["id"], "reader-turn"
         )
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         page.take_claim(
             harness_model.EmbeddedHarness("successor", "Codex", os.getpid())
         )

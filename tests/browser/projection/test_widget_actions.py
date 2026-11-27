@@ -2,6 +2,7 @@
 conditions, replay and undo, and suggestion settlements retiring their slots."""
 
 import json
+import re
 
 import pytest
 from interact_support import (
@@ -21,18 +22,20 @@ from render_cases_interaction import (
     live_url,
 )
 from render_cases_layout import unfolded_button
-from render_cases_navigation import composer_quote, painted
+from render_cases_navigation import actions, composer_quote, painted
 from render_harness import (
     EXAMPLE_PACKAGES,
     consume_browser_errors,
     expect_obligations_answered,
     leaf_page,
+    navigate,
     open_page,
     panel_settled,
     panel_view,
     post_event,
     resized,
     round_trip,
+    sending,
     show_done,
     stamp_page,
     suggestion_control,
@@ -43,11 +46,65 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
-from leaf.render_checks import rendered
+from leaf.base.schema import PLUGIN_ROOT
+from leaf.log import event_log as events_model
+from leaf.source import render_checks as render_checks_model
+from leaf.source.render_checks import rendered
+from leaf_dev.browser import choose_threads_in_panel, open_on_me
 
 pytestmark = pytest.mark.shifts_unsurveyed
+
+# `lf-test-list` orders its own `lf-test-entry` members: no element stands between.
+SORTABLE = PLUGIN_ROOT / "tests" / "fixtures" / "packages" / "sortable"
+STEPS = """
+<h1 id="title">Release steps</h1>
+<lf-test-list id="steps">
+  <lf-test-entry id="tag">Tag the release</lf-test-entry>
+  <lf-test-entry id="notes">Write the notes</lf-test-entry>
+  <lf-test-entry id="ship">Ship it</lf-test-entry>
+</lf-test-list>
+"""
+
+
+def expect_steps(page, ids):
+    for index, identity in enumerate(ids):
+        expect(page.locator("#steps > lf-test-entry").nth(index)).to_have_id(identity)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_list_that_is_its_own_container_keeps_the_order_the_user_gives_it(
+    engine, serve, request
+):
+    """A list whose entries stand directly in it records a drag and a keyboard move
+    with itself as the container, shows both after a reload, and Undo takes the
+    last one back, naming the list once."""
+    url = live_url(serve(leaf_page("Release steps", STEPS), packages=(SORTABLE,)))
+    page = open_page(request.getfixturevalue(engine), url)
+    expect_steps(page, ["tag", "notes", "ship"])
+
+    with sending(page, "the drag"):
+        page.locator("#ship").drag_to(
+            page.locator("#tag"), target_position={"x": 8, "y": 2}
+        )
+    expect_steps(page, ["ship", "tag", "notes"])
+
+    page.locator("#notes").focus()
+    with sending(page, "the key move"):
+        page.keyboard.press("Alt+ArrowUp")
+    expect_steps(page, ["ship", "notes", "tag"])
+    assert [
+        (event["detail"]["unit"], event["detail"]["value"])
+        for event in actions(serve.page_dir)
+    ] == [("ship", "steps"), ("notes", "steps")]
+
+    navigate(page, url)
+    expect_steps(page, ["ship", "notes", "tag"])
+
+    undo(page)
+    expect_steps(page, ["ship", "tag", "notes"])
+    expect(page.locator(".lf-live")).to_contain_text(
+        "Undone: moved “Write the notes” in the test-list"
+    )
 
 
 def thread_head(page, page_dir, skipping=None):
@@ -70,14 +127,10 @@ def test_a_projected_attribute_opens_an_obligation_captured_from_authored_markup
     entry = {
         "description": "A test-owned conditional Ask.",
         "attributes": {
-            "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "phase": {"enum": ["closed", "open"]},
-                "restated": {"type": "boolean"},
             },
             "required": ["id", "phase"],
-            "additionalProperties": False,
         },
         "content": "markup",
         "verbs": {
@@ -86,23 +139,19 @@ def test_a_projected_attribute_opens_an_obligation_captured_from_authored_markup
                 "record": {"kind": "value", "attr": "phase"},
             },
             "answer": {
-                "detail": {
-                    "type": "object",
-                    "properties": {},
-                    "additionalProperties": False,
-                },
+                "detail": {"properties": {}},
                 "unit": "widget",
             },
         },
         "awaits": {
             "when": {"phase": ["open"]},
             "value": "answer",
-            "answered": {"answer": {}},
         },
         "example": '<lf-conditional id="example" phase="closed">Choose.</lf-conditional>',
     }
     module = """\
-import { keeps, LeafElement } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { keeps } from "/runtime/lib/keeps.js";
 customElements.define("lf-conditional", class extends LeafElement {
   render() { keeps(this, "phase", this.state.phase.value); }
 });
@@ -118,9 +167,11 @@ customElements.define("lf-conditional", class extends LeafElement {
             layer_widgets={"lf-conditional.js": module},
         ),
     )
-    expect(page.locator(".lf-fp-on-user")).to_have_attribute("aria-label", "On Me")
+    expect(page.locator(".lf-fp-leaf")).to_have_attribute(
+        "aria-label", re.compile(r"^Page menu · ")
+    )
     view = page.locator(panel_view("queue"))
-    items = ".lf-fp-on-item[data-lf-key^='[\"widget\"']"
+    items = ".lf-fp-on-item[data-lf-key^='widget:']"
 
     for phase, count in (("open", 1), ("closed", 0)):
         append_command(
@@ -132,6 +183,7 @@ customElements.define("lf-conditional", class extends LeafElement {
                 "widget": "question",
                 "action": "phase",
                 "detail": {"value": phase},
+                "answered": False,
             },
         )
         told(page)
@@ -143,7 +195,7 @@ customElements.define("lf-conditional", class extends LeafElement {
         if view.count():
             page.locator(".lf-fp-close").click()
             panel_settled(page, open=False)
-        page.locator(".lf-fp-on-user").click()
+        open_on_me(page)
         panel_settled(page, view="queue")
         expect(view.locator(f'{items}[data-lf-list="you"]')).to_have_count(count)
         if not count:
@@ -197,7 +249,8 @@ def test_a_user_verb_and_an_agent_verb_stand_side_by_side(
     registry_path.write_text(json.dumps(declarations, indent=2))
     (tmp_path / ".leaf" / "widgets" / "lf-tally.js").write_text(
         """\
-import { keeps, LeafElement } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { keeps } from "/runtime/lib/keeps.js";
 customElements.define("lf-tally", class extends LeafElement {
   render() {
     const { state } = this;
@@ -234,8 +287,8 @@ customElements.define("lf-tally", class extends LeafElement {
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "3")
     kept = page.evaluate(
         """async () => {
-          const {state} = (await window.__lfWidgetApi())
-            .widgetController(document.getElementById('tally-fitted')).read();
+          const {state} = (await window.__lfCheckApi())
+            .controllerOf(document.getElementById('tally-fitted')).read();
           return [state.set.value, state.observe.value];
         }"""
     )
@@ -250,7 +303,7 @@ customElements.define("lf-tally", class extends LeafElement {
 
 LEAF_OWNER = """\
 import { nothing } from "/vendor/lit.js";
-import { LeafElement } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
 customElements.define("lf-owner", class extends LeafElement {
   render() {
     for (const [id, order] of Object.entries(this.state.move.value)) {
@@ -268,7 +321,8 @@ customElements.define("lf-owner", class extends LeafElement {
 
 LEAF_PIECE = """\
 import { nothing } from "/vendor/lit.js";
-import { keeps, LeafElement } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { keeps } from "/runtime/lib/keeps.js";
 customElements.define("lf-piece", class extends LeafElement {
   render() {
     keeps(this, "pinned", this.state.move.value);
@@ -329,7 +383,8 @@ def test_lit_parent_moves_before_controller_members_render_selection(
         'await customElements.whenDefined("lf-zone");\n' + LEAF_OWNER
     )
     (package / "widgets/lf-zone.js").write_text("""\
-import { keeps, LeafElement } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { keeps } from "/runtime/lib/keeps.js";
 customElements.define("lf-zone", class extends LeafElement {
   render() {
     for (const piece of this.querySelectorAll("lf-piece"))
@@ -397,7 +452,6 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
     piece["owners"] = ["lf-zone"]
     piece["attributes"]["properties"] |= {
         "pinned": {"type": "string"},
-        "restated": {"type": "boolean"},
     }
     piece["attributes"].setdefault("required", []).append("pinned")
     piece["verbs"] = {
@@ -442,10 +496,10 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
     expect(page.locator("#piece")).to_have_attribute("pinned", "yes")
     kept = page.evaluate(
         """async () => {
-          const {widgetController} = await window.__lfWidgetApi();
+          const {controllerOf} = await window.__lfCheckApi();
           return ['owner', 'piece'].map(id => {
             const widget = document.getElementById(id);
-            const {state} = widgetController(widget).read();
+            const {state} = controllerOf(widget).read();
             return [id, (state.move.units?.piece ?? state.move).action];
           });
         }"""
@@ -610,6 +664,7 @@ def test_replay_signatures_exclude_settlement_and_other_runtime_paint(browser, s
             "widget": "sug-refill",
             "action": "decide",
             "detail": {"outcome": "accept"},
+            "answered": True,
         },
     )
     page = open_page(browser, url)
@@ -677,21 +732,21 @@ def test_replay_signatures_exclude_settlement_and_other_runtime_paint(browser, s
     assert json.loads(positions["before"]["thread-widget"])["parent"] == ""
 
 
-def test_a_decision_detaches_the_threads_on_what_it_took_off_the_page(browser, serve):
-    """A decision detaches the thread on what it removed, by element or by passage.
+def test_a_decision_takes_the_threads_off_what_it_took_off_the_page(browser, serve):
+    """A decision takes the thread off what it removed: a thread on the element it
+    removed detaches, and one on a passage it removed stands on the section around it.
 
     An element anchor asks whether its section is still on the user's page, and for a
     suggestion that settles to nothing — an insertion refused — the markup's presence is
     the wrong answer: the thread would read as attached while its outline drew nothing.
-    Pending, the wrapper is a thing to point at; refused, the thread detaches like any
-    passage the decision removed.
+    Pending, the wrapper is a thing to point at; refused, the thread detaches.
 
     ✓ and ✗ are the visible affordances, but a proposal a user half-agrees with wants a
     sentence, not a verdict: the proposed words are ordinary page text, so selecting them
     and commenting works like anywhere else. Then the decision they eventually take has
-    to reach the thread — rejecting retires the text the comment was made on, and a
-    comment pointing into markup nobody can see has to read as detached rather than as a
-    live mark that jumps nowhere."""
+    to reach the thread — rejecting retires the text the comment was made on, so the
+    comment marks no words nobody can see, and stands on the suggestion, its quote
+    marked as changed, as for words a revision rewrote."""
     url = serve(SUGGESTION_PAGE)
     on_element = append_carried_log_record(
         serve.page_dir,
@@ -728,6 +783,8 @@ def test_a_decision_detaches_the_threads_on_what_it_took_off_the_page(browser, s
     expect(page.locator("#sug-thistle.lf-mark-el")).to_have_count(0)
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
+    # Beside its passage again, where the comment's box becomes its card on Send.
+    choose_threads_in_panel(page, on=False)
 
     page.evaluate("""() => {
         const range = document.createRange();
@@ -759,9 +816,9 @@ def test_a_decision_detaches_the_threads_on_what_it_took_off_the_page(browser, s
     unfolded_button(
         suggestion_control(page, "sug-refill", "reject", visible=False)
     ).click()
-    expect(
-        thread_head(page, serve.page_dir, skipping=on_element["id"])
-    ).to_have_attribute("data-lf-detached", "")
+    head = thread_head(page, serve.page_dir, skipping=on_element["id"])
+    expect(head).not_to_have_attribute("data-lf-detached", "")
+    expect(head.locator(".lf-anchor-status")).to_have_text("Changed")
     assert painted(page, "lf-mark") == "", (
         "a mark stayed painted on text the user's own decision removed"
     )
@@ -788,11 +845,13 @@ def test_a_decision_already_in_the_log_retires_its_slot_at_load(browser, serve):
             "widget": "sug-refill",
             "action": "decide",
             "detail": {"outcome": "accept"},
+            "answered": True,
         },
     )
     page = open_page(browser, url)
     expect(page.locator("#sug-refill lf-old")).to_be_hidden()
-    expect(thread_head(page, serve.page_dir)).to_have_attribute("data-lf-detached", "")
+    head = thread_head(page, serve.page_dir)
+    expect(head.locator(".lf-anchor-status")).to_have_text("Changed")
     assert painted(page, "lf-mark") == "", (
         "the first pass anchored inside a slot the user's decision had retired"
     )
@@ -808,7 +867,7 @@ def test_a_throwing_settlement_still_reaches_the_layers_terminal_state(
     trial_family(tmp_path)
     (tmp_path / ".leaf" / "widgets" / "lf-trial.js").write_text(
         """\
-import {LeafElement} from "/runtime/widget-api.js";
+import {LeafElement} from "/runtime/lib/leaf-element.js";
 customElements.define("lf-trial", class extends LeafElement {
   render() { throw new Error("trial replay broke"); }
 });
@@ -851,6 +910,7 @@ def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve)
             "widget": "sug-swap",
             "action": "decide",
             "detail": {"outcome": "accept"},
+            "answered": True,
         },
     )
     page = open_page(browser, url)
@@ -861,7 +921,8 @@ def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve)
         )
         == "Settled: Lax cookie"
     ), "fixture is not exercising the case — the label the slot hides never rendered"
-    expect(thread_head(page, serve.page_dir)).to_have_attribute("data-lf-detached", "")
+    head = thread_head(page, serve.page_dir)
+    expect(head.locator(".lf-anchor-status")).to_have_text("Changed")
     assert painted(page, "lf-mark") == "", (
         "a quote matched inside the half the user accepted away, because the "
         "label there declared itself the page speaking"

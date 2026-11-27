@@ -37,16 +37,17 @@ from model.test_interact_document import (
     _write_board,
 )
 
-from leaf import agent_state as agent_state_model
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import data_contracts as data_contracts_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import revision_artifact as artifact_model
-from leaf import revisioning as revisioning_model
-from leaf import vendoring as vendoring_model
-from leaf.registry.storage import load_registry
+from leaf.base import files as files_model
+from leaf.commands import agent_state as agent_state_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.pages import vendoring as vendoring_model
+from leaf.records import page_data as page_data_model
+from leaf.records import revisioning as revisioning_model
+from leaf.source import data as data_model
+from leaf.source import data_contracts as data_contracts_model
+from leaf.source import revision_artifact as artifact_model
+from leaf.source.vocabulary import load_registry
 
 
 def test_check_accepts_authored_module_scripts(page_dir):
@@ -166,7 +167,7 @@ def test_the_captured_executable_digest_separates_code_from_content(page_dir):
     (authored / "registry.json").write_text(json.dumps({"lf-options": declaration}))
     redeclared = activate()
 
-    # The generation is what a tab speaks to the server (`runtime/layer-client.js`),
+    # The generation is what a tab speaks to the server (`runtime/transport/layer-client.js`),
     # so a new selection's gives the document a new executable. The re-selection
     # activates the source itself.
     extra = page_dir.parent / "extra"
@@ -279,11 +280,7 @@ def test_a_member_is_admissible_in_each_declared_owner(page_dir):
     """A package member can belong to different families without validator changes."""
     label = {
         "description": "A package's shared label.",
-        "attributes": {
-            "type": "object",
-            "properties": {},
-            "additionalProperties": False,
-        },
+        "attributes": {"properties": {}},
         "content": "markup",
         "owners": ["lf-option", "lf-card"],
     }
@@ -577,7 +574,7 @@ def test_a_page_source_can_be_shared_but_needs_one_simultaneous_contract(page_di
             "</main>",
         )
     )
-    data_model.cmd_data_set(page_dir, "project-feed", [])
+    page_data_model.cmd_data_set(page_dir, "project-feed", [])
 
     shared = CliRunner().invoke(cli_model.cli, ["page", "check", str(page_dir)])
     assert shared.exit_code == 0, shared.output
@@ -627,9 +624,9 @@ def test_a_later_version_can_reuse_a_source(page_dir, clear):
     """
     declare_data_input(page_dir, "project-feed", {"type": "array"}, contract="rows")
     publish(page_dir)
-    data_model.cmd_data_set(page_dir, "project-feed", [])
+    page_data_model.cmd_data_set(page_dir, "project-feed", [])
     if clear:
-        data_model.cmd_data_clear(page_dir, "project-feed")
+        page_data_model.cmd_data_clear(page_dir, "project-feed")
 
     declare_other_rows(page_dir, "object")
     first = (page_dir / "index.html").read_text()
@@ -637,18 +634,20 @@ def test_a_later_version_can_reuse_a_source(page_dir, clear):
 
     result = check(page_dir)
     assert result.exit_code == 0, result.output
-    old_registry = data_contracts_model.read_revision(page_dir, 1).registry
-    with pytest.raises(data_model.DataError, match="value is invalid"):
-        data_model.cmd_data_set(page_dir, "project-feed", [])
+    old_registry = artifact_model.read_revision(page_dir, 1).registry
+    with pytest.raises(data_contracts_model.DataError, match="value is invalid"):
+        page_data_model.cmd_data_set(page_dir, "project-feed", [])
     # A cleared source keeps no contract either.
     assert data_model.read_contracts(page_dir) == (
         {} if clear else {"project-feed": "rows"}
     )
-    stored = data_model.source_file(page_dir, "project-feed")
+    stored = data_model.PUBLICATION.file(
+        data_model.source_file(page_dir, "project-feed")
+    )
     assert (
         not stored.exists() if clear else json.loads(stored.read_text())["value"] == []
     )
-    data_model.cmd_data_set(page_dir, "project-feed", {"ready": True})
+    page_data_model.cmd_data_set(page_dir, "project-feed", {"ready": True})
     assert data_model.read_contracts(page_dir) == {"project-feed": "other-rows"}
     assert read_page_data(page_dir)["sources"]["project-feed"]["value"] == {
         "ready": True
@@ -787,8 +786,8 @@ def test_a_state_read_never_materializes_a_revision_bundle(page_dir, monkeypatch
 
 import gc
 
-from leaf import page_memory as page_memory_model
-from leaf import samples as samples_model
+from leaf.base import page_memory as page_memory_model
+from leaf.serving import samples as samples_model
 
 
 def test_a_page_keeps_its_readings_while_its_samples_live(page_dir):
@@ -810,3 +809,35 @@ def test_a_page_keeps_its_readings_while_its_samples_live(page_dir):
             )  # fmt: skip
         gc.collect()
         assert artifact_model.read_revision(page_dir, revision) is held
+
+
+def test_check_advises_on_a_language_class_nothing_will_colour(page_dir):
+    """Every block of code names its language one way, a `language-…` class, and one
+    check reads every such class, a widget's as a native block's: a name the layer
+    can't colour, a misspelling or a language it has no grammar for, is reported
+    beside the page and refuses nothing, since the class still names the code truly.
+    A grammar's alias, such as `py`, colours as its name does, and `math` names a
+    formula, which the browser typesets."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>",
+            "<h2>Plan</h2>\n"
+            '<pre><code class="language-pythn">x = 1</code></pre>\n'
+            '<pre><code class="language-py">y = 2</code></pre>\n'
+            '<p>Its area is <code class="language-math">\\pi r^2</code>.</p>\n'
+            '<lf-code id="walk-bad"><pre><code class="language-pythn">z = 3\n'
+            "</code></pre></lf-code>\n"
+            '<lf-text-document id="notes" source="notes" class="language-haskell">'
+            "</lf-text-document>",
+        )
+    )
+    status, findings = check_findings(page_dir)
+    assert status == 0
+    assert [
+        (f.at, f.values["language"], f.severity)
+        for f in found(findings, "uncoloured-language")
+    ] == [
+        ("<code>", "pythn", "advice"),
+        ("<code>", "pythn", "advice"),
+        ("<lf-text-document>", "haskell", "advice"),
+    ]

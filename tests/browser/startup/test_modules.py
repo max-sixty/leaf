@@ -33,11 +33,11 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf.render_checks import wait_until_ready
-from leaf.runtime_selection import serving_runtime
-from leaf_dev.browser import PANEL_THREAD
+from leaf.commands import cli as cli_model
+from leaf.records import page_data as page_data_model
+from leaf.source.render_checks import wait_until_ready
+from leaf.source.runtime_selection import serving_runtime
+from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 from leaf_dev.example_data import named_source, patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -119,6 +119,7 @@ Two classic models.</pre></lf-code>
     open_threads(page)
     expect(rows).to_have_count(3)
     # The comment on the code's words found them: its quote is no detached one.
+    choose_threads_in_panel(page)
     rows.filter(has_text="Still anchored?").click()
     quote = page.locator(f"{PANEL_THREAD} .lf-thread-quote")
     expect(quote).to_be_visible()
@@ -151,7 +152,7 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
 
     With every tag's module imported on every page, a triage board with no diff
     anywhere on it would fetch Pierre's renderer. The board page's own modules, the
-    board, its grid and its activity feed, are the population: a page that asked for nothing
+    board, its cards and its activity feed, are the population: a page that asked for nothing
     would satisfy every refusal below and
     say nothing about which of them holds.
 
@@ -169,6 +170,7 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
     assert modules == [
         "/widgets/lf-activity.js",
         "/widgets/lf-board.js",
+        "/widgets/lf-card.js",
     ], modules
     assert not [p for p in asked if "pierre-diffs" in p], asked
     assert not [p for p in asked if "pele" in p], asked
@@ -183,7 +185,7 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
 
 def test_composers_take_their_fields_when_they_first_open(browser, serve):
     """The comment composer holds no field on the page until it first opens, since a
-    field on the page builds its editor (composing/selection.js). Its open, and `c` into
+    field on the page builds its editor (annotations/composing/selection.js). Its open, and `c` into
     the panel's page comment, place the caret in the same turn, so the words typed
     straight after land there, and a draft kept from before a reload reaches the field
     when its composer opens again."""
@@ -308,8 +310,10 @@ def test_words_typed_while_the_editor_loads_are_its_first_words(engine, request,
 
         _release(page, held, context)
         expect(field).to_be_focused()
-        page.keyboard.type("kept ")
-        expect(field).to_have_js_property("value", "Typed ear and\nkept ly")
+        # One key, so it is one step of the editor's history however slowly the runner
+        # types: CodeMirror splits a run of keys that pauses past its group delay.
+        page.keyboard.type("k")
+        expect(field).to_have_js_property("value", "Typed ear and\nkly")
         page.keyboard.press("ControlOrMeta+z")
         expect(field).to_have_js_property("value", "Typed ear and\nly")
         page.keyboard.press("ControlOrMeta+z")
@@ -336,7 +340,7 @@ def test_a_kept_draft_and_an_input_method_reach_the_editor_as_it_loads(browser, 
         page.reload()
         wait_until_ready(page, through="presented")
         holding(page, held, 1, "CodeMirror")
-        page.keyboard.press("c")
+        # The reload puts the user back in the field they left.
         expect(field).to_be_focused()
         page.keyboard.type(" words")
         expect(field).to_have_js_property("value", "Kept words")
@@ -442,7 +446,7 @@ def test_a_page_with_a_diff_loads_the_renderer_when_it_draws_lines(browser, serv
     context = browser.new_context(viewport={"width": 1280, "height": 800})
     asked = _asked(context)
     url = serve(MANIFEST_DIFF_PAGE)
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         patch_manifest(
@@ -504,6 +508,8 @@ def test_a_widget_a_reply_carries_arrives_with_its_module(browser, serve):
             "reply",
             "--done",
             response_reference(d, "c-store"),
+            "--title",
+            "Which store",
             "--text",
             "Depends what you want to keep:"
             + "\n\n"

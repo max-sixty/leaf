@@ -3,318 +3,40 @@
 `leaf-dev preview` resolves three things from wherever its source sits: the
 package layer, the companion media and pinned assets, and the paths a watcher
 subscribes to. Input tests exercise those readings and shared page preparation. The user
-handoff crosses the real claim, server and delivery adapter boundaries, without
+handoff crosses the real claim and server boundaries, without
 opening a browser.
 """
 
 import json
 import os
 import re
-import shlex
 import shutil
-import socket
 import subprocess
-import sys
-import time
-from datetime import datetime, timedelta
 from functools import partial
-from pathlib import Path
 from urllib.parse import urlsplit
 
 import pytest
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND
 from interact_support import (
     ROOT,
     STATED_TIMEOUT,
     consume_pending_input,
     fetch,
     fetch_hanging_up,
-    record_claim,
     wait_for,
 )
 
-from leaf import cli as cli_model
-from leaf import codex_adapter, hosting, leases, server, service, state
-from leaf.harness import claim_harness
-from leaf.interaction_log import read_interactions
-from leaf.registry.storage import layer_record
-from leaf_dev import arms
+from leaf.base import server, service
+from leaf.commands import cli as cli_model
+from leaf.log.interaction_log import read_interactions
+from leaf.pages import hosting
+from leaf.records import transaction
+from leaf.serving.user_views import USER_VIEWS
+from leaf.source.registry.storage import layer_record
 from leaf_dev.commands import preview
 from leaf_dev.page_fixtures import read_fixture, record_run_context
 
 from ..model.test_interact_preview import _ScriptedChanges
-
-
-# Archiving a chat moves its transcript away, which retires it the way deleting
-# the transcript would.
-@pytest.mark.parametrize("retirement", ["archive", "stop"])
-def test_desktop_user_preview_survives_instance_unload_with_live_feedback(
-    tmp_path,
-    under_codex,
-    codex_env,
-    codex_queue,
-    native_codex_chat,
-    retirement,
-    request,
-):
-    """The command returns; unloading its chat keeps the watcher, URL and carrier.
-
-    The copied Codex executable states the desktop ancestry. Its queue endpoint
-    records delivery, while Leaf's detached watcher and HTTP service are real.
-    """
-    source = tmp_path / "review.html"
-    source.write_text(
-        "<!doctype html><html><head><title>Review</title></head><body>"
-        '<main><h1>Review</h1><p id="candidate">Original candidate</p></main>'
-        "</body></html>"
-    )
-    page = tmp_path / "previews" / "review"
-    sid = "desktop-preview"
-    transcript = native_codex_chat(sid)
-    sibling = tmp_path / "sibling"
-    command = shlex.join(
-        [
-            sys.executable,
-            "-m",
-            "leaf_dev.commands.preview",
-            "--worker",
-            "--user",
-            "--source",
-            str(source),
-            "--runtime",
-            str(ROOT),
-            "--slot",
-            page.name,
-        ]
-    )
-    environment = (
-        codex_env
-        | codex_queue
-        | {
-            "CODEX_THREAD_ID": sid,
-            "LEAF_PREVIEWS_ROOT": str(page.parent),
-        }
-    )
-    task = under_codex(
-        command,
-        environment,
-        app_server=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    try:
-        output, errors = task.communicate(timeout=STATED_TIMEOUT)
-        assert task.returncode == 0, f"{output}{errors}"
-        url = next(line for line in output.splitlines() if line.startswith("http://"))
-        record_run_context(page, purpose="test", run=tmp_path, test=request.node.nodeid)
-        claim_record = service.page_claim(page)
-        assert claim_record is not None
-        acquired = claim_record["acquisition"]
-        before = state.session_record(sid)
-        assert before is not None
-        assert Path(before["launcher"]) == ROOT / "bin/leaf"
-        old = time.time() - timedelta(hours=12).total_seconds()
-        claim_path = service.claim_path(page)
-        claim = json.loads(claim_path.read_text())
-        claim["ts"] = datetime.fromtimestamp(old).astimezone().isoformat()
-        state.write_json(claim_path, claim)
-        for entry in page.iterdir():
-            os.utime(entry, (old, old))
-        assert service.claim_is_active(service.page_claim(page))
-        # Allow the real watchdog's orphan window to pass without any HTTP
-        # request renewing page files; aged ownership must keep its listener.
-        time.sleep(2)
-        assert (current := server.running_server(page)) is not None
-        assert current["url"] == url
-        if retirement != "stop":
-            shutil.copytree(
-                page, sibling, ignore=shutil.ignore_patterns("service.json")
-            )
-            sibling_claim = record_claim(sibling, id=sid, harness="codex", chat=True)
-            hosting.start_server(sibling, harness=claim_harness(sibling_claim))
-        ended = subprocess.run(
-            [*LEAF_COMMAND, "session-end"],
-            check=False,
-            input=json.dumps({"hook_event_name": "SessionEnd", "session_id": sid}),
-            env=codex_env,
-            capture_output=True,
-            text=True,
-            timeout=STATED_TIMEOUT,
-        )
-        assert ended.returncode == 0, ended.stderr
-        turn_record = state.session_record(sid)
-        assert turn_record is not None
-        assert turn_record["generation"] == before["generation"]
-        assert state.held_claims(sid)
-        assert leases.lock_is_held(arms.preview_lease(page))
-        assert (current := server.running_server(page)) is not None
-        assert current["url"] == url
-
-        source.write_text(
-            source.read_text().replace("Original candidate", "Revised candidate")
-        )
-        wait_for(
-            lambda: (page / "index.html").read_text(),
-            lambda text: "Revised candidate" in text,
-            failure="the detached preview did not follow its source after unload",
-        )
-        endpoint = urlsplit(url)._replace(path="/api/event").geturl()
-        status, body = fetch(
-            endpoint,
-            data=json.dumps(
-                {
-                    "kind": "comment",
-                    "revision": 1,
-                    "text": "Please revise this candidate",
-                    "attempt": "desktop-after-unload",
-                }
-            ).encode(),
-            token=None,
-        )
-        assert status == 200, body
-        queued = Path(codex_queue["PREVIEW_QUEUE_RECORD"])
-        wait_for(queued.exists, bool, failure="feedback after unload was not queued")
-        assert json.loads(queued.read_text())[:4] == [
-            "queue",
-            "--thread",
-            sid,
-            "--message",
-        ]
-        claim_record_2 = service.page_claim(page)
-        assert claim_record_2 is not None
-        assert claim_record_2["acquisition"] == acquired
-        if retirement == "archive":
-            archived = transcript.parent.parent / "archived_sessions"
-            archived.mkdir()
-            transcript.rename(archived / transcript.name)
-        else:
-            hosting.cmd_stop(page)
-        for served in [page, *([sibling] if sibling.exists() else [])]:
-            wait_for(
-                lambda served=served: server.running_server(served),
-                lambda running: not running,
-                failure=f"chat {retirement} left its page server running",
-            )
-        wait_for(
-            lambda: leases.lock_is_held(arms.preview_lease(page)),
-            lambda held: not held,
-            failure=f"chat {retirement} left its preview watcher running",
-        )
-        wait_for(
-            lambda: codex_adapter.adapter_is_live(sid),
-            lambda live: not live,
-            failure=f"chat {retirement} kept its delivery adapter",
-        )
-        if retirement == "stop":
-            # Resume the existing slot through the real detached handshake. Its
-            # parent holds delivery preparation while the child refreshes, so
-            # the child may hand delivery over only after announcing readiness.
-            resumed = under_codex(
-                command,
-                environment,
-                app_server=True,
-                stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE,
-                text=True,
-            )
-            output, errors = resumed.communicate(timeout=STATED_TIMEOUT)
-            assert resumed.returncode == 0, f"{output}{errors}"
-            assert (
-                next(line for line in output.splitlines() if line.startswith("http://"))
-                == url
-            )
-    finally:
-        if (page / "events.jsonl").exists():
-            hosting.cmd_stop(page)
-            state.end_session(sid)
-            wait_for(
-                lambda: leases.lock_is_held(arms.preview_lease(page)),
-                lambda held: not held,
-                failure="the explicitly stopped detached preview kept watching",
-            )
-        if sibling.exists():
-            hosting.cmd_stop(sibling)
-
-
-def test_abandoned_desktop_preview_publishes_no_claim(
-    tmp_path, spawn, under_codex, codex_env, native_codex_chat
-):
-    """Abandoning preview readiness retires its service, watcher, and acquisition."""
-    source = tmp_path / "review.html"
-    source.write_text(
-        "<!doctype html><html><head><title>Review</title></head>"
-        "<body><main><h1>Review</h1></main></body></html>"
-    )
-    page = tmp_path / "previews" / "review"
-    native_codex_chat("abandoned-desktop")
-    env = codex_env | {
-        "CODEX_THREAD_ID": "abandoned-desktop",
-        "LEAF_PREVIEWS_ROOT": str(page.parent),
-    }
-    preparing = under_codex(
-        shlex.join(
-            [
-                sys.executable,
-                "-c",
-                (
-                    "import json, sys; from pathlib import Path; "
-                    "from leaf.harness import session_harness; "
-                    "from leaf.service import prepare_claim; "
-                    "print(json.dumps(prepare_claim(session_harness(), Path(sys.argv[1]))))"
-                ),
-                str(page),
-            ]
-        ),
-        env,
-        app_server=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    output, errors = preparing.communicate(timeout=STATED_TIMEOUT)
-    assert preparing.returncode == 0, f"{output}{errors}"
-    intent = json.loads(output)
-    caller, child = socket.socketpair()
-    task = spawn(
-        [
-            sys.executable,
-            "-m",
-            "leaf_dev.commands.preview",
-            "--worker",
-            "--user",
-            "--source",
-            str(source),
-            "--runtime",
-            str(ROOT),
-            "--slot",
-            page.name,
-            "--prepared-claim",
-            json.dumps(intent),
-            "--handshake",
-            str(child.fileno()),
-        ],
-        env=env,
-        pass_fds=(child.fileno(),),
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True,
-    )
-    child.close()
-    caller.settimeout(STATED_TIMEOUT)
-    try:
-        with caller.makefile("rb") as announced:
-            ready = json.loads(announced.readline())
-        assert "url" in ready, ready
-        assert fetch(ready["url"])[0] == 200
-    finally:
-        caller.close()
-        output, errors = task.communicate(timeout=STATED_TIMEOUT)
-    assert task.returncode == 0, f"{output}{errors}"
-    assert service.page_claim(page) is None
-    assert server.running_server(page) is None
-    assert not leases.lock_is_held(arms.preview_lease(page))
 
 
 def test_preview_publishes_companion_edits_at_its_existing_url(
@@ -326,7 +48,7 @@ def test_preview_publishes_companion_edits_at_its_existing_url(
     its ordinary stamp door and HTTP delivery. Earlier executable resources retain
     their bytes, and a competing preview edit is refused until reconciled.
     """
-    from leaf.files import latest_revision
+    from leaf.base.files import latest_revision
 
     source = tmp_path / "reading.html"
     source.write_text(
@@ -344,10 +66,8 @@ def test_preview_publishes_companion_edits_at_its_existing_url(
                 "lf-reading": {
                     "description": "A reading",
                     "attributes": {
-                        "type": "object",
-                        "properties": {"id": {"type": "string"}},
+                        "properties": {},
                         "required": ["id"],
-                        "additionalProperties": False,
                     },
                     "content": "empty",
                 }
@@ -492,8 +212,11 @@ def test_preview_filters_feedback_before_discovering_inputs(tmp_path, monkeypatc
 
     def changes(_watched):
         count = len(readings)
-        for name in ("observations.jsonl", "user-views.json"):
-            yield {str(page / name)}
+        for path in (
+            page / "observations.jsonl",
+            USER_VIEWS.file(page / "user-views.json"),
+        ):
+            yield {str(path)}
             assert len(readings) == count
         source.write_text(source.read_text().replace("Reading</h1>", "Revised</h1>"))
         yield {str(source)}
@@ -677,11 +400,11 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     tmp_path, spawn, monkeypatch, request
 ):
     """A user slot resumes its durable page rather than replaying its fixture."""
-    from leaf.data import read_data
-    from leaf.event_log import read_events
-    from leaf.files import latest_revision, revision_path
-    from leaf.harness import session_harness
-    from leaf.registry.storage import load_registry
+    from leaf.base.files import latest_revision, revision_path
+    from leaf.base.harness import session_harness
+    from leaf.log.event_log import read_events
+    from leaf.source.data import read_data
+    from leaf.source.vocabulary import load_registry
 
     source = tmp_path / "reading.html"
     source.write_text(
@@ -777,6 +500,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
             "widget": "route",
             "action": "choose",
             "detail": {"value": ["second"]},
+            "answered": True,
             "attempt": "restart-choice-0001",
         },
     ):
@@ -793,6 +517,8 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
         [
             "thread",
             "reply",
+            "--title",
+            "Restart keeps the reply",
             "--done",
             comment["answer"]["ref"],
             "--text",
@@ -814,7 +540,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     assert status == 200, body
     pending = read_events(page)[-1]["id"]
     before = (page / "events.jsonl").read_bytes()
-    cursor = service.acknowledged(read_events(page))
+    cursor = transaction.acknowledged(read_events(page))
     data = read_data(page, load_registry(page))
     first = latest_revision(page)
     layer = load_registry(page)["$layer"]["generation"]
@@ -826,7 +552,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     task, resumed, _ = start(2)
     assert resumed == url
     assert (page / "events.jsonl").read_bytes().startswith(before)
-    assert service.acknowledged(read_events(page)) == cursor
+    assert transaction.acknowledged(read_events(page)) == cursor
     assert read_data(page, load_registry(page)) == data
     assert latest_revision(page) == first
     assert any(event.get("text") == "Preserved reply" for event in read_events(page))
@@ -839,7 +565,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
         for event in batch["events"]
     )
     before = (page / "events.jsonl").read_bytes()
-    cursor = service.acknowledged(read_events(page))
+    cursor = transaction.acknowledged(read_events(page))
     stop(task)
 
     # A restart updates authored and runtime inputs, but never replays new seeds
@@ -854,7 +580,7 @@ def test_user_preview_restart_keeps_feedback_and_authored_progress(
     assert resumed == url
     assert (page / "events.jsonl").read_bytes().startswith(before)
     assert all(event["id"] != "fictional" for event in read_events(page))
-    assert service.acknowledged(read_events(page)) == cursor
+    assert transaction.acknowledged(read_events(page)) == cursor
     assert read_data(page, load_registry(page)) == data
     current = latest_revision(page)
     assert current is not None and first is not None
@@ -922,7 +648,7 @@ def test_fresh_preview_preparation_cannot_remove_a_successor(
     tmp_path, monkeypatch, failure, claimed
 ):
     """A complete private fixture can fail or lose its slot without owning it."""
-    from leaf.harness import IDENTITY_VARIABLES
+    from leaf.base.harness import IDENTITY_VARIABLES
 
     source = tmp_path / "reading.html"
     source.write_text(

@@ -14,25 +14,25 @@ from pathlib import Path
 
 import click
 
-from leaf.agent_state import cmd_page_state
-from leaf.delivery import pickup_receipts
-from leaf.event_log import read_events
-from leaf.service import page_claim
-from leaf.state import turn_closed
-from leaf.thread import successful_replies
+from leaf.agents.delivery import pickup_receipts
+from leaf.agents.thread import successful_replies
+from leaf.base.service import page_claim
+from leaf.base.state import turn_closed
+from leaf.commands.agent_state import cmd_page_state
+from leaf.log.event_log import read_events
 from leaf_dev import ROOT
 from leaf_dev.arms import PageClient, run_leaf
 from leaf_dev.eval_cases import definition
 
 REQUEST = definition("delivery_eval")["prompts"]["initial"]
 
-# Each step's comment, on the section it is posted on. A Claude Code session's line
-# fork hands a request for a change to the page to the session, and a working fork
-# would take a question the session could answer by reading (`leaf.forks`), so each
+# Each step's comment, on the section it is posted on. A Claude Code session does a
+# request for a change to the page itself, and may give a question it could answer by
+# reading to a subagent (`references/harness-claude-code.md`, "Subagents"), so each
 # of the claude-code journey's delivery steps asks to reword one phrase, and so do
 # `mid-turn` and `escape` on the other harnesses, which share them. A rewording keeps
 # the page's meaning and shape, which leaves the session and Claude Code's turn-end
-# check (`leaf.clerk`) nothing more to raise with the user. Each quotes words found
+# check (`leaf.agents.clerk`) nothing more to raise with the user. Each quotes words found
 # once in its section of `examples/triage-board.html`, and no two steps touch the
 # same words.
 COMMENTS = {
@@ -84,24 +84,23 @@ COMMENTS = {
         "In this paragraph, change “the only release blocker” to “the one release "
         "blocker”.",
     ),
-    # A question the conversation already answers, which a working fork takes.
-    "fork-idle": ("triage-lede", "What did I ask you to do with this page?"),
-    # A question a fork takes and looks up in the page's source, which the user
-    # follows up in its thread as the fork starts (`FOLLOW_UP`).
-    "fork-lookup": (
+    # A question answered by reading the page's source, sent while the session runs
+    # the user's own turn, which the session gives a subagent, and which the user
+    # follows up in its thread once it is answered (`FOLLOW_UP`). The session judges
+    # whether a lookup is worth a fork, and does a one-step count itself, so the user
+    # asks for this beside its work.
+    "fork-busy": (
         "triage-lede",
-        "How many cards does this page's source hold? Count them in the file.",
+        "Look into this beside your own work, no rush: read the cards in this page's "
+        "source and tell me which one a release manager would ask about first, and "
+        "why.",
     ),
-    # A question a fork takes, whose rest the user leaves as work for later, which
-    # the fork answers with a to-do on the thread for the session. The message asks
-    # only for the list and leaves the change for later, since the line fork can
-    # judge a request for the change itself, even after the session's current work,
-    # the session's, as a change to the page is.
-    "fork-todo": (
+    # A question the agent asks with choices, which the user then answers twice
+    # (`_journey.Terminal.answered_twice`).
+    "answered-twice": (
         "triage-lede",
-        "Which cards on this page mention customers or partners? List them here. "
-        "Tagging those cards on the page is a bigger job for later: don't do it now, "
-        "keep it as a to-do.",
+        "Should we ship now or wait for the migration fix? Ask me in this thread, "
+        "with two clickable choices.",
     ),
     # Real author intent exercises the rich interface without naming its commands.
     "rich-choice": (
@@ -136,7 +135,7 @@ USER_TURN = (
 
 def prepare(arm: Path, state: Path, page: Path) -> None:
     """Prepare the same release-review starting state using the harness's Leaf arm."""
-    run_leaf(arm, state, "page", "init", str(page), check=True)
+    run_leaf(arm, state, "page", "init", "--package", "reading", str(page), check=True)
     shutil.copy(ROOT / "examples" / "triage-board.html", page / "index.html")
     run_leaf(
         arm, state, "page", "stamp", str(page),
@@ -191,9 +190,11 @@ def claimed(page: Path) -> dict:
     return require(page_claim(page), "the page has no claim")
 
 
-def activity(page: Path) -> str:
-    """What the page's status reads: its activity's kind (`leaf.activity`)."""
-    return cmd_page_state(page)["activity"]["kind"]
+def activity(page: Path) -> tuple[str, str]:
+    """What the page's status reads (`leaf.records.activity`): whether anyone is there to
+    take input, and where the agent's work stands."""
+    reading = cmd_page_state(page)["activity"]
+    return reading["presence"], reading["state"]
 
 
 def settled(page: Path, session: str, sent: dict[str, str]) -> dict:

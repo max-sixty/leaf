@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <title>Leaf timeline by clock time</title>
+    <meta
+      name="description"
+      content="An afternoon's agent session on a timeline whose axis and steps read as times of day."
+    />
+  </head>
+  <body>
+    <main class="layout-column">
+      <h1 id="session-title">An afternoon's session by clock time</h1>
+      <p id="session-lede">
+        The timeline's <code>start</code> gives the clock time of its first event, so
+        the axis ticks fall on round times of day and the step list and the position
+        line read as clock times, such as 15:46, rather than time elapsed. Step to the
+        user's message to check that the position line reads 15:46, and to the agent's
+        revision to check that it reads 14:22:40.
+      </p>
+      <lf-timeline
+        id="session"
+        start="2026-11-25T12:56"
+        aria-label="An afternoon's session between the user and the agent"
+      >
+        <lf-lane label="User" abbr="U">
+          <lf-event id="session-ask" at="0" label="Asks for a draft"></lf-event>
+          <lf-event
+            id="session-reply"
+            at="10200000"
+            label="Comments on the draft"
+          ></lf-event>
+        </lf-lane>
+        <lf-lane label="Agent" abbr="A">
+          <lf-event
+            id="session-draft"
+            at="60000"
+            end="5200000"
+            label="Writes the draft"
+          ></lf-event>
+          <lf-event
+            id="session-revise"
+            at="5200000"
+            label="Publishes a revision"
+          ></lf-event>
+          <lf-event
+            id="session-final"
+            at="10260000"
+            end="16320000"
+            label="Revises from the comments"
+          ></lf-event>
+        </lf-lane>
+      </lf-timeline>
+    </main>
+  </body>
+</html>

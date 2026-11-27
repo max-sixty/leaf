@@ -5,9 +5,11 @@ import json
 import pytest
 from interact_support import add_test_widget
 from model_folds import leaf_page
-from render_harness import open_page
+from playwright.sync_api import expect
+from render_harness import open_page, resized, scroll_settled
 
-from leaf.render_checks import (
+from leaf.pages.render_gate.version import _render_page
+from leaf.source.render_checks import (
     HANDOVER_DEADLINE_MS,
     RENDER_VIEWPORT,
     SERVED_TIMEOUT_MS,
@@ -15,9 +17,7 @@ from leaf.render_checks import (
     rendered,
     wait_until_ready,
 )
-from leaf.render_gate.scheme import _render_page
-from leaf.render_gate.widget_quality import widget_findings
-from leaf.revision_artifact import read_artifact
+from leaf.source.revision_artifact import read_artifact
 
 
 def test_a_package_reads_the_public_api_and_nothing_behind_it(browser, serve, subtests):
@@ -76,18 +76,18 @@ def test_a_package_reads_the_public_api_and_nothing_behind_it(browser, serve, su
         }
     with subtests.test("landing room"):
         initial = page.evaluate("""async () => {
-          const {landingInsets, registerRootHeader} = await window.__lfWidgetApi();
+          const {landingInsets} = await window.__lfWidgetApi();
           const before = landingInsets(document.documentElement).top;
           const make = (id, height) => {
             const header = document.createElement('div');
             header.id = id;
             header.style.cssText = `position:fixed; height:${height}px`;
+            header.toggleAttribute('data-lf-root-header', true);
             document.querySelector('main').append(header);
             return header;
           };
           const first = make('package-header-one', 19);
           const second = make('package-header-two', 31);
-          window.headerStops = [registerRootHeader(first), registerRootHeader(second)];
           return before;
         }""")
 
@@ -110,9 +110,13 @@ def test_a_package_reads_the_public_api_and_nothing_behind_it(browser, serve, su
         assert added() == pytest.approx(43)
         page.evaluate("document.querySelector('main').append(window.detachedHeader)")
         assert added() == pytest.approx(74)
-        page.evaluate("window.headerStops[0]()")
+        page.locator("#package-header-one").evaluate(
+            "el => el.removeAttribute('data-lf-root-header')"
+        )
         assert added() == pytest.approx(31)
-        page.evaluate("window.headerStops[1]()")
+        page.locator("#package-header-two").evaluate(
+            "el => el.removeAttribute('data-lf-root-header')"
+        )
         assert added() == pytest.approx(0)
 
 
@@ -140,41 +144,19 @@ def output_package(path, value):
     )
     registry_path.write_text(json.dumps(registry))
     module = f"""import {{ html }} from "/vendor/lit.js";
-    import {{ LeafElement, publishOutput }} from "/runtime/widget-api.js";
+    import {{ LeafElement }} from "/runtime/lib/leaf-element.js";
 customElements.define("lf-output-proof", class extends LeafElement {{
   setup() {{
-    publishOutput(this, "count", {{count: 2}});
-    publishOutput(this, "count", {json.dumps(value)});
-    publishOutput(this, "count", null);
+    for (const count of [{{count: 2}}, {json.dumps(value)}, null]) {{
+      this.count = count;
+      this.dispatchEvent(new Event("change"));
+    }}
   }}
   render() {{ return html`Output example.`; }}
 }});
 """
     (path / "widgets/lf-output-proof.js").write_text(module)
     return module
-
-
-@pytest.mark.parametrize("value", [{"count": 3}, {"count": "wrong"}])
-def test_package_render_checks_every_exercised_output_before_withdrawal(
-    tmp_path, browser, value
-):
-    package = tmp_path / "output-package"
-    output_package(package, value)
-    failures = [
-        f for f in widget_findings(browser.unwatched, package) if f.severity == "error"
-    ]
-    if isinstance(value["count"], int):
-        assert failures == []
-    else:
-        assert failures
-        assert all(f.code == "invalid-output" for f in failures)
-        failure = failures[0]
-        assert failure.at == "<lf-output-proof id=proof>"
-        assert failure.values["owner"] == "package"
-        assert failure.values["output"] == "count"
-        assert failure.values["contract"] == "count"
-        assert "$.count" in failure.values["error"]
-        assert "<lf-output-proof id=proof> (package producer)" in str(failure)
 
 
 def test_page_render_attributes_invalid_output_to_the_overriding_implementation(
@@ -251,7 +233,7 @@ def test_closing_an_output_observer_during_its_body_read_keeps_the_browser_usabl
     from playwright._impl.fetch import APIRequestContext, APIResponse
     from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-    from leaf.render_gate import scheme, widget_quality
+    from leaf.pages.render_gate import version, widget_quality
 
     pages = []
     body, dispose = APIResponse.body, APIRequestContext.dispose
@@ -288,7 +270,7 @@ def test_closing_an_output_observer_during_its_body_read_keeps_the_browser_usabl
     with monkeypatch.context() as patch:
         patch.setattr(APIResponse, "body", held_body)
         patch.setattr(APIRequestContext, "dispose", disposed)
-        owner = scheme if reader == "page" else widget_quality
+        owner = version if reader == "page" else widget_quality
         patch.setattr(owner, "observe_output_documents", abandoned_check)
         if reader == "page":
             _findings, _notices, complete = _render_page(
@@ -382,13 +364,14 @@ def test_a_widget_s_pending_task_holds_the_page_until_its_drawing_is_in(
 ):
     """A widget that draws without Leaf's helpers says it has drawing under way with a
     `pending-task` event, as one that also runs off Leaf does (module-authoring.md, "A
-    widget that also runs off Leaf"). The page holds the widget's presentation on it, as
-    on `present(promise)`, and presents once the drawing is in."""
+    widget that also runs off Leaf"). The page holds the widget's presentation on it,
+    and presents once the drawing is in."""
     package = tmp_path / "pending-package"
     tag = "lf-pending-proof"
     add_test_widget(package, tag, upgrade=True)
     (package / "widgets" / f"{tag}.js").write_text(
-        'import { PendingTaskEvent, once } from "/runtime/portable-api.js";\n'
+        'import { PendingTaskEvent } from "/runtime/lib/pending-task.js";\n'
+        'import { once } from "/runtime/lib/once.js";\n'
         f'customElements.define("{tag}", class extends HTMLElement {{\n'
         "  connectedCallback() {\n"
         "    if (!once(this)) return;\n"
@@ -413,3 +396,140 @@ def test_a_widget_s_pending_task_holds_the_page_until_its_drawing_is_in(
     wait_until_ready(page)
     assert page.locator("#proof").text_content() == "Drawn."
     assert not page.evaluate(pending)
+
+
+def test_a_package_s_own_views_get_the_address_back_and_their_places(
+    tmp_path, browser, serve
+):
+    """A package's widget that shows one member at a time, and says its members are
+    the page's views, gets what a root tab set gets from Leaf, by showing each member
+    with `keepView` and nothing more (module-state.md, "State only this tab keeps"):
+    the open member is named in the address, a press adds a history entry and a reveal
+    adds none, a member reopens where the user last read it, and Back returns to the
+    member and to the place read on that entry, which is not the member's latest."""
+    package = tmp_path / "chapters-package"
+    tag = "lf-chapters"
+    add_test_widget(package, tag, upgrade=True)
+    registry = json.loads((package / "registry.json").read_text())
+    registry[tag] |= {"views": {"members": "section"}, "flow": True}
+    (package / "registry.json").write_text(json.dumps(registry, indent=2))
+    # The nav is a sticky header as the references have a package state one
+    # (module-scroll-and-motion.md, "Sticky headers").
+    with (package / "defaults.css").open("a") as theme:
+        theme.write(
+            f"\n{tag} {{ --lf-top-outer: var(--lf-top); }}\n"
+            f"{tag} > nav {{\n"
+            "  position: sticky;\n"
+            "  top: var(--lf-top);\n"
+            "  block-size: 2.5rem;\n"
+            "  background: var(--lf-paper);\n"
+            "}\n"
+            f"{tag} > section {{ --lf-top: calc(var(--lf-top-outer) + 2.5rem); }}\n"
+        )
+    (package / "widgets" / f"{tag}.js").write_text(
+        'import { keepView, openingView, viewMembers } from "/runtime/widget-api.js";\n'
+        'import { once } from "/runtime/lib/once.js";\n'
+        f'customElements.define("{tag}", class extends HTMLElement {{\n'
+        "  connectedCallback() {\n"
+        "    if (!once(this)) return;\n"
+        '    this.toggleAttribute("data-lf-page-views", true);\n'
+        '    const nav = document.createElement("nav");\n'
+        '    nav.setAttribute("data-lf-gen", "1");\n'
+        "    for (const member of viewMembers(this)) {\n"
+        '      const press = document.createElement("button");\n'
+        '      press.type = "button";\n'
+        '      press.textContent = member.getAttribute("aria-label");\n'
+        '      press.addEventListener("click", () => keepView(this, member));\n'
+        '      member.addEventListener("beforematch", () => keepView(this, member));\n'
+        "      nav.append(press);\n"
+        "    }\n"
+        "    this.prepend(nav);\n"
+        "    keepView(this, openingView(this));\n"
+        "  }\n"
+        "});\n"
+    )
+    chapters = "".join(
+        f'<section id="{name.lower()}" aria-label="{name}">'
+        + "".join(
+            f"<p>Chapter {name}, paragraph {line}, goes on with step {line} of its own "
+            "account.</p>"
+            for line in range(60)
+        )
+        + "</section>"
+        for name in ("One", "Two")
+    )
+    url = serve(
+        leaf_page(
+            "Chapters", f'<h1>Chapters</h1><{tag} id="chapters">{chapters}</{tag}>'
+        ),
+        packages=(package,),
+    )
+    page = open_page(browser, url)
+    resized(page, 1280, 720)
+
+    def press(name):
+        # The nav sticks, and Locator.click would scroll it back to its box in flow.
+        box = page.get_by_role("button", name=name, exact=True).bounding_box()
+        page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+        return at()
+
+    def at():
+        page.wait_for_function("navigation.transition === null")
+        scroll_settled(page)
+        return page.evaluate("scrollY")
+
+    def read_to(top):
+        page.evaluate("top => scrollTo({top, behavior: 'instant'})", top)
+        return at()
+
+    def entries():
+        return page.evaluate("navigation.entries().length")
+
+    one, two = page.locator("#one"), page.locator("#two")
+    # Arriving with no fragment names the open member, on the entry the user is on.
+    expect(one).to_be_visible()
+    assert page.url.endswith("#one")
+    arrived = entries()
+    one_first = read_to(700)
+    # A press is the user's step: a new entry that names the member. One never read
+    # opens at its start, flush under the header stuck over it, since the page stands
+    # past that.
+    two_start = press("Two")
+    expect(two).to_be_visible()
+    assert page.url.endswith("#two")
+    assert entries() == arrived + 1
+    edges = page.evaluate(
+        """() => ({
+          member: document.querySelector('#two').getBoundingClientRect().top,
+          header: document.querySelector('#chapters > nav').getBoundingClientRect().bottom,
+        })"""
+    )
+    assert edges["member"] == pytest.approx(edges["header"], abs=1), edges
+    two_read = read_to(two_start + 500)
+    # Each member reopens where the user last read it.
+    assert press("One") == pytest.approx(one_first, abs=2)
+    one_second = read_to(one_first + 400)
+    assert press("Two") == pytest.approx(two_read, abs=2)
+    assert entries() == arrived + 3
+    # Back returns to each entry's member, and to the place read on that entry: One's
+    # first entry was left at its first place, though One was read further since.
+    for member, place in ((one, one_second), (two, two_read), (one, one_first)):
+        page.go_back()
+        expect(member).to_be_visible()
+        assert at() == pytest.approx(place, abs=2)
+    assert page.url.endswith("#one")
+    # A reveal, as the browser's find makes one, names the member on the entry the
+    # user is on and adds no entry.
+    page.evaluate(
+        """async () => {
+          const {reveal} = await window.__lfCheckApi();
+          const {retainUserIntent} = await window.__lfWidgetApi();
+          reveal(document.querySelector('#two'), retainUserIntent());
+        }"""
+    )
+    expect(two).to_be_visible()
+    expect(one).to_be_hidden()
+    page.wait_for_function("navigation.transition === null")
+    assert page.url.endswith("#two")
+    assert entries() == arrived + 3
+    assert page.evaluate("navigation.currentEntry.index") == arrived - 1

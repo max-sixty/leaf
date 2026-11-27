@@ -210,14 +210,9 @@
       }
     </style>
     <script type="module">
-      import {
-        generatedElement,
-        keeps,
-        keepsText,
-        layoutChanged,
-        once,
-        whileInterfaceConnected,
-      } from "/runtime/widget-api.js";
+      import { whileInterfaceConnected } from "/runtime/widget-api.js";
+      import { once } from "/runtime/lib/once.js";
+      import { keeps, keepsText } from "/runtime/lib/keeps.js";
 
       const EVENTS = [
         {
@@ -266,8 +261,10 @@
         const feed = figure.querySelector(".notification-demo-feed");
         const metric = figure.querySelector(".notification-demo-metric");
         // Event cards and their measurements are this module's words.
-        generatedElement(feed, { says: true });
-        generatedElement(metric, { says: true });
+        for (const box of [feed, metric]) {
+          keeps(box, "data-lf-gen", "1");
+          box.toggleAttribute("data-lf-said", true);
+        }
         return { feed, metric };
       }
 
@@ -364,7 +361,9 @@
             }
             keepsText(this.#banner.metric, `${values.events} cards · full detail`);
             keepsText(this.#strip.metric, `${values.events} rows · compact summary`);
-            layoutChanged(this);
+            this.dispatchEvent(
+              new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+            );
           }
         },
       );

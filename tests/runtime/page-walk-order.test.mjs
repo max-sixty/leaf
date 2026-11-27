@@ -1,15 +1,19 @@
-/* The page walks' one step (`stepFrom`, current-target.js) over the page's rendered
-   order (`renderedOrder`, shadow-tree.js): `t` and `m` step from the same place the same
+/* The page walks' one step (`stepFrom`, records/current-target.js) over the page's rendered
+   order (`renderedOrder`, lib/shadow-tree.js): `t` and `m` step from the same place the same
    way, a place holding the user's is where they already are, and words a widget renders
    in a shadow tree keep their order among the places beside them. The threads `t` walks
-   keep one order (`inPageOrder`, thread/placement.js) whatever surface draws them. */
+   keep one order (`threadPlace`, records/thread/placement.js) whatever surface draws them. */
 
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { renderedOrder, renderedOrdering } from "/runtime/shadow-tree.js";
-import { stepFrom } from "/runtime/current-target.js";
-import { inPageOrder } from "/runtime/thread/placement.js";
+import {
+  byRenderedOrder,
+  renderedOrder,
+  renderedOrdering,
+} from "/runtime/lib/shadow-tree.js";
+import { stepFrom } from "/runtime/records/current-target.js";
+import { threadPlace } from "/runtime/records/thread/placement.js";
 
 // <main><p first/><section><p held/></section><x-widget>#shadow<p inner-a/><p inner-b/></x-widget><p last/></main>
 function page() {
@@ -196,7 +200,10 @@ test("a thread on another thread's message keeps its order whether or not it is 
     { id: "general", anchor: null },
     { id: "on-reply", anchor: { section: "in-reply" } },
   ];
-  const order = () => inPageOrder(threads, () => null).map((thread) => thread.id);
+  const order = () =>
+    byRenderedOrder(threads, (thread) => threadPlace(thread, () => null)).map(
+      (thread) => thread.id,
+    );
   try {
     assert.deepEqual(order(), ["on-page", "general", "on-reply"]);
     document.querySelector(".lf-chrome").remove();

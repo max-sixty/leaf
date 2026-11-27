@@ -1,0 +1,709 @@
+# The user ends most threads with a last word and then Resolve, seconds apart. Their
+# resolve takes the thread off their list and changes nothing the agent owes, so no
+# event of its own arrives: the delivery carries their message alone, in a thread its
+# context shows as resolved by the user. The session does the work and answers at the
+# message's `answer.ref`, and the answer goes into the closed thread. The failure it
+# invites is reading the resolved thread as the request taken back: no work and no
+# answer, or the session's own resolve in place of one. The `thanks` variant is the
+# control: a last word that asks for nothing is ended without work. Whether to bring
+# the closed thread back is the session's call (`leaf thread reopen`): the answer the
+# user asked for stays quiet, and in the `no-badge` variant, where the request can't be
+# carried out as asked, the user is told on their list. In the two `told-` variants the
+# resolve lands after the delivery, so the session first hears of it from the record its
+# reply prints: it reopens the thread for the request it could not carry out, and
+# leaves it closed for the one it did. In `turn-no-badge` a Codex turn's final message
+# is the reply, which prints the session no record, so it posts the request it could
+# not carry out by command; `turn-done`, its control, leaves an answer that delivers
+# what was asked to the final message. The envelope is as `freeze_delivery` writes it
+# for a hook, or with `turn_replies` for those two, handling included, with ids, page,
+# claim and times substituted.
+description: resolved-request-stays-owed
+metadata:
+  purpose: "A message in a thread the user has already resolved is still answered, at
+    its `answer.ref`, and brings the thread back only when the user would want to stop
+    for it; a last word that asks for nothing is ended without work."
+  tags: [threads, wait-loop]
+vars:
+  now: "2026-11-21T18:13:20-08:00"
+  prompt: |
+    You are a Claude Code session using Leaf. Your page /Users/max/.local/state/leaf/pages/review-rules reports your review of the team's code-review rules; its section `review` says a reviewer runs the tests before approving a change. Load the Leaf skill if it isn't in your context.
+
+    Leaf's prompt hook has just handed you this complete delivery:
+
+    ```json
+    {
+     "format": "leaf-delivery/59",
+     "id": "c41d07e2",
+     "created_at": 1795313595.4,
+     "acknowledge": null,
+     "batches": [
+      {
+       "page": "/Users/max/.local/state/leaf/pages/review-rules",
+       "claim": "6f1d2b9e-3c47-4a8e-9b1f-2d6e8c0a4f53",
+       "through_seq": 18,
+       "threads": [
+        {
+         "id": "9be2f4a1",
+         "title": null,
+         "anchor": {
+          "section": "review"
+         },
+         "detached_from": null,
+         "rewritten_from": null,
+         "resolved": "user",
+         "elided": {
+          "messages": 0,
+          "actions": 0
+         },
+         "messages": [],
+         "summaries": [],
+         "actions": []
+        }
+       ],
+       "handling": {
+        "h1": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.",
+        "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"\u2026\">` holding an `<lf-option id=\"\u2026\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn, with `--waiting-on \"<what>\"` where it can't start until something you don't control happens. `--done` when it leaves nobody a move.",
+        "h3": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply."
+       },
+       "events": [
+        {
+         "author": "user",
+         "revision": 1,
+         "kind": "comment",
+         "text": "Ensure we're clear about this in our CLAUDE.md.",
+         "anchor": {
+          "section": "review"
+         },
+         "id": "9be2f4a1",
+         "attention": true,
+         "ts": "2026-11-21T18:13:06.190-08:00",
+         "seq": 17,
+         "subject": {
+          "kind": "thread",
+          "id": "9be2f4a1"
+         },
+         "threads": [
+          "9be2f4a1"
+         ],
+         "handling": [
+          "h1",
+          "h2",
+          "h3"
+         ],
+         "answer": {
+          "kind": "reply",
+          "parent": "9be2f4a1",
+          "responds": "9be2f4a1",
+          "ref": "c41d07e2:0:9be2f4a1",
+          "writer": "agent"
+         }
+        }
+       ]
+      }
+     ]
+    }
+    ```
+
+    The page is already served. Only Skill and Read run here, so write out, in order, each command you would run for this delivery, with a line between them saying what you would do there. Then end your answer.
+assert:
+  - type: llm-rubric
+    metric: request-stays-owed
+    value: |
+      Pass only if the session treats the user's message as a request it still owes:
+      it does or plans the CLAUDE.md work, and a written command answers the message
+      at its reference, `leaf thread reply c41d07e2:0:9be2f4a1` with a declaration
+      such as `--done`, `--obligation` or `--todo`. A progress line first
+      (`--ephemeral`, or `leaf task start`) is fine, and so is reading the page or
+      CLAUDE.md first. Fail if it reads the resolved thread as the request taken
+      back and does no work or writes no answer, if `leaf thread resolve` stands in
+      place of the answer, or if it asks the user to reopen the thread.
+  - type: llm-rubric
+    metric: expected-answer-stays-quiet
+    value: |
+      Pass only if the session leaves the thread closed: the work is done as asked,
+      so no `leaf thread reopen` is among the commands it would run. Naming that
+      command only for a case that did not happen, such as an edit that can't be
+      made, passes. Fail if its commands for the work done as asked reopen the
+      thread.
+variants:
+  no-badge:
+    vars:
+      prompt: |
+        You are a Claude Code session using Leaf. Your page /Users/max/.local/state/leaf/pages/review-rules reports your review of the team's code-review rules; its section `review` says a reviewer runs the tests before approving a change. Load the Leaf skill if it isn't in your context. A minute ago you checked the team's CI configuration for another reason: the review bot was removed from it last month, so it has no badge, and the section needs no other change.
+
+        Leaf's prompt hook has just handed you this complete delivery:
+
+        ```json
+        {
+         "format": "leaf-delivery/59",
+         "id": "c41d07e2",
+         "created_at": 1795313595.4,
+         "acknowledge": null,
+         "batches": [
+          {
+           "page": "/Users/max/.local/state/leaf/pages/review-rules",
+           "claim": "6f1d2b9e-3c47-4a8e-9b1f-2d6e8c0a4f53",
+           "through_seq": 18,
+           "threads": [
+            {
+             "id": "9be2f4a1",
+             "title": null,
+             "anchor": {
+              "section": "review"
+             },
+             "detached_from": null,
+             "rewritten_from": null,
+             "resolved": "user",
+             "elided": {
+              "messages": 0,
+              "actions": 0
+             },
+             "messages": [],
+             "summaries": [],
+             "actions": []
+            }
+           ],
+           "handling": {
+            "h1": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.",
+            "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"\u2026\">` holding an `<lf-option id=\"\u2026\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn, with `--waiting-on \"<what>\"` where it can't start until something you don't control happens. `--done` when it leaves nobody a move.",
+            "h3": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply."
+           },
+           "events": [
+            {
+             "author": "user",
+             "revision": 1,
+             "kind": "comment",
+             "text": "Add the review bot's CI badge to this section.",
+             "anchor": {
+              "section": "review"
+             },
+             "id": "9be2f4a1",
+             "attention": true,
+             "ts": "2026-11-21T18:13:06.190-08:00",
+             "seq": 17,
+             "subject": {
+              "kind": "thread",
+              "id": "9be2f4a1"
+             },
+             "threads": [
+              "9be2f4a1"
+             ],
+             "handling": [
+              "h1",
+              "h2",
+              "h3"
+             ],
+             "answer": {
+              "kind": "reply",
+              "parent": "9be2f4a1",
+              "responds": "9be2f4a1",
+              "ref": "c41d07e2:0:9be2f4a1",
+              "writer": "agent"
+             }
+            }
+           ]
+          }
+         ]
+        }
+        ```
+
+        The page is already served. Only Skill and Read run here, so write out, in order, each command you would run for this delivery, with a line between them saying what you would do there. Then end your answer.
+    assert:
+      - type: llm-rubric
+        metric: unmet-request-comes-back
+        value: |
+          Pass only if a written command answers the message at its reference,
+          `leaf thread reply c41d07e2:0:9be2f4a1`, saying the badge can't be added
+          because the review bot is gone from CI, and the session brings the thread
+          back to the user: it writes `leaf thread reopen` naming the page and a
+          message of the thread, before or after the reply, or the reply asks them
+          something with `--obligation` or a choice widget in its text. Fail if the
+          answer goes in and nothing reopens the thread, so nothing on the user's
+          lists says the request was not carried out; if no answer is written; or
+          if the session adds a badge anyway.
+  thanks:
+    vars:
+      prompt: |
+        You are a Claude Code session using Leaf. Your page /Users/max/.local/state/leaf/pages/review-rules reports your review of the team's code-review rules; its section `review` says a reviewer runs the tests before approving a change. Load the Leaf skill if it isn't in your context.
+
+        Leaf's prompt hook has just handed you this complete delivery:
+
+        ```json
+        {
+         "format": "leaf-delivery/59",
+         "id": "c41d07e2",
+         "created_at": 1795313595.4,
+         "acknowledge": null,
+         "batches": [
+          {
+           "page": "/Users/max/.local/state/leaf/pages/review-rules",
+           "claim": "6f1d2b9e-3c47-4a8e-9b1f-2d6e8c0a4f53",
+           "through_seq": 18,
+           "threads": [
+            {
+             "id": "9be2f4a1",
+             "title": null,
+             "anchor": {
+              "section": "review"
+             },
+             "detached_from": null,
+             "rewritten_from": null,
+             "resolved": "user",
+             "elided": {
+              "messages": 0,
+              "actions": 0
+             },
+             "messages": [],
+             "summaries": [],
+             "actions": []
+            }
+           ],
+           "handling": {
+            "h1": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.",
+            "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"\u2026\">` holding an `<lf-option id=\"\u2026\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn, with `--waiting-on \"<what>\"` where it can't start until something you don't control happens. `--done` when it leaves nobody a move.",
+            "h3": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply."
+           },
+           "events": [
+            {
+             "author": "user",
+             "revision": 1,
+             "kind": "comment",
+             "text": "ok, thanks",
+             "anchor": {
+              "section": "review"
+             },
+             "id": "9be2f4a1",
+             "attention": true,
+             "ts": "2026-11-21T18:13:06.190-08:00",
+             "seq": 17,
+             "subject": {
+              "kind": "thread",
+              "id": "9be2f4a1"
+             },
+             "threads": [
+              "9be2f4a1"
+             ],
+             "handling": [
+              "h1",
+              "h2",
+              "h3"
+             ],
+             "answer": {
+              "kind": "reply",
+              "parent": "9be2f4a1",
+              "responds": "9be2f4a1",
+              "ref": "c41d07e2:0:9be2f4a1",
+              "writer": "agent"
+             }
+            }
+           ]
+          }
+         ]
+        }
+        ```
+
+        The page is already served. Only Skill and Read run here, so write out, in order, each command you would run for this delivery, with a line between them saying what you would do there. Then end your answer.
+    assert:
+      - type: llm-rubric
+        metric: last-word-ends-without-work
+        value: |
+          Pass only if the session ends the exchange without doing work on the page
+          or any file: a written command either resolves the thread itself
+          (`leaf thread resolve` naming the page and the message 9be2f4a1) or answers
+          the message at its reference in a line (`leaf thread reply
+          c41d07e2:0:9be2f4a1 --done`). Fail if it writes no command for the message
+          at all, edits the page or a file, asks the user a question, or reopens the
+          thread with `leaf thread reopen`.
+  told-no-badge:
+    vars:
+      prompt: |
+        You are a Claude Code session using Leaf. Your page /Users/max/.local/state/leaf/pages/review-rules reports your review of the team's code-review rules; its section `review` says a reviewer runs the tests before approving a change. Load the Leaf skill if it isn't in your context. A minute ago you checked the team's CI configuration for another reason: the review bot was removed from it last month, so it has no badge, and the section needs no other change.
+
+        Leaf's prompt hook has just handed you this complete delivery:
+
+        ```json
+        {
+         "format": "leaf-delivery/59",
+         "id": "c41d07e2",
+         "created_at": 1795313595.4,
+         "acknowledge": null,
+         "batches": [
+          {
+           "page": "/Users/max/.local/state/leaf/pages/review-rules",
+           "claim": "6f1d2b9e-3c47-4a8e-9b1f-2d6e8c0a4f53",
+           "through_seq": 17,
+           "threads": [
+            {
+             "id": "9be2f4a1",
+             "title": null,
+             "anchor": {
+              "section": "review"
+             },
+             "detached_from": null,
+             "rewritten_from": null,
+             "resolved": null,
+             "elided": {
+              "messages": 0,
+              "actions": 0
+             },
+             "messages": [],
+             "summaries": [],
+             "actions": []
+            }
+           ],
+           "handling": {
+            "h1": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.",
+            "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"\u2026\">` holding an `<lf-option id=\"\u2026\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn, with `--waiting-on \"<what>\"` where it can't start until something you don't control happens. `--done` when it leaves nobody a move.",
+            "h3": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply."
+           },
+           "events": [
+            {
+             "author": "user",
+             "revision": 1,
+             "kind": "comment",
+             "text": "Add the review bot's CI badge to this section.",
+             "anchor": {
+              "section": "review"
+             },
+             "id": "9be2f4a1",
+             "attention": true,
+             "ts": "2026-11-21T18:13:06.190-08:00",
+             "seq": 17,
+             "subject": {
+              "kind": "thread",
+              "id": "9be2f4a1"
+             },
+             "threads": [
+              "9be2f4a1"
+             ],
+             "handling": [
+              "h1",
+              "h2",
+              "h3"
+             ],
+             "answer": {
+              "kind": "reply",
+              "parent": "9be2f4a1",
+              "responds": "9be2f4a1",
+              "ref": "c41d07e2:0:9be2f4a1",
+              "writer": "agent"
+             }
+            }
+           ]
+          }
+         ]
+        }
+        ```
+
+        The page is already served. You posted your progress line, did what the message asks as far as it can be done, and answered it with this command:
+
+        ```
+        leaf thread reply c41d07e2:0:9be2f4a1 --done --title "Review bot badge" --text "I could not add the badge: the review bot was removed from CI last month, so it has none. The section is unchanged."
+        ```
+
+        It printed:
+
+        ```json
+        {"kind": "reply", "author": "agent", "agent": "Claude", "session": "0b6f2d3a-91c4-4e57-8a2b-7c5d1e9f4a60", "parent": "9be2f4a1", "text": "I could not add the badge: the review bot was removed from CI last month, so it has none. The section is unchanged.", "responds": "9be2f4a1", "unannounced": true, "title": "Review bot badge", "id": "5d0c1e77", "attention": false, "ts": "2026-11-21T18:15:41.512-08:00", "seq": 21, "findings": [{"code": "stays-closed", "severity": "advice", "values": {"thread": "9be2f4a1", "command": "leaf thread reopen /Users/max/.local/state/leaf/pages/review-rules 5d0c1e77"}, "text": "the user resolved thread '9be2f4a1', so this message went into it without bringing it back to their list, which suits the answer or result they asked for; `leaf thread reopen /Users/max/.local/state/leaf/pages/review-rules 5d0c1e77` brings it back where the message holds news they would want to stop and read"}]}
+        ```
+
+        Only Skill and Read run here, so write out, in order, each further command you would run, with a line between them saying what you would do there, or say that you would run none. Then end your answer.
+
+    assert:
+      - type: llm-rubric
+        metric: quiet-news-comes-back
+        value: |
+          Pass only if the session brings the thread back to the user: it writes
+          `leaf thread reopen /Users/max/.local/state/leaf/pages/review-rules` with a message of the thread
+          (5d0c1e77 or 9be2f4a1), or a further reply there that asks them something with
+          `--obligation` or a choice widget. Fail if it runs nothing further or nothing it
+          runs reopens the thread, so nothing on the user's list says the badge was not
+          added.
+  told-done:
+    vars:
+      prompt: |
+        You are a Claude Code session using Leaf. Your page /Users/max/.local/state/leaf/pages/review-rules reports your review of the team's code-review rules; its section `review` says a reviewer runs the tests before approving a change. Load the Leaf skill if it isn't in your context.
+
+        Leaf's prompt hook has just handed you this complete delivery:
+
+        ```json
+        {
+         "format": "leaf-delivery/59",
+         "id": "c41d07e2",
+         "created_at": 1795313595.4,
+         "acknowledge": null,
+         "batches": [
+          {
+           "page": "/Users/max/.local/state/leaf/pages/review-rules",
+           "claim": "6f1d2b9e-3c47-4a8e-9b1f-2d6e8c0a4f53",
+           "through_seq": 17,
+           "threads": [
+            {
+             "id": "9be2f4a1",
+             "title": null,
+             "anchor": {
+              "section": "review"
+             },
+             "detached_from": null,
+             "rewritten_from": null,
+             "resolved": null,
+             "elided": {
+              "messages": 0,
+              "actions": 0
+             },
+             "messages": [],
+             "summaries": [],
+             "actions": []
+            }
+           ],
+           "handling": {
+            "h1": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.",
+            "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"\u2026\">` holding an `<lf-option id=\"\u2026\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn, with `--waiting-on \"<what>\"` where it can't start until something you don't control happens. `--done` when it leaves nobody a move.",
+            "h3": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply."
+           },
+           "events": [
+            {
+             "author": "user",
+             "revision": 1,
+             "kind": "comment",
+             "text": "Ensure we're clear about this in our CLAUDE.md.",
+             "anchor": {
+              "section": "review"
+             },
+             "id": "9be2f4a1",
+             "attention": true,
+             "ts": "2026-11-21T18:13:06.190-08:00",
+             "seq": 17,
+             "subject": {
+              "kind": "thread",
+              "id": "9be2f4a1"
+             },
+             "threads": [
+              "9be2f4a1"
+             ],
+             "handling": [
+              "h1",
+              "h2",
+              "h3"
+             ],
+             "answer": {
+              "kind": "reply",
+              "parent": "9be2f4a1",
+              "responds": "9be2f4a1",
+              "ref": "c41d07e2:0:9be2f4a1",
+              "writer": "agent"
+             }
+            }
+           ]
+          }
+         ]
+        }
+        ```
+
+        The page is already served. You posted your progress line, did what the message asks as far as it can be done, and answered it with this command:
+
+        ```
+        leaf thread reply c41d07e2:0:9be2f4a1 --done --title "Review rule in CLAUDE.md" --text "CLAUDE.md now says a reviewer runs the tests before approving a change, under Review."
+        ```
+
+        It printed:
+
+        ```json
+        {"kind": "reply", "author": "agent", "agent": "Claude", "session": "0b6f2d3a-91c4-4e57-8a2b-7c5d1e9f4a60", "parent": "9be2f4a1", "text": "CLAUDE.md now says a reviewer runs the tests before approving a change, under Review.", "responds": "9be2f4a1", "unannounced": true, "title": "Review rule in CLAUDE.md", "id": "5d0c1e77", "attention": false, "ts": "2026-11-21T18:15:41.512-08:00", "seq": 21, "findings": [{"code": "stays-closed", "severity": "advice", "values": {"thread": "9be2f4a1", "command": "leaf thread reopen /Users/max/.local/state/leaf/pages/review-rules 5d0c1e77"}, "text": "the user resolved thread '9be2f4a1', so this message went into it without bringing it back to their list, which suits the answer or result they asked for; `leaf thread reopen /Users/max/.local/state/leaf/pages/review-rules 5d0c1e77` brings it back where the message holds news they would want to stop and read"}]}
+        ```
+
+        Only Skill and Read run here, so write out, in order, each further command you would run, with a line between them saying what you would do there, or say that you would run none. Then end your answer.
+
+    assert:
+      - type: llm-rubric
+        metric: quiet-answer-stays-closed
+        value: |
+          Pass only if the session leaves the thread closed: it writes no
+          `leaf thread reopen` command and no further reply in the thread. Running no
+          further command, or only `leaf page open` or a read of the page's state, passes.
+          Fail if it reopens the thread or posts another message there.
+  turn-no-badge:
+    metadata:
+      harnesses: [codex]
+    vars:
+      prompt: |
+        You are a Codex session using Leaf. Your page /Users/max/.local/state/leaf/pages/review-rules reports your review of the team's code-review rules; its section `review` says a reviewer runs the tests before approving a change. Load the Leaf skill if it isn't in your context. A minute ago you checked the team's CI configuration for another reason: the review bot was removed from it last month, so it has no badge, and the section needs no other change.
+
+        Leaf started this turn with this complete delivery:
+
+        ```json
+        {
+         "format": "leaf-delivery/59",
+         "id": "c41d07e2",
+         "created_at": 1795313595.4,
+         "acknowledge": null,
+         "batches": [
+          {
+           "page": "/Users/max/.local/state/leaf/pages/review-rules",
+           "claim": "6f1d2b9e-3c47-4a8e-9b1f-2d6e8c0a4f53",
+           "through_seq": 17,
+           "threads": [
+            {
+             "id": "9be2f4a1",
+             "title": null,
+             "anchor": {
+              "section": "review"
+             },
+             "detached_from": null,
+             "rewritten_from": null,
+             "resolved": null,
+             "elided": {
+              "messages": 0,
+              "actions": 0
+             },
+             "messages": [],
+             "summaries": [],
+             "actions": []
+            }
+           ],
+           "handling": {
+            "h1": "Leaf posts your opening message in the thread as your progress line and your final message as the reply, unless an explicit reply already answered this input. Before your first tool call, tell the user briefly the answer or what you are about to do; later working messages stay in Codex. End with the answer, or what changed and where it shows. A final message leaves the user no move, so where your answer leaves them one, such as a decision or something to try or review before making one, answer with `leaf thread reply <answer.ref> --obligation` instead: it puts the answer on their On Me list even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in a `leaf thread reply` in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer, so the user answers with a press (`references/threads.md`, \"Ask for a pick\"). Reply explicitly too for work promised beyond this turn (`--todo`), a title or moving the thread (`references/threads.md`), and for news the user would want to stop and read, such as that you could not do what they asked: they may have resolved the thread by then, and only that command's record says so. An explicit reply posts at once, and your final message is then not posted.",
+            "h2": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply."
+           },
+           "events": [
+            {
+             "author": "user",
+             "revision": 1,
+             "kind": "comment",
+             "text": "Add the review bot's CI badge to this section.",
+             "anchor": {
+              "section": "review"
+             },
+             "id": "9be2f4a1",
+             "attention": true,
+             "ts": "2026-11-21T18:13:06.190-08:00",
+             "seq": 17,
+             "subject": {
+              "kind": "thread",
+              "id": "9be2f4a1"
+             },
+             "threads": [
+              "9be2f4a1"
+             ],
+             "handling": [
+              "h1",
+              "h2"
+             ],
+             "answer": {
+              "kind": "reply",
+              "parent": "9be2f4a1",
+              "responds": "9be2f4a1",
+              "ref": "c41d07e2:0:9be2f4a1",
+              "writer": "turn"
+             }
+            }
+           ]
+          }
+         ]
+        }
+        ```
+
+        The page is already served, and you have sent your opening message, which said you would check whether the badge can be added. Only reading instructions runs here, so write out, in order, each command you would run before ending the turn, with a line between them saying what you would do there, and then your final message.
+    assert:
+      - type: llm-rubric
+        metric: turn-news-goes-by-command
+        value: |
+          Pass only if the session can learn that its answer went into a closed thread, or
+          brings the thread back itself: it posts the answer that the badge was not added,
+          because the review bot is gone from CI, with `leaf thread reply
+          c41d07e2:0:9be2f4a1` rather than leaving it to its final message, or it runs
+          `leaf thread reopen`, or reads the thread's state with `leaf page state`, before
+          ending the turn. Fail if that answer goes only in the final message and no
+          command would show or change whether the thread is closed, or if the session adds
+          a badge anyway.
+  turn-done:
+    metadata:
+      harnesses: [codex]
+    vars:
+      prompt: |
+        You are a Codex session using Leaf. Your page /Users/max/.local/state/leaf/pages/review-rules reports your review of the team's code-review rules; its section `review` says a reviewer runs the tests before approving a change. Load the Leaf skill if it isn't in your context.
+
+        Leaf started this turn with this complete delivery:
+
+        ```json
+        {
+         "format": "leaf-delivery/59",
+         "id": "c41d07e2",
+         "created_at": 1795313595.4,
+         "acknowledge": null,
+         "batches": [
+          {
+           "page": "/Users/max/.local/state/leaf/pages/review-rules",
+           "claim": "6f1d2b9e-3c47-4a8e-9b1f-2d6e8c0a4f53",
+           "through_seq": 17,
+           "threads": [
+            {
+             "id": "9be2f4a1",
+             "title": null,
+             "anchor": {
+              "section": "review"
+             },
+             "detached_from": null,
+             "rewritten_from": null,
+             "resolved": null,
+             "elided": {
+              "messages": 0,
+              "actions": 0
+             },
+             "messages": [],
+             "summaries": [],
+             "actions": []
+            }
+           ],
+           "handling": {
+            "h1": "Leaf posts your opening message in the thread as your progress line and your final message as the reply, unless an explicit reply already answered this input. Before your first tool call, tell the user briefly the answer or what you are about to do; later working messages stay in Codex. End with the answer, or what changed and where it shows. A final message leaves the user no move, so where your answer leaves them one, such as a decision or something to try or review before making one, answer with `leaf thread reply <answer.ref> --obligation` instead: it puts the answer on their On Me list even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in a `leaf thread reply` in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer, so the user answers with a press (`references/threads.md`, \"Ask for a pick\"). Reply explicitly too for work promised beyond this turn (`--todo`), a title or moving the thread (`references/threads.md`), and for news the user would want to stop and read, such as that you could not do what they asked: they may have resolved the thread by then, and only that command's record says so. An explicit reply posts at once, and your final message is then not posted.",
+            "h2": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply."
+           },
+           "events": [
+            {
+             "author": "user",
+             "revision": 1,
+             "kind": "comment",
+             "text": "Ensure we're clear about this in our CLAUDE.md.",
+             "anchor": {
+              "section": "review"
+             },
+             "id": "9be2f4a1",
+             "attention": true,
+             "ts": "2026-11-21T18:13:06.190-08:00",
+             "seq": 17,
+             "subject": {
+              "kind": "thread",
+              "id": "9be2f4a1"
+             },
+             "threads": [
+              "9be2f4a1"
+             ],
+             "handling": [
+              "h1",
+              "h2"
+             ],
+             "answer": {
+              "kind": "reply",
+              "parent": "9be2f4a1",
+              "responds": "9be2f4a1",
+              "ref": "c41d07e2:0:9be2f4a1",
+              "writer": "turn"
+             }
+            }
+           ]
+          }
+         ]
+        }
+        ```
+
+        The page is already served, and you have sent your opening message, which said you would add the rule to CLAUDE.md. You then made that edit, and a read confirmed it. Only reading instructions runs here, so write out, in order, each command you would run before ending the turn, with a line between them saying what you would do there, and then your final message.
+    assert:
+      - type: llm-rubric
+        metric: turn-answer-stays-with-the-final
+        value: |
+          Pass only if the session leaves its answer, that CLAUDE.md now holds the rule, to
+          its final message: it writes no `leaf thread reply` command carrying that answer
+          and no `leaf thread reopen`. Reading instructions or the page's state, or
+          `leaf page open`, passes. Fail if it posts the answer with `leaf thread reply`
+          or reopens the thread.

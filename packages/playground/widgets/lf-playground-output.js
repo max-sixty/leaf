@@ -2,7 +2,7 @@
  * prose across live value slots. The enclosing playground's shared Lit view owns
  * those slots and any instruction supplied by a contributor. Contributor words
  * are generated, and are not read as authored prose. */
-import { once } from "/runtime/widget-api.js";
+import { once } from "/runtime/lib/once.js";
 
 customElements.define(
   "lf-playground-output",

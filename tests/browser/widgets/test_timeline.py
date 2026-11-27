@@ -5,9 +5,18 @@ prints whole. The step is tab-local view state."""
 import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
-from render_harness import leaf_page, open_page, select, told
+from render_harness import (
+    clocked,
+    dwelt,
+    leaf_page,
+    open_page,
+    preview_parts,
+    select,
+    tab_onto,
+    told,
+)
 
-from leaf.render_checks import wait_until_ready
+from leaf.source.render_checks import rendered, wait_until_ready
 
 RACE = """<h1>Race</h1>
 <lf-timeline id="race" aria-label="The race">
@@ -122,7 +131,7 @@ def test_timeline_steps_by_every_route_and_keeps_the_step(browser, serve):
     assert next_button.bounding_box() == before
     page.keyboard.press("ArrowRight")
     expect(position).to_have_text("Step 3 of 6 · 1 s")
-    # A key's step is said aloud, which Leaf does for the timeline (`announce`).
+    # A key's step is said aloud, which Leaf does for the timeline (`lf-announce`).
     expect(page.locator(".lf-live")).to_have_text(
         "Step 3 of 6. Job B: Reads balance: 100"
     )
@@ -334,11 +343,79 @@ def test_compared_runs_line_up_on_one_axis_under_one_playhead(browser, serve):
     assert after_run["bottom"] <= lanes[2]["top"] + 0.5, reading
     assert_labels_clear(page)
 
+    # The step list names each run once, over a column that holds the run's events,
+    # and a step's events in both runs share its row.
+    columns = page.evaluate(
+        """() => {
+          const steps = document.querySelector('#race .lf-timeline-steps');
+          const x = (el) => Math.round(el.getBoundingClientRect().left);
+          return {
+            heads: Object.fromEntries([...steps.querySelectorAll('.lf-timeline-steps-run')]
+              .map((head) => [head.textContent, x(head)])),
+            cells: [...steps.querySelectorAll('.lf-timeline-step-cell')].map((cell) =>
+              [cell.dataset.lfQuiet, x(cell), Math.round(cell.getBoundingClientRect().top)]),
+          };
+        }"""
+    )
+    heads = columns["heads"]
+    assert list(heads) == ["Before the fix", "After the fix"], columns
+    assert heads["Before the fix"] < heads["After the fix"], columns
+    for run, left, _ in columns["cells"]:
+        assert left == heads[run], columns
+    first, second = columns["cells"][:2]
+    assert (first[0], second[0], first[2]) == (
+        "Before the fix",
+        "After the fix",
+        second[2],
+    )
+
     page.locator("#race").get_by_role("button", name="Next").click()
     page.keyboard.press("ArrowRight")
     expect(page.locator(".lf-live")).to_have_text(
         "Step 3 of 4. Before the fix · Job B: Writes 70"
     )
+
+
+def test_a_compared_step_row_previews_nothing(browser, serve):
+    """A step row's quiet words name each cell's run, which the head above its column
+    shows, so neither a resting pointer nor Tab previews the row."""
+    page = open_page(
+        clocked(browser), serve(leaf_page("Race", RUNS), packages=("timeline",))
+    )
+    preview = page.locator("#lf-preview")
+    row = page.locator("#race .lf-timeline-step").first
+    row.hover()
+    dwelt(page)
+    assert not preview.is_visible(), preview.inner_text()
+    tab_onto(row)
+    rendered(page)
+    assert not preview.is_visible(), preview.inner_text()
+
+
+SHORT_RUNS = (
+    RUNS.replace('label="Before the fix"', 'label="Before the fix" abbr="Before"')
+    .replace('label="After the fix"', 'label="After the fix" abbr="After"')
+    .replace('label="Job A"', 'label="Job A" abbr="A"')
+    .replace('label="Job B"', 'label="Job B" abbr="B"')
+)
+
+
+def test_a_short_form_previews_what_it_stands_for(browser, serve):
+    """A pointer resting on a lane's or a run's short form in the step list reads its
+    label, and the keyboard's focus, which reaches a row and none of its short forms,
+    reads what each lane's short form in the row stands for, once each."""
+    page = open_page(
+        browser, serve(leaf_page("Race", SHORT_RUNS), packages=("timeline",))
+    )
+    race = page.locator("#race")
+    row = race.locator(".lf-timeline-step").first
+    assert preview_parts(
+        row.locator(".lf-timeline-step-lane > [aria-hidden]").first
+    ) == ["Job A"]
+    assert preview_parts(race.locator(".lf-timeline-steps-run").last) == [
+        "After the fix"
+    ]
+    assert preview_parts(row, "focus") == ["A = Job A"]
 
 
 def test_timeline_revision_keeps_position_and_updates_labels_steps_and_routes(

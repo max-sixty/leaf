@@ -7,4 +7,6 @@ socket user frame:
   message:
     role: user
     content: >-
-      leaf: <page> has new input, which arrives with this message.
+      leaf: <page> has new input, which arrives with this message. The user wrote
+      “while the turn runs”, “while a wait holds the lease”, “to a Codex task” and
+      “after the watcher died”

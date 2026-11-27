@@ -126,3 +126,62 @@ for (const [foreignFirst, reported] of [
     }
   });
 }
+
+// Words a field still shows within a longer text, as when a draft joins another tab's
+// words before them (runtime/records/drafts.js), have not left the screen, nor have they where a
+// re-render then replaces that field with one showing the same text; words the new text
+// leaves out have.
+for (const replaced of [false, true]) {
+  test(`words a join keeps in their field stay on the screen${replaced ? " across a re-render" : ""}`, () => {
+    const dom = new JSDOM("<textarea></textarea>", {
+      runScripts: "outside-only",
+    });
+    const { window } = dom;
+    const context = dom.getInternalVMContext();
+    const listeners = new Map();
+    const frames = [];
+    const findings = [];
+    let edit;
+    window.lfWatchPlatform = {
+      frame: (run) => frames.push(run),
+      later: (run) => run(),
+      listen: (_owner, type, run) => listeners.set(type, run),
+    };
+    window.lfInputWork = {
+      current: () => null,
+      subscribeEdits: (run) => (edit = run),
+      subscribe: () => {},
+      dispatching: () => false,
+    };
+    window.__leafWatchFinding = (finding) => findings.push(finding);
+    const field = window.document.querySelector("textarea");
+    field.checkVisibility = () => field.isConnected;
+    try {
+      vm.runInContext(source, context);
+      const words = "Keep this draft";
+      const joined = `Theirs\n\n${words}`;
+      edit({ node: field, order: 1, event: { type: "beforeinput" } });
+      field.value = words;
+      listeners.get("input")({ isTrusted: true, composedPath: () => [field] });
+      frames.shift()();
+      field.value = joined;
+      frames.shift()();
+      assert.equal(findings.length, 0);
+      let shown = field;
+      if (replaced) {
+        shown = window.document.createElement("textarea");
+        shown.checkVisibility = () => shown.isConnected;
+        shown.value = joined;
+        field.replaceWith(shown);
+        frames.shift()();
+        assert.equal(findings.length, 0);
+      }
+      shown.value = "Theirs";
+      frames.shift()();
+      assert.equal(findings.length, 1);
+      assert.equal(findings[0].words, words);
+    } finally {
+      dom.window.close();
+    }
+  });
+}

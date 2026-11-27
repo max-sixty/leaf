@@ -130,7 +130,7 @@ variants:
         queuing or concurrency. We care about the lower overall mean, and want to
         understand when that choice would change.
 
-        Write the decision page in the initialized Leaf page directory.
+        Write the decision page in the Leaf page directory.
     assert:
       - type: llm-rubric
         metric: explores-changing-mix

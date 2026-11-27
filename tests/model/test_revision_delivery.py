@@ -8,19 +8,11 @@ import pytest
 import tinycss2
 from interact_support import PAGE, package_path, page_packages
 
-from leaf import revisioning as revisioning_model
-from leaf.exporting import AssetInliner, ReadableAssets
-from leaf.files import revision_path
-from leaf.revision_artifact import (
-    ArtifactError,
-    Resource,
-    capture_artifact,
-    capture_local_resource,
-    read_artifact,
-    resource_dependencies,
-    rewrite_css,
-)
-from leaf.revision_delivery import (
+from leaf.base.files import revision_path
+from leaf.base.schema import ASSETS
+from leaf.pages.exporting import AssetInliner, ReadableAssets
+from leaf.records import revisioning as revisioning_model
+from leaf.serving.revision_delivery import (
     Delivery,
     DeliveryAddress,
     compose_document,
@@ -29,9 +21,17 @@ from leaf.revision_delivery import (
     mark_declared,
     rebase_document,
 )
-from leaf.runtime_selection import executing
-from leaf.schema import ASSETS
-from leaf.structure import SourceDocument
+from leaf.source.capture_refusals import ArtifactError
+from leaf.source.revision_artifact import (
+    Resource,
+    capture_artifact,
+    capture_local_resource,
+    read_artifact,
+    resource_dependencies,
+)
+from leaf.source.runtime_selection import executing
+from leaf.source.structure import SourceDocument
+from leaf.source.styles import rewrite_css
 
 PAGE_ROOT = "/p/user"
 ROOT = PAGE_ROOT + "/revisions/r1-0123456789abcdef"
@@ -44,7 +44,7 @@ def test_declared_markdown_body_is_delivered_formatted_with_exact_source_retaine
         source,
         {
             "lf-editable": {
-                "text-format": "markdown",
+                "content": "markdown",
             }
         },
         {},
@@ -69,40 +69,13 @@ def test_declared_markdown_body_is_delivered_formatted_with_exact_source_retaine
     assert "data-lf-prepaint" in body.attrs
 
 
-def test_a_written_markdown_file_is_delivered_rendered_as_a_file():
-    """A written <pre> whose notation an attribute names (`prepaint`) first paints
-    as the Markdown its module will draw: a file's soft breaks are spaces, not the
-    hard breaks Leaf's own words keep. Another notation, or no written text, paints
-    nothing."""
-    registry = {
-        "lf-doc": {
-            "prepaint": "preview",
-        }
-    }
-    written = "**Fixed** a crash\nwhen `--config` is missing."
-    source = (
-        f'<lf-doc id="md" preview="markdown"><pre>{written}</pre></lf-doc>'
-        '<lf-doc id="page" preview="html"><pre>&lt;p&gt;Hi&lt;/p&gt;</pre></lf-doc>'
-        '<lf-doc id="bound" preview="markdown" source="notes"></lf-doc>'
-    )
-    tree = SourceDocument(mark_declared(source, registry, {})).tree
-    [body] = tree.select("#md > .lf-markdown-body")
-    assert len(tree.select(".lf-markdown-body")) == 1
-    assert "data-lf-prepaint" in body.attrs
-    assert "data-lf-source-words" not in body.attrs
-    assert not body.find_all("br")
-    select_one_result = body.select_one("strong")
-    assert select_one_result is not None
-    assert select_one_result.text == "Fixed"
-
-
 def test_delivered_markdown_refuses_unsafe_links_and_images_before_runtime_loads():
     source = '<lf-editable id="note"><pre>[unsafe link](javascript:alert(1)) ![unsafe image](data:text/html,boom) [safe link](https://example.com)</pre></lf-editable>'
     delivered = mark_declared(
         source,
         {
             "lf-editable": {
-                "text-format": "markdown",
+                "content": "markdown",
             }
         },
         {},
@@ -495,7 +468,7 @@ def test_a_package_replacement_of_a_public_provider_is_served(page_dir):
     the layer's file wins over the runtime's, and the revision captures neither."""
     from click.testing import CliRunner
 
-    from leaf import cli as cli_model
+    from leaf.commands import cli as cli_model
 
     provider = "/vendor/floating-ui.esm.js"
     own = b"export const computePosition = () => 'the package\\'s own';"
@@ -625,7 +598,7 @@ def test_two_leaf_versions_capture_one_source_as_the_same_revision(tmp_path):
     one, and each composes its own vocabulary over the page's selection. The capture
     names only what the page owns, so the source is one revision under either and
     an open tab keeps its document; the page's own declarations still replace it."""
-    layer = {"generation": "g1", "packages": [], "theme": None}
+    layer = {"generation": "g1", "packages": []}
 
     def capture(description):
         registry = {"$layer": layer, "lf-note": {"description": description}}
@@ -768,8 +741,8 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     source = (
         "<!doctype html><html><head><title>T</title></head><body>"
         '<header id="banner" data-width="wide">Banner</header><main data-width="available">'
-        '<aside class="callout warn" id="note">Paused.</aside>'
-        '<aside class="callout" id="chart-note" data-width="wide">Chart.</aside>'
+        '<aside class="lf-callout warn" id="note">Paused.</aside>'
+        '<aside class="lf-callout" id="chart-note" data-width="wide">Chart.</aside>'
         '<lf-zone id="queue" label="Queue"><div><lf-label>new</lf-label></div></lf-zone>'
         '<lf-board id="board" data-width="available"></lf-board>'
         '<lf-feed id="feed" class="selected"></lf-feed><section id="wide" data-width="wide"></section>'
@@ -849,7 +822,7 @@ def test_markdown_prepaint_has_task_checkboxes_bare_links_and_literal_html():
         f"<lf-editable><pre>{escape(source)}</pre></lf-editable>",
         {
             "lf-editable": {
-                "text-format": "markdown",
+                "content": "markdown",
             }
         },
         {},
@@ -875,26 +848,24 @@ def test_markdown_prepaint_has_task_checkboxes_bare_links_and_literal_html():
         ('<code class="language-markdown">**Fixed** a crash</code>', "Fixed a crash"),
         # A template's contents, which the browser keeps out of `textContent`.
         ("**Fixed**<template>**inert**</template> a crash", "Fixed a crash"),
+        # A soft break, which a Markdown file reads as a space, not a line.
+        ("**Fixed** a\ncrash", "Fixed a\ncrash"),
     ],
 )
-def test_a_written_markdown_file_first_paints_the_text_its_module_reads(body, painted):
-    """The first paint of a written Markdown file reads its `<pre>` as the module
-    will, the browser's `textContent`, so the page doesn't change words or size as the
-    module draws over it."""
+def test_a_markdown_body_first_paints_the_text_its_module_reads(body, painted):
+    """The first paint of a Markdown body reads its `<pre>` as the module will, the
+    browser's `textContent`, and as a Markdown file, so the page doesn't change words
+    or size as the module draws over it."""
     delivered = mark_declared(
-        '<lf-text-document id="notes" label="NOTES.md" preview="markdown">'
-        f"<pre>{body}</pre></lf-text-document>",
-        {
-            "lf-text-document": {
-                "prepaint": "preview",
-            }
-        },
+        f'<lf-editable id="notes"><pre>{body}</pre></lf-editable>',
+        {"lf-editable": {"content": "markdown"}},
         {},
     )
     rendering = SourceDocument(delivered).tree.select_one(".lf-markdown-body")
     assert rendering is not None
     assert rendering.text.strip() == painted
     assert [strong.text for strong in rendering.find_all("strong")] == ["Fixed"]
+    assert not rendering.find_all("br")
 
 
 def test_source_fallback_marks_derive_from_open_registry_content_declarations():
@@ -992,7 +963,7 @@ def test_exhibit_paint_follows_the_occurrence_condition():
 def test_stylesheet_cors_mark_preserves_an_unquoted_trailing_slash():
     import turbohtml
 
-    from leaf.revision_delivery import rebase_document
+    from leaf.serving.revision_delivery import rebase_document
 
     delivered = rebase_document(
         '<link rel=stylesheet href="/theme.css" title=a/>', lambda path: path

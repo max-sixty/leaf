@@ -19,17 +19,18 @@ from interact_support import (
     publish,
 )
 
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import reports as reports_model
-from leaf import revisioning as revisioning_model
-from leaf import structure as structure_model
-from leaf import thread as thread_model
-from leaf import vendoring as vendoring_model
-from leaf.page_snapshot import capture_page_snapshot
-from leaf.registry import storage as registry_storage
-from leaf.render_gate import preview as render_gate_model
+from leaf.agents import thread as thread_model
+from leaf.base import files as files_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.pages import vendoring as vendoring_model
+from leaf.pages.page_snapshot import capture_page_snapshot
+from leaf.pages.render_gate import preview as render_gate_model
+from leaf.records import reports as reports_model
+from leaf.records import revisioning as revisioning_model
+from leaf.source import structure as structure_model
+from leaf.source import vocabulary as vocabulary_model
+from leaf.source.registry import storage as registry_storage
 from leaf_dev.page_fixtures import package_selection_args
 from model.interact_contract import _stateful_page_declaration, vocabulary
 
@@ -167,7 +168,9 @@ def test_init_allows_a_logged_report_the_incoming_layer_no_longer_speaks(page_di
     task.pop("verbs")
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
-    (overlay / "registry.json").write_text(json.dumps({"lf-test-task": task}))
+    # The task's goal role reads the verb, so the layer retires the role with it.
+    retired = {"lf-test-task": task, "$work": {"widgets": {"lf-test-task": None}}}
+    (overlay / "registry.json").write_text(json.dumps(retired))
 
     result = CliRunner().invoke(
         cli_model.cli,
@@ -186,12 +189,7 @@ def test_init_allows_a_logged_report_the_incoming_layer_no_longer_speaks(page_di
 
 def test_init_allows_to_orphan_a_logged_visual_anchor(page_dir):
     """A provider can remove a visual target without deleting its original comment."""
-    (page_dir / "index.html").write_text(
-        FLOW_PAGE.replace(
-            '<lf-diagram id="flow">',
-            '<lf-diagram id="flow" parts="all">',
-        )
-    )
+    (page_dir / "index.html").write_text(FLOW_PAGE)
     publish(page_dir)
     append_carried_log_record(
         page_dir,
@@ -287,7 +285,9 @@ def test_revendoring_serializes_with_a_worker_report_entering_the_log(
     task.pop("verbs")
     overlay = page_dir.parent / ".leaf"
     overlay.mkdir(parents=True)
-    (overlay / "registry.json").write_text(json.dumps({"lf-test-task": task}))
+    # The task's goal role reads the verb, so the layer retires the role with it.
+    retired = {"lf-test-task": task, "$work": {"widgets": {"lf-test-task": None}}}
+    (overlay / "registry.json").write_text(json.dumps(retired))
     _, refusal = assert_revendor_serializes_writer(
         page_dir,
         monkeypatch,
@@ -303,7 +303,7 @@ def test_revendoring_serializes_with_a_worker_report_entering_the_log(
         "report",
         "activation",
     ]
-    assert "verbs" not in registry_storage.load_registry(page_dir)["lf-test-task"]
+    assert "verbs" not in vocabulary_model.load_registry(page_dir)["lf-test-task"]
 
 
 @pytest.mark.parametrize("in_sample", [False, True])
@@ -352,10 +352,8 @@ def test_revendoring_can_change_thread_widget_vocabulary(
     options["verbs"]["decide"] = {
         "decides": True,
         "detail": {
-            "type": "object",
             "properties": {"outcome": {"enum": ["keep"]}},
             "required": ["outcome"],
-            "additionalProperties": False,
         },
         "unit": "widget",
     }

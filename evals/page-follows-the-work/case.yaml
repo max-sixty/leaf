@@ -87,7 +87,7 @@ vars:
     ```html
         <main class="layout-column">
               <h1 id="title">Why the inspect row's radios misaligned</h1>
-              <p class="lede" id="verdict">
+              <p class="lf-lede" id="verdict">
                 Both faults you saw in the radios were Leaf's, in the face every authored radio
                 wears (<code>lf-choice</code>), and so was the cut-off bar under the rail. All
                 three are fixed in <a href="https://github.com/max-sixty/leaf/pull/6110">#6110</a>. The caption standing higher
@@ -105,7 +105,7 @@ vars:
                 </p>
                 <figure id="baseline-drawing">
                   <svg
-                    class="drawing"
+                    class="lf-drawing"
                     width="380"
                     viewBox="0 0 380 236"
                     role="img"

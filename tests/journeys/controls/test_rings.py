@@ -5,10 +5,10 @@ import re
 import pytest
 from interact_support import element_declaration
 from playwright.sync_api import expect
-from render_cases_layout import current_location_ring, ring_faults, rings_drawn
 from render_harness import leaf_page, open_page
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
+from leaf_dev.rings import current_location_ring, ring_faults, rings_drawn
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -47,7 +47,9 @@ def test_controls_show_keyboard_focus_without_ringing_pointer_activation(
             layer_registry={"lf-shadow-focus": declaration},
             layer_widgets={
                 "lf-shadow-focus.js": """
-import {offerAction, once, shadowStage} from '/runtime/widget-api.js';
+import {shadowStage} from '/runtime/widget-api.js';
+import {offerAction} from '/runtime/lib/controls.js';
+import {once} from '/runtime/lib/once.js';
 import '/vendor/webawesome.esm.js';
 customElements.define('lf-shadow-focus', class extends HTMLElement {
   connectedCallback() {

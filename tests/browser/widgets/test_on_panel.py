@@ -10,8 +10,8 @@ from render_cases_interaction import (
     ALL_OBLIGATIONS_IN_ORDER,
     CHANGE_SHAPES_PAGE,
     OBLIGATION_WITH_CONTEXT_PAGE,
-    OBLIGATIONS_PAGE,
     ON_ITEM_SAYS,
+    serve_obligations,
 )
 from render_cases_navigation import source_revision
 from render_harness import (
@@ -34,9 +34,10 @@ from render_harness import (
 )
 
 from browser.navigation import expect_walk_position
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
+from leaf.source.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import open_on_me as open_on_me_by_pointer
 from leaf_dev.browser import panel_tab
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -45,25 +46,24 @@ ON_ME = panel_view("queue")
 
 
 def open_on_me(page):
-    """Open On Me by its mark, unless it stands open, and return its view; another
-    view standing open is put away first, by the ✕ in the mark's seat."""
+    """Open On Me by pointer, unless it stands open, and return its view; another view
+    standing open is put away first, by its ✕."""
     shown = page.locator(PANEL).get_attribute("data-lf-open")
-    if shown not in (None, "queue"):
+    if shown not in (None, "menu", "queue", "threads"):
         page.locator(".lf-fp-close").click()
         panel_settled(page, open=False)
-    if shown != "queue":
-        page.locator(".lf-fp-on-user").click()
+    open_on_me_by_pointer(page)
     panel_settled(page, view="queue")
     return page.locator(ON_ME)
 
 
 def on_card(page, at):
     """The On Me card for the obligation `at` names, such as `widget:sug-refill`."""
-    return page.locator(f'{ON_ME} .lf-fp-on-item[data-lf-key=\'["widget","{at}"]\']')
+    return page.locator(f"{ON_ME} .lf-fp-on-item[data-lf-key='{at}']")
 
 
 def test_on_me_lists_open_and_answered_obligations(browser, serve):
-    """The panel's On Me mark lists every open obligation under On Me, in document order, and
+    """The panel's On Me lists every open obligation, in document order, and
     every answered one folded under Done with its current answer, so the user can review
     and revise. A twelfth widget joins by declaring `awaits`.
 
@@ -71,11 +71,11 @@ def test_on_me_lists_open_and_answered_obligations(browser, serve):
     count is the closed view's, and a hidden list of buttons is a set of controls no
     user can press — which the press sweep sees as the page's control set changing
     under it."""
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    page = open_page(browser, serve_obligations(serve))
     resized(page, 1920, 900)
     assert page.evaluate(ON_ITEM_SAYS) == [], "a closed view holds no cards"
 
-    page.locator(".lf-fp-on-user").focus()
+    page.locator(".lf-fp-leaf").focus()
     page.keyboard.press("Enter")
     panel_settled(page, view="queue")
     show_done(page)
@@ -93,7 +93,6 @@ def test_on_me_lists_open_and_answered_obligations(browser, serve):
         ("widget:honored", "done"),
     ]
     for card in cards:
-        assert card["kind"] == "widget", card
         if card["list"] == "you":
             assert card["w"] > 100 and card["h"] > 20, (
                 f"{card['id']}'s card has no size"
@@ -181,17 +180,25 @@ Adds --dry-run to every mutating command.
     )
     page = open_page(browser, url)
     door = url.rsplit("/versions/", 1)[0] + "/api/event"
-    for widget, action, detail in [
-        ("note", "edit", {"value": "Adds --dry-run to every command."}),
-        ("cache", "add", {"option": "cache-redis", "text": "**Redis** in front"}),
-        ("cache", "choose", {"value": ["cache-redis"]}),
-        ("tags", "answer", {}),
+    # Each with the word its widget sends: an added option, like a tune, answers
+    # nothing until the pick or the choice that follows it.
+    for widget, action, detail, answered in [
+        ("note", "edit", {"value": "Adds --dry-run to every command."}, True),
+        (
+            "cache",
+            "add",
+            {"option": "cache-redis", "text": "**Redis** in front"},
+            False,
+        ),
+        ("cache", "choose", {"value": ["cache-redis"]}, True),
+        ("tags", "answer", {}, True),
         # The controls draw the tune in force, which submitting records first.
-        ("tone", "tune", {"values": {"format": "strip"}}),
+        ("tone", "tune", {"values": {"format": "strip"}}, False),
         (
             "tone",
             "choose",
             {"values": {"format": "strip"}, "instruction": "Build the strip one."},
+            True,
         ),
     ]:
         posted = post_event(
@@ -203,6 +210,7 @@ Adds --dry-run to every mutating command.
                 "widget": widget,
                 "action": action,
                 "detail": detail,
+                "answered": answered,
             },
         )
         assert posted.ok, posted.text()
@@ -233,17 +241,17 @@ def test_obligation_cards_keep_identity_and_walk_order_when_the_live_dom_moves(
     after those still on it, as the walk takes it last. That item leaves its place's
     group for the whole page's, so its card is drawn afresh in that group's box and
     keeps focus; every other card keeps its node."""
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    page = open_page(browser, serve_obligations(serve))
     open_on_me(page)
     show_done(page)
     cards = page.locator(f"{ON_ME} .lf-fp-on-item")
     expect(cards).to_have_count(len(ALL_OBLIGATIONS_IN_ORDER))
     order = [
-        '["widget","widget:live-question"]',
-        '["widget","widget:sug-refill"]',
-        '["widget","widget:t-baffles-review"]',
-        '["widget","widget:t-bath-choice"]',
-        '["widget","widget:honored"]',
+        "widget:live-question",
+        "widget:sug-refill",
+        "widget:t-baffles-review",
+        "widget:t-bath-choice",
+        "widget:honored",
     ]
 
     page.evaluate(
@@ -257,7 +265,7 @@ def test_obligation_cards_keep_identity_and_walk_order_when_the_live_dom_moves(
           window.__lfObligationCards = new Map(cards.map(card => [card.dataset.lfKey, card]));
           const honored = document.querySelector('#honored-decision');
           document.querySelector('#live-question-decision').before(honored);
-          window.__lfObligationCards.get('["widget","widget:sug-refill"]').focus();
+          window.__lfObligationCards.get('widget:sug-refill').focus();
           await presentDocument();
         }"""
     )
@@ -293,7 +301,7 @@ def test_obligation_cards_keep_identity_and_walk_order_when_the_live_dom_moves(
         ).locator(":scope > .lf-rows-head .lf-row-main")
     ).to_have_text("The whole page")
     assert cards.evaluate_all(
-        """items => items.every(item => item.dataset.lfKey === '["widget","widget:sug-refill"]'
+        """items => items.every(item => item.dataset.lfKey === 'widget:sug-refill'
           || window.__lfObligationCards.get(item.dataset.lfKey) === item)"""
     )
 
@@ -376,19 +384,26 @@ def test_an_answered_boxless_obligation_is_taken_back_from_its_card(browser, ser
 
 
 def test_on_me_s_tabs_stand_where_a_view_names_itself(browser, serve):
-    """On Me's tabs name its view, so the first starts its controls, where another
-    view's way back stands, rather than standing among the presses at their end; no
-    name bar stands over the view, the heading naming it to assistive tech alone. The
-    strip holding the tabs reaches past them for their focus ring, so the tab is read."""
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    """On Me's tabs name its view, so the first starts its controls' line, its words on
+    the panel's text line and its frame on the field's edge, rather than standing among
+    the presses at their end; no name bar stands over the view, the heading naming it to
+    assistive tech alone. The strip holding the tabs reaches past them for their focus
+    ring, so the tab is read."""
+    page = open_page(browser, serve_obligations(serve))
     resized(page, 1440, 900)
     open_on_me(page)
-    start, tabs = page.locator(".lf-fp-controls").evaluate(
-        """c => [c.getBoundingClientRect().left
-            + parseFloat(getComputedStyle(c).paddingLeft),
-          c.querySelector('.lf-fp-filters > .lf-fp-tab').getBoundingClientRect().left]"""
+    start, words, frame, field = page.locator(".lf-floating-panel").evaluate(
+        """p => {
+          const c = p.querySelector('.lf-fp-controls');
+          const tab = c.querySelector('.lf-fp-filters > .lf-fp-tab');
+          return [c.getBoundingClientRect().left + parseFloat(getComputedStyle(c).paddingLeft),
+            tab.querySelector('.lf-fp-tab-words').getBoundingClientRect().left,
+            tab.getBoundingClientRect().left,
+            p.querySelector('.lf-fp-field').getBoundingClientRect().left];
+        }"""
     )
-    assert tabs == start, (tabs, start)
+    assert words == start, (words, start)
+    assert frame == field, (frame, field)
     assert page.locator(".lf-fp-head").bounding_box()["height"] == 0
 
 
@@ -399,7 +414,7 @@ def test_an_on_list_the_page_cannot_read_counts_nothing(browser, serve):
     page = browser.new_page(viewport={"width": 1440, "height": 900})
     watched(page)
     page.route("**/api/state*", refuse)
-    page.goto(serve(OBLIGATIONS_PAGE), wait_until="load")
+    page.goto(serve_obligations(serve), wait_until="load")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     on_me = open_on_me(page)
     expect(on_me.locator(".lf-rows-empty")).to_have_text(
@@ -723,7 +738,7 @@ def test_on_me_follows_a_name_or_an_id_the_page_changes(browser, serve):
     page.wait_for_function(
         """() => [...document.querySelectorAll(
           '.lf-fp-view[data-lf-route="queue"] .lf-fp-on-item')].map(card => card.dataset.lfKey)
-          .join() === '["widget","widget:c"],["widget","widget:b"],["widget","widget:a"]'"""
+          .join() === 'widget:c,widget:b,widget:a'"""
     )
 
 
@@ -799,9 +814,9 @@ CARD_OPTIONS_PAGE = leaf_page(
     """<h1 id="title">Sidebar</h1>
 <lf-group id="stick-ask" label="How should a long sidebar stick?"><h2 id="stick-ask-h">How should a long sidebar stick?</h2>
 <lf-options id="stick">
-  <lf-option id="stick-box" label="Wrap the blocks in one box" recommended><small class="tag">two days</small> <strong>Wrap the blocks in one box</strong>
+  <lf-option id="stick-box" label="Wrap the blocks in one box" recommended><small class="lf-tag">two days</small> <strong>Wrap the blocks in one box</strong>
     One mechanism for any number of <em>blocks</em>.
-    <svg class="drawing" viewBox="0 0 10 10"><text x="1" y="8">fig</text></svg></lf-option>
+    <svg class="lf-drawing" viewBox="0 0 10 10"><text x="1" y="8">fig</text></svg></lf-option>
   <lf-option id="stick-aside" label="Stick the aside itself"><strong>Stick the aside itself</strong> It covers the
     footer.</lf-option>
   <lf-option id="stick-rule" label="Keep the one-block rule">    <strong>Keep the one-block rule</strong> <p>Authors keep writing one block.</p></lf-option>
@@ -956,7 +971,7 @@ def test_a_choice_in_a_thread_the_page_shows_stays_there_with_on_me_open(
             '<p id="tail">The rollout can proceed once the line is reviewed.</p>',
         )
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         'diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-return "old"\n+return "new"\n',
@@ -1142,32 +1157,33 @@ def test_an_answer_about_a_decision_rides_on_the_decisions_card(browser, serve):
     page.keyboard.press("Escape")
     view = open_on_me(page)
     expect(
-        view.locator(f'.lf-fp-on-item[data-lf-key=\'["message","message:{reply}"]\']')
+        view.locator(f".lf-fp-on-item[data-lf-key='message:{reply}']")
     ).to_be_visible()
 
 
 def test_a_decision_answered_on_the_page_keeps_the_answer_it_carries_listed(
     browser, serve
 ):
-    """Answered on the page, a decision keeps its row, and the agent's answer it
-    carries, until the server's reading of the choice moves them: the browser keeps a
-    widget record's status as the server last read it, so nothing it carried drops off
-    On Me in between."""
+    """Answered on the page, a decision moves off On Me in the press's own task, and its
+    row keeps the agent's answer it carries until the server's reading of the choice
+    moves that answer, so nothing it carried drops out of the queues in between."""
     url = serve(TWO_DECISIONS_PAGE)
     _, reply = thread_about_the_timeline(serve.page_dir)
     page = open_page(browser, url)
-    expect(page.locator(".lf-fp-on-user")).to_have_text("2")
+    expect(page.locator(".lf-fp-leaf .lf-fp-badge")).to_have_text("2")
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     page.locator("#tl-land").click()
     holding(page, held, 1, "the held choice")
-    on_me = """async () => (await window.__lfWidgetApi()).readQueues().on_user
-      .map((row) => [row.id, row.also])"""
-    assert sorted(page.evaluate(on_me)) == [
-        ["widget:ship", []],
-        ["widget:timeline", [f"message:{reply}"]],
-    ]
-    expect(page.locator(".lf-fp-on-user")).to_have_text("2")
+    queues = """async () => {
+      const queues = (await window.__lfWidgetApi()).readQueues();
+      const rows = (list) => list.map((row) => [row.id, row.also]);
+      return {on_user: rows(queues.on_user), done: rows(queues.done)};
+    }"""
+    held_queues = page.evaluate(queues)
+    assert held_queues["on_user"] == [["widget:ship", []]]
+    assert ["widget:timeline", [f"message:{reply}"]] in held_queues["done"]
+    expect(page.locator(".lf-fp-leaf .lf-fp-badge")).to_have_text("1")
     held[0].continue_()
     page.unroute("**/api/event")
 

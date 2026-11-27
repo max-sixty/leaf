@@ -2,77 +2,78 @@
 
 Read with [packages.md](packages.md), which holds the package contract and how styles
 compose. A theme is a page's look: a package whose rules style the page as a whole,
-whether or not it also declares widgets. Defaults that Layouts and the page's sheet
-should outrank, such as element rules, belong in `defaults.css`, in the layer with
-Leaf's own defaults; rules meant to win over widget defaults and Layouts belong in
-`overrides.css`. Idioms belong in either, declared in the package's registry.
+whether or not it also declares widgets. Its rules for the page's own content, such
+as element rules and the tokens it sets on `:root`, belong in `theme.css`, below
+Layouts, Leaf's rules for what it draws and the page's `base` layer, so a page's CSS
+framework outranks them as it would any site's theme. Its rules for what
+Leaf draws, such as an idiom's or a widget's look, belong in `defaults.css`, and rules
+meant to win over widget defaults and Layouts in `overrides.css`. Idioms are declared
+in the package's registry.
 
-## Personal themes
+## A page's theme
+
+A page's theme is one of the packages it selects. Leaf composes the packages a page
+lists, in that order, and adds no theme of its own, so a page that selects none starts
+from the browser's defaults, as `page-authoring.md`, "Style the page", describes.
 
 A theme styles the page's own native controls as well as its markup, so they stand
 beside Leaf's controls as one set. Leaf bundles one theme, `reading`: the reading look,
-which styles the body's type and colour and the idioms such as `.callout`, and turns on
-the reading face markup wears in Leaf's own surfaces (headings, prose, lists, tables,
+which styles the body's type and colour and turns on the reading face markup wears in
+Leaf's own surfaces (headings, prose, lists, tables,
 code, quotes, figures, disclosures, definitions, rules and pictures, with a wide table
-or code block scrolling inside itself and a `language-…` code block coloured by its
-tokens) by setting `--lf-reading-face: 1` on the root. The face also gives the page's
-own buttons, fields and labelled choices the faces of Leaf's own controls (the
-vocabulary's `button` and `input, select` entries), while a control Leaf
-builds keeps its own. The face's rules rank below every other rule of `lf-base`, so a
+scrolling inside itself, a code block's long lines wrapping, and a `language-…` code
+block coloured by its tokens) by setting `--lf-reading-face: 1` on the root. The face
+also gives the page's own buttons, fields and labelled choices the faces of Leaf's own
+controls (the vocabulary's `button` and `input, select` entries), while a control Leaf
+builds keeps its own. The face's rules rank below every other rule of `lf-theme`, so a
 theme's or package's rule for one of those elements outranks them whatever its weight,
-and a personal theme restyles the page's controls through the tokens they read or with
-rules of its own. A new page takes it unless the user names another default. A page that
-takes none (`--no-theme`) starts from the browser's defaults and Leaf's tokens: nothing
-of the look reaches it, its tables, code blocks and controls included, while Leaf's
-widgets, threads and panel keep their own faces, in the browser's own canvas and text
-colours until the page sets `--lf-paper` and `--lf-ink`. A page or a theme may still set
+and another theme restyles the page's controls through the tokens they read or with
+rules of its own. A page or a theme may still set
 `--lf-reading-face: 1` on any box to give the markup in it that face, and
 `--lf-reading-face: initial` on a box takes the face from the markup in it, as for
 content with its own design inside a themed page; comments still anchor there. Each of
 the face's rules reads the element's parent, so the box itself still wears the face: set
 the input on a wrapper around the table or code block, not on it.
 
-A user can also keep several named themes and choose one default. Each is an ordinary
-installed package; its `instructions/author.md` describes the tasks it suits. Install
-the package with `leaf package install <directory>`, then list its name in
-`~/.config/leaf/themes.toml` (`$XDG_CONFIG_HOME/leaf/themes.toml` when set):
+A theme of your own is an ordinary package, often a single `theme.css`. How the
+page selects it decides what the theme has to state:
 
-```toml
-themes = ["editorial", "dense"]
-default = "editorial"
-```
+- To build on `reading`, the page selects `reading` and then the theme: `leaf page init
+  <page> --package reading --package dense`. A later package's rule wins a tie with an
+  earlier one's, so the theme states only what it changes, such as its three colours, a
+  face and a corner.
+- To replace `reading`, the page selects the theme without it: `leaf page init <page>
+  --package editorial`. The theme then states the whole look.
 
-A personal theme builds on the reading look: `reading` composes first and the theme
-after it, so a theme states only what it changes, such as its three colours, a face
-and a corner, and its pages keep the look's idioms, such as `.callout` and `.tag`. A
-theme's rule wins a tie with the reading look's. A look that wants none of `reading`
-is a content package on a page that takes no theme: `leaf page init <page> --no-theme
---package dense`.
+Either way its pages keep Leaf's idioms, such as `.lf-callout` and `.lf-tag`, which
+Leaf draws on every page. Leaf's rules for them stand in `lf-base`, above the page's
+`base` layer and every rule of a theme's `theme.css`, and below every other rule of
+`lf-base`, so a theme restyles an idiom from its `defaults.css`, where a rule for the
+idiom's element, such as `.lf-tag` or `dl.lf-facts dt`, outranks Leaf's whatever its
+weight.
 
-`leaf theme list` returns the available choices, default and author instructions.
-The author's selection follows the user's request first, then the task and those
-instructions; leaving it unspecified uses the default on a new page. Select one with
-`leaf page init <page> --theme dense`. Content packages remain independent; the
-reading look and the selected theme compose right after Leaf's default package and
-before them, so a
-project package can restate a theme's idiom, such as `.callout`, and its rules win a
-tie with the theme's.
+Select a page's theme ahead of its other packages, so that a package's rule wins a tie
+with the theme's and a project package can restate what the theme declares.
+Re-initializing a page with `--package` replaces every package it selects, its theme
+among them, so name the theme again with each package the page keeps.
 
-A page captures its selected theme when initialized. Re-initializing preserves that
-choice, even if the user's default changes; an explicit `--theme` replaces it.
-`--no-theme` takes none, and a later plain init keeps none; `--no-packages` clears
-only the content packages.
-Developer fixture builders use an empty configuration home, so examples, the website
-and demo recordings take `reading` rather than the developer's personal default.
-`leaf page state <page>` exposes the effective name and whether it was explicit or
-default under `layer.theme`.
+A theme's `instructions/author.md` opens by saying when to select it and whether it
+follows `reading` or replaces it, and `leaf package list` prints that paragraph beside
+every other package the machine can select. The author's selection follows the user's
+request first, then the task and those instructions. A theme the user wants on every
+page is one they install with `leaf package install <directory>`: have its `author.md`
+say so, and save the preference in your harness's memory, where later sessions read it
+(the main skill's "Follow the user's preferences").
 
-A page records its theme's name, and the Leaf serving, checking or exporting it
-composes the theme package it finds by that name, so each of those needs the package
-installed; an export carries the theme's bytes. Live samples inherit their parent's
-layer; a sample may deliberately show different theme inputs as a style reference
-(`live-samples.md`). Applying the catalogue's current default to already-authored
-pages remains a possible later change.
+To try a theme while writing it, select its directory, which needs no install: `leaf
+page init <page> --package reading --package ./my-theme`.
+
+A page records the names of the packages it selects, and the Leaf serving, checking or
+exporting it composes the packages it finds by those names. So a theme selected by name
+has to be installed wherever the page is served, checked or exported, while one
+selected by path is copied into the page (`packages.md`, "Package reach"). An export
+carries the theme's rules. Live samples inherit their parent's layer; a sample may
+deliberately show different theme inputs as a style reference (`live-samples.md`).
 
 ## A theme change
 
@@ -101,7 +102,9 @@ height to fill (`module-scroll-and-motion.md`, "Reading regions"), and
 The root supplies `--lf-ground` to the page and Leaf's surfaces alike: the page's
 `--lf-paper`, which is the browser's `Canvas` until a theme or the page sets it. The
 reading theme paints the window that colour, and a look of your own on a page that
-takes no theme paints `html` the same way. Each solid containing surface
+selects no theme paints `html` the same way. The reading theme paints `body` in it too,
+so a theme built on `reading` draws a texture behind the page on `body`, since one on
+`html` alone lies under the body's ground. Each solid containing surface
 overrides `--lf-ground`; both it and its opaque controls paint
 `background: var(--lf-ground)`. Hover and selection states change the same token. Transparent
 wrappers inherit it; a surface becoming transparent restores `--lf-ground: inherit`.
@@ -115,6 +118,11 @@ contains floats, declares `--lf-block-frame: trim`: its edge margins are trimmed
 wide content may take the page's width. The trim reaches through a plain wrapper at the
 edge, which declares nothing. A flex row or grid declares `--lf-holds-edge: 1` to stop
 the trim, which would otherwise take its first item's margin and not its neighbours'.
+
+A box that frames a drawing in the drawing's own coordinates, such as a capture shown
+at full size or a timeline panned inside its viewport, declares `--lf-drawing: 1`. The
+render check then reads content the box cuts as the drawing's framing, and still
+reports a control the user can't reach there.
 
 Shared CSS selects widgets by what their registry entries declare, which delivery
 writes onto each element as `[data-lf-space]`, `[data-lf-bound]`, `[data-lf-height]`,
@@ -146,17 +154,25 @@ Leaf scrolls and keeps the user's place in the first match outside nested bounds
 or in the host while no match exists. The declaration does not inherit. Declare
 `--lf-holds-height: 1` on the scrolling box (`packages.md`, "Seeing it",
 `grows-with-content`). A box that scrolls sideways
-needs nothing: Leaf fades its content at any edge with more beyond.
+needs nothing: Leaf fades its content at any edge with more beyond. A box can
+change the fade, as a diagram does: `--lf-more-fade` sets how deep it runs, and
+`--lf-more-fade-to`, a colour, sets by its alpha how much of the content still shows
+at the edge.
 
-Leaf rings every box that holds visible focus, at a control's gap outside it. A box
+Leaf rings every box that holds visible focus, at a control's gap outside it, and its
+own word and symbol presses one band inside their edge. A box
 whose ring belongs elsewhere declares `--lf-ring-at` in its face's rule, as the token of
 its kind (`styles/tokens.css`, "Where it stands"): `--lf-focus-region-gap` for a block of the page,
+`--lf-focus-ring-gap`, a control's gap, for a box on which a rule of yours draws a
+control's ring, where the ring would otherwise stand on the box's edge,
 `0` for a box that draws its own edge, and `--lf-focus-ring-inset` for a row packed edge to
 edge with others or a box whose clip leaves no room outside it. Leaf draws every mark
 on a box as the box's own outline there, over any outline your rules give the box while
 the mark shows, so a comment's or an aim's brackets stand where the ring does. The
 brackets are a `clip-path` Leaf sets on the box, so a rule of yours that sets its
-`clip-path` replaces them. The declaration does not inherit.
+`clip-path` replaces them. `--lf-ring-at` does not inherit. A rule that keeps room
+for a ring reads how far the ring reaches outside its box: `--lf-focus-ring-room`
+for a control's ring and `--lf-focus-region-room` for a block's.
 
 A rule that draws a control's focus ring on a box around it, such as a choice's face
 holding its radio and words, reads the box's `data-lf-control-focus-visible`, which Leaf
@@ -200,10 +216,10 @@ cards their own ground and corners. Each part resolves the chrome's fonts again
 (`--lf-font-*`, `styles/tokens.css`), so a face or rung set on it, such as `--lf-sans` or `--lf-t-5`,
 reaches every word the surface shows. Other values Leaf derives on the root keep the
 root's reading on a part: the neutrals stepped from the root's paper and ink, the
-focus ring and link underline, which follow the root's `--lf-accent`, and the raise
-shadows, which follow its `--lf-shade`. Set the ones the part should change beside
-the token they follow, such as `--lf-card` beside `--lf-paper`, and
-`--lf-focus-ring` and `--lf-focus-shadow` beside `--lf-accent`. Leaf draws each
+link underline, which follows the root's `--lf-accent`, the focus ring, which follows
+its `--lf-ok`, and the raise shadows, which follow its `--lf-shade`. Set the ones the
+part should change beside the token they follow, such as `--lf-card` beside
+`--lf-paper`, and `--lf-focus-ring` and `--lf-focus-shadow` beside `--lf-ok`. Leaf draws each
 surface's ground, ring, corners and shadow from these tokens, and places and sizes the
 surface itself, so restyle those through tokens rather than `background`, `border`, a
 position or a transform. The panel's ground is a second box carrying the `panel`
@@ -233,12 +249,13 @@ since Leaf already scopes it.
 ```
 
 The comment box and threads a widget seats in an outlet of its own
-(`threadOutlets`), as `lf-diff` and `lf-visual-review` do, stand outside the chrome
+(`threadOutlets`), as `lf-diff` does, stand outside the chrome
 and take the widget's look rather than the theme's `chrome.css`. The part names are
 the chrome's public interface. Its classes are private and change between Leaf
 versions, so a rule naming one can stop applying after an update. A page that restyles
 the chrome beyond tokens does it through a package of its own, named beside every
-package the page keeps: `leaf page init <page> --package diff --package ./chrome-look`.
+package the page keeps: `leaf page init <page> --package reading --package diff
+--package ./chrome-look`.
 
 ## Theme tokens
 
@@ -252,57 +269,64 @@ nothing in Leaf, the package or the layer it composes sets, as a renamed token l
 A theme sets these colours. Where the foreground and background need a deliberate
 contrast choice, they are independent tokens:
 
-| Role             | Tokens                                                                                                                                                                                                                                                                                                                                                                                                |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| The page         | `--lf-paper`, its ground; `--lf-ink`, its text; `--lf-accent`, for links, focus and the chosen item. With no theme the first two are the browser's canvas and text                                                                                                                                                                                                                                    |
-| Status           | `--lf-ok`, `--lf-warn`, `--lf-danger` for markers; `--lf-ok-ink`, `--lf-warn-ink`, `--lf-danger-ink` for text                                                                                                                                                                                                                                                                                         |
-| Counts           | `--lf-badge-fill` with `--lf-badge-ink`, for the count on the folded leaf; pins wear the margin entries' paper, `--lf-border` and status inks                                                                                                                                                                                                                                                         |
-| Code             | `--lf-code-bg` for inline code; `--lf-pre-bg`, `--lf-code-chrome`, `--lf-code-ink`, `--lf-code-muted`, `--lf-code-border` for a block; `--lf-code-scheme`, `dark` or `light`, draws every code block in that scheme whatever the page's, each token in it taking that scheme's `light-dark()` branch; setting the code tokens alone leaves the status inks and highlights inside in the page's scheme |
-| Syntax           | `--lf-syn-comment`, `--lf-syn-keyword`, `--lf-syn-string`, `--lf-syn-number`, `--lf-syn-name`, `--lf-syn-type`                                                                                                                                                                                                                                                                                        |
-| A chart's series | `--lf-series-1`, `--lf-series-2`, `--lf-series-3`, `--lf-series-4`, `--lf-series-5`                                                                                                                                                                                                                                                                                                                   |
+| Role             | Tokens                                                                                                                                                                                                                                                                                                                                                                                                         |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| The page         | `--lf-paper`, its ground; `--lf-ink`, its text; `--lf-accent`, for links and the chosen item. With no theme the first two are the browser's canvas and text                                                                                                                                                                                                                                                    |
+| Status           | `--lf-ok`, `--lf-warn`, `--lf-danger` for markers; `--lf-ok-ink`, `--lf-warn-ink`, `--lf-danger-ink` for text                                                                                                                                                                                                                                                                                                  |
+| Code             | `--lf-pre-bg`, `--lf-code-chrome`, `--lf-code-ink`, `--lf-code-muted`, `--lf-code-border` for a block, while inline code stands on `--lf-chip`; `--lf-code-scheme`, `dark` or `light`, draws every code block in that scheme whatever the page's, each token in it taking that scheme's `light-dark()` branch; setting the code tokens alone leaves the status inks and highlights inside in the page's scheme |
+| Syntax           | `--lf-syn-comment`, `--lf-syn-keyword`, `--lf-syn-string`, `--lf-syn-number`, `--lf-syn-name`, `--lf-syn-type`                                                                                                                                                                                                                                                                                                 |
+| A chart's series | `--lf-series-1`, `--lf-series-2`, `--lf-series-3`, `--lf-series-4`, `--lf-series-5`                                                                                                                                                                                                                                                                                                                            |
 
 Leaf derives these from the colours above, the neutrals as steps from `--lf-paper`
 toward `--lf-ink`, so they follow a palette that sets those. A page's or package's
 rules read them, and a theme restates one it wants otherwise:
 
-| Token                                                   | Draws                                                                                  |
-| ------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| `--lf-card`                                             | A raised surface: a card, a panel, a control                                           |
-| `--lf-field`                                            | A tinted ground: a field, a callout                                                    |
-| `--lf-chip`                                             | A neutral chip's ground                                                                |
-| `--lf-rule`                                             | A hairline between rows or parts                                                       |
-| `--lf-border`                                           | A control's or a box's edge                                                            |
-| `--lf-muted`                                            | Words that qualify a line: a caption, a status, a hint                                 |
-| `--lf-ink-2`                                            | Secondary text, between the ink and `--lf-muted`                                       |
-| `--lf-accent-tint`                                      | The ground under an accented press, from `--lf-accent`                                 |
-| `--lf-ok-tint`, `--lf-warn-tint`, `--lf-danger-tint`    | A status's ground, from the paper and that status's colour                             |
-| `--lf-add-tint`, `--lf-del-tint`, `--lf-hi-tint`        | The ground of an added, a removed and a highlighted line                               |
-| `--lf-turn`, `--lf-turn-ink`, `--lf-turn-wash`          | Leaf's mark for the user's move: their turn in a thread, what is On me                 |
-| `--lf-thread`                                           | Leaf's mark for a thread                                                               |
-| `--lf-work`                                             | Leaf's mark for the agent at work: the leaf, the bar beside a block, a plan's progress |
-| `--lf-news`                                             | Leaf's mark for a reply the user hasn't read                                           |
-| `--lf-change`                                           | Leaf's mark for what changed since the version compared                                |
-| `--lf-settled`, `--lf-settled-ink`, `--lf-settled-tint` | Leaf's mark for what the user chose or finished                                        |
+| Token                                                | Draws                                                                                                      |
+| ---------------------------------------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `--lf-card`                                          | A raised surface: a card, a panel, a control                                                               |
+| `--lf-field`                                         | A tinted ground: a field, a callout                                                                        |
+| `--lf-chip`                                          | A neutral chip's ground, and inline code's                                                                 |
+| `--lf-rule`                                          | A hairline between rows or parts                                                                           |
+| `--lf-border`                                        | A control's or a box's edge                                                                                |
+| `--lf-muted`                                         | Words that qualify a line: a caption, a status, a hint                                                     |
+| `--lf-quiet`                                         | Words standing in for what isn't there yet: an empty box's hint                                            |
+| `--lf-ink-2`                                         | Secondary text, between the ink and `--lf-muted`                                                           |
+| `--lf-accent-tint`                                   | The ground under an accented press, from `--lf-accent`                                                     |
+| `--lf-link-underline`                                | A link's underline, which stands `--lf-link-underline-offset` below its words                              |
+| `--lf-offer-hover-shadow`                            | The wash under a press the pointer is over, as an inset `box-shadow`                                       |
+| `--lf-ok-tint`, `--lf-warn-tint`, `--lf-danger-tint` | A status's ground, from the paper and that status's colour, which an added and a removed line stand on too |
+| `--lf-hi-tint`                                       | The ground of a highlighted line                                                                           |
+
+Leaf's own marks wear these roles rather than tokens of their own, so a theme recolours
+a mark by setting its role. The user's marks wear `--lf-ok`: focus, the location ring,
+the aim, a thread in their turn and what is On me, whose count on the folded leaf
+carries `--lf-paper` digits on `--lf-ok-ink`. The agent's wear `--lf-accent`: a
+thread's marker, the agent at work and a reply the user hasn't read. What changed since
+the version compared wears `--lf-muted`, and what the user chose or finished wears
+`--lf-ink-2`, with `--lf-ink` words on `--lf-chip`. A pin wears a margin entry's paper,
+`--lf-border` and the status inks.
 
 Type, space and shape:
 
-| Role             | Tokens                                                                                                                                                                                                                                                                                                                                                                |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Faces            | `--lf-serif` for prose, `--lf-sans` for labels and controls, `--lf-mono` for code                                                                                                                                                                                                                                                                                     |
-| Sizes            | `--lf-t-1`, the title's, down through `--lf-t-2`, `--lf-t-3`, `--lf-t-4`, the body's, `--lf-t-5`, `--lf-t-working-label`, `--lf-t-6` and `--lf-t-7`, in `rem`; `--lf-code-size` and `--lf-code-line` for source                                                                                                                                                       |
-| A widget's words | A whole font for the `font` shorthand, by kind (`packages.md`, "Styles and composition"): `--lf-font-ui`, `--lf-font-widget`, `--lf-font-small`, `--lf-font-title`, `--lf-font-heading`, `--lf-font-label`, `--lf-font-status`, `--lf-font-compact`, `--lf-font-choice`, `--lf-font-chip`, `--lf-font-count`, `--lf-font-fine`, `--lf-font-code`, `--lf-font-message` |
-| Spacing          | `--lf-sp-1` to `--lf-sp-5`: 4, 8, 16, 24 and 32px, through `--lf-sp-2`, `--lf-sp-3` and `--lf-sp-4`                                                                                                                                                                                                                                                                   |
-| Corners          | `--lf-r`, a control's or box's; `--lf-r-s`, half of it, for a mark no taller than a line; `--lf-r-l`, twice it, for a surface floating over the page                                                                                                                                                                                                                  |
-| Lift             | `--lf-raise-1`, `--lf-raise-2`, `--lf-raise-3`, the shadow of a box lying on the page, opening over it, or standing over it for a task, each cast in `--lf-shade`                                                                                                                                                                                                     |
-| Controls         | `--lf-line`, a one-line control's height; `--lf-aim-floor`, the smallest box a user aims at, larger under a finger; `--lf-reach-room`, the room a control's reach takes past its face; `--lf-choice-gap`, the room between a radio's or checkbox's mark and its words                                                                                                 |
-| Focus            | `--lf-focus-ring` as an outline and `--lf-focus-shadow` as a shadow, set together; where a ring stands is `--lf-ring-at` ("A theme change")                                                                                                                                                                                                                           |
-| Page geometry    | `--lf-col`, the reading column; `--lf-wide`, a wide block; `--lf-sidebar` and `--lf-aside`, a sidebar's and a note's track; `--lf-page-pad-start` and `--lf-page-pad-end`, the room above and below the page                                                                                                                                                          |
+| Role             | Tokens                                                                                                                                                                                                                                                                                                                                                         |
+| ---------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Faces            | `--lf-serif` for prose, `--lf-sans` for labels and controls, `--lf-mono` for code                                                                                                                                                                                                                                                                              |
+| Sizes            | `--lf-t-1`, the title's, down through `--lf-t-2`, `--lf-t-3`, `--lf-t-4`, the body's, `--lf-t-5`, `--lf-t-working-label`, `--lf-t-6` and `--lf-t-7`, in `rem`; `--lf-code-size` and `--lf-code-line` for source; `--lf-code-inline-size`, inline code's size against the words around it                                                                       |
+| A widget's words | A whole font for the `font` shorthand, by kind (`packages.md`, "Styles and composition"): `--lf-font-ui`, `--lf-font-widget`, `--lf-font-small`, `--lf-font-title`, `--lf-font-heading`, `--lf-font-status`, `--lf-font-compact`, `--lf-font-choice`, `--lf-font-chip`, `--lf-font-fine`, `--lf-font-code`, `--lf-font-message`                                |
+| Spacing          | `--lf-sp-1` to `--lf-sp-5`: 4, 8, 16, 24 and 32px, through `--lf-sp-2`, `--lf-sp-3` and `--lf-sp-4`; `--lf-clear`, the least room that stands a box clear of its frame's edge; `--lf-list-inset`, how far a list's items stand in; `--lf-chip-pad`, a chip's padding                                                                                           |
+| Corners          | `--lf-r`, a control's or box's; `--lf-r-s`, half of it, for a mark no taller than a line; `--lf-r-l`, twice it, for a surface floating over the page; `--lf-r-in`, for a box that meets a hairline frame's edge from inside it                                                                                                                                 |
+| Lift             | `--lf-raise-1`, `--lf-raise-2`, `--lf-raise-3`, the shadow of a box lying on the page, opening over it, or standing over it for a task, each cast in `--lf-shade`; `--lf-raise-1-drop` and `--lf-raise-1-blur`, how far the first falls and spreads: a theme changes that lift by setting them, and a box reads them to keep room for it                       |
+| Controls         | `--lf-line`, a one-line control's height; `--lf-aim-floor`, the smallest box a user aims at, larger under a finger; `--lf-reach-room`, the room a control's reach takes past its face; `--lf-choice-gap`, the room between a radio's or checkbox's mark and its words; `--lf-chooser`, the height of a radio group drawn as buttons, such as a choice of views |
+| Focus            | `--lf-focus-ring` as an outline and `--lf-focus-shadow` as a shadow, set together; where a ring stands is `--lf-ring-at` ("A theme change")                                                                                                                                                                                                                    |
+| Page geometry    | `--lf-col`, the reading column; `--lf-wide`, a wide block; `--lf-sidebar` and `--lf-aside`, a sidebar's and a note's track; `--lf-page-pad-start` and `--lf-page-pad-end`, the room above and below the page; `--lf-view-height`, the window's height less `--lf-head-room`                                                                                    |
+| Motion           | `--lf-motion-fold`, the time a removed item's room takes to close or a frame takes to return from an editor to its reading; `--lf-motion-disclosure`, a disclosure opening or a control fading in; `--lf-motion-mark`, a mark moving to where it now stands                                                                                                    |
 
-Changing `--lf-accent` does not choose the count's pair or the status palette. Check
-the foreground against each ground where it is used, in both color schemes. A theme
-may set `light-dark()` values so the browser's scheme preference selects the palette.
-Subtree overrides follow normal CSS inheritance: when changing a token locally,
-redeclare any value stepped from it that is needed there, such as `--lf-card` after
-`--lf-paper`, and `--lf-focus-ring` and `--lf-focus-shadow` after `--lf-accent`. Keep
-the inherited `--lf-ground` surface contract described above so opaque nested controls
-match their containing surface.
+Changing `--lf-accent` does not choose the status palette. Check
+the foreground against each ground where it is used, in both color schemes. `page check
+--render` draws the light scheme only, so read the dark one on the served page in a
+browser set to dark. A theme may set `light-dark()` values so the browser's scheme
+preference selects the palette. Subtree overrides follow normal CSS inheritance: when
+changing a token locally, redeclare any value stepped from it that is needed there,
+such as `--lf-card` after `--lf-paper`, and `--lf-focus-ring` and `--lf-focus-shadow`
+after `--lf-ok`. Keep the inherited `--lf-ground` surface contract described above
+so opaque nested controls match their containing surface.

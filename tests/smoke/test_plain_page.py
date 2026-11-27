@@ -16,7 +16,9 @@ box and an `error` event the host may hear, with nothing in the console, while t
 host's own markup keeps the look the host gave it. What Leaf adds to a widget it reads
 off the widget, so here there is none of it: no widget key bound or advertised, no
 Copy control, no quiet word. Its own buttons still work, and so do its spans offered
-as buttons, by Enter and Space too.
+as buttons, by Enter and Space too. Leaf's theme stops a sheet's motion for a reader
+who asked for less, and this page has no such rule, so a widget's own sheet declares
+its motion only for the reader who didn't.
 
 It is a landing gate because nothing else would see the guarantee break: every other
 test runs a widget on a Leaf page, where an import of a module that reads what Leaf
@@ -36,11 +38,11 @@ from interact_support import running_http_server
 from playwright.sync_api import expect
 from render_harness import consume_browser_errors, leaf_page, open_page
 
-from leaf.layer import compose_layer, layer_inputs
-from leaf.revision_artifact import Resource, resource_type
-from leaf.revision_delivery import layer_import_map
-from leaf.runtime_selection import read_runtime
-from leaf.schema import BROWSER_DIRS
+from leaf.base.schema import BROWSER_DIRS
+from leaf.serving.revision_delivery import layer_import_map
+from leaf.source.layer import compose_layer, layer_inputs
+from leaf.source.revision_artifact import Resource, resource_type
+from leaf.source.runtime_selection import read_runtime
 
 
 @dataclass(frozen=True)
@@ -84,7 +86,7 @@ PORTABLE = [
         "diagram",
         # The host reserves the diagram's room, as Leaf's stylesheet does from the
         # height an occurrence states, so the drawing arriving moves nothing below it.
-        '<lf-diagram id="lf-diagram" parts="all" style="height: 240px"><pre>\n'
+        '<lf-diagram id="lf-diagram" style="height: 240px"><pre>\n'
         "flowchart TD\n"
         "  accTitle: Checkout\n  accDescr: A cart reaches payment.\n"
         "  Cart([Cart]) --&gt; Pay{Paid?}\n</pre></lf-diagram>",
@@ -117,8 +119,8 @@ PORTABLE = [
     ),
 ]
 
-# A body the chart cannot draw: the box and the event are the shared upgrade
-# lifecycle's (`failSoft`), so one widget answers for every portable one.
+# A body the chart cannot draw: the box and the event are the library's (`failSoft`,
+# lib/failure.js), so one widget answers for every portable one.
 REFUSED = '<lf-chart id="refused"><pre>\n{ marks: [ }\n</pre></lf-chart>'
 ROOT = "/leaf"
 # Two widgets to a row, aligned at their tops, so one growing as it draws moves no other.
@@ -196,6 +198,14 @@ FACES_BELOW = """([ids, names]) => Object.fromEntries(ids.map(id => {
   visit(root, "");
   return [id, faces];
 }))"""
+# The parts of the widgets that a stylesheet moves, by class: each element below a
+# widget whose computed style names an animation, or a transition that takes time.
+MOVING = """() => [...document.querySelectorAll("main > section:not(#host) *")]
+  .filter(part => {
+    const style = getComputedStyle(part);
+    return style.animationName !== "none" || (style.transitionProperty !== "none"
+      && style.transitionDuration.split(",").some(time => parseFloat(time) > 0));
+  }).map(part => part.getAttribute("class") ?? part.localName)"""
 # What each widget's root inherits from the page around it, the same on both pages.
 STAGE = (
     "inline-size: 860px; font: 16px/1.5 Georgia, serif; color: rgb(28, 27, 24);"
@@ -394,6 +404,13 @@ def test_a_display_widget_draws_on_a_page_without_leaf(browser, subtests):
         }
         assert not any(changed.values()), changed
 
+        # The timeline's playhead glides to a step, and no part of any widget moves
+        # once the reader asks for less motion.
+        moving = page.evaluate(MOVING)
+        assert any("lf-timeline-playhead-line" in part for part in moving), moving
+        page.emulate_media(reduced_motion="reduce")
+        assert page.evaluate(MOVING) == []
+
 
 def test_a_host_draws_each_widget_as_a_leaf_page_does(browser, serve):
     """With portable.css linked, every element below a widget's root takes the faces it
@@ -417,7 +434,7 @@ def test_a_host_draws_each_widget_as_a_leaf_page_does(browser, serve):
                 layout=None,
             ),
             packages=tuple(sorted({w.package for w in PORTABLE} - {"default"})),
-            theme=False,
+            reading=False,
         ),
     )
     for widget in PORTABLE:
@@ -544,7 +561,7 @@ try {{
 
 
 def test_a_host_builds_named_controls_without_leaf(browser):
-    """Control construction and generated labels need no page services."""
+    """Control construction needs no page services."""
     markup = f"""<!doctype html>
 <html><head><meta charset="utf-8"><title>Host controls</title>
 <style>svg {{ width: 1em; height: 1em; }}</style>
@@ -552,16 +569,13 @@ def test_a_host_builds_named_controls_without_leaf(browser):
 </head><body><main></main><pre id="failure"></pre>
 <script type="module">
 try {{
-  const {{offer, nameAction, generatedElement, keepsText, searchField}} =
-    await import("/runtime/portable-api.js");
+  const {{searchField}} = await import("/runtime/portable-api.js");
+  const {{offer, nameAction}} = await import("/runtime/lib/controls.js");
   await import("/vendor/webawesome.esm.js");
   const button = offer("button");
   nameAction(button, "close", {{label: "Close evidence"}});
-  const label = offer("span");
-  generatedElement(label, {{says: "echo"}});
-  keepsText(label, "Evidence");
   const search = searchField("host-search", {{name: "files", label: "Find files"}});
-  document.querySelector("main").append(button, label, search);
+  document.querySelector("main").append(button, search);
 }} catch (error) {{ document.querySelector("#failure").textContent = error.stack; }}
 finally {{ window.hostReady = true; }}
 </script></body></html>"""
@@ -573,7 +587,6 @@ finally {{ window.hostReady = true; }}
         button = page.get_by_role("button", name="Close evidence")
         expect(button.locator("svg")).to_be_visible()
         expect(button).to_have_attribute("title", "Close evidence")
-        expect(page.locator("span[data-lf-echo]")).to_have_text("Evidence")
         search = page.get_by_role("searchbox", name="Find files")
         search.fill("patch")
         expect(search).to_have_value("patch")

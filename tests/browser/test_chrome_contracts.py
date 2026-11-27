@@ -52,10 +52,11 @@ from render_harness import (
 
 from browser.test_render_floating_panel import finish_held, held_motion, hold_motion
 from browser.threads import open_panel_thread
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.media import store_uploaded_media
-from leaf.render_checks import rendered, wait_for_probe
+from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
+from leaf.serving.media import store_uploaded_media
+from leaf.source.render_checks import rendered, wait_for_probe
+from leaf_dev.browser import text_field
 
 
 def test_another_threads_reply_keeps_the_selected_thread_in_place(browser, serve):
@@ -139,7 +140,7 @@ def test_a_margin_reply_stands_on_its_cards_face(browser, serve, scheme):
     """The thread and its reply row paint no ground of their own as focus enters and
     leaves the thread, so the card's opaque face shows behind them: no band above the
     field, no focus tint, and nothing over the field's ring while the card's surface
-    draws it (box-motion.js).
+    draws it (dom/box-motion.js).
     """
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Keep the first paragraph.", {"section": "p0"})
@@ -150,7 +151,7 @@ def test_a_margin_reply_stands_on_its_cards_face(browser, serve, scheme):
     face = preview.locator(".lf-margin-preview-card")
     thread = preview.locator(".lf-page-thread")
     surround = thread.locator(".lf-thread-reply")
-    reply = preview.get_by_role("textbox", name="Reply", exact=True)
+    reply = text_field(preview, name="Reply", exact=True)
     expect(reply).to_be_visible()
 
     for state in ("resting", "editing", "outside"):
@@ -190,7 +191,7 @@ def test_a_compact_comment_keeps_no_room_for_send_under_a_mouse(browser, serve):
 
     def resting_box():
         # Layout already has its final width while Send still rides the box's
-        # growth (box-motion.js). Compare their geometry only once it rests.
+        # growth (dom/box-motion.js). Compare their geometry only once it rests.
         rendered(page)
         wait_for_probe(page, "restingIn", ".lf-fab-bar")
         return field.bounding_box()
@@ -214,7 +215,7 @@ def test_entering_and_leaving_a_floating_comment_box_restyles_only_the_chrome(
     browser, serve
 ):
     """The root drops its scroll padding while the user writes in a box standing in a
-    plane (annotation-overlay/floating.js, `readFloatingEditor`), by a zero base.css
+    plane (annotations/annotation-overlay/floating.js, `readFloatingEditor`), by a zero base.css
     writes so that entering and leaving the box restyle only the chrome; its comment
     says what a plain zero cost. Counted in the browser's own restyled elements,
     against a restyle of the whole page."""
@@ -233,7 +234,7 @@ def test_entering_and_leaving_a_floating_comment_box_restyles_only_the_chrome(
         return max(counts)
 
     # The control: a custom property changing on the root restyles every element
-    # (root-state.js).
+    # (state/root-state.js).
     whole = restyled(
         lambda: root.evaluate("html => html.style.setProperty('--lf-test-probe', '1')")
     )
@@ -255,7 +256,7 @@ def test_opening_and_closing_page_search_restyles_only_the_chrome(browser, serve
     """Opening search runs the target picker's arm writer (aim.js, `armChanged`),
     which hides the Design legend's tags while the picker stands. It wrote that as a
     custom property on the root, so the first open, which wrote its first value,
-    restyled every element (root-state.js): 6 to 11 s in Firefox on a page of thirty
+    restyled every element (state/root-state.js): 6 to 11 s in Firefox on a page of thirty
     4 MB text documents, where a second open took 80 to 120 ms. Counted in the
     browser's own restyled elements, against a restyle of the whole page."""
     paragraphs = "".join(
@@ -284,11 +285,11 @@ def test_opening_and_closing_page_search_restyles_only_the_chrome(browser, serve
 
 
 def test_hiding_and_showing_annotations_restyles_only_the_chrome(browser, serve):
-    """`o` hides the annotation layer (annotation-layer.js). A custom property it set on
+    """`g H` hides the annotation layer (annotations/annotation-layer.js). A custom property it set on
     `html` to hide the margin's change bars was inherited by every element and restyled
     the whole page: 2 to 3 s of Firefox's main thread on a page of 1.5 million elements,
     and 65 ms in Chromium. This counts, in the browser's own restyled elements, what
-    `o` restyles against such a property changed on `html`, so a property `o` sets
+    `g H` restyles against such a property changed on `html`, so a property `g H` sets
     there again fails it. Firefox visiting the page for a rule read through a
     descendant combinator from `html` restyles nothing, and no count here sees it."""
     paragraphs = "".join(
@@ -308,9 +309,12 @@ def test_hiding_and_showing_annotations_restyles_only_the_chrome(browser, serve)
     whole = restyled(
         lambda: root.evaluate("html => html.style.setProperty('--lf-test-probe', '1')")
     )
-    hiding = restyled(lambda: page.keyboard.press("o"))
+    # `g` arms Go-to before the count, so it counts only the X that toggles the layer.
+    page.keyboard.press("g")
+    hiding = restyled(lambda: page.keyboard.press("Shift+H"))
     expect(chrome).to_have_attribute("data-lf-annotations-hidden", "")
-    showing = restyled(lambda: page.keyboard.press("o"))
+    page.keyboard.press("g")
+    showing = restyled(lambda: page.keyboard.press("Shift+H"))
     expect(chrome).not_to_have_attribute("data-lf-annotations-hidden", "")
     moves = {"hiding": hiding, "showing": showing, "whole page": whole}
     assert max(hiding, showing) < whole / 4, moves
@@ -375,13 +379,61 @@ def test_a_page_mode_restyles_only_what_the_pointer_is_over(browser, serve):
     capture = panel_menu(page, "annotate").locator(
         '.lf-fp-item[data-lf-row="command:capture.region.open"]'
     )
-    moves["Capture area in"] = restyled(capture.click)
-    expect(root).to_have_attribute("data-lf-region-capture", "")
+    # Entered from the row by key, with the pointer resting on the words as for each
+    # mode above: a click would leave the pointer wherever the row stood, and over the
+    # section between paragraphs Chromium restyles all it holds (integration.css).
     page.mouse.move(box["x"] + 20, box["y"] + box["height"] / 2)
+    capture.focus()
+    moves["Capture area in"] = restyled(lambda: page.keyboard.press("Enter"))
+    expect(root).to_have_attribute("data-lf-region-capture", "")
     expect(words).to_have_css("cursor", "crosshair")
     moves["Capture area out"] = restyled(lambda: page.keyboard.press("Escape"))
     expect(root).not_to_have_attribute("data-lf-region-capture", "")
     assert max(moves.values()) < whole / 4, {**moves, "whole page": whole}
+
+
+@pytest.mark.shifts_unsurveyed  # The shift watch's cameras are restyles of their own.
+def test_holding_alt_over_an_article_restyles_none_of_the_sections_in_it(
+    browser, serve
+):
+    """Holding ⌥ over words standing directly in an article marks the article as the
+    item a press takes (`data-lf-aimed`). If each section wrote `inherit` for the prose
+    measure (layouts.css, `--lf-prose-measure`), a property that doesn't inherit,
+    Chromium would restyle every section in the article each time the mark comes or
+    goes (browser/AGENTS.md, "What a style rule costs"). Counted in the browser's own
+    restyled elements, an article of six times the sections restyles no more."""
+
+    def restyled(sections):
+        page = open_page(
+            browser,
+            serve(
+                leaf_page(
+                    "Sections",
+                    '<article id="doc"><h1>Sections</h1>'
+                    "<p>Words standing in the article itself.</p>"
+                    + "".join(
+                        f'<section id="s{g}"><h2>Section {g}</h2>'
+                        f"<p>Some words about section {g}.</p></section>"
+                        for g in range(1, sections + 1)
+                    )
+                    + "</article>",
+                )
+            ),
+        )
+        aimed = page.locator("[data-lf-aimed]")
+        box = page.locator("#doc > p").bounding_box()
+        page.mouse.move(box["x"] + 20, box["y"] + box["height"] / 2)
+        rendered(page)
+        down = restyle_counts(page, lambda: (page.keyboard.down("Alt"), rendered(page)))
+        expect(aimed).to_have_id("doc")
+        up = restyle_counts(page, lambda: (page.keyboard.up("Alt"), rendered(page)))
+        expect(aimed).to_have_count(0)
+        page.close()
+        return {"⌥ down": sum(down), "⌥ up": sum(up)}
+
+    short, long = restyled(8), restyled(48)
+    for move in short:
+        assert long[move] - short[move] < 10, {"8 sections": short, "48 sections": long}
 
 
 def questions_page(sections: int) -> str:
@@ -468,10 +520,12 @@ def test_resolving_a_thread_restyles_what_focus_marks(browser, serve):
         counts = restyle_counts(page, resolve)
         expect(page.locator("#p1")).to_have_attribute("data-lf-focus-within", "")
         page.close()
-        return sum(counts)
+        return counts
 
+    # Each recalc's count, so a failure tells a recalc the larger page adds from
+    # one that restyles more of it.
     short, long = restyled(4), restyled(24)
-    assert long - short < 10, {"4 sections": short, "24 sections": long}
+    assert sum(long) - sum(short) < 10, f"4 sections: {short}\n24 sections: {long}"
 
 
 @pytest.mark.shifts_unsurveyed  # The shift watch's cameras are restyles of their own.
@@ -579,7 +633,7 @@ def test_writing_in_a_comment_box_over_the_window_foot_moves_no_words(
     band the root's scroll padding keeps the page's own content clear of. Chromium and
     WebKit reveal a caret in a box anchored to the page by scrolling the page, counting
     that padding, so the padding goes while the user writes in such a box
-    (annotation-overlay/floating.js, `readFloatingEditor`; base.css), and typing there
+    (annotations/annotation-overlay/floating.js, `readFloatingEditor`; base.css), and typing there
     leaves the words beneath the box where they stood. The page widens its landing
     room, which deepens that band, so the box's field stands inside it whatever room
     the box keeps under its field."""
@@ -602,11 +656,11 @@ def test_writing_in_a_comment_box_over_the_window_foot_moves_no_words(
     page.keyboard.type("Fine")
     rendered(page)
     assert page.evaluate("scrollY") == scrolled
-    # The band the panel states on the root, which the rule hides from the browser.
-    caret, band_top = field.evaluate(f"""box => {{{CARET_AT}
+    # The root's landing band at the window's foot, over the floating panel's cover.
+    caret, band_top = field.evaluate(f"""async box => {{{CARET_AT}
       const caret = document.createRange();
       caret.setStart(at, offset);
-      const band = parseFloat(document.documentElement.style.scrollPaddingBottom);
+      const band = (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom;
       return [caret.getBoundingClientRect().bottom, innerHeight - band];
     }}""")
     assert caret > band_top, (
@@ -678,6 +732,97 @@ FIRST_LINE = """box => {
 }"""
 
 
+@pytest.mark.parametrize(
+    "engine,surface",
+    [
+        ("firefox_browser", "composer"),
+        ("firefox_browser", "card"),
+        ("firefox_browser", "panel"),
+        ("browser", "composer"),
+    ],
+)
+def test_a_press_in_a_box_the_chrome_holds_leaves_the_page_still(
+    engine, surface, request, serve
+):
+    """A press in a box's words that the pointer drifts during, as a trackpad's click
+    often does, starts a drag selection in the editor and leaves the page where it was,
+    as does dragging on to the window's foot. The boxes are the comment box beside a
+    passage, a thread card's reply and the panel's field. Each stands in a box fixed to
+    the window, in the chrome after `body`, and CodeMirror's drag selection scrolls
+    only boxes inside it (build/vendor.mjs, "CodeMirror scroll walk"). Taking the root's own box for its
+    scrollport, which moves up as the page scrolls, it would scroll the page to its end
+    at the drift once the page is scrolled further than the window's height less the
+    pointer's height in it, so the page here is scrolled more than a window down.
+    Taking the window, it would scroll the page at the window's foot."""
+    url = serve(LONG_PAGE)
+    if surface == "card":
+        panel_comment(
+            serve.page_dir, "A thread on the page's middle.", {"section": "p40"}
+        )
+    page = open_page(request.getfixturevalue(engine), url)
+    words = page.locator("#p40")
+    words.evaluate("n => scrollBy(0, n.getBoundingClientRect().top - 300)")
+    rendered(page)
+    if surface == "composer":
+        words.click(modifiers=["Alt"], position={"x": 40, "y": 8})
+        box = page.locator(".lf-fab-input")
+    elif surface == "card":
+        page.locator('[data-lf-margin-for="p40"] .lf-margin-marker').click()
+        box = page.locator(".lf-margin-preview .lf-thread-reply leaf-text")
+    else:
+        box = page_comment(page)
+    write(box, "Words to press among, then drift a pixel.")
+    rendered(page)
+    scrolled = page.evaluate("scrollY")
+    assert scrolled > page.evaluate("innerHeight"), "the page must be scrolled to jump"
+    at = box.bounding_box()
+    x, y = at["x"] + at["width"] / 2, at["y"] + at["height"] / 2
+    page.mouse.move(x, y)
+    page.mouse.down()
+    page.mouse.move(x + 1, y)
+    # A timer the page sets after the drift runs after every interval of a shorter or
+    # equal delay that the drift's handler set (HTML, "timer initialisation steps"),
+    # as CodeMirror's drag scroll is.
+    after = page.evaluate(
+        "() => new Promise((done) => setTimeout(() => done(scrollY), 250))"
+    )
+    assert after == scrolled
+    # Dragged on to the window's foot, the selection still scrolls nothing.
+    page.mouse.move(x + 1, page.evaluate("innerHeight") - 2)
+    after = page.evaluate(
+        "() => new Promise((done) => setTimeout(() => done(scrollY), 250))"
+    )
+    page.mouse.up()
+    assert after == scrolled
+
+
+def test_more_room_for_a_draft_at_the_pages_end_leaves_the_page_still(
+    firefox_browser, serve
+):
+    """More room to write widens the panel's field, so a wrapped draft takes fewer
+    lines, and the page stays where it was. As an editor changes height, CodeMirror
+    keeps the nearest box it finds scrolling the editor at its end if it stood there.
+    For the panel's field that box is the panel, fixed to the window (build/vendor.mjs,
+    "CodeMirror scroll walk"), which doesn't scroll; were it the window, the page would
+    move up by the lines the draft gave up. So the page is at its end."""
+    page = open_page(firefox_browser, serve(LONG_PAGE), init_script=KEEP_ROOTS)
+    page.evaluate("scrollTo(0, document.documentElement.scrollHeight)")
+    rendered(page)
+    box = page_comment(page)
+    write(box, "A draft long enough to wrap over several lines of the field. " * 6)
+    rendered(page)
+    scrolled = page.evaluate("scrollY")
+    lines = "box => window.__lfRoots.get(box).querySelector('.cm-content').offsetHeight"
+    tall = box.evaluate(lines)
+    page.get_by_role("button", name="More room to write", exact=True).click()
+    panel_settled(page, open=False)
+    rendered(page)
+    assert box.evaluate(lines) < tall, (
+        "the draft must take fewer lines, or this proves nothing"
+    )
+    assert page.evaluate("scrollY") == scrolled
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_caret_is_drawn_at_a_lines_end_and_after_a_list_bullet(
     engine, request, serve, subtests
@@ -696,7 +841,7 @@ def test_a_caret_is_drawn_at_a_lines_end_and_after_a_list_bullet(
 
     with subtests.test("a caret at a line's end paints inside the field"):
         # The caret after a line's last character stands at the very end of the text
-        # column: in the box at the full measure, and in a narrow allocation.
+        # column: in a box widened to its words, and in a narrow allocation.
         # Firefox paints the caret a pixel wide from that offset onward, pulled inside
         # only by a scroll container (nsCaret, `AdjustRectForClipping`), so a field
         # clipping its words at the column's end would hide it, and it would read as gone
@@ -725,8 +870,9 @@ def test_a_caret_is_drawn_at_a_lines_end_and_after_a_list_bullet(
             arg=least["height"] + 0.5,
         )
         one_line = box.bounding_box()
-        # The box neither narrows to its words nor widens as they arrive.
-        assert least["width"] == one_line["width"] == wrapped["width"], (
+        # The box opens slim and widens with its first line, up to the measure its
+        # wrapped words fill.
+        assert least["width"] < one_line["width"] <= wrapped["width"], (
             least,
             one_line,
             wrapped,
@@ -754,19 +900,13 @@ def test_a_caret_is_drawn_at_a_lines_end_and_after_a_list_bullet(
         # A new list item shows its bullet with the caret just past the hidden source
         # marker, so the browser places the caret inside the marker's text. The caret
         # takes that text's ink, so hiding the marker's glyphs must leave the ink alone,
-        # however the caret arrived: continuing the list, deleting the marker's space,
-        # or arrows.
+        # however the caret arrived: continuing the list or arrows.
         page.keyboard.press("ControlOrMeta+a")
         page.keyboard.press("Backspace")
         expect(field).to_have_js_property("value", "")
         page.keyboard.type("- one")
         page.keyboard.press("Shift+Enter")
         expect(field).to_have_js_property("value", "- one\n- ")
-        rendered(page)
-        caret, words = field.evaluate(CARET_INK)
-        assert caret == words
-        page.keyboard.press("Backspace")
-        expect(field).to_have_js_property("value", "- one\n-")
         rendered(page)
         caret, words = field.evaluate(CARET_INK)
         assert caret == words
@@ -871,7 +1011,9 @@ PHONE_READING_PAGE = leaf_page(
         + "Filler words for the reading column. " * 8
         + "</p>"
         for n in range(12)
-    ),
+    )
+    + "<p><label>Owner <input id='own-field' style='font-size: 13px'></label>"
+    + " <label>Team <input id='plain-field'></label></p>",
 )
 
 
@@ -880,22 +1022,25 @@ def test_a_phone_comment_field_keeps_its_passage_clear(iphone, serve):
 
     Safari zooms the page onto a text field set under 16px as the field takes focus, and
     leaves it zoomed: tapping the field jumped the view, then left the user panning
-    sideways across a page wider than the screen. So no field the page holds is smaller,
+    sideways across a page wider than the screen. So none of Leaf's own fields is
+    smaller, nor a field the page wrote without a size, which takes Leaf's default face,
     and a draft, whose editor wears the words' own face, shows them on the same floor, or
-    one set in a sidenote's smaller type opens a size larger than it showed.
+    one set in a sidenote's smaller type opens a size larger than it showed. A field
+    whose author gave it a size keeps that size.
 
     With too little room below, the field stands above without scrolling the page.
     This emulation cannot show the native iOS
     selection menu, whose placement needs actual-device verification."""
     page = open_page(None, serve(PHONE_READING_PAGE), context=iphone)
-    # Every field in the composed tree, the vendored controls' own native fields in
-    # their shadow roots included: the Threads find box and the Map's search are
-    # Web Awesome inputs, and Safari zooms onto the field inside them.
+    # Every field in the composed tree but the one its author sized, the vendored
+    # controls' own native fields in their shadow roots included: the Threads find box
+    # and the Map's search are Web Awesome inputs, and Safari zooms onto the field
+    # inside them.
     sizes = page.evaluate("""() => {
       const sizes = {};
       const walk = (root) => {
         for (const node of root.querySelectorAll('*')) {
-          if (node.matches('input, textarea, leaf-text, select')) {
+          if (node.matches('input, textarea, leaf-text, select') && node.id !== 'own-field') {
             const host = node.getRootNode().host;
             const name = (host ?? node).localName + '.' + ((host ?? node).className || '');
             sizes[name] = Math.min(
@@ -909,6 +1054,8 @@ def test_a_phone_comment_field_keeps_its_passage_clear(iphone, serve):
     }""")
     assert any(name.startswith("wa-input.") for name in sizes), sizes
     assert min(sizes.values()) >= 16, sizes
+    own = page.locator("#own-field")
+    assert own.evaluate("field => parseFloat(getComputedStyle(field).fontSize)") == 13
     note = page.locator("#note")
     shown = note.locator(".lf-draft-body").evaluate(
         "body => parseFloat(getComputedStyle(body).fontSize)"
@@ -1034,7 +1181,7 @@ def test_the_delivered_stylesheets_read_exactly_as_their_files_do(browser, serve
         names.append("annotation-chrome")
     for name in names:
         directory = (
-            "runtime/annotation-overlay"
+            "runtime/annotations/annotation-overlay"
             if name.startswith("annotation-")
             else "runtime"
         )
@@ -1231,7 +1378,7 @@ WIDE_PAGE = leaf_page(
 <header><h1 id="t">Wide page</h1></header>
 <div id="body">{paras}</div>
 <aside id="side">
-  <section class="panel" id="rail"><h2>Rail</h2><p>Counts beside the body.</p></section>
+  <section class="lf-panel" id="rail"><h2>Rail</h2><p>Counts beside the body.</p></section>
 </aside>
 """,
     layout="sidebar",
@@ -1368,11 +1515,11 @@ def test_a_page_map_update_keeps_the_row_the_user_was_on(browser, serve):
     resized(page, 1280, 600)
     page.evaluate(
         """async () => {
-          const {contributionEntry, registerContribution} =
+          const {registerContribution} =
             await window.__lfWidgetApi();
           const contribute = (key, target, label) => registerContribution({
             key, target,
-            read: () => ({entries: [contributionEntry({key: 'action', icon: 'dot', label})]}),
+            read: () => ({entries: [{key: 'action', icon: 'dot', label}]}),
             activate: () => {},
           });
           for (let index = 0; index < 29; index++)
@@ -1477,7 +1624,7 @@ def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
     work, observer deliveries, cancellation — is tests/runtime/rendering.test.mjs."""
     url = serve(leaf_page("Settled", '<h1 id="h">Settled</h1><p id="p">Words.</p>'))
     page = open_page(browser, url)
-    toggle = page.locator(".lf-fp-on-user")
+    toggle = page.locator(".lf-fp-leaf")
     toggle.hover()
     rendered(page)
     # Read before dispatch: an earlier pointerdown capture listener may already have
@@ -1500,7 +1647,7 @@ def test_a_repaint_unsettles_the_rendering_until_it_lands(browser, serve):
     rendered(page)
     # Completion is the reading rendered waited on. A later slide-end scan can
     # queue new work, so a second reading need not still be settled.
-    expect(page.locator(panel_view("queue"))).to_be_visible()
+    expect(page.locator(panel_view("menu"))).to_be_visible()
 
 
 # The words of the field's draft, row by row as the field draws them.
@@ -1696,11 +1843,11 @@ def test_a_phone_starts_the_page_and_comments_on_a_selection(iphone, serve, view
     field = page.locator(".lf-fab-input")
     expect(field).to_be_hidden()
     # The panel's field quotes the selection, where the finger that made it finds it,
-    # and the On Me mark keeps its seat; the leaf's menu stays shut.
+    # and the leaf keeps its place; the leaf's menu stays shut.
     comment = selection_field(page)
     expect(comment).to_have_attribute("placeholder", "“Paragraph one”")
     expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
-    expect(page.locator(".lf-fp-on-user")).to_be_visible()
+    expect(page.locator(".lf-fp-leaf")).to_be_visible()
     box = comment.bounding_box()
     assert box["x"] + box["width"] <= page.evaluate("innerWidth"), box
     comment.tap()
@@ -1746,7 +1893,7 @@ def test_a_draft_wears_the_faces_its_sent_message_wears(
                 '<lf-diff id="patch" source="review-patch"></lf-diff>',
             )
         )
-        data_model.cmd_data_set(
+        page_data_model.cmd_data_set(
             serve.page_dir,
             "review-patch",
             """diff --git a/app.py b/app.py
@@ -2235,12 +2382,13 @@ def test_a_new_line_in_an_open_fence_starts_in_its_code(
             expect(field).to_have_js_property("value", "")
             for at, text in enumerate(lines):
                 if at:
-                    # A user retyping the line takes back what continuing the list put
+                    # A user retyping the line types over what continuing the list put
                     # there.
                     before = field.evaluate("box => box.value")
                     page.keyboard.press("Shift+Enter")
-                    while len(field.evaluate("box => box.value")) > len(before) + 1:
-                        page.keyboard.press("Backspace")
+                    added = len(field.evaluate("box => box.value")) - len(before) - 1
+                    for _ in range(added):
+                        page.keyboard.press("Shift+ArrowLeft")
                 page.keyboard.type(text)
             expect(field).to_have_js_property("value", "\n".join(lines))
             rendered(page)
@@ -2285,13 +2433,13 @@ def type_drafts(page, field, drafts):
 
 CONTINUED = {
     "fence in a quote": ("> ```⏎x⏎```⏎after", "> ```\n> x\n> ```\n> after"),
-    "fence in an item": ("- a⏎⌫⌫  ```⏎x⏎```⏎more", "- a\n  ```\n  x\n  ```\n  more"),
+    "fence in an item": ("- a⏎```⏎x⏎```⏎more", "- a\n- ```\n  x\n  ```\n  more"),
     "leaving a list": ("- a⏎⏎b", "- a\n\nb"),
     "leaving a quote": ("> a⏎⏎b", "> a\n\nb"),
     "leaving a nested quote": ("> > a⏎⏎b", "> > a\n>\n> b"),
     "outdenting a nested item": (
-        "1. a⏎b⏎⌫⌫⌫   - c⏎⏎d",
-        "1. a\n2. b\n   - c\n3. d",
+        "1. a⏎b⏎⇥c⏎⏎d",
+        "1. a\n2. b\n   1. c\n3. d",
     ),
     "splitting an item": ("- one two←←←⏎", "- one \n- two"),
     "leaving a list, then its quote": ("> - a⏎⏎⏎x", "> - a\n\nx"),

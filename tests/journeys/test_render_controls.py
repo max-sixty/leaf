@@ -29,9 +29,6 @@ from render_cases_layout import (
     displaced,
     overlapped_words,
     page_at_rest,
-    ring_faults,
-    ring_rules,
-    rings_drawn,
     serious_axe_violations,
 )
 from render_cases_navigation import (
@@ -74,18 +71,19 @@ from render_harness import (
     write,
 )
 
-from leaf import event_log as events_model
-from leaf import hosting as hosting_model
-from leaf import presence as presence_model
-from leaf.render_checks import rendered, start_near_work, wait_until_ready
-from leaf.schema import SERVICE_FILE
-from leaf_dev.browser import PANEL_THREAD
+from leaf.agents import presence as presence_model
+from leaf.base import harness as harness_model
+from leaf.base import service as service_model
+from leaf.base.schema import SERVICE_FILE
+from leaf.base.server import SERVICE
+from leaf.log import event_log as events_model
+from leaf.pages import hosting as hosting_model
+from leaf.source.render_checks import rendered, start_near_work, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 from leaf_dev.example_data import named_source
+from leaf_dev.rings import ring_faults, ring_rules, ring_script, rings_drawn
 
 pytestmark = pytest.mark.shifts_unsurveyed
-
-
-VISUAL_REVIEW_GALLERY = named_source("visual-review-gallery")
 
 
 # One practice page, for the journeys that need no second child to compare against:
@@ -258,16 +256,6 @@ CONTROL_ARCHETYPES = (
         "name": "shot-view",
         "target": "#stable-shot .lf-shot-views wa-radio:nth-child(2)",
     },
-    {
-        "name": "visual-review-inspection",
-        "source": VISUAL_REVIEW_GALLERY,
-        "target": ".lf-vr-case:not([hidden]) .lf-shot-views wa-radio:nth-child(2)",
-    },
-    {
-        "name": "visual-review-approval",
-        "source": VISUAL_REVIEW_GALLERY,
-        "target": ".lf-vr-case:not([hidden]) .lf-vr-approval",
-    },
 )
 
 
@@ -297,7 +285,6 @@ RING_CASES = (
             RING_CHROME: (
                 (".lf-grip", FLOOR_RING),
                 (".lf-fp-leaf", FLOOR_RING),
-                (".lf-fp-on-user", FLOOR_RING),
                 # The field's slot wears the ring, so Send in the editor's corner
                 # stays put (floating-panel.css).
                 (
@@ -315,7 +302,7 @@ RING_CASES = (
                 (".lf-draft-edit", "lf-draft[data-lf-control-focus-visible]"),
             ),
             # A picture's response proxy, which a screen reader reaches from the
-            # picture, rings the picture (details-shelf.js).
+            # picture, rings the picture (features/details-shelf.js).
             "heat-loss": ((".lf-visual-action", "[data-lf-proxied]"),),
             # The rail's working density, where a choice's gap is narrowest beside the
             # next face, and a candidate's radio in its card: each is the page's own
@@ -554,13 +541,18 @@ RING_SCOPE_SURFACE = {
 
 
 RING_SCOPE_OPENER = {
-    "an inline response": "#pr-exact-patch .lf-diff-file-comment",
-    "On Me": ".lf-fp-on-user",
-    "the leaf's menu": ".lf-fp-leaf",
-    "a thread card": '.lf-margin-marker[data-lf-kinds~="comment"]',
-    "a reaction palette": f"{PANEL_THREAD} .lf-msg-controls > .lf-react-trigger",
+    "an inline response": ("#pr-exact-patch .lf-diff-file-comment",),
+    "On Me": (".lf-fp-leaf",),
+    # The leaf opens the On view on the tab its marks point at, so the Menu tab turns it
+    # to the menu where they point at a list.
+    "the leaf's menu": (
+        ".lf-fp-leaf",
+        ".lf-fp-controls .lf-fp-filters > button:first-child",
+    ),
+    "a thread card": ('.lf-margin-marker[data-lf-kinds~="comment"]',),
+    "a reaction palette": (f"{PANEL_THREAD} .lf-msg-controls > .lf-react-trigger",),
     # Any control inside the diff puts the user in its scope, where `]` lands a line.
-    "a landed diff line": "#pr-exact-patch summary",
+    "a landed diff line": ("#pr-exact-patch summary",),
 }
 
 
@@ -589,7 +581,9 @@ RING_SCOPE_THREAD = {
 
 def open_panel_thread_holding(page, selector):
     """Open the panel's view of the first thread, open or resolved, whose view holds
-    `selector`, walking Threads' rows in turn, the folded resolved ones unfolded."""
+    `selector`, walking Threads' rows in turn, the folded resolved ones unfolded, with
+    the panel chosen for threads about a passage."""
+    choose_threads_in_panel(page)
     show_resolved(page)
     keys = page.locator(".lf-fp-thread").evaluate_all(
         "rows => rows.map(row => row.dataset.lfKey)"
@@ -608,7 +602,7 @@ def open_panel_thread_holding(page, selector):
 RING_FOCUS_START = RELEASE_FOCUS
 
 
-SEEN_STOP = browser_function("focus_rings.js", "seenStop", using="control_name.js")
+SEEN_STOP = ring_script("seenStop")
 
 
 # Both readings of a Tab's landing in one round trip: whether the stop is new, and for a
@@ -636,8 +630,7 @@ def seen_stop(page, seen=...):
 def _tab_walk(page, stem):
     """Walk the page's whole ordinary Tab order and name every stop that shows nothing
     of where the keyboard is, and every ring a stop leaves cut or covered
-    (`ring_faults`). A ring that stays lit across stops, such as a decision's for the
-    control the user reached inside it, is named once."""
+    (`ring_faults`). A ring that stays lit across stops is named once."""
     page.evaluate("() => { window.__lfSeen = new WeakSet(); }")
     page.evaluate(RELEASE_FOCUS)
     unindicated, faults, faulted = [], [], set()
@@ -818,8 +811,8 @@ def test_live_sample_full_view_keeps_the_child_and_returns_after_inner_escape(
     resized(page, 390, 720)
     expect(back).to_be_in_viewport()
     assert root_overflow(page) <= 1
-    # The held draft gives the field the quick chips' room. Open Threads through
-    # the child's Go-to route while the same frame stands in Full view.
+    # Open Threads through the child's Go-to route while the same frame stands in Full
+    # view.
     child.locator("h1").click()
     page.keyboard.press("g")
     page.keyboard.press("Shift+t")
@@ -1135,9 +1128,9 @@ def test_the_feature_gallery_has_no_serious_wcag_a_or_aa_violations(browser, ser
     box and still shut a user out. Keep the scope to WCAG A/AA and actionable
     serious/critical findings; layout and accessibility-tree snapshots belong to
     specific regressions, not a baseline that changes with every restyle. The feature
-    gallery is the authored page with the broadest real UI. The specialist package
-    pages get one 420px Axe reading in the exported corpus; focused tests own the live
-    chrome surfaces this page does not open.
+    gallery is the authored page with the broadest real UI. Every other authored page
+    gets one Axe reading in each scheme at its widest (`test_page_fixture_renders`);
+    focused tests own the live chrome surfaces this page does not open.
 
     A phone's width because what a box does there is a different question and not a
     smaller one: the column is 372px, so a block that had room at a desk starts
@@ -1319,11 +1312,11 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
     for _ in range(60):
         page.keyboard.press("Shift+Tab")
         if page.evaluate(
-            "() => Boolean(document.activeElement?.matches('.lf-fp-on-user'))"
+            "() => Boolean(document.activeElement?.matches('.lf-fp-leaf'))"
         ):
             break
     else:
-        raise AssertionError("Tab never reached the panel's On Me mark")
+        raise AssertionError("Tab never reached the panel's leaf")
     rendered(page)
 
     assert seen_stop(page) is None, (
@@ -1335,13 +1328,13 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
         const style = document.createElement('style');
         style.id = 'lf-ring-negative-control';
         style.textContent =
-          '.lf-fp-on-user:focus { outline: none !important;'
+          '.lf-fp-leaf:focus { outline: none !important;'
           + ' box-shadow: none !important; }';
         document.head.append(style);
     }""")
     rendered(page)
     lost = seen_stop(page)
-    assert lost and "lf-fp-on-user" in lost, (
+    assert lost and "lf-fp-leaf" in lost, (
         "the ring was taken off a focused control and the reading still called it seen "
         f"({lost}), so the sample floor cannot report a missing indication"
     )
@@ -1476,6 +1469,9 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
             for _ in range(3):
                 page.keyboard.press("Escape")
             panel_settled(page, open=False)
+            # A scope that held a thread's view chose the panel for threads; the next
+            # opens them beside their passages again.
+            choose_threads_in_panel(page, on=False)
             # A draft editor and captured source are conditional chrome: Tab can stand
             # on them only after their explicit doors have opened. Do that after the
             # scope reset, whose Escape presses would otherwise put the draft away.
@@ -1483,7 +1479,11 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                 settled = page.locator("#comparison-policy[settled] > .lf-settled")
                 expect(settled).to_be_visible()
                 if settled.get_attribute("aria-expanded") != "true":
-                    settled.click()
+                    # The row ends a workspace that fills the window, so the floating
+                    # panel's row stands over its middle; the user presses its words,
+                    # at its start.
+                    height = settled.bounding_box()["height"]
+                    settled.click(position={"x": 8, "y": height / 2})
             if scope == "the page":
                 pencil = any_draft_control(page, "edit").first
                 if pencil.count() and pencil.is_visible():
@@ -1499,7 +1499,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                 page_at_rest(page)
             if holding := RING_SCOPE_THREAD.get(scope):
                 open_panel_thread_holding(page, holding)
-            if opener := RING_SCOPE_OPENER.get(scope):
+            for opener in RING_SCOPE_OPENER.get(scope, ()):
                 page.locator(opener).first.click()
             for key in keys:
                 page.keyboard.press(key)
@@ -1513,7 +1513,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
             page_at_rest(page)
             if surface := RING_SCOPE_SURFACE.get(scope):
                 assert page.locator(surface).count() == 1, (
-                    f"{RING_SCOPE_OPENER.get(scope, ' '.join(keys))} did not open "
+                    f"{RING_SCOPE_OPENER.get(scope, keys)} did not open "
                     f"{scope} on {example.stem}, which "
                     "offers it"
                 )
@@ -1531,7 +1531,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                     # runtime's own disclosure route, so the surface a sample needs is
                     # derived from where it sits rather than from a page's tab order.
                     # `reveal` takes the intent its caller's gesture retained, and
-                    # has no default (runtime/user-intent.js). This arrangement is
+                    # has no default (runtime/dom/user-intent.js). This arrangement is
                     # not a user's delayed work that a later input may supersede —
                     # it is the test saying what the page must show next — so the
                     # intent it hands over is the one that always holds.
@@ -1544,11 +1544,11 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                     rendered(page)
                     # A key press makes the focus that follows keyboard focus. Shift
                     # moves nothing: a Tab could stand in the panel's field, whose
-                    # caret puts the On Me mark aside (floating-panel.js, `quickHidden`).
+                    # caret starts writing there (panel/floating-panel.js, `writing`).
                     page.keyboard.press("Shift")
                     target.focus()
                     # A note on the details shelf is reached from the element that
-                    # names it (details-shelf.js), never by Tab, and is focused here as
+                    # names it (features/details-shelf.js), never by Tab, and is focused here as
                     # a screen reader moving to it would focus it.
                     assert target.evaluate(
                         "node => node.tabIndex >= 0"
@@ -1737,7 +1737,7 @@ def test_all_pages_takes_the_keyboard(browser, serve, live_leaf, one_user):
     opens it, up and down step between its links and clamp at the ends, Home and End
     reach the ends, Enter opens the focused one in its own tab, and Esc gives that press
     back — the user is returned to the reading place they pressed `g L` from. The walk
-    shows the row's preview, which the first Escape puts away (preview.js)."""
+    shows the row's preview, which the first Escape puts away (annotations/preview.js)."""
     live_leaf("second", "A second leaf")
     other_url, _ = live_leaf("other", "The other leaf")
     page = open_page(browser, serve(LONG_PAGE), context=one_user)
@@ -1848,15 +1848,10 @@ def test_a_recorded_move_is_announced_and_shown_only_where_it_was_made(browser, 
 def test_each_control_archetype_holds_its_neighbours_still(browser, serve, archetype):
     """Each row mechanism holds its other controls still across its causal transition."""
     # The synthetic page composes every mechanism a page can author, and carries the
-    # existing comment the margin entry's row is made of. An archetype naming another
-    # source is one whose causal state cannot coexist with that composed page, or whose
-    # mechanism lives only in a shipped gallery or under a page-wide opt-in.
-    source = archetype.get("source")
+    # existing comment the margin entry's row is made of.
     page = open_page(
         browser,
-        serve(source)
-        if source
-        else serve(
+        serve(
             CONTROL_STABILITY_PAGE,
             media={SHOT_SRC[name]: data for name, data in SHOTS.items()},
             events=[
@@ -1876,9 +1871,11 @@ def test_each_control_archetype_holds_its_neighbours_still(browser, serve, arche
     page.evaluate(DEFINE_BOXES)
     control = page.locator(archetype["target"])
     expect(control).to_be_visible()
-    # Playwright's click may scroll its target into view. Finish that navigation
-    # before holding the positions the press itself must preserve.
-    control.scroll_into_view_if_needed()
+    # Playwright's click scrolls a target it can't reach into view, as it does one the
+    # floating panel's row stands over at the window's foot. Bring the control to the
+    # window's middle first, as a user scrolls a control into sight before pressing it,
+    # and hold the positions the press itself must preserve from there.
+    control.evaluate("node => node.scrollIntoView({block: 'center'})")
     page_at_rest(page)
     before = control.evaluate(NEIGHBOURHOOD, NEIGHBOUR)
     assert before["names"], f"{archetype['name']} has no neighbouring control to hold"
@@ -2153,9 +2150,11 @@ def test_live_samples_keep_real_gestures_and_drafts_inside_the_child(browser, se
     parent_storage = page.evaluate(
         "[Object.keys(localStorage), Object.keys(sessionStorage)]"
     )
-    # The child's panel stands at the foot of its frame, which the host scrolls to.
+    # The child's panel stands at the foot of its frame, which the host brings clear of
+    # its own panel's row at the window's foot, as a landing of Leaf's does.
     second.evaluate(
-        "sample => sample.scrollIntoView({block: 'end', behavior: 'instant'})"
+        "async sample => (await window.__lfWidgetApi())"
+        ".scrollIntoView(sample, {block: 'end', behavior: 'instant'})"
     )
     write(page_comment(other), "Keep the other sample's draft.")
     reset.scroll_into_view_if_needed()
@@ -2345,6 +2344,12 @@ def test_live_samples_retire_before_navigation_and_coalesce_reset(browser, serve
         window.practiceHost = await mountSample(practiceFrame, {template: 'first-source'});
         await practiceHost.ready;
     }""")
+    # The host gives the frame its page's height; the module that mounted it sets none.
+    wait_until_ready(page)
+    mounted = page.locator("iframe").last.content_frame
+    assert page.evaluate("practiceFrame.clientHeight") == mounted.locator(
+        "body"
+    ).evaluate("body => Math.ceil(body.getBoundingClientRect().height)")
     previous = page.evaluate(
         "new URL(practiceFrame.src).origin + new URL(practiceFrame.src).pathname"
     )
@@ -2589,10 +2594,12 @@ def test_a_leaf_served_at_a_new_address_keeps_its_row_and_focus(
     # The recovery a taken port's refusal names: with the service record deleted, the
     # restarted server derives its address again, and binds past the port still taken.
     hosting_model.cmd_stop(other_dir)
-    (other_dir / SERVICE_FILE).unlink()
+    SERVICE.file(other_dir / SERVICE_FILE).unlink()
     with socket.create_server(("127.0.0.1", urlsplit(old_url).port)):
         new_url = hosting_model.start_server(
-            other_dir, persistent=True, harness=None
+            other_dir,
+            persistent=True,
+            harness=harness_model.claim_harness(service_model.page_claim(other_dir)),
         ).url.split("?")[0]
     assert urlsplit(new_url).port != urlsplit(old_url).port
     wait_for(

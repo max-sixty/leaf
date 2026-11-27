@@ -1,8 +1,6 @@
 /* Pele owns Mermaid parsing, semantic models, layout and SVG generation. Leaf
  * loads it only when a diagram draws, supplies local font metrics and live palette
- * roles, and registers Comment coordinates from Pele's drawn named boxes.
- * Drawn boxes have one authored identity across a diagram, including containers;
- * ambiguous identities cannot supply a stable node:<id> Comment coordinate.
+ * roles, and registers each box its author named as a Comment coordinate (`namedParts`).
  * Rendering is inert: source callbacks never execute, links and images are disabled,
  * and Pele escapes labels and filters styles. A refused source remains visible with
  * its diagnostic; Leaf never salvages a diagram by dropping statements.
@@ -30,16 +28,12 @@
  * name, else the browser's sans-serif. What Leaf adds it reads from outside: the drawing
  * under way as a `pending-task` event and the named boxes as the visual parts this
  * module registers, which only Leaf's Comment reads. */
-import {
-  PendingTaskEvent,
-  bodyText,
-  once,
-  failSoft,
-  frameFor,
-  registerVisualParts,
-  sizeObserver,
-  whileConnected,
-} from "/runtime/portable-api.js";
+import { frameFor, whileConnected } from "/runtime/portable-api.js";
+import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
+import { bodyText } from "/runtime/lib/data-body.js";
+import { failSoft } from "/runtime/lib/failure.js";
+import { once } from "/runtime/lib/once.js";
+import { sizeObserver } from "/runtime/lib/frame-pass.js";
 
 // Room for a 15px overlay track plus the drawing's stroke. CSS lets a native
 // classic track consume this same padding, retaining 1px around the marks.
@@ -57,42 +51,72 @@ const loadRenderer = () => (rendererReady ??= import("/vendor/pele.esm.js"));
 // Pele's own `maxWidth` would be its home, and this goes once Pele wraps labels for it.
 const COMPACT = { flowchart: { wrappingWidth: 84, nodeSpacing: 8 } };
 
-/** Pele owns the drawn inventory and its order; synthetic endpoints and mirrors are not parts.
- * @param {ReturnType<typeof import("pele").parse>} model @param {HTMLElement} drawn */
+// In most kinds of diagram Pele draws each box its author named as a node or a cluster
+// carrying the name as `data-id`, the same at every width: the Mermaid id, or the box's
+// words where the language gives it none, as a kanban card or a timeline's period has.
+// So each such box takes a comment of its own, keyed by its name. A start or end
+// point, a state's divider and a note are Pele's own, numbered in order, and a sequence
+// diagram's foot row draws the participants its head row draws again, so none of those
+// is a part. Nor is a group its author left unnamed, as an untitled block group or a
+// subgraph titled only in quotes, which Pele numbers too (`id-1`, `subGraph0`). The
+// kinds left out number what they draw: a journey draws its tasks as numbered steps at
+// a phone's width, and charts, such as a Gantt chart or a pie, number their items. A
+// numbered key would move a comment to another box once the author adds one above it.
+//
+// A group that shares its name with a box, as a sequence diagram's `box A` with its
+// `participant A`, or a namespace with its class, leaves the name to the box, so a
+// state keeps its comment when it gains substates and Pele draws it as a group. A name
+// drawn twice otherwise, as one label on two periods of a timeline, points at no one
+// box, so each copy takes the whole diagram's comment rather than one of them taking it
+// by its place in the drawing.
+const NAMING = new Set([
+  "architecture",
+  "block",
+  "c4",
+  "class",
+  "er",
+  "flowchart",
+  "kanban",
+  "mindmap",
+  "requirement",
+  "sequence",
+  "state",
+  "timeline",
+]);
+const NAMED =
+  'g[data-id]:not([data-id=""]):is(.pele-node,.pele-cluster):not(.pele-note,' +
+  ".pele-state-start,.pele-state-end,.pele-state-divider,.pele-actor-footer)";
+/** @param {ReturnType<typeof import("pele").parse>} model @param {Element} drawn
+ * @returns {[key: string, box: Element][]} */
 function namedParts(model, drawn) {
-  /** @type {Partial<Record<typeof model.type, string>>} */
-  const selectors = {
-    flowchart: ".pele-node,.pele-cluster",
-    class: ".pele-class,.pele-namespace",
-    er: ".pele-entity,.pele-cluster",
-    sequence: ".pele-actor:not(.pele-actor-footer)",
-    state:
-      ".pele-node:not(.pele-state-start):not(.pele-state-end):not(.pele-state-divider),.pele-cluster",
-  };
-  const selector = selectors[model.type];
-  if (!selector) return [];
-  return [...drawn.querySelectorAll("g")]
-    .filter((element) => element.matches("[data-id]:is(" + selector + ")"))
-    .map((element) => {
-      const id = element.getAttribute("data-id");
-      if (!id) throw new Error("Pele drew a named box without an identity");
-      return {
-        id,
-        label: ["class", "er"].includes(model.type) ? id : undefined,
-        selector: ":is(" + selector + ")",
-      };
-    });
+  if (!NAMING.has(model.type)) return [];
+  const boxes = [...drawn.querySelectorAll(NAMED)];
+  const id = (/** @type {Element} */ box) => box.getAttribute("data-id") ?? "";
+  const group = (/** @type {Element} */ box) => box.matches(".pele-cluster");
+  const named = new Set(boxes.filter((box) => !group(box)).map(id));
+  const kept = boxes.filter(
+    (box) =>
+      !group(box) || !(named.has(id(box)) || /^(?:id-|subGraph)\d+$/.test(id(box))),
+  );
+  /** @type {Map<string, number>} */
+  const seen = new Map();
+  for (const box of kept) seen.set(id(box), (seen.get(id(box)) ?? 0) + 1);
+  return kept.flatMap((box) =>
+    seen.get(id(box)) === 1 ? [[`node:${encodeURIComponent(id(box))}`, box]] : [],
+  );
 }
 
 // The words a drawn box says, with a space where a line wraps. Pele sets each line of a
 // wrapped label in a `tspan` at a `y` of its own, and the runs a line's styles split it
 // into share their line's, so the box's `textContent` ran "Start" and "request"
 // together as "Startrequest", which named its Respond control and its Comment target.
-// A `title` is a tooltip, not the box's words.
+// A `title` is a tooltip, not the box's words, and nor are the words of a named box
+// Pele draws inside it, as a journey's section holds its tasks.
 /** @param {Element} box */
 function wordsOf(box) {
   let words = "";
   for (const text of box.querySelectorAll("text")) {
+    if (text.closest(NAMED) !== box) continue;
     let line = text.getAttribute("y");
     words += " ";
     for (const run of text.childNodes) {
@@ -114,7 +138,7 @@ function nameWithoutTooltip(drawing) {
   const id = drawing?.getAttribute("aria-labelledby");
   const title = id ? drawing?.querySelector(`:scope > title#${CSS.escape(id)}`) : null;
   if (!drawing || !title) return;
-  drawing.setAttribute("aria-label", title.textContent ?? "");
+  drawing.setAttribute("aria-label", title.textContent);
   drawing.removeAttribute("aria-labelledby");
   title.remove();
 }
@@ -123,11 +147,11 @@ let seq = 0;
 customElements.define(
   "lf-diagram",
   class extends HTMLElement {
-    /** @type {Map<string, {element: Element, label: string}>} */
+    /** @type {Map<string, {element: Element, label: string, surface: Element | null}>} */
     visualParts = new Map();
-    visualPartRegistration = registerVisualParts(this, () =>
-      [...this.visualParts].map(([id, part]) => ({ id, ...part })),
-    );
+    lfParts = {
+      read: () => [...this.visualParts].map(([id, part]) => ({ id, ...part })),
+    };
     // The content width the box last laid out at, 0 where it shows no box, and none
     // before the first observation; the width the drawing showing was drawn for, its
     // own width, and its markup; and the draw, once the renderer has read the source.
@@ -238,26 +262,25 @@ customElements.define(
       nameWithoutTooltip(this.querySelector(":scope > svg"));
       this.style.setProperty("--lf-diagram-height", `${height}px`);
       this.style.setProperty("--lf-diagram-padding", `${drawingPadding}px`);
-      const drawn = this;
-      const parts = [...namedParts(model, drawn)];
+      // A class or an entity says its members too, so its name is its label. A box
+      // Pele draws other named boxes inside, as a kanban column holds its cards, is
+      // marked on its own frame, the shape it draws first, and the boxes keep theirs.
+      const named = ["class", "er"].includes(model.type);
       const visualParts = new Map();
-      for (const part of parts) {
-        const elements = drawn.querySelectorAll(
-          `g${part.selector}[data-id="${CSS.escape(part.id)}"]`,
-        );
-        const [element, duplicate] = elements;
-        if (!element || duplicate)
-          throw new Error(`Pele did not draw one named box for ${part.id}`);
-        const label = part.label || wordsOf(element) || part.id;
-        visualParts.set(`node:${encodeURIComponent(part.id)}`, {
-          element,
-          label,
-        });
+      for (const [key, element] of namedParts(model, this)) {
+        const id = element.getAttribute("data-id") ?? "";
+        const label = (!named && wordsOf(element)) || id;
+        const surface = element.querySelector(NAMED)
+          ? element.querySelector(":scope > :is(rect, path, polygon, circle, ellipse)")
+          : null;
+        visualParts.set(key, { element, label, surface });
       }
       this.visualParts = visualParts;
       this.classList.toggle("lf-rendered", true);
       this.toggleAttribute("data-lf-scroll", true);
-      this.visualPartRegistration.update();
+      this.dispatchEvent(
+        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+      );
     }
   },
 );

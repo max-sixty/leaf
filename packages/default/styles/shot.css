@@ -28,10 +28,11 @@ lf-shot {
 }
 /* Until its module draws, a shot holds the room its first drawing takes, so nothing
    below it moves when the drawing lands: the toolbar, and the stage's padding and
-   gutter around the frame Slider fits (`fitShotGeometry`, shot-view.js). Delivery
+   gutter around the frames its view fits (`fitShotGeometry`, shot-view.js). Delivery
    paints the captures' size on the element (`data-lf-media-width`,
    `data-lf-media-height`), and a frame takes the stage's width at the captures'
-   ratio, but never enlarges them nor stands taller than the screen below the toolbar.
+   ratio, but never enlarges them past their CSS size (their bitmap's, divided by
+   `density`) nor stands taller than the screen below the toolbar.
    A page whose runtime won't run draws no shot, nor does paper, so neither holds room,
    and a browser without typed `attr()` holds only the toolbar and padding. The frame
    stands in a row beside an empty box holding only the stage's scrollbar gutter, so it
@@ -66,12 +67,70 @@ lf-shot {
       margin-block-start: var(--lf-shot-toolbar);
       box-sizing: content-box;
       padding: calc(var(--lf-shot-frame-room) + 1px);
-      aspect-ratio: attr(data-lf-media-width type(<number>)) /
-        attr(data-lf-media-height type(<number>));
+      /* The frame's size in CSS pixels, and the screen's height that the toolbar and
+         the stage's padding leave. */
+      --lf-shot-held-width: calc(
+        attr(data-lf-media-width type(<number>)) / attr(density type(<number>), 1)
+      );
+      --lf-shot-held-height: calc(
+        attr(data-lf-media-height type(<number>)) / attr(density type(<number>), 1)
+      );
+      --lf-shot-held-screen: calc(
+        var(--lf-shot-screen) - var(--lf-shot-toolbar) - 2 * var(--lf-shot-frame-room)
+      );
+      aspect-ratio: var(--lf-shot-held-width) / var(--lf-shot-held-height);
       max-block-size: min(
-        attr(data-lf-media-height px),
-        var(--lf-shot-screen) - var(--lf-shot-toolbar) - 2 * var(--lf-shot-frame-room) -
-          2px
+        var(--lf-shot-held-height) * 1px,
+        var(--lf-shot-held-screen) - 2px
+      );
+    }
+    /* A pair that opens on its focus holds the focus's frame, which `focus-width` and
+       `focus-height` give in CSS pixels. */
+    lf-shot[data-lf-media-width][data-lf-media-height][focus-width][focus-height]:not(
+        :defined
+      )::before {
+      --lf-shot-held-width: attr(focus-width type(<number>));
+      --lf-shot-held-height: attr(focus-height type(<number>));
+    }
+    /* A pair that opens in Pair holds the arrangement Pair fits, whichever draws the
+       captures larger: side by side, each frame in half the width less the gap, which
+       wider inline padding gives the box, or stacked, each frame under its name
+       (`.lf-shot-frame-label`) and both within the screen. A stacked frame is always
+       wider, so stacking wins (`held-stack` is 1) only where the screen lets its frame
+       stand taller than a side-by-side one. That choice reads the shot's width with its
+       gutter, so a classic scrollbar can tip a pair within a gutter of the tie. */
+    lf-shot[view="pair"][data-lf-media-width][data-lf-media-height]:not(
+        :defined
+      )::before {
+      --lf-shot-held-side: min(
+        var(--lf-shot-held-height) * 1px,
+        (100cqi - 2 * var(--lf-shot-frame-room) - 4px - var(--lf-shot-gap)) *
+          var(--lf-shot-held-height) / (2 * var(--lf-shot-held-width))
+      );
+      --lf-shot-held-stacked: min(
+        var(--lf-shot-held-height) * 1px,
+        (var(--lf-shot-held-screen) - var(--lf-shot-gap)) / 2 -
+          var(--lf-shot-label-height) - var(--lf-shot-gap) - 2px
+      );
+      --lf-shot-held-stack: max(
+        0,
+        sign(var(--lf-shot-held-stacked) - var(--lf-shot-held-side))
+      );
+      aspect-ratio: calc(
+          (2 - 1.5 * var(--lf-shot-held-stack)) * var(--lf-shot-held-width)
+        ) /
+        var(--lf-shot-held-height);
+      max-block-size: calc(
+        (1 - var(--lf-shot-held-stack)) * var(--lf-shot-held-height) * 1px + 2 *
+          var(--lf-shot-held-stack) * var(--lf-shot-held-stacked)
+      );
+      padding-block: calc(
+        var(--lf-shot-frame-room) + 1px + var(--lf-shot-held-stack) *
+          (1px + var(--lf-shot-label-height) + 1.5 * var(--lf-shot-gap))
+      );
+      padding-inline: calc(
+        var(--lf-shot-frame-room) + 1px + (1 - var(--lf-shot-held-stack)) *
+          (1px + var(--lf-shot-gap) / 2)
       );
     }
   }
@@ -104,8 +163,10 @@ lf-shot {
 .lf-shot-actions {
   grid-area: actions;
 }
-.lf-shot-scale-options > .lf-btn {
-  /* Selection changes the face, never the width of its words. */
+.lf-shotoptions .lf-shot-scale-options > :where(button) {
+  /* Selection changes the face, never the width of its words. At two classes' weight
+     the rule ties the font a thread gives the presses in it (controls.css), and wins
+     by standing after it. */
   font: var(--lf-font-choice);
   white-space: nowrap;
 }
@@ -164,10 +225,10 @@ lf-shot {
 .lf-shot-open[data-lf-focus-visible] {
   outline: none;
 }
-.lf-shotframe .lf-shot-open {
-  --lf-focus-box: .lf-shotframe;
+.lf-shotviewport .lf-shot-open {
+  --lf-focus-box: .lf-shotviewport;
 }
-.lf-shotframe[data-lf-control-focus-visible] {
+.lf-shotviewport[data-lf-control-focus-visible] {
   /* The source can scroll beyond its frame; focus stays on the visible image, at a
      region's gap (base.css). */
   --lf-wears-ring: 1;
@@ -200,7 +261,7 @@ lf-shot {
     inline-size: 100%;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     grid-template-areas: "actions actions" "before after";
-    /* A stacked pair moves the words into its frames, without collapsing their
+    /* A stacked pair moves the words above its frames, without collapsing their
        toolbar row or moving the image viewport beneath the reader's pointer. */
     grid-template-rows: auto var(--lf-shot-label-height);
   }
@@ -260,8 +321,7 @@ lf-shot {
 }
 /* Each view is the screen's: paper prints every source whole (print, below). */
 @media screen {
-  lf-shot[data-lf-shot-scale="actual"]:not([data-lf-shot-mode="compare"])
-    .lf-shotstage {
+  lf-shot[data-lf-shot-scale="actual"]:not([data-lf-shot-mode="pair"]) .lf-shotstage {
     overflow-x: auto;
   }
 }
@@ -274,47 +334,58 @@ lf-shot {
   margin-inline: auto;
   gap: var(--lf-shot-gap);
 }
+/* A frame holds its capture's window and, in a stacked Pair, the name above it. The
+   window wears the media frame's face (shot-view.js), so a name stands on the page
+   rather than inside the capture's edge. */
 .lf-shotframe {
   inline-size: calc(var(--lf-shot-frame-width) + 2px);
   border: 1px solid transparent;
-  background: var(--lf-card);
-  overflow: clip;
 }
 @media screen {
-  lf-shot[data-lf-shot-mode="compare"] .lf-shotframe {
+  lf-shot[data-lf-shot-mode="pair"] .lf-shotframe {
     inline-size: calc(var(--lf-shot-viewport-width) + 2px);
   }
 }
 .lf-shotviewport {
   inline-size: var(--lf-shot-frame-width);
   block-size: var(--lf-shot-frame-height);
+  background: var(--lf-card);
+  overflow: clip;
 }
 /* Each capture's window keeps the height the fit gave it, and at actual size the reader
    scrolls the capture inside it, so both frames keep one size. */
 @media screen {
-  lf-shot[data-lf-shot-mode="compare"] .lf-shotviewport {
+  lf-shot[data-lf-shot-mode="pair"] .lf-shotviewport {
     --lf-holds-height: 1;
     inline-size: var(--lf-shot-viewport-width);
     block-size: var(--lf-shot-viewport-height);
     overflow: hidden;
     overscroll-behavior: auto;
   }
-  lf-shot[data-lf-shot-mode="compare"][data-lf-shot-scale="actual"] .lf-shotviewport {
+  lf-shot[data-lf-shot-mode="pair"][data-lf-shot-scale="actual"] .lf-shotviewport {
     overflow: auto;
   }
 }
+/* A stacked frame's name stands above its capture's window, in the toolbar's own
+   face, as a word about the capture rather than a row of it (browser/AGENTS.md, "A
+   word about shown material stands outside it"). The maintainer chose this placement and
+   kept the tinted face. A tinted band inside the frame read as the captured
+   interface's own header, most of all on a capture of Leaf, whose cards wear the same
+   tints. A name on the capture's corner covers what is under review, and an untinted
+   word was the quieter face he passed over. The row holds a gap above the name, so
+   each name stands nearer the window it names than the window before it. */
 .lf-shot-frame-label {
   box-sizing: border-box;
   display: none;
-  align-items: center;
-  block-size: var(--lf-shot-label-height);
-  border-block-end: 1px solid var(--lf-rule);
+  align-items: flex-end;
+  block-size: calc(var(--lf-shot-label-height) + var(--lf-shot-gap));
+  padding-block-end: var(--lf-sp-1);
 }
-lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"] .lf-shot-frame-label {
+lf-shot[data-lf-shot-mode="pair"][data-lf-shot-layout="stack"] .lf-shot-frame-label {
   display: flex;
 }
 /* Stacked frames carry their own labels; the toolbar only holds controls. */
-lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
+lf-shot[data-lf-shot-mode="pair"][data-lf-shot-layout="stack"]
   .lf-shot-toolbar
   > .lf-shotcap {
   display: none;
@@ -333,14 +404,12 @@ lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
   text-overflow: ellipsis;
   user-select: text;
 }
-.lf-shotcap[data-lf-state="before"],
-.lf-shot-frame-label[data-lf-state="before"] {
-  background: var(--lf-del-tint);
+.lf-shotcap[data-lf-state="before"] {
+  background: var(--lf-danger-tint);
   color: var(--lf-danger-ink);
 }
-.lf-shotcap[data-lf-state="after"],
-.lf-shot-frame-label[data-lf-state="after"] {
-  background: var(--lf-add-tint);
+.lf-shotcap[data-lf-state="after"] {
+  background: var(--lf-ok-tint);
   color: var(--lf-ok-ink);
 }
 .lf-shotcap[data-lf-shot-hidden] {
@@ -375,13 +444,13 @@ lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"]
   padding: 0;
   margin: 0;
 }
-lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="side"] .lf-shotcanvas {
+lf-shot[data-lf-shot-mode="pair"][data-lf-shot-layout="side"] .lf-shotcanvas {
   grid-template-columns: repeat(2, calc(var(--lf-shot-viewport-width) + 2px));
 }
-lf-shot[data-lf-shot-mode="compare"][data-lf-shot-layout="stack"] .lf-shotcanvas {
+lf-shot[data-lf-shot-mode="pair"][data-lf-shot-layout="stack"] .lf-shotcanvas {
   grid-template-columns: calc(var(--lf-shot-viewport-width) + 2px);
 }
-lf-shot:not([data-lf-shot-mode="compare"]) .lf-shotcanvas {
+lf-shot:not([data-lf-shot-mode="pair"]) .lf-shotcanvas {
   grid-template-columns: calc(var(--lf-shot-frame-width) + 2px);
   gap: 0;
 }
@@ -393,8 +462,8 @@ lf-shot:not([data-lf-shot-mode="compare"]) .lf-shotcanvas {
 .lf-shotcomparison {
   display: block;
   grid-area: 1 / 1;
-  inline-size: calc(var(--lf-shot-frame-width) + 2px);
-  block-size: calc(var(--lf-shot-frame-height) + 2px);
+  inline-size: var(--lf-shot-frame-width);
+  block-size: var(--lf-shot-frame-height);
   --divider-width: 2px;
   --handle-size: 30px;
   --wa-color-surface-default: var(--lf-card);
@@ -405,8 +474,23 @@ lf-shot:not([data-lf-shot-mode="compare"]) .lf-shotcanvas {
 .lf-shotcomparison::part(divider) {
   background: var(--lf-ink-2);
 }
-.lf-shotcomparison .lf-shotframe {
+.lf-shotcomparison .lf-shotviewport {
   box-shadow: none;
+}
+/* The slider and the pixel view each wear the media frame's ring round the whole
+   picture, so each is the picture's size and stands in the room the canvas keeps round
+   it for that ring (`+ 2px`, above). The captures fill the slider: a window wears no
+   ring of its own there, and its frame keeps no room for one, since room inside the
+   ring would stand a strip of the slider's ground between the ring and the picture. */
+@media screen {
+  .lf-shotcomparison,
+  .lf-shotpixels {
+    margin: 1px;
+  }
+  .lf-shotcomparison .lf-shotframe {
+    inline-size: var(--lf-shot-frame-width);
+    border: 0;
+  }
 }
 .lf-shotcomparison::part(handle) {
   border: 1px solid var(--lf-ink-2);
@@ -470,9 +554,6 @@ lf-shot[data-lf-shot-focus="true"][data-lf-shot-crop="false"]
 .lf-shotpixels {
   display: none;
   grid-area: 1 / 1;
-  inline-size: calc(var(--lf-shot-frame-width) + 2px);
-  block-size: calc(var(--lf-shot-frame-height) + 2px);
-  border: 1px solid transparent;
 }
 @media screen {
   lf-shot[data-lf-shot-mode="pixels"] .lf-shotpixels {
@@ -514,7 +595,7 @@ lf-shot[data-lf-shot-focus="true"][data-lf-shot-crop="false"]
     --lf-holds-height: 1;
   }
   @media screen {
-    lf-shot[data-lf-shot-scale="actual"]:not([data-lf-shot-mode="compare"])
+    lf-shot[data-lf-shot-scale="actual"]:not([data-lf-shot-mode="pair"])
       > .lf-shotstage {
       overflow-y: auto;
     }

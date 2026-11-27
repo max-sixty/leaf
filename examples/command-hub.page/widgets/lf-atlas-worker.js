@@ -1,18 +1,9 @@
 /* Atlas owns roster composition. A visible report keeps its reading until the
  * user asks for the latest, while identity and state come from the public projection. */
 import { html, noChange } from "/vendor/lit.js";
-import {
-  ago,
-  generatedElement,
-  HeldReading,
-  keeps,
-  keepsText,
-  LeafElement,
-  readWork,
-  reportSequence,
-  reportsReady,
-  workAncestor,
-} from "/runtime/widget-api.js";
+import { HeldReading, readReports, readWork } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { keeps, keepsText } from "/runtime/lib/keeps.js";
 customElements.define(
   "lf-atlas-worker",
   class extends LeafElement {
@@ -40,8 +31,13 @@ customElements.define(
         this.append(details);
       }
       // The worker's state word and its latest report are this widget's words.
-      generatedElement(this.querySelector(".atlas-worker-state"), { says: true });
-      generatedElement(this.querySelector(".atlas-worker-report"), { says: true });
+      for (const words of [
+        this.querySelector(".atlas-worker-state"),
+        this.querySelector(".atlas-worker-report"),
+      ]) {
+        keeps(words, "data-lf-gen", "1");
+        words.toggleAttribute("data-lf-said", true);
+      }
       this.held = new HeldReading(
         this,
         () => [this.querySelector(".atlas-worker-body")],
@@ -53,15 +49,14 @@ customElements.define(
     }
     render() {
       keeps(this, "state", this.state.state.value);
-      const worker = readWork(workAncestor(this, "scope")).workers.find(
-        (row) => row.element === this,
-      );
+      const worker = readWork(this).workers.find((row) => row.element === this);
       keepsText(
         this.querySelector(".atlas-worker-state"),
         `${worker.state}${worker.quiet ? " · quiet" : ""}`,
       );
-      if (!reportsReady(this)) return noChange;
-      const report = reportSequence(this).findLast(
+      const { phase, reports } = readReports(this);
+      if (phase !== "ready") return noChange;
+      const report = reports.findLast(
         (row) => row.source === "report" && row.disposition === "effective",
       );
       const next = JSON.stringify({
@@ -76,10 +71,7 @@ customElements.define(
       }
       return html`${reading.text}${
         reading.heard
-          ? html` Last heard
-              <time datetime=${reading.heard} title=${reading.heard}
-                >${ago(reading.heard)}</time
-              >`
+          ? html` Last heard <lf-age datetime=${reading.heard}></lf-age>`
           : ""
       }`;
     }

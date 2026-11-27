@@ -5,7 +5,7 @@ from copy import deepcopy
 
 from interact_support import declare_on_page, element_declaration
 
-from leaf.registry.storage import read_page_registry
+from leaf.source.vocabulary import read_page_registry
 
 
 def vocabulary(page_dir) -> dict:
@@ -29,12 +29,7 @@ def _stateful_page_declaration(page_dir, tag="lf-local"):
     widgets = page_dir / "page" / "widgets"
     widgets.mkdir(parents=True, exist_ok=True)
     (widgets / f"{tag}.js").write_text("export function upgrade() {}\n")
-    declaration["attributes"]["properties"].update(
-        {
-            "restated": {"type": "boolean"},
-            "value": {"type": "string"},
-        }
-    )
+    declaration["attributes"]["properties"]["value"] = {"type": "string"}
     state = {
         "unit": "widget",
         "record": {"kind": "value", "attr": "value"},

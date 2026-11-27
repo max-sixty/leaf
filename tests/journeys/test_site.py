@@ -26,8 +26,16 @@ from pathlib import Path
 from urllib.parse import urljoin, urlsplit
 
 import pytest
+
+# The suite's own page primitives, so a navigation here waits on what every other
+# navigation waits on. tests/AGENTS.md, "Waits".
 from conftest import LENT_LINKED_DIRS
-from interact_support import declared, running_http_server, wait_for
+from interact_support import (
+    declared,
+    running_http_server,
+    stored_file,
+    wait_for,
+)
 from PIL import Image
 from playwright.sync_api import expect
 from render_harness import (
@@ -56,27 +64,32 @@ from render_harness import (
 )
 
 import leaf_website as website_server
-
-# The suite's own page primitives, so a navigation here waits on what every other
-# navigation waits on. tests/AGENTS.md, "Waits".
 from journeys import expect_showing
-from leaf import data as data_model
-from leaf import files as files_model
-from leaf import hosting as hosting_model
-from leaf import layer as layer_model
-from leaf import render_checks as render_checks_model
-from leaf import schema as schema_model
-from leaf.event_log import read_events
-from leaf.events import bare_reaction, build_threads
-from leaf.passages import enclosing_ids
-from leaf.registry.kernel import kernel_protocol
-from leaf.registry.storage import layer_packages, layer_record, selected
-from leaf.render_checks import rendered, wait_until_ready
-from leaf.render_gate import version as render_gate_model
-from leaf.revision_artifact import read_artifact
-from leaf.service import acknowledged
-from leaf.structure import SourceDocument
-from leaf_dev.browser import PANEL_THREAD, panel_tab, show_resolved
+from leaf.base import files as files_model
+from leaf.base import schema as schema_model
+from leaf.base.state import kernel_protocol
+from leaf.log.event_log import read_events
+from leaf.log.events import bare_reaction, build_threads
+from leaf.pages import hosting as hosting_model
+from leaf.pages.render_gate import version as render_gate_model
+from leaf.records.transaction import acknowledged
+from leaf.serving.drafts import DRAFTS
+from leaf.source import data as data_model
+from leaf.source import file_bindings
+from leaf.source import layer as layer_model
+from leaf.source import render_checks as render_checks_model
+from leaf.source.layer import selected_layer
+from leaf.source.passages import enclosing_ids
+from leaf.source.registry.storage import layer_packages, layer_record
+from leaf.source.render_checks import rendered, wait_until_ready
+from leaf.source.revision_artifact import read_artifact
+from leaf.source.structure import SourceDocument
+from leaf_dev.browser import (
+    PANEL_THREAD,
+    choose_threads_in_panel,
+    panel_tab,
+    show_resolved,
+)
 from leaf_dev.commands.site import _build as site_build
 from leaf_dev.docs import DOCS, product_sources
 from leaf_dev.example_data import (
@@ -109,7 +122,7 @@ def open_count(page):
 PAPER = {"light": "rgb(250, 249, 245)", "dark": "rgb(25, 24, 21)"}
 PHONE = {"width": 390, "height": 844}
 # One runtime draws one chrome root; the boxes it nests, such as the preview's stage
-# (preview.js), wear the class too, so the sheet dresses them wherever they stand.
+# (annotations/preview.js), wear the class too, so the sheet dresses them wherever they stand.
 CHROME_ROOT = ".lf-chrome:not(.lf-chrome .lf-chrome)"
 
 
@@ -167,7 +180,7 @@ def framed_root_examples():
     """Every example whose `main` is a workspace (`.layout-workspace`).
 
     Derived rather than listed, so a new one is gated without naming it here. The
-    reading is `leaf.structure`'s, the one `page check` admits and the browser
+    reading is `leaf.source.structure`'s, the one `page check` admits and the browser
     takes, so an omitted `</p>` cannot split the two counts.
     """
     framed = []
@@ -341,7 +354,7 @@ def test_the_data_structures_tables_read_on_a_phone(hosted, browser, subtests):
     """The data-structures reference's tables, generated from the schemas, read at a
     phone's width: on a narrow column each field's description takes the row's whole
     width under its name, type and flag, so no table scrolls sideways or squeezes a
-    cell to a word a line (`squeezedBoxes`), as 31 of them did with four columns side
+    cell to a word a line (`squeezedTables`), as 31 of them did with four columns side
     by side. At 640px the column is just wide enough for the four-column table, which
     has to fit there too."""
     page = browser.new_page(viewport={"width": 640, "height": PHONE["height"]})
@@ -355,7 +368,7 @@ def test_the_data_structures_tables_read_on_a_phone(hosted, browser, subtests):
                 ".filter((table) => table.scrollWidth - table.clientWidth > 1)"
                 ".map((table) => table.closest('section').id)"
             )
-            squeezed = render_checks_model.evaluate_probe(page, "squeezedBoxes")
+            squeezed = render_checks_model.evaluate_probe(page, "squeezedTables")
             assert (scrolling, squeezed) == ([], [])
 
 
@@ -368,7 +381,7 @@ def test_published_examples_keep_the_site_theme_out_of_their_layer(site, monkeyp
         record = layer_record(site / "examples" / source.stem)
         assert record is not None
         theme = (
-            selected(record, site / "examples" / source.stem)
+            selected_layer(record, site / "examples" / source.stem)
             .top_files["theme.css"]
             .decode()
         )
@@ -476,7 +489,7 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     assert list((example_root / "versions").glob("v*.html"))
     assert list((example_root / "revisions").glob("r*.html"))
     for private in ("data", "events.jsonl", "stream.json"):
-        assert not (example_root / private).exists()
+        assert not stored_file(example_root / private).exists()
 
     notification_root = assets / "examples" / "notification-playground"
     notification = manifest["pages"]["/examples/notification-playground"]
@@ -506,14 +519,16 @@ def test_the_asset_site_is_the_live_immutable_half_of_each_page(site):
     revisions = files_model.list_revisions(gallery_page)
     assert set(gallery["states"]) == {str(revision) for revision in revisions}
     # The revision files the release publishes, beside which a visitor's record saved
-    # under an earlier release may hold others (`leaf_website.storage`), and the
-    # protocol that keys the record (`worker/src/index.ts`).
+    # under an earlier release may hold others (`leaf_website.storage`), the protocol
+    # that keys the record (`worker/src/index.ts`) and the drafts format that keys its
+    # drafts stores (`worker/src/storage.ts`).
     assert gallery["revisions"] == [
         files_model.revision_path(gallery_page, revision).stem for revision in revisions
     ]
     for name in gallery["revisions"]:
         assert (assets / "examples" / "feature-gallery" / "revisions" / name).is_dir()
     assert manifest["protocol"] == kernel_protocol()
+    assert manifest["drafts_format"] == DRAFTS.format
     assert (
         gallery["state"]
         == gallery["states"][str(files_model.latest_revision(gallery_page))]
@@ -658,9 +673,15 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
             assert acknowledged(events) == receipt["seq"] - 1
         else:
             assert acknowledged(events) == 0
-        assert set(contracts) == {operation["source"] for operation in operations}
+        # A bound file is a data source under its binding's id, beside the sources
+        # the example's data sets.
+        assert set(contracts) == {
+            operation["source"] for operation in operations
+        } | set(file_bindings.bound_paths(page_dir))
         for operation in operations:
-            stored = data_model.source_file(page_dir, operation["source"])
+            stored = data_model.PUBLICATION.file(
+                data_model.source_file(page_dir, operation["source"])
+            )
             assert json.loads(stored.read_text())["value"] == operation["value"]
 
         for name in ("events.jsonl", schema_model.LAYER_FILE):
@@ -671,8 +692,8 @@ def test_every_published_page_keeps_its_canonical_page_record(site):
         for sub in ("media", "revisions"):
             assert list((page_dir / sub).iterdir()), f"{source.name}: {sub}/ is empty"
         assert declared(page_dir)["state"] == "idle"
-        assert not (page_dir / "service.json").exists()
-        assert not (page_dir / "preview.json").exists()
+        assert not stored_file(page_dir / "service.json").exists()
+        assert not stored_file(page_dir / "preview.json").exists()
         assert not (page_dir / "versions").exists()
 
 
@@ -758,22 +779,28 @@ def test_the_published_notification_example_runs_its_authored_module(
     expect(page.locator(".notification-demo-card-status-strip")).to_have_count(4)
 
 
-def test_published_visual_evidence_loads_from_its_page(served_example, browser):
-    """Typed media paths resolve under the same page as authored media."""
-    _, url = served_example("visual-review-gallery")
+def test_published_typed_media_loads_from_its_page(served_example, browser):
+    """Typed media paths resolve under the same page as authored media: the image a
+    recorded trace shows, and every image its source names."""
+    _, url = served_example("playwright-trace-gallery")
     page = open_page(browser, url)
-    review = page.locator("#visual-review-run")
-    for case_id in ("open-mobile-package-catalog", "keep-mobile-destinations"):
-        review.locator(
-            f'.lf-vr-case-button[aria-controls="visual-review-run-{case_id}"]'
-        ).click()
-        comparison = review.locator(".lf-vr-case:not([hidden]) lf-shot")
-        expect(comparison).to_be_visible()
-        images = comparison.locator("img")
-        expect(images).to_have_count(2)
-        for image in images.all():
-            expect(image).to_have_js_property("complete", True)
-            assert image.evaluate("image => image.naturalWidth") > 0
+    trace = page.locator("#release-trace")
+    shown = trace.locator(".lf-trace-image img").first
+    expect(shown).to_have_js_property("complete", True)
+    assert shown.evaluate("image => image.naturalWidth") > 0
+    widths = trace.evaluate(
+        """async trace => {
+          const {scopedMediaUrl} = await window.__lfWidgetApi();
+          const urls = [...new Set(trace.value.images.map(image => image.url))];
+          return Promise.all(urls.map(url => new Promise(resolve => {
+            const image = new Image();
+            image.onload = () => resolve(image.naturalWidth);
+            image.onerror = () => resolve(0);
+            image.src = scopedMediaUrl(url);
+          })));
+        }"""
+    )
+    assert len(widths) > 1 and all(widths), widths
 
 
 def test_a_replaced_private_server_keeps_the_active_tab(served_example, browser):
@@ -926,7 +953,7 @@ def test_a_page_that_starts_after_a_fault_takes_its_notice_back(
         "data-lf-startup-error", re.compile("planted fault")
     )
     expect(notice).to_have_count(0)
-    expect(page.locator(".lf-fp-on-user")).to_be_visible()
+    expect(page.locator(".lf-fp-leaf")).to_be_visible()
 
     # The probe stops with it: a page that started has nothing left to ask the source.
     # The supervisor sets the timer for its next round only once the last round's
@@ -1409,7 +1436,7 @@ def test_every_published_page_stands_as_a_live_page(served_example, browser):
         newest = len(example_versions(source))
         expect_showing(page, newest)
         expect(page.locator(".lf-fp-leaf")).to_have_attribute(
-            "aria-label", "Page menu · Ready — comment to revise this copy"
+            "aria-label", re.compile(r" · Ready — comment to revise this copy$")
         )
         if source == FEATURE_GALLERY:
             samples = page.locator("#bg-interactions lf-sample")
@@ -1540,10 +1567,14 @@ def test_a_published_example_has_no_agent_claim(served_example, browser):
         "agent": "Agent",
         "install_url": "/#install",
     }
-    assert state["browser"]["todos"] == []
+    assert not any(
+        item["source"]["kind"] == "todo"
+        for view in state["browser"]["views"].values()
+        for item in view["obligations"]
+    )
     assert state["session_alive"] is None
     assert not state["listening"]
-    assert not (page_dir / "service.json").exists()
+    assert not stored_file(page_dir / "service.json").exists()
 
     # The page backend answers the exact projection path the runtime asks for.
     answer = page.evaluate(
@@ -1591,10 +1622,9 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
     expect(show_resolved(page)).to_have_count(resolved)
     # Named rather than taken first: the assertion follows the shipped objection,
     # independent of where a later seed might place another thread.
-    row = page.locator(".lf-fp-thread").filter(
-        has_text="One reconnect in forty is worse"
-    )
+    row = page.locator('.lf-fp-thread[data-lf-key="7b3e0a41"]')
     expect(row).to_have_count(1)
+    choose_threads_in_panel(page)
     row.click()
     thread = page.locator(PANEL_THREAD)
     expect(thread.locator(".lf-thread-quote")).to_have_text("One reconnect in about 40")
@@ -1616,8 +1646,8 @@ def test_a_shipped_log_opens_its_example_on_its_thread(served_example, browser):
 def test_shipped_data_opens_in_its_package_projection(site, served_example, browser):
     """The page backend delivers package data through the live state contract, and
     the page counts every obligation it declares."""
-    stored = data_model.source_file(
-        site / "examples" / "command-hub", "atlas-worktrees"
+    stored = data_model.PUBLICATION.file(
+        data_model.source_file(site / "examples" / "command-hub", "atlas-worktrees")
     )
     assert (
         json.loads(stored.read_text())["value"]["tree-w-1"]["branch"]
@@ -1636,7 +1666,7 @@ def test_shipped_data_opens_in_its_package_projection(site, served_example, brow
     ).to_have_text("running")
     # The inventory includes request Decisions beside state obligations.
     expect_obligations_answered(page, "0/5")
-    expect(page.locator(".lf-fp-on-user")).to_be_visible()
+    expect(page.locator(".lf-fp-leaf")).to_be_visible()
 
 
 def test_a_comment_persists_without_inventing_an_agent_reply(served_example, browser):
@@ -1665,8 +1695,10 @@ def test_a_comment_persists_without_inventing_an_agent_reply(served_example, bro
     # The thread holding the words just written, rather than whichever is first:
     # an example that ships a log opens with threads already in the panel, and
     # theirs would be first. triage-board ships none today, so `.first` was
-    # right by accident and would stop being on the day it does.
+    # right by accident and would stop being on the day it does. Its row opens it in
+    # the panel's view once the tab chooses the panel for threads about a passage.
     def written():
+        choose_threads_in_panel(page)
         open_threads(page)
         page.locator(".lf-fp-thread").filter(
             has_text="Can the migration fix ship first?"
@@ -1690,7 +1722,7 @@ def test_a_published_decision_survives_reload(served_example, browser):
     """A published example uses Leaf's durable log rather than browser-only state."""
     _, url = served_example("heat-loss")
     page = open_page(browser, url)
-    decisions = page.locator(".lf-fp-on-user")
+    decisions = page.locator(".lf-fp-leaf")
     expect_obligations_answered(page, "0/1")
     expect(decisions).to_be_visible()
     chosen = (

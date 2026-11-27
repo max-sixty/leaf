@@ -2,26 +2,30 @@
 
 import io
 import re
+from datetime import UTC, datetime, timedelta
 
+import pytest
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
     consume_browser_errors,
+    holding,
     http_error_console,
     leaf_page,
     one_frame,
     open_page,
     primed,
-    regions_side_by_side,
     rendered,
-    resized,
     rgb_pixels,
     scroll_settled,
+    told,
+    wait_until_ready,
+    word_point,
 )
 
 from browser.test_render_gate import AIM_BOXES, aim_selectors
-from leaf.file_bindings import bind_file
+from leaf.source.file_bindings import bind_file
 
 
 def test_file_editor_page_navigation_preserves_the_caret_position(
@@ -76,6 +80,256 @@ def test_file_editor_page_navigation_preserves_the_caret_position(
         previous = current["scroll"]
 
 
+def test_a_markdown_preview_follows_the_editor_and_a_line_link_centres_its_line(
+    browser, serve, tmp_path
+):
+    """A rendered copy bound to the editor with `for` follows what the reader types once
+    it saves, and its passages name the file, so a comment on one says which file it is
+    about. Its code is coloured and its formulas typeset while the editor colours the
+    same file beside it, and the file's link to one of its headings lands there. A link
+    naming a line far down the file, followed or loaded, brings that line to the middle
+    of the editor rather than its foot."""
+    file = tmp_path / "README.md"
+    file.write_text(
+        "# Notes\n\nCost: $`c(x) = h\\,x`$ a request, [as at the end](#the-end), "
+        "beside [the regions](#regions).\n\n"
+        '```json\n{"floor": 300000}\n```\n\n'
+        + "\n\n".join(f"Paragraph {number}." for number in range(1, 201))
+        + "\n\n## The end\n\n> ## Notes\n\n## Source\n"
+    )
+    url = serve(
+        leaf_page(
+            "Notes",
+            '<main class="layout-workspace"><header><h1>Notes</h1>'
+            '<p><a id="to-line" href="#notes-file:notes:307">paragraph 150</a></p>'
+            '</header><div id="regions" style="display: grid; '
+            'grid-template-columns: 1fr 1fr">'
+            '<lf-pane id="source" label="Source">'
+            '<lf-file-editor id="notes-file" binding="notes"></lf-file-editor></lf-pane>'
+            '<lf-pane id="rendered" label="Rendered"><lf-text-document id="preview" '
+            'for="notes-file" label="README.md" preview="markdown"></lf-text-document>'
+            "</lf-pane></div></main>",
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", file)
+    page = open_page(browser, live_url(url))
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    preview = page.locator("#preview .lf-text-document-preview")
+    expect(preview.get_by_role("heading", name="Notes", level=1)).to_be_visible()
+
+    expect(preview).to_have_attribute("data-lf-identity", "preview:notes")
+    expect(preview.locator("code.language-math[data-lf-formula]")).to_have_count(1)
+    expect(preview.locator("code.language-json [data-lf-syn]").first).to_be_attached()
+    preview.get_by_role("link", name="as at the end").click()
+    expect(preview.get_by_role("heading", name="The end")).to_be_in_viewport()
+    # A fragment naming no heading of the file names the page's own place.
+    expect(preview.get_by_role("link", name="the regions")).to_have_attribute(
+        "href", "#regions"
+    )
+    # A heading's address is GitHub's, counted past one an earlier heading took, and
+    # never a reading's own key.
+    assert page.locator("#preview").evaluate(
+        """element => ["preview:notes-1", "preview:source", "source"].map(
+          (key) => element.lfElementsFor(key)[0]?.localName)"""
+    ) == ["h2", "h2", "pre"]
+    centred = """() => {
+      const root = document.querySelector('lf-file-editor').shadowRoot;
+      const line = root.querySelector('.cm-activeLine').getBoundingClientRect();
+      const port = root.querySelector('.cm-scroller').getBoundingClientRect();
+      const middle = (line.top + line.bottom) / 2 - port.top;
+      return Math.abs(middle - port.height / 2) < port.height / 6;
+    }"""
+
+    page.locator("#to-line").click()
+    expect(editor).to_be_focused()
+    expect(editor.locator(".cm-activeLine")).to_have_text("Paragraph 150.")
+    page.wait_for_function(centred)
+
+    page.keyboard.insert_text("Typed here. ")
+    expect(preview).to_contain_text("Typed here. Paragraph 150.")
+    assert "Typed here. Paragraph 150." in file.read_text()
+
+    loaded = open_page(browser, live_url(url) + "#notes-file:notes:307")
+    loaded_editor = loaded.locator("lf-file-editor").get_by_role(
+        "textbox", name="File contents", exact=True
+    )
+    expect(loaded_editor.locator(".cm-activeLine")).to_have_text(
+        "Typed here. Paragraph 150."
+    )
+    loaded.wait_for_function(centred)
+
+
+def test_a_markdown_preview_draws_the_files_html_and_the_pictures_beside_it(
+    browser, serve, tmp_path
+):
+    """A file's preview, bound to its editor or to the file itself, draws the HTML the
+    file writes: a fold folds and stays open as the reader types inside it, a centred
+    picture beside the file loads at the height the file gives it, bare of the reading
+    face's frame, a link to a file beside it opens that file in a new tab as text, a
+    link to an anchor the file names lands there, a table keeps its alignment, a task
+    list its checkbox, and an element its style, class and fields. What would run
+    script or speak for Leaf goes: no script runs, a `javascript:` link leads nowhere,
+    a Leaf widget and a `data-` attribute go, and the file's `id` names no element of
+    the page."""
+    (tmp_path / "assets").mkdir()
+    (tmp_path / "assets" / "logo.svg").write_text(
+        '<svg xmlns="http://www.w3.org/2000/svg" width="200" height="100">'
+        '<rect width="200" height="100" fill="teal"/></svg>'
+    )
+    (tmp_path / "docs").mkdir()
+    (tmp_path / "docs" / "guide.md").write_text("# Guide\n")
+    file = tmp_path / "README.md"
+    file.write_text(
+        '<!-- hidden note -->\n<a name="top"></a>\n'
+        '<p align="center"><img src="assets/logo.svg" height="40" alt="Logo"></p>\n\n'
+        "<details><summary>More</summary>\n\nInside the fold.\n\n</details>\n\n"
+        '<script>window.ran = "script"</script>'
+        '<img src="assets/logo.svg" onload="window.ran = `handler`" alt="Again">\n\n'
+        '<a href="javascript:window.ran = `link`">Bad</a> '
+        '<a href="https://example.com/" rel="opener">Out</a> '
+        "[Guide](docs/guide.md) [Back to top](#top)\n\n"
+        '<div id="preview" class="note" style="color: teal" data-lf-said>'
+        "Styled</div>\n\n"
+        '<lf-options id="pick"><lf-option id="yes">Yes</lf-option></lf-options>\n\n'
+        '<input type="text" value="typed">\n\n'
+        "| Name | Size |\n| :-: | --: |\n| logo | 40 |\n\n"
+        '<table><tr><td align="right">Sponsor</td></tr></table>\n\n'
+        "- [x] Done\n"
+    )
+    url = serve(
+        leaf_page(
+            "Readme",
+            '<p><a id="to-fold" href="#readme-file:readme:7">the fold</a></p>'
+            '<lf-file-editor id="readme-file" binding="readme"></lf-file-editor>'
+            '<lf-text-document id="preview" for="readme-file" label="README.md" '
+            'preview="markdown"></lf-text-document>'
+            '<lf-text-document id="direct" source="readme" preview="markdown">'
+            "</lf-text-document>",
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "readme", file)
+    page = open_page(browser, live_url(url))
+    direct = page.locator("#direct .lf-text-document-preview")
+    expect(direct.get_by_role("img", name="Logo")).to_have_js_property(
+        "naturalWidth", 200
+    )
+    preview = page.locator("#preview .lf-text-document-preview")
+    logo = preview.get_by_role("img", name="Logo")
+    expect(logo).to_have_js_property("complete", True)
+    assert logo.evaluate(
+        """image => {
+          const box = image.getBoundingClientRect();
+          const line = image.parentElement.getBoundingClientRect();
+          const centred = Math.abs(box.x + box.width / 2 - (line.x + line.width / 2)) < 1;
+          return [image.naturalWidth, box.height, getComputedStyle(image).boxShadow, centred];
+        }"""
+    ) == [200, 40, "none", True]
+    expect(preview.get_by_role("img", name="Again")).to_have_js_property(
+        "complete", True
+    )
+    expect(preview).not_to_contain_text("hidden note")
+    out = preview.get_by_role("link", name="Out")
+    expect(out).to_have_attribute("target", "_blank")
+    guide = preview.get_by_role("link", name="Guide")
+    expect(guide).to_have_attribute("target", "_blank")
+    href = guide.evaluate("link => link.href")
+    assert "/api/files/readme/beside?path=docs%2Fguide.md" in href
+    opened = page.request.get(href)
+    assert opened.ok and opened.text() == "# Guide\n"
+    assert opened.headers["content-type"].startswith("text/plain")
+    assert (
+        preview.get_by_text("Bad").evaluate("link => link.hasAttribute('href')")
+        is False
+    )
+    styled = preview.get_by_text("Styled")
+    assert styled.evaluate(
+        "div => [...div.attributes].map(({name, value}) => `${name}=${value}`)"
+    ) == ["class=note", "style=color: teal", "data-lf-place=preview"]
+    expect(styled).to_have_css("color", "rgb(0, 128, 128)")
+    expect(page.locator("#preview")).to_have_count(1)
+    expect(preview.locator("lf-options, lf-option")).to_have_count(0)
+    preview.get_by_role("link", name="Back to top").click()
+    assert (
+        page.locator("#preview").evaluate(
+            "element => element.lfElementsFor('preview:top')[0]?.localName"
+        )
+        == "a"
+    )
+    assert preview.locator("td").evaluate_all(
+        "cells => cells.map((cell) => getComputedStyle(cell).textAlign.replace('-webkit-', ''))"
+    ) == ["center", "right", "right"]
+    fields = preview.locator("input")
+    expect(fields).to_have_count(2)
+    expect(fields.nth(0)).to_have_value("typed")
+    expect(fields.nth(1)).to_be_disabled()
+    expect(fields.nth(1)).to_be_checked()
+    assert page.evaluate("window.ran") is None
+
+    fold = preview.locator("details")
+    fold.locator("summary").click()
+    expect(fold).to_have_attribute("open", "")
+    page.locator("#to-fold").click()
+    page.keyboard.insert_text("Typed here. ")
+    expect(fold).to_contain_text("Typed here. Inside the fold.")
+    expect(fold).to_have_attribute("open", "")
+
+
+def test_a_preview_bound_to_a_file_follows_each_write_with_or_without_an_editor(
+    browser, serve, tmp_path
+):
+    """A Markdown preview bound by `source` to a file the page binds shows each save
+    of the editor beside it and, on a page with no editor, each write to the file from
+    elsewhere, as an agent's. What it draws names the file's source and revision, which
+    a comment on its words records. An editor open before the page bound its file,
+    holding nothing of its own, reads the file once the page binds it, as the preview
+    shows it."""
+    file = tmp_path / "README.md"
+    file.write_text("# Notes\n\nFirst words.\n")
+    preview_markup = (
+        '<lf-text-document id="preview" source="notes" preview="markdown">'
+        "</lf-text-document>"
+    )
+    edited = serve(
+        leaf_page(
+            "Notes",
+            '<h1>Notes</h1><lf-file-editor id="notes-file" binding="notes">'
+            f"</lf-file-editor>{preview_markup}",
+        ),
+        packages=["file-editor"],
+    )
+    edited_dir = serve.page_dir
+    alone = serve(leaf_page("Notes", f"<h1>Notes</h1>{preview_markup}"))
+    bind_file(serve.page_dir, "notes", file)
+
+    page = open_page(browser, live_url(edited))
+    editor = page.locator("lf-file-editor").get_by_role(
+        "textbox", name="File contents", exact=True
+    )
+    expect(editor).to_contain_text("No file is bound as 'notes'.")
+    bind_file(edited_dir, "notes", file)
+    told(page)
+    preview = page.locator("#preview .lf-text-document-preview")
+    expect(preview).to_contain_text("First words.")
+    expect(preview).to_have_attribute("data-lf-source", "notes")
+    expect(editor).to_contain_text("First words.")
+    editor.click()
+    page.keyboard.press("ControlOrMeta+End")
+    page.keyboard.insert_text("Typed in the editor.")
+    expect(preview).to_contain_text("Typed in the editor.")
+
+    reader = open_page(browser, live_url(alone))
+    shown = reader.locator("#preview .lf-text-document-preview")
+    expect(shown).to_contain_text("Typed in the editor.")
+    revision = shown.get_attribute("data-lf-source-revision")
+    file.write_text(file.read_text() + "\n\nAdded elsewhere.\n")
+    told(reader)
+    expect(shown).to_contain_text("Added elsewhere.")
+    expect(shown).not_to_have_attribute("data-lf-source-revision", revision or "")
+
+
 def test_paper_keeps_the_files_words_and_drops_the_editors_controls(
     browser, serve, tmp_path
 ):
@@ -123,8 +377,18 @@ def test_file_editor_uses_package_typography_and_the_inherited_focus_ring(
     widget = page.locator("lf-file-editor")
     editor = widget.get_by_role("textbox", name="File contents", exact=True)
     expect(editor).to_have_attribute("aria-readonly", "false")
+    # A heading wears the token theme's colour for one, so the file reads as Markdown.
     heading = editor.locator(".cm-line", has_text="A real file").locator("span").first
-    expect(heading).to_have_css("font-weight", "650")
+    expect(heading).to_have_css(
+        "color",
+        page.evaluate("""() => {
+          const probe = document.body.appendChild(document.createElement("span"));
+          probe.style.color = "var(--lf-syn-name)";
+          const color = getComputedStyle(probe).color;
+          probe.remove();
+          return color;
+        }"""),
+    )
     size = editor.evaluate("node => getComputedStyle(node).fontSize")
     root_size = page.locator("html").evaluate(
         "node => parseFloat(getComputedStyle(node).fontSize)"
@@ -137,7 +401,7 @@ def test_file_editor_uses_package_typography_and_the_inherited_focus_ring(
       document.head.append(style);
     })""")
     page.get_by_role("button", name="Change theme", exact=True).click()
-    expect(editor.get_by_text("literal", exact=True)).to_have_css(
+    expect(editor.get_by_text("`literal`", exact=True)).to_have_css(
         "color", "rgb(0, 85, 102)"
     )
     page.keyboard.press("Tab")
@@ -262,18 +526,6 @@ def test_a_file_tree_opens_each_file_the_editor_holds(browser, serve, tmp_path):
     editor = widget.get_by_role("textbox", name="File contents", exact=True)
     name = widget.locator(".lf-file-editor-name")
     expect(editor).to_contain_text("replicas: 3")
-    # A YAML key wears the theme's colour for a key, as a code block's does.
-    key = editor.locator("span", has_text="replicas").first
-    expect(key).to_have_css(
-        "color",
-        page.evaluate("""() => {
-          const probe = document.body.appendChild(document.createElement("span"));
-          probe.style.color = "var(--lf-syn-type)";
-          const color = getComputedStyle(probe).color;
-          probe.remove();
-          return color;
-        }"""),
-    )
     expect(name).to_have_text("deploy/values.yaml")
     expect(tree.get_by_role("treeitem", name="values.yaml")).to_have_attribute(
         "aria-selected", "true"
@@ -336,104 +588,74 @@ def test_a_file_tree_opens_each_file_the_editor_holds(browser, serve, tmp_path):
     consume_browser_errors(page, http_error_console(409))
 
 
-def test_picking_a_file_leaves_a_workspace_where_it_stands(browser, serve, tmp_path):
-    """The editor fills its pane to the window's foot, so opening another file in it
-    from the tree moves nothing on the page, though the page has room to scroll."""
-    for name in ("values", "alerts"):
-        (tmp_path / f"{name}.yaml").write_text(f"# {name}.yaml\n")
+def test_a_file_reads_in_the_colours_of_a_code_block_of_it(browser, serve, tmp_path):
+    """The editor colours a file by the tokenizer and theme a code block of the same
+    file is coloured by, so a YAML number, boolean, null, key, string and comment, and a
+    Markdown heading, strong and emphasised words and a link's address, each wear in
+    the editor the colour and face they wear in the block."""
+    yaml = "# Worker\nreplicas: 3\nenabled: true\nceiling: null\nowner: 'oncall'\n"
+    markdown = (
+        "# Runbook\n\nWhen **every** slot is busy, *only* then, [see](notes.md).\n"
+    )
+    (tmp_path / "values.yaml").write_text(yaml)
+    (tmp_path / "runbook.md").write_text(markdown)
     url = serve(
         leaf_page(
-            "Deploy files",
-            """<header><h1>Deploy files</h1></header>
-            <div id="regions">
-              <lf-pane id="files-pane" label="Files">
-                <lf-file-tree id="files" for="config"></lf-file-tree></lf-pane>
-              <lf-pane id="editor-pane" label="File">
-                <lf-file-editor id="config" binding="values alerts"></lf-file-editor>
-              </lf-pane>
-            </div>""",
-            head=regions_side_by_side("regions", "16rem 1fr"),
-            layout="workspace",
+            "Colours",
+            '<h1>Colours</h1><p><a id="to-runbook" href="#config:runbook">runbook</a></p>'
+            '<lf-file-editor id="config" binding="values runbook"></lf-file-editor>'
+            f'<pre><code class="language-yaml">{yaml}</code></pre>'
+            f'<pre><code class="language-markdown">{markdown}</code></pre>',
         ),
-        packages=["file-editor", "file-tree"],
+        packages=["file-editor"],
     )
-    for name in ("values", "alerts"):
-        bind_file(serve.page_dir, name, tmp_path / f"{name}.yaml")
+    bind_file(serve.page_dir, "values", tmp_path / "values.yaml")
+    bind_file(serve.page_dir, "runbook", tmp_path / "runbook.md")
     page = open_page(browser, live_url(url))
-    resized(page, 1200, 900)
-    editor = page.locator("lf-file-editor")
-    expect(
-        editor.get_by_role("textbox", name="File contents", exact=True)
-    ).to_contain_text("values.yaml")
-    page.evaluate(
-        """() => document.body.append(
-          Object.assign(document.createElement("div"), {style: "height: 300px"}))"""
+    editor = page.locator("lf-file-editor").get_by_role(
+        "textbox", name="File contents", exact=True
     )
-    page.locator("lf-file-tree").get_by_role("treeitem", name="alerts.yaml").click()
-    expect(editor.locator(".lf-file-editor-name")).to_have_text("alerts.yaml")
-    expect(page).to_have_url(re.compile("#config:alerts$"))
-    scroll_settled(page)
-    assert page.evaluate("scrollY") == 0
-
-
-def test_picking_a_file_under_an_open_panel_brings_it_clear(browser, serve, tmp_path):
-    """An editor filling a pane at the window's foot keeps room there for the floating
-    panel at rest, and no more. With the panel opened over it by a draft of several
-    lines, opening a file from the tree scrolls the page until the editor's words clear
-    the panel, as a destination it covers is brought clear of it."""
-    for name in ("values", "alerts"):
-        (tmp_path / f"{name}.yaml").write_text(f"# {name}.yaml\n")
-    url = serve(
-        leaf_page(
-            "Deploy files",
-            """<header><h1>Deploy files</h1></header>
-            <div id="regions">
-              <lf-pane id="files-pane" label="Files">
-                <lf-file-tree id="files" for="config"></lf-file-tree></lf-pane>
-              <lf-pane id="notes-pane" label="Notes"><div><p>Notes</p></div></lf-pane>
-              <lf-pane id="editor-pane" label="File">
-                <lf-file-editor id="config" binding="values alerts"></lf-file-editor>
-              </lf-pane>
-            </div>""",
-            head="""<style>
-#regions { display: grid; grid-template-columns: 16rem 1fr; grid-template-rows: 1fr 20rem; }
-#files-pane { grid-row: 1 / span 2; }
-</style>""",
-            layout="workspace",
-        ),
-        packages=["file-editor", "file-tree"],
-    )
-    for name in ("values", "alerts"):
-        bind_file(serve.page_dir, name, tmp_path / f"{name}.yaml")
-    page = open_page(browser, live_url(url))
-    resized(page, 1200, 900)
-    editor = page.locator("lf-file-editor")
-    expect(
-        editor.get_by_role("textbox", name="File contents", exact=True)
-    ).to_contain_text("values.yaml")
-    page.evaluate(
-        """() => document.body.append(
-          Object.assign(document.createElement("div"), {style: "height: 600px"}))"""
-    )
-    page.locator("body").focus()
-    page.keyboard.press("c")
-    for line in range(8):
-        page.keyboard.type(f"line {line}")
-        page.keyboard.press("Shift+Enter")
-    page.wait_for_function(
-        "parseFloat(document.documentElement.style.scrollPaddingBottom) > 200"
-    )
-    page.locator("lf-file-tree").get_by_role("treeitem", name="alerts.yaml").click()
-    expect(editor.locator(".lf-file-editor-name")).to_have_text("alerts.yaml")
-    scroll_settled(page)
-    # The editor keeps its words above its foot by the room it reserved; the open
-    # panel's card starts where it covers the page.
-    panel_top, words_end = editor.evaluate("""host => {
-      const card = document.querySelector(".lf-floating-panel .lf-fp-card");
-      const room = parseFloat(getComputedStyle(host).getPropertyValue("--lf-end-room"));
-      return [card.getBoundingClientRect().top, host.getBoundingClientRect().bottom - room];
-    }""")
-    assert words_end <= panel_top, (words_end, panel_top)
+    # The face each word wears, in the editor and in the code block of its language: a
+    # word the theme leaves uncoloured is in each one's own ink.
+    faces = """([words, lang]) => {
+      const face = (root) => Object.fromEntries(words.map((word) => {
+        const ink = getComputedStyle(root).color;
+        const texts = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+        for (let text = texts.nextNode(); text; text = texts.nextNode())
+          if (text.data.trim() === word) {
+            const style = getComputedStyle(text.parentElement);
+            return [word, [style.color === ink ? "ink" : style.color, style.fontStyle,
+              style.fontWeight, style.textDecorationLine]];
+          }
+        return [word, null];
+      }));
+      return [
+        face(document.querySelector("lf-file-editor").shadowRoot.querySelector(".cm-content")),
+        face(document.querySelector(`pre code.language-${lang}`)),
+      ];
+    }"""
+    for words, lang, shown in (
+        (["# Worker", "replicas", "3", "true", "null", "'oncall'"], "yaml", "ceiling"),
+        (["# Runbook", "**every**", "*only*", "notes.md"], "markdown", "Runbook"),
+    ):
+        if lang == "markdown":
+            page.locator("#to-runbook").click()
+        expect(editor).to_contain_text(shown)
+        page.wait_for_function(
+            """() => document.querySelector("lf-file-editor").shadowRoot
+                .querySelector(".cm-content span[class]")"""
+        )
+        in_editor, in_block = page.evaluate(faces, [words, lang])
+        assert all(in_block.values()), in_block
+        assert in_editor == in_block, (in_editor, in_block)
+    # The theme gives Markdown its faces: a heading and strong words bold, emphasis
+    # italic and a link's address underlined.
+    assert {word: face[1:] for word, face in in_block.items()} == {
+        "# Runbook": ["normal", "700", "none"],
+        "**every**": ["normal", "700", "none"],
+        "*only*": ["italic", "400", "none"],
+        "notes.md": ["normal", "400", "underline"],
+    }
 
 
 def test_file_editor_takes_in_an_outside_write_to_other_lines(browser, serve, tmp_path):
@@ -509,6 +731,213 @@ def test_file_editor_takes_in_an_outside_write_to_other_lines(browser, serve, tm
     )
 
 
+def test_a_reload_that_loses_a_saves_answer_keeps_the_typing_after_it(
+    browser, serve, tmp_path
+):
+    """The reader types the file back to what it was while a save of their edit is in
+    flight, and the tab reloads after the file took that save but before its answer
+    came back. Leaving asks first, the reloaded editor holds the words the reader last
+    typed rather than the save's, and writes them to the file."""
+    file = tmp_path / "notes.md"
+    file.write_text("Original.\n")
+    url = serve(
+        leaf_page(
+            "Notes", '<lf-file-editor id="notes-file" binding="notes"></lf-file-editor>'
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", file)
+    page = open_page(browser, live_url(url))
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    expect(editor).to_have_attribute("aria-readonly", "false")
+    held = []
+
+    def hold(route):
+        if route.request.method == "POST":
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.route("**/api/files/notes", hold)
+    editor.click()
+    page.keyboard.press("ControlOrMeta+End")
+    page.keyboard.insert_text("Draft.")
+    holding(page, held, 1, "the save of the draft")
+    # The file takes the save; its answer never reaches the tab.
+    held[0].fetch()
+    assert file.read_text() == "Original.\nDraft."
+    for _ in "Draft.":
+        page.keyboard.press("Backspace")
+    expect(editor).to_have_text("Original.")
+    page.unroute("**/api/files/notes", hold)
+    left = []
+
+    def leaving(dialog):
+        left.append(dialog.type)
+        dialog.accept()
+
+    page.on("dialog", leaving)
+    with page.expect_response(
+        lambda response: (
+            response.request.method == "POST"
+            and response.url.endswith("/api/files/notes")
+            and response.status == 200
+            and response.request.post_data_json["text"] == "Original.\n"
+        )
+    ):
+        page.reload()
+        wait_until_ready(page)
+        expect(editor).to_have_text("Original.")
+    assert file.read_text() == "Original.\n"
+    assert left == ["beforeunload"]
+    expect(widget.locator(".lf-file-editor-status")).to_have_text(
+        "", use_inner_text=True
+    )
+
+
+@pytest.mark.parametrize("typed", ["back", "on"])
+def test_a_retry_after_a_save_with_no_answer_keeps_the_typing_after_it(
+    browser, serve, tmp_path, typed
+):
+    """A save gets no answer, and the reader types it away: back to the file as read,
+    while the save never reached the file, or on past it, after the file took it.
+    Retry settles that lost save against the file before anything is written, so the
+    editor and then the file hold what the reader last typed, the status clears, and
+    leaving no longer asks."""
+    file = tmp_path / "notes.md"
+    file.write_text("Notes.\n\nEnd.\n")
+    url = serve(
+        leaf_page(
+            "Notes", '<lf-file-editor id="notes-file" binding="notes"></lf-file-editor>'
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", file)
+    page = open_page(browser, live_url(url))
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    retry = widget.get_by_role("button", name="Retry", exact=True)
+    expect(editor).to_have_attribute("aria-readonly", "false")
+
+    def lose(route):
+        if route.request.method != "POST":
+            route.continue_()
+            return
+        if typed == "on":
+            route.fetch()
+        route.abort()
+
+    page.route("**/api/files/notes", lose)
+    editor.click()
+    page.keyboard.press("ControlOrMeta+End")
+    page.keyboard.insert_text("Draft.")
+    expect(retry).to_be_visible()
+    for _ in "Draft.":
+        page.keyboard.press("Backspace")
+    last = "Notes.\n\nEnd.\n"
+    if typed == "on":
+        assert file.read_text() == "Notes.\n\nEnd.\nDraft."
+        # A line far enough from the lost save's that a line merge would take it in.
+        page.keyboard.press("ControlOrMeta+Home")
+        page.keyboard.insert_text("Added.")
+        page.keyboard.press("Enter")
+        last = "Added.\n" + last
+    shown = last.replace("\n", "")
+    expect(editor).to_have_text(shown)
+    page.unroute("**/api/files/notes", lose)
+    if typed == "on":
+        with page.expect_response(
+            lambda response: (
+                response.request.method == "POST"
+                and response.url.endswith("/api/files/notes")
+                and response.status == 200
+            )
+        ) as saved:
+            retry.click()
+        assert saved.value.request.post_data_json["text"] == last
+    else:
+        retry.click()
+    expect(retry).to_be_hidden()
+    expect(widget.locator(".lf-file-editor-status")).to_have_text(
+        "", use_inner_text=True
+    )
+    expect(editor).to_be_focused()
+    # The answer reaches the driver before the editor takes it, and until then the
+    # save is still in flight, which leaving rightly asks about. The editor clears its
+    # record of the file's unsettled work in this tab once it has taken the answer.
+    page.wait_for_function(
+        "() => window.lfStorage.tabStore.get('file:notes-file:notes') === null"
+    )
+    left = []
+    page.on("dialog", lambda dialog: (left.append(dialog.type), dialog.accept()))
+    page.reload()
+    wait_until_ready(page)
+    assert left == []
+    expect(editor).to_have_text(shown)
+    assert file.read_text() == last
+    consume_browser_errors(
+        page,
+        "Failed to load resource: net::ERR_FAILED",
+        *([http_error_console(409)] if typed == "on" else []),
+    )
+
+
+def test_a_retry_while_saves_lose_their_answers_keeps_the_typing_after_them(
+    browser, serve, tmp_path
+):
+    """Every save reaches the file and loses its answer, as when the host's store
+    refuses each commit after the write. The reader types an edit and then types it
+    away, adds a line, and retries; then retries again once answers come back. Each
+    Retry settles the earlier save against the file before sending, so the edit the
+    reader typed away never comes back, and the file holds what they last typed."""
+    file = tmp_path / "notes.md"
+    file.write_text("Notes.\n\nEnd.\n")
+    url = serve(
+        leaf_page(
+            "Notes", '<lf-file-editor id="notes-file" binding="notes"></lf-file-editor>'
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", file)
+    page = open_page(browser, live_url(url))
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    retry = widget.get_by_role("button", name="Retry", exact=True)
+    expect(editor).to_have_attribute("aria-readonly", "false")
+    landed = []
+
+    def lose(route):
+        if route.request.method != "POST":
+            route.continue_()
+            return
+        route.fetch()
+        landed.append(route)
+        route.abort()
+
+    page.route("**/api/files/notes", lose)
+    editor.click()
+    page.keyboard.press("ControlOrMeta+End")
+    page.keyboard.insert_text("Draft.")
+    expect(retry).to_be_visible()
+    assert file.read_text() == "Notes.\n\nEnd.\nDraft."
+    for _ in "Draft.":
+        page.keyboard.press("Backspace")
+    page.keyboard.press("ControlOrMeta+Home")
+    page.keyboard.insert_text("Added.")
+    page.keyboard.press("Enter")
+    last = "Added.\nNotes.\n\nEnd.\n"
+    retry.click()
+    holding(page, landed, 2, "the save the retry sends")
+    expect(retry).not_to_have_attribute("aria-disabled", "true")
+    page.unroute("**/api/files/notes", lose)
+    retry.click()
+    expect(retry).to_be_hidden()
+    expect(editor).to_have_text(last.replace("\n", ""))
+    assert file.read_text() == last
+    consume_browser_errors(page, "Failed to load resource: net::ERR_FAILED")
+
+
 def test_file_editor_adopted_text_starts_undo_history_and_save_retries(
     browser, serve, tmp_path
 ):
@@ -522,7 +951,7 @@ def test_file_editor_adopted_text_starts_undo_history_and_save_retries(
         packages=["file-editor"],
     )
     bind_file(serve.page_dir, "notes", file)
-    page = open_page(primed(browser, lambda page: page.clock.install()), live_url(url))
+    page = open_page(browser, live_url(url))
     widget = page.locator("lf-file-editor")
     editor = widget.get_by_role("textbox", name="File contents", exact=True)
     expect(editor).to_have_attribute("aria-readonly", "false")
@@ -544,7 +973,6 @@ def test_file_editor_adopted_text_starts_undo_history_and_save_retries(
     editor.click()
     page.keyboard.press("ControlOrMeta+End")
     page.keyboard.insert_text("Draft.")
-    page.clock.run_for(600)
     retry = widget.get_by_role("button", name="Retry", exact=True)
     expect(retry).to_be_visible()
     page.unroute("**/api/files/notes", fail_write)
@@ -554,7 +982,6 @@ def test_file_editor_adopted_text_starts_undo_history_and_save_retries(
 
     # A clean refresh replaces earlier acknowledged editing history too.
     file.write_text("Latest file version.\n")
-    page.clock.resume()
     expect(editor).to_contain_text("Latest file version.")
     page.keyboard.press("ControlOrMeta+z")
     rendered(page)
@@ -578,9 +1005,15 @@ def test_file_editor_adopted_text_starts_undo_history_and_save_retries(
 
 
 def test_file_editor_long_filename_keeps_the_phone_editable(browser, serve, tmp_path):
-    """The full filename scrolls within its line, leaving the editor its room."""
+    """The full filename scrolls within its line, leaving the editor its room, and the
+    rows a long line wraps onto hang past its indent, so none reads as a line of its
+    own."""
     file = tmp_path / ("research-notes-" * 16 + ".md")
-    file.write_text("Editable on a phone.\n")
+    file.write_text(
+        "Editable on a phone.\n    - "
+        + "a long indented line that wraps onto rows of its own " * 2
+        + "\n"
+    )
     url = serve(
         leaf_page(
             "Notes", '<lf-file-editor id="notes-file" binding="notes"></lf-file-editor>'
@@ -602,6 +1035,24 @@ def test_file_editor_long_filename_keeps_the_phone_editable(browser, serve, tmp_
     expect(name).to_have_attribute("tabindex", "0")
     assert widget.locator(".lf-file-editor-edit").bounding_box()["height"] > 300
     assert widget.locator(".lf-file-editor-head").bounding_box()["width"] < 320
+    # Where each row of the long line starts its words.
+    rows = editor.locator(".cm-line", has_text="a long indented line").evaluate(
+        """(line) => {
+          const starts = new Map();
+          const at = document.createRange();
+          const texts = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
+          for (let text = texts.nextNode(); text; text = texts.nextNode())
+            for (let i = 0; i < text.data.length; i++) {
+              if (text.data[i] === " ") continue;
+              at.setStart(text, i);
+              at.setEnd(text, i + 1);
+              const { top, left } = at.getBoundingClientRect();
+              if (!starts.has(Math.round(top))) starts.set(Math.round(top), left);
+            }
+          return [...starts.values()];
+        }"""
+    )
+    assert len(rows) > 2 and all(start > rows[0] for start in rows[1:]), rows
     editor.click()
     expect(editor).to_be_focused()
     page.keyboard.press("Shift+Tab")
@@ -625,7 +1076,6 @@ def test_file_editor_status_controls_take_a_finger_on_a_phone(browser, serve, tm
     # A finger from the start: the floor changes the header's height, and a page that
     # met the finger only when it was measured would shift as the finger arrived.
     def phone(page):
-        page.clock.install()
         page.set_viewport_size({"width": 390, "height": 844})
         page.context.new_cdp_session(page).send(
             "Emulation.setTouchEmulationEnabled", {"enabled": True}
@@ -646,12 +1096,10 @@ def test_file_editor_status_controls_take_a_finger_on_a_phone(browser, serve, tm
     page.route("**/api/files/notes", fail_write)
     editor.click()
     page.keyboard.insert_text("Draft.\n")
-    page.clock.run_for(600)
     assert short_aims(".lf-file-editor-retry") == []
     page.unroute("**/api/files/notes", fail_write)
     file.write_text("Changed on disk.\n")
     widget.get_by_role("button", name="Retry", exact=True).click()
-    page.clock.run_for(100)
     assert short_aims(".lf-file-editor-conflict") == []
     consume_browser_errors(
         page,
@@ -707,7 +1155,7 @@ def test_sample_file_editor_resize_keeps_classic_scrollbars_inside_its_document(
     child = frame.element_handle().content_frame()
     editor = child.get_by_role("textbox", name="File contents", exact=True)
     expect(editor).to_have_attribute("aria-readonly", "true")
-    # The status says why it can't save when pointed at (preview.js). It is chrome,
+    # The status says why it can't save when pointed at (annotations/preview.js). It is chrome,
     # not a control, so those words are the preview's only line.
     child.locator(".lf-file-editor-status").hover()
     expect(child.locator("#lf-preview")).to_have_text("No file is bound as 'notes'.")
@@ -768,3 +1216,188 @@ def test_an_exported_file_editor_stays_unavailable_without_starting_a_read(
         editor.get_by_role("textbox", name="File contents", exact=True)
     ).to_have_attribute("aria-readonly", "true")
     expect(editor.get_by_role("button", name="Retry")).to_be_hidden()
+
+
+def test_a_first_read_that_waits_a_second_says_the_file_is_loading(
+    browser, serve, tmp_path
+):
+    """A file's first read can wait seconds, as a first visit's does on leaf.page while
+    the visitor's container starts. Once it has waited a second, the empty editor says
+    the file is loading, in the line it already shows; a read answered sooner, as a
+    local page's is, shows no word."""
+    files = {name: tmp_path / f"{name}.md" for name in ("notes", "plan", "todo")}
+    for name, file in files.items():
+        file.write_text(f"{name.title()}.\n")
+    url = serve(
+        leaf_page(
+            "Notes",
+            '<p><a href="#notes-file:plan">Plan</a> <a href="#notes-file:todo">To do</a></p>'
+            '<lf-file-editor id="notes-file" binding="notes plan todo"></lf-file-editor>',
+        ),
+        packages=["file-editor"],
+    )
+    for name, file in files.items():
+        bind_file(serve.page_dir, name, file)
+    page = open_page(browser, live_url(url))
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    placeholder = widget.locator(".cm-placeholder")
+    expect(editor).to_have_text("Notes.")
+
+    def editor_room():
+        return widget.evaluate(
+            """host => {
+              const edit = host.shadowRoot.querySelector('.lf-file-editor-edit');
+              const box = edit.getBoundingClientRect();
+              return [box.top - host.getBoundingClientRect().top, box.height];
+            }"""
+        )
+
+    room = editor_room()
+    widget.evaluate(
+        """host => {
+          window.placeholdersShown = [];
+          new MutationObserver(() => {
+            const shown = host.shadowRoot.querySelector('.cm-placeholder');
+            if (shown) window.placeholdersShown.push(shown.textContent);
+          }).observe(host.shadowRoot, {childList: true, subtree: true});
+        }"""
+    )
+    # The page starts on the browser's own time. From here on only the test moves it, so
+    # a read the server answers slowly still answers within the page's first second.
+    page.clock.install()
+    page.clock.pause_at(datetime.now(UTC) + timedelta(seconds=1))
+    page.get_by_role("link", name="Plan").click()
+    page.clock.run_for(100)
+    expect(editor).to_have_text("Plan.")
+    assert page.evaluate("window.placeholdersShown") == []
+
+    held = []
+    page.route("**/api/files/todo", lambda route: held.append(route))
+    page.get_by_role("link", name="To do").click()
+    page.clock.run_for(900)
+    expect(placeholder).to_have_count(0)
+    page.clock.run_for(200)
+    expect(placeholder).to_have_text("Loading file…")
+    assert editor_room() == room
+    held[0].continue_()
+    expect(editor).to_have_text("Todo.")
+    expect(placeholder).to_have_count(0)
+    assert editor_room() == room
+
+
+def test_a_page_presents_without_a_file_whose_first_read_has_waited_a_second(
+    browser, serve, tmp_path
+):
+    """The page waits for the file it opens with, but not past a second: on leaf.page a
+    first visit's read waits for the visitor's container to start. The page then
+    presents with the editor saying the file is loading, and the text lands when the
+    read answers."""
+    notes = tmp_path / "notes.md"
+    notes.write_text("Notes.\n")
+    url = serve(
+        leaf_page(
+            "Notes", '<lf-file-editor id="notes-file" binding="notes"></lf-file-editor>'
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", notes)
+    held = []
+
+    def hold_read(page):
+        page.route("**/api/files/notes", lambda route: held.append(route))
+
+    page = open_page(primed(browser, hold_read), live_url(url), upgraded=False)
+    widget = page.locator("lf-file-editor")
+    editor = widget.get_by_role("textbox", name="File contents", exact=True)
+    placeholder = widget.locator(".cm-placeholder")
+    expect(page.locator("body[data-lf-presented]")).to_have_count(1)
+    expect(placeholder).to_have_text("Loading file…")
+    expect(editor).to_have_attribute("aria-readonly", "true")
+    held[0].continue_()
+    expect(editor).to_have_text("Notes.")
+    expect(placeholder).to_have_count(0)
+    wait_until_ready(page)
+
+
+def test_a_double_click_on_the_rendered_copy_types_at_its_line_in_the_editor(
+    browser, serve, tmp_path
+):
+    """A double-click on a word in the rendered copy of the editor's file puts the
+    editor's caret at the start of the word's line, whichever block holds it, the file's
+    own HTML and the Markdown a fold of it wraps included, and leaves no word selected
+    in the copy. A double-click on a link in the copy only follows the link, though the
+    link scrolls other words under the second press, and one on a copy that names no
+    editor selects its word as the browser does."""
+    file = tmp_path / "README.md"
+    file.write_text(
+        '<p align="center" title="Gizmo">\n  <!-- Gizmo\'s logo -->\n'
+        "  <style>.Gizmo { color: red }</style>\n  <strong>Gizmo</strong>\n  <br>\n"
+        "  A tool that <em>does</em> things.\n</p>\n\n"
+        "[To the end](#the-end)\n\nA paragraph's first line\nwraps onto a second line."
+        "\n\n<details>\n<summary>From source</summary>\n\nRun the build.\n\n</details>"
+        "\n\n- one\n- two\n\n```sh\nsh run.sh\n```\n\n"
+        "| a | b |\n| --- | --- |\n| x | gamma |\n\n"
+        + "\n\n".join(f"Paragraph {number}." for number in range(1, 41))
+        + "\n\n## The end\n"
+    )
+    url = serve(
+        leaf_page(
+            "Notes",
+            '<h1>Notes</h1><div style="display: grid; '
+            'grid-template-columns: repeat(3, minmax(0, 1fr))">'
+            '<lf-file-editor id="notes-file" binding="notes"></lf-file-editor>'
+            '<lf-text-document id="preview" for="notes-file" preview="markdown">'
+            '</lf-text-document><lf-text-document id="written" label="NOTE.md" '
+            'preview="markdown"><pre>One written word.</pre></lf-text-document></div>',
+        ),
+        packages=["file-editor"],
+    )
+    bind_file(serve.page_dir, "notes", file)
+    page = open_page(browser, live_url(url))
+    editor = page.locator("lf-file-editor").get_by_role(
+        "textbox", name="File contents", exact=True
+    )
+    preview = page.locator("#preview .lf-text-document-preview")
+    expect(preview.get_by_role("cell", name="gamma")).to_be_visible()
+
+    def double_click(locator, word):
+        locator.get_by_text(word).first.scroll_into_view_if_needed()
+        point = word_point(locator, word)
+        page.mouse.dblclick(point["x"], point["y"])
+
+    double_click(page.locator("#written .lf-text-document-preview"), "written")
+    assert page.evaluate("() => getSelection().toString()") == "written"
+
+    preview.locator("details > summary").click()
+    expect(preview.get_by_text("Run the build.")).to_be_visible()
+    # The first double-click lands on selected words, and a fenced command's first word
+    # is also the fence's language.
+    preview.locator("p", has_text="wraps").evaluate(
+        "p => getSelection().selectAllChildren(p)"
+    )
+    for word, line in [
+        ("wraps", "wraps onto a second line."),
+        ("Gizmo", "<strong>Gizmo</strong>"),
+        ("tool", "A tool that <em>does</em> things."),
+        ("build", "Run the build."),
+        ("two", "- two"),
+        ("sh", "sh run.sh"),
+        ("gamma", "| x | gamma |"),
+    ]:
+        double_click(preview, word)
+        expect(editor).to_be_focused()
+        expect(editor.locator(".cm-activeLine")).to_have_text(line)
+        assert page.evaluate("() => getSelection().toString()") == "", word
+    page.keyboard.insert_text("Z")
+    expect(editor.locator(".cm-activeLine")).to_have_text("Z| x | gamma |")
+
+    # The link's scroll lands before the double-click's second press.
+    preview.get_by_text("To the end").scroll_into_view_if_needed()
+    point = word_point(preview, "To the end")
+    page.mouse.click(point["x"], point["y"])
+    expect(preview.get_by_role("heading", name="The end")).to_be_in_viewport()
+    page.mouse.down(click_count=2)
+    page.mouse.up(click_count=2)
+    expect(page).to_have_url(re.compile("#preview:preview:the-end$"))
+    expect(editor).not_to_be_focused()

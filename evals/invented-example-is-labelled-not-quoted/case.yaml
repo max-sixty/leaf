@@ -27,8 +27,6 @@ vars:
       messages; the originals stay available to unfold.
     - Replacement: a new summary replaces, whole, every summary in force that it
       overlaps by even one message.
-    - No gap: no message except the thread's first may stay unsummarized above a
-      summary. Leaf refuses such a range and names a wider one it accepts.
     - So summaries that touch but don't overlap both stand, and the only way a thread
       keeps one summary of its earlier discussion is for the new summary to overlap
       the old ones.

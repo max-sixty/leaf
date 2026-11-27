@@ -29,6 +29,7 @@ from urllib.parse import urljoin, urlsplit
 import click
 from playwright.sync_api import Error as PlaywrightError
 
+from leaf.source.render_checks import open_render_context, open_render_page
 from leaf_dev.browser import go_to_threads, headless_shell, panel_view
 from leaf_dev.startup import startup_line, startup_profile, startup_reading
 from leaf_dev.website import (
@@ -65,8 +66,8 @@ def verify_page(
     origin: str,
     settle_after_activation: Callable[[], None] | None = None,
 ) -> dict:
-    context = browser.new_context()
-    page = context.new_page()
+    context = open_render_context(browser)
+    page = open_render_page(context)
     url = urljoin(f"{origin}/", path.lstrip("/"))
     with page.expect_response(
         lambda response: (
@@ -132,7 +133,7 @@ def verify_page(
         return startup
 
     state_url = urljoin(url, "api/state")
-    passive_response = read_state(context.request, state_url, timeout=120_000)
+    passive_response = read_state(context.request, state_url)
     check(
         passive_response.headers.get("leaf-session") == "passive",
         f"{state_url} left the edge before interaction",
@@ -154,7 +155,6 @@ def verify_page(
         context.request,
         state_url,
         headers={"Leaf-Layer": identity["layer"], "Leaf-Release": release},
-        timeout=120_000,
     )
     check(
         state_response.headers.get("leaf-session") == "active",
@@ -171,7 +171,7 @@ def verify_page(
     )
     if path == "/examples/triage-board/":
         neighbor_url = urljoin(f"{origin}/", "how-it-works/")
-        neighbor = context.new_page()
+        neighbor = open_render_page(context)
         with neighbor.expect_response(
             lambda response: (
                 response.url.endswith("/api/performance")
@@ -204,7 +204,7 @@ def verify_cross_tab_activation(
     browser, *, origin: str, settle_after_activation: Callable[[], None] | None = None
 ) -> None:
     """One interacting tab must wake another tab sharing its browser session."""
-    context = browser.new_context()
+    context = open_render_context(browser)
     if settle_after_activation is not None:
         # Allocate this identity's local container before Chrome's interaction.
         # Docker changes host interfaces; the page under test must remain passive.
@@ -215,11 +215,11 @@ def verify_cross_tab_activation(
         settle_after_activation()
     url = f"{origin}/examples/triage-board/"
     state_url = urljoin(url, "api/state")
-    leader = context.new_page()
-    follower = context.new_page()
+    leader = open_render_page(context)
+    follower = open_render_page(context)
     for page in (leader, follower):
         load_presented(page, url)
-    passive = read_state(context.request, state_url, timeout=120_000)
+    passive = read_state(context.request, state_url)
     check(
         passive.headers.get("leaf-session") == "passive",
         f"{state_url} activated before the cross-tab interaction",
@@ -229,7 +229,7 @@ def verify_cross_tab_activation(
     # header whose background news request could allocate after this fixture closes.
     activation = activation_url(url, passive.json())
     with leader.expect_response(
-        lambda response: response.url == activation, timeout=30_000
+        lambda response: response.url == activation
     ) as response:
         leader.evaluate(
             """(url) => {
@@ -242,7 +242,7 @@ def verify_cross_tab_activation(
         isinstance(activated.get("document"), dict),
         "activation returned no document",
     )
-    follower.wait_for_function("window.__leafVerifier.crossTabActivated", timeout=5_000)
+    follower.wait_for_function("window.__leafVerifier.crossTabActivated")
     context.close()
 
 
@@ -269,14 +269,14 @@ def verify_saved_state(browser, worker: LocalWorker) -> dict[str, dict]:
     container = allocated.pop()
     seeded = worker.python(container, SAVED_STATE_FIXTURE)
     # Read through the real HTTP owner too; it must agree with the fixture's commits.
-    context = browser.new_context()
+    context = open_render_context(browser)
     context.add_cookies(cookies)
     current = read_state(context.request, state_url).json()
     check(
         current["active"]["revision"] == seeded["revision"],
         "private revision was not activated",
     )
-    warm_page = context.new_page()
+    warm_page = open_render_page(context)
     warm_failures, _ = load_presented(
         warm_page, url, "warm private document did not load"
     )
@@ -293,9 +293,9 @@ def verify_saved_state(browser, worker: LocalWorker) -> dict[str, dict]:
     )
     worker.stop(container)
     asleep = worker.containers()
-    context = browser.new_context()
+    context = open_render_context(browser)
     context.add_cookies(cookies)
-    page = context.new_page()
+    page = open_render_page(context)
     failures, response = load_presented(
         page, url, "saved private document did not load"
     )
@@ -358,7 +358,6 @@ def verify_saved_state(browser, worker: LocalWorker) -> dict[str, dict]:
                 "Leaf-Layer": state["layer"]["generation"],
                 "Leaf-Release": worker.release,
             },
-            timeout=120_000,
         ),
         urljoin(url, "api/media"),
     )
@@ -401,10 +400,10 @@ page = root / manifest["pages"]["/examples/heat-loss"]["directory"]
 SAVED_STATE_FIXTURE = (
     SAVED_STATE_PAGE
     + r"""
-from leaf.event_contracts import append_admitted
-from leaf.files import latest_revision, revision_path
-from leaf.revisioning import activate_source
-from leaf.service import PageTransaction
+from leaf.records.event_contracts import append_admitted
+from leaf.base.files import latest_revision, revision_path
+from leaf.records.revisioning import activate_source
+from leaf.records.transaction import PageTransaction
 stylesheet = "#saved-state-recall { font-weight: 600; }\n"
 (page / "page").mkdir(exist_ok=True)
 (page / "page/saved-state-recall.css").write_text(stylesheet)
@@ -417,7 +416,7 @@ if activation.error:
     raise RuntimeError(activation.error)
 revision = latest_revision(page)
 with PageTransaction(page) as transaction:
-    choice, _ = append_admitted(transaction, {"kind": "action", "author": "user", "revision": revision, "widget": "heat-first", "action": "choose", "detail": {"value": ["heat-opt-window"]}})
+    choice, _ = append_admitted(transaction, {"kind": "action", "author": "user", "revision": revision, "widget": "heat-first", "action": "choose", "detail": {"value": ["heat-opt-window"]}, "answered": True})
     comment, _ = append_admitted(transaction, {"kind": "comment", "author": "user", "revision": revision, "text": "Saved before the container stopped."})
 print(json.dumps({"revision": revision, "revision_name": revision_path(page, revision).name, "comment": comment["id"], "choice": choice["id"], "stylesheet": stylesheet}))
 """
@@ -440,7 +439,7 @@ def built_release() -> str:
     type=int,
     default=0,
     metavar="SECONDS",
-    help="Rerun a failed pass until one verifies or SECONDS pass, as a rollout takes.",
+    help="Rerun a failed pass until one verifies or SECONDS pass.",
 )
 def verify_site(target: str, release: str | None, wait: int) -> None:
     """Verify a release at TARGET: an origin, or `website-worker` for the built site

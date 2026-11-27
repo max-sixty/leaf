@@ -12,7 +12,7 @@ import psutil
 import pytest
 from interact_support import PAGE, STATED_TIMEOUT, fetch, publish, wait_for
 
-from leaf import server as server_model
+from leaf.base import server as server_model
 
 
 @pytest.fixture(name="title_codex")
@@ -47,7 +47,7 @@ def test_a_terminated_page_server_stops_its_title_server(
 ):
     """A page server serving a Codex session's page starts a title App Server
     for a new comment. SIGTERM, as a logout or a user's kill sends, ends the
-    page server as `server stop` does (`server.exit_serving`), so that App
+    page server as `server stop` does (`server_lifetime.exit_serving`), so that App
     Server stops with it."""
     page = codex_claimed_page
     (page / "index.html").write_text(PAGE, encoding="utf-8")

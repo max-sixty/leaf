@@ -11,9 +11,9 @@ content inputs in their callers.
 import functools
 import json
 import os
+import re
 import shutil
 import subprocess
-import tempfile
 from collections.abc import Callable
 from dataclasses import dataclass
 from pathlib import Path
@@ -22,14 +22,18 @@ from typing import Literal, Protocol
 import click
 from click.testing import CliRunner
 
-from leaf.cli import cli
-from leaf.event_log import read_events
-from leaf.interaction_log import append_interactions
-from leaf.media import media_name
-from leaf.registry.storage import layer_record
-from leaf.revision_artifact import Resource, capture_artifact, capture_local_resource
-from leaf.schema import MEDIA_DIR, MEDIA_TYPES
-from leaf.structure import SourceDocument
+from leaf.base.schema import HTML_NAME, MEDIA_DIR, MEDIA_TYPES
+from leaf.commands.cli import cli
+from leaf.log.event_log import read_events
+from leaf.log.interaction_log import append_interactions
+from leaf.serving.media import media_name
+from leaf.source.registry.storage import layer_packages
+from leaf.source.revision_artifact import (
+    Resource,
+    capture_artifact,
+    capture_local_resource,
+)
+from leaf.source.structure import SourceDocument
 from leaf_dev import ROOT, docs
 from leaf_dev.example_data import (
     DEVELOPER_GALLERIES,
@@ -118,10 +122,23 @@ def source_manifest(source: Path) -> Path | None:
     )
 
 
-def source_packages(source: Path) -> list[str]:
-    # A page directory's `index.html` takes the selection its layer record keeps.
-    if (record := layer_record(source.parent)) is not None:
-        return list(record["packages"])
+def source_packages(source: Path, base: Path = ROOT) -> list[str]:
+    """The packages `source` selects, as `page init` takes them when it runs in `base`:
+    this checkout's root for `arms.run_leaf`, the selected runtime for `preview.leaf`.
+    A manifest's path names a directory every checkout holds, so it stays as written.
+    """
+    # A page directory's `index.html` takes the selection its layer record keeps. The
+    # record names each package copy the page holds by its path from the page
+    # directory. The copy is one directory wherever `page init` runs, so that path is
+    # restated from `base`.
+    page = source.parent
+    if (packages := layer_packages(page)) is not None:
+        return [
+            value
+            if re.fullmatch(HTML_NAME, value)
+            else os.path.relpath(page / value, base)
+            for value in packages
+        ]
     manifest = source_manifest(source) or DEFAULT_PACKAGES
     return json.loads(manifest.read_text(encoding="utf-8"))
 
@@ -183,13 +200,21 @@ def refresh_composition(source: Path) -> None:
 
 
 def read_fixture(
-    source: Path, *, runtime: Path = ROOT, env: dict[str, str] | None = None
+    source: Path,
+    *,
+    runtime: Path = ROOT,
+    env: dict[str, str] | None = None,
+    base: Path = ROOT,
 ) -> PageFixture:
     """Read authored companions using the runtime that will consume produced data.
 
     Source and runtime are independent: a paired preview can share one authored input
     while each arm supplies its own package producer and matching data contract, and
     admits and acknowledges the seed with its own Leaf (`admit_events`).
+
+    `base` is the directory the fixture's builder runs `page init` in
+    (`source_packages`), which is not always the runtime: `arms.run_leaf` runs an
+    arm's launcher from this checkout's root.
     """
     seed = seed_log(source)
     files = page_files(source)
@@ -199,7 +224,7 @@ def read_fixture(
         page_files=files if files.is_dir() else None,
         bound_files=bound if bound.is_dir() else None,
         bindings=file_bindings(source),
-        packages=tuple(source_packages(source)),
+        packages=tuple(source_packages(source, base)),
         media=media_source(source),
         data=tuple(data_operations(source, runtime=runtime, env=env)),
         versions=tuple(example_versions(source)),
@@ -209,28 +234,8 @@ def read_fixture(
     )
 
 
-@functools.cache
-def _configuration_home() -> tempfile.TemporaryDirectory:
-    """Keep one empty configuration directory alive for this builder process."""
-    return tempfile.TemporaryDirectory(prefix="leaf-fixture-config-")
-
-
-def fixture_environment(base: dict[str, str] | None = None) -> dict[str, str]:
-    """Build authored fixtures without the developer's personal configuration.
-
-    Each CLI runner applies this at its subprocess boundary, including site templates
-    and preview refreshes outside prepare_page. Keep identities and state selected by
-    the runner; only configuration is empty. This also works with older comparison
-    arms, whose CLI need not know any current theme-selection options.
-    """
-    return {
-        **(os.environ if base is None else base),
-        "XDG_CONFIG_HOME": _configuration_home().name,
-    }
-
-
 def package_selection_args(packages) -> list[str]:
-    """The source's explicit content packages, including an empty selection."""
+    """The source's packages as `page init` takes them, including an empty selection."""
     return [arg for package in packages for arg in ("--package", package)] or [
         "--no-packages"
     ]
@@ -297,17 +302,18 @@ def import_referenced_media(
             run_leaf("page", "media", str(page), str(candidate))
         return capture_local_resource(page, path)
 
-    from leaf.registry.storage import layer_record, layer_vocabulary
+    from leaf.source.layer import selected_vocabulary
 
     # The arm preparing the page may speak another protocol, which this Leaf would
-    # refuse to serve; finding the media its documents name needs only a vocabulary.
-    # A base arm from before pages composed their layer at read time vendored it.
-    record = layer_record(page)
-    registry = (
-        layer_vocabulary(record, page)
-        if record
-        else json.loads((page / "registry.json").read_text(encoding="utf-8"))
-    )
+    # refuse to serve; finding the media its documents name needs only a vocabulary,
+    # composed from the page's selection, which this Leaf reads at any protocol. Its
+    # `$layer` names the selection, whose files a document may name. A base arm from
+    # before pages composed their layer at read time vendored it.
+    if (packages := layer_packages(page)) is not None:
+        layer = {"packages": packages}
+        registry = {**selected_vocabulary(layer, page).registry, "$layer": layer}
+    else:
+        registry = json.loads((page / "registry.json").read_text(encoding="utf-8"))
     for document in documents:
         capture_artifact(
             page, SourceDocument(document), registry, read_resource=read_resource
@@ -333,9 +339,9 @@ def refresh_captures(fixture: PageFixture, page: Path, run_leaf: LeafRunner) -> 
     what the page now holds there. Unchanged captures retain their run receipts;
     sources no longer captured remain available to historical revisions.
     """
-    from leaf.data import read_data
-    from leaf.data_contracts import working_data_bindings
-    from leaf.registry.storage import load_registry
+    from leaf.records.page_data import working_data_bindings
+    from leaf.source.data import read_data
+    from leaf.source.vocabulary import load_registry
 
     registry = load_registry(page)
     current = read_data(page, registry)["sources"]
@@ -384,11 +390,11 @@ ADMIT = """
 import json
 import sys
 from pathlib import Path
-from leaf.delivery import record_receipt
-from leaf.event_contracts import append_admitted
-from leaf.event_log import EventRefused
-from leaf.files import list_revisions
-from leaf.service import PageTransaction
+from leaf.agents.delivery import record_receipt
+from leaf.records.event_contracts import append_admitted
+from leaf.log.event_log import EventRefused
+from leaf.base.files import list_revisions
+from leaf.records.transaction import PageTransaction
 
 page = Path(sys.argv[1])
 stamped, acknowledge = (flag == "1" for flag in sys.argv[2:])

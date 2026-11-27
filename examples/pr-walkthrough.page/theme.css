@@ -2,7 +2,7 @@ lf-pr-brief {
   display: block;
   margin-block: var(--lf-sp-4);
 }
-section.panel > lf-pr-brief:last-child {
+section.lf-panel > lf-pr-brief:last-child {
   margin-block-end: 0;
 }
 .pr-brief {

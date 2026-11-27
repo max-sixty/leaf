@@ -1,6 +1,6 @@
 /* Lit view for the margin-entry exhibit, constructed during widget setup. */
 import { html, ref } from "/vendor/lit.js";
-import { offerActionElement, generatedElement } from "/runtime/widget-api.js";
+import { offerActionElement } from "/runtime/lib/controls.js";
 const GROUPS = [
   {
     heading: "Rank and behavior",
@@ -95,7 +95,7 @@ const GROUPS = [
         icon: "comment",
         behavior: "disclosure",
         rank: "reading",
-        workflowStage: "picked_up",
+        workflowState: "waiting",
       },
       {
         name: "Working",
@@ -103,7 +103,7 @@ const GROUPS = [
         icon: "comment",
         behavior: "disclosure",
         rank: "reading",
-        workflowStage: "working",
+        workflowState: "running",
       },
       {
         name: "Update stale",
@@ -125,7 +125,7 @@ const GROUPS = [
         icon: "activity",
         behavior: "disclosure",
         rank: "reading",
-        workflowStage: "working",
+        workflowState: "running",
       },
     ],
   },
@@ -147,6 +147,14 @@ const GROUPS = [
         behavior: "disclosure",
         rank: "reading",
         count: 3,
+      },
+      {
+        name: "News",
+        detail: "one reading, unread",
+        icon: "comment",
+        behavior: "disclosure",
+        rank: "reading",
+        unread: true,
       },
       {
         name: "Count and news",
@@ -223,7 +231,6 @@ export function createView(host) {
       disclosure: null,
     })),
   );
-  const mark = ref((node) => node && generatedElement(node, { says: false }));
   const face = (entry) =>
     ref((node) => {
       if (node)
@@ -250,14 +257,16 @@ export function createView(host) {
             ></button>`
       }
       <span class="margin-entry-gallery-copy">
-        <span class="margin-entry-gallery-name" ${mark}>${sample.name}</span>
-        <span class="margin-entry-gallery-detail" ${mark}>${sample.detail}</span>
+        <span class="margin-entry-gallery-name" data-lf-gen="1">${sample.name}</span>
+        <span class="margin-entry-gallery-detail" data-lf-gen="1"
+          >${sample.detail}</span
+        >
       </span>
       ${
         sample.interactive
           ? html`<span
               class="margin-entry-gallery-disclosure"
-              ${mark}
+              data-lf-gen="1"
               ${ref((node) => {
                 if (node) entry.disclosure = node;
               })}
@@ -277,10 +286,10 @@ export function createView(host) {
           (group, index) => html`
             <div class="margin-entry-gallery-group">
               <div class="margin-entry-gallery-introduction">
-                <strong class="margin-entry-gallery-heading" ${mark}
+                <strong class="margin-entry-gallery-heading" data-lf-gen="1"
                   >${group.heading}</strong
                 >
-                <span class="margin-entry-gallery-summary" ${mark}
+                <span class="margin-entry-gallery-summary" data-lf-gen="1"
                   >${group.summary}</span
                 >
               </div>
@@ -291,17 +300,19 @@ export function createView(host) {
           `,
         )}
         <div class="margin-entry-gallery-projection">
-          <strong class="margin-entry-gallery-heading" ${mark}>Projection</strong>
-          <span class="margin-entry-gallery-summary" ${mark}
+          <strong class="margin-entry-gallery-heading" data-lf-gen="1"
+            >Projection</strong
+          >
+          <span class="margin-entry-gallery-summary" data-lf-gen="1"
             >Compact margin face · full Page Map row</span
           >
-          <p class="margin-entry-gallery-projection-guide" ${mark}>
+          <p class="margin-entry-gallery-projection-guide" data-lf-gen="1">
             Use the live Inspect projection control at this exhibit's margin. Press g
             then Shift+P to find the same disclosure as a labeled Page Map row.
           </p>
           <p
             class="margin-entry-gallery-projection-result"
-            ${mark}
+            data-lf-gen="1"
             ${ref((node) => {
               if (node) view.result = node;
             })}

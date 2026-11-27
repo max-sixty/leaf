@@ -6,6 +6,7 @@ lf-dial {
   z-index: 2;
   display: block;
   inline-size: fit-content;
+  max-inline-size: 100%;
   margin-block: var(--lf-sp-3);
   margin-inline-start: auto;
 }
@@ -13,13 +14,16 @@ lf-dial {
 html[data-lf-interactive] lf-dial {
   min-block-size: calc(var(--lf-line) + var(--lf-sp-2));
 }
-/* Measure the three labels in their radios' face before the radios arrive. Zero
-   width separators prevent kerning across radio boundaries. The inset is the three
-   radios' padding and borders (the word face, controls.css), the row's frame, and its
-   two gaps (webawesome.css). */
+/* Measure the three labels in their radios' face before the radios arrive, each as
+   wide as the widest, Everything. Zero width separators prevent kerning across radio
+   boundaries. The inset is the three radios' padding and borders (the word face,
+   controls.css), the row's frame, and its two gaps (webawesome.css). In a column too
+   narrow for three, it takes the column's width, as the row then does. */
 html[data-lf-interactive] lf-dial:not(:defined)::before {
-  content: "Skim\200b Read\200b Everything";
+  content: "Everything\200b Everything\200b Everything";
   display: block;
+  max-inline-size: 100%;
+  overflow: hidden;
   visibility: hidden;
   white-space: nowrap;
   font: var(--lf-font-choice);
@@ -30,6 +34,18 @@ html[data-lf-interactive] lf-dial:not(:defined)::before {
 .lf-dial-depths {
   display: block;
   font: var(--lf-font-compact);
+}
+/* The three depths are one width, the widest one's, so the row reads as one control
+   and what stands under each depth lines up with it. In a column too narrow for that,
+   each keeps its words whole and the others share what is left. */
+.lf-dial-depths::part(form-control-input) {
+  display: grid;
+  grid-auto-flow: column;
+  grid-auto-columns: minmax(max-content, 1fr);
+}
+.lf-dial-depth {
+  justify-content: center;
+  text-align: center;
 }
 
 /* A block Skim folds takes no room. Until-found keeps it findable but keeps its
@@ -43,8 +59,173 @@ html[data-lf-interactive] lf-dial:not(:defined)::before {
   border-block-width: 0 !important;
 }
 
-/* Where a run of blocks is folded: a quiet mark the reader can press to show it. */
+/* Where a run of blocks is folded: a quiet mark the reader can press to show it. It
+   takes a short row of its own, which its press overhangs, and stands into the gaps
+   the blocks around it leave, so Skim's own marks spend little of the room it saves.
+   As its block's last box, the end of a section, it stands into the wider gap after
+   the block, so the ⋯ hangs under what it follows and the next section comes up
+   closer than Read sets it, while the block's own box, and every mark drawn on it,
+   still hold the ⋯ whole (lf-dial.js). Its dots stand at the text's start edge, the
+   press hanging out past it as a heading's link does. */
 .lf-dial-more {
   display: flex;
-  margin-block: calc(-1 * var(--lf-sp-1)) var(--lf-sp-2);
+  align-items: center;
+  inline-size: fit-content;
+  block-size: var(--lf-sp-3);
+  margin-block: calc(-1 * var(--lf-sp-1)) calc(-1 * var(--lf-sp-2));
+  margin-inline-start: calc(-1 * var(--lf-sp-2));
+}
+.lf-dial-more:last-child {
+  margin-block-end: calc(-1 * var(--lf-sp-3));
+}
+
+/* Each depth's time on a line of its own under its word, a step quieter (lf-dial.js).
+   The two lines fit a one-line control's height, so the dial stands no taller than a
+   row of words and its first paint holds its room; larger type grows the control.
+   The time is quieter by its smaller face alone: it wears its word's colour, since an
+   unchosen depth's word is already --lf-muted, the dimmest text that holds 4.5:1. */
+.lf-dial-depth {
+  min-block-size: var(--lf-line);
+  padding-block: 0;
+}
+.lf-dial-depth::part(label) {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  font: var(--lf-font-choice);
+  /* Set solid, so the word and the fact under it in the fine face fit a one-line
+     control. */
+  line-height: 1;
+}
+.lf-dial-time {
+  display: block;
+  font: var(--lf-font-fine);
+  color: inherit;
+  font-variant-numeric: tabular-nums;
+}
+
+/* Pointing at a depth, on the page: what turning to it would hide fades, and where it
+   would open more wears a dashed ring, the mark of a state not yet taken. */
+[data-lf-dial-ghost="goes"] {
+  opacity: 0.22;
+  transition: opacity var(--lf-motion-disclosure) ease;
+}
+details[data-lf-dial-ghost="comes"] > summary,
+.lf-dial-more[data-lf-dial-ghost="comes"] {
+  outline: 1.5px dashed var(--lf-accent);
+  outline-offset: var(--lf-focus-ring-gap);
+  border-radius: var(--lf-r-s);
+}
+
+/* Pointing at a depth hangs each depth's page under its button as a sheet of its own,
+   to one scale, so how far down each runs is how long it takes, with the page showing
+   between them. The pointed sheet stands in full ink and the others step back; a
+   pointer crossing the buttons moves that emphasis while the sheets hold still. A frame
+   in the accent rings the depth that stands and glides to the one a press or an arrow
+   key turns to. The panel meets the dial's edge, its gap above the sheets its own, and
+   takes the pointer across the gaps between the sheets, so the pointer moving down onto
+   them or across them never leaves the dial. */
+.lf-dial-hang-panel {
+  position: absolute;
+  inset-block-start: 100%;
+  inset-inline: 0;
+  padding-block-start: 5px;
+  color: var(--lf-ink);
+}
+.lf-dial-hang-panel:not([data-lf-open]) {
+  display: none;
+}
+/* The sheets and the frame arrive as one, a short drop and a fade as quick as a
+   disclosure, so the frame stands round its sheet from the first frame, as a ring
+   stands round the place a walk lands on. */
+.lf-dial-hang {
+  position: relative;
+  display: block;
+  /* The tallest sheet with its padding and border, and the frame around it. */
+  block-size: calc(var(--tall) + 13px);
+  transition:
+    translate var(--lf-motion-disclosure) ease-out,
+    opacity var(--lf-motion-disclosure) ease-out;
+  @starting-style {
+    translate: 0 -4px;
+    opacity: 0;
+  }
+}
+.lf-dial-hang-column {
+  position: absolute;
+  inset-block-start: 0;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding-inline: 3px;
+}
+.lf-dial-hang-page {
+  --lf-ground: var(--lf-card);
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
+  padding: 4px 7px;
+  border: 1px solid var(--lf-border);
+  border-radius: 5px;
+  background: var(--lf-ground);
+  box-shadow: var(--lf-raise-1);
+  transition: box-shadow var(--lf-motion-disclosure) ease;
+}
+.lf-dial-hang-column[data-lf-pointed] .lf-dial-hang-page {
+  box-shadow: var(--lf-raise-2);
+}
+.lf-dial-hang-bars {
+  display: flex;
+  flex-direction: column;
+  flex: none;
+  overflow: clip;
+  opacity: 0.45;
+  transition: opacity var(--lf-motion-disclosure) ease;
+}
+.lf-dial-hang-column[data-lf-pointed] .lf-dial-hang-bars {
+  opacity: 1;
+}
+/* Each block as the page draws it: text as lines, a heading as a short strong rule, a
+   picture as a tinted box. */
+.lf-dial-hang-bars > span {
+  flex: none;
+  box-sizing: border-box;
+  border-block-end: 1px solid var(--lf-ground);
+}
+.lf-dial-hang-text {
+  background: repeating-linear-gradient(
+    to bottom,
+    rgb(from currentColor r g b / 30%) 0 1.5px,
+    transparent 1.5px 3px
+  );
+}
+.lf-dial-hang-heading {
+  inline-size: 55%;
+  background: currentColor;
+}
+.lf-dial-hang-picture {
+  background: color-mix(in srgb, var(--lf-series-1) 55%, var(--lf-ground));
+}
+.lf-dial-hang-frame {
+  position: absolute;
+  inset-block-start: -3px;
+  box-sizing: border-box;
+  block-size: calc(var(--sheet) + 6px);
+  border: 1.5px solid var(--lf-accent);
+  border-radius: 8px;
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--lf-accent) 14%, transparent);
+  pointer-events: none;
+  transition:
+    inset-inline-start var(--lf-motion-fold) ease-out,
+    inline-size var(--lf-motion-fold) ease-out,
+    block-size var(--lf-motion-fold) ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  [data-lf-dial-ghost="goes"],
+  .lf-dial-hang,
+  .lf-dial-hang-page,
+  .lf-dial-hang-bars,
+  .lf-dial-hang-frame {
+    transition: none;
+  }
 }

@@ -1,6 +1,6 @@
 /* Who moved the user, and whether they have moved on since.
 
-   focus.js answers both for every owner. Each placement names its cause, and every
+   dom/focus.js answers both for every owner. Each placement names its cause, and every
    reader of where the user stands hears it. One module keeps the two readings of
    "since": a hold asks whether focus was placed anywhere since it began, since typing in
    the box it holds is the user working there; delayed work asks whether the user did
@@ -38,11 +38,10 @@ const {
   openerOf,
   pressing,
   pressRecords,
-  rove,
   takesLetters,
   typesText,
-} = await import("/runtime/focus.js");
-const { retainUserIntent } = await import("/runtime/user-intent.js");
+} = await import("/runtime/dom/focus.js");
+const { retainUserIntent } = await import("/runtime/dom/user-intent.js");
 
 const heard = [];
 onCurrentLocation((node, cause) => heard.push([node, cause]));
@@ -268,6 +267,31 @@ test("a placement takes an element of another window as an element", () => {
   assert.equal(document.activeElement, first);
 });
 
+test("a placement on an element that draws no box stands the user on the first it draws", () => {
+  // A link to an author's `<section style="display: contents">`, or a composer closing
+  // on a fact row of `dl.lf-facts`, names an element no engine will focus. The first
+  // element it draws that takes focus, through any it holds laid out the same way and
+  // past any hidden or disabled, is where its content starts.
+  const { box, first, other } = scene();
+  const wrapper = document.createElement("div");
+  const hidden = document.createElement("button");
+  const disabled = document.createElement("button");
+  hidden.style.display = "none";
+  disabled.disabled = true;
+  wrapper.append(hidden, disabled, first);
+  box.prepend(wrapper);
+  box.style.display = wrapper.style.display = "contents";
+  focusDestination(other, "move");
+  heard.length = 0;
+  assert.equal(focusDestination(box, "move"), first);
+  assert.equal(document.activeElement, first);
+  assert.deepEqual(heard, [[first, "move"]]);
+  // A layer closing on such an element, as the comment box on it does, hands back there.
+  focusDestination(other, "move");
+  handBack(box);
+  assert.equal(document.activeElement, first);
+});
+
 test("early input ignores inaccessible foreign events but counts keys before interception", async () => {
   const page = new Window({ url: "https://leaf.test/" });
   try {
@@ -279,7 +303,7 @@ test("early input ignores inaccessible foreign events but counts keys before int
     };
     page.eval(
       readFileSync(
-        new URL("../../browser/runtime/document-inputs.js", import.meta.url),
+        new URL("../../browser/runtime/base/document-inputs.js", import.meta.url),
         "utf8",
       ),
     );
@@ -318,7 +342,7 @@ test("early input ignores inaccessible foreign events but counts keys before int
     // must retain both the clock and its subscriptions, without counting twice.
     page.eval(
       readFileSync(
-        new URL("../../browser/runtime/document-inputs.js", import.meta.url),
+        new URL("../../browser/runtime/base/document-inputs.js", import.meta.url),
         "utf8",
       ),
     );
@@ -617,16 +641,6 @@ test("closing a layer tells the readers only where the user ends up", () => {
     () => focusDestination(document.body.querySelector("button"), "return"),
   );
   assert.deepEqual(heard, [[other, "return"]]);
-});
-
-test("a roving group offers one Tab stop", () => {
-  scene();
-  const items = [0, 1, 2].map(() => document.createElement("button"));
-  rove(items, items[1]);
-  assert.deepEqual(
-    items.map((item) => item.getAttribute("tabindex")),
-    ["-1", "0", "-1"],
-  );
 });
 
 test("a keyed hold reads its rows in the shadow tree they stand in, and lands on the like control", async () => {

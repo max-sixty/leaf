@@ -4,7 +4,7 @@ import json
 import re
 
 import pytest
-from browser.margin import WORDS_RIGHT, leave_card, resized_shell
+from browser.margin import WORDS_RIGHT, _comment_on, leave_card, resized_shell
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_harness import (
@@ -21,8 +21,9 @@ from render_harness import (
     write,
 )
 
-from leaf import thread as thread_model
-from leaf.render_checks import rendered
+from leaf.agents import thread as thread_model
+from leaf.source.render_checks import rendered, wait_for_probe
+from leaf_dev.browser import text_field
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -75,7 +76,11 @@ def test_an_open_card_takes_news_without_moving_its_controls(browser, serve):
         assert control.bounding_box() == pytest.approx(boxes[name], abs=0.5), name
 
     editor = preview.locator("leaf-text")
-    preview.get_by_role("textbox", name="Reply", exact=True).click()
+    # The step's arrival carries the reply row down over 300ms. A click while the row
+    # travels scrolls the page before it lands, by Playwright's reveal of its target
+    # and no scroll of Leaf's, and the boxes read after it stand off the window.
+    wait_for_probe(page, "restingIn", ".lf-margin-preview")
+    text_field(preview, name="Reply", exact=True).click()
     page.keyboard.type("Also check the dark scheme")
     rendered(page)
     writing = preview.bounding_box()
@@ -131,7 +136,9 @@ def test_an_open_card_takes_news_without_moving_its_controls(browser, serve):
 # (placement-rules.json). Each finding names its case and the rule it breaks, so one run
 # reports every rule a placement breaks rather than the first.
 PLACEMENT_RULES = json.loads(
-    (ROOT / "browser/runtime/annotation-overlay/placement-rules.json").read_text()
+    (
+        ROOT / "browser/runtime/annotations/annotation-overlay/placement-rules.json"
+    ).read_text()
 )
 # Each finding the sweep can report, by the one rule that names it (`swept`).
 SWEEP_RULE = {
@@ -443,9 +450,9 @@ def test_every_card_keeps_the_placement_rules(browser, serve, kind, width):
         rendered(page)
 
     def closed():
-        # A click on the marker lands in the reply (thread/focus.js, `openingPart`);
+        # A click on the marker lands in the reply (records/thread/focus.js, `openingPart`);
         # Escape stands the user on the thread, from which the next takes the card down.
-        expect(card.get_by_role("textbox", name="Reply", exact=True)).to_be_focused()
+        expect(text_field(card, name="Reply", exact=True)).to_be_focused()
         page.keyboard.press("Escape")
         page.keyboard.press("Escape")
         expect(card).to_be_hidden()
@@ -649,9 +656,13 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
                   panelOpen: 'lfOpen' in document.querySelector('.lf-floating-panel').dataset};
         }"""
     )
+    minimum = page.evaluate("async () => (await window.__lfOverlayApi()).cardMinimum()")
     assert geometry["cardLeft"] >= page.evaluate(WORDS_RIGHT) + 7.5, geometry
+    assert geometry["cardLeft"] < geometry["controlsRight"], geometry
     assert geometry["cardRight"] <= geometry["viewportRight"] - 7, geometry
-    assert geometry["cardWidth"] >= 379, geometry
+    # No message the card shows stands taller than it is wide, so the card keeps its
+    # least width (comment-placement.js, `standsTall`).
+    assert geometry["cardWidth"] == pytest.approx(minimum, abs=0.5), geometry
     assert geometry["cardTop"] >= 7, geometry
     assert geometry["cardBottom"] <= 892, geometry
     assert geometry["replyTop"] >= geometry["cardTop"], geometry
@@ -668,7 +679,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     selected = page.evaluate("getSelection().toString()")
     assert len(selected) > 10 and selected in words.inner_text(), selected
 
-    thread.get_by_role("textbox", name="Reply", exact=True).click()
+    text_field(thread, name="Reply", exact=True).click()
     send = preview.locator(".lf-compose-field > button:visible")
     send.focus()
     page.evaluate("() => dispatchEvent(new Event('resize'))")
@@ -753,14 +764,13 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
         }"""
     )
     # This shell leaves less than the card's minimum beside the wide cluster, and more
-    # right of the words, so the card stands there, across the cluster, at its whole
-    # height.
-    assert beside["shellWidth"] - 8 - beside["controlsRight"] < 320, beside
+    # right of the words, so the card stands there, across the cluster, at its least
+    # width and its whole height.
+    assert beside["shellWidth"] - 8 - beside["controlsRight"] < minimum, beside
     assert beside["cardLeft"] >= page.evaluate(WORDS_RIGHT) + 15.5, beside
-    assert beside["cardRight"] == pytest.approx(beside["shellWidth"] - 8, abs=0.5), (
-        beside
-    )
-    assert beside["cardWidth"] >= 319, beside
+    assert beside["cardLeft"] < beside["controlsRight"], beside
+    assert beside["cardRight"] <= beside["shellWidth"] - 8 + 0.5, beside
+    assert beside["cardWidth"] == pytest.approx(minimum, abs=0.5), beside
     assert beside["clipped"] <= 0, beside
 
     resized(page, 1471, 900)
@@ -784,7 +794,7 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
     resized(page, 1280, 600)
     marker.evaluate("node => scrollBy(0, node.getBoundingClientRect().top - 330)")
     marker.click()
-    preview.get_by_role("textbox", name="Reply", exact=True).click()
+    text_field(preview, name="Reply", exact=True).click()
     editor = preview.locator("leaf-text")
     draft = "\n".join(
         f"Line {n}: " + "The reply keeps its complete editor visible. " * 2
@@ -796,10 +806,49 @@ def test_the_shipped_long_thread_keeps_the_margin_and_its_height(browser, serve)
         editor.press(edge)
         expect(editor).to_have_js_property("value", draft)
         assert editor.evaluate("node => node.selectionStart") == caret
+        # The reply box runs over the card's padding to its sides and foot, so the
+        # card's own box is what must hold it.
         page.wait_for_function("""() => {
-          const list = document.querySelector('.lf-margin-preview .lf-page-thread').getBoundingClientRect();
+          const card = document.querySelector('.lf-margin-preview').getBoundingClientRect();
           const editor = document.querySelector('.lf-margin-preview leaf-text').getBoundingClientRect();
           const send = document.querySelector('.lf-margin-preview .lf-compose-submit').getBoundingClientRect();
-          return editor.top >= list.top - 1 && editor.bottom <= list.bottom + 1
-            && send.top >= list.top && send.bottom <= list.bottom + 1;
+          return editor.top >= card.top - 1 && editor.bottom <= card.bottom + 1
+            && send.top >= card.top && send.bottom <= card.bottom + 1;
         }""")
+
+
+def test_the_rail_tab_stop_follows_a_carried_row_back_into_view(browser, serve):
+    """The rail's one Tab stop is its highest row in view, whichever way the page got
+    there. A row on a line a box scrolls sideways stands in a carrier, which the browser
+    moves with the page's scroll but whose own box reads a frame late: read there, a
+    scroll back to the top left the stop on the second row, below the first, until
+    something else re-read the rail."""
+    line = " ".join(["A line wider than its box, which scrolls it sideways."] * 4)
+    filler = "".join(f"<p>Filler paragraph {n}.</p>" for n in range(30))
+    body = (
+        "<h1>Carried rows</h1>"
+        f'<div style="overflow-x: auto"><p id="first" style="white-space: nowrap">{line}'
+        f'</p></div>{filler[: len(filler) // 3]}<p id="second">The second finding.</p>'
+        f"{filler}"
+    )
+    events = [_comment_on("first"), _comment_on("second")]
+    page = open_page(browser, serve(leaf_page("Carried rows", body), events=events))
+    resized(page, 1440, 900)
+    rendered(page)
+    first = page.locator('[data-lf-margin-for="first"] .lf-margin-marker')
+    second = page.locator('[data-lf-margin-for="second"] .lf-margin-marker')
+    assert first.evaluate("row => row.closest('.lf-margin-carrier') !== null"), (
+        "the fixture's first row no longer stands in a carrier"
+    )
+    expect(first).to_have_attribute("tabindex", "0")
+
+    page.mouse.move(300, 300)
+    page.mouse.wheel(0, 600)
+    scroll_settled(page)
+    rendered(page)
+    expect(second).to_have_attribute("tabindex", "0")
+    page.mouse.wheel(0, -600)
+    scroll_settled(page)
+    rendered(page)
+    expect(first).to_have_attribute("tabindex", "0")
+    expect(second).to_have_attribute("tabindex", "-1")

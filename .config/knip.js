@@ -15,6 +15,7 @@
 // HTML or Markdown file named it as a word, which kept every facade re-export whose
 // name the package references document alive.
 import { relative } from "node:path";
+import { typescriptModules } from "../build/typescript.mjs";
 import { ROOTS } from "../tests/served-paths.mjs";
 
 // TypeScript's `paths` takes the first candidate that holds the name, so the root a
@@ -26,15 +27,16 @@ export default {
   entry: [
     // Boot, the public package API, and what pages, samples and exports load by URL.
     "browser/leaf.js",
-    "browser/runtime/{widget-api,portable-api,bootstrap,sample,offline-delivery}.js",
+    "browser/runtime/{widget-api,portable-api,bootstrap,host/sample,base/offline-delivery}.js",
     // The suite's windows into a page, whose members Python names
     // (`__lfCheckApi()`, `__lfOverlayApi()`).
-    "browser/runtime/{,annotation-overlay/}check-api.js",
+    "browser/runtime/{,annotations/annotation-overlay/}check-api.js",
     // A widget module, which its registry entry names by tag.
-    "{browser,packages/*,tests/fixtures/packages/*}/widgets/lf-*.js",
+    "{browser,packages/*,docs/*,tests/fixtures/packages/*}/widgets/lf-*.js",
     // The render gate's probes, which Python calls by name, and the script an export
     // draws its page with.
-    "src/leaf/{render-checks/*,static-export}.js",
+    "src/leaf/source/render-checks/*.js",
+    "src/leaf/pages/static-export.js",
     // Scripts the suite injects into pages, and the pages' own.
     "tests/*.{js,mjs}",
     "tests/{page_scripts,fixtures}/**/*.js",
@@ -45,6 +47,10 @@ export default {
     "hooks/*.ts",
     "worker/{src/index,test/**/*}.ts",
     ".config/dependency-cruiser.mjs",
+    // A TypeScript module, whose imports name the JavaScript compiled beside it
+    // (build/typescript.mjs): knip follows those to read what each export serves, and
+    // the module itself to read which types it uses.
+    ...(await typescriptModules()),
   ],
   project: ["**/*.{js,mjs,cjs,ts}", "!**/vendor/**"],
   // Declarations generated per schema definition or bundle export, whichever a reader
@@ -54,7 +60,9 @@ export default {
     "/runtime/*": composed("runtime"),
     "/vendor/*": composed("vendor"),
     "/widgets/*": composed("widgets"),
-    "/checks/*": ["src/leaf/render-checks/*"],
+    "/checks/*": ["src/leaf/source/render-checks/*"],
   },
   include: ["files", "exports", "types", "cycles"],
+  // Knip grades a cycle a warning by default, which exits 0.
+  rules: { cycles: "error" },
 };

@@ -49,6 +49,7 @@ def test_every_comment_surface_shares_the_empty_microphone_and_typed_send(
         field = box.locator("leaf-text")
         mic = box.locator(".lf-compose-dictate")
         send = box.locator(".lf-compose-submit:not(.lf-compose-dictate)")
+        field.click()
         if supported:
             expect(mic).to_be_visible()
             expect(mic).to_have_attribute("aria-label", "Dictate")
@@ -74,8 +75,9 @@ def test_every_comment_surface_shares_the_empty_microphone_and_typed_send(
         return field
 
     # The panel's field takes a page comment, then the reply of the thread it opens
-    # stands there, empty; that reply restores the microphone when its send clears it,
-    # and so does the page comment the field returns to.
+    # stands there, empty; that reply offers the microphone again once its send clears
+    # it and the user is back in it, and so does the page comment the field returns to.
+    # The panel offers it only while the user writes in its field.
     page_comment(page)
     panel = page.locator(".lf-fp-field")
     field = enter_words(panel, "Please add the Sunday timetable.")
@@ -87,6 +89,7 @@ def test_every_comment_surface_shares_the_empty_microphone_and_typed_send(
         field.press("Enter")
     expect(page.locator(PANEL_THREAD)).to_contain_text("And the first departure time.")
     if supported:
+        panel_field(page).click()
         expect(panel.locator(".lf-compose-dictate")).to_be_visible()
     page_comment(page)
     if supported:

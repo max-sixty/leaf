@@ -26,10 +26,12 @@ Root `AGENTS.md`, "Working on the repository", says which changes to score. Choo
 eval by what the instruction is for:
 
 - Leaf's shipped workflows: Leaf's suite in `evals/`.
-- Maintainer guidance, such as this skill or an `AGENTS.md`: a temporary A/B in scratch
-  that gives each arm its version of the passage, with no committed case, unless the
-  development contract needs the suite's staging, such as a served page or an
-  installed arm.
+- The root `AGENTS.md` or `SOUL.md`: `pnpm run eval:root-guidance`, which scores the
+  working tree's text beside the merge base's (`evals/root-guidance/README.md`).
+- Other maintainer guidance, such as this skill or an area's `AGENTS.md`: a temporary
+  A/B in scratch that gives each arm its version of the passage, with no committed
+  case, unless the development contract needs the suite's staging, such as a served
+  page or an installed arm.
 
 For Leaf's suite, run the merge base beside the working tree with `--base`;
 `evals/README.md` owns the commands, selection, arms, the case format and where results

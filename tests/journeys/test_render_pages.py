@@ -32,18 +32,19 @@ from render_harness import (
 )
 
 from journeys import detached_threads, listed_threads
-from leaf import event_log as events_model
-from leaf import events as thread_model
-from leaf import render_checks as render_checks_model
-from leaf import structure as structure_model
-from leaf.hosting import TemporaryPageServer
-from leaf.passages import enclosing_ids, page_passages
-from leaf.registry import storage as registry_storage
-from leaf.render_checks import evaluate_probe, wait_until_ready
-from leaf.render_gate import version as render_gate_model
-from leaf.thread_context import logged_fragment
+from leaf.log import event_log as events_model
+from leaf.log import events as thread_model
+from leaf.log.events import logged_fragment
+from leaf.pages.hosting import TemporaryPageServer
+from leaf.pages.render_gate import version as render_gate_model
+from leaf.source import render_checks as render_checks_model
+from leaf.source import structure as structure_model
+from leaf.source import vocabulary as vocabulary_model
+from leaf.source.passages import enclosing_ids, page_passages
+from leaf.source.render_checks import evaluate_probe, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
-from leaf_dev.example_data import authored_sources, named_source
+from leaf_dev.example_data import authored_sources, named_source, seed_log
+from leaf_dev.page_fixtures import read_event_lines
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -149,15 +150,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
 
     for example in seeded:
         url = serve(example)
-        # The log's grammar is events joined by "\n" — never splitlines(), whose
-        # wider class reads a U+2028 inside a comment's text as a break.
-        events = [
-            json.loads(line)
-            for line in example.with_suffix(".jsonl")
-            .read_text(encoding="utf-8")
-            .split("\n")
-            if line.strip()
-        ]
+        events = read_event_lines(seed_log(example))
         assert events, f"{example.stem}: the shipped log is empty"
 
         page = open_page(browser, url)
@@ -175,7 +168,8 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
                 f"{example.stem}: duplicate {event['id']}"
             )
             previous.add(event["id"])
-        assert {event["id"] for event in events} <= previous
+        # A seed may leave an event's id to admission; each id it names survives.
+        assert {event["id"] for event in events if "id" in event} <= previous
         by_id = {event["id"]: event for event in logged}
 
         def thread_of(event_id, by_id=by_id):
@@ -367,7 +361,7 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
         # had rendered one here. It needs its thread open in the panel: shut, the
         # fragment has no box at all, so a reading that walks text nodes sees it
         # and every reading that measures one does not.
-        registry = registry_storage.load_registry(serve.page_dir)
+        registry = vocabulary_model.load_registry(serve.page_dir)
         carried_ids = set()
         carried_threads = set()
         for carried in events:
@@ -432,8 +426,10 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
 def test_an_anchor_written_from_the_mapped_revision_lands_on_the_page(
     browser, serve, source
 ):
-    """The claim `leaf thread create` makes is that a quote read out of the mapped revision
-    names the same passage in the browser. Four unlike authored pages cover native
+    """A quote the file's reading of the mapped revision finds once gets no note from
+    `leaf thread create`, so the browser should place it on those words, which the
+    neighbours the capture stores pick out where the page draws another copy. Four
+    unlike authored pages cover native
     blocks, representative widgets, and projected text that can make the file and
     browser readings disagree. The generated corpus derives its tab bodies from these
     sources, and its generation check owns that composition. A page that authors only a
@@ -450,7 +446,7 @@ def test_an_anchor_written_from_the_mapped_revision_lands_on_the_page(
     d = serve.page_dir
     anchors = written_anchors(d, html)
     document = structure_model.SourceDocument(html)
-    registry = registry_storage.load_registry(d)
+    registry = vocabulary_model.load_registry(d)
     authored = page_passages(document, registry).text
     assert authored.strip(), f"{source.stem} has no file passage for this sweep"
     # Nine overlapping anchors exercise section, prefix, and suffix resolution across
@@ -504,10 +500,8 @@ def test_available_space_is_a_generic_package_capacity(browser, serve):
     entry = {
         "description": "A project package's compound review surface.",
         "attributes": {
-            "type": "object",
-            "properties": {"id": {"type": "string"}},
+            "properties": {},
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "markup",
         "space": "available",
@@ -679,7 +673,7 @@ def test_the_render_gate_names_a_wide_widget_drawn_over_the_pages_own_margin(
     )
     failures = render_gate_model.render_version(
         browser, serve(source.replace("</main>", framed + "</main>"))
-    ).failures
+    ).findings
 
     assert [
         f
@@ -743,7 +737,7 @@ def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve
     parent is the shell it is placed in. A column whose box is a child of `main` takes
     the same column, contents map and breakouts as one on `main`
     itself, at a width where the shell must shift the column for its sidebar, and a
-    root workspace fills the window while a child keeps document end room. A `main` the
+    root workspace fills the window. A `main` the
     page narrows, borders or gives scrollbar gutters is the shell the child column
     measures, so nothing it holds stands past its edges or over its border or gutters."""
     column_body = """
@@ -819,8 +813,8 @@ def test_a_layout_on_a_child_of_main_arranges_it_as_it_would_main(browser, serve
     } == {k: v for k, v in without_main(on_main).items() if k not in ("box", "regions")}
     for key in ("box", "regions"):
         assert in_child[key][:3] == on_main[key][:3]
-        assert in_child[key][3] < on_main[key][3]
-    assert on_main["regions"][3] == 800, on_main
+    # The root workspace ends at the window's foot less its 8px end gap.
+    assert on_main["regions"][3] == 792, on_main
 
     narrowed = "<style>main { max-width: 900px; margin-inline: auto; }</style>"
     _, in_child = measured(column_body, "column", 1440, head=narrowed)
@@ -899,11 +893,11 @@ def test_an_obligation_and_a_callout_keep_the_column_and_widen_to_what_they_hold
         '<p id="prose">Prose.</p>'
         + item.format(id="ask", table="")
         + item.format(id="holds", table=table.format(id="holds"))
-        + '<aside class="callout" id="callout"><p>Paused.</p></aside>'
-        + '<aside class="callout" id="granted-c" data-width="wide">'
+        + '<aside class="lf-callout" id="callout"><p>Paused.</p></aside>'
+        + '<aside class="lf-callout" id="granted-c" data-width="wide">'
         + table.format(id="granted-c")
         + "</aside>"
-        + '<aside class="callout" id="contained-c">'
+        + '<aside class="lf-callout" id="contained-c">'
         + table.format(id="contained-c")
         + "</aside>"
         + '<lf-group id="list-q" label="Raise the limit?">'

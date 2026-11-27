@@ -4,9 +4,11 @@ one of its tokens, and the interface names one of its fonts (`--lf-font-*`)."""
 import re
 
 import tinycss2
+from interact_support import shipped_sheets
 
-from leaf.schema import ASSETS, BUNDLED_PACKAGES
-from leaf.state import PLUGIN_ROOT
+from leaf.base.schema import ASSETS
+from leaf.base.state import PLUGIN_ROOT
+from leaf.source.structure import AUTHORED_CLASSES
 
 # Declarations that make a face, and what a rule of the interface may write for each
 # without naming a font: inheriting its holder's, a weight for a run that keeps its
@@ -35,23 +37,22 @@ OWN = {
 }
 
 
-def sheets():
-    """The core's sheets and the bundled packages', less what they vendor."""
-    return [
-        path
-        for root in (ASSETS, BUNDLED_PACKAGES)
-        for path in sorted(root.rglob("*.css"))
-        if "vendor" not in path.parts
-    ]
+AUTHORED = re.compile(
+    rf"\.(?:{'|'.join(map(re.escape, sorted(AUTHORED_CLASSES)))})(?![\w-])"
+)
 
 
 def interface(context):
     """Whether a rule selects an element of the interface: an `lf-` element or one with
     an `lf-` class, which a `:not()` excluding one does not. An attribute such as
-    `data-lf-state` qualifies an element rather than naming one."""
+    `data-lf-state` qualifies an element rather than naming one. A class a kernel idiom
+    lets a page write (`structure.AUTHORED_CLASSES`) names the page's own element: a
+    drawing's words are the page's, set in the drawing's own units (tokens.css,
+    `--lf-drawing-size`)."""
     said = " ".join(context)
     while (bare := re.sub(r":not\([^()]*\)", "", said)) != said:
         said = bare
+    said = AUTHORED.sub("", said)
     return re.search(r"(?<![\w-])lf-", said) is not None
 
 
@@ -116,7 +117,7 @@ def test_every_rule_of_the_interface_names_a_declared_font():
         return item.lower_name == "font" and font and font.group(1) in fonts
 
     own = []
-    for sheet in sheets():
+    for sheet in shipped_sheets():
         rules = tinycss2.parse_stylesheet(sheet.read_text())
         for context, item, siblings in declarations(rules):
             if item.lower_name not in OWN or not interface(context):
@@ -253,7 +254,10 @@ def test_every_font_size_names_a_theme_token():
     and each bundled package's, less what they vendor.
     """
     own = own_sizes(
-        {str(path.relative_to(PLUGIN_ROOT)): path.read_text() for path in sheets()},
+        {
+            str(path.relative_to(PLUGIN_ROOT)): path.read_text()
+            for path in shipped_sheets()
+        },
         (ASSETS / "styles/tokens.css").read_text(),
     )
     assert not own, (

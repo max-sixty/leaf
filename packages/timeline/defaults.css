@@ -68,7 +68,6 @@ lf-event::before {
   padding-block: var(--lf-sp-3) var(--lf-sp-1);
   padding-inline-end: var(--lf-sp-1);
   background: var(--lf-timeline-ground);
-  white-space: nowrap;
 }
 .lf-timeline-run + .lf-timeline-run {
   padding-block-start: var(--lf-sp-4);
@@ -87,16 +86,19 @@ lf-event::before {
   font-weight: 600;
   white-space: nowrap;
 }
+/* The axis's ticks and gridlines (`timeAxis`, runtime/lib/time-axis.js) each stand in
+   a box as wide as the axis: the ticks in the ruler, and the gridlines in a layer
+   from the ruler's foot down every lane and run, as the playhead's is. */
 .lf-timeline-ruler {
   grid-row: 1;
   grid-column: 2;
+  position: relative;
 }
-/* The axis's gridlines (controls.css, `.lf-axis-grid`) run from the ruler's foot down
-   every lane and run, as the playhead does. */
 .lf-timeline-grid {
   grid-row: 2 / -1;
   grid-column: 2;
   position: relative;
+  pointer-events: none;
 }
 .lf-timeline-lane {
   grid-column: 2;
@@ -203,19 +205,50 @@ lf-event::before {
   margin-inline-start: -1px;
   background: var(--lf-accent);
 }
-/* Step changes move the retained line to its new time. The shared presentation and
- * reduced-motion guards suppress this transition when the page must appear at rest. */
-@media screen {
+/* Step changes move the retained line to its new time. Leaf holds this transition
+ * until the page is presented. The reader's preference is asked here, since a page
+ * without Leaf has no guard for it (module-authoring.md, "A widget that also runs off
+ * Leaf"). */
+@media screen and (prefers-reduced-motion: no-preference) {
   .lf-timeline-playhead-line {
     transition: left var(--lf-motion-mark) ease;
   }
 }
 
 .lf-timeline-steps {
+  /* The list's columns (controls.css, `.lf-rows`) are the time and then one column
+     per compared run (`--lf-timeline-columns`, set by the view). Each run's column
+     is as wide as its widest words, so the next run's events stand close to the
+     time that leads their row, and the columns share the width when it is short. */
+  grid-template-columns:
+    [lead] auto repeat(var(--lf-timeline-columns, 1), [main] minmax(0, max-content))
+    1fr;
   list-style: none;
   margin: var(--lf-sp-3) 0 0;
   padding: 0;
   font: var(--lf-font-compact);
+}
+/* The list's head names each compared run once, over its column, in the face of the
+   run's heading in the chart. */
+.lf-timeline-steps-head {
+  display: grid;
+  grid-template-columns: subgrid;
+  align-items: end;
+  padding-block-end: var(--lf-sp-1);
+  border-block-end: 1px solid var(--lf-rule);
+}
+.lf-timeline-steps-run,
+.lf-timeline-step-cell {
+  box-sizing: border-box;
+  padding-inline-end: var(--lf-sp-3);
+}
+/* An event that wraps hangs its later lines, so the next event's lane starts its
+   own line at the column's edge. */
+.lf-timeline-step-event {
+  display: block;
+  box-sizing: border-box;
+  padding-inline-start: 1em;
+  text-indent: -1em;
 }
 /* Each step is a row (controls.css, `.lf-row`), led by its time, the step shown its
  * current row; a step still ahead of it stands in the muted ink (`data-lf-ahead`). */
@@ -226,10 +259,12 @@ lf-event::before {
 .lf-timeline-steps > li {
   break-inside: avoid;
 }
+/* A step's lane names are muted, so the row reads as its events' own words. */
 .lf-timeline-step-lane {
-  font-weight: 600;
+  color: var(--lf-muted);
 }
 
-lf-timeline > :is(lf-lane, lf-run)[hidden] {
+/* The drawing shows the authored lanes in their place. */
+lf-timeline:has(.lf-timeline-view) > :is(lf-lane, lf-run) {
   display: none;
 }

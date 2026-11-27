@@ -46,11 +46,14 @@ async function stage(
   return { root: publication.root, identity };
 }
 
-async function snapshot(store: PageStore): Promise<{
+async function snapshot(
+  store: PageStore,
+  release = manifest,
+): Promise<{
   records: Record<string, PagePublication["record"]>;
   drafts: Record<string, ServedDraftsAnswer>;
 }> {
-  const entries = await unpackTar(store.records().body!);
+  const entries = await unpackTar(store.records(release).body!);
   return JSON.parse(new TextDecoder().decode(entries[0].data!));
 }
 
@@ -71,6 +74,7 @@ function page(root: string, chunks: string[]): PagePublication {
 const RELEASE = "a".repeat(64);
 const manifest = {
   release: RELEASE,
+  drafts_format: "leaf-drafts/51",
   pages: Object.fromEntries(
     ["/", "/other", "/examples/board", "/examples/heat-loss"].map((root) => [root, {}]),
   ),
@@ -81,6 +85,7 @@ const manifest = {
 // shape here; the earlier formats' entries stay, so none is rewritten in place.
 const FORMATS: Record<number, string> = {
   1: "5bf1a647f4748ee6",
+  2: "8b82439f6ccbc39f",
 };
 
 describe("durable website page records", () => {
@@ -137,7 +142,7 @@ describe("durable website page records", () => {
           publication.root,
           last,
           new Request("https://leaf.page/"),
-          RELEASE,
+          manifest,
         ))!.text(),
       ).toBe("immutable module");
     } finally {
@@ -163,15 +168,15 @@ describe("durable website page records", () => {
       };
       store.publish(await stage(store, publication, blobs));
       const request = new Request("https://leaf.page/");
-      expect(await store.response("/", "", request, RELEASE)).not.toBeNull();
+      expect(await store.response("/", "", request, manifest)).not.toBeNull();
       // The next release's container restores the record whole, and wakes for the
       // document rather than serving one that names the earlier release's assets.
-      const next = "b".repeat(64);
+      const next = { ...manifest, release: "b".repeat(64) };
       expect((await records(store))["/"]).toEqual(publication.record);
       expect(await store.response("/", "", request, next)).toBeNull();
-      store.publish(await stage(store, publication, blobs, next));
+      store.publish(await stage(store, publication, blobs, next.release));
       expect(await store.response("/", "", request, next)).not.toBeNull();
-      expect(await store.response("/", "", request, RELEASE)).toBeNull();
+      expect(await store.response("/", "", request, manifest)).toBeNull();
     } finally {
       await new Promise((resolve) => setImmediate(resolve));
       close();
@@ -235,7 +240,7 @@ describe("durable website page records", () => {
         "/examples/board",
         "media/private.png",
         new Request("https://leaf.page/"),
-        RELEASE,
+        manifest,
       ))!;
       expect(Buffer.from(await response.arrayBuffer()).equals(body)).toBe(true);
       // Served as Python captured it, so it is cached as the live answer would be.
@@ -247,7 +252,7 @@ describe("durable website page records", () => {
           "/",
           "api/state",
           new Request("https://leaf.page/"),
-          RELEASE,
+          manifest,
         ),
       ).toBeNull();
       expect(
@@ -255,7 +260,7 @@ describe("durable website page records", () => {
           "/examples/board",
           "media/private.png",
           new Request("https://leaf.page/", { method: "HEAD" }),
-          RELEASE,
+          manifest,
         ))!.text(),
       ).toBe("");
       expect(
@@ -263,7 +268,7 @@ describe("durable website page records", () => {
           "/examples/board",
           "revisions/leaf.js",
           new Request("https://leaf.page/"),
-          RELEASE,
+          manifest,
         ))!.text(),
       ).toBe('import "./runtime/private.js";');
       const requestedAt = Date.now();
@@ -271,7 +276,7 @@ describe("durable website page records", () => {
         "/examples/board",
         "api/state",
         new Request("https://leaf.page/"),
-        RELEASE,
+        manifest,
       ))!;
       expect(savedState.headers.has("Content-Length")).toBe(false);
       for (const version of ["v1", "stale"]) {
@@ -281,7 +286,7 @@ describe("durable website page records", () => {
           new Request("https://leaf.page/api/state", {
             headers: { "Leaf-Data-Version": version },
           }),
-          RELEASE,
+          manifest,
         ))!;
         const reading = await response.json<Pick<ServedState, "taken" | "data">>();
         expect(reading).toMatchObject({ saved: "choice" });
@@ -320,7 +325,7 @@ describe("durable website page records", () => {
           "/examples/board",
           "api/state",
           new Request("https://leaf.page/"),
-          RELEASE,
+          manifest,
         ))!.json(),
       ).toMatchObject({ saved: "choice" });
       expect((await records(restored))["/examples/board"]).toEqual(publication.record);
@@ -405,7 +410,7 @@ describe("durable website page records", () => {
       // A commit that captured its drafts before the latest write lands after it.
       await commit();
       const get = (path: string) =>
-        store.response("/", path, new Request("https://leaf.page/"), RELEASE);
+        store.response("/", path, new Request("https://leaf.page/"), manifest);
       const drafts = (await get("api/drafts"))!;
       expect(await drafts.json()).toEqual(latest);
       expect(drafts.headers.has("Content-Length")).toBe(false);
@@ -424,7 +429,7 @@ describe("durable website page records", () => {
           "/other",
           "api/drafts",
           new Request("https://leaf.page/"),
-          RELEASE,
+          manifest,
         ),
       ).toBeNull();
       expect((await snapshot(new PageStore(storage))).drafts).toEqual({
@@ -469,6 +474,39 @@ describe("durable website page records", () => {
       );
       expect(save(null, reading(1, "A new store's first save"))).toEqual(acknowledged);
       expect((await snapshot(store)).drafts).toEqual({ "/": acknowledged });
+    } finally {
+      await new Promise((resolve) => setImmediate(resolve));
+      close();
+    }
+  });
+
+  it("reads and replaces only the drafts stores written at its own drafts shape", async () => {
+    const { storage, close } = sqliteStorage();
+    try {
+      const store = new PageStore(storage);
+      const reading = (identity: string, text: string): ServedDraftsAnswer => ({
+        store: identity,
+        version: 1,
+        drafts: { general: { attempt: text, text, version: 1 } },
+      });
+      const earlier = reading("store-1", "Words written at the earlier shape");
+      store.saveDrafts({ root: "/", replaces: null, drafts: earlier }, manifest);
+      // A release whose Leaf changed the drafts' shape, at the same page protocol,
+      // finds no store, and starts its own beside the earlier one.
+      const next = {
+        ...manifest,
+        release: "b".repeat(64),
+        drafts_format: "leaf-drafts/57",
+      };
+      expect((await snapshot(store, next)).drafts).toEqual({});
+      const later = reading("store-2", "Words written at the later shape");
+      expect(
+        store.saveDrafts({ root: "/", replaces: null, drafts: later }, next),
+      ).toEqual(later);
+      expect((await snapshot(store, next)).drafts).toEqual({ "/": later });
+      // A release back at the earlier shape, as after a rollback, finds its store as
+      // it left it.
+      expect((await snapshot(store)).drafts).toEqual({ "/": earlier });
     } finally {
       await new Promise((resolve) => setImmediate(resolve));
       close();
@@ -547,16 +585,16 @@ describe("durable website page records", () => {
         "/",
         "media/file",
         new Request("https://leaf.page/"),
-        RELEASE,
+        manifest,
       ))!;
       const cancelled = (await store.response(
         "/",
         "media/file",
         new Request("https://leaf.page/"),
-        RELEASE,
+        manifest,
       ))!;
-      const restored = store.records();
-      const cancelledRestore = store.records();
+      const restored = store.records(manifest);
+      const cancelledRestore = store.records(manifest);
       const next = page("/", []);
       const nextCommit = await stage(store, next, blobs);
       store.publish(nextCommit);

@@ -1,20 +1,13 @@
 {
   "lf-dial": {
-    "description": "A control that sets how much of the page shows: Skim shows the lede, the gists, every picture and the headings above them, Read the page as written, and Everything also opens every closed detail.",
-    "attributes": {
-      "type": "object",
-      "properties": {
-        "id": { "type": "string" }
-      },
-      "required": ["id"],
-      "additionalProperties": false
-    },
+    "description": "A control that sets how much of the page shows: Skim shows the lede, the gists and the headings above them, Read the page as written, and Everything also opens every closed detail.",
+    "attributes": { "required": ["id"] },
     "content": "empty",
-    "instructions": "Write it empty with a stable id, after the page's title and lede, on a page long enough that a reader might want only a quick pass. It governs the nearest tab or part containing it, or the whole main. Skim is only as good as the gists: mark `.gist` the passages that give a reader on a quick pass the page's argument and anything they must act on, reading coherently in order. Skim also keeps every picture outside a closed `details`, with its caption. A section with nothing for that reader takes no gist, and with no picture either folds whole (the detail package's author instructions).",
-    "example": "<h1>Why checkout latency doubled</h1>\n<p class=\"lede\">A cache key change on Tuesday sent every checkout to the database.</p>\n<lf-dial id=\"depth\"></lf-dial>\n<section id=\"cause\">\n  <h2>Cause</h2>\n  <p class=\"gist\">The 4.2 release added the currency to the cart cache key, so no cached cart matched.</p>\n  <p>Hit rate fell from 94% to 3% within a minute of the deploy, and p99 rose from 180 ms to 410 ms.</p>\n  <details>\n    <summary>The key, before and after</summary>\n    <pre>cart:{user}  →  cart:{user}:{currency}</pre>\n  </details>\n</section>"
+    "instructions": "Write it empty with a stable id, after the page's title and lede, on a page long enough that a reader might want only a quick pass. It governs the element it stands in and sticks within it, so write it directly in the element whose text it governs, such as the `layout-column` element, a sidebar page's body or a tab, not in a `header` holding the title. Skim is only as good as the gists: mark `.gist` the blocks that give a reader on a quick pass the page's argument and anything they must act on, reading coherently in order. A gist may be any block, and is often a picture, such as a figure, a chart, a video or a canvas. A section with nothing for that reader takes no gist, and folds whole (the detail package's author instructions).",
+    "example": "<h1>Why checkout latency doubled</h1>\n<p class=\"lf-lede\">A cache key change on Tuesday sent every checkout to the database.</p>\n<lf-dial id=\"depth\"></lf-dial>\n<section id=\"cause\">\n  <h2>Cause</h2>\n  <p class=\"gist\">The 4.2 release added the currency to the cart cache key, so no cached cart matched.</p>\n  <p>Hit rate fell from 94% to 3% within a minute of the deploy, and p99 rose from 180 ms to 410 ms.</p>\n  <details>\n    <summary>The key, before and after</summary>\n    <pre>cart:{user}  →  cart:{user}:{currency}</pre>\n  </details>\n</section>"
   },
   ".gist": {
-    "description": "A block that says what a passage concludes, readable without the text around it; with `lf-dial` at Skim, the lede, the gists, the pictures and the headings above them are all that shows.",
+    "description": "A block a reader on a quick pass needs, readable without the text around it: a passage's conclusion, or a picture, chart or video that shows the argument; with `lf-dial` at Skim, the lede, the gists and the headings above them are all that shows.",
     "example": "<section id=\"cause\">\n  <h2>Cause</h2>\n  <p class=\"gist\">The cache key changed, so no cached cart matched.</p>\n  <p>Hit rate fell from 94% to 3% within a minute of the deploy.</p>\n</section>"
   }
 }

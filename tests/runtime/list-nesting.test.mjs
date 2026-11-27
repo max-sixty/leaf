@@ -1,12 +1,12 @@
 /* Tab and Shift+Tab in a draft nest a list item and take it out a level
-   (composing/field-editor.js, `nestItems`), by the renderer's reading of the draft, so
+   (annotations/composing/field-editor.js, `nestItems`), by the renderer's reading of the draft, so
    the message reads the item where the source now stands it. */
 
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { nestItems } from "/runtime/composing/field-editor.js";
-import { loadMarkdown, placedMarkdownTokens } from "/runtime/markdown.js";
+import { nestItems } from "/runtime/annotations/composing/field-editor.js";
+import { loadMarkdown, placedMarkdownTokens } from "/runtime/lib/markdown.js";
 
 // Each draft marks the caret `|`, or a selection `«…»`, with the draft the press leaves:
 // unchanged where the item has nowhere to go, and null where the press is no list's.

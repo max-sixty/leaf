@@ -42,30 +42,68 @@
  * with notes. The mark is Leaf's control, drawn only where Leaf runs, since only
  * Leaf's register answers its press.
  *
+ * `playhead` is the lines another widget is at, in `hi`'s grammar, or null: Leaf sets
+ * it from the `source-lines` output of the widget `for` names (registry `inputs`), and
+ * a plain host sets the property itself. The block marks the rows those numbers address
+ * (`data-lf-at`). Several excerpts of one file can follow one widget, since a number
+ * outside an excerpt marks nothing there.
+ *
+ * So that a reader watching that widget sees the marked line beside it, the block keeps
+ * the first marked line in the box that scrolls it. When the line stands outside a band
+ * of that box, from 15% of its height to 70%, the block sets the box's scroll at once
+ * so the line stands a third of the way down, with the lines that run next below it.
+ * Where that box is the page, or the page doesn't render the line, as in a closed
+ * disclosure, it moves nothing. The first value a block is handed only marks its line,
+ * as an arrival moves nothing, and the block follows from the next.
+ *
+ * The reader's hand inside the box, a press, wheel, touch or key there, stops the
+ * following, so the box holds still while they read or scroll it, and their hand on
+ * the widget `for` names starts it again for the blocks that name it. Rejected:
+ * following again once a marked line came into the reader's view, which took the pane
+ * from a reader who had scrolled up to read the lede as soon as the film lit a line
+ * beside it.
+ *
+ * It is a `LeafElement` only to be handed `playhead`; it draws no Lit template, and its
+ * source draw is the update's completion, so Leaf's first anchor pass waits for the
+ * lines.
+ *
  * It imports only the helpers that load in any document, so a plain HTML page that maps
  * `/runtime/` and `/vendor/` draws it too: coloured, numbered by its own stylesheet where
  * the page loads it, and with nothing of Leaf's. What Leaf adds it reads from outside:
- * the drawing under way as a `pending-task` event, the wrap and notes keys as the
- * element's `lfCommands`, the Copy control from the block's `data-lf-copy`, standing
- * in the block's toolbar (`lfBar`) where it has one, and the word a listener hears on
- * a highlighted line from its `data-lf-quiet`. */
+ * the wrap and notes keys as the element's `lfCommands`, the Copy control from the
+ * block's `data-lf-copy`, standing in the block's toolbar (`lfBar`) where it has one,
+ * and the word a listener hears on a highlighted line from its `data-lf-quiet`. */
+import { onUserInput, scrollersOf, tabStore } from "/runtime/portable-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { bodyText } from "/runtime/lib/data-body.js";
+import { failSoft } from "/runtime/lib/failure.js";
+import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
 import {
-  setScroll,
-  PendingTaskEvent,
-  bodyText,
   codeLanguage,
-  commandsChanged,
-  failSoft,
-  layoutChanged,
-  nameAction,
-  offer,
-  offerAction,
-  once,
   synNodes,
   syntax,
-  tabStore,
   tokenLines,
-} from "/runtime/portable-api.js";
+} from "/runtime/lib/syntax-tokens.js";
+import { keeps } from "/runtime/lib/keeps.js";
+import { scrollMoves } from "/runtime/lib/scroll-range.js";
+
+// Which of the reader's gestures last had their hand on or inside each element, counted
+// from the first. A block follows in its box unless their hand was in the box after it
+// was last on the widget the block follows (see the header), so a hand in the box holds
+// it from the page's load, before any block there has followed a line. The hand is read
+// from the document's one reading of the reader's inputs (`onUserInput`), which binds
+// no key, and is one of its gestures: an `input` follows a gesture already counted, and
+// a script that moves the followed widget dispatches one with no reader behind it.
+/** @type {WeakMap<Element, number>} */
+const hands = new WeakMap();
+let gestures = 0;
+const HAND = new Set(["pointerdown", "wheel", "touchstart", "keydown"]);
+onUserInput((event) => {
+  if (!HAND.has(event.type)) return;
+  gestures += 1;
+  for (const node of event.composedPath())
+    if (node instanceof Element) hands.set(node, gestures);
+});
 
 // "3-5,8" → [[3, 5], [8, 8]].
 /** @param {string | null} spec @returns {[number, number][]} */
@@ -126,33 +164,90 @@ function* numbering(el) {
 
 customElements.define(
   "lf-code",
-  class extends HTMLElement {
+  class extends LeafElement {
+    static properties = { playhead: { attribute: false } };
+
+    constructor() {
+      super();
+      /** @type {string | null} */
+      this.playhead = null;
+    }
+
+    /** @type {Promise<void> | undefined} */
+    #source;
+    // The numbered and elided rows, in order, once the lines are in.
+    /** @type {HTMLSpanElement[]} */
+    #rows = [];
+    // The rows the playhead marks.
+    /** @type {HTMLSpanElement[]} */
+    #at = [];
+    // Whether the playhead has had a value. The first only marks, as an arrival moves
+    // nothing (see the header).
+    #arrived = false;
+
     // The rendered lines a range addresses, none before the lines are in.
-    /** @param {string} key */
+    /** @param {string | null} key */
     lfElementsFor(key) {
       const addressed = within(key);
-      return [
-        ...[...this.querySelectorAll("pre")]
-          .filter((pre) => pre.parentElement === this)
-          .flatMap((pre) =>
-            [...pre.querySelectorAll("span")].filter(
-              (row) =>
-                row.parentElement === pre &&
-                row.matches(".lf-code-line, .lf-code-elided"),
-            ),
-          ),
-      ].filter((row) => addressed(...rowSpan(row)));
+      return this.#rows.filter((row) => addressed(...rowSpan(row)));
     }
 
-    connectedCallback() {
-      if (!once(this)) return;
-      // Announced as a pending task so the runtime holds the first anchor pass until
-      // the lines are in — the tokenizer loads lazily, so even an uncolored block
-      // lands a microtask late and one writer has to finish before another reads.
-      this.dispatchEvent(new PendingTaskEvent(this.render()));
+    // The tokenizer loads lazily, so even an uncolored block lands a microtask late,
+    // and one writer has to finish before another reads: the update completes once the
+    // lines are in, and Leaf's first anchor pass waits for it.
+    setup() {
+      this.#source = this.#draw();
     }
 
-    async render() {
+    async getUpdateComplete() {
+      const result = await super.getUpdateComplete();
+      await this.#source;
+      return result;
+    }
+
+    /** @param {Map<PropertyKey, unknown>} changed */
+    updated(changed) {
+      super.updated(changed);
+      if (changed.has("playhead")) this.#follow();
+    }
+
+    #mark() {
+      const at = this.lfElementsFor(this.playhead);
+      for (const row of this.#at) if (!at.includes(row)) keeps(row, "data-lf-at", null);
+      for (const row of at) keeps(row, "data-lf-at", "");
+      this.#at = at;
+    }
+
+    // Mark the new lines, and keep the first in sight as the header says.
+    #follow() {
+      this.#mark();
+      const arrived = this.#arrived;
+      this.#arrived ||= this.playhead !== null;
+      const [row] = this.#at;
+      // A row the page doesn't render, as in a closed disclosure, has no place to bring
+      // into view.
+      if (!arrived || !row?.checkVisibility()) return;
+      const [scroller] = scrollersOf(row);
+      if (!scroller || scroller === document.scrollingElement) return;
+      const id = this.getAttribute("for");
+      const followed =
+        id &&
+        /** @type {Document | ShadowRoot} */ (this.getRootNode()).getElementById(id);
+      const resumed = (followed && hands.get(followed)) || 0;
+      if ((hands.get(scroller) ?? 0) > resumed) return;
+      const frame = scroller.getBoundingClientRect();
+      const { top, bottom } = row.getBoundingClientRect();
+      if (
+        top >= frame.top + frame.height * 0.15 &&
+        bottom <= frame.top + frame.height * 0.7
+      )
+        return;
+      const to = scroller.scrollTop + top - frame.top - frame.height / 3;
+      if (scrollMoves(scroller, { top: to }))
+        scroller.scrollTo({ top: to, behavior: "instant" });
+    }
+
+    async #draw() {
       // The code is the <pre>'s and nothing else's; notes are its siblings and say
       // which line they are about, so a note never sits between two halves of the
       // source and there is no interrupted-line arithmetic to get right.
@@ -170,11 +265,7 @@ customElements.define(
         const numbers = numbering(this);
         const rows = lines.map((tokens) => ({ tokens, n: numbers.next().value }));
         const hi = within(this.getAttribute("hi"));
-        const byLine = new Map();
-        for (const note of notes) {
-          const at = Number(note.getAttribute("at"));
-          byLine.set(at, [...(byLine.get(at) ?? []), note]);
-        }
+        const byLine = Map.groupBy(notes, (note) => Number(note.getAttribute("at")));
         // Reading commands remain reachable when wrapping removes overflow.
         const pre = document.createElement("pre");
         pre.setAttribute("data-lf-carry", "source");
@@ -231,6 +322,11 @@ customElements.define(
         const foot = notes.filter((note) => !pre.contains(note));
         for (const note of foot) note.style.removeProperty("--lf-code-indent");
         pre.append(...foot);
+        this.#rows = /** @type {HTMLSpanElement[]} */ (
+          [...pre.children].filter((row) =>
+            row.matches(".lf-code-line, .lf-code-elided"),
+          )
+        );
         // Copied as the source the lines were drawn from, never as the lines' text,
         // which carries the notes docked among them.
         pre.dataset.lfCopy = "code";
@@ -246,6 +342,8 @@ customElements.define(
         // Copy joins the mark here (`lfBar`), which the theme stands in the block's
         // corner and shows as it would show a lone Copy.
         const bar = notesToggle ? offer("div", "lf-code-bar lf-mark-bar") : null;
+        // Its marks join into one toolbar (controls.css, `data-lf-joined`).
+        if (bar) bar.dataset.lfJoined = "";
         if (bar && notesToggle) bar.append(notesToggle);
         if (bar) pre.lfBar = bar;
         // The press says what it will do, and hidden notes say how many wait.
@@ -275,8 +373,12 @@ customElements.define(
           if (!wrapped) horizontal = pre.scrollLeft;
           paintWrap(!wrapped);
           tabStore.set(key, String(wrapped));
-          if (!wrapped) setScroll(pre, { left: horizontal, behavior: "instant" });
-          layoutChanged(this);
+          // Wrapped, the block stood at its start, so only an offset it had is put back.
+          if (!wrapped && horizontal)
+            pre.scrollTo({ left: horizontal, behavior: "instant" });
+          this.dispatchEvent(
+            new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+          );
         };
         this.lfCommands = {
           title: "On a code block",
@@ -299,15 +401,22 @@ customElements.define(
                       notesShown = !notesShown;
                       tabStore.set(notesKey, notesShown ? "shown" : "hidden");
                       paintNotes();
-                      layoutChanged(this);
+                      this.dispatchEvent(
+                        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+                      );
                     },
                   },
                 ]
               : []),
           ],
         };
-        commandsChanged(this);
-        layoutChanged(this);
+        this.dispatchEvent(
+          new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+        );
+        this.#mark();
+        this.dispatchEvent(
+          new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+        );
       } catch (err) {
         failSoft(this, err, source);
       }

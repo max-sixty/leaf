@@ -70,39 +70,39 @@
           <p>release · production · checkout-v2</p>
           <h1>Checkout v2 release</h1>
         </hgroup>
-        <p class="lede" id="lp-lede">
+        <p class="lf-lede" id="lp-lede">
           The production canary is paused at 25%. Customer checkout is healthy, but
           finance export is one row short and must reconcile before traffic expands.
         </p>
         <p id="lp-tags">
-          <span class="tag warn">Paused at 25%</span>
-          <span class="tag danger">Finance export failing</span>
-          <span class="tag ok">Checkout healthy</span>
+          <span class="lf-tag warn">Paused at 25%</span>
+          <span class="lf-tag danger">Finance export failing</span>
+          <span class="lf-tag ok">Checkout healthy</span>
         </p>
       </header>
 
       <div id="lp-body">
         <div id="lp-status-room">
           <div class="layout-tiles" id="lp-status">
-            <dl id="lp-k-traffic" class="metric">
+            <dl id="lp-k-traffic" class="lf-metric">
               <dt>candidate traffic</dt>
               <dd><strong>25%</strong></dd>
             </dl>
-            <dl id="lp-k-checks" class="metric">
+            <dl id="lp-k-checks" class="lf-metric">
               <dt>checks passing</dt>
               <dd><strong>4 of 5</strong></dd>
             </dl>
-            <dl id="lp-k-latency" class="metric">
+            <dl id="lp-k-latency" class="lf-metric">
               <dt>p95 latency</dt>
               <dd><strong>184 ms</strong></dd>
             </dl>
-            <dl id="lp-k-observed" class="metric">
+            <dl id="lp-k-observed" class="lf-metric">
               <dt>last observation</dt>
               <dd><strong>14:24:44</strong></dd>
             </dl>
           </div>
         </div>
-        <aside class="callout warn" id="lp-current-state">
+        <aside class="lf-callout warn" id="lp-current-state">
           <strong>Paused at 25%</strong>
           <p>
             Automatic promotion stopped when the finance-parity check failed. The
@@ -132,7 +132,7 @@
             </lf-options>
           </lf-group>
         </aside>
-        <section class="panel" id="lp-traffic">
+        <section class="lf-panel" id="lp-traffic">
           <h2>Candidate traffic since deploy</h2>
           <lf-chart id="lp-traffic-chart" data-height="220">
             <pre>
@@ -160,7 +160,7 @@
 </pre>
           </lf-chart>
         </section>
-        <section class="panel" id="lp-log">
+        <section class="lf-panel" id="lp-log">
           <h2>Run log</h2>
           <p id="lp-log-note">
             Example snapshot ending at 14:24:44. New events append without moving a user
@@ -175,33 +175,34 @@
       </div>
       <aside id="lp-rail">
         <div class="layout-track">
-          <section class="panel" id="lp-steps">
+          <section class="lf-panel" id="lp-steps">
             <h2 id="lp-steps-heading">Release steps</h2>
             <ol id="lp-release-steps">
               <li id="lp-step-build">
-                <small class="tag ok">done · 14:18</small>
+                <small class="lf-tag ok">done · 14:18</small>
                 <strong>Build and verify the candidate</strong> Image signed and
                 provenance recorded.
               </li>
               <li id="lp-step-canary">
-                <small class="tag ok">done · 14:22</small>
+                <small class="lf-tag ok">done · 14:22</small>
                 <strong>Deploy the 25% canary</strong> Candidate serving production
                 checkout traffic.
               </li>
               <li id="lp-step-checks">
-                <small class="tag danger">blocked · now</small>
+                <small class="lf-tag danger">blocked · now</small>
                 <strong>Pass release checks</strong> Finance export has 1,998 of 1,999
                 expected rows.
               </li>
               <li id="lp-step-promote">
-                <small class="tag">planned</small> <strong>Expand to 100%</strong>
+                <small class="lf-tag">planned</small> <strong>Expand to 100%</strong>
               </li>
               <li id="lp-step-observe">
-                <small class="tag">planned</small> <strong>Observe and complete</strong>
+                <small class="lf-tag">planned</small>
+                <strong>Observe and complete</strong>
               </li>
             </ol>
           </section>
-          <section class="panel" id="lp-checks">
+          <section class="lf-panel" id="lp-checks">
             <h2>Checks</h2>
             <p id="lp-checks-note">Four checks pass. One blocks promotion.</p>
             <table id="lp-checks-table">
@@ -250,9 +251,9 @@
               </tbody>
             </table>
           </section>
-          <section class="panel" id="lp-release">
+          <section class="lf-panel" id="lp-release">
             <h2>Release</h2>
-            <dl class="facts" id="lp-release-facts">
+            <dl class="lf-facts" id="lp-release-facts">
               <dt>Environment</dt>
               <dd>Production</dd>
               <dt>Candidate</dt>
@@ -275,28 +276,28 @@
               <ul id="lp-owners">
                 <li id="lp-agent-deployer">
                   <strong>deployer</strong>
-                  <span class="tag">waiting</span> Holding promotion at 25% while
+                  <span class="lf-tag">waiting</span> Holding promotion at 25% while
                   finance parity is red.
                 </li>
                 <li id="lp-agent-ledger">
                   <strong>ledger</strong>
-                  <span class="tag">working</span> Reconciling
+                  <span class="lf-tag">working</span> Reconciling
                   <code>co_18427</code> against the candidate export.
                 </li>
                 <li id="lp-agent-finance">
                   <strong>finance</strong>
-                  <span class="tag warn">blocked</span> Waiting for the missing export
-                  row before signing off.
+                  <span class="lf-tag warn">blocked</span> Waiting for the missing
+                  export row before signing off.
                 </li>
                 <li id="lp-agent-observer">
                   <strong>observer</strong>
-                  <span class="tag">idle</span> Ready to watch the release after
+                  <span class="lf-tag">idle</span> Ready to watch the release after
                   promotion.
                 </li>
                 <li id="lp-agent-builder">
                   <strong>builder</strong>
-                  <span class="tag ok">done</span> Signed the candidate and recorded its
-                  provenance.
+                  <span class="lf-tag ok">done</span> Signed the candidate and recorded
+                  its provenance.
                 </li>
               </ul>
             </details>

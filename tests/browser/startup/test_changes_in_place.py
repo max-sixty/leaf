@@ -1,7 +1,7 @@
-"""Changes in place: what changed since a version, which `v` or a Compare in Versions
-marks with a bar and `h` walks; how much changed since the user last saw the page,
+"""Changes in place: what changed since a version, which a Compare in Versions marks
+with a bar and `h` walks; how much changed since the user last saw the page,
 which coming back to it says; and where the agent is at work while it works
-(version.js, since-seen.js, change-walk.js, margin-bars.js).
+(features/version.js, host/since-seen.js, panel/change-walk.js, features/margin-bars.js).
 
 A revision is seen when it is on the page while the user is there: the tab visible and
 the window holding focus. Headless browsers report every tab visible and focused, so
@@ -26,17 +26,18 @@ from render_harness import (
     panel_field,
     preview_parts,
     sending,
+    show_changes,
     stamp_page,
     told,
     wait_for_revision,
     write,
 )
 
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import revisioning as revisioning_model
-from leaf.render_checks import rendered
-from leaf_dev.browser import PANEL_THREAD, scroll_settled
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.records import revisioning as revisioning_model
+from leaf.source.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD, panel_tab, scroll_settled
 
 PAGE = leaf_page(
     "Since",
@@ -138,30 +139,135 @@ def test_a_comparison_marks_each_change_with_a_bar_and_h_walks_them(browser, ser
         expect(page.locator(f"#{expected}")).to_be_focused()
     page.keyboard.press("Shift+h")
     expect(page.locator("#d")).to_be_focused()
-    # The marks are annotations: Escape lets go of the change and leaves them, and `o`
+    # The marks are annotations: Escape lets go of the change and leaves them, and `g H`
     # hides them with the rest.
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     expect(marked).to_have_count(2)
     beta = page.locator('.lf-change-bar[data-lf-for="b"]')
-    page.keyboard.press("o")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+H")
     expect(beta).to_have_css("background-color", clear)
-    page.keyboard.press("o")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+H")
     expect(beta).not_to_have_css("background-color", clear)
-    # A changed block the agent is at work on shows both bars, the change's nearer it.
+    # Both bars stand in one lane outside the marks round their block, so no ring or
+    # bracket of the user's touches one; on a changed block the agent is at work on, the
+    # work's bar covers the change's.
     _start(d, _comment_on(d, "b", BETA[1], revision=3)["id"], "Rewriting Beta")
     expect(page.locator(".lf-at-work-bar")).to_have_count(1)
-    lanes = page.evaluate(
+    lane = page.evaluate(
         """() => {
           const box = (s) => document.querySelector(s).getBoundingClientRect();
           const [block, change, work] = [
             box('#b'), box('.lf-change-bar[data-lf-for="b"]'), box('.lf-at-work-bar'),
           ];
-          return change.right <= block.left && work.right <= change.left
-            && change.top < block.bottom && change.bottom > block.top;
+          const room = parseFloat(getComputedStyle(document.getElementById('b'))
+            .getPropertyValue('--lf-band-room'));
+          const [first, second] = ['.lf-change-bar[data-lf-for="b"]', '.lf-at-work-bar']
+            .map((s) => document.querySelector(s));
+          return {
+            shared: Math.abs(work.left - change.left) < 0.5,
+            clear: change.right < block.left - room,
+            covers: first.parentNode === second.parentNode
+              && !!(first.compareDocumentPosition(second)
+                & Node.DOCUMENT_POSITION_FOLLOWING),
+          };
         }"""
     )
-    assert lanes, "the change bar and the at-work bar don't stand in lanes of their own"
+    assert lane == {"shared": True, "clear": True, "covers": True}, lane
+
+
+def test_versions_counts_the_changes_since_each_older_version(browser, serve):
+    """Each version older than the one shown says before its Compare's word how many
+    changes a comparison with it would mark, in the press's name too. Reopening
+    Versions shows the counts it holds without asking the server again, and a pick
+    that adds a change counts again. The version shown has no Compare."""
+    options = PAGE.replace(
+        '<p id="a">',
+        '<lf-group id="g-q" label="When to ship?">'
+        '<lf-options id="g"><lf-option id="g-a">Ship now</lf-option>'
+        '<lf-option id="g-b">Ship later</lf-option></lf-options></lf-group>\n<p id="a">',
+    )
+    url = live_url(serve(options))
+    d = serve.page_dir
+    page = open_page(browser, url)
+    stamp_page(d, revised(options, BETA), "rewrote Beta")
+    stamp_page(d, revised(options, BETA, DELTA), "rewrote Delta")
+    wait_for_revision(page, 3)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+V")
+    compare = {n: page.get_by_role("button", name=f"Compare with v{n}") for n in (1, 2)}
+    for n, said in ((2, "1 change"), (1, "2 changes")):
+        expect(compare[n]).to_have_text(f"{said} Compare")
+        expect(compare[n]).to_have_accessible_name(f"{said}, Compare with v{n}")
+    expect(
+        page.locator(".lf-fp-version").first.locator(".lf-fp-compare")
+    ).to_have_count(0)
+    views = []
+    page.on("request", lambda request: "/api/view?" in request.url and views.append(1))
+    page.keyboard.press("Escape")
+    expect(compare[1]).to_be_hidden()
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+V")
+    expect(compare[1]).to_have_text("2 changes Compare")
+    assert not views, "reopening Versions counted again with nothing changed"
+    append_command(
+        d,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 3,
+            "widget": "g",
+            "action": "choose",
+            "detail": {"value": ["g-a"]},
+            "answered": True,
+        },
+    )
+    expect(compare[1]).to_have_text("3 changes Compare")
+    compare[1].click()
+    expect(page.locator(".lf-live")).to_contain_text("3 changes since v1")
+
+
+def test_versions_counts_only_the_versions_in_view(browser, serve):
+    """A count fetches its version and compares the whole page, so Versions counts
+    the versions whose Compare shows in the window, and a version scrolled into view
+    gets its count then. The work opening Versions sets off follows the rows on
+    screen, not how many versions the session has stamped."""
+    url = live_url(serve(PAGE))
+    d = serve.page_dir
+    for n in range(2, 16):
+        stamp_page(d, revised(PAGE, (BETA[0], f"Beta reads way {n}.")), f"draft {n}")
+    page = open_page(browser, url)
+    page.set_viewport_size({"width": 900, "height": 420})
+    views = []
+    page.on("request", lambda request: "/api/view?" in request.url and views.append(1))
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+V")
+    rows = """() => {
+        const presses = [...document.querySelectorAll('.lf-fp-compare')];
+        const view = presses[0]?.closest('.lf-fp-view').getBoundingClientRect();
+        return presses.map((press) => {
+            const box = press.getBoundingClientRect();
+            return {
+                shown: box.bottom > view.top && box.top < view.bottom,
+                said: press.querySelector('.lf-fp-changes').textContent.trim(),
+            };
+        });
+    }"""
+    page.wait_for_function(
+        f"() => {{ const rows = ({rows})(); "
+        "return rows.length && rows.every((row) => !row.shown || row.said); }"
+    )
+    in_view = page.evaluate(rows)
+    shown = [row for row in in_view if row["shown"]]
+    assert len(shown) < len(in_view), "every version's Compare shows; nothing to test"
+    assert all(row["said"] == "1 change" for row in shown), in_view
+    assert not any(row["said"] for row in in_view if not row["shown"]), in_view
+    assert len(views) == len(shown), "Versions asked for counts it doesn't show"
+    oldest = page.get_by_role("button", name=re.compile(r"\bCompare with v1$"))
+    oldest.scroll_into_view_if_needed()
+    expect(oldest).to_have_text("1 change Compare")
 
 
 def test_a_change_s_place_names_the_comparison_where_the_field_does_not(browser, serve):
@@ -195,53 +301,13 @@ def test_a_change_s_place_names_the_comparison_where_the_field_does_not(browser,
     expect(lead).to_contain_text(re.compile(r"\bChange \d of 2 since v1"))
 
 
-def test_v_marks_what_changed_since_the_latest_version_and_takes_marks_off(
-    browser, serve
-):
-    """`v` compares with the newest version older than the one being read, and takes
-    any comparison off again, one a Compare in Versions started included. The field's
-    standing words say the comparison, and a notice that none is marked goes as soon
-    as one marks some."""
-    url = live_url(serve(PAGE))
-    d = serve.page_dir
-    page = open_page(browser, url)
-    stamp_page(d, revised(PAGE, BETA), "rewrote Beta")
-    wait_for_revision(page, 2)
-    revise(d, DELTA)
-    wait_for_revision(page, 3)
-    marked = page.locator("main .lf-ins-block")
-    # The arrivals' news passes first, so what follows is the presses' alone.
-    expect(panel_field(page)).to_have_attribute("data-lf-says", "status")
-    page.keyboard.press("h")
-    expect_panel_says(page, "No changes marked")
-    # Since v2, not v1: only Delta changed. The field's standing words say the
-    # comparison at once, and a listener hears it; no notice repeats them, read once
-    # the press has drawn, while its notice's moment still stands.
-    page.keyboard.press("v")
-    expect(page.locator('.lf-change-bar[data-lf-for="d"]')).to_have_count(1)
-    assert marked_ids(page) == ["d"]
-    rendered(page)
-    assert re.match(
-        r"1 change since v2 · ", panel_field(page).get_attribute("placeholder") or ""
-    ), panel_field(page).get_attribute("placeholder")
-    expect(panel_field(page)).to_have_attribute("data-lf-says", "status")
-    expect(page.locator(".lf-live")).to_have_text("1 change since v2")
-    page.keyboard.press("v")
-    expect(marked).to_have_count(0)
-    # A screen reader hears the marks go.
-    expect(page.locator(".lf-live")).to_have_text("Changes hidden")
-    expect_panel_says(page, "since v2", says=False)
-    compare_with(page, 1)
-    page.keyboard.press("Escape")
-    expect(marked).to_have_count(2)
-    page.keyboard.press("v")
-    expect(marked).to_have_count(0)
-
-
-def test_coming_back_says_how_much_changed_and_v_marks_it(browser, serve):
+def test_coming_back_says_how_much_changed_and_g_V_v_marks_it(browser, serve):
     """Leaving says which revision the user saw. Coming back after the agent revised
-    says how much changed since the version they last saw and marks nothing, and `v`
-    marks those changes, though a newer version stands between."""
+    says how much changed since the version they last saw and marks nothing, offering
+    Show changes with `g V v` at the field's end. Versions names that version last seen
+    and opens on it, so `g V v` marks those changes, though a newer version
+    stands between. While Versions stands, the news offers no press, since there `v`
+    compares whichever version the user is on."""
     url = live_url(serve(PAGE))
     d = serve.page_dir
     page = open_page(browser, url)
@@ -252,23 +318,97 @@ def test_coming_back_says_how_much_changed_and_v_marks_it(browser, serve):
     revise(d, DELTA)
 
     visibility(page, "visible")
-    expect(page.locator(".lf-live")).to_have_text("2 changes since v1 — v shows them")
-    expect_panel_says(page, "v shows them")
+    expect(page.locator(".lf-live")).to_have_text("2 changes since v1")
+    expect_panel_says(page, "2 changes since v1 · Show changes g V v")
     expect(marked).to_have_count(0)
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+V")
+    expect(page.locator(".lf-fp-version > .lf-fp-item:focus")).to_have_accessible_name(
+        re.compile(r"^v1 \(last seen\)")
+    )
+    # While Versions stands, its `v` compares the version the user is on, so the news
+    # offers no keys there.
+    expect_panel_says(page, "2 changes since v1")
+    expect_panel_says(page, "Show changes", says=False)
     page.keyboard.press("v")
     expect(marked).to_have_count(2)
     assert marked_ids(page) == ["b", "d"]
-    # Once the comparison stands, the news that v would show it goes with it, read
-    # once the press has drawn, well before its moment would end.
+    # Once the comparison stands, the news that the press would show it goes with it,
+    # read once the press has drawn, well before its moment would end.
     rendered(page)
-    assert "v shows them" not in (panel_field(page).get_attribute("placeholder") or "")
+    assert "Show changes" not in (panel_field(page).get_attribute("placeholder") or "")
+
+
+def test_open_latest_says_the_keys_that_reach_it_from_where_the_user_is(browser, serve):
+    """A page pinned to an older version offers Open latest at the field's end with the
+    keys of Versions' own `l`: `g V l` from the page, since `g V` opens Versions, and `l`
+    alone once Versions has focus."""
+    url = serve(PAGE)
+    d = serve.page_dir
+    page = open_page(browser, url, pin=True)
+    stamp_page(d, revised(PAGE, BETA), "rewrote Beta")
+    expect_panel_says(page, "Open latest g V l")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+V")
+    expect(page.locator(".lf-fp-version > .lf-fp-item:focus")).to_have_count(1)
+    expect_panel_says(page, "Open latest l")
+
+
+def test_on_a_touchscreen_the_news_offers_no_press(browser, serve):
+    """A touchscreen shows no keys, and a press's word alone at the field's end reads as
+    status rather than a control, so the news offers no press there: Versions names the
+    version the user last saw, beside its Compare."""
+    url = live_url(serve(PAGE))
+    d = serve.page_dir
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
+    )
+    page = open_page(browser, url, context=context)
+    visibility(page, "hidden")
+    wait_for_seen(d, [1], "leaving the page named no revision it showed")
+    stamp_page(d, revised(PAGE, BETA), "rewrote Beta")
+    revise(d, DELTA)
+
+    visibility(page, "visible")
+    expect(page.locator(".lf-live")).to_have_text("2 changes since v1")
+    expect_panel_says(page, "2 changes since v1")
+    expect(page.locator(".lf-fp-field .lf-compose-press")).to_have_count(0)
+    page.locator(".lf-fp-leaf").tap()
+    panel_tab(page, "Menu").tap()
+    page.locator('.lf-fp-item[data-lf-row="versions"]').tap()
+    page.get_by_role("button", name="Compare with v1 (last seen)").tap()
+    expect(page.locator("main .lf-ins-block")).to_have_count(2)
+
+
+def test_news_s_press_goes_with_its_words_under_a_resting_pointer(browser, serve):
+    """With the pointer parked on the panel, as after a return by Cmd-Tab, Show changes
+    stands at the field's end while the news's words say what changed, and leaves with
+    them, with no input between: news answers nothing the user did, and its words say
+    why the end changed, so the panel holds no notice's press still."""
+    url = live_url(serve(PAGE))
+    d = serve.page_dir
+    page = open_page(browser, url)
+    visibility(page, "hidden")
+    wait_for_seen(d, [1], "leaving the page named no revision it showed")
+    stamp_page(d, revised(PAGE, BETA), "rewrote Beta")
+    revise(d, DELTA)
+    field = panel_field(page).bounding_box()
+    assert field
+    page.mouse.move(field["x"] + field["width"] / 2, field["y"] + field["height"] / 2)
+    show = page.locator(".lf-fp-field .lf-compose-press", has_text="Show changes")
+
+    visibility(page, "visible")
+    expect_panel_says(page, "2 changes since v1")
+    expect(show).to_have_count(1)
+    expect_panel_says(page, "2 changes since v1", says=False)
+    expect(show).to_have_count(0)
 
 
 def test_what_lands_while_the_user_works_elsewhere_counts_when_they_return(
     browser, serve
 ):
     """The browser beside the terminal: visible, but the user is typing elsewhere. What
-    lands then is news when they come back, and `v` marks it."""
+    lands then is news when they come back, and `g V v` marks it."""
     url = live_url(serve(PAGE))
     d = serve.page_dir
     page = open_page(browser, url)
@@ -282,8 +422,8 @@ def test_what_lands_while_the_user_works_elsewhere_counts_when_they_return(
     wait_for_revision(page, 3)
 
     attention(page, True)
-    expect(page.locator(".lf-live")).to_have_text("1 change since v2 — v shows them")
-    page.keyboard.press("v")
+    expect(page.locator(".lf-live")).to_have_text("1 change since v2")
+    show_changes(page)
     expect(page.locator("main .lf-ins-block")).to_have_count(1)
     assert marked_ids(page) == ["d"]
 
@@ -309,7 +449,7 @@ def test_a_draft_the_user_watched_land_is_no_news_when_they_return(browser, serv
     revise(d, DELTA)
     wait_for_revision(page, 3)
     attention(page, True)
-    expect(page.locator(".lf-live")).to_have_text("2 changes since v1 — v shows them")
+    expect(page.locator(".lf-live")).to_have_text("2 changes since v1")
     assert len(counts) == 1, "a return to the draft the user watched counted changes"
 
 
@@ -619,13 +759,13 @@ def test_a_version_says_which_comments_it_was_saved_after(browser, serve):
     with the words each then had: not one the agent had answered before, wherever on
     the page it stands, and the change walk says the same to a listener. A comparison
     across several versions says nothing of it, since nothing knows which version made
-    which change (change-provenance.js)."""
+    which change (features/change-provenance.js)."""
     url = live_url(serve(PAGE))
     d = serve.page_dir
     # The answered comment stands on the last paragraph. On `c` its entry would stand
     # 65 px under the title's ⇄ and the waiting comment's entry just above it, so no
     # place would hold the preview's lines clear of both, and it would cut the quote
-    # (preview.js, `stand`).
+    # (annotations/preview.js, `stand`).
     asked = _comment_on(
         d, "d", "Delta reads one way.", text="Beta first?\nIt reads one way."
     )
@@ -637,6 +777,8 @@ def test_a_version_says_which_comments_it_was_saved_after(browser, serve):
             "reply",
             "--done",
             response_reference(d, asked),
+            "--title",
+            "Beta wording",
             "--text",
             "Beta reads another way now.",
         ],
@@ -647,7 +789,7 @@ def test_a_version_says_which_comments_it_was_saved_after(browser, serve):
     page = open_page(browser, url)
     wait_for_revision(page, 3)
     entries = page.locator('[data-lf-kinds~="change"]')
-    page.keyboard.press("v")
+    compare_with(page)
     expect(entries).to_have_count(1)
     parts = preview_parts(entries.first)
     assert parts[-2:] == [
@@ -658,7 +800,6 @@ def test_a_version_says_which_comments_it_was_saved_after(browser, serve):
     expect(page.locator(".lf-live")).to_contain_text(
         "Draft saved while your comment waited: “Is the title right?”"
     )
-    page.keyboard.press("v")
     compare_with(page, 1)
     page.keyboard.press("Escape")
     expect(entries).to_have_count(2)
@@ -689,6 +830,7 @@ def test_a_change_with_no_card_still_says_what_its_version_was_saved_after(
             "widget": "g",
             "action": "choose",
             "detail": {"value": ["g-a"]},
+            "answered": True,
         },
     )
     _comment_on(d, "t", "Plan", text="Should we wait?")
@@ -741,7 +883,7 @@ def test_a_version_quotes_each_waiting_message_as_its_thread_shows_it(browser, s
     page = open_page(browser, url)
     wait_for_revision(page, 2)
     entries = page.locator('[data-lf-kinds~="change"]')
-    page.keyboard.press("v")
+    compare_with(page)
     expect(entries).to_have_count(1)
     assert preview_parts(entries.first)[-4:] == [
         "Draft saved while your 3 comments waited:",
@@ -765,7 +907,7 @@ def test_a_version_quotes_a_comment_taken_back_since_in_the_words_it_had(
     page = open_page(browser, url)
     wait_for_revision(page, 2)
     entries = page.locator('[data-lf-kinds~="change"]')
-    page.keyboard.press("v")
+    compare_with(page)
     expect(entries).to_have_count(1)
     assert preview_parts(entries.first)[-2:] == [
         "Draft saved while your comment waited:",
@@ -789,7 +931,7 @@ def test_a_version_saved_while_a_deletion_waited_says_the_message_was_deleted(
     page = open_page(browser, url)
     wait_for_revision(page, 2)
     entries = page.locator('[data-lf-kinds~="change"]')
-    page.keyboard.press("v")
+    compare_with(page)
     expect(entries).to_have_count(1)
     assert preview_parts(entries.first)[-2:] == [
         "Draft saved while your comment waited:",
@@ -838,7 +980,7 @@ def test_the_agent_at_work_on_a_passage_marks_its_place(browser, serve):
     expect(bars).to_have_attribute("data-lf-for", "b")
     stalled = page.evaluate(
         """async () => (await (await fetch('/api/state')).json()).workflows
-          .filter(w => w.at_work && w.condition?.kind === 'stale').length"""
+          .filter(w => w.state === 'blocked' && w.reason === 'quiet').length"""
     )
     assert stalled == 1, "the quiet start was not read as work gone quiet"
     # The bar stands in the margin beside its block and takes no room from it.
@@ -887,3 +1029,62 @@ def test_a_to_do_running_on_an_element_marks_it(browser, serve):
     _start(d, todo["id"], "Rewriting Gamma")
     expect(bars).to_have_count(1)
     expect(bars).to_have_attribute("data-lf-for", "c")
+
+
+def test_the_bar_beside_a_list_item_stands_clear_of_its_marker(browser, serve):
+    """The browser draws a list item's marker outside the item's box, in its list's
+    inset, so the bar beside an item, or beside a block in one, stands beyond that
+    inset rather than across the marker, as it does beside an item's block that a
+    `display: contents` wrapper holds. An item in a list laid out as a grid of cards
+    keeps its bar beside its own card."""
+    url = live_url(
+        serve(
+            leaf_page(
+                "List",
+                """
+<ul id="l">
+  <li id="i">An item.</li>
+  <li><p id="p">A paragraph in an item.</p></li>
+  <li><div id="w" style="display: contents"><p>A wrapped paragraph.</p></div></li>
+</ul>
+<ul id="g" style="display: grid; grid-template-columns: 1fr 1fr; gap: 24px;
+    list-style: none; padding: 0">
+  <li id="g1">First card.</li>
+  <li id="g2">Second card.</li>
+</ul>
+""",
+            )
+        )
+    )
+    d = serve.page_dir
+    page = open_page(browser, url)
+    for section, words in (
+        ("i", "An item."),
+        ("p", "A paragraph in an item."),
+        ("g2", "Second card."),
+    ):
+        _start(d, _comment_on(d, section, words)["id"], "Rewording it")
+    # A to-do on the wrapper is about the wrapper itself, where a quote in it would be
+    # about the paragraph holding the words.
+    wrapper = {"kind": "element", "id": "w"}
+    todo = {"kind": "todo", "author": "agent", "agent": "Claude", "title": "Reword it"}
+    _start(d, append_command(d, {**todo, "subject": wrapper})["id"], "Rewording it")
+    expect(page.locator(".lf-at-work-bar")).to_have_count(4)
+    placed = page.evaluate(
+        """() => {
+          const box = (s) => document.querySelector(s).getBoundingClientRect();
+          const bar = (id) => box(`.lf-at-work-bar[data-lf-for="${id}"]`);
+          const [list, first, second] = [box('#l'), box('#g1'), box('#g2')];
+          return {
+            clear: ['i', 'p', 'w'].map(
+              (id) => [id, bar(id).right <= list.left && bar(id).left > 0],
+            ),
+            beside: bar('g2').right <= second.left && bar('g2').left > first.right,
+          };
+        }"""
+    )
+    for target, clear in placed["clear"]:
+        assert clear, (
+            f"#{target}'s bar stands off the list's start or across its marker"
+        )
+    assert placed["beside"], "a grid card's bar stands away from its own card"

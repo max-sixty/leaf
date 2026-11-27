@@ -7,8 +7,8 @@
  * --lf-pre-bg and its hue is the token's, whatever a theme or page sets for each, a
  * dark code canvas on a light page included. Without the tripling a mix can't separate
  * the rows: the status colours are muted, so a mix light enough for a row stays near
- * grey (16% in sRGB left the rows 0.032 apart in Oklab, and the theme's --lf-add-tint
- * and --lf-del-tint are 0.039 apart), and one coloured enough makes a mid-tone row.
+ * grey (16% in sRGB left the rows 0.032 apart in Oklab), and one coloured enough makes
+ * a mid-tone row.
  * With it, an added and a removed row stand 0.058 apart, as GitHub's light rows stand
  * 0.057; the row's cap is near the most chroma sRGB holds for a red that light. A
  * heavier mark stands further from its row but takes the light scheme's code under

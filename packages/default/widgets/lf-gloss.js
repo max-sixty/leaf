@@ -9,26 +9,17 @@
  *
  * Pointing reads; pressing acts. A pointer resting on the phrase, keyboard focus on it
  * and a finger holding it read the explanation as the phrase's preview, in the face
- * every preview wears (`lfPreview`, module-input.md, "Previews"). A press pins the
- * explanation's own card open, on the page's paper rather than the preview's ink,
- * where its words can be selected and commented on, and a second press puts it away. The phrase is the visible affordance; a proxy at the same place
+ * every preview wears (`lfPreview`, module-previews.md). A press pins the
+ * explanation's own card open, where its words can be selected and commented on, and a
+ * second press puts it away. The phrase is the visible affordance; a proxy at the same place
  * (control-faces.js, `proxy`) gives Tab, Enter, and Space their native route without
  * adding a second mark to the prose, and its description is the card, which a screen
  * reader hears on focus. An auto popover owns the card's top-layer lifecycle and light
  * dismissal; CSS anchors keep the card with its phrase. */
-import {
-  keeps,
-  showNativeLayer,
-  closeNativeLayer,
-  isNativeLayer,
-  offerAction,
-  once,
-  says,
-  reachedForWords,
-  worksInside,
-  whileConnected,
-  commandsChanged,
-} from "/runtime/widget-api.js";
+import { aimedAt, says, whileConnected } from "/runtime/widget-api.js";
+import { offerAction } from "/runtime/lib/controls.js";
+import { once } from "/runtime/lib/once.js";
+import { keeps } from "/runtime/lib/keeps.js";
 
 let nextId = 0;
 
@@ -96,18 +87,20 @@ customElements.define(
         if (event.newState === "open" && !this.#pinned) this.#pin(true);
       });
       bubble.addEventListener("toggle", (event) => {
-        if (event.newState === "closed" && this.#pinned && !isNativeLayer(bubble))
+        if (
+          event.newState === "closed" &&
+          this.#pinned &&
+          !bubble.matches(":popover-open")
+        )
           this.#pin(false);
       });
     }
 
     /** @param {MouseEvent} event */
     #click(event) {
-      if (event.defaultPrevented || reachedForWords(this)) return;
-      const target = event.target;
-      if (!(target instanceof Element)) return;
-      const nested = worksInside(target, this);
-      if (nested && nested !== this.#mark) return;
+      if (event.defaultPrevented) return;
+      const at = aimedAt(event, this);
+      if (at !== this && at !== this.#mark) return;
       if (this.#bubble && event.composedPath().includes(this.#bubble)) return;
       event.preventDefault();
       this.#pin(!this.#pinned);
@@ -118,14 +111,16 @@ customElements.define(
     #pin(pinned) {
       this.#pinned = pinned;
       keeps(this.#mark, "aria-expanded", pinned);
-      commandsChanged(this);
+      this.dispatchEvent(
+        new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+      );
     }
 
     #sync() {
       if (!this.#bubble?.isConnected) return;
-      const open = isNativeLayer(this.#bubble);
-      if (this.#pinned && !open) showNativeLayer(this.#bubble);
-      else if (!this.#pinned && open) closeNativeLayer(this.#bubble);
+      const open = this.#bubble.matches(":popover-open");
+      if (this.#pinned && !open) this.#bubble.showPopover();
+      else if (!this.#pinned && open) this.#bubble.hidePopover();
     }
   },
 );

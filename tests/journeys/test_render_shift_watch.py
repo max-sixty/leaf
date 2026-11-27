@@ -14,6 +14,8 @@ from browser.test_render_shift_watch import (
     CLIPPING_CASES,
     FRAMES,
     RESTYLES,
+    _far_sample,
+    moved_within,
     names_move,
     paint,
     restyle_page,
@@ -31,7 +33,7 @@ from render_harness import (
     ticked,
 )
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 
 
 def test_native_clipping_preserves_only_painted_carry(browser, serve):
@@ -179,7 +181,7 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
     expect(receipt).to_have_text(re.compile(r"^Queued for "))
     expect(timestamp).to_have_text(re.compile(r"^(just now|\d+m ago)$"))
     # The time of day the head says once the message is a day old, as the browser
-    # writes it (presence.js, `timeOfDay`).
+    # writes it (state/presence.js, `timeOfDay`).
     clock = timestamp.evaluate(
         "node => new Date(node.dateTime)"
         ".toLocaleTimeString(undefined, {timeStyle: 'short'})"
@@ -213,3 +215,48 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
         assert surface_root.bounding_box() == thread_before
         assert owner.bounding_box() == owner_before
         assert protected.evaluate_all(boxes) == before
+
+
+def test_a_jump_owns_the_fit_of_the_live_sample_it_brings_near(browser, serve):
+    """A link that jumps to a live sample far down starts its page there (`whenNear`),
+    and the frame fits that page as soon as it draws, carrying what follows it: the
+    jump owns that landing, however late it comes. It owns nothing after the landing,
+    so a control that moves once the frame has fitted is reported. A sample a script
+    brings near, with no input, fits as news, and its fit is reported too."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Fit on arrival",
+                '<p><a id="jump" href="#far">Jump to the sample</a></p>'
+                '<div style="height: 400vh"></div>'
+                + _far_sample("far", "after")
+                + '<div style="height: 400vh"></div>'
+                + _far_sample("scripted", "later")
+                + '<div style="height: 100vh"></div>',
+            )
+        ),
+    )
+    fitted = """sample => {
+        const frame = sample.querySelector('iframe');
+        return sample.ready.then(() => frame.clientHeight < 300);
+    }"""
+    page.locator("#jump").click()
+    page.wait_for_function(f"({fitted})(document.querySelector('#far'))")
+    rendered(page)
+    judge_watches()
+    assert page.lf_errors == []
+
+    page.locator("#after").evaluate("node => { node.style.marginTop = '40px'; }")
+    rendered(page)
+    judge_watches()
+    consume_browser_errors(page, moved_within("button#after"))
+
+    page.locator("#scripted").evaluate(
+        "sample => sample.scrollIntoView({block: 'start', behavior: 'instant'})"
+    )
+    page.wait_for_function(f"({fitted})(document.querySelector('#scripted'))")
+    rendered(page)
+    judge_watches()
+    moved = consume_browser_errors(page, {"code": "moved-without-input"})
+    assert names_move(moved, "button#later"), moved

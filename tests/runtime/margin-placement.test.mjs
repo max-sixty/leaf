@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { overlaps } from "/runtime/rect.js";
+import { overlaps } from "/runtime/dom/rect.js";
 
 import {
   Footprints,
@@ -17,7 +17,7 @@ import {
   seatRow,
   seatsBy,
   shiftedPin,
-} from "/runtime/annotation-overlay/margin-placement.js";
+} from "/runtime/annotations/annotation-overlay/margin-placement.js";
 
 const posture = (blockRight, over = {}) =>
   rowPlacement({

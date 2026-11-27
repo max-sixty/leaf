@@ -188,7 +188,7 @@ def test_a_chart_picks_the_point_plot_s_own_pointer_picks(engine, request, serve
 
     moved = page.locator("#moved")
     moved.evaluate("el => el.scrollIntoView({block: 'start'})")
-    dots = moved.locator("[data-lf-part=dot] circle").all()
+    dots = moved.locator("[data-lf-plot=dot] circle").all()
     for circle, name in zip(dots, ["p", "q", "r"], strict=True):
         dot = circle.bounding_box()
         center = (dot["x"] + dot["width"] / 2, dot["y"] + dot["height"] / 2)

@@ -1,5 +1,6 @@
 // Exercise generated Leaf source through the same disposable-page host as templates.
-import { keepsText, mountSample, quoted, whileConnected } from "/runtime/widget-api.js";
+import { mountSample, whileConnected } from "/runtime/widget-api.js";
+import { keepsText } from "/runtime/lib/keeps.js";
 
 const section = document.getElementById("bg-generated-sample-section");
 const create = section.querySelector("#bg-create-sample");
@@ -19,7 +20,7 @@ whileConnected(section, (signal) => {
   let host;
   create.toggleAttribute("disabled", false);
   remove.toggleAttribute("disabled", true);
-  if (quoted(section)) return;
+  if (section.matches("[data-lf-exhibit] *")) return;
   create.addEventListener(
     "click",
     async () => {
@@ -35,11 +36,7 @@ whileConnected(section, (signal) => {
           await host.destroy();
           return;
         }
-        const fit = ({ height }) => {
-          frame.style.height = `${height}px`;
-        };
-        host.on("height", fit);
-        fit(await host.ready);
+        await host.ready;
         keepsText(status, "Choose a delivery in the sample.");
         remove.disabled = false;
       } catch (error) {

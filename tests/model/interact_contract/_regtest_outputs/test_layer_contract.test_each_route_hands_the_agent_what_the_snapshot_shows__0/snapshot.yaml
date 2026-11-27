@@ -78,7 +78,7 @@
 
 leaf wait:
   output:
-    format: leaf-delivery/51
+    format: leaf-delivery/59
     id: '11111111'
     created_at: 1790046750.29
     acknowledge: >-
@@ -98,6 +98,7 @@ leaf wait:
               section: plan
               quote: moves to Tuesdays
             detached_from: null
+            rewritten_from: null
             resolved: null
             elided:
               messages: 0
@@ -130,8 +131,9 @@ leaf wait:
             as `<lf-options id="…">` holding an `<lf-option id="…">` for each answer:
             the user answers with a press, and the choice waits on them by itself
             (`references/threads.md`, "Ask for a pick"). `--todo "<what you owe>"`
-            when it is yours, promising work beyond this turn. `--done` when it
-            leaves nobody a move.
+            when it is yours, promising work beyond this turn, with `--waiting-on
+            "<what>"` where it can't start until something you don't control happens.
+            `--done` when it leaves nobody a move.
           h3: >-
             Your reply renders as Markdown in a narrow card or panel. The thread
             already reaches the passage or section it is on, as a card beside it
@@ -168,12 +170,12 @@ leaf wait:
 
 Claude Code hook:
   watch notification: /path/to/page has new input; Leaf's prompt hook puts it in
-    your context with this notification
+    your context with this notification. The user wrote “why here?”
   UserPromptSubmit additionalContext:
     instruction: >-
       Leaf has new input for your turn. Read this complete delivery before answering.
     delivery:
-      format: leaf-delivery/51
+      format: leaf-delivery/59
       id: '44444444'
       created_at: 1790046750.29
       acknowledge: null
@@ -188,6 +190,7 @@ Claude Code hook:
                 section: plan
                 quote: moves to Tuesdays
               detached_from: null
+              rewritten_from: null
               resolved: null
               elided:
                 messages: 0
@@ -220,8 +223,9 @@ Claude Code hook:
               asks, such as `<lf-options id="…">` holding an `<lf-option id="…">`
               for each answer: the user answers with a press, and the choice waits
               on them by itself (`references/threads.md`, "Ask for a pick"). `--todo
-              "<what you owe>"` when it is yours, promising work beyond this turn.
-              `--done` when it leaves nobody a move.
+              "<what you owe>"` when it is yours, promising work beyond this turn,
+              with `--waiting-on "<what>"` where it can't start until something
+              you don't control happens. `--done` when it leaves nobody a move.
             h3: >-
               Your reply renders as Markdown in a narrow card or panel. The thread
               already reaches the passage or section it is on, as a card beside
@@ -263,7 +267,7 @@ Codex queue:
     <leaf-delivery id="22222222" operation="delivery read" />
     ```
   leaf delivery read 22222222:
-    format: leaf-delivery/51
+    format: leaf-delivery/59
     id: '22222222'
     created_at: 1790046750.29
     acknowledge: >-
@@ -281,6 +285,7 @@ Codex queue:
               section: plan
               quote: moves to Tuesdays
             detached_from: null
+            rewritten_from: null
             resolved: null
             elided:
               messages: 0
@@ -313,8 +318,9 @@ Codex queue:
             as `<lf-options id="…">` holding an `<lf-option id="…">` for each answer:
             the user answers with a press, and the choice waits on them by itself
             (`references/threads.md`, "Ask for a pick"). `--todo "<what you owe>"`
-            when it is yours, promising work beyond this turn. `--done` when it
-            leaves nobody a move.
+            when it is yours, promising work beyond this turn, with `--waiting-on
+            "<what>"` where it can't start until something you don't control happens.
+            `--done` when it leaves nobody a move.
           h3: >-
             Your reply renders as Markdown in a narrow card or panel. The thread
             already reaches the passage or section it is on, as a card beside it
@@ -357,7 +363,7 @@ Codex App Server:
     toolOutput:
       name: leaf_delivery
       output:
-        format: leaf-delivery/51
+        format: leaf-delivery/59
         id: '33333333'
         created_at: 1790046750.29
         acknowledge: null
@@ -372,6 +378,7 @@ Codex App Server:
                   section: plan
                   quote: moves to Tuesdays
                 detached_from: null
+                rewritten_from: null
                 resolved: null
                 elided:
                   messages: 0
@@ -397,8 +404,11 @@ Codex App Server:
                 id="…">` holding an `<lf-option id="…">` for each answer, so the
                 user answers with a press (`references/threads.md`, "Ask for a pick").
                 Reply explicitly too for work promised beyond this turn (`--todo`),
-                a title or moving the thread (`references/threads.md`); an explicit
-                reply posts at once, and your final message is then not posted.
+                a title or moving the thread (`references/threads.md`), and for
+                news the user would want to stop and read, such as that you could
+                not do what they asked: they may have resolved the thread by then,
+                and only that command's record says so. An explicit reply posts
+                at once, and your final message is then not posted.
               h2: >-
                 Your reply renders as Markdown in a narrow card or panel. The thread
                 already reaches the passage or section it is on, as a card beside

@@ -9,42 +9,41 @@ from render_harness import (
     leaf_page,
 )
 
-from leaf import anchor_capture as anchor_capture_model
-from leaf import passages as passages_model
-from leaf.registry import storage as registry_storage
-from leaf.structure import SourceDocument
+from leaf.source import anchor_capture as anchor_capture_model
+from leaf.source import passages as passages_model
+from leaf.source import vocabulary as vocabulary_model
+from leaf.source.structure import SourceDocument
 
 # A page-owned widget whose drawing, delivery and asynchronous preparation can be
 # controlled independently, for page and thread-message presentation journeys.
 PAGE_WIDGET = """\
 import { html, live } from "/vendor/lit.js";
-import { keeps, layerFact, LeafElement } from "/runtime/widget-api.js";
+import { LeafElement } from "/runtime/lib/leaf-element.js";
+import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
+import { keeps } from "/runtime/lib/keeps.js";
 
 customElements.define("lf-local", class extends LeafElement {
   createRenderRoot() {
-    return this.attachShadow({mode: "open"});
+    return this.shadowRoot ?? this.attachShadow({mode: "open"});
   }
 
   setup() {
-    layerFact("$tones");
     keeps(this, "data-page-widget", "ready");
     const held = globalThis.__heldLocalPresentations?.get(this.id);
-    if (held) this.controller.present(held);
+    // Said from inside the widget, the work is its preparation, which holds the page
+    // apart from the widget's own drawing.
+    if (held) this.createRenderRoot().dispatchEvent(new PendingTaskEvent(held));
   }
 
   // The gesture writes its own result into the output, which a deferral holds the
   // widget's drawing over.
   choose() {
     this.dataset.gestures = String(Number(this.dataset.gestures || 0) + 1);
-    const sent = this.controller.dispatch({
-      kind: "action",
-      verb: "choose",
-      detail: { value: "chosen" },
-    });
-    if (!sent) return;
-    this.renderRoot.querySelector("output").value = sent.reading.state.choose.value;
+    const delivery = this.record("choose", { value: "chosen" });
+    if (!delivery) return;
+    this.renderRoot.querySelector("output").value = this.state.choose.value;
     keeps(this, "data-delivery", "pending");
-    sent.delivery.then(accepted => {
+    delivery.then(accepted => {
       keeps(this, "data-delivery", accepted ? "accepted" : "refused");
     });
   }
@@ -55,10 +54,10 @@ customElements.define("lf-local", class extends LeafElement {
         Number(globalThis.__failedLocalRenders || 0) + 1;
       throw new Error("deliberate render failure");
     }
-    const {state, actions} = this.reading;
+    const {state} = this;
     keeps(this, "data-rendered-choice", state.choose.value);
     this.dataset.readings = String(Number(this.dataset.readings || 0) + 1);
-    return html`<button ?disabled=${!actions.choose.available} @click=${this.choose}>Choose</button>
+    return html`<button ?disabled=${!state.choose.available} @click=${this.choose}>Choose</button>
       <output .value=${live(state.choose.value)}></output>`;
   }
 });
@@ -69,14 +68,10 @@ PAGE_DECLARATION = {
     "lf-local": {
         "description": "A page-owned local widget.",
         "attributes": {
-            "type": "object",
             "properties": {
-                "id": {"type": "string"},
                 "choice": {"type": "string"},
-                "restated": {"type": "boolean"},
             },
             "required": ["id"],
-            "additionalProperties": False,
         },
         "content": "empty",
         "verbs": {
@@ -99,11 +94,11 @@ PAGE_DECLARATION = {
 
 
 def written_anchors(page_dir, html, limit=40):
-    """Anchors `leaf thread create` would write for windows over a page's own prose. A
-    window the page says twice, or one crossing a fence, is refused on purpose —
-    skipping those here is that refusal, and what survives is exactly what the command
-    promises to place."""
-    registry = registry_storage.load_registry(page_dir)
+    """Anchors `leaf thread create` would write for windows over a page's own prose,
+    less those it notes the file's reading doesn't find once, as a window the page says
+    twice or one crossing a fence: what survives is what the command expects the page
+    to place."""
+    registry = vocabulary_model.load_registry(page_dir)
     text = passages_model.page_passages(SourceDocument(html), registry).text
     words = text.split(" ")
     anchors = []
@@ -111,17 +106,12 @@ def written_anchors(page_dir, html, limit=40):
         quote = " ".join(words[start : start + 8])
         if len(quote) < 20:
             continue
-        try:
-            anchors.append(
-                (
-                    quote,
-                    anchor_capture_model.capture_anchor(
-                        SourceDocument(html), registry, quote, None
-                    ),
-                )
-            )
-        except ValueError:
+        anchor, noted = anchor_capture_model.capture_anchor(
+            SourceDocument(html), registry, quote, None
+        )
+        if noted is not None:
             continue
+        anchors.append((quote, anchor))
         if len(anchors) == limit:
             break
     return anchors
@@ -161,7 +151,7 @@ PART_DIAGRAM_PAGE = leaf_page(
     "diagram parts",
     """
 <h1 id="t">Request path</h1>
-<lf-diagram id="flow" parts="all"><pre>
+<lf-diagram id="flow"><pre>
 graph LR
   S[Start request] --> H[Handle request] --> U[Result]
 </pre></lf-diagram>
@@ -171,24 +161,16 @@ GENERIC_VISUAL_PAGE = leaf_page(
     "registered visual parts",
     """
 <h1 id="title">Registered visual parts</h1>
-<lf-test-visual id="visual" parts="all"></lf-test-visual>
+<lf-test-visual id="visual"></lf-test-visual>
 """,
 )
 GENERIC_VISUAL_LAYER: dict[str, dict] = {
     "lf-test-visual": {
         "description": "A generic rendered visual used to exercise Leaf's package contract.",
-        "attributes": {
-            "type": "object",
-            "properties": {
-                "id": {"type": "string"},
-                "parts": {"const": "all"},
-            },
-            "required": ["id", "parts"],
-            "additionalProperties": False,
-        },
+        "attributes": {"required": ["id"]},
         "content": "empty",
-        "visual": {"parts": "parts"},
-        "example": '<lf-test-visual id="visual" parts="all"></lf-test-visual>',
+        "visual": {"prefixes": ["out", "inn", "htm"]},
+        "example": '<lf-test-visual id="visual"></lf-test-visual>',
     }
 }
 
@@ -221,49 +203,27 @@ GENERIC_VISUAL_WIDGETS = visual_widgets()
 STAGED_VISUAL_WIDGETS = visual_widgets(staged=True)
 
 
-# Generated identities can instead be bounded by the provider's prefixes.
-PREFIXED_VISUAL_PAGE = GENERIC_VISUAL_PAGE.replace(' parts="all"', "")
-
-
 def prefixed_visual_layer(*prefixes):
+    """The generic visual, its parts bounded by `prefixes` instead."""
     entry = GENERIC_VISUAL_LAYER["lf-test-visual"]
-    return {
-        "lf-test-visual": {
-            **entry,
-            "attributes": {
-                **entry["attributes"],
-                "properties": {"id": entry["attributes"]["properties"]["id"]},
-                "required": ["id"],
-            },
-            "visual": {"prefixes": list(prefixes)},
-            "example": '<lf-test-visual id="visual"></lf-test-visual>',
-        }
-    }
+    return {"lf-test-visual": {**entry, "visual": {"prefixes": list(prefixes)}}}
 
 
 SHADOW_VISUAL_PAGE = leaf_page(
     "shadow visual clipping",
     """
 <h1 id="title">Shadow visual clipping</h1>
-<lf-test-shadow-visual id="shadow-visual" parts="all"></lf-test-shadow-visual>
+<lf-test-shadow-visual id="shadow-visual"></lf-test-shadow-visual>
 """,
 )
 SHADOW_VISUAL_LAYER = {
     "lf-test-shadow-visual": {
         "description": "A clipped shadow-root visual used to exercise Leaf's package contract.",
-        "attributes": {
-            "type": "object",
-            "properties": {
-                "id": {"type": "string"},
-                "parts": {"const": "all"},
-            },
-            "required": ["id", "parts"],
-            "additionalProperties": False,
-        },
+        "attributes": {"required": ["id"]},
         "content": "empty",
         "shadow": True,
-        "visual": {"parts": "parts"},
-        "example": '<lf-test-shadow-visual id="shadow-visual" parts="all"></lf-test-shadow-visual>',
+        "visual": {"prefixes": ["wid"]},
+        "example": '<lf-test-shadow-visual id="shadow-visual"></lf-test-shadow-visual>',
     }
 }
 SHADOW_VISUAL_WIDGETS = {
@@ -276,7 +236,7 @@ TYPED_PARTS_PAGE = leaf_page(
     "typed diagram parts",
     """
 <h1 id="t">One runner</h1>
-<lf-diagram id="life" parts="all"><pre>
+<lf-diagram id="life"><pre>
 stateDiagram-v2
   [*] --&gt; Queued
   Queued --&gt; Working
@@ -285,7 +245,7 @@ stateDiagram-v2
   }
   Working --&gt; Done
 </pre></lf-diagram>
-<lf-diagram id="shape" parts="all"><pre>
+<lf-diagram id="shape"><pre>
 erDiagram
   RUNNER {
     string id PK
@@ -293,17 +253,17 @@ erDiagram
   }
   RUNNER ||--o{ JOB : runs
 </pre></lf-diagram>
-<lf-diagram id="path" parts="all"><pre>
+<lf-diagram id="path"><pre>
 graph LR
   A["Bold and plain"] --&gt; B[after]
 </pre></lf-diagram>
-<lf-diagram id="exchange" parts="all"><pre>
+<lf-diagram id="exchange"><pre>
 sequenceDiagram
   participant User
   participant Server
   User-&gt;&gt;Server: Request
 </pre></lf-diagram>
-<lf-diagram id="model" parts="all"><pre>
+<lf-diagram id="model"><pre>
 classDiagram
   class Job {
     +run()
@@ -326,7 +286,7 @@ TYPED_PARTS_V2 = leaf_page(
     "typed diagram parts",
     """
 <h1 id="t">One runner</h1>
-<lf-diagram id="life" parts="all"><pre>
+<lf-diagram id="life"><pre>
 stateDiagram-v2
   [*] --&gt; Fresh
   Fresh --&gt; Queued
@@ -336,7 +296,7 @@ stateDiagram-v2
   }
   Working --&gt; Done
 </pre></lf-diagram>
-<lf-diagram id="shape" parts="all"><pre>
+<lf-diagram id="shape"><pre>
 erDiagram
   RUNNER {
     string id PK
@@ -344,17 +304,17 @@ erDiagram
   }
   RUNNER ||--o{ JOB : runs
 </pre></lf-diagram>
-<lf-diagram id="path" parts="all"><pre>
+<lf-diagram id="path"><pre>
 graph LR
   A["Bold and plain"] --&gt; B[after]
 </pre></lf-diagram>
-<lf-diagram id="exchange" parts="all"><pre>
+<lf-diagram id="exchange"><pre>
 sequenceDiagram
   participant User
   participant Server
   User-&gt;&gt;Server: Request
 </pre></lf-diagram>
-<lf-diagram id="model" parts="all"><pre>
+<lf-diagram id="model"><pre>
 classDiagram
   class Job {
     +run()
@@ -375,7 +335,7 @@ PART_DIAGRAM_V2 = leaf_page(
     "diagram parts",
     """
 <h1 id="t">Request path</h1>
-<lf-diagram id="flow" parts="all"><pre>
+<lf-diagram id="flow"><pre>
 graph LR
   U[Result]
   H[Handle request]
@@ -582,10 +542,10 @@ CHART_MARKS = """(id) => {
     });
     probe.remove();
     const marks = {};
-    for (const g of svg.querySelectorAll('g[data-lf-part]')) {
+    for (const g of svg.querySelectorAll('g[data-lf-plot]')) {
         const shapes = [...g.querySelectorAll('rect, path, circle')];
         if (!shapes.length) continue;
-        const part = g.dataset.lfPart;
+        const part = g.dataset.lfPlot;
         (marks[part] ??= []).push(...shapes.map((shape) => {
             const paint = getComputedStyle(shape);
             return [shape.tagName.toLowerCase(), paint.fill, paint.stroke];
@@ -1005,7 +965,7 @@ graph LR
   <lf-column id="e2" label="Done"></lf-column>
 </lf-board>
 <div class="layout-tiles" id="nums">
-  <section id="me1" class="panel">
+  <section id="me1" class="lf-panel">
     <dl><dt>p95, with the path it measures</dt><dd><strong>410ms</strong></dd></dl>
     <lf-diagram id="in-metric"><pre>
 graph LR
@@ -1067,16 +1027,17 @@ FRAMED_SCROLLER_PAGE = FRAMED_WIDE_PAGE.replace(
 )
 
 
-# The room the document leaves at each end for chrome standing over it, beside the
-# floating panel's footprint at the window's foot: from its row's top edge down. The
-# room is in the flow, so the reading is the flow's own: what stands above the page's
-# first block and what is left under its last.
+# The room the document leaves at each end beyond `main`, beside the floating panel's
+# footprint at the window's foot: from its row's top edge down. The reading is the
+# flow's own: what stands above the page's first block and what is left under its last,
+# past the body's room for its last line to rise (layouts.css).
 CHROME_ROOM = """() => {
     const scroller = document.scrollingElement;
     const box = document.querySelector('main').getBoundingClientRect();
     const row = document.querySelector('.lf-fp-row').getBoundingClientRect();
     return { head: box.top + scroller.scrollTop,
-             foot: scroller.scrollHeight - (box.bottom + scroller.scrollTop),
+             foot: scroller.scrollHeight - (box.bottom + scroller.scrollTop)
+               - parseFloat(getComputedStyle(document.body).paddingBottom),
              panel: row.height ? innerHeight - row.top : 0 };
 }"""
 # Where the two things in the right margin stand, and how much of the board is over the

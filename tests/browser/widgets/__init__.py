@@ -10,14 +10,32 @@ from render_harness import (
     panel_menu,
 )
 
-from leaf import data as data_model
+from leaf.records import page_data as page_data_model
 
 
 def expect_walk_says(page, words):
     """Wait for a walk's position, such as "Hunk 2 of 3", to be heard: a step announces
     it whether or not the panel's field shows it, which it does only while the list
-    runs past the window (walk-declaration.js, `beginWalk`)."""
+    runs past the window (records/walk-position.js, `stepTo`)."""
     expect(page.locator(".lf-live")).to_contain_text(words)
+
+
+def hear_walks(page):
+    """Start recording the places a widget's steps say to the page (`lf-walk`,
+    module-input.md, "Walks"), as the window hears them, for `walks_said`. An `lf-walk`
+    saying the user has left a stop carries no place, and is not recorded."""
+    page.evaluate(
+        """() => {
+          window.__lfWalksSaid = [];
+          addEventListener('lf-walk', ({detail}) => detail && window.__lfWalksSaid.push(
+            `${detail.noun} ${detail.position} of ${detail.total}`));
+        }"""
+    )
+
+
+def walks_said(page):
+    """Each place said since `hear_walks`, in order, as "Hunk 2 of 3"."""
+    return page.evaluate("() => window.__lfWalksSaid")
 
 
 def expect_accept_all(page, count):
@@ -101,7 +119,7 @@ PLAYGROUND_PAGE = leaf_page(
 def _bound_diff(browser, serve, patch=MULTI_HUNK_PATCH):
     """The review the diff tests below read, with its feed in place before the page loads."""
     url = serve(LONG_LINE_DIFF_PAGE)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
     page = open_page(browser, url)
     page.wait_for_function(
         "() => document.querySelector('lf-diff.lf-rendered') !== null"

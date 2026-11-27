@@ -36,7 +36,6 @@ from render_harness import (
     round_trip,
     sending,
     stamp_page,
-    stored_draft_text,
     take_browser_errors,
     told,
     wait_for_revision,
@@ -44,23 +43,24 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import event_log as events_model
-from leaf import interaction_log as interaction_model
-from leaf import thread as thread_model
-from leaf.render_checks import one_frame, rendered, wait_until_ready
-from leaf_dev.browser import PANEL_THREAD
+from leaf.agents import thread as thread_model
+from leaf.log import event_log as events_model
+from leaf.log import interaction_log as interaction_model
+from leaf.source.render_checks import one_frame, rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD, text_field
 
 THREAD_READER = r"""
 import { html } from '/vendor/lit.js';
-import { LeafElement, readThreads, threadSummary, threadTurns } from '/runtime/widget-api.js';
+import { nameOf, readThreads } from '/runtime/widget-api.js';
+import { LeafElement } from '/runtime/lib/leaf-element.js';
 customElements.define('lf-thread-reader', class extends LeafElement {
   render() {
     const collection = readThreads();
     this.collection = collection;
     this.sameReading = collection === readThreads();
-    this.topic = collection.threads[0] && threadSummary(collection.threads[0]).topic;
+    this.topic = collection.threads[0] && nameOf(collection.threads[0]);
     return html`<pre>${collection.threads.map(thread =>
-      threadTurns(thread).map(message => message.body.text).join('\n')
+      thread.turns.map(message => message.body.text).join('\n')
     ).join('\n')}</pre>`;
   }
 });
@@ -69,10 +69,8 @@ customElements.define('lf-thread-reader', class extends LeafElement {
 THREAD_READER_DECLARATION = {
     "description": "A read-only package thread view.",
     "attributes": {
-        "type": "object",
-        "properties": {"id": {"type": "string"}},
+        "properties": {},
         "required": ["id"],
-        "additionalProperties": False,
     },
     "content": "empty",
     "example": '<lf-thread-reader id="reader-example"></lf-thread-reader>',
@@ -80,21 +78,22 @@ THREAD_READER_DECLARATION = {
 
 THREAD_FILTER = r"""
 import { html, repeat } from '/vendor/lit.js';
-import { LeafElement, signal, threadActions, readThreads, threadSummary } from '/runtime/widget-api.js';
+import { nameOf, threadActions, readThreads } from '/runtime/widget-api.js';
+import { LeafElement } from '/runtime/lib/leaf-element.js';
 customElements.define('lf-thread-filter', class extends LeafElement {
-  query = signal('');
-  setup() { this.query.value = this.getAttribute('filter') ?? ''; }
+  static properties = { query: { state: true } };
+  setup() { this.query = this.getAttribute('filter') ?? ''; }
   render() {
     const collection = readThreads();
     this.collection = collection;
     this.sameReading = collection === readThreads();
     this.updates = (this.updates ?? 0) + 1;
     const shown = collection.threads.filter(thread =>
-      threadSummary(thread).topic.toLowerCase().includes(this.query.value.toLowerCase()));
-    return html`<input aria-label=${`Filter ${this.id}`} .value=${this.query.value}
-      @input=${event => { this.query.value = event.target.value; }}>
+      nameOf(thread).toLowerCase().includes(this.query.toLowerCase()));
+    return html`<input aria-label=${`Filter ${this.id}`} .value=${this.query}
+      @input=${event => { this.query = event.target.value; }}>
       <ul>${repeat(shown, thread => thread.key, thread => html`<li><button
-        @click=${() => threadActions.open(thread.key)}>${threadSummary(thread).topic}</button></li>`)}</ul>`;
+        @click=${() => threadActions.open(thread.key)}>${nameOf(thread)}</button></li>`)}</ul>`;
   }
 });
 """
@@ -102,13 +101,10 @@ customElements.define('lf-thread-filter', class extends LeafElement {
 THREAD_FILTER_DECLARATION = {
     "description": "An instance-local filter over Leaf's shared Thread reading.",
     "attributes": {
-        "type": "object",
         "properties": {
-            "id": {"type": "string"},
             "filter": {"type": "string"},
         },
         "required": ["id"],
-        "additionalProperties": False,
     },
     "content": "empty",
     "example": '<lf-thread-filter id="example"></lf-thread-filter>',
@@ -260,10 +256,12 @@ def test_reply_timing_records_send_and_words_when_the_panel_opens(browser, serve
 
     # Unrelated preparation prevents global presentation proof, while the reply's
     # own rendered words are already visible. Feedback telemetry must not wait on it.
-    page.evaluate("""() => {
+    page.evaluate("""async () => {
+      const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
       const held = Promise.withResolvers();
       window.releaseTimingPreparation = held.resolve;
-      document.querySelector('#timing-local').controller.present(held.promise);
+      document.querySelector('#timing-local').shadowRoot
+        .dispatchEvent(new PendingTaskEvent(held.promise));
     }""")
     with page.expect_response(lambda response: trace_has(response, "reply_visible")):
         view = open_panel_thread(page, question["id"])
@@ -501,7 +499,7 @@ STARTUP_PROJECTION_WIDGET = PAGE_WIDGET.replace(
     """\
     if (!this.dataset.startupInvalidated) {
       this.dataset.startupInvalidated = "1";
-      this.controller.defer()();
+      this.defer()();
     }
     const held = globalThis.__heldLocalPresentations?.get(this.id);""",
 )
@@ -652,15 +650,14 @@ def test_versions_wait_for_a_reading_of_the_log(browser, serve):
     expect(versions).to_be_disabled()
 
 
-def test_admission_keeps_the_obligation_open_until_the_answer_is_in_the_log(
-    browser, serve
-):
-    """An answer the log has not taken in leaves its obligation open.
+def test_a_press_answers_its_obligation_before_the_log_admits_it(browser, serve):
+    """A widget's own word on its question shows in the press's task.
 
-    The pick is the user's at once — that is their own gesture drawn on their own
-    widget. Which obligations still stand is the server's fold, so the count
-    moves when the state this POST returns is adopted, and not before."""
+    The pick and the answer it gives are both the user's gesture drawn on their own
+    widget, so the count moves while the POST is still held, and the server's reading,
+    once adopted, agrees."""
     page = open_page(browser, serve(OBLIGATION_PAGE))
+    expect_obligations_answered(page, "0/1")
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -670,14 +667,14 @@ def test_admission_keeps_the_obligation_open_until_the_answer_is_in_the_log(
     expect(page.locator("#release-ship .lf-pick")).to_have_attribute(
         "aria-checked", "true"
     )
-    expect_obligations_answered(page, "0/1")
+    expect_obligations_answered(page, "1/1")
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)
     expect_obligations_answered(page, "1/1")
 
 
-def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, serve):
+def test_page_owned_registry_and_widget_use_the_captured_controller(browser, serve):
     # The widget the test takes out and puts back stands last in the page, where neither
     # moves anything else.
     source = LIVE_V1.replace(
@@ -705,7 +702,7 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
     page.route("**/api/event", lambda route: held.append(route))
     deferred_at = page.evaluate(
         "window.pageLocal = document.querySelector('#page-local'); "
-        "window.resumeLocal = pageLocal.controller.defer(); "
+        "window.resumeLocal = pageLocal.defer(); "
         "Number(pageLocal.dataset.readings)"
     )
     page.locator("#page-local").get_by_role("button", name="Choose").click()
@@ -734,12 +731,17 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
     page.unroute("**/api/event")
 
     assert page.evaluate(
-        "pageLocal = document.querySelector('#page-local'); "
-        "pageLocal.controller.dispatch({kind: 'undo', target: 'not-a-candidate'}) === null"
+        """async () => {
+          window.localController = (await window.__lfCheckApi()).controllerOf;
+          window.pageLocal = document.querySelector('#page-local');
+          return localController(pageLocal)
+            .dispatch({kind: 'undo', target: 'not-a-candidate'}) === null;
+        }"""
     )
     # A verb the widget does not send throws rather than vanishing without a word.
     assert 'cannot dispatch "chose"' in page.evaluate(
-        "(() => { try { pageLocal.controller.dispatch({kind: 'action', verb: 'chose'});"
+        "(() => { try {"
+        " localController(pageLocal).dispatch({kind: 'action', verb: 'chose'});"
         " return ''; } catch (error) { return error.message; } })()"
     )
     page.locator("#page-local").get_by_role("button", name="Choose").click()
@@ -749,7 +751,7 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
     drifted = page.evaluate(
         """() => {
           pageLocal.id = 'drifted-local';
-          const reading = pageLocal.controller.read();
+          const reading = localController(pageLocal).read();
           return {
             available: reading.actions.choose.available,
             undo: reading.actions.choose.undo.length,
@@ -763,7 +765,7 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
     page.route("**/api/event", lambda route: undo.append(route))
     stale_refused = page.evaluate(
         """() => {
-          const controller = pageLocal.controller;
+          const controller = localController(pageLocal);
           const candidate = controller.read().actions.choose.undo[0];
           const objectTarget = controller.dispatch({
             kind: 'undo',
@@ -836,10 +838,8 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
             "lf-controller-stage": {
                 "description": "A declared shadow stage for the controller lifetime.",
                 "attributes": {
-                    "type": "object",
-                    "properties": {"id": {"type": "string"}},
+                    "properties": {},
                     "required": ["id"],
-                    "additionalProperties": False,
                 },
                 "content": "markup",
                 "shadow": True,
@@ -847,7 +847,8 @@ def test_widget_controller_owns_presentation_across_values_and_lifetimes(
             },
         }
         modules["widgets/lf-controller-stage.js"] = """\
-import { once, shadowStage } from '/runtime/widget-api.js';
+import { shadowStage } from '/runtime/widget-api.js';
+import { once } from '/runtime/lib/once.js';
 customElements.define('lf-controller-stage', class extends HTMLElement {
   connectedCallback() { if (once(this)) shadowStage(this, [...this.children]); }
 });
@@ -885,28 +886,24 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
         }"""
     )
 
-    # Several children prepared by one owner are one requirement. A later call for the
-    # same reading includes the earlier promise rather than superseding it.
-    returned = page.evaluate(
-        """() => {
+    # Several children prepared inside one owner are one requirement. A later one for
+    # the same reading joins the earlier promise rather than superseding it.
+    pending = page.evaluate(
+        """async () => {
+          const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
+          // Said from inside the widget, the work is its preparation.
+          window.prepareLocal = promise =>
+            pageLocal.shadowRoot.dispatchEvent(new PendingTaskEvent(promise));
           window.firstPreparation = heldPreparation();
           window.secondPreparation = heldPreparation();
-          const first = pageLocal.controller.present(firstPreparation.promise);
-          const second = pageLocal.controller.present(secondPreparation.promise);
+          prepareLocal(firstPreparation.promise);
+          prepareLocal(secondPreparation.promise);
           window.preparationReady = false;
           whenLeafPresented().then(() => { preparationReady = true; });
-          return {
-            first: first === firstPreparation.promise,
-            second: second === secondPreparation.promise,
-            pending: readLeafPresentation().pending,
-          };
+          return readLeafPresentation().pending;
         }"""
     )
-    assert returned == {
-        "first": True,
-        "second": True,
-        "pending": ["widget:page-local:preparation"],
-    }
+    assert pending == ["widget:page-local:preparation"]
     page.evaluate("firstPreparation.release('first')")
     assert page.evaluate("preparationReady") is False
     page.evaluate("secondPreparation.release('second')")
@@ -918,7 +915,7 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
     held_events = []
     page.route("**/api/event", lambda route: held_events.append(route))
     before = int(page.locator("#page-local").get_attribute("data-readings"))
-    page.evaluate("() => { window.resumeLocal = pageLocal.controller.defer(); }")
+    page.evaluate("() => { window.resumeLocal = pageLocal.defer(); }")
     page.locator("#page-local").get_by_role("button", name="Choose").click()
     expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
     assert page.evaluate("Number(pageLocal.dataset.readings)") == before
@@ -985,9 +982,9 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
     page.evaluate(
         """() => {
           window.beforeDetachedReading = Number(pageLocal.dataset.readings);
-          window.resumeDetached = pageLocal.controller.defer();
+          window.resumeDetached = pageLocal.defer();
           window.reconnectPreparation = heldPreparation();
-          pageLocal.controller.present(reconnectPreparation.promise);
+          prepareLocal(reconnectPreparation.promise);
           window.beforeRemovalReady = false;
           whenLeafPresented().then(() => { beforeRemovalReady = true; });
           localLifetimeOwner.remove();
@@ -1084,11 +1081,12 @@ customElements.define('lf-controller-stage', class extends HTMLElement {
     reported_browser_errors(page, failure)
 
 
-@pytest.mark.parametrize(
-    "mode", ["siblings", "superseded", "reconnected", "registered-detached"]
-)
+@pytest.mark.parametrize("mode", ["siblings", "superseded", "reconnected"])
 def test_preparation_waits_for_all_capable_work(browser, serve, mode):
-    """Failures and reconnects retain every producer that can still commit DOM."""
+    """Failures and reconnects retain every producer that can still commit DOM. A
+    widget says its preparation with `pending-task`, which is heard only while the
+    widget stands in the page, so work said there is held through the widget's leaving
+    and return."""
     page = open_page(
         browser,
         serve(
@@ -1102,45 +1100,31 @@ def test_preparation_waits_for_all_capable_work(browser, serve, mode):
             },
         ),
     )
-    page.locator("#page-local").evaluate("""owner => {
+    page.locator("#page-local").evaluate("""async owner => {
+      const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
+      // Said from inside the widget, the work is its preparation.
+      window.prepare = promise =>
+        owner.shadowRoot.dispatchEvent(new PendingTaskEvent(promise));
       window.preparationOwner = owner;
       window.preparationParent = owner.parentNode;
     }""")
-    if mode == "registered-detached":
-        page.evaluate("preparationOwner.remove()")
     page.evaluate("""() => {
       const owner = preparationOwner;
       const first = new Promise((done, fail) => {
         window.finishPreparation = done;
         window.rejectPreparation = fail;
       });
-      owner.controller.present(first.then(() => { owner.dataset.late = 'committed'; }));
+      prepare(first.then(() => { owner.dataset.late = 'committed'; }));
     }""")
-    if mode == "registered-detached":
-        append_command(
-            serve.page_dir,
-            {
-                "kind": "action",
-                "author": "user",
-                "revision": 1,
-                "widget": "page-local",
-                "action": "choose",
-                "detail": {"value": "chosen"},
-            },
-        )
-        told(page)
-    elif mode != "siblings":
+    if mode != "siblings":
         page.get_by_role("button", name="Choose", exact=True).click()
         expect(page.locator("#page-local").get_by_role("status")).to_have_text("chosen")
     page.evaluate("""() => {
-      const owner = preparationOwner;
-      const second = new Promise(done => { window.releaseSibling = done; });
-      owner.controller.present(second);
+      prepare(new Promise(done => { window.releaseSibling = done; }));
     }""")
-    if mode in {"reconnected", "registered-detached"}:
-        if mode == "reconnected":
-            page.get_by_role("heading", name="Preparation", exact=True).click()
-            page.evaluate("preparationOwner.remove()")
+    if mode == "reconnected":
+        page.get_by_role("heading", name="Preparation", exact=True).click()
+        page.evaluate("preparationOwner.remove()")
         rendered(page)
         page.evaluate("preparationParent.append(preparationOwner)")
     if mode != "siblings":
@@ -1154,7 +1138,7 @@ def test_preparation_waits_for_all_capable_work(browser, serve, mode):
     assert not page.evaluate(
         "Object.values(document.querySelector('script[data-lf-entry]').lfRenderingState()).every(Boolean)"
     )
-    if mode in {"reconnected", "registered-detached"}:
+    if mode == "reconnected":
         page.evaluate("finishPreparation()")
         rendered(page)
         expect(page.locator("#page-local")).to_have_attribute("data-late", "committed")
@@ -1215,7 +1199,9 @@ def arrived(page, thread_id):
 
 THREAD_ACTIONS = r"""
 import { noChange } from '/vendor/lit.js';
-import { LeafElement, keeps, readThreads, threadActions } from '/runtime/widget-api.js';
+import { readThreads, threadActions } from '/runtime/widget-api.js';
+import { LeafElement } from '/runtime/lib/leaf-element.js';
+import { keeps } from '/runtime/lib/keeps.js';
 customElements.define('lf-thread-actions', class extends LeafElement {
   setup() {
     this.innerHTML = '<input aria-label="Package reply"><button>Reply</button>' +
@@ -1229,14 +1215,14 @@ customElements.define('lf-thread-actions', class extends LeafElement {
           ? threadActions.resolve(key)
           : button.textContent === 'Reopen'
             ? threadActions.reopen(key)
-            : threadActions.setReaction(key, agent.key, 'keep', !agent.reactions.choices.find(choice => choice.name === 'keep').inForce);
+            : threadActions.setReaction(key, agent.key, '👍', !agent.reactions.choices.find(choice => choice.emoji === '👍').inForce);
       keeps(this, 'data-accepted', this.last !== null);
     });
   }
   render() {
     this.thread = readThreads().threads[0];
     keeps(this, 'data-lf-resolved', Boolean(this.thread?.resolved));
-    keeps(this, 'data-reacted', Boolean(this.thread?.msgs.find(msg => msg.author === 'agent')?.reactions?.choices.find(choice => choice.name === 'keep')?.inForce));
+    keeps(this, 'data-reacted', Boolean(this.thread?.msgs.find(msg => msg.author === 'agent')?.reactions?.choices.find(choice => choice.emoji === '👍')?.inForce));
     return noChange;
   }
 });
@@ -1245,10 +1231,8 @@ customElements.define('lf-thread-actions', class extends LeafElement {
 THREAD_ACTIONS_DECLARATION = {
     "description": "A package's own Thread action controls.",
     "attributes": {
-        "type": "object",
-        "properties": {"id": {"type": "string"}},
+        "properties": {},
         "required": ["id"],
-        "additionalProperties": False,
     },
     "content": "empty",
     "example": '<lf-thread-actions id="actions-example"></lf-thread-actions>',
@@ -1304,7 +1288,7 @@ def test_thread_obligation_reveals_its_exact_message_in_a_selective_primary(
 ):
     """A message-only primary materializes the widget's turn, though it draws another."""
     module = """
-    import {registerThreadPresentation, threadTurns} from '/runtime/widget-api.js';
+    import {registerThreadPresentation} from '/runtime/widget-api.js';
     customElements.define('lf-message-reader', class extends HTMLElement {
       connectedCallback() {
         this.outlet = document.createElement('section');
@@ -1313,7 +1297,7 @@ def test_thread_obligation_reveals_its_exact_message_in_a_selective_primary(
           render: (collection, parts) => {
             const thread = collection.threads[0];
             if (!thread) return;
-            const message = threadTurns(thread).find(message =>
+            const message = thread.turns.find(message =>
               message.key === (this.message ?? thread.root.key));
             parts.message(thread.key, message.key, this.outlet);
           },
@@ -1450,9 +1434,10 @@ def test_failed_primary_reader_restores_the_same_native_obligation_in_core(
 def test_the_panels_routes_to_a_thread_reach_the_reader_that_holds_its_widget(
     browser, serve
 ):
-    """On Me's route and Threads' row each take the user to the primary reader that
-    owns the thread's widget. The panel opens no view of the thread, and the widget
-    arrives as the same native node."""
+    """Opening the widget's On Me row by its id, which arrives where the row's own Show
+    does, and Threads' row each take the user to the primary reader that owns the
+    thread's widget. The panel opens no view of the thread, and the widget arrives as
+    the same native node."""
     page = open_page(browser, package_workspace(serve))
     page.set_viewport_size({"width": 693, "height": 900})
     workspace = page.locator("#workspace")
@@ -1466,7 +1451,7 @@ def test_the_panels_routes_to_a_thread_reach_the_reader_that_holds_its_widget(
 
     other_thread.click()
     assert page.evaluate(
-        "async () => { const item = api.readQueues().on_user.find(item => item.obligation?.source.kind === 'widget'); return await api.queueActions.open(api.queueItemKey(item)); }"
+        "async () => { const item = api.readQueues().on_user.find(item => item.obligation?.source.kind === 'widget'); return await api.obligationActions.open(item.id); }"
     )
     expect(workspace.locator("lf-option#email")).to_be_visible()
     assert page.evaluate(
@@ -1572,10 +1557,8 @@ def test_keyed_shadow_row_restores_replaced_slotted_editor_and_caret(browser, se
             "lf-keyed-slot-list": {
                 "description": "A keyed shadow row with a native slotted editor.",
                 "attributes": {
-                    "type": "object",
-                    "properties": {"id": {"type": "string"}},
+                    "properties": {},
                     "required": ["id"],
-                    "additionalProperties": False,
                 },
                 "content": "empty",
                 "shadow": True,
@@ -1627,146 +1610,6 @@ def test_keyed_shadow_row_restores_replaced_slotted_editor_and_caret(browser, se
     assert editor.evaluate(
         "node => [node.selectionStart, node.selectionEnd, node.selectionDirection]"
     ) == [4, 9, "backward"]
-
-
-@pytest.mark.parametrize("while_pending", ["stay", "choose-earlier"])
-def test_packages_and_panel_share_threads_through_gestures_and_authored_content(
-    browser, serve, while_pending
-):
-    """One public reading carries both optimistic turns and live authored unit state."""
-    url = serve(
-        leaf_page(
-            "Shared Threads",
-            '<h1>Shared Threads</h1><lf-thread-reader id="reader"></lf-thread-reader>',
-        ),
-        layer_registry={"lf-thread-reader": THREAD_READER_DECLARATION},
-        layer_widgets={"lf-thread-reader.js": THREAD_READER},
-    )
-    for event in [
-        {
-            "id": "question",
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "**Decision**",
-        },
-        {
-            "id": "answer",
-            "kind": "reply",
-            "author": "agent",
-            "revision": 1,
-            "parent": "question",
-            "text": "Choose a direction.\n\n"
-            '<lf-options id="direction"><lf-option id="north">North</lf-option><lf-option id="south">South</lf-option></lf-options>',
-        },
-    ]:
-        append_carried_log_record(serve.page_dir, event)
-    page = open_page(browser, url)
-    reader = page.locator("#reader")
-    expect(reader).to_contain_text("Decision")
-    record = reader.evaluate("""node => {
-      const reading = node.collection;
-      const cloned = structuredClone(reading);
-      const allFrozen = value => !value || typeof value !== 'object' ||
-        (Object.isFrozen(value) && Object.values(value).every(allFrozen));
-      return {reading: cloned, frozen: allFrozen(reading), same: node.sameReading, topic: node.topic};
-    }""")
-    assert record["frozen"] and record["same"]
-    assert record["topic"] == "Decision"
-    root, reply = record["reading"]["threads"][0]["msgs"]
-    assert root["text"] == "**Decision**" and root["body"]["text"].strip() == "Decision"
-    assert reply["body"]["document"] == {"thread": "question", "message": "answer"}
-    assert reply["body"]["kind"] == "authored"
-    assert "North" in reply["body"]["text"]
-    assert "html" not in root and "html" not in reply
-    assert '"html"' not in json.dumps(record)
-    open_threads(page)
-    # The agent answered without naming the thread, so it reads its opening words.
-    expect(page.locator(".lf-fp-thread")).to_contain_text("Decision")
-    open_panel_thread(page, "question")
-    expect(page.locator("#direction")).to_have_count(1)
-    message_top = page.locator("#direction").evaluate(
-        "node => node.getBoundingClientRect().top"
-    )
-    with sending(page, "choose North in the authored reply"):
-        page.locator("#north .lf-pick").click()
-    round_trip(page)
-    assert (
-        page.locator("#direction").evaluate("node => node.getBoundingClientRect().top")
-        == message_top
-    )
-    assert reader.evaluate("""node => node.collection.threads[0].msgs[1].body.units
-      .find(unit => unit.id === 'direction').state.choose.value""") == ["north"]
-
-    held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    box = page_comment(page)
-    send = page.locator(".lf-fp-field .lf-compose-submit")
-    write(box, "Pending **words**")
-    send.click()
-    holding(page, held, 1, "the shared collection's pending root")
-    expect(reader).to_contain_text("Pending words")
-    pending = reader.evaluate(
-        "node => node.collection.threads.find(thread => thread.root.pending)"
-    )
-    # The send opens the pending thread's view in the panel.
-    expect(page.locator(PANEL_THREAD)).to_contain_text("Pending words")
-    held.pop().continue_()
-    round_trip(page)
-    admitted = reader.evaluate(
-        "(node, key) => node.collection.threads.find(thread => thread.key === key)",
-        pending["key"],
-    )
-    assert admitted["id"] != pending["id"]
-    assert admitted["root"]["key"] == pending["root"]["key"]
-    selected = page.locator(f'{PANEL_THREAD}[data-lf-thread="{admitted["id"]}"]')
-    expect(selected).to_be_visible()
-
-    box = page_comment(page)
-    write(box, "Refused words")
-    send.click()
-    holding(page, held, 1, "the shared collection's refused root")
-    expect(reader).to_contain_text("Refused words")
-    expect(page.locator(PANEL_THREAD)).to_contain_text("Refused words")
-    if while_pending == "choose-earlier":
-        # Refusal restores the earlier selection only while the provisional root
-        # still owns it; a later user choice must remain the selected conversation.
-        selected = open_panel_thread(page, "question")
-    # Chrome reports no shift within 500ms of input, so the refusal lands after it:
-    # taking back the view the send opened moves nothing the pointer was not near.
-    page.wait_for_function(
-        "at => performance.now() - at > 500", arg=page.evaluate("performance.now()")
-    )
-    route = held.pop()
-    route.fulfill(
-        status=400,
-        json={
-            "ok": False,
-            "attempt": route.request.post_data_json["attempt"],
-            "error": "refused before append",
-            "final": True,
-        },
-    )
-    round_trip(page)
-    consume_browser_errors(page, http_error_console(400))
-    expect(reader).not_to_contain_text("Refused words")
-    assert stored_draft_text(page, "general") == "Refused words"
-    if while_pending == "choose-earlier":
-        # The field takes no keys from a user who has moved on: the thread they chose
-        # stays open in it, and the words wait in the page comment.
-        expect(box).to_have_count(0)
-        expect(selected).to_be_visible()
-        page.locator(".lf-fp-close").click()
-        panel_settled(page, open=False)
-        expect(box).to_have_js_property("value", "Refused words")
-    else:
-        # Where the send left the user, the field returns to the refused words.
-        expect(box).to_be_focused()
-        expect(page.locator(PANEL)).not_to_have_attribute(
-            "data-lf-open", re.compile(".")
-        )
-    expect(page.locator('[data-lf-thread^="pending:"]')).to_have_count(0)
-    page.unroute("**/api/event")
 
 
 def test_package_thread_widgets_keep_local_filters_and_independent_subscriptions(
@@ -1896,15 +1739,15 @@ def test_package_thread_actions_share_core_admission_and_current_availability(
     assert actions.evaluate("""node => {
       const thread = node.thread;
       const agent = thread.msgs.find(message => message.author === 'agent');
-      const choice = agent.reactions.choices.find(choice => choice.name === 'keep');
+      const choice = agent.reactions.choices.find(choice => choice.emoji === '👍');
       return !thread.resolved &&
-        choice.inForce && choice.glyph && choice.label && Object.isFrozen(choice);
+        choice.inForce && Object.isFrozen(choice);
     }""")
     assert page.evaluate("""async () => {
       const {threadActions,readThreads} = await window.__lfWidgetApi();
       const thread = readThreads().threads[0];
       const agent = thread.msgs.find(message => message.author === 'agent');
-      return threadActions.setReaction(thread.key, agent.key, 'keep', true) === null;
+      return threadActions.setReaction(thread.key, agent.key, '👍', true) === null;
     }""")
     # The package's resolve moved the panel on from the thread; the user reads its
     # reaction back in the thread's view.
@@ -1945,11 +1788,7 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
     }
     registry["lf-nested-reader"] = {
         "description": "A declared nested physical reader stage.",
-        "attributes": {
-            "type": "object",
-            "properties": {},
-            "additionalProperties": False,
-        },
+        "attributes": {"properties": {}},
         "content": "empty",
         "shadow": True,
     }
@@ -2037,9 +1876,6 @@ def test_nested_primary_reader_keeps_native_scope_navigation_and_read_evidence(
         workspace.locator('.lf-msg[data-lf-event="nested-question"]')
     ).to_be_focused()
     assert page.evaluate(
-        "api.currentLocationIn(document.querySelector('#workspace').reader)"
-    )
-    assert page.evaluate(
         "typeof api.holdFocus(document.querySelector('#workspace').reader) === 'function'"
     )
     assert email.evaluate(
@@ -2070,7 +1906,7 @@ def test_primary_reading_holds_remote_changes_before_package_layout(
         }""")
     else:
         workspace.get_by_role("button", name=mode, exact=True).click()
-    editor = workspace.get_by_role("textbox", name="Reply", exact=True)
+    editor = text_field(workspace, name="Reply", exact=True)
     editor.click()
     write(editor, "Keep this draft while updates wait.")
     assert editor.evaluate("""async editor => {
@@ -2163,7 +1999,7 @@ def test_primary_reader_revision_replaces_owner_without_losing_thread_draft(
     )
     workspace = page.locator("#workspace")
     workspace.get_by_role("button", name="Keep it concise.", exact=True).click()
-    editor = workspace.get_by_role("textbox", name="Reply", exact=True)
+    editor = text_field(workspace, name="Reply", exact=True)
     words = "Keep this unfinished answer across the revision."
     write(editor, words)
     editor.evaluate("node => node.setSelectionRange(2, 8, 'backward')")
@@ -2183,7 +2019,7 @@ def test_primary_reader_revision_replaces_owner_without_losing_thread_draft(
     assert page.evaluate("performance.timeOrigin === originalDocument")
     assert page.evaluate("!originalWorkspace.isConnected")
     replacement = page.locator("#replacement")
-    reply = replacement.get_by_role("textbox", name="Reply", exact=True)
+    reply = text_field(replacement, name="Reply", exact=True)
     expect(reply).to_have_js_property("value", words)
     assert reply.evaluate("node => [node.selectionStart, node.selectionEnd]") == before
     expect(
@@ -2201,7 +2037,7 @@ def test_primary_reader_revision_replaces_owner_without_losing_thread_draft(
         email.click()
     expect(replacement.locator(".counts")).to_contain_text("Email")
     replacement.get_by_role("button", name="Keep it concise.", exact=True).click()
-    reply = replacement.get_by_role("textbox", name="Reply", exact=True)
+    reply = text_field(replacement, name="Reply", exact=True)
     expect(reply).to_have_js_property("value", words)
     with sending(page, "send the thread draft carried across reader replacement"):
         reply.press("Control+Enter")
@@ -2225,7 +2061,7 @@ def test_primary_parts_keep_identity_and_nomination_order_through_admission(
       const workspace = document.querySelector('#workspace');
       const present = (collection, parts) => {
         const messages = collection.threads.flatMap(thread =>
-          api.threadTurns(thread).map(message => [thread, message]));
+          thread.turns.map(message => [thread, message]));
         if (workspace.reversed) messages.reverse();
         for (const [thread, message] of messages)
           parts.message(thread.key, message.key, workspace.reader);

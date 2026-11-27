@@ -4,6 +4,7 @@ import test, { beforeEach } from "node:test";
 import {
   commandScope,
   commandsOn,
+  commandsUnread,
   commandsWithin,
   projectCommandScope,
   keys,
@@ -11,9 +12,10 @@ import {
   paintKeysWithin,
   reflectFirstScopes,
   reflectKeys,
-  saying,
   watchCommandScopes,
-} from "../../browser/runtime/keyboard/scopes.js";
+} from "../../browser/runtime/dom/keyboard/scopes.js";
+import { saying } from "../../browser/runtime/dom/keyboard/control-keys.js";
+import { liveEl } from "../../browser/runtime/transport/notifications.js";
 import {
   activeRows,
   commandAvailable,
@@ -24,16 +26,20 @@ import {
   decisionControls,
   savedReadingSettled,
   setQuickShortcuts,
-} from "../../browser/runtime/keyboard/bindings.js";
-import { dispatchKey, keyReady } from "../../browser/runtime/keyboard/dispatch.js";
-import { applicationState } from "../../browser/runtime/semantic-state.js";
-import { commandsChanged } from "../../browser/runtime/widget-upgrade.js";
-import { focused } from "../../browser/runtime/focus.js";
-import { adoptShadowStage } from "../../browser/runtime/shadow-stage.js";
-import { watchOwner } from "../../browser/runtime/arrivals.js";
-import { mountRepaint } from "../../browser/runtime/repaint.js";
-import { nextRender } from "../../browser/runtime/rendering.js";
-import { signal } from "/runtime/framework.js";
+} from "../../browser/runtime/dom/keyboard/bindings.js";
+import {
+  activeCommandBinding,
+  dispatchKey,
+  keyReady,
+} from "../../browser/runtime/dom/keyboard/dispatch.js";
+import { coarsePointer } from "../../browser/runtime/base/pointer.js";
+import { applicationState } from "../../browser/runtime/state/semantic-state.js";
+import { focused } from "../../browser/runtime/dom/focus.js";
+import { adoptShadowStage } from "../../browser/runtime/dom/shadow-stage.js";
+import { watchOwner } from "../../browser/runtime/dom/arrivals.js";
+import { mountRepaint } from "../../browser/runtime/dom/repaint.js";
+import { nextRender } from "../../browser/runtime/lib/frame-pass.js";
+import { signal } from "/vendor/signals-core.js";
 import { setFlagsFromString } from "node:v8";
 import { runInNewContext } from "node:vm";
 
@@ -42,7 +48,7 @@ beforeEach(() => applicationState.setPhase("ready"));
 
 test("saved-reading commands retain their key until their input is known", async () => {
   const { applicationState, readApplication } =
-    await import("../../browser/runtime/semantic-state.js");
+    await import("../../browser/runtime/state/semantic-state.js");
   const phase = readApplication().phase;
   const owner = document.createElement("button");
   document.body.append(owner);
@@ -187,7 +193,8 @@ test("a document-ready scope retains commands whose own input needs saved state"
 });
 
 test("mixed routes and their context aliases retain each Decision's readiness", async () => {
-  const { applicationState } = await import("../../browser/runtime/semantic-state.js");
+  const { applicationState } =
+    await import("../../browser/runtime/state/semantic-state.js");
   const phase = applicationState.read().phase;
   const owner = document.createElement("section");
   const decision = document.createElement("button");
@@ -384,8 +391,8 @@ test("a button declared on itself activates before its declaration is painted", 
   control.remove();
 });
 
-// A recording's play button stands in chrome while its scope is projected onto the
-// video, which a widget can stage after the page's last paint (video-controls.js).
+// A button standing in chrome can belong to a scope projected onto another element,
+// which a widget can stage after the page's last paint.
 test("a button a projected scope names activates before its declaration is painted", () => {
   const owner = document.createElement("div");
   const control = document.createElement("button");
@@ -423,13 +430,17 @@ test("a withdrawn command leaves its button even when a full paint follows", () 
       { id: "probe.withdrawn", title: "Act", keys: ["x"], control, run: () => count++ },
     ],
   };
-  commandsChanged(owner);
+  owner.dispatchEvent(
+    new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+  );
   reflectFirstScopes();
   try {
     control.click();
     assert.equal(count, 1);
     owner.lfCommands = null;
-    commandsChanged(owner);
+    owner.dispatchEvent(
+      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+    );
     paintKeys();
     reflectKeys();
     control.click();
@@ -1178,17 +1189,13 @@ test("a painter projecting an equal command every frame asks for no next frame",
     control.remove();
   }
 });
-test("a button a widget declared before it was placed answers once it is", async () => {
+test("a button declared before its scope was placed answers once it is", async () => {
   const owner = document.createElement("section");
   const control = document.createElement("button");
   owner.append(control);
-  owner.lfCommands = {
-    title: "Early",
-    rows: [
-      { id: "probe.early", title: "Act", control, when: () => false, run: () => {} },
-    ],
-  };
-  commandsChanged(owner);
+  keys(owner, "Early", [
+    { id: "probe.early", title: "Act", control, when: () => false, run: () => {} },
+  ]);
   reflectFirstScopes();
   reflectKeys();
   document.body.append(owner);
@@ -1224,13 +1231,17 @@ test("a widget saying its commands changed reads only its own", () => {
         },
       ],
     };
-    commandsChanged(owner);
+    owner.dispatchEvent(
+      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+    );
   }
   reflectFirstScopes();
   reflectKeys();
   try {
     reads = 0;
-    commandsChanged(sources[0]);
+    sources[0].dispatchEvent(
+      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+    );
     reflectFirstScopes();
     reflectKeys();
     assert.equal(reads, 0);
@@ -1241,9 +1252,9 @@ test("a widget saying its commands changed reads only its own", () => {
 
 test("a contribution owns current focus across its controls' shadow roots", async () => {
   const { registerContribution, contributionEntries } =
-    await import("../../browser/runtime/contributions.js");
+    await import("../../browser/runtime/features/contributions.js");
   const { trackContributionControl } =
-    await import("../../browser/runtime/contribution-controls.js");
+    await import("../../browser/runtime/features/contribution-controls.js");
   const owner = document.createElement("section");
   const control = document.createElement("div");
   const outside = document.createElement("button");
@@ -1277,9 +1288,9 @@ test("a contribution owns current focus across its controls' shadow roots", asyn
 
 test("a batched contribution focus uses the completed render without publishing again", async () => {
   const { registerContribution, contributionEntries, watchContributions } =
-    await import("../../browser/runtime/contributions.js");
+    await import("../../browser/runtime/features/contributions.js");
   const { trackContributionControl } =
-    await import("../../browser/runtime/contribution-controls.js");
+    await import("../../browser/runtime/features/contribution-controls.js");
   const owner = document.createElement("section");
   const first = document.createElement("button");
   const second = document.createElement("button");
@@ -1320,9 +1331,9 @@ test("a batched contribution focus uses the completed render without publishing 
 // A projected entry invokes the same keyed command as the keyboard route.
 test("a contribution invokes its declared command and derives refusal from it", async () => {
   const { registerContribution } =
-    await import("../../browser/runtime/contributions.js");
+    await import("../../browser/runtime/features/contributions.js");
   const { contributionEntry } =
-    await import("../../browser/runtime/contribution-controls.js");
+    await import("../../browser/runtime/features/contribution-controls.js");
   const target = document.createElement("section");
   document.body.append(target);
   let available = true;
@@ -1383,9 +1394,9 @@ test("a contribution invokes its declared command and derives refusal from it", 
 
 test("a control lookup during contribution normalization waits for the complete reading", async () => {
   const { registerContribution, watchContributions } =
-    await import("../../browser/runtime/contributions.js");
+    await import("../../browser/runtime/features/contributions.js");
   const { contributionEntry } =
-    await import("../../browser/runtime/contribution-controls.js");
+    await import("../../browser/runtime/features/contribution-controls.js");
   const target = document.createElement("section");
   document.body.append(target);
   let registration;
@@ -1500,11 +1511,11 @@ test("a shared button selects its live state and context-only routes retain thei
 // Getter controls are claimed at reflection, so their previous attributes must not
 // leave a projected command one reading behind its native source.
 test("a getter button and its contribution agree on their first and replacement readings", async () => {
-  const { live } = await import("../../browser/runtime/keyboard/bindings.js");
+  const { live } = await import("../../browser/runtime/dom/keyboard/bindings.js");
   const { registerContribution } =
-    await import("../../browser/runtime/contributions.js");
+    await import("../../browser/runtime/features/contributions.js");
   const { contributionEntry } =
-    await import("../../browser/runtime/contribution-controls.js");
+    await import("../../browser/runtime/features/contribution-controls.js");
   const owner = document.createElement("section");
   let source = document.createElement("button");
   source.disabled = true;
@@ -1559,11 +1570,11 @@ test("a getter button and its contribution agree on their first and replacement 
 });
 
 test("source constraints and derived disabled output share one availability reading", async () => {
-  const { live } = await import("../../browser/runtime/keyboard/bindings.js");
+  const { live } = await import("../../browser/runtime/dom/keyboard/bindings.js");
   const { registerContribution, contributionEntries } =
-    await import("../../browser/runtime/contributions.js");
+    await import("../../browser/runtime/features/contributions.js");
   const { contributionEntry, presentContributionHost, trackContributionControl } =
-    await import("../../browser/runtime/contribution-controls.js");
+    await import("../../browser/runtime/features/contribution-controls.js");
   const owner = document.createElement("section");
   const fieldset = document.createElement("fieldset");
   const legend = document.createElement("legend");
@@ -1662,7 +1673,7 @@ test("source constraints and derived disabled output share one availability read
 
 test("each contribution publication validates its current activation capability", async () => {
   const { registerContribution } =
-    await import("../../browser/runtime/contributions.js");
+    await import("../../browser/runtime/features/contributions.js");
   const target = document.createElement("section");
   document.body.append(target);
   let action = false;
@@ -1692,9 +1703,9 @@ test("each contribution publication validates its current activation capability"
 
 test("a margin entry refuses what its grammar and its owner cannot state", async () => {
   const { registerContribution } =
-    await import("../../browser/runtime/contributions.js");
+    await import("../../browser/runtime/features/contributions.js");
   const { contributionEntry } =
-    await import("../../browser/runtime/contribution-controls.js");
+    await import("../../browser/runtime/features/contribution-controls.js");
   const entry = { key: "cancel", icon: "cross", label: "Cancel" };
   // Every axis has a default, so an axis named wrongly, the way a rename of this
   // vocabulary reaches a call site, would otherwise state nothing and say nothing.
@@ -1702,10 +1713,15 @@ test("a margin entry refuses what its grammar and its owner cannot state", async
     () => contributionEntry({ ...entry, role: "escape" }),
     /^TypeError: Unknown contribution entry option: role$/,
   );
-  // Only the keyboard owner mints a scope projected onto shared controls.
+  // The rows of the scope an entry names are checked as written, as an element's
+  // `lfCommands` are.
   assert.throws(
-    () => contributionEntry({ ...entry, scope: { scope: { title: "Counterfeit" } } }),
-    /^TypeError: A margin entry scope needs a commandScope capability$/,
+    () =>
+      contributionEntry({
+        ...entry,
+        scope: { title: "Malformed", rows: [{ id: "Not an id", title: "run" }] },
+      }),
+    /not a stable command id/,
   );
   const scope = commandScope("Status command", [
     {
@@ -1748,8 +1764,8 @@ test("a margin entry refuses what its grammar and its owner cannot state", async
 
 test("context aliases project the selected source route's availability", async () => {
   const { commandEntries, commandPresentations, bindings, live } =
-    await import("../../browser/runtime/keyboard/bindings.js");
-  const { scopesAt } = await import("../../browser/runtime/keyboard/scopes.js");
+    await import("../../browser/runtime/dom/keyboard/bindings.js");
+  const { scopesAt } = await import("../../browser/runtime/dom/keyboard/scopes.js");
   const owner = document.createElement("section");
   const one = document.createElement("button");
   const two = document.createElement("button");
@@ -1810,7 +1826,7 @@ test("context aliases project the selected source route's availability", async (
 
 test("the command reference retains unavailable command identities", async () => {
   const { commandPresentations } =
-    await import("../../browser/runtime/keyboard/bindings.js");
+    await import("../../browser/runtime/dom/keyboard/bindings.js");
   const row = { id: "probe.leave", keys: ["Tab"], when: () => false, run: () => {} };
   assert.deepEqual(commandPresentations(row), []);
   assert.deepEqual(
@@ -1822,7 +1838,7 @@ test("the command reference retains unavailable command identities", async () =>
 });
 
 test("page command scopes share native activation and hand removed controls back", async () => {
-  const { pageScope } = await import("../../browser/runtime/keyboard/register.js");
+  const { pageScope } = await import("../../browser/runtime/dom/keyboard/register.js");
   const control = document.createElement("button");
   document.body.append(control);
   let available = true;
@@ -1857,7 +1873,7 @@ test("page command scopes share native activation and hand removed controls back
 
 test("a projected scope withdrawal preserves a native control's pending handback", async () => {
   const { projectCommandScope } =
-    await import("../../browser/runtime/keyboard/scopes.js");
+    await import("../../browser/runtime/dom/keyboard/scopes.js");
   const owner = document.createElement("section");
   const control = document.createElement("button");
   owner.append(control);
@@ -1888,7 +1904,7 @@ test("a projected scope withdrawal preserves a native control's pending handback
 
 test("a disappearing projected command refuses instead of becoming a generic action", async () => {
   const { registerContribution } =
-    await import("../../browser/runtime/contributions.js");
+    await import("../../browser/runtime/features/contributions.js");
   const owner = document.createElement("section");
   document.body.append(owner);
   let routeId = "probe.current";
@@ -1946,7 +1962,7 @@ test("a disappearing projected command refuses instead of becoming a generic act
 // every lent face, a button's child included, keeps an out-of-flow seat.
 test("a lent hint inside a button keeps its out-of-flow seat after withdrawal", async () => {
   const { createCommandHints } =
-    await import("../../browser/runtime/keyboard/command-hints.js");
+    await import("../../browser/runtime/readings/key-badges/command-hints.js");
   const owner = document.createElement("section");
   const control = document.createElement("button");
   const badge = document.createElement("kbd");
@@ -1965,7 +1981,10 @@ test("a lent hint inside a button keeps its out-of-flow seat after withdrawal", 
   ]);
   reflectFirstScopes();
   control.focus();
-  const hints = createCommandHints({ presentedControl: (control) => control });
+  const hints = createCommandHints({
+    presentedControl: (control) => control,
+    coveredEntry: () => null,
+  });
   try {
     hints.paint();
     assert.equal(badge.classList.contains("lf-binding-seat"), true);
@@ -1977,100 +1996,95 @@ test("a lent hint inside a button keeps its out-of-flow seat after withdrawal", 
   }
 });
 
-// A paint lends every face before reading any, so a face lent in the same pass doesn't
-// cover another, and the earlier route keeps a place two faces share. A face in another
-// shadow tree reaches a hit test outside that tree as the tree's host, which must not
-// cover the earlier face either. (happy-dom's document is no `Document`, so each face
-// here stands in a shadow tree of its own.)
-test("an earlier route keeps its face under a later route's face in another shadow tree", async () => {
+// A face takes no pointer, so the presenter reads what stands at its place. Three faces,
+// none over another: one over its own control, which is no box around it, as a card's
+// digit stands over its mark; one over the box that holds it, beside its control, as a
+// row's digit stands in the row's leading column; and one hung out over another
+// widget's box, which may cover it, so it is withheld.
+test("a face shows over its control or the box that holds it, and is withheld over anything else", async () => {
   const { createCommandHints } =
-    await import("../../browser/runtime/keyboard/command-hints.js");
+    await import("../../browser/runtime/readings/key-badges/command-hints.js");
   const owner = document.createElement("section");
   /** @returns {[Element, Element, Element]} */
   const faced = () => {
-    const host = document.createElement("div");
+    const box = document.createElement("div");
     const control = document.createElement("button");
     const face = document.createElement("kbd");
-    control.append(face);
-    host.attachShadow({ mode: "open" }).append(control);
-    owner.append(host);
-    return [host, control, face];
+    box.append(face, control);
+    owner.append(box);
+    return [box, control, face];
   };
-  const [firstHost, first, firstFace] = faced();
-  const [secondHost, second, secondFace] = faced();
+  const [card, mark, cardFace] = faced();
+  const [row, rowMark, rowFace] = faced();
+  const [stray, strayMark, strayFace] = faced();
   document.body.append(owner);
-  // The second control stands below the first, and its face hangs out of it over the
-  // first face.
   const boxes = new Map([
-    [firstHost, new DOMRect(0, 0, 100, 20)],
-    [first, new DOMRect(0, 0, 100, 20)],
-    [firstFace, new DOMRect(4, 4, 12, 12)],
-    [secondHost, new DOMRect(0, 200, 100, 20)],
-    [second, new DOMRect(0, 200, 100, 20)],
-    [secondFace, new DOMRect(8, 6, 12, 12)],
+    [card, new DOMRect(0, 0, 100, 20)],
+    [mark, new DOMRect(80, 0, 20, 20)],
+    [cardFace, new DOMRect(84, 4, 12, 12)],
+    [row, new DOMRect(0, 100, 100, 20)],
+    [rowMark, new DOMRect(30, 100, 70, 20)],
+    [rowFace, new DOMRect(4, 104, 12, 12)],
+    [stray, new DOMRect(0, 200, 100, 20)],
+    [strayMark, new DOMRect(0, 200, 100, 20)],
+    [strayFace, new DOMRect(40, 4, 12, 12)],
   ]);
   for (const [element, box] of boxes) {
     element.getBoundingClientRect = () => box;
     element.getClientRects = () => [box];
     element.checkVisibility = () => true;
   }
-  // No chrome stands here to seat the chip a withheld face's route takes instead, so
-  // neither control takes one.
-  for (const control of [first, second]) control.checkVisibility = () => false;
-  // Each tree's hit test, topmost first, reads another tree's contents as its host.
-  const painted = [secondFace, second, firstFace, first, secondHost, firstHost];
-  for (const root of [document, firstHost.shadowRoot, secondHost.shadowRoot])
-    root.elementsFromPoint = (x, y) => [
-      ...new Set(
-        painted
-          .filter((element) => {
-            const { left, top, right, bottom } = boxes.get(element);
-            return x >= left && x <= right && y >= top && y <= bottom;
-          })
-          .map((element) =>
-            [root, document].includes(element.getRootNode())
-              ? element
-              : element.getRootNode().host,
-          ),
-      ),
-    ];
-  keys(owner, "Overlapping faces", [
-    {
-      id: "probe.first-face",
-      title: "First",
-      keys: ["1"],
-      control: first,
-      bindingBadge: firstFace,
+  // No chrome stands here to seat the chip a withheld face's route takes instead, so no
+  // control takes one.
+  for (const control of [mark, rowMark, strayMark])
+    control.checkVisibility = () => false;
+  // The hit test finds the topmost box that takes the pointer, which no face does.
+  const painted = [mark, rowMark, strayMark, card, row, stray];
+  document.elementFromPoint = (x, y) =>
+    painted.find((element) => {
+      const { left, top, right, bottom } = boxes.get(element);
+      return x >= left && x <= right && y >= top && y <= bottom;
+    }) ?? null;
+  keys(
+    owner,
+    "Faces",
+    [
+      ["card", mark, cardFace],
+      ["row", rowMark, rowFace],
+      ["stray", strayMark, strayFace],
+    ].map(([name, control, bindingBadge], at) => ({
+      id: `probe.${name}-face`,
+      title: name,
+      keys: [String(at + 1)],
+      control,
+      bindingBadge,
       run: () => {},
-    },
-    {
-      id: "probe.second-face",
-      title: "Second",
-      keys: ["2"],
-      control: second,
-      bindingBadge: secondFace,
-      run: () => {},
-    },
-  ]);
+    })),
+  );
   reflectFirstScopes();
-  first.focus();
-  const hints = createCommandHints({ presentedControl: (control) => control });
+  mark.focus();
+  const hints = createCommandHints({
+    presentedControl: (control) => control,
+    coveredEntry: () => null,
+  });
   try {
     hints.paint();
     assert.deepEqual(
-      [firstFace, secondFace].map((face) => face.hasAttribute("data-lf-binding-badge")),
-      [true, false],
+      [cardFace, rowFace, strayFace].map((face) =>
+        face.hasAttribute("data-lf-binding-badge"),
+      ),
+      [true, true, false],
     );
-    assert.equal(secondFace.style.opacity, "0");
+    assert.equal(strayFace.style.opacity, "0");
   } finally {
     hints.destroy();
-    delete document.elementsFromPoint;
+    delete document.elementFromPoint;
     owner.remove();
   }
 });
 
 test("a scope's attachment and re-render run its latest callbacks and read only its own element", async () => {
-  const { html, render } = await import("/runtime/framework.js");
+  const { html, render } = await import("/vendor/lit.js");
   const other = document.createElement("button");
   document.body.append(other);
   keys(other, "Elsewhere", [{ id: "probe.elsewhere", keys: ["x"], title: "x" }]);
@@ -2125,8 +2139,8 @@ test("a scope's attachment and re-render run its latest callbacks and read only 
 });
 
 test("a template scope refused on re-render withdraws its shortcuts, and its aliases follow each reading", async () => {
-  const { html, render } = await import("/runtime/framework.js");
-  const { scopesAt } = await import("../../browser/runtime/keyboard/scopes.js");
+  const { html, render } = await import("/vendor/lit.js");
+  const { scopesAt } = await import("../../browser/runtime/dom/keyboard/scopes.js");
   const root = document.createElement("section");
   document.body.append(root);
   const paint = (title, second) =>
@@ -2166,15 +2180,18 @@ test("a template scope refused on re-render withdraws its shortcuts, and its ali
 });
 
 test("a template scope's rows read the element the template renders", async () => {
-  const { html, render } = await import("/runtime/framework.js");
-  const { DISCLOSE } = await import("../../browser/runtime/keyboard/disclosure.js");
+  const { html, render } = await import("/vendor/lit.js");
   const root = document.createElement("section");
   document.body.append(root);
   render(
     html`<details>
       <summary
-        ${commandsOn("Disclosure", (summary) => [
-          { id: "probe.disclose", keys: () => DISCLOSE(summary), title: "toggle" },
+        ${commandsOn("Section", (summary) => [
+          {
+            id: "probe.step",
+            keys: () => [summary.parentElement.open ? "ArrowLeft" : "ArrowRight"],
+            title: "step",
+          },
         ])}
       ></summary>
     </details>`,
@@ -2192,7 +2209,7 @@ test("a template scope's rows read the element the template renders", async () =
 });
 
 test("template scopes follow current rows and retire without removing projected commands", async () => {
-  const { html, nothing, render } = await import("/runtime/framework.js");
+  const { html, nothing, render } = await import("/vendor/lit.js");
   const root = document.createElement("section");
   document.body.append(root);
   const invoked = [];
@@ -2430,48 +2447,173 @@ test("command aliases conflict by their canonical meaning while shifted Space st
     );
 });
 
-test("an announced scope says each live row's key and title", () => {
+test("a key is named beside a row only while its press would run the row", (t) => {
+  const owner = document.createElement("div");
+  owner.tabIndex = -1;
+  const inner = document.createElement("button");
+  owner.append(inner);
+  document.body.append(owner);
+  t.after(() => owner.remove());
+  const run = () => {};
   const rows = [
-    { id: "fixture.cancel", keys: ["Escape"], title: "cancel" },
-    { id: "fixture.top", keys: ["g"], title: "top" },
-    { id: "fixture.off", keys: ["x"], title: "unavailable", when: () => false },
+    { id: "fixture.cancel", keys: ["Escape"], title: "cancel", run },
+    { id: "fixture.top", keys: ["g"], title: "top", run },
+    { id: "fixture.off", keys: ["x"], title: "unavailable", when: () => false, run },
+    // A mode's own key and another way out, under one title.
+    { id: "fixture.leave", keys: ["w"], title: "leave", run },
+    { id: "fixture.out", keys: ["q"], title: "leave", run },
   ];
-  assert.equal(saying(rows), "Escape cancel, g top");
+  keys(owner, commandScope("Fixture", rows));
+  owner.focus();
+  assert.equal(saying(rows), "Escape cancel, g top, w or q leave");
+  assert.equal(activeCommandBinding(["fixture.top"]), "g");
+  // A nearer scope takes `g`, so from inside it the outer row's `g` goes unsaid, in an
+  // announcement and beside the command alike.
+  keys(
+    inner,
+    commandScope("Inner", [{ id: "fixture.inner", keys: ["g"], title: "inner", run }]),
+  );
+  inner.focus();
+  assert.equal(saying(rows), "Escape cancel, w or q leave");
+  assert.equal(activeCommandBinding(["fixture.top"]), null);
+  // A widget's announcement that gives the rows is heard with the same keys after its
+  // words, read as the words are said.
+  t.mock.timers.enable({ apis: ["setTimeout"] });
+  window.dispatchEvent(
+    new CustomEvent("lf-announce", { detail: { words: "Card grabbed", rows } }),
+  );
+  t.mock.timers.runAll();
+  assert.equal(liveEl.textContent, "Card grabbed — Escape cancel, w or q leave");
 });
 
-test("a widget's declared commands stand from before it is placed until it withdraws them", () => {
+test("an announced scope says no key on a touchscreen", (t) => {
+  Object.defineProperty(coarsePointer, "matches", {
+    configurable: true,
+    get: () => true,
+  });
+  t.after(() => delete coarsePointer.matches);
+  assert.equal(saying([{ id: "fixture.top", keys: ["g"], title: "top" }]), "");
+});
+
+test("a widget's commands stand from when it says them until it withdraws them", () => {
   const owner = document.createElement("section");
-  const declared = () => commandsWithin(owner).map(({ row }) => row.id);
-  // Declared while the element is out of the page, as a control built before it is
-  // placed is.
-  owner.lfCommands = {
-    title: "Declared",
-    rows: [{ id: "declared.run", title: "run", keys: ["Alt+1"], run: () => {} }],
-  };
-  commandsChanged(owner);
+  const inner = owner.attachShadow({ mode: "open" });
+  const part = inner.appendChild(document.createElement("div"));
+  const declared = (/** @type {Element} */ at) =>
+    commandsWithin(at).map(({ row }) => row.id);
+  const say = (/** @type {Element} */ at) =>
+    at.dispatchEvent(new CustomEvent("lf-commands", { bubbles: true, composed: true }));
+  const rows = [{ id: "declared.run", title: "run", keys: ["Alt+1"], run: () => {} }];
+  // Nothing hears an element out of the page, so its keys are read once it says them
+  // from inside it.
+  owner.lfCommands = { title: "Declared", rows };
+  say(owner);
   document.body.append(owner);
   try {
-    assert.deepEqual(declared(), ["declared.run"]);
+    assert.deepEqual(declared(owner), []);
+    assert.equal(commandsUnread(owner), true);
+    say(owner);
+    assert.deepEqual(declared(owner), ["declared.run"]);
+    assert.equal(commandsUnread(owner), false);
+    assert.equal(commandsUnread(part), false);
     owner.lfCommands = null;
-    commandsChanged(owner);
-    assert.deepEqual(declared(), []);
-    // A malformed declaration is refused where the widget made it.
+    say(owner);
+    assert.deepEqual(declared(owner), []);
+    // The element read is the one the event began at, inside a shadow root too.
+    part.lfCommands = { title: "Declared", rows };
+    say(part);
+    assert.deepEqual(
+      commandsWithin(owner).map(({ source }) => source),
+      [part],
+    );
+    part.lfCommands = null;
+    say(part);
+    assert.deepEqual(declared(owner), []);
+    // A malformed declaration is refused, and reported as the element's failure.
+    /** @type {unknown[]} */
+    const failures = [];
+    const hear = (/** @type {ErrorEvent} */ event) => {
+      failures.push([event.composedPath()[0], event.error.message]);
+      event.stopPropagation();
+    };
+    owner.addEventListener("error", hear);
     owner.lfCommands = {
       title: "Declared",
       rows: [{ id: "Not an id", title: "run", keys: ["Alt+1"], run: () => {} }],
     };
-    assert.throws(() => commandsChanged(owner), /not a stable command id/);
-    assert.deepEqual(declared(), []);
+    say(owner);
+    owner.removeEventListener("error", hear);
+    assert.equal(failures.length, 1);
+    // A declaration Leaf refused is one it read: the failure says what is wrong.
+    const fresh = inner.appendChild(document.createElement("div"));
+    fresh.lfCommands = owner.lfCommands;
+    fresh.addEventListener("error", hear);
+    say(fresh);
+    assert.equal(failures.length, 2);
+    assert.equal(commandsUnread(fresh), false);
+    assert.equal(failures[0][0], owner);
+    assert.match(failures[0][1], /not a stable command id/);
+    assert.deepEqual(declared(owner), []);
   } finally {
+    owner.remove();
+  }
+});
+
+test("one stated object is one scope on each element and margin entry that holds it", async () => {
+  const { registerContribution } = await import("/runtime/features/contributions.js");
+  const { presentContributionEntry } =
+    await import("/runtime/features/contribution-controls.js");
+  const owner = document.createElement("section");
+  const editor = owner.appendChild(document.createElement("div"));
+  const control = owner.appendChild(document.createElement("button"));
+  document.body.append(owner);
+  let runs = 0;
+  const stated = {
+    title: "Stated",
+    rows: [{ id: "stated.run", title: "Run", keys: ["Alt+2"], run: () => runs++ }],
+  };
+  for (const at of [owner, editor]) {
+    at.lfCommands = stated;
+    at.dispatchEvent(new CustomEvent("lf-commands", { bubbles: true, composed: true }));
+  }
+  const entry = {
+    key: "run",
+    icon: "check",
+    label: "Run",
+    activation: "stated.run",
+    scope: stated,
+  };
+  // An entry's control in the widget, as a seated margin entry's is.
+  presentContributionEntry(control, entry);
+  const registration = registerContribution({
+    key: "stated-probe",
+    target: owner,
+    read: () => ({ entries: [entry] }),
+  });
+  try {
+    reflectFirstScopes();
+    reflectKeys();
+    // Two elements hold the scope and an entry's control projects it, and the widget's
+    // commands count it once: an entry naming another object would add a second.
+    assert.deepEqual(
+      commandsWithin(owner).map(({ row }) => row.id),
+      ["stated.run"],
+    );
+    // The entry is the command the elements declared: its availability and its run.
+    assert.equal(registration.entry("run").disabled, false);
+    assert.equal(registration.activate("run"), true);
+    assert.equal(runs, 1);
+  } finally {
+    registration.unregister();
     owner.remove();
   }
 });
 
 test("a chosen contribution offer retains its exact reading across a later update", async () => {
   const { registerContribution, contributionEntries } =
-    await import("/runtime/contributions.js");
+    await import("/runtime/features/contributions.js");
   const { materializeContributionControls, activateContributionControl } =
-    await import("/runtime/contribution-controls.js");
+    await import("/runtime/features/contribution-controls.js");
   const owner = document.createElement("section");
   document.body.append(owner);
   let label = "Before the update";
@@ -2495,8 +2637,8 @@ test("a chosen contribution offer retains its exact reading across a later updat
       "margin",
       activateContributionControl,
     )(chosen.reading.entries[0]);
-    // What an entry says is its preview (preview.js).
-    const { render } = await import("/runtime/framework.js");
+    // What an entry says is its preview (annotations/preview.js).
+    const { render } = await import("/vendor/lit.js");
     const said = (control) => {
       const box = document.createElement("div");
       render(control.lfPreview().name, box);
@@ -2563,6 +2705,71 @@ test("a focus move reads again only the keys and buttons that ask where the user
     assert.equal(reads, 0);
   } finally {
     asking.remove();
+    still.remove();
+  }
+});
+
+// A package's row asks the browser where focus is, which no signal tracks, so a move
+// reads again the scopes around the node the user left and the one they reached, and
+// still no other.
+test("a focus move reads again the scopes it leaves and enters, whatever their rows ask", () => {
+  const scope = document.createElement("section");
+  const inside = document.createElement("button");
+  const outside = document.createElement("button");
+  const still = document.createElement("section");
+  scope.append(inside);
+  document.body.append(scope, outside, still);
+  let reads = 0;
+  keys(scope, "Native", [
+    {
+      id: "probe.native",
+      title: "Act",
+      keys: ["Alt+5"],
+      when: () => scope.contains(document.activeElement),
+      run: () => {},
+    },
+  ]);
+  keys(still, "Still", [
+    {
+      id: "probe.still-native",
+      title: "Act",
+      keys: ["Alt+4"],
+      when: () => {
+        reads++;
+        return true;
+      },
+      run: () => {},
+    },
+  ]);
+  reflectFirstScopes();
+  reflectKeys();
+  try {
+    assert.equal(scope.getAttribute("aria-keyshortcuts"), null);
+    reads = 0;
+    inside.focus();
+    reflectFirstScopes();
+    reflectKeys();
+    assert.equal(scope.getAttribute("aria-keyshortcuts"), "Alt+5");
+    outside.focus();
+    reflectFirstScopes();
+    reflectKeys();
+    assert.equal(scope.getAttribute("aria-keyshortcuts"), null);
+    assert.equal(reads, 0);
+    // The node the user left can be gone by then, and with it the climb to its scope.
+    const again = document.createElement("button");
+    scope.append(again);
+    again.focus();
+    reflectFirstScopes();
+    reflectKeys();
+    assert.equal(scope.getAttribute("aria-keyshortcuts"), "Alt+5");
+    again.remove();
+    outside.focus();
+    reflectFirstScopes();
+    reflectKeys();
+    assert.equal(scope.getAttribute("aria-keyshortcuts"), null);
+  } finally {
+    scope.remove();
+    outside.remove();
     still.remove();
   }
 });

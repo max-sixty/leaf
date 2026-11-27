@@ -16,7 +16,12 @@
  * nothing; the answer is the store held, which the container then works from. No page
  * commit carries it, so no commit puts an older store back, and a saved `api/drafts`
  * or `api/news` answer is served with the stored drafts in place of those it was
- * captured with.
+ * captured with. Each drafts store is kept under the `format` of the drafts record it
+ * was written at (the manifest's `drafts_format`), and a release reads and replaces
+ * only the stores at its own format, as a local Leaf reads only the
+ * `drafts@<since>.json` of its own shape (`state.Record`). So a release whose Leaf
+ * changed the drafts' shape finds no store for a page, and a release back at the
+ * earlier shape finds that store as it was left.
  * GET /records is one uncompressed TAR snapshot: records.json first contains the
  * committed file descriptors and each page's drafts store; each referenced chunk
  * follows once as a regular file named by its hex digest. Capture and stream
@@ -45,7 +50,7 @@
  * Delivery identity is the pathname and sorted decoded query pairs, independent
  * of the HTTP serializer used by Python or the browser. A saved response keeps the
  * headers Python captured, so it is cached as the live answer would be
- * (`CACHE_CONTROL`, `src/leaf/http.py`).
+ * (`CACHE_CONTROL`, `src/leaf/serving/http.py`).
  */
 
 import * as z from "zod/mini";
@@ -55,6 +60,12 @@ import type {
   ServedNewsAnswer,
   ServedState,
 } from "../../browser/types/contract.js";
+import { hex, type SiteManifest } from "./routing";
+
+// The lowercase hex SHA-256 of `bytes`: a chunk's name and a publication's identity.
+async function sha256Hex(bytes: BufferSource): Promise<string> {
+  return hex(new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)));
+}
 
 export const CHUNK_BYTES = 1024 * 1024;
 const digest = z.string().check(z.regex(/^[0-9a-f]{64}$/));
@@ -86,7 +97,9 @@ type PageDrafts = z.infer<typeof draftsSchema>;
 export function readPageDrafts(value: unknown): PageDrafts {
   return draftsSchema.parse(value);
 }
-type WebsitePages = { release: string; pages: Record<string, unknown> };
+type WebsitePages = Pick<SiteManifest, "release" | "drafts_format"> & {
+  pages: Record<string, unknown>;
+};
 const commitSchema = z.strictObject({ root: z.string(), identity: digest });
 type PublicationCommit = z.infer<typeof commitSchema>;
 export function readPublicationCommit(value: unknown): PublicationCommit {
@@ -124,7 +137,7 @@ export function prepareStateDelivery(
     state.data = { version: state.data.version };
 }
 
-export const STORE_FORMAT = 1;
+export const STORE_FORMAT = 2;
 export const STORE_TABLES = `CREATE TABLE IF NOT EXISTS leaf_pages (
   root TEXT, staged INTEGER, identity TEXT, release TEXT, PRIMARY KEY(root, staged)
 ); CREATE TABLE IF NOT EXISTS leaf_files (
@@ -136,7 +149,7 @@ export const STORE_TABLES = `CREATE TABLE IF NOT EXISTS leaf_pages (
 ); CREATE TABLE IF NOT EXISTS leaf_blobs (
   digest TEXT PRIMARY KEY, bytes BLOB
 ); CREATE TABLE IF NOT EXISTS leaf_drafts (
-  root TEXT PRIMARY KEY, drafts TEXT
+  root TEXT, format TEXT, drafts TEXT, PRIMARY KEY(root, format)
 )`;
 
 export class PageStore {
@@ -207,13 +220,7 @@ export class PageStore {
             )
           : value,
     );
-    const identity = Array.from(
-      new Uint8Array(
-        await crypto.subtle.digest("SHA-256", new TextEncoder().encode(descriptor)),
-      ),
-    )
-      .map((byte) => byte.toString(16).padStart(2, "0"))
-      .join("");
+    const identity = await sha256Hex(new TextEncoder().encode(descriptor));
     return this.storage.transactionSync(() => {
       const root = publication.root;
       this.erase(root, true);
@@ -250,11 +257,7 @@ export class PageStore {
     digest.parse(name);
     if (bytes.byteLength > CHUNK_BYTES)
       throw new Error("page storage chunk exceeds 1 MiB");
-    const actual = Array.from(
-      new Uint8Array(await crypto.subtle.digest("SHA-256", bytes)),
-    )
-      .map((byte) => byte.toString(16).padStart(2, "0"))
-      .join("");
+    const actual = await sha256Hex(bytes);
     if (actual !== name)
       throw new Error("page storage chunk digest does not match bytes");
     if (!this.references(true).includes(name)) {
@@ -315,7 +318,7 @@ export class PageStore {
    * it away. */
   saveDrafts(value: PageDrafts, manifest: WebsitePages): ServedDraftsAnswer | null {
     this.checkRoot(value.root, manifest);
-    const held = this.drafts(value.root);
+    const held = this.drafts(value.root, manifest);
     const replaces = value.replaces;
     if (
       replaces === null
@@ -324,21 +327,26 @@ export class PageStore {
     )
       return held;
     this.storage.sql.exec(
-      "INSERT OR REPLACE INTO leaf_drafts VALUES (?, ?)",
+      "INSERT OR REPLACE INTO leaf_drafts VALUES (?, ?, ?)",
       value.root,
+      manifest.drafts_format,
       JSON.stringify(value.drafts),
     );
     return value.drafts as ServedDraftsAnswer;
   }
 
-  private drafts(root: string): ServedDraftsAnswer | null {
+  private drafts(root: string, manifest: WebsitePages): ServedDraftsAnswer | null {
     const rows = this.storage.sql
-      .exec<{ drafts: string }>("SELECT drafts FROM leaf_drafts WHERE root = ?", root)
+      .exec<{ drafts: string }>(
+        "SELECT drafts FROM leaf_drafts WHERE root = ? AND format = ?",
+        root,
+        manifest.drafts_format,
+      )
       .toArray();
     return rows.length ? (JSON.parse(rows[0].drafts) as ServedDraftsAnswer) : null;
   }
 
-  records(): Response {
+  records(manifest: WebsitePages): Response {
     const records = Object.fromEntries(
       this.storage.sql
         .exec<{ root: string }>(
@@ -362,7 +370,8 @@ export class PageStore {
     const drafts = Object.fromEntries(
       this.storage.sql
         .exec<{ root: string; drafts: string }>(
-          "SELECT root, drafts FROM leaf_drafts ORDER BY root",
+          "SELECT root, drafts FROM leaf_drafts WHERE format = ? ORDER BY root",
+          manifest.drafts_format,
         )
         .toArray()
         .map(({ root, drafts }) => [root, JSON.parse(drafts)]),
@@ -434,12 +443,12 @@ export class PageStore {
   }
 
   /** The response the page's last commit captured at `path`, or null where it captured
-   * none under `release`. */
+   * none under the manifest's release. */
   async response(
     root: string,
     path: string,
     request: Request,
-    release: string,
+    manifest: WebsitePages,
   ): Promise<Response | null> {
     const rows = this.storage.sql
       .exec<{
@@ -450,17 +459,17 @@ export class PageStore {
          WHERE root = ? AND path = ? AND staged = 0 AND release = ?`,
         root,
         responseIdentity(path),
-        release,
+        manifest.release,
       )
       .toArray();
     if (rows.length === 0) return null;
     const response = rows[0];
     const headers = new Headers(JSON.parse(response.headers));
     // Served while the container is stopped, so the tab reads that its next write
-    // waits for the container to launch (`writeLaunchesAgent` in `layer-client.js`).
+    // waits for the container to launch (`writeLaunchesAgent` in `transport/layer-client.js`).
     headers.set("Leaf-State-Source", "durable");
     const drafts =
-      path === "api/drafts" || path === "api/news" ? this.drafts(root) : null;
+      path === "api/drafts" || path === "api/news" ? this.drafts(root, manifest) : null;
     if (drafts !== null) headers.delete("Content-Length");
     if (request.method === "HEAD") return new Response(null, { headers });
     if (drafts !== null && path === "api/drafts")

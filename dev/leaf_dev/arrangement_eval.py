@@ -31,14 +31,15 @@ from urllib.parse import urldefrag
 
 import turbohtml
 
-from leaf.delivery import opened_input_ids
-from leaf.event_log import read_events
-from leaf.harness import ClaudeCodeHarness
-from leaf.render_gate import command as render_command_model
-from leaf.service import requires_agent_attention
-from leaf.structure import source_index, splice
-from leaf.thread import successful_replies
-from leaf.user_views import read_user_views
+from leaf.agents.delivery import opened_input_ids
+from leaf.agents.thread import successful_replies
+from leaf.base.harness import ClaudeCodeHarness
+from leaf.log.event_log import read_events
+from leaf.pages.render_gate import command as render_command_model
+from leaf.records.transaction import requires_agent_attention
+from leaf.serving.user_views import read_user_views
+from leaf.source.render_checks import SERVED_TIMEOUT_MS
+from leaf.source.structure import source_index, splice
 from leaf_dev import ROOT, pane_readings, plain_html
 from leaf_dev.arms import (
     JUDGE_MODELS,
@@ -268,7 +269,7 @@ def snapshot(page: Path, destination: Path) -> None:
         shutil.copytree(
             page,
             destination,
-            ignore=shutil.ignore_patterns("service.json", "*.lock"),
+            ignore=shutil.ignore_patterns("service@*.json", "*.lock"),
         )
 
 
@@ -390,7 +391,7 @@ def open_as_user(run: Run, url: str) -> None:
             "Object.defineProperty(Navigator.prototype, 'webdriver', {get: () => false})"
         )
         load(view, url)
-        deadline = time.monotonic() + 20
+        deadline = time.monotonic() + SERVED_TIMEOUT_MS / 1000
         while not read_user_views(run.authored_page, None)["sessions"]:
             if time.monotonic() > deadline:
                 raise RuntimeError(f"the page recorded no view of {url}")
@@ -801,19 +802,6 @@ Task and criterion:
             return response | {"output": output, "tokenUsage": tokens}
     except Exception as error:
         return {"error": str(error), "metadata": {"evidence": str(evidence)}}
-
-
-def call_api(prompt: str, options: dict, context: dict) -> dict:
-    """Promptfoo's live judge provider for the final and predecision pages."""
-    request = context["vars"]
-    return judge_pages(
-        request["pages"],
-        request["widths"],
-        prompt,
-        request["schema"],
-        Path(request["evidence"]),
-        handovers=request.get("handovers"),
-    )
 
 
 def capture(run: Run) -> dict[int, dict]:

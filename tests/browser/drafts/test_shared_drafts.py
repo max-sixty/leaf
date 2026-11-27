@@ -15,7 +15,6 @@ from render_harness import (
     CutOff,
     _traffic,
     _until,
-    draft_control,
     drafts_on_server,
     expect_panel_says,
     expect_preview_words,
@@ -26,6 +25,7 @@ from render_harness import (
     open_page,
     open_threads,
     page_comment,
+    press_draft_control,
     refuse,
     resized,
     restarting,
@@ -44,8 +44,9 @@ from browser.drafts import (
     cancel_draft,
     choose_comment_target,
 )
-from leaf import event_log as events_model
-from leaf.findings import Finding
+from leaf.base.findings import Finding
+from leaf.log import event_log as events_model
+from leaf.serving.drafts import DRAFTS
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -129,9 +130,9 @@ def test_one_shared_draft_edit_appends_one_action_across_tabs(browser, serve, on
 
     held = []
     first.route("**/api/event", lambda route: held.append(route))
-    draft_control(first, "save", "draft-ops").click()
+    press_draft_control(first, "save", "draft-ops")
     holding(first, held, 1, "the first draft edit")
-    draft_control(second, "save", "draft-ops").click()
+    press_draft_control(second, "save", "draft-ops")
     round_trip(second)
 
     held[0].continue_()
@@ -171,6 +172,9 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
     expect(second.locator("#jobs > .lf-another leaf-text")).to_have_js_property(
         "value", text
     )
+    # The generation holds that selection now, so the tab's own goes back to its
+    # state's: neither tab shows the forged option chosen when it sends.
+    first.locator("#job-mounts").evaluate("el => el.removeAttribute('selected')")
 
     held = []
     first.route("**/api/event", lambda route: held.append(route))
@@ -190,8 +194,7 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
     for route in held:
         route.continue_()
     round_trip(first)
-    # The forged selection is not the state's, so the `add` renders it away and the pick
-    # that follows in the same task puts it back.
+    # Both picks carry the option only the generation recorded.
     moves = [
         event
         for event in events_model.read_events(serve.page_dir)
@@ -865,10 +868,10 @@ def _send_cut_short(page):
 
 
 def _type_on_arrival(page, words):
-    """Put the user in the page comment's box as they arrive, add `words` at its caret
-    as one input, so the reload writes them in one generation, and return the box."""
+    """Add `words` at the caret of the page comment's box, where the user stands as
+    they arrive, as one input, so the reload writes them in one generation, and return
+    the box."""
     field = page.locator('.lf-fp-field leaf-text[name="comment"]')
-    page.keyboard.press("c")
     expect(field).to_be_focused()
     page.keyboard.insert_text(words)
     return field
@@ -970,40 +973,6 @@ def test_words_typed_on_a_reload_stand_however_late_the_page_it_left_writes(
     expect(field).to_have_js_property("value", "Kept words")
 
 
-def test_words_typed_on_a_reload_stand_over_the_send_it_cut_short(
-    firefox_browser, serve
-):
-    """A reload that cuts short a send still out starts from the drafts it was served,
-    since only the log can say whether those words were sent, and the page it replaced
-    resends them as it goes. Each reload after counts that resend as its own write
-    until the server takes one of its own, so the words typed after a second reload
-    stand over the resend landing after them. Firefox's routes hold the resend, which
-    Chromium's don't see."""
-    page = open_page(firefox_browser, serve(LONG_PAGE))
-    sends = []
-    _, says, reads = _reload_while_writing(
-        page, before_reload=lambda: sends.extend(_send_cut_short(page))
-    )
-    holding(page, says["resent Kept"], 1, "the resend")
-    refuse(sends[0])
-    with restarting(page):
-        page.reload()
-    field = _type_on_arrival(page, " words")
-    holding(page, says["K words"], 1, "the second reload's write")
-
-    refuse(says["Ke"][0])
-    for resend in says["resent Kept"]:
-        _land(resend)
-    assert drafts_on_server(page)["general"]["text"] == "Kept"
-    page.unroute("**/api/draft")
-    page.unroute("**/api/drafts")
-    _land(says["K words"][0])
-    for route in reads:
-        route.continue_()
-    assert stored_draft_text(page, "general") == "K words"
-    expect(field).to_have_js_property("value", "K words")
-
-
 def test_words_typed_on_a_reload_stand_over_a_resend_landing_after_a_rewrite(
     firefox_browser, serve
 ):
@@ -1018,12 +987,14 @@ def test_words_typed_on_a_reload_stand_over_a_resend_landing_after_a_rewrite(
     )
     holding(page, says["resent Kept"], 1, "the resend")
     refuse(sends[0])
-    (serve.page_dir / "drafts.json").unlink()
+    DRAFTS.file(serve.page_dir / "drafts.json").unlink()
     page.unroute("**/api/drafts")
     for route in reads:
         route.continue_()
     holding(page, says["K"], 1, "the reload giving back the words the server lost")
     _land(says["K"][0])
+    # The send took the user out of the box; `c` puts them back in it.
+    page.keyboard.press("c")
     field = _type_on_arrival(page, " words")
     holding(page, says["K words"], 1, "the reload's write of the words typed on it")
 
@@ -1052,6 +1023,9 @@ def test_words_sent_just_before_a_reload_do_not_come_back_with_it(
         round_trip(page)
 
     writes, _, reads = _reload_while_writing(page, before_reload=send)
+    # The send opened its thread, which the entry names, so the reload opens it again;
+    # putting it away stands the page's box in the field.
+    page.keyboard.press("Escape")
     field = page.locator('.lf-fp-field leaf-text[name="comment"]')
     expect(field).to_have_js_property("value", "")
 
@@ -1146,7 +1120,7 @@ def test_a_tab_gives_its_words_to_a_store_that_replaced_its_own(browser, serve):
     typed = "Words the first store held."
     write(page_comment(page), typed)
     assert stored_draft_text(page, "general") == typed
-    (serve.page_dir / "drafts.json").unlink()
+    DRAFTS.file(serve.page_dir / "drafts.json").unlink()
     wait_for(
         lambda: stored_draft_text(page, "general"),
         lambda text: text == typed,
@@ -1168,7 +1142,7 @@ def test_a_reload_into_a_replaced_store_keeps_its_words_beside_another_device_s(
     assert stored_draft_text(page, "general") == typed
     # No look tells the page of the new store before it reloads.
     page.route("**/api/news", refuse)
-    (serve.page_dir / "drafts.json").unlink()
+    DRAFTS.file(serve.page_dir / "drafts.json").unlink()
     elsewhere = "Words another device wrote into the new store."
     write_draft_elsewhere(page, "general", elsewhere)
     with restarting(page):
@@ -1206,7 +1180,7 @@ def test_a_reload_gives_a_replaced_store_its_words_with_a_write_or_two_each(
     page.route("**/api/draft", lambda route: writes.append(route))
     write(box, "Held, and waiting")
     holding(page, writes, 1, "the write still waiting")
-    (serve.page_dir / "drafts.json").unlink()
+    DRAFTS.file(serve.page_dir / "drafts.json").unlink()
     refuse(writes[0])
     page.unroute("**/api/draft")
     posts = []

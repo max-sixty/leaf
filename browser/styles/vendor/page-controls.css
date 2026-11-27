@@ -326,10 +326,14 @@
   background: var(--lf-chip);
 }
 
+:where(button:not([data-lf-offer], .lf-chrome *):is([aria-pressed="true"], [aria-checked="true"])[data-lf-partial]) {
+  border-color: rgb(from var(--lf-accent) r g b / 40.0%);
+}
+
 :where(button:not([data-lf-offer], .lf-chrome *)[type="submit"][aria-pressed="true"]) {
-  color: var(--lf-settled-ink);
-  border-color: var(--lf-settled);
-  background: var(--lf-settled-tint);
+  color: var(--lf-ink);
+  border-color: var(--lf-ink-2);
+  background: var(--lf-chip);
 }
 
 /* Region "Face: Field" */

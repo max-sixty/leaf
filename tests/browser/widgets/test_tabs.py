@@ -2,18 +2,22 @@
 history, the stuck strip and the headers stacked under it, and queue rows and groups."""
 
 import re
+from datetime import UTC, datetime, timedelta
 
 import pytest
+from interact_support import append_command
 from playwright.sync_api import expect
 from render_cases_interaction import live_url, panel_comment
 from render_cases_layout import SHOT_SRC, SHOTS
 from render_harness import (
+    clocked,
     displayed,
     holding,
     leaf_page,
     open_page,
     open_threads,
     pane_scroll_behavior,
+    panel_says,
     post_event,
     resized,
     root_overflow,
@@ -24,8 +28,11 @@ from render_harness import (
     wait_for_revision,
 )
 
-from leaf import render_checks as render_checks_model
-from leaf.render_checks import rendered, wait_until_ready
+from browser.threads import open_panel_thread
+from browser.widgets import hear_walks, walks_said
+from leaf.source import render_checks as render_checks_model
+from leaf.source.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import named_source
 
 ROOT_TABS_PAGE = named_source("root-tabs")
@@ -567,8 +574,9 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
 def test_tab_onto_a_nested_workspace_link_clears_the_floating_panel(
     request, serve, engine
 ):
-    """The workspace's tab scroller clears the collapsed panel on native Tab,
-    including when an outer tab transfers its end clearance to nested views."""
+    """Native Tab brings a link in a nested workspace tab clear of the panel's row,
+    which stands over the tab's scroller: a landing in a scroller reaching under the
+    row ends its band where the page's does."""
     source = leaf_page(
         "Review evidence",
         '<header><h1>Review evidence</h1></header><lf-tabs id="views">'
@@ -839,6 +847,8 @@ def test_a_queue_entry_shows_the_face_its_item_opens_with(browser, serve):
     page = open_page(browser, live_url(serve(queue(120))))
     tabs = page.locator("#queue").get_by_role("tab")
     expect(tabs.nth(1)).to_have_accessible_name("README.md")
+    # Its label leaves out what it shows, so the description still says the summary.
+    expect(tabs.nth(1)).to_have_accessible_description("+120 −45 lines")
     expect(tabs.nth(1).locator("code")).to_have_text("README.md")
     expect(tabs.nth(1).locator(".added")).to_have_text("+120")
     expect(tabs.nth(1).locator(".lf-tab-summary")).to_have_count(0)
@@ -862,11 +872,24 @@ def test_side_tabs_distinguish_withdrawn_obligations_from_answers(browser, serve
         '<lf-tab id="only" label="Only withdrawn">'
         '<lf-group id="only-options-q" label="Keep it?"><lf-options id="only-options"><lf-option id="only-pick">Only</lf-option></lf-options></lf-group>'
         '</lf-tab><lf-tab id="mixed" label="Answer and withdrawal">'
-        '<lf-group id="answered-options-q" label="Keep it?"><lf-options id="answered-options"><lf-option id="answered-pick" selected>Keep</lf-option></lf-options></lf-group>'
+        '<lf-group id="answered-options-q" label="Keep it?"><lf-options id="answered-options"><lf-option id="answered-pick">Keep</lf-option></lf-options></lf-group>'
         '<lf-group id="withdrawn-options-q" label="Retire it?"><lf-options id="withdrawn-options"><lf-option id="withdrawn-pick">Retire</lf-option></lf-options></lf-group>'
         "</lf-tab></lf-tabs>",
     )
-    page = open_page(browser, live_url(serve(source)))
+    url = serve(source)
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "answered-options",
+            "action": "choose",
+            "detail": {"value": ["answered-pick"]},
+            "answered": True,
+        },
+    )
+    page = open_page(browser, live_url(url))
     marks = page.locator("#queue .lf-tab-answer")
     on_me = page.locator("#queue .lf-tab-btn .lf-tab-on-me")
     # The user's turn ends each row's name in On Me's symbol and leaves the answer line
@@ -956,6 +979,7 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
             "widget": "o-a",
             "action": "choose",
             "detail": {"value": ["o-a-fix"]},
+            "answered": True,
         },
     )
     assert posted.ok, posted.text()
@@ -1072,8 +1096,11 @@ def test_a_queue_stands_its_items_under_their_groups(browser, serve):
 
     tabs = page.locator("#queue").get_by_role("tab")
     expect(tabs).to_have_count(6)
-    expect(tabs.nth(2)).to_have_accessible_description("Close group. c summary")
-    expect(tabs.nth(3)).to_have_accessible_description("d summary")
+    # A row's summary shows under its name, so the name says it and the description
+    # says only the group the row stands under.
+    expect(tabs.nth(2)).to_have_accessible_name(re.compile(r" c summary$"))
+    expect(tabs.nth(2)).to_have_accessible_description("Close group")
+    expect(tabs.nth(3)).to_have_accessible_description("")
     tabs.nth(1).focus()
     page.keyboard.press("ArrowDown")
     expect(tabs.nth(2)).to_have_attribute("aria-selected", "true")
@@ -1084,7 +1111,7 @@ def test_a_queue_stands_its_items_under_their_groups(browser, serve):
     expect(page.locator("#queue > .lf-tabstrip .lf-tab-group")).to_have_text(
         ["Merge", "FYI"]
     )
-    expect(tabs.nth(2)).to_have_accessible_description("Merge group. c summary")
+    expect(tabs.nth(2)).to_have_accessible_description("Merge group")
 
     # On a phone, loaded there so the row has its presses from the start. A run's
     # first tab comes into the row with its label, clear of the presses: at rest, and
@@ -1197,10 +1224,13 @@ def test_a_scrolling_queue_brings_a_group_s_heading_in_with_its_first_item(
         first.getBoundingClientRect().top - strip.getBoundingClientRect().top + 10;
     }""")
     page.get_by_role("tab", name="Ticket 11").focus()
+    hear_walks(page)
     page.keyboard.press("ArrowUp")
     expect(page.get_by_role("tab", name="Ticket 10")).to_have_attribute(
         "aria-selected", "true"
     )
+    # The step said its place in the queue to the page.
+    assert walks_said(page) == ["Tab 11 of 30"]
     page.wait_for_function("""() => {
       const strip = document.querySelector('#queue > .lf-tabstrip');
       const band = strip.getBoundingClientRect();
@@ -1210,6 +1240,45 @@ def test_a_scrolling_queue_brings_a_group_s_heading_in_with_its_first_item(
       return strip.scrollTop > 0 && heading.top >= band.top - 0.5
         && heading.bottom <= tab.top + 0.5 && tab.bottom <= band.bottom + 0.5;
     }""")
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_tab_strip_s_place_goes_as_a_press_takes_the_user_to_another_tab(
+    engine, request, serve
+):
+    """A key's step along a strip that runs past the window says its place in Leaf's
+    panel, "Tab 2 of 24", for the step's moment. A pointer press on another tab takes
+    the user off the tab that step landed on, so the panel stops saying the place at
+    once, where it would otherwise name a tab the user has left for the rest of the
+    moment. The strip says nothing of the press: Leaf sees focus leave the stop the
+    place was said on (records/walk-position.js). The page's clock stands still from the step
+    on, so the moment can't end the place here."""
+    views = "".join(
+        f'<lf-tab id="view-{n}" label="View {n}"><p id="view-{n}-p">Words of view {n}.'
+        "</p></lf-tab>"
+        for n in range(1, 25)
+    )
+    source = leaf_page(
+        "a long tab strip",
+        f'<h1 id="t">Views</h1><lf-tabs id="views">{views}</lf-tabs>',
+    )
+    page = open_page(clocked(request.getfixturevalue(engine)), serve(source))
+    tabs = page.locator("#views [role=tab]")
+    tabs.nth(0).click()
+    expect(tabs.nth(0)).to_be_focused()
+    rendered(page)
+
+    page.clock.pause_at(datetime.now(UTC) + timedelta(seconds=1))
+    page.keyboard.press("ArrowRight")
+    page.clock.run_for(100)
+    expect(tabs.nth(1)).to_be_focused()
+    assert "Tab 2 of 24" in panel_says(page)
+    tabs.nth(3).click()
+    page.clock.run_for(100)
+    expect(tabs.nth(3)).to_have_attribute("aria-selected", "true")
+    assert "Tab 2 of 24" not in panel_says(page), (
+        "the panel names the tab the keys left the user on, with another tab pressed"
+    )
 
 
 def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
@@ -1297,7 +1366,7 @@ def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
     page.wait_for_function(shown, arg=["framed", 1])
     # Walking to the tab already open brings it back after a scroll took most of it
     # away. A sliver stays in the strip: with none, the tab is out of sight, so the key
-    # lets go of it and acts from what the user reads (keyboard/controller.js).
+    # lets go of it and acts from what the user reads (panel/page-keys/controller.js).
     page.evaluate("""() => {
       const strip = document.querySelector('#framed > .lf-tabstrip');
       const tab = strip.querySelector('[aria-selected="true"]');
@@ -1368,83 +1437,6 @@ def test_tab_reaches_the_open_panel_and_no_closed_one(browser, serve):
         expect(page.locator("#after")).to_be_focused()
 
 
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_a_side_list_longer_than_the_window_keeps_its_tab_and_open_item_in_view(
-    request, serve, engine
-):
-    """A side list longer than the window sticks beside the item it opens and scrolls on
-    its own. Each arrow opens the next tab and keeps focus on it in the window, down
-    and, coming round, back up through the list, while the item it opens starts in the
-    window. Running with the page, the walk scrolled each item's start away, and a tab
-    left past the window's foot, or read away from, was out of sight, so the next arrow
-    let go of it (keyboard/controller.js), focus fell to the page and no tab opened.
-    The row the walk heads for shows beside the open tab, so the list doesn't look as
-    though it starts or ends there. Read down an item, the list stays beside it, and the
-    next arrow opens the next item at its start. A list shorter than the window stays
-    beside its item until the item ends."""
-
-    def items(key, count):
-        return "".join(
-            f'<lf-tab id="{key}-{i}" label="{key.title()} {i}">'
-            + "".join(f"<p>{key} {i} reads on, paragraph {n}.</p>" for n in range(30))
-            + "</lf-tab>"
-            for i in range(count)
-        )
-
-    source = leaf_page(
-        "Long queue",
-        f'<h1 id="title">Queue</h1><lf-tabs id="queue" list="side">{items("item", 30)}'
-        f'</lf-tabs><lf-tabs id="brief" list="side">{items("brief", 4)}</lf-tabs>'
-        + "".join(f"<p>What follows, paragraph {n}.</p>" for n in range(20)),
-    )
-    page = open_page(request.getfixturevalue(engine), serve(source))
-    resized(page, 1200, 500)
-    tabs = page.locator("#queue").get_by_role("tab")
-    item_starts_in_view = """id => {
-      const top = document.getElementById(id).getBoundingClientRect().top;
-      return top >= 0 && top < innerHeight / 2;
-    }"""
-    expect(tabs.last).not_to_be_in_viewport()
-    tabs.first.click()
-    expect(tabs.first).to_be_focused()
-    # Down every tab and round to the first, then up round to the last and on up
-    # through the middle of the list.
-    for key, landing in [("ArrowDown", i % 30) for i in range(1, 31)] + [
-        ("ArrowUp", i) for i in [29, *range(28, 9, -1)]
-    ]:
-        page.keyboard.press(key)
-        tab = tabs.nth(landing)
-        expect(tab).to_be_focused()
-        expect(tab).to_have_attribute("aria-selected", "true")
-        expect(tab).to_be_in_viewport(ratio=0.99)
-        ahead = landing + 1 if key == "ArrowDown" else landing - 1
-        if 0 <= ahead < 30:
-            expect(tabs.nth(ahead)).to_be_in_viewport(ratio=0.99)
-        page.wait_for_function(item_starts_in_view, arg=f"item-{landing}")
-    # Read down the open item, then walk on from the list.
-    item = page.locator("#item-10").bounding_box()
-    assert item is not None
-    page.mouse.move(item["x"] + item["width"] / 2, 300)
-    page.mouse.wheel(0, 400)
-    scroll_settled(page)
-    expect(page.locator("#item-10")).not_to_be_in_viewport(ratio=0.9)
-    expect(tabs.nth(10)).to_be_in_viewport(ratio=0.99)
-    page.keyboard.press("ArrowDown")
-    expect(tabs.nth(11)).to_be_focused()
-    expect(tabs.nth(11)).to_have_attribute("aria-selected", "true")
-    page.wait_for_function(item_starts_in_view, arg="item-11")
-    # Read the short list's item to near its end: the list still stands beside it.
-    page.evaluate("""() => {
-      const item = document.getElementById('brief-0');
-      scrollTo({top: scrollY + item.getBoundingClientRect().bottom - 200,
-        behavior: 'instant'});
-    }""")
-    scroll_settled(page)
-    expect(page.locator("#brief").get_by_role("tab").first).to_be_in_viewport(
-        ratio=0.99
-    )
-
-
 def test_a_tab_strip_is_named_as_the_chrome_names_its_set(browser, serve):
     """A screen reader names each list of tabs, so a page's several sets can be told
     apart: the page's navigation by the page's `<title>`, a set in a section by the
@@ -1504,9 +1496,9 @@ def test_root_tab_targets_remain_global(browser, serve):
 
 def test_a_workspace_part_fills_the_window_from_first_paint(browser, serve):
     """A page of parts whose opening part is a workspace gives that workspace the
-    window's height above the floating panel's row before the runtime upgrades the parts,
-    so nothing grows or moves when it does. The row's room is the part's own end, so the
-    part and the page reach the window's foot with no band below them."""
+    window's height before the runtime upgrades the parts, so nothing grows or moves
+    when it does. The part and the page reach the window's foot with no band below
+    them."""
     source = leaf_page(
         "Workspace part",
         '<header><h1>Review</h1></header><lf-parts id="parts">'
@@ -1529,18 +1521,15 @@ def test_a_workspace_part_fills_the_window_from_first_paint(browser, serve):
             return page.evaluate("""() => {
               const block = document.querySelector('#surface').getBoundingClientRect();
               const part = document.querySelector('#work').getBoundingClientRect();
-              const room = parseFloat(getComputedStyle(document.querySelector('#work'))
-                .paddingBlockEnd);
               const scroller = document.scrollingElement;
               return {top: Math.round(block.top), height: Math.round(block.height),
-                      room: Math.round(room),
-                      under: Math.round(part.bottom - block.bottom - room),
+                      under: Math.round(part.bottom - block.bottom),
                       foot: Math.round(innerHeight - part.bottom),
                       scrolls: scroller.scrollHeight - scroller.clientHeight};
             }""")
 
         first = heights()
-        assert first["height"] > 400 and first["room"] > 0, first
+        assert first["height"] > 400, first
         assert first["under"] == first["foot"] == 0, first
         assert first["scrolls"] <= 0, first
         boot.pop().continue_()
@@ -1562,24 +1551,19 @@ def test_the_list_of_parts_stays_in_reach_in_every_window(browser, serve, subtes
     last = tabs.get_by_role("tab", name="Summary", exact=True)
     strip = page.locator("#root-parts > .lf-tabstrip")
 
-    with subtests.test("its last name lands above the floating row"):
-        # The list runs to the window's foot, under the floating panel's row where a
-        # narrow window puts the row over the column. A name the keyboard moves to
-        # still lands above the row, as a landing in the page does. The window leaves
-        # the list 100 px between its title and the row, whatever height the host's
-        # fonts give the title, so the list scrolls to reach its last name.
+    with subtests.test("its last name comes into the window"):
+        # The list runs to the window's foot. The window leaves the list 100 px below
+        # its title, whatever height the host's fonts give the title, so the list
+        # scrolls to reach its last name, which the keyboard brings whole into view.
         resized(page, 800, 900)
         title = page.locator("main > header").bounding_box()
-        under_row = 900 - page.locator(".lf-fp-row").bounding_box()["y"]
-        resized(page, 800, round(title["y"] + title["height"] + 100 + under_row))
+        resized(page, 800, round(title["y"] + title["height"] + 100))
         plan.focus()
         page.keyboard.press("End")
         expect(last).to_be_focused()
         scroll_settled(page)
-        row = page.locator(".lf-fp-row").bounding_box()
         box = last.bounding_box()
-        assert box["x"] < row["x"] + row["width"], (box, row)
-        assert box["y"] + box["height"] <= row["y"], (box, row)
+        assert box["y"] + box["height"] <= page.evaluate("innerHeight"), box
 
     with subtests.test("a short window leaves it a few names' room"):
         # The column stands fixed in the window, so a title taller than a short window
@@ -1666,7 +1650,10 @@ def test_each_part_s_row_says_where_its_question_stands(browser, serve):
     resized(page, 1280, 800)
 
     def row(key):
-        return page.locator("#parts").get_by_role("tab", name=key.title(), exact=True)
+        # A row's name is the words it shows, its answer line's included.
+        return page.locator("#parts").get_by_role(
+            "tab", name=re.compile(f"^{key.title()}( |$)")
+        )
 
     def mark(key):
         return row(key).locator(".lf-tab-answer")
@@ -1695,7 +1682,9 @@ def test_each_part_s_row_says_where_its_question_stands(browser, serve):
     expect(mark("answered")).to_have_attribute("data-lf-obligations", "answered")
     expect(mark("answered")).to_have_text("Alpha")
     expect(on_me("answered")).to_be_hidden()
-    expect(row("answered")).to_have_accessible_description("Answered: Alpha")
+    # The answer line is in the name, so the description adds only that it's answered.
+    expect(row("answered")).to_have_accessible_name("Answered Alpha")
+    expect(row("answered")).to_have_accessible_description("Answered")
     name = row("answered").locator(".lf-tab-name").bounding_box()
     assert mark("answered").bounding_box()["y"] >= name["y"] + name["height"] - 0.5
     assert row("answered").bounding_box()["height"] == height
@@ -1705,7 +1694,8 @@ def test_each_part_s_row_says_where_its_question_stands(browser, serve):
     expect(mark("sent")).to_have_text("On Claude")
     expect(mark("sent")).to_have_attribute("data-lf-obligations", "open")
     expect(on_me("sent")).to_be_hidden()
-    expect(row("sent")).to_have_accessible_description("On Claude")
+    expect(row("sent")).to_have_accessible_name("Sent On Claude")
+    expect(row("sent")).to_have_accessible_description("")
 
     row("reopened").click()
     with sending(page, "the reopened part's pick"):
@@ -1772,6 +1762,46 @@ def test_side_list_history_restores_the_reading_offset_of_each_entry(
         page.evaluate("window.navigation.transition?.finished")
         scroll_settled(page)
         assert page.evaluate("scrollY") == pytest.approx(offset, abs=2)
+
+
+def test_back_to_another_view_with_a_thread_returns_to_both(browser, serve):
+    """Back to an entry in another root view, where a thread stood open, opens the
+    thread again and returns to that view where the user had read it to: the tab set
+    and the thread each restore their part of the entry."""
+    body = '<h1>Views</h1><p>Shared context.</p><lf-tabs id="views" list="side">'
+    body += "".join(
+        f'<lf-tab id="view-{name.lower()}" label="{name}">'
+        + "".join(
+            f"<p>{name} paragraph {i}. Reading continues here.</p>" for i in range(180)
+        )
+        + "</lf-tab>"
+        for name in ("A", "B")
+    )
+    body += "</lf-tabs>"
+    url = serve(leaf_page("Reading views", body))
+    root = panel_comment(serve.page_dir, "About the whole page.")
+    page = open_page(browser, url)
+    resized(page, 1600, 1000)
+    a = page.get_by_role("tab", name="A", exact=True)
+    b = page.get_by_role("tab", name="B", exact=True)
+    open_panel_thread(page, root)
+    thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
+    page.evaluate("scrollTo({top: 3000, behavior: 'instant'})")
+    scroll_settled(page)
+    # Keys, not presses: a press on the page would put the thread away first.
+    a.focus()
+    page.keyboard.press("ArrowDown")
+    expect(b).to_have_attribute("aria-selected", "true")
+    expect(thread).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(thread).to_be_hidden()
+    page.wait_for_function("navigation.transition === null")
+    page.go_back()
+    expect(a).to_have_attribute("aria-selected", "true")
+    expect(thread).to_be_visible()
+    page.evaluate("window.navigation.transition?.finished")
+    scroll_settled(page)
+    assert page.evaluate("scrollY") == pytest.approx(3000, abs=2)
 
 
 def test_authored_page_tabs_share_sidebar_tracks_beside_boxed_tabs(

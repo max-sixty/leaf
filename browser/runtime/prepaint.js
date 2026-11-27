@@ -1,3 +1,4 @@
+// Compiled from prepaint.ts by build/typescript.mjs; edit that file.
 // What a document Leaf's runtime will run in, served or exported, has to say before its
 // first paint, which no module can reach: modules run once the document has parsed, and
 // the browser paints what has arrived well before that. Delivery places this script
@@ -29,7 +30,6 @@
   let swapped = false;
   let departure = 0;
   let leaving = false;
-  /** @type {Map<string, () => void>} */
   let waiting = new Map();
   window.lfDocumentLifetime = Object.freeze({
     /** Report after the current native operation, once known to have stayed, or never. */
@@ -71,9 +71,7 @@
 
   // The early input owner is delivered before this script. Page lifetime subscribes
   // to that same stream rather than making a second input listener.
-  const inputs = /** @type {DocumentInputs} */ (
-    Reflect.get(window, Symbol.for("leaf.inputs"))
-  );
+  const inputs = Reflect.get(window, Symbol.for("leaf.inputs"));
   inputs.observe((event) => {
     if (event.type !== "blur" && event.type !== "wheel") stayed();
   });
@@ -89,7 +87,7 @@
   // presentation until startup either completes or declares its own failure. A
   // declared fault may be
   // the page's own (`page`), as a module that staged words the page cannot read
-  // (passages.js, `refusesBareText`): incomplete too, but no server fixes it. The
+  // (readings/passages.js, `refusesBareText`): incomplete too, but no server fixes it. The
   // first fault names the page and is said once more as `lf-startup-fault`, which a
   // served page's bootstrap answers by saying the page has a problem where it is the
   // page's own, and otherwise by asking its server for the page again where it is
@@ -98,7 +96,6 @@
   // it is incomplete, which the bootstrap reads when it acts. The first is the
   // earliest evidence and a later one is often its consequence; the bootstrap's
   // report keeps the first as well.
-  /** @param {string} reason @param {boolean} incomplete @param {unknown} [error] @param {boolean} [page] */
   const fault = (reason, incomplete, error = null, page = false) =>
     window.lfDocumentLifetime.whenActive(`fault ${reason}`, () => {
       if (incomplete) {
@@ -173,10 +170,8 @@
   // off the root the server declares in the canonical link, so a draft typed on the
   // live root is the draft on each of its version addresses; "" where that root is the
   // origin's own. An export, which has no server and no link, is its own address. The
-  // runtime's stores read it from here (storage.js).
-  const canonical = /** @type {HTMLLinkElement | null} */ (
-    document.querySelector('link[rel="canonical"][data-lf-runtime]')
-  );
+  // runtime's stores read it from here (state/storage.js).
+  const canonical = document.querySelector('link[rel="canonical"][data-lf-runtime]');
   const rootPath = canonical ? new URL(canonical.href).pathname : location.pathname;
   root.dataset.lfPageScope ??= rootPath === "/" ? "" : rootPath;
   const scope = root.dataset.lfPageScope;
@@ -186,18 +181,14 @@
   // Samples own disposable browser state in their realm. Choosing the backing here
   // keeps widget controllers, drafts and chrome on the same store,
   // without ever requesting storage denied to an opaque origin.
-  /** @typedef {Pick<Storage, "length" | "key" | "getItem" | "setItem" | "removeItem">} StorageBacking */
+
   const memoryStore = root.hasAttribute("data-lf-sample")
     ? (() => {
-        /** @type {Map<string, StorageBacking>} */
         const stores = new Map();
-        /** @param {string} name */
         return (name) => {
           const held = stores.get(name);
           if (held) return held;
-          /** @type {Map<string, string>} */
           const values = new Map();
-          /** @type {StorageBacking} */
           const backing = {
             get length() {
               return values.size;
@@ -220,7 +211,6 @@
         };
       })()
     : null;
-  /** @type {Window["lfStorage"]["stored"]} */
   const stored = (nativeOpen, name, prefix = "") => {
     const open = memoryStore ? () => memoryStore(name) : nativeOpen;
     return {
@@ -265,20 +255,14 @@
   const userStore = stored(() => localStorage, "local", root.dataset.lfUserScope ?? "");
   // Native URL parsing owns the classification before the first paint and for later
   // links. CSS draws the mark; no generated child can change a link's line breaks.
-  /** @type {Window["lfLinks"]["opensElsewhere"]} */
   const opensElsewhere = (href) => {
-    try {
-      const url = href === null ? null : new URL(href, document.baseURI);
-      return (
-        url !== null &&
-        ["http:", "https:"].includes(url.protocol) &&
-        url.origin !== location.origin
-      );
-    } catch {
-      return false;
-    }
+    const url = href === null ? null : URL.parse(href, document.baseURI);
+    return (
+      url !== null &&
+      ["http:", "https:"].includes(url.protocol) &&
+      url.origin !== location.origin
+    );
   };
-  /** @type {Window["lfLinks"]["markExternalLink"]} */
   const markExternalLink = (link) => {
     if (link instanceof HTMLAnchorElement)
       link.toggleAttribute(
@@ -292,9 +276,7 @@
   // an early choice with a tab preference. The explicit key is presentation;
   // the authored widget remains untouched. This owner also retains each native
   // disclosure's parser-time default for the document source baseline.
-  /** @type {WeakMap<Element, boolean>} */
   const disclosures = new WeakMap();
-  /** @type {Window["lfStorage"]["keepDisclosure"]} */
   const keepDisclosure = (tree) => {
     if (disclosures.has(tree)) return;
     disclosures.set(tree, tree.open);
@@ -312,7 +294,6 @@
   // Only parser-time content needs this early watch. Once modules arrive, the
   // runtime's native-content arrival watch owns later links and disclosures,
   // including shadow stages. Query matching nodes rather than walking every child.
-  /** @param {Document | Element} tree */
   const visit = (tree) => {
     if (tree instanceof HTMLAnchorElement) markExternalLink(tree);
     if (tree instanceof HTMLDetailsElement) keepDisclosure(tree);
@@ -325,23 +306,122 @@
       for (const node of record.addedNodes) if (node instanceof Element) visit(node);
   });
   earlyContent.observe(document, { childList: true, subtree: true });
+  // The handoff a reload hands the document it loads (features/version.js, `captureHandoff`):
+  // what the document carried, the values typed into the page's form, its disclosures,
+  // the comparison and the pointer, and where the user was, which belongs to the entry
+  // it was read on. Prepaint alone writes it to the tab and reads it back. The tab
+  // holds it only while a document would hand it on and isn't standing in view: from
+  // its departure, or its page going hidden, since a tab the browser discards while
+  // hidden goes with no `pagehide`, to the next document's first script. That script
+  // removes it and takes it only where its document stands at the entry it names
+  // (`entryId`): a reload, a discarded tab's return and Back to a document the browser
+  // didn't keep all keep the entry's id. A document that starts hidden, as a background
+  // tab's reload does, writes back what it hands on as a hide does, and a page shown
+  // again removes it. A frame showing the same page shares the tab's key, so its first
+  // script, its return to view and its departure can still remove the page's handoff or
+  // put the frame's own over it, which the page's next document drops as another
+  // entry's.
+  //
+  // As the user types through the reload, the key hold and the drafts edit the handoff
+  // this script read (features/version.js, `captureHandoff`), and a document that hands it on
+  // hands on their edits too.
+  //
+  // It puts the user back where they were only while the document stands at the entry
+  // that place was read at (`placesUser`, by the entry's key, which a replace keeps):
+  // elsewhere, as after Back taken before Leaf starts, and where it holds no place, it
+  // carries what it holds of the document alone. The bootstrap's key hold and the
+  // arrival both ask (bootstrap.js, `holdEarlyKeys`; features/version.js, `installArrival`).
+  //
+  // What a document hands on is `handingOn()`. Until its runtime installs the arrival,
+  // that is what it owes of the document, none of which has reached the page yet: the
+  // handoff it was handed, if any, with the state of each control the user has changed
+  // since (base/document-inputs.js, `edited`), and without where they were once they have
+  // acted within the entry, steps Back or Forward and leaving the window aside
+  // (`away`). From then on it is what the arrival says (`handOnWith`; features/version.js,
+  // `installArrival`). A document's own departure fires its `pagehide` before the hide
+  // that follows it, which writes nothing over it; one put into the back/forward cache
+  // may come back, so its hide writes, and its return removes what it wrote.
+  const HANDOFF_KEY = "lf-revision-handoff";
+  const entryId = () => window.navigation?.currentEntry?.id ?? null;
+  const handoff = (() => {
+    const stored = tabStore.get(HANDOFF_KEY);
+    tabStore.set(HANDOFF_KEY, null);
+    try {
+      const value = JSON.parse(stored || "null");
+      return value && value.entryId === (entryId() ?? false) ? value : null;
+    } catch {
+      return null;
+    }
+  })();
+  const placesUser = () =>
+    handoff?.entry != null && handoff.entry === window.navigation?.currentEntry?.key;
+  // The control of the page's own the handoff puts focus back in, where it holds one:
+  // its carried record with focus that names no generated part (records/carry.js,
+  // `captureCarry`). The key hold types the words the user types through the reload
+  // into it where it holds a caret, and the arrival leaves its focus, and its caret, to
+  // the handoff (bootstrap.js, `typeIntoField`; features/version.js, `installArrival`).
+  const handedFocus =
+    handoff?.carry?.find((record) => record.focus && record.part === undefined) ?? null;
+  // A changed control's state as a carry record holds it (records/carry.js, `captureCarry`).
+  const changedState = (node) => {
+    const state = inputs.controlState(node);
+    return { id: node.id, name: node.localName, ...(state && { state }) };
+  };
+  let handingOn = () => {
+    const changed = [...document.querySelectorAll("[id]")].filter((node) =>
+      inputs.edited(node),
+    );
+    if (!handoff && !changed.length) return null;
+    return {
+      ...handoff,
+      carry: [
+        ...(handoff?.carry ?? []).filter(({ id }) => {
+          const node = document.getElementById(id);
+          return !node || !inputs.edited(node);
+        }),
+        ...changed.map(changedState),
+      ],
+      ...(inputs.count !== inputs.away && { entry: null, typing: false }),
+    };
+  };
+  const handOn = (value) =>
+    tabStore.set(
+      HANDOFF_KEY,
+      value ? JSON.stringify({ ...value, entryId: entryId() }) : null,
+    );
+  let gone = false;
+  addEventListener("pagehide", (event) => {
+    gone = !event.persisted;
+    handOn(handingOn());
+  });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") handOn(null);
+    else if (!gone) handOn(handingOn());
+  });
+  addEventListener("pageshow", (event) => {
+    if (event.persisted) handOn(null);
+  });
+  if (document.visibilityState === "hidden") handOn(handingOn());
   window.lfStorage = {
     stored,
     tabStore,
     userStore,
+    handoff,
+    placesUser,
+    handedFocus,
+    handOnWith: (next) => {
+      handingOn = next;
+    },
     keepDisclosure,
     finishEarlyContent: () => earlyContent.disconnect(),
     // `open` reflects interaction, unlike an input's separate defaultChecked.
     // The source baseline reads this parser-time default, never the later live value.
     initialDisclosureOpen: (node) => disclosures.get(node),
   };
-
   // View selection is tab-local browser state from parsing through later switches.
   // Delivery carries the registry's member selector; only the browser evaluates it.
   // Readers leave the DOM alone. Showing a choice paints membership and native hidden.
-  /** @type {WeakMap<Element, {selected: Element | null | false | undefined}>} */
   const viewStates = new WeakMap();
-  /** @param {Element} holder @param {string | null} [selector] */
   const viewMembers = (
     holder,
     selector = holder.getAttribute("data-lf-view-members"),
@@ -351,10 +431,7 @@
           (child) => !child.hasAttribute("data-lf-gen") && child.matches(selector),
         )
       : [];
-  const reloaded =
-    /** @type {PerformanceNavigationTiming | undefined} */
-    (performance.getEntriesByType("navigation")[0])?.type === "reload";
-  /** @param {string} raw */
+  const reloaded = performance.getEntriesByType("navigation")[0]?.type === "reload";
   const decoded = (raw) => {
     try {
       return decodeURIComponent(raw);
@@ -363,14 +440,13 @@
     }
   };
   // The ids a fragment can name: its whole text, then, for a widget's key, the
-  // widget's id before the first colon. anchor-coordinate.js (`fragmentKey`) states
+  // widget's id before the first colon. base/anchor-coordinate.js (`fragmentKey`) states
   // the rule; this script runs before any module can be imported.
   const fragmentIds = () => {
     const raw = location.hash.slice(1);
     const at = raw.indexOf(":");
     return at > 0 ? [decoded(raw), decoded(raw.slice(0, at))] : [decoded(raw)];
   };
-  /** @param {Element} holder @param {Element[]} members */
   const chooseView = (holder, members) => {
     const named = [fragmentIds(), [tabStore.get("lf-open:" + holder.id)]];
     if (reloaded) named.reverse();
@@ -385,7 +461,6 @@
     }
     return null;
   };
-  /** @param {Element} holder @param {Element[]} members */
   const viewState = (holder, members) => {
     let state = viewStates.get(holder);
     if (!state || (state.selected && !members.includes(state.selected)))
@@ -393,7 +468,6 @@
     if (state.selected === undefined) state.selected = chooseView(holder, members);
     return state;
   };
-  /** @param {Element} holder @param {Element | null | undefined} member @param {Element | null} [leaving] */
   const showView = (holder, member, leaving = null) => {
     const members = new Set(viewMembers(holder));
     for (const each of holder.children) {
@@ -450,7 +524,10 @@
           // Native reload fragment reveal must not override the saved view. Restore
           // after the browser removes hidden, before the next paint.
           requestAnimationFrame(initialViews);
-        } else window.lfViews.keep(member.parentElement, member);
+        } else
+          // The runtime's own reveal once it has loaded, which reads where the user
+          // was before the member they leave is hidden (records/views.js).
+          (window.lfViews.reveal ?? window.lfViews.keep)(member.parentElement, member);
     },
     true,
   );
@@ -493,12 +570,11 @@
     },
   };
 
-  // The layer's constructed stylesheets (stylesheets.js), from the text every delivery
+  // The layer's constructed stylesheets (base/stylesheets.js), from the text every delivery
   // carries in its head (`delivery_sheets` in revision_delivery.py), with no request
   // and no await. Whoever asks first builds them, once the head holds that text: a
   // served page's bootstrap as `body` arrives, which adopts the chrome's so the panel's
   // row it stands there paints styled (bootstrap.js), else the runtime as it loads.
-  /** @type {ReturnType<Window["lfSheets"]> | null} */
   let sheets = null;
   window.lfSheets = () => {
     if (sheets) return sheets;
@@ -506,9 +582,7 @@
       'script[type="application/json"][data-lf-runtime][data-lf-sheets]',
     );
     if (!delivery) throw new Error("The document has no runtime stylesheets");
-    /** @type {{chrome: string, marks: string, annotations?: string}} */
     const text = JSON.parse(delivery.textContent);
-    /** @param {string} rules */
     const constructed = (rules) => {
       const sheet = new CSSStyleSheet();
       sheet.replaceSync(rules);
@@ -522,7 +596,7 @@
     return sheets;
   };
 
-  // The floating panel (floating-panel.js) is the page's chrome. The reader's one
+  // The floating panel (panel/floating-panel.js) is the page's chrome. The reader's one
   // preference is the size the panel was left at (`row`, the comment field and its
   // counts, or `mark`, the leaf alone in the window's corner), one for every page on
   // the origin, read here so the first paint already stands at it.
@@ -538,11 +612,9 @@
       if (!restValues.includes(value) || rest === value) return;
       rest = value;
       userStore.set(restKey, value);
-      document.dispatchEvent(new CustomEvent("lf-chrome-preference"));
     },
   };
 
-  /** @type {LeafRootState["keeps"]} */
   const keepsAttribute = (node, name, value) => {
     if (!node) return;
     if (value == null) {
@@ -552,36 +624,29 @@
       if (node.getAttribute(name) !== said) node.setAttribute(name, said);
     }
   };
-  /** @type {WeakMap<Element, Set<string>>} */
   const runtimeAttributes = new WeakMap();
-  /** @type {LeafRootState["setRuntimeRootAttribute"]} */
   const setRuntimeRootAttribute = (node, name, value) => {
     let attributes = runtimeAttributes.get(node);
     if (!attributes) runtimeAttributes.set(node, (attributes = new Set()));
     attributes.add(name);
     keepsAttribute(node, name, value);
   };
-  /** @type {WeakMap<ElementCSSInlineStyle, Set<string>>} */
   const runtimeStyles = new WeakMap();
-  /** @type {LeafRootState["setRuntimeRootStyle"]} */
   const setRuntimeRootStyle = (node, property, value, priority = "") => {
     let properties = runtimeStyles.get(node);
     if (!properties) runtimeStyles.set(node, (properties = new Set()));
     properties.add(property);
     node.style.setProperty(property, value, priority);
   };
-  /** @type {LeafRootState["removeRuntimeRootStyle"]} */
   const removeRuntimeRootStyle = (node, property) => {
     runtimeStyles.get(node)?.delete(property);
     node.style.removeProperty(property);
   };
   // What an element wears: attributes and custom properties written as one set, so a
-  // later set removes what the earlier one had and the next does not (dress.js). The
+  // later set removes what the earlier one had and the next does not (dom/dress.js). The
   // root and body wear theirs as runtime root state, so a revision keeps it; any other
   // element is no root state, and writes plainly.
-  /** @type {WeakMap<HTMLElement, LeafDress>} */
   const worn = new WeakMap();
-  /** @type {LeafRootState["wear"]} */
   const wear = (node, dress) => {
     const { documentElement, body } = node.ownerDocument;
     const owned = node === documentElement || node === body;

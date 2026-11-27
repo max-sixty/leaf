@@ -15,16 +15,17 @@ from render_harness import (
     open_page,
     page_comment,
     panel_field,
+    panel_settled,
     told,
     write,
 )
 
 import leaf_website as website_server
-from leaf.delivery import current_responses
-from leaf.event_log import read_events
-from leaf.leases import take_wait_lease, waiter_lease_path
-from leaf.render_checks import rendered
-from leaf.thread import ProviderFinal, cmd_resolve, post_reply
+from leaf.agents.delivery import current_responses
+from leaf.agents.thread import ProviderFinal, cmd_resolve, post_reply
+from leaf.base.leases import take_wait_lease, waiter_lease_path
+from leaf.log.event_log import read_events
+from leaf.source.render_checks import rendered
 from leaf_dev import website
 from leaf_dev.browser import PANEL_THREAD
 
@@ -93,6 +94,9 @@ def test_a_website_turn_posts_its_answer_when_the_move_is_settled_first(
     receipt_width = receipt_words()
     initial_receipt = receipt.inner_text()
     assert receipt.evaluate("node => node.scrollWidth <= node.clientWidth")
+    # The thread's view is still gliding to the height its working step gave it, so
+    # the head is read where the box comes to rest.
+    panel_settled(page, view="thread")
     head = metadata.bounding_box()
     # Losing the provider watcher changes Replying to the longer stale receipt
     # while its answer still waits. The words spend their own retained box.

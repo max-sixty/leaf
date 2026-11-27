@@ -42,6 +42,7 @@ from interact_support import wait_for
 from model_folds import leaf_page
 from PIL import Image, ImageDraw
 from playwright.sync_api import expect
+from render_cases_interaction import HELD_EDGE
 from render_harness import (
     FOLLOWER_MARK,
     SUBJECT_MARK,
@@ -243,13 +244,6 @@ RECT = """(selector) => {
     .getBoundingClientRect();
   return {left, top, right, bottom};
 }"""
-
-
-# The inline edge the comment box stands by (floating.js, `held`), which the card Send
-# opens keeps.
-HELD_EDGE = """() => document.querySelector("script[data-lf-entry]")
-  .lfFloatingSelections()
-  .find((selection) => selection.floating.matches(".lf-fab-bar")).edges.left"""
 
 
 def stands(side, rect, words, block):

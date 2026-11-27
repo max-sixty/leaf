@@ -22,7 +22,7 @@ from threading import Lock
 
 from leaf.base.page_memory import PageMemory, memory_of
 from leaf.log.event_log import start_log
-from leaf.log.thread_context import thread_structure
+from leaf.log.events import thread_structure
 from leaf.records.authored_checks.documents import initial_sample_events
 from leaf.records.revisioning import activate_source
 from leaf.source.data import write_data

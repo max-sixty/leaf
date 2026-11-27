@@ -34,7 +34,7 @@ from render_harness import (
 from journeys import detached_threads, listed_threads
 from leaf.log import event_log as events_model
 from leaf.log import events as thread_model
-from leaf.log.thread_context import logged_fragment
+from leaf.log.events import logged_fragment
 from leaf.pages.hosting import TemporaryPageServer
 from leaf.pages.render_gate import version as render_gate_model
 from leaf.source import render_checks as render_checks_model

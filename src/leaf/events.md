@@ -326,16 +326,20 @@ An answering command declares what it leaves: `--done`, nothing further; `--todo
 browser cannot write `todo` or `obligation`.
 A user reply always hands the thread back to the agent.
 
-An agent reply records the delivery event it answers as `responds`, including an
-answer whose update was settled during the turn; a proactive `leaf thread reply`
-carries none, and leaves an answer its thread owes owed. Settlement consumes this
-exact id rather than log order, so answering older work cannot erase newer user
-input. A `--done` answer to an update the agent's earlier answer already settled
-with a to-do still open carries no `responds`, and the command names that to-do
-for `leaf task end` (`thread.post_reply`). A substantive reply reopens a resolved
-thread, and brings back none of the questions the resolve ended; failure
-receipts leave it closed, and so does an `unannounced` message of the
-agent's in a thread the user resolved (below).
+An agent reply records the delivery event it answers as `responds`; a proactive
+`leaf thread reply` carries none, and leaves an answer its thread owes owed. A write
+at a reference goes in only while the input it names is the newest standing in its
+thread (`thread.post_reply`), and an answer settles every input still waiting up to
+that one's place in the thread, the user's messages and their actions on widgets sent
+there alike (`events.settle`), so an answer never settles input the agent wasn't
+shown. A reply at an input the agent has already answered carries no `responds`; where
+that answer opened a to-do still open, the command names it for `leaf task end`. A
+Codex turn's final message is the one write outside that check: the turn can't write
+again, so at a reference that is no longer the thread's newest it goes in answering
+the input it was written for, and what is newer stays owed. A
+substantive reply reopens a resolved thread, and brings back none of the questions
+the resolve ended; failure receipts leave it closed, and so does an `unannounced`
+message of the agent's in a thread the user resolved (below).
 
 The user's `resolve` takes a thread off their list. It retires the questions the agent
 asked them there and settles nothing the agent owes: a turn of theirs, or an answer of
@@ -398,7 +402,7 @@ it. To-dos are separate records, and no to-do is made from an obligation.
   user's, or an agent's, including a predecessor session's; a reaction or a bare
   drawing has no text to revise. An agent's edit may rewrite the message's HTML too,
   and every reading of its elements takes the latest wording
-  (`thread_context.thread_structure`). A user's action on a widget in it stays keyed
+  (`events.thread_structure`). A user's action on a widget in it stays keyed
   to the widget's id, so it applies to whatever markup the edit leaves under that id,
   and to nothing once the id is gone; no other message or revision may take an id
   any wording of the message held. Readings show the latest text on the original

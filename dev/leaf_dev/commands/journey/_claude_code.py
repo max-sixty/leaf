@@ -32,8 +32,8 @@ call, and it does a one-step lookup itself, so both fork steps send their messag
 while the session runs the user's own turn, and the first asks for the work beside
 it; `evals/beside-work-goes-to-a-fork` scores the instruction itself.
 
-The steps, in order; `setup`, `release`, `mid-turn`, `escape` and `quit` are those
-more than one harness takes, as `_journey.Terminal` has them:
+The steps, in order; `setup`, `release`, `answered-twice`, `mid-turn`, `escape` and
+`quit` are those more than one harness takes, as `_journey.Terminal` has them:
 
 - `setup`;
 - `release`, which asks for work, and the session answers it; the step prints what
@@ -54,6 +54,9 @@ line fork's own time and tokens from its record in the page's diagnostics
 - `fork-follow-up`: once that subagent has answered, the user's further message in
   its thread, sent during another turn of the user's, which the session gives to a
   subagent again, the same one with SendMessage or a new one, which answers it.
+
+Then `answered-twice`: the user answers the agent's question in words, then picks the
+same choice once the session has taken the words in, and the thread gets one answer.
 
 Then the delivery steps:
 
@@ -974,6 +977,11 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
     fork = require(user.fork("release"), "release: no line fork ran on the ask")
     step("release", started, "release", detail=f"`release`: {fork_summary(fork)}")
     forked()
+
+    started = time.monotonic()
+    detail = cc.answered_twice(user, page)
+    step("answered-twice", started, detail=detail)
+
     delivered()
 
     started = time.monotonic()

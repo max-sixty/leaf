@@ -320,7 +320,7 @@ const AXES = ["x", "y"];
 // shown bounds of the region whose flow holds the surfaces' row (`flowOf` the box that
 // scrolls the row, `scroller`), where those hold the card's minimum width and the least
 // height, else within the page shell, whose right edge stops short of the root
-// scrollport's gutter and, for the comment box, an open panel's left edge (`right`). A
+// scrollport's gutter (`right`). A
 // pane a resize narrowed, or a short strip of one a scroll left, so yields to the window,
 // which carries the surface rather than withdrawing a draft the user is writing. The
 // boundary names the box that scrolls that room (`scroller`), which makes room for a

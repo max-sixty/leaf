@@ -5,7 +5,7 @@ import re
 
 import pytest
 from playwright.sync_api import expect
-from render_cases_interaction import OBLIGATIONS_PAGE
+from render_cases_interaction import serve_obligations
 from render_cases_navigation import CONTROL_LABEL_PAGE, NOTED_PAGE
 from render_harness import (
     LONG_PAGE,
@@ -256,7 +256,7 @@ def test_the_reference_enters_named_go_to_destinations(
 ):
     """A named destination is one capability whether a keyboard sequence or the
     command reference reaches it; native controls keep their own activation."""
-    page = open_page(browser, serve(OBLIGATIONS_PAGE, comments=2))
+    page = open_page(browser, serve_obligations(serve, comments=2))
     destination = page.locator(surface)
     if suffix == "M":
         panel_control(page, "queue").click()
@@ -306,7 +306,7 @@ def test_a_command_reference_versions_press_enters_the_menu_from_the_leaf(
     browser, serve
 ):
     """A command chosen in the reference enters its destination from the panel leaf."""
-    page = open_page(browser, serve(OBLIGATIONS_PAGE, comments=2))
+    page = open_page(browser, serve_obligations(serve, comments=2))
     leaf = page.locator(".lf-fp-leaf")
     panel_menu(page)
     page.keyboard.press("Escape")
@@ -507,7 +507,7 @@ def test_the_reference_revalidates_a_captured_command_before_running_it(browser,
 
 def test_the_reference_runs_the_exact_numbered_obligation_action(browser, serve):
     """Each obligation digit is a distinct command when invoked without a keydown."""
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    page = open_page(browser, serve_obligations(serve))
 
     page.keyboard.press("m")
     page.keyboard.press("?")
@@ -539,7 +539,7 @@ def test_away_from_an_obligation_the_reference_names_widget_owned_options(
     Outside the widget those commands are unavailable; there is no synthetic page
     command claiming an undifferentiated digit range.
     """
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    page = open_page(browser, serve_obligations(serve))
     page.keyboard.press("?")
     reference = page.locator(".lf-command-reference")
     expect(reference).to_be_visible()

@@ -39,12 +39,11 @@ from functools import cached_property
 from pathlib import Path
 from typing import Any
 
-from leaf.log.events import message_reading, rewritten
+from leaf.log.events import message_reading, rewritten, thread_structure
 from leaf.log.gesture_words import GestureWords, revisions_on_disk
 from leaf.log.thread_context import (
     thread_memberships,
     thread_names,
-    thread_structure,
     thread_widgets,
     unsent_at_messages,
 )

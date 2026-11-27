@@ -95,6 +95,13 @@ COMMENTS = {
         "source and tell me which one a release manager would ask about first, and "
         "why.",
     ),
+    # A question the agent asks with choices, which the user then answers twice
+    # (`_journey.Terminal.answered_twice`).
+    "answered-twice": (
+        "triage-lede",
+        "Should we ship now or wait for the migration fix? Ask me in this thread, "
+        "with two clickable choices.",
+    ),
     # Real author intent exercises the rich interface without naming its commands.
     "rich-choice": (
         "triage-lede",

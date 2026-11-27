@@ -377,7 +377,7 @@ export function draftPreview(drafts, about = null) {
 // mechanism of its own (SOUL.md, "Keep Leaf's code plain"). For
 // the same reason a thread gesture names no wording: one a tab makes before an
 // edit reaches it is read in the wording in force when it lands
-// (`thread_context.message_wording`).
+// (`events.message_wording`).
 /** @typedef {{
  * message: string,
  * body: {text: string, heldElsewhere: string, document: {thread: string, message: string}},

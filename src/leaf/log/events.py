@@ -3,12 +3,15 @@
 from bisect import insort
 from collections import OrderedDict
 from collections.abc import Iterable, Iterator
+from functools import lru_cache
 from math import inf
 from operator import itemgetter
 from typing import NamedTuple
 
 from leaf.base.findings import Finding
+from leaf.source.passages import holds_html, message_markup
 from leaf.source.registry.kernel import kinds_declaring
+from leaf.source.structure import SourceDocument
 
 
 def taken_back(events: list) -> set:
@@ -34,7 +37,7 @@ def document_identity(scope: str, revision: int | None = None) -> dict:
 
     A `page` event's document is the revision it names; a `thread` event's is the
     message markup, which no revision carries: an edit rewrites it in place
-    (`thread_context.thread_structure`). Admission, thread folds, and the browser all key documents on this
+    (`thread_structure`). Admission, thread folds, and the browser all key documents on this
     identity."""
     if scope == "thread":
         return {"kind": "thread"}
@@ -198,6 +201,104 @@ def unshown(events: list, withdrawn: set) -> set:
     return withdrawn - standing_withdrawn(events, withdrawn)
 
 
+class ThreadStructure(NamedTuple):
+    ids: set
+    by_id: dict
+    fragments: dict
+    # Every id any wording of an agent's message held → that message.
+    holders: dict
+    # Each agent message → the logged events that worded it, in force and in log
+    # order: the message, then each edit of it.
+    wordings: dict
+
+
+def logged_fragment(event: dict) -> SourceDocument | None:
+    """The parse of the markup a logged agent message, or an agent's edit of one, draws
+    where its Markdown holds HTML (`passages.holds_html`, `passages.message_markup`),
+    shared read-only; None for any other event.
+
+    The log is append-only, so each wording is one immutable fragment for the page's
+    lifetime, and every reader of the log takes this one parse of it. The parse is a
+    function of the text alone, so it is held by that text, which names it exactly
+    whichever page and log it came from. Text a writer hands in has not been admitted
+    yet and is another fact: its gate parses it afresh
+    (`authored_checks.admission.check_markup`)."""
+    if (
+        event["kind"] in ("comment", "reply", "edit")
+        and event.get("author") == "agent"
+        and "text" in event
+    ):
+        return _fragment(event["text"])
+    return None
+
+
+@lru_cache(maxsize=16384)
+def _fragment(text: str) -> SourceDocument | None:
+    return SourceDocument(message_markup(text)) if holds_html(text) else None
+
+
+def thread_structure(events: list) -> ThreadStructure:
+    """Each agent message's markup as it now reads, as the panel's id universe: its
+    latest edit still in force, else the words it was sent with, the words
+    `build_threads` shows. `fragments` is ordered by when each message's current
+    wording was written, and `wordings` keeps the ones before it, which a reading of
+    an earlier moment takes (`message_wording`).
+
+    `holders` keeps every id any of a message's wordings held, a withdrawn edit's
+    included, so no other message or revision takes it (`check_markup`,
+    `authored_checks.source`): a gesture the user made on that id would otherwise land
+    on another element. The message itself may take it back in a later edit, which is
+    how an answered widget keeps its answer."""
+    withdrawn = taken_back(events)
+    wordings, holders, latest = {}, {}, {}
+    for e in events:
+        if e["kind"] == "edit":
+            message = e["message"]
+            if message not in wordings:
+                continue
+        elif (
+            e["kind"] in ("comment", "reply")
+            and e.get("author") == "agent"
+            and "text" in e
+        ):
+            message = e["id"]
+            wordings[message] = []
+        else:
+            continue
+        fragment = logged_fragment(e)
+        if fragment:
+            for identity in fragment.ids:
+                holders.setdefault(identity, message)
+        if e["kind"] != "edit" or e["id"] not in withdrawn:
+            wordings[message].append(e)
+            latest.pop(message, None)
+            latest[message] = fragment
+    ids, by_id, fragments = set(), {}, {}
+    for message, fragment in latest.items():
+        if fragment:
+            fragments[message] = fragment
+            ids.update(fragment.ids)
+            by_id.update(fragment.by_id)
+    return ThreadStructure(ids, by_id, fragments, holders, wordings)
+
+
+def message_wording(structure: ThreadStructure, message: str, seq: int) -> dict:
+    """The event whose words `message` said when the log stood at `seq`: the one a
+    gesture logged then was made on, so what it chose is read in the words the user
+    saw (`gesture_words`). A gesture names no wording, so one a tab made before an
+    edit reached it reads in the edit's words."""
+    return [e for e in structure.wordings[message] if e["seq"] <= seq][-1]
+
+
+def widget_messages(structure: ThreadStructure) -> dict:
+    """Widget id → the message whose current markup declares it."""
+    return {
+        widget: message
+        for message, fragment in structure.fragments.items()
+        for widget in fragment.by_id
+    }
+
+
 def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -> dict:
     """Fold threads using the admitted answer coordinate.
 
@@ -215,9 +316,11 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     ``revisions`` holds the user's edits in log order, each with ``was``, the words
     it replaced: each shows as its message's wording and stands in the exchange as a
     turn of its own (`exchange`), so it resumes the thread as a reply does.
-    ``turns`` holds every turn said in the thread, the ones since taken back
-    included, and each undo that took one back, in log order, as what settles a
-    batch of them (`settled_through`); only the server reads it.
+    ``turns`` is the thread's history of the user's inputs and the agent's answers, in
+    log order, which `settle` walks: every turn said in the thread, the ones since
+    taken back included, each action on a widget a message in it sent, from each place
+    the action comes into force (shown with that place as its ``seq``), and each undo
+    that took one of them back. Only the server reads it.
 
     Whether a thread stands closed is read at every place in the log
     (`_ClosureHistory`): the latest closing or reopening still in force decides it.
@@ -268,6 +371,8 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     # the message is taken back; and what has been taken back so far.
     rewrites: dict[str, list[str]] = {}
     undone: set[str] = set()
+    # Each widget an agent's message sends → that message.
+    sent_by = widget_messages(thread_structure(events))
 
     def moved(changes: Iterable[Change | None], put: list, out: list) -> None:
         # What a winner moving takes out of force, and the closing of the thread its
@@ -285,7 +390,7 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     for e in events:
         # Every turn said in a thread stays in its history, and so does the user
         # taking one back, so what an answer settled stays settled
-        # (`settled_through`).
+        # (`settle`).
         home = (
             said_in.get(e["undoes"])
             if e["kind"] == "undo"
@@ -307,6 +412,19 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
         else:
             changes = in_force.restate(e) if kind == "note" else []
         moved(changes, put, out)
+        # An action on a widget a message in the thread sent joins the thread's
+        # history wherever it comes into force: where it is made, and where an undo
+        # of the action that replaced it brings it back.
+        for change in changes:
+            if (
+                change is not None
+                and (action := change.after) is not None
+                and (thread := thread_for.get(sent_by.get(action["widget"])))
+            ):
+                thread["turns"].append(
+                    action if action is e else {**action, "seq": e["seq"]}
+                )
+                said_in[action["id"]] = thread
         # A resolve naming a comment that opened a thread nothing else stands on
         # closes nothing once the user takes the comment back: the thread is gone.
         if kind in ("resolve", "unresolve") and (thread := thread_for.get(e["parent"])):
@@ -628,15 +746,8 @@ def _thread_summaries(thread: dict, summaries: list) -> list[dict]:
 
 
 def unanswered_turns(thread: dict) -> list[dict]:
-    """The spoken non-agent turns the agent still owes an answer, oldest first.
-
-    The one rule for whose turn a thread is. The newest is the thread's response
-    address (`unanswered_agent_turn`): an agent reply whose `responds` names it
-    settles every input accumulated through it, and a later input starts a fresh
-    batch. Until then each input stays owed, and answering an older one removes
-    only that input while the newer address stays owed. Mere log order is not
-    settlement: an agent answering an older thread-widget action after newer user
-    input leaves that newer input with the agent.
+    """The spoken non-agent turns the agent still owes an answer, oldest first: the
+    turns still waiting in the thread's history (`settle`).
 
     Not the agent, rather than the user: `author` is an open string on every message
     contract, and the two the code writes are `user` and `agent`. A line from anywhere
@@ -647,81 +758,88 @@ def unanswered_turns(thread: dict) -> list[dict]:
     hands the thread back, and the agent's emoji answers as a reply in words does
     (`events.md`, "Reactions"). Resolution does not enter here: `owed_turns` says
     which closings settle these turns. A user's revision is a turn here
-    (`exchange`).
+    (`exchange`), and only the turns still in the exchange can be owed.
 
-    The batches are those of the thread's history (`settled_through`), so taking
-    back a turn an answer settled leaves the turns before it settled; only the turns
-    still in the exchange can be owed."""
-    floor = settled_through(thread)
-    responses = {
-        turn.get("responds")
-        for turn in thread["turns"]
-        if turn["seq"] > floor and turn["author"] == "agent"
-    }
+    The newest of these is not always where the thread's answer goes: an owed action
+    on a widget sent in the thread waits beside them, and where it came last the
+    answer is addressed to it (`workflows.handed_over`)."""
+    waiting = {turn["id"] for turn in settle(thread).waiting}
     return [
         message
         for message in exchange(thread)
-        if message["seq"] > floor
-        and message["author"] != "agent"
-        and message["id"] not in responses
+        if message["author"] != "agent" and message["id"] in waiting
     ]
 
 
 class Settlement(NamedTuple):
-    """One of the agent's turns that settled turns of the user's (`settlements`)."""
+    """One of the agent's turns that settled inputs of the user's (`settle`)."""
 
     answer: dict
-    # The user's turns it settled that no earlier answer had, oldest first.
+    # The inputs it settled, oldest first.
     turns: list
-    # Whether it settled the whole batch standing when it was written.
-    batch: bool
 
 
-def settlements(thread: dict) -> list[Settlement]:
-    """Each of the agent's turns that settled turns of the user's, in log order. An
-    answer whose `responds` names the newest turn of the batch standing when it was
-    written settles that whole batch; one naming an older turn of it settles that
-    turn alone, and the batch stands. The walk replays the thread's history
-    (`build_threads`, ``turns``), so a turn taken back before the answer, with its
-    rewrites, is no part of its batch, and one taken back after it leaves the batch
-    settled. A failure receipt names its input as an answer does, so it settles here
-    too; `is_answer` tells the two apart."""
+class Settled(NamedTuple):
+    """A thread's history walked (`settle`): each of the agent's turns that settled
+    inputs of the user's, in log order, the inputs still waiting, oldest first, and
+    the place each input last entered the waiting list, taken back or not."""
+
+    settlements: list[Settlement]
+    waiting: list[dict]
+    places: dict[str, int]
+
+
+def settle(thread: dict) -> Settled:
+    """Which of the user's inputs in a thread each of the agent's turns settled, and
+    which still wait.
+
+    The inputs are the user's turns and their actions on widgets sent in the thread,
+    each at its place in the thread's history (`build_threads`, ``turns``). An agent
+    turn whose `responds` names an input settles every input waiting at or before
+    that input's place: a write at a reference goes in only while it names the
+    thread's newest standing input (`thread.post_reply`), so it answers everything
+    the thread held up to there. An input taken back before the answer, with its rewrites, is no part
+    of what it settles, and one taken back after it leaves the settlement standing.
+    An action an undo brings back enters again at the place it came back, whether it
+    was still waiting or settled, so a write at the thread's newest input after it
+    answers it. A reference names an input by id, so a write still holding the
+    reference the action had before it changed and came back answers up to the
+    later place too.
+    A failure receipt names its input as an answer does, so it settles here too;
+    `is_answer` tells the two apart.
+
+    The history comes from the log alone, so every reader settles a thread the same
+    way, with a registry or without one. It holds every action on a widget sent in the
+    thread, one that owes nothing included, such as a pick still waiting for its
+    group's Done; `workflows` decides which waiting actions are owed."""
     settled = []
-    batch = []
-    taken = set()
+    waiting: OrderedDict[str, dict] = OrderedDict()
+    places: dict[str, int] = {}
+    # Each message → the ids of its rewrites still waiting, which leave with it.
+    rewrites: dict[str, list[str]] = {}
     for turn in thread["turns"]:
         if "undoes" in turn:
             gone = turn["undoes"]
-            batch = [
-                each for each in batch if gone not in (each["id"], each.get("message"))
-            ]
+            for identity in [gone, *rewrites.pop(gone, ())]:
+                waiting.pop(identity, None)
         elif turn["author"] != "agent":
-            batch.append(turn)
-        elif batch and (responds := turn.get("responds")) is not None:
-            whole = responds == batch[-1]["id"]
-            named = [
-                each
-                for each in batch
-                if (whole or each["id"] == responds) and each["id"] not in taken
-            ]
-            taken.update(each["id"] for each in named)
-            if whole or named:
-                settled.append(Settlement(turn, named, whole))
-            if whole:
-                batch = []
-    return settled
-
-
-def settled_through(thread: dict) -> int:
-    """The seq of the agent's answer that settled the thread's latest batch of the
-    user's turns, else 0 (`settlements`)."""
-    return max(
-        (each.answer["seq"] for each in settlements(thread) if each.batch), default=0
-    )
+            if turn["id"] in waiting:
+                waiting.move_to_end(turn["id"])
+            elif turn["kind"] == "edit":
+                rewrites.setdefault(turn["message"], []).append(turn["id"])
+            waiting[turn["id"]] = turn
+            places[turn["id"]] = turn["seq"]
+        elif (responds := turn.get("responds")) in places:
+            taken = []
+            while waiting and places[next(iter(waiting))] <= places[responds]:
+                taken.append(waiting.popitem(last=False)[1])
+            if taken:
+                settled.append(Settlement(turn, taken))
+    return Settled(settled, list(waiting.values()), places)
 
 
 def unanswered_agent_turn(thread: dict) -> dict | None:
-    """The thread's response address: the newest turn the agent owes an answer."""
+    """The newest turn the agent owes an answer (`unanswered_turns`)."""
     owed = unanswered_turns(thread)
     return owed[-1] if owed else None
 

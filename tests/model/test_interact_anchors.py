@@ -41,8 +41,7 @@ from leaf.base import files as files_model
 from leaf.commands import cli as cli_model
 from leaf.commands import hook_transport as hook_transport_model
 from leaf.log import event_log as events_model
-from leaf.log.events import build_threads
-from leaf.log.thread_context import logged_fragment
+from leaf.log.events import build_threads, logged_fragment
 from leaf.pages.render_gate import browser as browser_model
 from leaf.records import render_reading as render_reading_model
 from leaf.records.revisioning import activate_source
@@ -545,9 +544,13 @@ def test_the_result_of_promised_work_stays_in_the_thread_the_user_closed(page_di
     assert "responds" not in events_model.read_events(page_dir)[-1]
 
 
-def test_a_reply_refused_after_the_agents_resolution_names_the_resolution(page_dir):
-    """The agent's own resolve answers for its thread, and an agent whose delivered
-    reply became unnecessary should know why."""
+def test_a_message_misplaced_after_the_agents_resolution_names_the_resolution(
+    page_dir,
+):
+    """The agent's own resolve answers for its thread, so a message the agent aims
+    at a section by a message's id should say why nothing is owed there. A reply at
+    the delivered reference still goes in, since the comment is still the thread's
+    newest input, and answers it."""
     root = append_carried_log_record(
         published(page_dir),
         {"kind": "comment", "author": "user", "text": "Can you check this?"},
@@ -558,26 +561,26 @@ def test_a_reply_refused_after_the_agents_resolution_names_the_resolution(page_d
         {"kind": "resolve", "author": "agent", "parent": root["id"]},
     )
 
-    refused = CliRunner().invoke(
-        cli_model.cli,
-        ["thread", "reply", "--done", reference, "--text", "I checked it."],
-    )
-
-    assert refused.exit_code != 0
-    assert "the agent resolved the thread" in refused.output
-    assert resolution["ts"] in refused.output
-    assert "leaf thread reply" not in refused.output
     misplaced = comment(page_dir, "--section", root["id"], "--text", "I checked it.")
     assert "the agent resolved the thread" in misplaced.output
+    assert resolution["ts"] in misplaced.output
     assert "leaf thread reply" not in misplaced.output
     # The user closing the thread after the agent leaves the agent's resolve
-    # answering for it, and the refusal still names that one.
+    # answering for it, and the note still names that one.
     append_carried_log_record(
         page_dir, {"kind": "resolve", "author": "user", "parent": root["id"]}
     )
     again = comment(page_dir, "--section", root["id"], "--text", "I checked it.")
     assert "the agent resolved the thread" in again.output
     assert not any(e["kind"] == "reply" for e in events_model.read_events(page_dir))
+
+    replied = CliRunner().invoke(
+        cli_model.cli,
+        ["thread", "reply", "--done", reference, "--title", "Check", "--text", "Done."],
+    )
+    assert replied.exit_code == 0, replied.output
+    [reply] = [e for e in events_model.read_events(page_dir) if e["kind"] == "reply"]
+    assert reply["responds"] == root["id"]
 
 
 def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):

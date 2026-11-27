@@ -166,9 +166,9 @@ def test_a_widget_the_user_discusses_is_listed_once_through_the_comment():
 
 def test_stop_and_idle_hold_the_agent_to_the_answers_it_owed_before(claimed):
     """The answers that hold the turn and refuse idling are the ones the page owed
-    before updates published records: the newest of two messages in a row, each card
-    of a finished queue sent in a thread, a pick on a page obligation, and nothing for
-    a draft edit or a message a harness handed back."""
+    before updates published records: the newest of two messages in a row, the newest
+    card of a finished queue sent in a thread, a pick on a page obligation, and nothing
+    for a draft edit or a message a harness handed back."""
     declare_on_page(
         claimed, lambda registry: registry.update(queue_board_registry(registry))
     )
@@ -258,12 +258,9 @@ def test_stop_and_idle_hold_the_agent_to_the_answers_it_owed_before(claimed):
             second["id"],
             {"kind": "reply", "parent": second["id"], "responds": second["id"]},
         ),
-        *(
-            (
-                move["id"],
-                {"kind": "reply", "parent": board["id"], "responds": move["id"]},
-            )
-            for move in moves
+        (
+            moves[-1]["id"],
+            {"kind": "reply", "parent": board["id"], "responds": moves[-1]["id"]},
         ),
         (picked["id"], {"kind": "markup", "action": picked["id"]}),
     ]

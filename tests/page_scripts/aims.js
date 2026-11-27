@@ -52,9 +52,9 @@
   // scrolling the page, so a press is judged only inside the view of every scroller that
   // holds the control: its scrollport, less the `scroll-padding` it keeps for what
   // stands over its edges on each side it can still scroll toward, such as a tab
-  // strip's paging edge or a page's sticky header. At the page's foot that is the
-  // floating panel's band, which the page states for Leaf's landings rather than in its
-  // padding (`landingInsets`, dom/geometry.js), so each sweep reads it before it measures.
+  // strip's paging edge or a page's sticky header. At the page's foot that is the room
+  // Leaf's landings keep over the floating panel's cover, which no padding states
+  // (`landingInsets`, dom/geometry.js), so each sweep reads it before it measures.
   // The boxes around a fixed box don't scroll it, so the walk ends at the first one, with
   // the scrollers the runtime says carry it (`carriersOf`, readings/scroll-containers.js). None
   // carry a box stuck in the window, so the panel's own controls are pressed where they

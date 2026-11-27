@@ -28,11 +28,13 @@ from leaf.log.events import (
     active_summaries,
     build_threads,
     is_answer,
+    settle,
     taken_back,
+    thread_structure,
 )
 from leaf.log.obligations import questions_in_words
 from leaf.log.projection import page_reading
-from leaf.log.thread_context import thread_message, thread_names, thread_structure
+from leaf.log.thread_context import thread_message, thread_names
 from leaf.records.activity import answer_command, reply_command
 from leaf.records.authored_checks.admission import (
     check_markup,
@@ -560,6 +562,28 @@ def thread_questions(events: list, thread: str, registry: dict) -> dict[str, boo
     return asked
 
 
+def settling_answer(page_dir: Path, events: list[dict], responds: str) -> dict | None:
+    """The agent's latest answer since the input `responds` names that names it or an
+    input after it in its thread, which leaves that input answered (`events.settle`);
+    else None. A failure receipt is no answer, so the first answer after one at the
+    same input carries `responds`, and every later one finds it here."""
+    for thread in build_threads(events, active_enclosing(page_dir)).values():
+        places = settle(thread).places
+        if (place := places.get(responds)) is None:
+            continue
+        return next(
+            (
+                turn
+                for turn in reversed(thread["turns"])
+                if is_answer(turn)
+                and turn["seq"] > place
+                and places.get(turn["responds"], -1) >= place
+            ),
+            None,
+        )
+    return None
+
+
 def successful_replies(events: list[dict], responds: str) -> list[dict]:
     """Agent answers to this exact input (`events.is_answer`)."""
     return [
@@ -569,9 +593,9 @@ def successful_replies(events: list[dict], responds: str) -> list[dict]:
 
 @dataclass(frozen=True)
 class Refuse:
-    """An ordinary writer's settlement: an answer at a stale or settled response
-    address is refused, with what the log holds instead (`post_reply` names the
-    writes that post there all the same)."""
+    """An ordinary writer's settlement: a write at a reference that no longer names its
+    thread's newest standing input is refused, with the command that answers the
+    thread instead (`post_reply`)."""
 
 
 @dataclass(frozen=True)
@@ -579,10 +603,14 @@ class ProviderFinal:
     """A provider turn's final message, committed at the address its delivery
     reserved (`reserve_delivery_reply`), or its opening, posted there as progress.
 
-    It keeps that address after the user settled the update, but yields to an answer
-    another writer already gave it (a failure receipt is no answer), so a turn's
-    answer committed after its reservation lapsed never answers twice; and it writes
-    nothing once another delivery holds the address."""
+    It yields to an answer another writer already gave the update, by naming it or a
+    newer input in its thread (`settling_answer`; a failure receipt is no answer), so
+    a turn's answer committed after its reservation lapsed never answers twice, and
+    it writes nothing once another delivery holds the address. Where its reference no
+    longer names the thread's newest standing input, it skips that check and answers
+    the input it was written for (`_resolve_obligation`): the turn can't write again,
+    and the user watched it write those words. Codex alone writes this way, so it
+    stands as a special case outside the rule every other write follows."""
 
     reservation: str
 
@@ -657,14 +685,14 @@ def post_reply(
     notes beside it (`owed-response`). ``input`` and ``claim``, which a delivery
     captured, fence it to that page log and delivery owner.
 
-    A ``responds`` that no longer names the update owed refuses an answer, which
-    would mark an unread newer message answered (`superseded-reply`), with two
-    exceptions that post in the thread and answer nothing. Progress takes in hand
-    the newest still-open to-do that an earlier answer to it opened, and otherwise
-    nothing, with a note of what the log holds the event as. An answer that
-    declares nothing further, to an update whose earlier answer promised a to-do
-    still open, is noted with the `leaf task end` that ends that to-do, so `--todo`
-    and then `--done` on one reference both go in.
+    A ``responds`` that no longer names its thread's newest standing input refuses
+    the write, which would mark input the agent never read answered
+    (`superseded-reply`); that is the one check (`_resolve_obligation`). At the newest input, a write goes in
+    whether or not that input is still owed, and answers it only where it is. So
+    progress after an answer takes in hand the newest still-open to-do an earlier
+    answer there opened, and an answer that declares nothing further is noted with
+    the `leaf task end` that ends such a to-do: `--todo` and then `--done` on one
+    reference both go in.
 
     A repeated ``attempt`` returns the reply it appended, matched by kind,
     progress, failure receipt or answer, and response address rather than by the
@@ -879,26 +907,40 @@ def _resolve_obligation(
     failure: str | None,
     done: bool = False,
 ) -> _Obligation | None:
-    """Check `address` against the obligations the log holds now; where the reply
-    goes and what the command notes beside it, or None where `settlement` says to
-    write nothing. `done` says the write is an answer that declares nothing further
-    (`post_reply`)."""
+    """Check `address` against the thread it writes to; where the reply goes and what
+    the command notes beside it, or None where `settlement` says to write nothing.
+    `done` says the write is an answer that declares nothing further (`post_reply`).
+
+    A write at a reference goes in only while the input it names is its thread's
+    newest standing input, answered or not (`workflows.Handover`), and an answer then
+    settles every input up to there (`events.settle`). Any other is refused
+    (`superseded-reply`): the user has added to the thread or taken that input back
+    since, and the agent writes again once it has read the thread as it stands. A
+    receipt writes nothing instead, and a provider's final, which can't be written
+    again, goes in answering the input it was written for (`ProviderFinal`). That is
+    the one check on what a reply answers: a second reply at the newest reference
+    goes in like the first, answering nothing new."""
+    from leaf.agents.presence import read_work
+
     page_dir, events = page.page_dir, page.events
     parent, responds = address.get("parent"), address.get("responds")
     if (
         isinstance(settlement, ProviderFinal)
         and responds is not None
-        and successful_replies(events, responds)
+        and settling_answer(page_dir, events, responds)
     ):
         return None
-    responses = current_responses(page_dir, events)
+    work = read_work(page_dir, events)
+    responses = current_responses(page_dir, events, work)
     expected = responses.get(responds)
+    owed = expected is not None and expected["kind"] == "reply"
     if responds is not None and parent is None:
-        if expected is None or expected["kind"] != "reply":
+        if not owed:
             # Only a receipt addresses an update by `responds` alone; every other
             # writer names the reply's parent (`obligations.response_address`).
             assert isinstance(settlement, Receipt)
             return None
+        assert expected is not None
         parent = expected["parent"]
     assert parent is not None
     thread_id, parent = thread_addressed(page_dir, events, parent)
@@ -911,49 +953,53 @@ def _resolve_obligation(
         and any(todo["id"] == address["parent"] for todo in TodoReading(events).owed)
         else None
     )
-    answers = None if ephemeral else responds
+    # A write at an input an earlier answer settled goes in, and answers nothing new.
+    answered = responds is not None and settling_answer(page_dir, events, responds)
+    answers = None if ephemeral or answered else responds
     advice: list[Finding] = []
     if responds is not None:
-        if (
-            expected is None
-            or expected["kind"] != "reply"
-            or expected["parent"] != parent
-        ):
-            if isinstance(settlement, Receipt):
-                return None
-            if not isinstance(settlement, ProviderFinal):
-                held = logged_id(page_dir, events, responds, responses)
-                # The to-dos earlier answers to it opened that are still open.
-                opened = {reply["id"] for reply in successful_replies(events, responds)}
-                owed_todos = [
-                    todo for todo in TodoReading(events).owed if todo["id"] in opened
-                ]
-                promised = [
-                    {"todo": todo["id"], "title": todo["prompt"]["text"]}
-                    for todo in owed_todos
-                    if done
-                ]
-                if not (ephemeral or promised):
-                    found = {"event": responds, "parent": parent, "held": held}
-                    raise Rejected([Finding("superseded-reply", values=found)])
-                answers = None
-                advice += [
-                    Finding(
-                        "promised-todo",
-                        values={"event": responds, "page": str(page_dir), **todo},
-                    )
-                    for todo in promised
-                ]
-                if ephemeral and owed_todos:
-                    in_hand = owed_todos[-1]["id"]
-                elif ephemeral:
-                    advice.append(
-                        Finding(
-                            "superseded-progress",
-                            values={"event": responds, "held": held},
-                        )
-                    )
-        elif ephemeral and not isinstance(settlement, Receipt):
+        thread = work.durable.threads.get(thread_id)
+        place = settle(thread).places.get(responds) if thread else None
+        newest = work.durable.newest_inputs.get(thread_id)
+        stale = place is None or place != newest
+        if stale and isinstance(settlement, Receipt):
+            return None
+        if stale and not isinstance(settlement, ProviderFinal):
+            owed_here = thread_obligation(events, responses, thread_id)
+            held = (
+                f"{answer_command(owed_here, page_dir)} answers the thread"
+                if owed_here is not None
+                else "nothing in it is owed now, and"
+                f" `leaf thread reply {page_dir} {thread_id}` posts into it"
+            )
+            found = {"event": responds, "held": held}
+            raise Rejected([Finding("superseded-reply", values=found)])
+        if isinstance(settlement, Receipt) and not owed:
+            return None
+        elif answered:
+            # The to-dos earlier answers at this reference opened that are still
+            # open: progress takes the newest in hand, and an answer that declares
+            # nothing further is noted with the `leaf task end` that ends each.
+            opened = {reply["id"] for reply in successful_replies(events, responds)}
+            open_todos = [
+                todo for todo in TodoReading(events).owed if todo["id"] in opened
+            ]
+            if ephemeral and open_todos:
+                in_hand = open_todos[-1]["id"]
+            advice += [
+                Finding(
+                    "promised-todo",
+                    values={
+                        "event": responds,
+                        "page": str(page_dir),
+                        "todo": todo["id"],
+                        "title": todo["prompt"]["text"],
+                    },
+                )
+                for todo in open_todos
+                if done
+            ]
+        elif ephemeral and owed and not isinstance(settlement, Receipt):
             in_hand = responds
         # The open reply reservation decides who may write, whatever the
         # captured `writer` hint or a caller-supplied retry key says.
@@ -1459,7 +1505,7 @@ def cmd_edit(
 
     The message event is immutable: the edit points back to it, so the log retains
     every wording while readings take the latest, its HTML included
-    (`thread_context.thread_structure`). HTML in the new words meets the gates a new
+    (`events.thread_structure`). HTML in the new words meets the gates a new
     message's does, `check` included, under the revision the user is looking at,
     which the edit names as such a message does. Where the message holds a widget
     the user has acted on, the edit goes in and Leaf says what becomes of their

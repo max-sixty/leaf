@@ -691,30 +691,57 @@ function displaced(sticky, style, axis) {
   return { by: own - box[start], scroller };
 }
 // A scroller's landing band: its shown band less the room its landings keep at each
-// edge (`landingInsets`); the root's ends at the foot band the panel states
-// (`stateFootBand`). The chrome at the window's foot takes no room from the page, so a
-// scroller inside the page can reach under it. Where a surface stands across the
-// columns a landing's destination stands in (`across`), the band ends at the root's
-// foot plus however far a scroll of the page that far carries the scroller up before
-// it first stops (`carried`), and the root's band brings the destination the rest of
-// the way clear.
+// edge (`landingInsets`). The chrome at the window's foot takes no room from the page,
+// so a scroller inside the page can reach under it. Where a cover stands across the
+// columns a landing's destination stands in (`across`), the band ends above it
+// (`footCover`) plus however far a scroll of the page that far carries the scroller up
+// before it first stops (`carried`), and the root's band brings the destination the
+// rest of the way clear.
 /** @param {Element} scroller @param {{left: number, right: number} | null} [across] */
 export const landingBand = (scroller, across = null) => {
   const band = insetBand(scroller, landingInsets(scroller));
-  if (!band || !across || footBand === null) return band;
   const root = document.documentElement;
-  if (scroller === root) return band;
-  const foot = layoutWindow().bottom - footBand;
-  if (
-    band.bottom > foot &&
-    coverBoxes(scroller).some((box) => overlapsAcross(box, across))
-  )
+  if (!band || !across || scroller === root) return band;
+  const reach = footCover(
+    getComputedStyle(root),
+    coverBoxes(scroller, { rest: true }),
+    across,
+  );
+  if (reach === null) return band;
+  const foot = layoutWindow().bottom - reach;
+  if (band.bottom > foot)
     band.bottom = Math.max(
       band.top,
       foot + carried(scroller, root, band.bottom - foot),
     );
   return band;
 };
+// How far up from the window's foot a landing stops for the covers standing at that
+// foot (`coverBoxes`), read where they come to rest: their reach, with the room the
+// root keeps above them (`--lf-landing-foot`, base.css), or null where none stands
+// there or nothing states that room, as on an export. `across` narrows them to the
+// covers in a destination's columns.
+//
+// Reading the covers keeps a landing above a view the panel holds open, as when a
+// thread opened in the panel lands its passage, `m` walks with On Me open, or a press
+// on words the view opens over brings them clear. A fixed room above the window's foot
+// needs none of this code. Sized to the panel's row, it left each of those landings
+// under the open view; sized at half the window, it still left some under a tall view,
+// and it moved tall boxes the user already saw whole. The maintainer chose to read the
+// covers, though it may be more than landings need. Once it needs more code than this,
+// replace it with a fixed room and let those landings stand under an open view.
+/** @param {CSSStyleDeclaration} rootStyle @param {Box[]} boxes
+ * @param {{left: number, right: number} | null} [across] */
+function footCover(rootStyle, boxes, across = null) {
+  const clear = Number.parseFloat(rootStyle.getPropertyValue("--lf-landing-foot"));
+  if (Number.isNaN(clear)) return null;
+  const { bottom } = layoutWindow();
+  let top = bottom;
+  for (const box of boxes)
+    if (box.top + box.bottom > bottom && (!across || overlapsAcross(box, across)))
+      top = Math.min(top, box.top);
+  return top < bottom ? bottom - top + clear : null;
+}
 // How far a scroll of `box` by `by`, in its scroll offset and down positive, carries
 // `node` before `node` first stops riding it, in the same measure: the whole scroll for
 // what the box scrolls as content, as far as the box can scroll that way (scrolling.js,
@@ -780,23 +807,14 @@ function insetBand(scroller, inset) {
     bottom: band.bottom - inset.bottom,
   };
 }
-// The root's band at the window's foot, in pixels, which the floating panel states as
-// its box changes height (panel/floating-panel.js, `followBox`), or null where no panel
-// stands, as on an export. Returns whether the band changed.
-/** @type {number | null} */
-let footBand = null;
-/** @param {number} band */
-export function stateFootBand(band) {
-  if (band === footBand) return false;
-  footBand = band;
-  return true;
-}
 // How far each edge of `landingBand` stands in from the scroller's shown band: the
 // band the scroller states, else the `scroll-padding` it declares. The root states its
-// top in `--lf-landing-top` (base.css), and the floating panel its foot
-// (`stateFootBand`), both of which a floating editor's override hides from the browser
-// alone. Callers that measure from the scroller's own box take the clearance here
-// rather than reading the style themselves.
+// top in `--lf-landing-top` (base.css), which a floating editor's override hides from
+// the browser alone, and ends above the chrome at the window's foot (`footCover`),
+// which never reaches the browser: as the root's `scroll-padding-bottom`, a band across
+// the whole window would have the browser's own reveals scroll the page under a box
+// stuck beside the panel. Callers that measure from the scroller's own box take the
+// clearance here rather than reading the style themselves.
 /** @param {Element} scroller */
 export function landingInsets(scroller) {
   const style = getComputedStyle(scroller);
@@ -806,7 +824,9 @@ export function landingInsets(scroller) {
   return {
     ...padding,
     top: Number.isNaN(top) ? padding.top : top,
-    bottom: root && footBand !== null ? footBand : padding.bottom,
+    bottom: root
+      ? (footCover(style, coverBoxes(null, { rest: true })) ?? padding.bottom)
+      : padding.bottom,
   };
 }
 /** @param {CSSStyleDeclaration} style */

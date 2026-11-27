@@ -1,11 +1,10 @@
-"""Thread identity, message markup, and bounded delivery context."""
+"""Thread identity, the widgets thread messages send, and bounded delivery context."""
 
 from collections.abc import Callable
-from functools import lru_cache
-from typing import NamedTuple
 
 from leaf.log.events import (
     InForce,
+    ThreadStructure,
     action_retracted,
     active_summaries,
     build_threads,
@@ -14,9 +13,11 @@ from leaf.log.events import (
     retractions,
     spoken_turns,
     taken_back,
+    thread_structure,
     unlined,
+    widget_messages,
 )
-from leaf.source.passages import enclosing_ids, holds_html, message_markup
+from leaf.source.passages import enclosing_ids
 from leaf.source.registry.kernel import kinds_declaring
 from leaf.source.structure import SourceDocument
 
@@ -175,104 +176,6 @@ def placed_thread(event: dict, names: dict) -> str | None:
     if kind == "reply" and "anchor" in event:
         return names[event["parent"]]
     return None
-
-
-class ThreadStructure(NamedTuple):
-    ids: set
-    by_id: dict
-    fragments: dict
-    # Every id any wording of an agent's message held → that message.
-    holders: dict
-    # Each agent message → the logged events that worded it, in force and in log
-    # order: the message, then each edit of it.
-    wordings: dict
-
-
-def logged_fragment(event: dict) -> SourceDocument | None:
-    """The parse of the markup a logged agent message, or an agent's edit of one, draws
-    where its Markdown holds HTML (`passages.holds_html`, `passages.message_markup`),
-    shared read-only; None for any other event.
-
-    The log is append-only, so each wording is one immutable fragment for the page's
-    lifetime, and every reader of the log takes this one parse of it. The parse is a
-    function of the text alone, so it is held by that text, which names it exactly
-    whichever page and log it came from. Text a writer hands in has not been admitted
-    yet and is another fact: its gate parses it afresh
-    (`authored_checks.admission.check_markup`)."""
-    if (
-        event["kind"] in ("comment", "reply", "edit")
-        and event.get("author") == "agent"
-        and "text" in event
-    ):
-        return _fragment(event["text"])
-    return None
-
-
-@lru_cache(maxsize=16384)
-def _fragment(text: str) -> SourceDocument | None:
-    return SourceDocument(message_markup(text)) if holds_html(text) else None
-
-
-def thread_structure(events: list) -> ThreadStructure:
-    """Each agent message's markup as it now reads, as the panel's id universe: its
-    latest edit still in force, else the words it was sent with, the words
-    `build_threads` shows. `fragments` is ordered by when each message's current
-    wording was written, and `wordings` keeps the ones before it, which a reading of
-    an earlier moment takes (`message_wording`).
-
-    `holders` keeps every id any of a message's wordings held, a withdrawn edit's
-    included, so no other message or revision takes it (`check_markup`,
-    `authored_checks.source`): a gesture the user made on that id would otherwise land
-    on another element. The message itself may take it back in a later edit, which is
-    how an answered widget keeps its answer."""
-    withdrawn = taken_back(events)
-    wordings, holders, latest = {}, {}, {}
-    for e in events:
-        if e["kind"] == "edit":
-            message = e["message"]
-            if message not in wordings:
-                continue
-        elif (
-            e["kind"] in ("comment", "reply")
-            and e.get("author") == "agent"
-            and "text" in e
-        ):
-            message = e["id"]
-            wordings[message] = []
-        else:
-            continue
-        fragment = logged_fragment(e)
-        if fragment:
-            for identity in fragment.ids:
-                holders.setdefault(identity, message)
-        if e["kind"] != "edit" or e["id"] not in withdrawn:
-            wordings[message].append(e)
-            latest.pop(message, None)
-            latest[message] = fragment
-    ids, by_id, fragments = set(), {}, {}
-    for message, fragment in latest.items():
-        if fragment:
-            fragments[message] = fragment
-            ids.update(fragment.ids)
-            by_id.update(fragment.by_id)
-    return ThreadStructure(ids, by_id, fragments, holders, wordings)
-
-
-def message_wording(structure: ThreadStructure, message: str, seq: int) -> dict:
-    """The event whose words `message` said when the log stood at `seq`: the one a
-    gesture logged then was made on, so what it chose is read in the words the user
-    saw (`gesture_words`). A gesture names no wording, so one a tab made before an
-    edit reached it reads in the edit's words."""
-    return [e for e in structure.wordings[message] if e["seq"] <= seq][-1]
-
-
-def widget_messages(structure: ThreadStructure) -> dict:
-    """Widget id → the message whose current markup declares it."""
-    return {
-        widget: message
-        for message, fragment in structure.fragments.items()
-        for widget in fragment.by_id
-    }
 
 
 def thread_widgets(structure: ThreadStructure, names: dict) -> dict:

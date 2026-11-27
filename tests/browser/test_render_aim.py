@@ -18,6 +18,7 @@ from interact_support import (
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
+    HELD_EDGE,
     HOLD_MOTION,
     OBLIGATION_PAGE,
     OBLIGATIONS_PAGE,
@@ -166,6 +167,12 @@ def open_compact_comment(page, text=None):
 # The top of the window the page shows (dom/geometry.js, `shownWindow`): what a float the
 # page places stands below.
 SHOWN_TOP = """async () => (await window.__lfWidgetApi()).shownWindow().top"""
+
+
+def held_x(page, box):
+    """Where the comment box's held inline edge stands, from its bounding box."""
+    edge = page.evaluate(HELD_EDGE)
+    return box["x"] if edge == "left" else box["x"] + box["width"]
 
 
 def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve):
@@ -562,7 +569,7 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
     grown = bar.bounding_box()
     grown_scroll = page.evaluate("scrollY")
     assert bar.get_attribute("data-lf-placement") == placement
-    assert abs(grown["x"] - compact["x"]) <= 1, (compact, grown)
+    assert abs(held_x(page, grown) - held_x(page, compact)) <= 1, (compact, grown)
     ceiling = page.evaluate(SHOWN_TOP)
     assert grown["y"] >= ceiling and grown["y"] + grown["height"] <= 378, grown
 
@@ -1000,7 +1007,7 @@ def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):
     box = bar.bounding_box()
     assert box["y"] >= ceiling and box["y"] + box["height"] <= 352, box
     assert box["y"] < compact["y"] - 20, (compact, box)
-    assert abs(box["x"] - compact["x"]) <= 1, (compact, box)
+    assert abs(held_x(page, box) - held_x(page, compact)) <= 1, (compact, box)
     assert bar.get_attribute("data-lf-placement") == placement
     assert field.evaluate("node => node.scrollHeight > node.clientHeight")
     write(field, "Short again")

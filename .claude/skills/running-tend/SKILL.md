@@ -218,13 +218,14 @@ those tests itself.
 
 The scheduled run's `test-macos` job runs every tier on macOS and takes four to five
 hours, so reproduce a failure only it shows by dispatching that test alone on its
-runner (`tests/AGENTS.md`, **Races**). The same dispatch failing on a branch at the
-fix's base, and passing every copy on the fix's branch in enough copies that the
-base's failure rate would have failed three of them (54 where the base failed 1 of
-18), is the evidence from before and after the fix. Where no dispatch reproduces the
-failure, the failing scheduled run is the evidence from before, and the next one on
-main, after the fix merges, the evidence from after. If that run still fails, its
-report brings the failure back to triage.
+runner (`tests/AGENTS.md`, **Races**). Run the base's copies from a branch pushed at
+the fix's base, not from `main`: a red dispatch on `main` files a CI failure report.
+The same dispatch failing on that branch, and passing every copy on the fix's branch
+in enough copies that the base's failure rate would have failed three of them (54
+where the base failed 1 of 18), is the evidence from before and after the fix. Where
+no dispatch reproduces the failure, the failing scheduled run is the evidence from
+before, and the next one on main, after the fix merges, the evidence from after. If
+that run still fails, its report brings the failure back to triage.
 
 ## Cloudflare logs
 

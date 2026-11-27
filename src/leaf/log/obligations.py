@@ -261,8 +261,10 @@ def widget_facts(
     state or markup moved without a gesture of its own. A version note that retracts
     the winning action at any of the widget's coordinates, by restating what it rests
     on, changes the widget's state with no word from it, so the facts said before it
-    lapse until the widget says them again. A widget whose `answered` is unsaid asks
-    on (`awaits`).
+    lapse until the widget says them again. A gesture made on a version older than
+    the newest one the widget's kept facts were said on leaves those standing: a tab
+    still showing that older version worked its word out of markup the page has since
+    replaced. A widget whose `answered` is unsaid asks on (`awaits`).
 
     The widget works each fact out, in the browser, from its state and markup
     (`module-state.md`, "Declared widget state"), and the runtime sends the values on
@@ -276,6 +278,23 @@ def widget_facts(
     walk = InForce(within)
     widget_of: dict[str, str] = {}
     kept: dict[str, dict] = {}
+    # The newest version a gesture or tab said each widget's kept facts on.
+    said_on: dict[str, int] = {}
+
+    def say(widget: str, facts: dict, on: int | None) -> None:
+        # A word worked out on an older version than one already said leaves the newer
+        # word standing, as admission refuses a tab's (`stale-facts`). An undo names no
+        # version, so its word stands.
+        if on is not None and on < said_on.get(widget, 0):
+            return
+        kept.setdefault(widget, {}).update(facts)
+        if on is not None:
+            said_on[widget] = on
+
+    def lapse(widget: str) -> None:
+        kept.pop(widget, None)
+        said_on.pop(widget, None)
+
     for event in events:
         kind = event["kind"]
         if kind in ("action", "note", "facts") and revision is not None:
@@ -286,21 +305,25 @@ def widget_facts(
             if event["id"] not in projection.classified:
                 continue
             widget_of[event["id"]] = event["widget"]
-            if (
-                walk.admit(event) is not None
+            change = walk.admit(event)
+            if change is not None and change.after is not event:
+                # A version retracted it on arrival, with the decisions it replaced.
+                lapse(event["widget"])
+            elif (
+                change is not None
                 and "facts" in event
                 and event["id"] in projection.in_force
             ):
-                kept.setdefault(event["widget"], {}).update(event["facts"])
+                say(event["widget"], event["facts"], event["revision"])
         elif kind == "undo" and (widget := widget_of.get(event["undoes"])):
             walk.withdraw(event["undoes"])
             if "facts" in event:
-                kept.setdefault(widget, {}).update(event["facts"])
+                say(widget, event["facts"], None)
         elif kind == "facts" and event["widget"] in within:
-            kept.setdefault(event["widget"], {}).update(event["facts"])
+            say(event["widget"], event["facts"], event["revision"])
         elif kind == "note":
             for change in walk.restate(event):
-                kept.pop(change.coordinate[0], None)
+                lapse(change.coordinate[0])
     return kept
 
 

@@ -1468,12 +1468,14 @@ def done(options: list[str], picked: list[str]) -> dict:
     }
 
 
-def told(answered: bool, revision: int = 2) -> dict:
-    """A tab's word on the checklist, worked out again as a version reached it."""
+def told(answered: bool, through: int, revision: int = 2) -> dict:
+    """A tab's word on the checklist, worked out again from the log read through the
+    seq `through`, as a version reached it."""
     return {
         "kind": "facts",
         "widget": "choice",
         "revision": revision,
+        "through": through,
         "facts": {"answered": answered},
     }
 
@@ -1493,7 +1495,7 @@ def test_a_checklist_given_a_step_asks_again_once_a_tab_says_so_with_its_picks_k
 
     item, kept = read()
     assert (standing_model.answered(item), kept) == (True, {"answered": True})
-    item, kept = read(told(False))
+    item, kept = read(told(False, through=2))
     assert (item["state"], item["next_actor"], kept) == (
         "waiting",
         "user",
@@ -1509,37 +1511,113 @@ def test_tabs_that_work_out_the_same_word_leave_one_event():
     A word on a widget the page doesn't hold is refused too, and so is one worked out
     on a version older than the newest."""
     documents = {1: checklist("a", "b"), 2: checklist("a", "b", "c")}
-    said = [chose("a"), done(["a", "b"], ["a"]), told(False)]
+    said = [chose("a"), done(["a", "b"], ["a"]), told(False, through=2)]
     with pytest.raises(EventRefused) as again:
-        model.reading(documents, [*said, told(False)])
+        model.reading(documents, [*said, told(False, through=3)])
     assert refused_on(again.value).code == "unchanged-facts"
     with pytest.raises(EventRefused) as stranger:
-        model.reading(documents, [*said, {**told(True), "widget": "nobody"}])
+        model.reading(documents, [*said, {**told(True, 3), "widget": "nobody"}])
     assert refused_on(stranger.value).code == "unknown-sender"
     with pytest.raises(EventRefused) as older:
-        model.reading(documents, [*said, told(True, revision=1)])
+        model.reading(documents, [*said, told(True, 3, revision=1)])
     assert refused_on(older.value).code == "stale-facts"
 
 
-def test_restating_a_picked_step_after_done_asks_again_with_the_other_picks_kept():
-    """A version that restates a step the user picked takes back the picks that named
-    it and changes the checklist's state with no word from it, so the word its Done
-    said lapses and the question asks again, the pick before it standing. The
-    checklist says the same when a tab works it out (lf-options' `answered`), so no
-    tab's word answers it again."""
-    documents = {1: checklist("a", "b"), 2: checklist("a", "b", restated=("b",))}
-    stamp = {
+def restating(step: str) -> dict:
+    """The note of version 1, at revision 2, which rewrote `step`."""
+    return {
         "kind": "note",
         "author": "agent",
         "version": 1,
         "revision": 2,
-        "text": "Rewrote step b.",
-        "restated": ["b"],
+        "text": f"Rewrote step {step}.",
+        "restated": [step],
     }
+
+
+def test_restating_a_picked_step_after_done_takes_back_the_whole_pick():
+    """A version that restates a step the user picked takes back the pick that named
+    it and the picks it replaced, since none of them stands once the step changed
+    under it, and changes the checklist's state with no word from it: the word its
+    Done said lapses and the question asks again with nothing picked. The checklist
+    says the same when a tab works it out (lf-options' `answered`), so no tab's word
+    answers it again."""
+    documents = {1: checklist("a", "b"), 2: checklist("a", "b", restated=("b",))}
     state = model.reading(
-        documents, [chose("a"), chose("a", "b"), done(["a", "b"], ["a", "b"]), stamp]
+        documents,
+        [chose("a"), chose("a", "b"), done(["a", "b"], ["a", "b"]), restating("b")],
+    )
+    [item] = page_obligations(state, 2)["all"]
+    assert (item["state"], item["next_actor"], item["answer"]) == (
+        "waiting",
+        "user",
+        None,
+    )
+    assert "choice" not in state["views"]["2"]["facts"]
+
+
+def test_restating_the_option_picked_brings_back_no_pick_the_user_replaced():
+    """The user picked a, then b in its place, and a version rewrote b. The rewrite
+    takes back the pick of b and the pick of a it replaced, so the question asks
+    again with nothing picked rather than answered with the option the user moved
+    past. An option picked after the rewrite stands."""
+    documents = {
+        1: page(),
+        2: page().replace('<lf-option id="b">', '<lf-option id="b" restated>'),
+    }
+    picks = [
+        {**chose("a"), "facts": {"answered": True}},
+        {**chose("b"), "facts": {"answered": True}},
+        restating("b"),
+    ]
+    state = model.reading(documents, picks)
+    [item] = page_obligations(state, 2)["all"]
+    assert (item["state"], item["next_actor"], item["answer"]) == (
+        "waiting",
+        "user",
+        None,
+    )
+    view = state["views"]["2"]["document"]["projection"]
+    assert view["actions"] == []
+    later = {**chose("a"), "revision": 2, "facts": {"answered": True}}
+    [item] = page_obligations(model.reading(documents, [*picks, later]), 2)["all"]
+    assert item["answer"]["value"] == ["a"]
+
+
+def test_a_word_worked_out_before_a_press_that_lands_after_it_is_refused():
+    """A tab works out from the reading through e2 that a checklist given a step asks
+    again, and sends that word. Before the word lands, the user presses Done on every
+    step. The word was worked out from a reading the press has moved past, so the page
+    refuses it and the press's own word stands."""
+    documents = {1: checklist("a", "b"), 2: checklist("a", "b", "c")}
+    pressed = [
+        chose("a"),
+        done(["a", "b"], ["a"]),
+        {**done(["a", "b", "c"], ["a"]), "revision": 2},
+    ]
+    with pytest.raises(EventRefused) as late:
+        model.reading(documents, [*pressed, told(False, through=2)])
+    assert refused_on(late.value).code == "stale-facts"
+    state = model.reading(documents, [*pressed, told(False, through=3)])
+    assert state["views"]["2"]["facts"]["choice"] == {"answered": False}
+
+
+def test_a_gesture_on_an_older_version_leaves_the_newer_versions_word_standing():
+    """A tab showing the newest version said the checklist is open again, as the
+    step that version added leaves it. A tab still showing the version before then
+    picks and presses Done there. Its word was worked out on that older version, so
+    the page keeps the newest version's word and the question still asks."""
+    documents = {1: checklist("a", "b"), 2: checklist("a", "b", "c")}
+    state = model.reading(
+        documents,
+        [
+            chose("a"),
+            done(["a", "b"], ["a"]),
+            told(False, through=2),
+            chose("a", "b"),
+            done(["a", "b"], ["a", "b"]),
+        ],
     )
     [item] = page_obligations(state, 2)["all"]
     assert (item["state"], item["next_actor"]) == ("waiting", "user")
-    assert item["answer"]["value"] == ["a"]
-    assert "choice" not in state["views"]["2"]["facts"]
+    assert state["views"]["2"]["facts"]["choice"] == {"answered": False}

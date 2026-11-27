@@ -754,15 +754,32 @@ def _facts_event_error(view, event: dict, readings: AdmissionReadings):
     in thread markup, says only facts that widget declares (`facts_error`), and
     changes a value the page keeps (`AdmissionReadings.kept_facts`): every tab works
     the facts out after the same reading, and those that agree leave one event in the
-    log."""
+    log.
+
+    It is worked out from the reading of the log `through` names, and bookkeeping
+    travels beside the user's gestures rather than behind them, so a gesture on the
+    widget, or a word of another tab's, can land between that reading and the event.
+    A word worked out on an older version could likewise stand after the note of a
+    newer one and override what that version's restatement lapsed. Either word is of a
+    state the page has moved past, so the door refuses it, and the tab works the facts
+    out again from the reading the refusal carries."""
     if event["kind"] != "facts":
         return None
-    # A word worked out on an older version could stand after the note of a newer one
-    # and override what that version's restatement lapsed.
-    if event["revision"] != (newest := view.revisions[-1]):
-        return Finding(
-            "stale-facts", values={"revision": event["revision"], "newest": newest}
+    widget = event["widget"]
+    taken = {
+        logged["id"]
+        for logged in readings.events
+        if logged["kind"] == "action" and logged["widget"] == widget
+    }
+    if event["revision"] != view.revisions[-1] or any(
+        logged["seq"] > event["through"]
+        and (
+            (logged["kind"] in ("action", "facts") and logged["widget"] == widget)
+            or (logged["kind"] == "undo" and logged["undoes"] in taken)
         )
+        for logged in readings.events
+    ):
+        return Finding("stale-facts", values={"widget": widget})
     page_rec = view.document(event["revision"]).by_id.get(event["widget"])
     rec = page_rec or readings.thread.by_id.get(event["widget"])
     if rec is None:

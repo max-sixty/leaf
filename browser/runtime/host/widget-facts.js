@@ -38,7 +38,7 @@ import { registry } from "../state/registry.js";
 import { widgetFacts } from "./widget-state.js";
 import { addressableAt } from "../records/thread/messages.js";
 
-/** @typedef {{kind: "facts", widget: string, revision: number, facts: Record<string, unknown>}} FactsEvent */
+/** @typedef {{kind: "facts", widget: string, revision: number, through: number, facts: Record<string, unknown>}} FactsEvent */
 
 // A fact's value as the page keeps it, for comparing: an unsaid `answered` is the
 // question still asked (`awaits`), and any other unsaid fact is none.
@@ -113,7 +113,8 @@ export function reportFacts(send) {
       const said = JSON.stringify([revision, worked.facts]);
       if (!Object.keys(changed).length || sent.get(id) === said) continue;
       sent.set(id, said);
-      void send({ kind: "facts", widget: id, revision, facts: changed }).then(
+      const through = state.browser.basis.through_seq;
+      void send({ kind: "facts", widget: id, revision, through, facts: changed }).then(
         (result) => {
           // A word that never reached the page is compared and said again at the
           // next reading, though nothing in it moved.

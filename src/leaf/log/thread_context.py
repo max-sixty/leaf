@@ -5,7 +5,6 @@ from collections.abc import Callable
 from leaf.log.events import (
     InForce,
     ThreadStructure,
-    action_retracted,
     active_summaries,
     build_threads,
     conversation_turns,
@@ -51,7 +50,8 @@ def sample_events(
     )
     # A coordinate a selected thread's action stands at is copied whole, so the
     # child folds the same winner there: an action that changed no thread, such as
-    # the one a retracted answer had superseded, still decides the widget.
+    # the pick an answer replaced, which an undo of the answer brings back, still
+    # decides the widget.
     coordinates = {
         event_coordinate(event)
         for event in events
@@ -61,13 +61,17 @@ def sample_events(
     # it. A version's retractions are applied here rather than copied: what a later
     # version retracted stays behind, with the notes that retracted it and anything
     # undoing it, and the rest stands in the child as it stands in the log.
-    floors = retractions(events)
+    withdrawn = taken_back(events)
+    live = InForce(within, retractions(events), withdrawn)
+    for event in events:
+        if event["kind"] == "action":
+            live.admit(event)
+    # What an undo took back is copied with the undo; what a version took back isn't.
+    standing = live.ids() | withdrawn
     copied = set()
     for event in events:
         kind = event["kind"]
-        if kind == "note" or (
-            kind == "action" and action_retracted(event, floors, within)
-        ):
+        if kind == "note" or (kind == "action" and event["id"] not in standing):
             continue
         if (
             event["undoes"] in copied

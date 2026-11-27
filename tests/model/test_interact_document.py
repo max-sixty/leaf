@@ -1281,7 +1281,7 @@ def test_page_state_shows_each_widgets_facts_on_its_element(page_dir):
     (page_dir / "index.html").write_text(markup)
     publish(page_dir)
     user = {"author": "user", "revision": 1, "widget": "g1"}
-    append_command(
+    picked = append_command(
         page_dir,
         user
         | {
@@ -1299,7 +1299,11 @@ def test_page_state_shows_each_widgets_facts_on_its_element(page_dir):
         }
 
     assert (facts()["g1"], facts()["b1"]) == ({"answered": True}, None)
-    append_command(page_dir, user | {"kind": "facts", "facts": {"answered": False}})
+    append_command(
+        page_dir,
+        user
+        | {"kind": "facts", "through": picked["seq"], "facts": {"answered": False}},
+    )
     assert facts()["g1"] == {"answered": False}
     narrowed = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir), "g1"])
     assert narrowed.exit_code == 0, narrowed.output

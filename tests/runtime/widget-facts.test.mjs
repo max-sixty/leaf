@@ -87,6 +87,7 @@ const tally = (/** @type {Record<string, unknown>} */ facts) => ({
   kind: "facts",
   widget: "tally",
   revision: readApplication().document.revision,
+  through: served.browser.basis.through_seq,
   facts,
 });
 

@@ -267,10 +267,13 @@ about them:
 - A `facts` event carries the facts a tab worked out again where the widget's state
   or markup moved without a gesture of its own, as when a version or another tab's act
   reached it: only those whose values differ from the ones the page keeps. It names
-  the widget and the newest revision, which the tab showed. It is bookkeeping: it
-  wakes no one, and no undo takes it back. Admission refuses one naming an older
-  revision, and one that changes no value the page keeps, so tabs that work out the
-  same value leave one event.
+  the widget, the newest revision, which the tab showed, and `through`, the seq of
+  the log reading it was worked out from. It is bookkeeping: it wakes no one, no
+  undo takes it back, and it travels beside the user's gestures rather than behind
+  them. Admission refuses one naming an older revision, and one after whose reading
+  a gesture on the widget or another tab's word on it landed, since either is a word
+  on a state the page has moved past. It also refuses one that changes no value the
+  page keeps, so tabs that work out the same value leave one event.
 
 Admission refuses a fact the widget's declaration doesn't list, and a value its
 schema refuses, on each of these. The page keeps each fact's latest value: the newest

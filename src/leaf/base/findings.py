@@ -2026,8 +2026,8 @@ _TEXT = {
     "stale-facts": _refuses(
         _AS_SEEN,
         lambda at, v: (
-            f"a `facts` event speaks for the newest version, r{v['newest']}; this one"
-            f" names r{v['revision']}"
+            f"{v['widget']!r} moved after the reading this `facts` event was worked out"
+            " from; work its facts out again from the newest version and reading"
         ),
     ),
     "unchanged-facts": _refuses(

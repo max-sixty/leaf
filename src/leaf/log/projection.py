@@ -374,7 +374,7 @@ def state_projection(
         entry = (event, spec)
         classified[event["id"]] = (coordinate, entry)
         if event["kind"] == "action":
-            if in_force.admit(event):
+            if (change := in_force.admit(event)) and change.after is event:
                 specs[event["id"]] = spec
         elif settled_at := settled.get(event["id"]):
             settlement_versions[coordinate] = max(

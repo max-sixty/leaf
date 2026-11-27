@@ -1309,8 +1309,9 @@ def quoted_input(page_dir: Path, events: list[dict], inputs: list[dict]) -> str:
     if not user:
         return ""
     facts = EventFacts(page_dir, events, _registry(page_dir))(user)
-    # Each verb once, with its quotes in log order.
-    quotes: dict[str, list[str]] = {}
+    # In log order, so a pick, its undo and a second pick read in the order the
+    # user made them; consecutive inputs of one verb share a clause.
+    clauses: list[tuple[str, list[str]]] = []
     for event in user:
         if text := event.get("text"):
             verb, words = "wrote", [text]
@@ -1319,10 +1320,10 @@ def quoted_input(page_dir: Path, events: list[dict], inputs: list[dict]) -> str:
             words = list(says.values())
         else:
             continue
-        quotes.setdefault(verb, []).extend(f"“{_shortened(said)}”" for said in words)
-    quoted = "; ".join(
-        f"the user {verb} {_listed(said)}" for verb, said in quotes.items()
-    )
+        if not clauses or clauses[-1][0] != verb:
+            clauses.append((verb, []))
+        clauses[-1][1].extend(f"“{_shortened(said)}”" for said in words)
+    quoted = "; ".join(f"the user {verb} {_listed(said)}" for verb, said in clauses)
     return quoted[:1].upper() + quoted[1:]
 
 

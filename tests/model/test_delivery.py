@@ -821,7 +821,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
     # Taken back, and the thread stops carrying it — the log keeps the
     # gesture, and no reading of the log stands on it.
     receive_through(page_dir, last_deliverable_seq(page_dir))
-    append_carried_log_record(
+    undone = append_carried_log_record(
         page_dir, {"kind": "undo", "author": "user", "undoes": chose["id"]}
     )
     assert session_model.cmd_wait(page_dir) == 0
@@ -829,6 +829,25 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
     [withdrawn] = withdrawn_batch["threads"]
     assert withdrawn["id"] == asked["id"]
     assert withdrawn["actions"] == []
+
+    # Chosen again: the waking line keeps the order the user acted in, so the
+    # last clause is the decision that stands.
+    rechose = append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "gm",
+            "action": "choose",
+            "detail": {"value": ["m-cap"]},
+            "answered": True,
+        },
+    )
+    pick = "“Cap retries Bound retry load.”"
+    assert delivery_model.quoted_input(
+        page_dir, events_model.read_events(page_dir), [chose, undone, rechose]
+    ) == (f"The user chose {pick}; the user took back {pick}; the user chose {pick}")
 
 
 def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(

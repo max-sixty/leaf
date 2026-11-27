@@ -197,7 +197,7 @@ const bundles = {
       {
         file: /markdown-it\/dist\/markdown-it\.mjs$/,
         edit: (source) =>
-          [
+          /** @type {[string, string, number?][]} */ ([
             [
               "var StateBlock = class {",
               `function sourceSpan(state, line, from, to) {
@@ -207,8 +207,9 @@ const bundles = {
               function rowSpans(state, line, spans) {
                 const from = state.bMarks[line] + state.tShift[line];
                 const text = state.src.slice(from, state.eMarks[line]);
-                const at = from + text.length - text.trimStart().length;
-                return spans.map(([a, b]) => sourceSpan(state, line, at + a, at + b));
+                const [, a] = sourceSpan(state, line, from, from);
+                const at = a + text.length - text.trimStart().length;
+                return spans.map(([b, c]) => [line, at + b, at + c]);
               }
               var StateBlock = class {`,
             ],
@@ -276,7 +277,7 @@ const bundles = {
               `token = state.push("list_item_open", "li", 1);
           token.lfSource = { markers: [sourceSpan(state, nextLine, state.bMarks[nextLine] + state.tShift[nextLine], Math.min(posAfterMarker + 1, contentStart))], indent: indent - state.blkIndent };`,
             ],
-          ].reduce(
+          ]).reduce(
             (text, [original, replacement, count]) =>
               seam(text, original, replacement, "Markdown block source", count),
             source,

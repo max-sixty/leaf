@@ -358,19 +358,20 @@ sheet.replaceSync(`
      line's border, so the two stand as high as the sent head; once shown, the
      delimiter's source stands for the rule in the same room, so showing it moves
      nothing, and it asks for no width, so it widens no column, running on past the
-     table where it is longer. A \`|\` takes no room: the one opening a cell hangs into
-     the padding before its words, the one closing the row after them. A grid's columns
-     share out a width too narrow for them otherwise than a table's do, so a table that
-     must wrap its cells, as on a phone, wraps them at other words than the sent one.
-     Rejected: rows and cells displayed as a table's, which wrapped no closer to the
-     sent table and can't take the padding under its last row. */
+     table where it is longer, until the caret is on it. A \`|\` takes no room: the one
+     opening a cell hangs into the padding before its words, the one closing the row
+     after them. A grid's columns share out a width too narrow for them otherwise than a
+     table's do, so a table that must wrap its cells, as on a phone, wraps them at other
+     words than the sent one. Rejected: rows and cells displayed as a table's, which
+     matched the sent columns but not yet its rows' heights, and can't take the padding
+     under its last row. */
   .lf-md-table { display: grid; grid-template-columns: repeat(var(--lf-table-columns), auto);
     justify-content: start; font-family: var(--lf-sans); font-style: normal;
     font-variant-numeric: tabular-nums;
     --lf-table-edge: max(var(--lf-focus-ring-room), var(--lf-raise-1-blur)); }
   .cm-line.lf-md-table-row { display: grid; grid-template-columns: subgrid;
     grid-column: 1 / -1; line-height: 1.5; }
-  .lf-md-cell { padding: 8px 14px; overflow-wrap: normal;
+  .lf-md-cell { padding: 8px 14px; overflow-wrap: normal; word-break: normal;
     border-block-end: 1px solid var(--lf-rule); }
   .lf-md-cell:first-child { padding-inline-start: var(--lf-table-edge); }
   .lf-md-cell:last-child { padding-inline-end: var(--lf-table-edge); }
@@ -387,6 +388,8 @@ sheet.replaceSync(`
     font-size: var(--lf-t-working-label); line-height: 8px;
     padding-inline: var(--lf-table-edge); border-block-end: 1px solid var(--lf-border); }
   .cm-line.lf-md-table-rule.lf-md-shown { border-block-end-color: transparent; }
+  .cm-line.lf-md-table-rule.lf-md-editing { line-height: normal; white-space: pre-wrap;
+    overflow-wrap: anywhere; }
   /* A rule's line is the sent hr, a line tall with its stroke through the middle
      (reading.css, \`.lf-msg-body hr\`), its source on that line under the caret, so
      reaching it moves nothing (browser/AGENTS.md, "The page holds still under the

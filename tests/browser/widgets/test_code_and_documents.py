@@ -1311,7 +1311,8 @@ def test_a_text_document_update_keeps_a_selection_it_carries_into_another_run(
     url = serve(
         leaf_page(
             "Run edges",
-            '<h1>Run log</h1><lf-text-document id="log" source="log-text">'
+            '<h1>Run log</h1><lf-text-document id="log" source="log-text"'
+            ' style="--lf-bound: none">'
             "</lf-text-document>",
         )
     )
@@ -1393,7 +1394,8 @@ def test_a_text_document_rewrite_changes_only_the_rows_of_the_lines_it_changes(
     url = serve(
         leaf_page(
             "Rewrites",
-            '<h1>Run log</h1><lf-text-document id="log" source="log-text">'
+            '<h1>Run log</h1><lf-text-document id="log" source="log-text"'
+            ' style="--lf-bound: none">'
             "</lf-text-document>",
         )
     )

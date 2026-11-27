@@ -1044,64 +1044,44 @@ class TextDocument extends LeafElement {
       box.toggleAttribute("hidden", !text || !this.cutText(panel, text));
     }
   }
-  // The width and text each reading last cut at (`cutText`).
-  /** @type {WeakMap<HTMLElement, {width: number, lines: Lines}>} */
-  cutFor = new WeakMap();
-  // Folds what of `text` stands below the foot of `panel`, whose bound clips it
-  // (text-document.css): `hidden="until-found"` on the first unit that ends past the
-  // foot and on every unit after it (`cut`). A unit is a block of the preview or a row
-  // of the listing; the runs after the one the foot falls in fold whole. The first unit
-  // stays, clipped where it alone outgrows the bound. A folded unit has no box to
-  // measure, so where the reading's width or text has changed since it cut, it unfolds
-  // its units and cuts again in the next frame, from what that frame lays out; the
-  // bound's clip hides them meanwhile. Answers whether the panel cuts any text. A
-  // reading that fills a pane scrolls instead, and cuts nothing.
+  // Folds each unit of `text` that starts at or below the foot of `panel`, whose bound
+  // clips it there (text-document.css), `hidden="until-found"` (`cut`), and unfolds a
+  // folded one that now starts above it, as after the width grows or lines above it go.
+  // A unit is a block of the preview or a row of the listing, whose runs past the foot
+  // fold whole. A folded unit keeps its place, so where it starts is read as it stands,
+  // and each measure writes only the units the foot has crossed. A unit the foot falls
+  // in stays, clipped. Answers whether the panel cuts any text. A reading that fills a
+  // pane scrolls instead, and cuts nothing.
   /** @param {HTMLElement} panel @param {Element} text */
   cutText(panel, text) {
-    const folded = [...this.tail].filter((unit) => text.contains(unit));
-    const unfold = () => {
-      for (const unit of folded) {
-        unit.removeAttribute("hidden");
-        this.tail.delete(unit);
-      }
-    };
     if (panel.hasAttribute("data-lf-all") || !cutting(panel)) {
-      unfold();
+      for (const unit of this.tail)
+        if (text.contains(unit)) {
+          unit.removeAttribute("hidden");
+          this.tail.delete(unit);
+        }
       return false;
     }
-    const width = panel.clientWidth;
-    const made = this.cutFor.get(panel);
-    if (folded.length && (made?.width !== width || made?.lines !== this.lines)) {
-      unfold();
-      this.cutFor.delete(panel);
-      nextFrame(() => this.measureCut());
-      return true;
-    }
-    this.cutFor.set(panel, { width, lines: this.lines });
     const foot =
       panel.getBoundingClientRect().top + panel.clientTop + panel.clientHeight;
-    if (text.getBoundingClientRect().bottom <= foot + 0.5) return folded.length > 0;
-    /** @param {Element} unit */
-    const fold = (unit) => {
-      if (this.tail.has(unit)) return;
-      unit.setAttribute("hidden", "until-found");
-      this.tail.add(unit);
+    let cut = false;
+    /** @param {Element} parent */
+    const visit = (parent) => {
+      for (const unit of parent.children) {
+        const above = unit.getBoundingClientRect().top < foot - 0.5;
+        if (above && this.tail.has(unit)) {
+          unit.removeAttribute("hidden");
+          this.tail.delete(unit);
+        } else if (!above && !this.tail.has(unit)) {
+          unit.setAttribute("hidden", "until-found");
+          this.tail.add(unit);
+        }
+        if (!above) cut = true;
+        else if (unit.classList.contains("lf-text-document-run")) visit(unit);
+      }
     };
-    /** @param {Element} parent @param {boolean} first */
-    const cutWithin = (parent, first) => {
-      const units = [...parent.children];
-      const at = units.findIndex(
-        (unit) => unit.getBoundingClientRect().bottom > foot + 0.5,
-      );
-      const unit = units[at];
-      if (!unit) return;
-      const keep = first && at === 0;
-      if (unit.classList.contains("lf-text-document-run")) cutWithin(unit, keep);
-      else if (!keep) fold(unit);
-      for (const after of units.slice(at + 1)) fold(after);
-    };
-    cutWithin(text, true);
-    return true;
+    visit(text);
+    return cut || text.getBoundingClientRect().bottom > foot + 0.5;
   }
   // The runs the browser has drawn since they last forgot a height (`sizeRuns`).
   drawn = new WeakSet();
@@ -1592,8 +1572,10 @@ class TextDocument extends LeafElement {
       this.classList.toggle("lf-rendered", true);
       // Measured once drawn, since until then the host wears the source face
       // (reading.css), and before the dressing lands, in the task that drew the
-      // document, so a reload on the Source tab moves nothing.
+      // document, so a reload on the Source tab moves nothing. The cut folds its text
+      // in the same task, before travel to a comment can reach what it hides.
       this.holdSource(firstBox);
+      this.measureCut();
       await dressed;
     } catch (error) {
       if (rendering !== this.rendering || !this.isConnected) return;

@@ -561,13 +561,14 @@
         element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement
           ? element
           : null;
-      const value = field.value ?? control?.defaultValue ?? "";
+      const value = field.state?.value ?? control?.defaultValue ?? "";
       const [start, end] = /** @type {[number, number]} */ (field.caret);
       const at = start + key.length;
-      field.value = value.slice(0, start) + key + value.slice(end);
+      const words = value.slice(0, start) + key + value.slice(end);
+      field.state = { value: words };
       field.caret = [at, at];
       if (!control) return;
-      control.value = field.value;
+      control.value = words;
       control.setSelectionRange(at, at);
       echo = new InputEvent("input", {
         bubbles: true,

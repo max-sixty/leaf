@@ -36,6 +36,8 @@
     "../runtime/**/*.js",
     "../widgets/*.js",
     "../../packages/*/widgets/**/*.js",
+    "../**/*.ts",
+    "../../packages/*/**/*.ts",
     "../../src/leaf/source/render-checks/*.js",
     "../../src/leaf/pages/static-export.js",
     "../../build/entries/**/*.mjs"

@@ -12,7 +12,8 @@
  * the served state (`contract-types.mjs`), and the baseline its schemas are held to
  * (`protocol.mjs`), the third-party bundles and the runtime's table of their grammars
  * (`build/vendor.mjs`), and the floating panel's row as a served document stands it
- * from its first paint (`build/panel-row.mjs`). The layer's `vendor/` and each
+ * from its first paint (`build/panel-row.mjs`), and the JavaScript each TypeScript module
+ * compiles to (`build/typescript.mjs`). The layer's `vendor/` and each
  * package's hold nothing else,
  * so a file there that no build writes is stale. Leaf installation, vendoring,
  * activation, and export never invoke this tool.
@@ -40,6 +41,7 @@ import { panelRowOutputs } from "../panel-row.mjs";
 import { signalsPath } from "../runtime-bundle.mjs";
 import { adapt, seam, vendorOutputs, vendorTypePaths } from "../vendor.mjs";
 import { bundledPackages, checkModule, licenseNotices } from "./shipped.mjs";
+import { staleCompiledModules, typescriptOutputs } from "../typescript.mjs";
 
 const root = fileURLToPath(new URL("../../", import.meta.url));
 const assets = "browser";
@@ -194,21 +196,6 @@ async function protocolOutputs() {
   };
 }
 
-/** Refuse TypeScript under the runtime, whose modules a page runs as written. */
-export async function checkRuntimeModules(directory = root) {
-  const runtime = `${assets}/runtime`;
-  const files = (await readdir(path.join(directory, runtime), { recursive: true })).map(
-    (name) => `${runtime}/${name}`,
-  );
-  const typescript = files.filter(
-    (file) => file.endsWith(".ts") && !file.endsWith(".d.ts"),
-  );
-  if (typescript.length)
-    throw new Error(
-      `Runtime modules are JavaScript with JSDoc so an edit reaches pages and tests without a build:\n${typescript.join("\n")}`,
-    );
-}
-
 // One strict program checks all maintained browser modules, including modules no
 // entry point imports yet. Public bundle paths resolve through their source entries
 // to the installed dependencies' declarations.
@@ -237,7 +224,6 @@ export async function buildOutputs() {
   const protocol = await protocolOutputs();
   if ((await readFile(contractPath, "utf8")) !== protocol.contract)
     throw new Error("Stale protocol types; run pnpm run build:browser");
-  await checkRuntimeModules();
   typecheck();
 
   const outputs = new Map([
@@ -327,7 +313,12 @@ export async function buildOutputs() {
       `${assets}/vendor/${name}.LICENSES.txt`,
       Buffer.from(licenseNotices(name, bundledPackages(metafile, root))),
     );
-  for (const producer of [styleOutputs, vendorOutputs, panelRowOutputs])
+  for (const producer of [
+    styleOutputs,
+    vendorOutputs,
+    panelRowOutputs,
+    typescriptOutputs,
+  ])
     for (const [name, bytes] of await producer()) outputs.set(name, bytes);
   return outputs;
 }
@@ -349,7 +340,8 @@ async function ownedDirectories(directory) {
 }
 
 export async function checkOutputs(outputs, directory = root) {
-  const stale = [];
+  // A compiled module whose source is gone is stale too.
+  const stale = await staleCompiledModules(outputs, directory);
   for (const owned of await ownedDirectories(directory))
     for (const file of await readdir(path.join(directory, owned), {
       recursive: true,
@@ -397,6 +389,8 @@ async function main(args) {
   else {
     for (const owned of await ownedDirectories(root))
       await rm(path.join(root, owned), { force: true, recursive: true });
+    for (const name of await staleCompiledModules(outputs, root))
+      await rm(path.join(root, name));
     for (const [name, bytes] of outputs) {
       const destination = path.join(root, name);
       await mkdir(path.dirname(destination), { recursive: true });

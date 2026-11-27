@@ -7,10 +7,12 @@ version: 2
 # The npm ecosystem also supports pnpm: it watches the root `package.json` and
 # `pnpm-lock.yaml`, which name the browser, Worker and eval dependencies. The
 # dependency-bundles workflow rebuilds every committed browser bundle (`pnpm run
-# build:browser`) and updates the same PR. The compilers, esbuild and Rolldown, are
-# left out: upgrade them when a build needs it rather than regenerating the payload on
-# every compiler release. Dependabot can't move pnpm itself; the pnpm-update workflow
-# does, in a weekly PR of its own.
+# build:browser`) and updates the same PR. The compilers, esbuild and Rolldown, and
+# the formatter the TypeScript build lays its output out with, oxfmt, are left out:
+# upgrade them when a build needs it rather than regenerating the payload on every
+# release. oxfmt moves with the pre-commit hook's pin, which Dependabot can't see.
+# Dependabot can't move pnpm itself; the pnpm-update workflow does, in a weekly PR of
+# its own.
 #
 # Every ecosystem proposes only releases at least three days old (`cooldown`), the
 # window `minimumReleaseAge` in `pnpm-workspace.yaml` and `exclude-newer` in
@@ -56,6 +58,7 @@ updates:
     ignore:
       - dependency-name: esbuild
       - dependency-name: rolldown
+      - dependency-name: oxfmt
     groups:
       dependencies:
         patterns: ["*"]

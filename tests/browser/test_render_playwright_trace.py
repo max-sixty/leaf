@@ -558,7 +558,7 @@ def test_trace_comparison_pairs_authored_results_across_delayed_sources(browser,
     expect(before.locator(".lf-trace-phase")).to_have_attribute(
         "data-lf-datum", targets[0]
     )
-    before.get_by_role("button", name="Image scale", exact=True).click()
+    before.get_by_role("button", name=re.compile(r"^Image scale, ")).click()
     press_scale(before, "Actual size")
     canvas = before.locator(
         ".lf-trace-image:not(.lf-trace-image-pending) .lf-trace-canvas"
@@ -838,7 +838,7 @@ def test_trace_pointer_annotation_stays_inside_the_panned_image_viewport(
       const r = node.getBoundingClientRect();
       return document.elementFromPoint(r.x + r.width / 2, r.y + r.height / 2) === node;
     }""")
-    scale = widget.get_by_role("button", name="Image scale", exact=True)
+    scale = widget.get_by_role("button", name=re.compile(r"^Image scale, "))
     expect(scale).to_have_text("Fit")
     scale.focus()
     scale.press("Enter")
@@ -1110,7 +1110,7 @@ def test_trace_comparison_keeps_native_playback_and_shares_image_inspection(
         expect(user.locator(f"#{label.lower()} .lf-trace-phase")).to_have_attribute(
             "data-lf-datum", targets[-1]
         )
-    after.get_by_role("button", name="Image scale", exact=True).click()
+    after.get_by_role("button", name=re.compile(r"^Image scale, ")).click()
     press_scale(after, "Actual size")
     canvas = after.locator(
         ".lf-trace-image:not(.lf-trace-image-pending) .lf-trace-canvas"

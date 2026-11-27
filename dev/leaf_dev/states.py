@@ -3476,7 +3476,7 @@ def trace_controls(page: Page) -> None:
 def trace_image_scale(page: Page) -> None:
     """A recording's image scale with its choices open, hung below their trigger."""
     trace = page.locator("#release-trace")
-    scale = trace.get_by_role("button", name="Image scale", exact=True)
+    scale = trace.get_by_role("button", name=re.compile(r"^Image scale, "))
     expect(scale).to_be_enabled()
     scale.evaluate("node => node.scrollIntoView({block: 'center'})")
     scale.click()

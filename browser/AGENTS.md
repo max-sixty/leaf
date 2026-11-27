@@ -991,9 +991,9 @@ tested and maintained one way. Until it gets there, a bundled widget is either a
 component that `defineWidget` defines (`runtime/effect-widget.js`), and each module's
 header gives its contract. The runtime's own views, Leaf's chrome, draw with Lit.
 
-Lit goes one widget at a time, the chrome last. Each port, the change that moves a
-widget from Lit to Effect UI, has to pay for itself by leaving the widget easier to
-work on and no slower on a large page. Ports follow this rule:
+Lit goes one view at a time, the chrome's views as well as the widgets. Each port, the
+change that moves a view from Lit to Effect UI, has to pay for itself by leaving the
+view easier to work on and no slower on a large page. Ports follow this rule:
 
 - **A port deletes the Lit view it replaces**, and a service it adds to
   `runtime/widget-services.js` calls the same owner as the `widget-api.js` function it
@@ -1008,11 +1008,8 @@ work on and no slower on a large page. Ports follow this rule:
 - **A widget that decorates the author's children draws in a light-DOM part beside
   them first**, as a `LeafElement` can and `defineWidget` does by default, and takes a
   shadow root only where that part fails.
-- **The chrome moves only once `@effect/ui` publishes a release** whose mount and
-  component APIs (`BrowserHost.mountEffect`, `Mount`, `Component`) no longer carry
-  `@stability experimental`.
 
-A widget that can't meet this rule is the point to stop porting and raise it with the
+A view that can't meet this rule is the point to stop porting and raise it with the
 maintainer.
 
 Give each component's generated UI one renderer from first paint through live updates.

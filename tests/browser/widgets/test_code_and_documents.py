@@ -148,7 +148,7 @@ def test_a_written_markdown_passage_reads_rendered_over_its_exact_source(
     assert document.locator(".lf-text-document-listing code").text_content() == text
 
 
-def test_a_written_markdown_source_keeps_its_box_until_shown_whole(browser, serve):
+def test_a_written_markdown_source_takes_its_preview_s_height(browser, serve):
     """A written Markdown preview's Source tab takes the preview's height, so switching
     to it moves nothing that follows the document, and a source longer than the preview
     scrolls inside that box: the preview shows the whole document, so neither tab
@@ -248,6 +248,32 @@ def test_a_document_longer_than_its_bound_scrolls_and_shows_whole_on_a_press(
     source = document.locator("lf-tab:not([hidden])")
     held = source.evaluate("tab => [tab.clientHeight, tab.scrollHeight]")
     assert held[0] == held[1] > bound, held
+
+
+def test_a_long_document_reloaded_on_its_source_offers_the_press(browser, serve):
+    """A long document reloaded on its Source tab, whose preview hasn't shown, offers
+    the press under that tab, and switching to the preview moves nothing below it."""
+    url = serve(
+        leaf_page(
+            "Long quote",
+            '<h1>Long quote</h1><lf-text-document id="rules" label="RULES.md" '
+            f'preview="markdown"><pre>\n{LONG_RULES}\n</pre></lf-text-document>'
+            '<p id="after">After the rules.</p>',
+        )
+    )
+    page = open_page(browser, url)
+    document = page.locator("#rules")
+    document.get_by_role("tab", name="Source", exact=True).click()
+    page.reload()
+    wait_until_ready(page)
+    press = document.get_by_role("button", name="Show all 80 lines")
+    expect(press).to_be_visible()
+    after = "() => document.getElementById('after').getBoundingClientRect().top"
+    before = page.evaluate(after)
+    document.get_by_role("tab", name="Preview", exact=True).click()
+    rendered(page)
+    expect(press).to_be_visible()
+    assert page.evaluate(after) == before
 
 
 def test_a_short_document_takes_its_text_s_height(browser, serve):

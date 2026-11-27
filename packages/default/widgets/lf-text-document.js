@@ -967,6 +967,8 @@ class TextDocument extends LeafElement {
   // The press under the readings that shows the whole document in each (`offerWhole`).
   /** @type {{box: HTMLElement, press: HTMLButtonElement} | null} */
   more = null;
+  // Whether the preview has shown, which gives the Source tab its height (`holdSource`).
+  previewShown = false;
   // A press at the foot of `figure`, under its readings, that shows the whole document
   // in each and goes, moving focus to the text it showed.
   /** @param {HTMLElement} figure */
@@ -999,8 +1001,10 @@ class TextDocument extends LeafElement {
     const panels = this.view?.panels;
     if (!preview || !panels) return;
     let measured;
-    if (!panels.preview.hidden) measured = preview.getBoundingClientRect().height;
-    else if (firstBox !== null)
+    if (!panels.preview.hidden) {
+      measured = preview.getBoundingClientRect().height;
+      this.previewShown = true;
+    } else if (firstBox !== null)
       measured =
         panels.source.getBoundingClientRect().height +
         firstBox -
@@ -1009,16 +1013,23 @@ class TextDocument extends LeafElement {
     panels.source.style.setProperty("--lf-preview-block", layoutPx(measured));
   }
   // The press shows while the document's text runs past its bound: its preview's,
-  // where it has one, or its listing's. The Source tab takes the preview's height, so
-  // the press stays as the reader switches tabs and the page holds still, and a source
-  // longer than its preview scrolls without one. A closed preview keeps the press as
-  // it stood, since measuring it would lay out what the browser skips. The stylesheet
+  // where it has one, or its listing's. Once the preview has shown, the Source tab
+  // takes its height, so the press follows the preview alone: it stays as the reader
+  // switches tabs and the page holds still, and a source longer than its preview
+  // scrolls without one. A document drawn on its Source tab, as after a reload,
+  // measures that tab until its preview shows. A closed reading keeps the press as it
+  // stood, since measuring it would lay out what the browser skips. The stylesheet
   // hides the press where the document fills a pane or follows its end, since there
   // the box that scrolls is the reading (text-document.css).
   measureMore() {
     const view = this.view;
     if (!this.more || !view || view.figure.hasAttribute("data-lf-all")) return;
-    const box = view.panels ? view.panels.preview : this.sourceView?.pre;
+    const panels = view.panels;
+    const box = !panels
+      ? this.sourceView?.pre
+      : this.previewShown
+        ? panels.preview
+        : panels.source;
     if (box && !box.hidden)
       this.more.box.toggleAttribute("hidden", box.scrollHeight <= box.clientHeight + 1);
   }

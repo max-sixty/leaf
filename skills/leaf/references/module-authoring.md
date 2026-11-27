@@ -26,17 +26,17 @@ Whatever a package leans on Leaf for is one of these kinds, and each kind has it
 form, or one for each way of writing the widget. Find a need's kind, then read the
 section that describes its form:
 
-| A package leans on Leaf for                    | The form it takes                                     | Described in                                 |
-| ---------------------------------------------- | ----------------------------------------------------- | -------------------------------------------- |
-| What Leaf must know before any module runs     | A key of the tag's declaration                        | `packages.md`, "A widget"                    |
-| What changes while the page runs               | The widget protocol                                   | `module-plain-elements.md`                   |
-| What a widget and a page's author both need    | An element Leaf defines on every page                 | `module-state.md`, "Time readings"           |
-| What only Leaf can do or know                  | A function from `widget-api.js`, or a Command service | "Functions", below, and `widget-services.js` |
-| A theme's choice                               | A custom property the sheet reads                     | `package-themes.md`, "Theme tokens"          |
-| A fact about where the widget's box stands     | A custom property Leaf or a Layout sets               | `packages.md`, "Styles and composition"      |
-| What the widget's box tells Leaf               | A custom property the sheet sets                      | `package-themes.md`, "A theme change"        |
-| Leaf's look for a part the widget draws        | A control built by its role, or a class               | `module-controls.md`                         |
-| A part of an element Leaf builds in the widget | A class on that part                                  | `module-input.md`, "Text entry and drafts"   |
+| A package leans on Leaf for                    | The form it takes                       | Described in                               |
+| ---------------------------------------------- | --------------------------------------- | ------------------------------------------ |
+| What Leaf must know before any module runs     | A key of the tag's declaration          | `packages.md`, "A widget"                  |
+| What changes while the page runs               | The widget protocol                     | `module-plain-elements.md`                 |
+| What a widget and a page's author both need    | An element Leaf defines on every page   | `module-state.md`, "Time readings"         |
+| What only Leaf can do or know                  | A function or a Command service         | "Functions"; `widget-services.js`          |
+| A theme's choice                               | A custom property the sheet reads       | `package-themes.md`, "Theme tokens"        |
+| A fact about where the widget's box stands     | A custom property Leaf or a Layout sets | `packages.md`, "Styles and composition"    |
+| What the widget's box tells Leaf               | A custom property the sheet sets        | `package-themes.md`, "A theme change"      |
+| Leaf's look for a part the widget draws        | A control built by its role, or a class | `module-controls.md`                       |
+| A part of an element Leaf builds in the widget | A class on that part                    | `module-input.md`, "Text entry and drafts" |
 
 An element Leaf defines has an entry in the page's vocabulary, as any tag does. A custom
 property about scrolling or a sticky header is described with that subject, in
@@ -48,12 +48,11 @@ library ("Shared web code").
 Whatever an element can't do through the protocol, such as reading the page's words or
 its obligations, keeping the user's place, moving focus or keeping a draft, is a
 function it imports from `/runtime/widget-api.js`, as a page script does; "Functions"
-lists them all. An Effect UI component asks for some of these acts through one of the
-Command services the header of `widget-services.js` lists. Lit's templates come from
-`/vendor/lit.js`, Lit's own module, the one path its names come from, such as
-`render`, `html`, `svg`, `nothing`, `repeat`, `keyed`, `live`, `ref`, `createRef`,
-`classMap`, `styleMap`, `guard`, `unsafeHTML` and `noChange`. Of the runtime's other
-modules, import only those `$public-modules` in the kernel registry
+lists them all. An Effect UI component asks for some of these acts through a Command
+service. Lit's templates come from `/vendor/lit.js`, Lit's own module, the one path its
+names come from, such as `render`, `html`, `svg`, `nothing`, `repeat`, `keyed`,
+`live`, `ref`, `createRef`, `classMap`, `styleMap`, `guard`, `unsafeHTML` and
+`noChange`. Of the runtime's other modules, import only those `$public-modules` in the kernel registry
 (`browser/runtime/kernel-registry.json`) lists: `portable-api.js` ("A widget that also
 runs off Leaf"), the library's ("Shared web code"), and, for an Effect UI component,
 `effect-widget.js` and `widget-services.js`. Each module's header gives its contract.

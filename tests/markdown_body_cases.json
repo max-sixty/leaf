@@ -122,6 +122,12 @@
     "links": []
   },
   {
+    "source": "Before ![](https://example.com/a.png) after.",
+    "words": "Before after.",
+    "blocks": ["p"],
+    "links": []
+  },
+  {
     "source": "![*alt*](data:x)",
     "words": "alt",
     "blocks": ["p"],

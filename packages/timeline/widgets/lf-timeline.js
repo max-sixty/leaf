@@ -20,7 +20,8 @@
  * it reads from outside: the keys as `lfCommands`, the step a key reached as words for
  * a listener, where a key from a row of the step list leaves the user (`lands`), and
  * the events as visual parts (`lfParts`). The view's root declares these once it is
- * in the document (`DeclareTimeline`).
+ * in the document, and again after each draw that moves the step or the layout
+ * (`DeclareTimeline`).
  *
  * Labels are laid out against the ruler's width and the labels' font, which the
  * ruler reports as it connects and whenever its width or the page's fonts change
@@ -373,8 +374,8 @@ const MeasureRuler = Mount.makeStream(
 
 /** The timeline's declarations to Leaf, on the element that holds the view: its keys
  * (`lfCommands`) and its events as visual parts (`lfParts`), and the reading's
- * problems as the element's `error`s. The element says each draw (effect-widget.js,
- * `declare`).
+ * problems as the element's `error`s. It declares them on each draw that moves the
+ * step or the ruler, so Leaf reads them again (effect-widget.js, `declare`).
  *
  * A key's row reads the step as last drawn. Leaf asks where a key from a row of the
  * step list leaves the user (`lands`) synchronously after the press, before the
@@ -480,7 +481,6 @@ const DeclareTimeline = Mount.makeStream(
               );
           },
         };
-        declare(node, { lfCommands, lfParts });
         const host = /** @type {HTMLElement} */ (node.closest("lf-timeline"));
         for (const problem of reading.problems)
           host.dispatchEvent(
@@ -494,6 +494,7 @@ const DeclareTimeline = Mount.makeStream(
         yield* Stream.runForEach(changes, ({ current }) =>
           Effect.sync(() => {
             drawn = current;
+            declare(node, { lfCommands, lfParts });
           }),
         ).pipe(Effect.forkScoped);
       }),

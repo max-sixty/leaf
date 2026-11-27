@@ -54,11 +54,15 @@
    Declarations. What Leaf reads off the element itself, its keys (`lfCommands`) and
    its visual parts (`lfParts`), a widget states with `declare(node, declarations)`
    from a Mount, where `node` is the element or one its view drew: they stand on the
-   element while the root does. The widget says nothing more: `declare` says a
-   declaration that changed, and after each draw the element dispatches
-   `lf-commands`, so Leaf reads again what the rows read, and `lf-layout` where it
-   declares parts. A key scope on one node of the view, such as one control's, is
-   that node's own `lfCommands`, which the node says itself.
+   element while the root does. Each call says them (`lf-commands`, and `lf-layout`
+   for parts), so Leaf reads again what they read. A widget gives the Mount, as its
+   args, what its declarations read, such as the step a row's `when` reads, and
+   declares on each change of them (the Mount's `changes`), the one hook Effect UI
+   gives on a draw the component's own Model starts. After a draw the adapter
+   started, from a set of `state`, an input or a member, the element also says
+   `lf-commands` for everything under it, so Leaf reads again every key scope there,
+   including one that is a single node's own `lfCommands`, such as a control's, and
+   `lf-layout` where it declares parts.
 
    Drawing follows the protocol's "Drawing" rule. The first mount draws before
    `connectedCallback` returns. A later set draws in Effect UI's flush, a microtask
@@ -85,6 +89,10 @@
      instances, but only through an internal argument, and it clears the element's
      children and knows nothing of `lf-connect`, `inputs` or `members`, so Leaf can't
      define its widgets with it.
+   - A root gives its owner no hook on a flush: `Renderer.Root` has `model`, `send`
+     and `setProps`, and the per-flush `commit` is the host's own. So the adapter
+     hears only the draws it starts, and a draw from the component's own messages is
+     said by the widget's Mount (Declarations).
    - A render that changes a node's attributes removes the ones it drops before it
      sets the new ones (`patchAttrs`), so an `<a>` that trades `href` for `tabindex`
      loses focusability for an instant and Chromium blurs it. A widget keeps such a
@@ -127,18 +135,18 @@ const microtasks = new Scheduler.MixedScheduler("sync");
 const elementOf = new WeakMap();
 
 /** State `declarations` on the widget whose root drew `node`, or on the widget `node`
- *  is, until that root closes. A declaration that changes is said at once. */
+ *  is, until that root closes, and say them, so Leaf reads them again. */
 export function declare(node, declarations) {
   let at = node;
   while (at && !elementOf.has(at)) at = at.parentNode;
   const element = at && elementOf.get(at);
   if (!element) throw new Error("declare: the node stands in no widget's root");
   const { lfCommands, lfParts } = declarations;
-  if ("lfCommands" in declarations && element.lfCommands !== lfCommands) {
+  if ("lfCommands" in declarations) {
     element.lfCommands = lfCommands;
     element.dispatchEvent(new CustomEvent(COMMANDS, { bubbles: true, composed: true }));
   }
-  if ("lfParts" in declarations && element.lfParts !== lfParts) {
+  if ("lfParts" in declarations) {
     element.lfParts = lfParts;
     layoutChanged(element);
   }

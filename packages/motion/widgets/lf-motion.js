@@ -116,22 +116,21 @@ const OfferPlay = Mount.make(
   { args: { action: Schema.String, label: Schema.String } },
   (/** @type {HTMLButtonElement} */ node, _args, changes) => {
     // A row with no run names the press its control makes (dom/keyboard/bindings.js).
-    declare(node, {
-      lfCommands: {
-        title: "In a motion study",
-        rows: [
-          {
-            id: "motion.play",
-            title: () => node.getAttribute("aria-label") ?? "",
-            control: node,
-          },
-        ],
-      },
-    });
+    const lfCommands = {
+      title: "In a motion study",
+      rows: [
+        {
+          id: "motion.play",
+          title: () => node.getAttribute("aria-label") ?? "",
+          control: node,
+        },
+      ],
+    };
     return Stream.runForEach(changes, ({ action, label }) =>
-      Effect.sync(() =>
-        offerActionElement(node, "symbol", "lf-motion-play", label, { action }),
-      ),
+      Effect.sync(() => {
+        offerActionElement(node, "symbol", "lf-motion-play", label, { action });
+        declare(node, { lfCommands });
+      }),
     ).pipe(Effect.as(Component.noop));
   },
 );

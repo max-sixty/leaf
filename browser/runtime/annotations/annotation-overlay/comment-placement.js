@@ -572,7 +572,7 @@ export const attachedEdge = (side) => (side === "top" ? "foot" : "top");
    width has changed, and says whether it chose afresh, and whether the surface is
    opening (`opening`). `options` then gives
    `computePosition` the reference to stand by, its placement and its middleware.
-   `landed` takes the answer's inline start and where the rule stood the surface's top
+   `landed` takes where the answer stands the edge it holds and where the rule stood the surface's top
    and foot before the boundary shifted it in, from the rule's line. `options` keeps
    the requested line of that rectangle (`keeps`); `landed` returns the surface's `scale`. `plane` names
    the constraint that bound the answer (floating.js): `"page"` where the rule's line
@@ -586,8 +586,10 @@ export const attachedEdge = (side) => (side === "top" ? "foot" : "top");
    reports `adopted` until `landed` confirms a position.
    A superseded computation retains that hold. The placement owns its carried inline
    offset, of the edge it holds from the passage's column, else `clear`'s left edge. That column moves with
-   quoted words even when their scrollport stays still. A normal beside landing owns
-   the same offset, so renewing placement follows the attachment native motion carries.
+   quoted words even when their scrollport stays still. Every landing owns the same
+   offset, on every side, so renewing placement follows the attachment native motion
+   carries: a surface under words near a line's end, whose place the boundary held
+   short of them, crosses a log scrolled sideways with them as one beside them does.
    `keeps` supplied to `options` names the line the surface keeps still, relative to
    the passage's line when quoted, else the initial side's clearance edge. Without
    one, the landed seat keeps its growing surface's foot above and top elsewhere, so
@@ -629,8 +631,6 @@ export const attachedEdge = (side) => (side === "top" ? "foot" : "top");
 export function commentPlacement() {
   /** @type {Side | null} */
   let side = null;
-  /** @type {number | null} */
-  let inline = null;
   /** @type {{unanchored: boolean, boundary: BoundaryKey, left: number, right: number} | null} */
   let input = null;
   /** @type {AdoptedFrame | null} */
@@ -668,7 +668,6 @@ export function commentPlacement() {
   const forget = () => {
     side = null;
     holds = null;
-    inline = null;
     input = null;
     opened = null;
     reopened = false;
@@ -820,11 +819,8 @@ export function commentPlacement() {
             : boundary.right - (column ?? clear.left) - carriedInline
           : across
             ? holdsLeft(scale)
-              ? boundary.right - (inlineStart(scale) + (inline ?? 0) * scale.x)
-              : inlineStart(scale) +
-                span(scale) +
-                (inline ?? 0) * scale.x -
-                boundary.left
+              ? boundary.right - inlineStart(scale)
+              : inlineStart(scale) + span(scale) - boundary.left
             : side === "right"
               ? boundary.right - box.right - gap
               : clear.left - boundary.left - gap,
@@ -902,8 +898,8 @@ export function commentPlacement() {
         if (carriedInline !== null)
           position.x =
             attachmentInline + carriedInline / scale.x - (edge === "right" ? width : 0);
-        else if (edge === "left") position.x = column + (inline ?? 0);
-        else if (edge === "right") position.x = end + (inline ?? 0) - width;
+        else if (edge === "left") position.x = column;
+        else if (edge === "right") position.x = end - width;
         if (spot && !across) position.y = line + heldTop(state, spot);
         // Where the rule stands it before the boundary shifts it in, which a carried
         // surface's attachment limit takes in.
@@ -1173,13 +1169,13 @@ export function commentPlacement() {
     landed({ x, y, middlewareData }) {
       initialHold = null;
       reopened = false;
-      const { scale, column, end, attachmentInline, line } = middlewareData.scaled;
+      const { scale, attachmentInline, line } = middlewareData.scaled;
       const { width } = middlewareData.held;
-      // A surface keeps the edge it is held by where it landed. One held by its right
-      // edge beside the target keeps that edge there, so a change of its room moves its
-      // left edge, never the edge by the words.
-      if (vertical(side)) inline ??= holds === "right" ? x + width - end : x - column;
-      else if (holds === "left") carriedInline ??= (x - attachmentInline) * scale.x;
+      // A surface keeps the edge it is held by as far from its words as it landed, on
+      // every side, so a sideways scroll carries it with them and a change of its room
+      // moves its other edge, never the one it is held by.
+      carriedInline ??=
+        ((holds === "right" ? x + width : x) - attachmentInline) * scale.x;
       const top = (y - (middlewareData.shift?.y ?? 0) - line) * scale.y;
       const height = middlewareData.held.height * scale.y;
       const under = underLine?.() ?? 0;

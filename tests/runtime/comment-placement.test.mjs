@@ -715,6 +715,49 @@ test("a surface stands by the edge facing its subject, or the end of its place n
   assert.deepEqual(await stands(null), ["bottom", "left", 8]);
 });
 
+test("a surface under words near a line's end crosses a sideways scroll with them", async () => {
+  const ui = await import("/vendor/floating-ui.esm.js");
+  const platform = windowPlatform(() => ({ width: 320, height: 120 }));
+  // floating.js's own middleware, reduced to the width the landing reads.
+  const held = { name: "held", fn: ({ rects }) => ({ data: rects.floating }) };
+  const wide = block(40, 1240, 500, 700);
+  const box = commentPlacement();
+  // Words starting at `column`, in a log a sideways scroll moves them in.
+  const place = async (column) => {
+    const seat = box.choose({
+      clear: wide,
+      room: paragraph,
+      column,
+      boundary,
+      element: subject,
+      scroller: scroller(100),
+      coarse: false,
+    });
+    const { reference, placement, middleware } = seat.options(ui, {
+      clear: wide,
+      room: paragraph,
+      row: wide.top,
+      column,
+      boundary,
+      fit() {},
+    });
+    const answer = await ui.computePosition(
+      { getBoundingClientRect: () => reference },
+      document.body,
+      { placement, middleware: [...middleware, held], platform, strategy: "fixed" },
+    );
+    box.landed(answer);
+    return Math.round(answer.x);
+  };
+  // Words 1100px in stand the box against the room's right edge, its place held 192px
+  // short of them by the room.
+  assert.equal(await place(1100), 972);
+  // A scroll carrying the words 200px left carries the box 200px with them.
+  assert.equal(await place(900), 772);
+  // Scrolled back, it returns to where it stood.
+  assert.equal(await place(1100), 972);
+});
+
 test("the card Send opens holds the edge its comment box held", async () => {
   const ui = await import("/vendor/floating-ui.esm.js");
   const platform = windowPlatform(() => ({ width: 320, height: 120 }));

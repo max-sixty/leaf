@@ -2,7 +2,7 @@
 
 Only the trusted CLI chooses a path; browser requests name a binding. The file
 remains the authority, outside page revisions and the semantic event log. A
-revision names its canonical path and exact bytes. Saves preserve LF/CRLF and
+revision names the path the grant records and the exact bytes. Saves preserve LF/CRLF and
 permission bits, and serialize across Leaf processes and pages through a target lock.
 The comparison plus atomic replacement is not an OS compare-and-swap: an unrelated
 writer which ignores this lock can still race the final comparison and replacement.
@@ -24,8 +24,12 @@ single file as its name, and no label spells out a host path.
 
 The page's reading stamps each bound file (`bound_paths`), so the news token moves
 and the page's watchers wake when a bound file does, and a state answer carries each
-binding's label and stamp (`bound_files`), naming which binding moved. A stamp only
-prompts a read; the read's revision decides what changed.
+binding's label (`bound_files`), an unreadable file's included.
+
+Each binding is also one of the page's data sources, read as `read_bound` reads it
+(`data.file_sources`), so a widget shows the file by binding its id as it would any
+source, with no editor on the page. The source's run moves with every write, which
+names the binding that moved to an editor that reads the file itself.
 """
 
 import hashlib
@@ -68,6 +72,12 @@ class FileBindingError(Refused):
     """A file access this page's grants do not allow, or the file refuses."""
 
 
+class FileAccessError(FileBindingError):
+    """A bound file the system wouldn't let Leaf reach just now, whatever its bytes,
+    such as one it may not read: unlike a refusal of the bytes themselves, the same
+    file may read the next time (`data.file_sources`)."""
+
+
 class StaleFileError(FileBindingError):
     def __init__(self, current: dict):
         super().__init__("The file changed since this editor read it.")
@@ -75,14 +85,20 @@ class StaleFileError(FileBindingError):
 
 
 @contextmanager
-def _access(page_dir: Path):
-    """Serialize browser file access and keep OS paths out of its refusals."""
+def _pathless():
+    """Refuse a failed file access in words that keep OS paths out."""
     try:
-        with page_locked(page_dir):
-            yield
+        yield
     except OSError as error:
         reason = error.strerror or "filesystem operation failed"
-        raise FileBindingError(f"Could not access the bound file: {reason}.") from error
+        raise FileAccessError(f"Could not access the bound file: {reason}.") from error
+
+
+@contextmanager
+def _access(page_dir: Path):
+    """Serialize browser file access and keep OS paths out of its refusals."""
+    with _pathless(), page_locked(page_dir):
+        yield
 
 
 def _grants(page_dir: Path) -> dict[str, str]:
@@ -146,18 +162,10 @@ def labels(paths: dict[str, Path]) -> dict[str, str]:
 
 
 def bound_files(page_dir: Path) -> dict[str, dict[str, str]]:
-    """Each binding's label and short stamp, the stamp moving whenever the file's
-    path or what the filesystem says of the file there (`file_stamp`) does."""
-    paths = bound_paths(page_dir)
-    named = labels(paths)
+    """Each binding's label (`labels`)."""
     return {
-        binding: {
-            "label": named[binding],
-            "stamp": hashlib.sha256(
-                repr((str(path), file_stamp(path))).encode()
-            ).hexdigest()[:16],
-        }
-        for binding, path in paths.items()
+        binding: {"label": label}
+        for binding, label in labels(bound_paths(page_dir)).items()
     }
 
 
@@ -183,6 +191,12 @@ def _target(page_dir: Path, binding: str) -> tuple[Path, str] | None:
 
 
 def _read(path: Path) -> bytes:
+    return _read_stat(path)[0]
+
+
+def _read_stat(path: Path) -> tuple[bytes, os.stat_result]:
+    """The file's bytes and what the filesystem says of the file they were read from,
+    from one descriptor, so the two name one version of it."""
     if path.resolve() != path:
         raise FileBindingError(
             "The bound file path now contains a symlink; bind it again."
@@ -190,14 +204,18 @@ def _read(path: Path) -> bytes:
     # O_NONBLOCK lets a file replaced by a FIFO refuse instead of waiting forever.
     fd = os.open(path, os.O_RDONLY | os.O_NOFOLLOW | os.O_NONBLOCK)
     with os.fdopen(fd, "rb") as stream:
-        if not S_ISREG(os.fstat(stream.fileno()).st_mode):
+        stat = os.fstat(stream.fileno())
+        if not S_ISREG(stat.st_mode):
             raise FileBindingError("The bound path is not a regular file.")
-        return stream.read(MAX_FILE_BYTES + 1)
+        return stream.read(MAX_FILE_BYTES + 1), stat
 
 
-def _snapshot(path: Path, raw: bytes, label: str) -> dict:
+def _snapshot(page_dir: Path, path: Path, raw: bytes, label: str) -> dict:
     """The file as the browser reads it: its label, its text with LF line endings,
-    and the revision a save names."""
+    and the revision a save names, a digest of the bytes and of the path the page's
+    grant records, its path from the page directory where it lies inside it. So a
+    copy of the page, as a host restores it elsewhere, reads its copy of the file
+    under the same revision, and binding another file moves it."""
     if len(raw) > MAX_FILE_BYTES:
         raise FileBindingError("File exceeds the 256 KiB limit.")
     try:
@@ -210,7 +228,9 @@ def _snapshot(path: Path, raw: bytes, label: str) -> dict:
     normalized = text.replace("\r\n", "\n")
     if "\r" in normalized or (newline == "CRLF" and "\n" in text.replace("\r\n", "")):
         raise FileBindingError("File has mixed or unsupported line endings.")
-    revision = hashlib.sha256(os.fsencode(path) + b"\0" + raw).hexdigest()
+    home = canonical_path(page_dir)
+    granted = path.relative_to(home) if path.is_relative_to(home) else path
+    revision = hashlib.sha256(os.fsencode(granted) + b"\0" + raw).hexdigest()
     return {"label": label, "text": normalized, "revision": revision}
 
 
@@ -237,7 +257,7 @@ def bind_file(page_dir: Path, binding: str, file: Path) -> dict:
         except OSError as error:
             raise FileBindingError(str(error)) from error
         # Refuse a file the editor could not hold before granting it.
-        _snapshot(path, raw, path.name)
+        _snapshot(page_dir, path, raw, path.name)
         root = canonical_path(page_dir)
         grants = _grants(page_dir)
         grants[binding] = str(
@@ -262,6 +282,31 @@ def unbind_file(page_dir: Path, binding: str) -> dict:
     return {"binding": binding, "bound": False}
 
 
+def observed(path: Path) -> tuple:
+    """What the page knows of a bound file without reading it, which its news
+    (`page_inputs`), the cache of its source and the source's run (`data.file_sources`)
+    all read, so a change one of them sees, all of them see: its stamp with its change
+    time (`file_stamp`'s `changed`), since anyone may change the file's permissions or
+    put back its modification time, and whether its path still names it without a
+    symlink, which a read refuses (`_read`)."""
+    try:
+        direct = path.resolve() == path
+    # Python 3.12 refuses a symlink loop with RuntimeError.
+    except (OSError, RuntimeError):
+        direct = False
+    return file_stamp(path, changed=True), direct
+
+
+def read_bound(page_dir: Path, path: Path, label: str) -> tuple[dict, os.stat_result]:
+    """The file at `path`, one `bound_paths` gives, as `read_file` reads it, and what
+    the filesystem says of the version the bytes came from. It takes no page lock, as
+    the page's reading reads the grants without one (`data.read_data`): a save replaces
+    the file whole, so a read sees one version or the other."""
+    with _pathless():
+        raw, stat = _read_stat(path)
+        return _snapshot(page_dir, path, raw, label), stat
+
+
 def read_file(page_dir: Path, binding: str) -> dict | None:
     """Read the current file, never a cached document or browser buffer; None where
     the page binds no file under this id."""
@@ -270,7 +315,7 @@ def read_file(page_dir: Path, binding: str) -> dict | None:
         if target is None:
             return None
         path, label = target
-        return _snapshot(path, _read(path), label)
+        return _snapshot(page_dir, path, _read(path), label)
 
 
 def save_file(page_dir: Path, binding: str, posted: dict) -> dict:
@@ -288,7 +333,7 @@ def save_file(page_dir: Path, binding: str, posted: dict) -> dict:
         path, label = target
         with path_lock(path):
             before = _read(path)
-            current = _snapshot(path, before, label)
+            current = _snapshot(page_dir, path, before, label)
             if posted["revision"] != current["revision"]:
                 raise StaleFileError(current)
             text = posted["text"]
@@ -299,9 +344,9 @@ def save_file(page_dir: Path, binding: str, posted: dict) -> dict:
                 if b"\r\n" in before
                 else text.encode()
             )
-            submitted = _snapshot(path, raw, label)
+            submitted = _snapshot(page_dir, path, raw, label)
             # Recheck path identity and contents immediately before replacement.
-            latest = _snapshot(path, _read(path), label)
+            latest = _snapshot(page_dir, path, _read(path), label)
             if latest["revision"] != current["revision"]:
                 raise StaleFileError(latest)
             replace_bytes([(path, raw, True)])

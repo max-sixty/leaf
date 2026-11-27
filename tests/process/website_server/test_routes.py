@@ -120,7 +120,9 @@ def test_a_published_document_names_its_page_to_a_crawler(
 def test_a_first_visit_reads_the_names_of_the_files_the_page_binds(page_dir):
     """A first visit reads the state the site publishes until the visitor's container
     answers, so a file navigator lists the page's files from it as from a live page's
-    state, where a capture would list none."""
+    state, where a capture would list none. The file's words stay out of that public
+    state until a published revision shows them, and the data version it names is
+    that of the sources it holds."""
     notes = page_dir / "files" / "notes.md"
     notes.parent.mkdir()
     notes.write_text("Notes.\n")
@@ -130,7 +132,27 @@ def test_a_first_visit_reads_the_names_of_the_files_the_page_binds(page_dir):
     live = website_server.PageStateService(page_dir).page_state()
     assert list(public["files"]) == ["notes"]
     assert public["files"] == live["files"]
+    assert "notes" in live["data"]["sources"]
+    assert "notes" not in public["data"]["sources"]
+    assert public["data"]["version"] != live["data"]["version"]
     assert served_state_error(public, "answer") is None
+
+    index = page_dir / "index.html"
+    index.write_text(
+        index.read_text().replace(
+            "</main>",
+            '<lf-text-document id="notes-doc" source="notes"></lf-text-document></main>',
+        )
+    )
+    unpublished = website_server.initial_state(
+        page_dir, "/example", "example", "release"
+    )
+    assert "notes" not in unpublished["data"]["sources"]
+    assert website_server.activate_source(page_dir).error is None
+    published = website_server.initial_state(page_dir, "/example", "example", "release")
+    assert published["data"]["sources"]["notes"]["value"]["text"] == "Notes.\n"
+    live = website_server.PageStateService(page_dir).page_state()
+    assert published["data"]["version"] == live["data"]["version"]
 
 
 def test_agent_logs_are_structured_and_content_free(capsys):

@@ -685,17 +685,55 @@ def reaction_resting(page: Page) -> None:
 def reaction_thread(page: Page) -> None:
     """The thread the agent's answer to the user's reaction on a passage opens, from
     Threads: its first message is the reaction, drawn as its emoji."""
-    as_agent(
-        "thread",
-        "reply",
-        "0f47b3ce",
-        "--text",
-        "Good to hear the stalls all recovered; the workaround stays documented.",
-        "--title",
-        "Forced stalls",
-    )
-    wait_until_ready(page, PageClient(served_page.get().address).state())
     open_thread(page, "0f47b3ce")
+    settle(page)
+
+
+def reaction_working(page: Page) -> None:
+    """The user's ✂️ on a passage, a message the agent owes an answer, under a pointer
+    resting on its mark once the agent has started work on it: the mark says the work's
+    line, as a thread's margin entry does."""
+    cut = PageClient(served_page.get().address).post(
+        {
+            "kind": "comment",
+            "attempt": "stills-reaction-working-cut",
+            "emoji": "✂️",
+            "anchor": {"section": "off-t-workaround", "quote": "After 20 seconds"},
+        }
+    )
+    as_agent("task", "start", cut["id"], "--text", "Cutting the resend timing")
+    wait_until_ready(page, PageClient(served_page.get().address).state())
+    mark = page.locator('[data-lf-margin-entry-owner="reactions"]:visible')
+    expect(mark).to_have_count(1)
+    mark.hover()
+    rest_past_dwell(page)
+
+
+def agent_emoji_answer(page: Page) -> None:
+    """The agent's answer of one emoji to the user's thanks, heard through `leaf wait`
+    and answered by its reference, which the thread draws as the agent's message."""
+    served = served_page.get()
+    thanks = PageClient(served.address).post(
+        {
+            "kind": "reply",
+            "parent": "7b3e0a41",
+            "attempt": "stills-agent-emoji-thanks",
+            "text": "Thanks, that's clear.",
+        }
+    )
+    waited = served.leaf("wait", str(served.directory), timeout=60)
+    delivery = json.loads(
+        next(line for line in waited.stdout.splitlines() if line.startswith("{"))
+    )
+    reference = next(
+        event["answer"]["ref"]
+        for batch in delivery["batches"]
+        for event in batch["events"]
+        if event["id"] == thanks["id"]
+    )
+    served.leaf("thread", "reply", reference, "--done", "--emoji", "👍")
+    wait_until_ready(page, PageClient(served.address).state())
+    floating_thread(page)
     settle(page)
 
 
@@ -4074,6 +4112,10 @@ STATES = (
     State("reaction-pressed", "ship-review", reaction_pressed),
     State("reaction-resting", "ship-review", reaction_resting),
     State("reaction-thread", "ship-review", reaction_thread),
+    State("reaction-working", "ship-review", reaction_working),
+    State(
+        "agent-emoji-answer", "ship-review", agent_emoji_answer, region=".lf-fp-opened"
+    ),
     State(
         "margin-reaction-choices",
         "release-notes",

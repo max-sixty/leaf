@@ -78,20 +78,11 @@ link preview counts a thread about any of them.
 
 `anchorLabel(anchor, about)` names a comment's anchor as Threads does.
 
-### Reading declarations
-
-Read the registry rather than repeating it. `layerFact(name)` returns the registry's
-entry under a name, as the package's `registry.json` spells it: a widget's declaration
-under its tag, each fact under its own name, as `layerFact(element.localName)?.awaits`
-reads a widget's `awaits`, or a frozen layer-wide `$` declaration, such as
-`$reactions`. A plain HTML tag, such as `table`, can have an entry of authoring
-guidance, so read the fact you need rather than whether an entry exists.
-
 ### Following a reference
 
-Reach another widget through an attribute declared in `refers`
+Take the user to another widget through an attribute declared in `refers`
 ([package-data.md, "References between widgets"](package-data.md#references-between-widgets)),
-not by looking up the id yourself.
+rather than by finding its element and moving there yourself.
 
 `navigateToDatum(this, attribute, key, {success, missing, focus})` takes the user to
 the first element `key` names in the referenced widget: a visual part's id, a projected
@@ -243,7 +234,7 @@ arrives. Each `source.kind` adds its own facts:
 
 - For a `message` obligation, an agent message sent with `--obligation`, the user's
   next message in its thread is its `answer.value` (`{text}`, or `{emoji}` for a
-  settling reaction). Once its
+  reaction). Once its
   thread is resolved after it, it stays `waiting` with no `next_actor`, even when the
   thread reopens, until a message asks it again.
 - An `update` is what a message the user sent, or an action in an answered widget's

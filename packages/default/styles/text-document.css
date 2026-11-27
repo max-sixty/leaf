@@ -293,6 +293,14 @@ lf-text-document div.lf-text-document-preview {
   --lf-block-frame: 1;
   padding: var(--lf-sp-4);
 }
+/* A file's pictures stand bare, as on GitHub, without the frame the reading face draws
+   round a picture (`reading.css`): a README draws its logos and badges to stand on the
+   page itself. */
+lf-text-document div.lf-text-document-preview img {
+  border-radius: 0;
+  box-shadow: none;
+  outline: none;
+}
 lf-text-document iframe.lf-text-document-preview {
   display: block;
   inline-size: 100%;

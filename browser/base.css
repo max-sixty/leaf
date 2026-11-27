@@ -259,6 +259,14 @@
   inherits: false;
   initial-value: 0px;
 }
+/* Where a mark stands while a clip round its box would cut it outside
+ * (element-marks.css, `[data-lf-flush]`), ahead of where the box says; set only while
+ * that stamp is in force, which is how the runtime tells (dom/geometry.js,
+ * `clipsMarks`). It doesn't inherit, so a box inside a stamped one answers for itself. */
+@property --lf-flush-at {
+  syntax: "*";
+  inherits: false;
+}
 @property --lf-band-from {
   syntax: "*";
   inherits: false;
@@ -755,12 +763,22 @@ main {
  * beside the container or past the window, where the page would scroll sideways,
  * which the render gate refuses. Leaf's icons are not the page's media: they take
  * their size from the icon rule (controls.css), which this one would outrank,
- * unsizing a 16px icon's height. */
+ * unsizing a 16px icon's height. An image sized by its `height` alone keeps that
+ * height, as a README's logo does on GitHub, rather than drawing at the size of its
+ * file. */
 img,
 svg:where(:not([data-lf-icon])),
 video {
   max-width: 100%;
+}
+img:where(:not([height]:not([width]))),
+svg:where(:not([data-lf-icon])),
+video {
   height: auto;
+}
+/* Where its container is narrower, such an image draws whole within the height. */
+img:where([height]:not([width])) {
+  object-fit: contain;
 }
 /* An image's width and height attributes already hold its box open before it loads,
  * but Chrome flags a lazy image as unsized unless a stylesheet gives its height or

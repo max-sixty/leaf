@@ -113,10 +113,11 @@ this.dispatchEvent(hold);
   data a bound source names have both arrived. A data body the markup binds to nothing
   arrives with those first sets, so the element leaves its `<pre>` in place until then.
 - **`lf-action`.** The element records a gesture by dispatching a `CustomEvent` on
-  itself. Its `detail` holds the `verb`, `detail`, `says`
-  and `attempt` that `dispatch` takes (`module-state.md`, "The widget controller").
-  The inner `detail` is the action's own, in the shape the verb declares: `{value}`
-  for a verb with a `record`, and for any other the fields its `detail` schema names.
+  itself. Its `detail` is `{verb, detail, says?, attempt?}`, where `verb` names the
+  verb it records and `says` names the gesture in the widget's words
+  (`module-state.md`, "Reading and recording state"). The inner `detail` is the
+  action's own, in the shape the verb declares: `{value}` for a verb with a `record`,
+  and for any other the fields its `detail` schema names.
   Those fields are the package's to name, so they stay under `detail`, where none can
   take the name of Leaf's `verb`, `says` or `attempt`.
   `attempt` is the id a draft's `send` hands its `deliver` (`module-input.md`, "Text
@@ -149,7 +150,7 @@ this.dispatchEvent(hold);
   own. The `state` Leaf sets is how the element learns the user may not act: Leaf
   neither disables it nor makes it inert, so an element that doesn't read the verb's
   `available` shows the user's change until Leaf sets the property back. Undo names
-  the action in Leaf's own words (`module-state.md`, "The widget controller"). The
+  the action in Leaf's own words (`module-state.md`, "Reading and recording state"). The
   tag may also declare the property an output for other widgets to read, and the
   element needs no code for that either (`package-data.md`, "Widget outputs").
 - **A third-party component.** A component from a third-party library keeps its own
@@ -239,8 +240,9 @@ this.dispatchEvent(hold);
 - **Startup.** `lf-presentation` and `lf-page-interface` on `document`
   (`module-authoring.md`, "Startup and presentation").
 - **A stroke drawn on it.** `lf-inspect` (`module-input.md`, "Pointer presses").
-- **On Me and comment targets.** The class's `static answerWords` words its answer
-  (`module-state.md`, "Declared widget state"), and `data-lf-part` marks each comment
+- **On Me and comment targets.** The class's `static answered` says whether its
+  question is answered and `static answerWords` words the answer (`module-state.md`,
+  "Declared widget state"), and `data-lf-part` marks each comment
   target, or the element's `lfParts` states them (`module-annotations.md`, "Visual
   parts").
 - **A box it scrolls.** `data-lf-scroll` marks a box the element makes scroll, and

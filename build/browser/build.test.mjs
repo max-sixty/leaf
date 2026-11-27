@@ -1,5 +1,6 @@
 import assert from "node:assert/strict";
 import { mkdtemp, mkdir, readFile, writeFile, rm } from "node:fs/promises";
+import { realpathSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 import test from "node:test";
@@ -316,23 +317,48 @@ test("Trees search hides every nonmatch and restores an empty query", async () =
   }
 });
 
-test("notices name the packages whose code reached an output", () => {
-  const metafile = {
-    inputs: { "node_modules/a/x.js": {}, "node_modules/@s/b/y.js": {} },
-    outputs: {
-      "out.js": {
-        inputs: {
-          "node_modules/a/x.js": { bytesInOutput: 0 },
-          "node_modules/@s/b/node_modules/c/z.js": { bytesInOutput: 3 },
-          "node_modules/@s/b/y.js": { bytesInOutput: 5 },
-          "entry.mjs": { bytesInOutput: 9 },
-        },
-      },
-      "out.js.map": { inputs: {} },
-    },
+test("notices name the packages whose code reached an output", async () => {
+  // a: read and shaken out; @s/b: reached, with its dependency c beside it;
+  // d: a dependency of c that c's prebuilt file inlines, and e one of d's;
+  // f: a dependency of @s/b that ships nowhere.
+  const w = realpathSync(await mkdtemp(path.join(tmpdir(), "leaf-notices-")));
+  const manifest = async (dir, dependencies = {}) => {
+    await mkdir(path.join(w, dir), { recursive: true });
+    await writeFile(
+      path.join(w, dir, "package.json"),
+      JSON.stringify({ dependencies }),
+    );
   };
-  assert.deepEqual(bundledPackages(metafile, "/w"), [
-    "/w/node_modules/@s/b",
-    "/w/node_modules/@s/b/node_modules/c",
-  ]);
+  try {
+    await manifest("node_modules/a");
+    await manifest("node_modules/@s/b", { c: "1", f: "1" });
+    await manifest("node_modules/@s/b/node_modules/c", { d: "1" });
+    await manifest("node_modules/d", { e: "1" });
+    await manifest("node_modules/e");
+    await manifest("node_modules/f");
+    const metafile = {
+      inputs: { "node_modules/a/x.js": {}, "node_modules/@s/b/y.js": {} },
+      outputs: {
+        "out.js": {
+          inputs: {
+            "node_modules/a/x.js": { bytesInOutput: 0 },
+            "node_modules/@s/b/node_modules/c/z.js": { bytesInOutput: 3 },
+            "node_modules/@s/b/y.js": { bytesInOutput: 5 },
+            "entry.mjs": { bytesInOutput: 9 },
+          },
+        },
+        "out.js.map": { inputs: {} },
+      },
+    };
+    const reached = [`${w}/node_modules/@s/b`, `${w}/node_modules/@s/b/node_modules/c`];
+    assert.deepEqual(bundledPackages(metafile, w), reached);
+    assert.deepEqual(bundledPackages(metafile, w, ["d", "e"]), [
+      ...reached,
+      `${w}/node_modules/d`,
+      `${w}/node_modules/e`,
+    ]);
+    assert.throws(() => bundledPackages(metafile, w, ["g"]), /inlined g/);
+  } finally {
+    await rm(w, { recursive: true, force: true });
+  }
 });

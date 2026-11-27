@@ -36,14 +36,22 @@ def event_origin(event: dict) -> dict:
     }
 
 
-def input_readings(attrs: dict, entry: dict, stored: dict, page_dir: Path) -> dict:
-    """Read the current value of the source that constructs each input."""
+def input_readings(
+    attrs: dict, entry: dict, stored: dict, page_dir: Path, files: dict[str, Path]
+) -> dict:
+    """Read the current value of the source that constructs each input, and the file
+    that changes it: a bound file's own, among `files`, the page's grants
+    (`file_bindings.bound_paths`), else the source's publication."""
     inputs = {}
     for name, spec in entry.get("inputs", {}).items():
         source = attrs.get(spec.get("source"))
         if source is None:
             continue
         reading = stored["sources"].get(source, {})
+        bound = files.get(source)
+        # The widget draws a value only under its input's own contract, as the
+        # browser's reader takes one (`host/data.js`, `dataReader`).
+        drawn = "value" in reading and reading["contract"] == spec["contract"]
         inputs[name] = {
             "origin": {
                 "input": name,
@@ -52,18 +60,27 @@ def input_readings(attrs: dict, entry: dict, stored: dict, page_dir: Path) -> di
                 "revision": reading.get("revision"),
                 "path": [],
             },
-            "available": "value" in reading,
+            "available": drawn,
             "edit": {
-                "kind": "data",
+                "kind": "data" if bound is None else "file",
                 "page": str(page_dir),
                 "source": source,
-                "file": str(PUBLICATION.file(source_file(page_dir, source))),
+                "file": str(
+                    PUBLICATION.file(source_file(page_dir, source))
+                    if bound is None
+                    else bound
+                ),
                 "binding_attribute": spec["source"],
             },
         }
         if "error" in reading:
             inputs[name]["error"] = reading["error"]
-        if "value" in reading:
+        elif "value" in reading and not drawn:
+            inputs[name]["error"] = (
+                f"source {source!r} holds a {reading['contract']!r}, and this input "
+                f"reads {spec['contract']!r}"
+            )
+        if drawn:
             inputs[name]["value"] = reading["value"]
             inputs[name]["updated"] = reading["updated"]
     return inputs
@@ -77,6 +94,7 @@ def constructed_content(
     stored: dict,
     page_dir: Path,
     *,
+    files: dict[str, Path],
     outcomes: dict,
     retired: set,
     thread: str,
@@ -113,7 +131,7 @@ def constructed_content(
             entry = registry.get(node["tag"], {})
             if upgraded(registry, node["tag"]):
                 node["vocabulary"] = node["tag"]
-            inputs = input_readings(node["attrs"], entry, stored, page_dir)
+            inputs = input_readings(node["attrs"], entry, stored, page_dir, files)
             if inputs:
                 node["inputs"] = inputs
             prepare(node["content"], identity or parent)

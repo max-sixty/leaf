@@ -178,7 +178,7 @@
     "why-closing-and-opening": "Outside a text block, where two elements' words meet with nothing between them, the words a reading shows put a space (`shownApart` in readings/passages.js, `_write` in passages.py), since a page most often draws such words apart, as a chip beside its title or a title above its description. No space goes before a mark that closes what precedes it or after one that opens what follows, so `<strong>Leave it</strong>; the send` reads \"Leave it; the send\" and `(<code>beta</code>)` reads \"(beta)\". A straight `'` only closes, as a possessive after code does (`<code>Foo</code>'s`), and a straight `\"` only opens, so a chip before a quoted title (`<small class=\"lf-tag\">recommended</small><strong>\"Update\" …`) still reads apart. A capture logs the words beside an anchor's quote with these spaces."
   },
   "$events": {
-    "protocol": 58,
+    "protocol": 61,
     "draft": {
       "description": "The selection composer's submission payload, kept beside its words in the shared draft generation (`runtime/records/drafts.js`): the anchor and the revision it was captured on, whether it is a suggestion or about design, its drawing, and when it was last touched. A draft's drawing adds `at`, the matrix that stands it in its anchor's section, which the comment leaves out: here `properties` beside a `leaf:` reference add to the object it names, as the build writes it in for the protocol baseline (`build/browser/contract-types.mjs`). Its `format`, `leaf-draft/<since>`, names the protocol at which this payload's shape last changed; the composer reads only its current format.",
       "since": 52,
@@ -233,7 +233,7 @@
       "derived": ["meaning", "attention"],
       "browser_discard": ["id", "author", "agent", "session", "ts", "seq", "attention"]
     },
-    "description": "The kernel's event kinds. Each kind's `record` is the closed schema of the event as the log stores it, and a kind with a `browser` schema can also be posted to POST /api/event. Admission fills in the fields `ownership.derived` names; browser ingress drops those `ownership.browser_discard` names before validating. A layer extends widget behavior through `verbs`, but cannot add kinds or change who owns a field. Admission sets the boolean `attention`. Every report and error has it, and the agent's other events and the user's bookkeeping never do. The user's other input has it when it changes what is owed: an answer, an obligation on the user, work the agent has started and its inputs, or widget input whose active verb declares `$verbs.attention`. Code that asks whether an event needs attention reads this field instead of switching on the kind. `protocol` is the page protocol, Leaf's only version number (`layer-registry.md`, \"Page protocol\"). A `bookkeeping` kind (`read`, `reanchor`) records a fact about the user's view, never asks the agent for anything, and travels outside the queue of the user's updates. A `skippable` kind feeds only readings that came with it, so a Leaf that does not know it reads the rest of the log rightly without it (`layer-registry.md`, \"Page protocol\"). A `message` kind (`comment`, `reply`) is said in a thread. An `undoable` kind is a gesture of the user's own that an `undo` may withdraw (`events.md`, \"Undo\"). A kind with a `verb_writer` carries a widget's verb (`verbs`), which only that side writes: an `action` the user's, a `report` the agent's. Python and the browser both read these classifications from here (`registry.kernel` and `runtime/state/kernel-facts.js`). A `pickup` records that inputs reached their reader, or, with phase `failed`, that the harness gave up on them; it never means work has begun. A `receipt` confirms that the complete delivery of the log through `through` reached its durable consumer; the acknowledgement cursor is the greatest `through` the log holds. A `comment` or `reply` with `emoji` instead of `text` is a reaction ($reactions). `handling` and `answering` hold the instructions delivered with each event, and a later layer may restate them one kind at a time. Each maps a kind (of event, or of the answer it owes: `reply` or `markup`) to an ordered list of clauses: a `text`, and an optional `when` JSON Schema matched against the event's record, the `answer` it owes and its thread's entry in the batch's `threads`. A delivered event carries its kind's matching clauses, then its answer's, so it is told only its own case. Instructions that differ by route are not clauses: the delivery says once who confirms receipt, and sets the answer's `writer` to `turn` where the turn carrying it writes the reply.",
+    "description": "The kernel's event kinds. Each kind's `record` is the closed schema of the event as the log stores it, and a kind with a `browser` schema can also be posted to POST /api/event. Admission fills in the fields `ownership.derived` names; browser ingress drops those `ownership.browser_discard` names before validating. A layer extends widget behavior through `verbs`, but cannot add kinds or change who owns a field. Admission sets the boolean `attention`. Every report and error has it, and the agent's other events and the user's bookkeeping never do. The user's other input has it when it changes what is owed: an answer, an obligation on the user, work the agent has started and its inputs, or widget input whose active verb declares `$verbs.attention`. Code that asks whether an event needs attention reads this field instead of switching on the kind. `protocol` is the page protocol, Leaf's only version number (`layer-registry.md`, \"Page protocol\"). A `bookkeeping` kind (`read`, `reanchor`) records a fact about the user's view, never asks the agent for anything, and travels outside the queue of the user's updates. A `skippable` kind feeds only readings that came with it, so a Leaf that does not know it reads the rest of the log rightly without it (`layer-registry.md`, \"Page protocol\"). A `message` kind (`comment`, `reply`) is said in a thread. An `undoable` kind is a gesture of the user's own that an `undo` may withdraw (`events.md`, \"Undo\"). A kind with a `verb_writer` carries a widget's verb (`verbs`), which only that side writes: an `action` the user's, a `report` the agent's. Python and the browser both read these classifications from here (`registry.kernel` and `runtime/state/kernel-facts.js`). A `pickup` records that inputs reached their reader, or, with phase `failed`, that the harness gave up on them; it never means work has begun. A `receipt` confirms that the complete delivery of the log through `through` reached its durable consumer; the acknowledgement cursor is the greatest `through` the log holds. A `comment` or `reply` with `emoji` instead of `text` is a reaction: a message whose content is one emoji, which takes its turn as words do (`events.md`, \"Reactions\"). `handling` and `answering` hold the instructions delivered with each event, and a later layer may restate them one kind at a time. Each maps a kind (of event, or of the answer it owes: `reply` or `markup`) to an ordered list of clauses: a `text`, and an optional `when` JSON Schema matched against the event's record, the `answer` it owes and its thread's entry in the batch's `threads`. A delivered event carries its kind's matching clauses, then its answer's, so it is told only its own case. Instructions that differ by route are not clauses: the delivery says once who confirms receipt, and sets the answer's `writer` to `turn` where the turn carrying it writes the reply.",
     "handling": {
       "comment": [
         {
@@ -306,21 +306,10 @@
             }
           },
           "text": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply."
-        },
-        {
-          "when": {
-            "required": ["emoji"]
-          },
-          "text": "A reaction owes no answer. Act on the emoji if it calls for a change, and reply only if its meaning is unclear. Once the page reflects it, close it with `leaf thread resolve <page> <message>`."
         }
       ],
       "reply": [
         {
-          "when": {
-            "not": {
-              "required": ["emoji"]
-            }
-          },
           "text": "The batch's `threads` holds the thread's context; `leaf page state <page> <message>` reads its full history."
         },
         {
@@ -367,18 +356,9 @@
               "thread": {
                 "required": ["summary_hint"]
               }
-            },
-            "not": {
-              "required": ["emoji"]
             }
           },
           "text": "This thread's entry in the batch's `threads` has a `summary_hint`: an earlier range of messages worth summarizing. As you answer, follow the Leaf skill's `references/threads.md`, \"Summarize a long discussion\". The hint needs no separate answer."
-        },
-        {
-          "when": {
-            "required": ["emoji"]
-          },
-          "text": "A reaction to your message. It needs no reply; Leaf already records whether it answers your question."
         },
         {
           "when": {
@@ -564,7 +544,7 @@
     "answering": {
       "reply": [
         {
-          "text": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn. `--done` when it leaves nobody a move.",
+          "text": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn, with `--waiting-on \"<what>\"` where it can't start until something you don't control happens. `--done` when it leaves nobody a move.",
           "when": {
             "properties": {
               "answer": {
@@ -592,6 +572,12 @@
           }
         },
         {
+          "when": {
+            "required": ["emoji"]
+          },
+          "text": "The user's message is an emoji, a reaction to what it is on: the passage or element its `anchor` names, or the page where it has none, or, as a reply, the message its `parent` names. Answer it as you would their words: act on it where it asks for a change, ask what they meant where you can't tell, and otherwise answer in a line saying how you read it, so they see what their reaction did."
+        },
+        {
           "text": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply."
         },
         {
@@ -609,11 +595,19 @@
             }
           },
           "text": "The widget is in a thread message: continue the work the user's answer selects or unblocks, and answer in that thread."
+        },
+        {
+          "when": { "required": ["held"] },
+          "text": "Your to-dos in the batch's `held` wait on what each one's `waiting_on` names. Where this input is what one waits on, or ends it, it frees that to-do: take its work up now, starting the to-do as well as this input with `leaf task start <page> <id> --text \"<the work, in a line>\"`, which ends its wait, and once the work is done end it with `leaf task end <page> <id> done --text \"<where the result is>\"`. Leave held a to-do this input doesn't free."
         }
       ],
       "markup": [
         {
           "text": "It answers the page's obligation, which waits on you until the markup records the answer. Before starting the work it selects or unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it and write the answer into the markup. Once the work is done, make the question a record of the decision (`references/authoring-revisions.md`, \"Keep the current page current\"), such as an `lf-options` marked `settled` with what came of it beside it, and stamp a version. An option the user added needs no writing in; the page keeps it where the user put it."
+        },
+        {
+          "when": { "required": ["held"] },
+          "text": "Your to-dos in the batch's `held` wait on what each one's `waiting_on` names. Where this input is what one waits on, or ends it, it frees that to-do: take its work up now, starting the to-do as well as this input with `leaf task start <page> <id> --text \"<the work, in a line>\"`, which ends its wait, and once the work is done end it with `leaf task end <page> <id> done --text \"<where the result is>\"`. Leave held a to-do this input doesn't free."
         }
       ]
     },
@@ -632,7 +626,10 @@
             "seq": { "type": "integer", "minimum": 1 },
             "revision": { "type": "integer", "minimum": 1 },
             "text": { "type": "string", "minLength": 1 },
-            "emoji": { "type": "string", "minLength": 1 },
+            "emoji": {
+              "type": "string",
+              "pattern": "^(?:\\p{RI}\\p{RI}|[#*0-9]\\uFE0F?\\u20E3|\\p{Extended_Pictographic}(?:\\uFE0F|\\p{Emoji_Modifier})?(?:[\\u{E0020}-\\u{E007E}]+\\u{E007F})?(?:\\u200D\\p{Extended_Pictographic}(?:\\uFE0F|\\p{Emoji_Modifier})?)*)$"
+            },
             "anchor": {
               "type": "object",
               "properties": {
@@ -852,7 +849,10 @@
               "pattern": "^r[1-9][0-9]*-[a-f0-9]{16}$"
             },
             "text": { "type": "string", "minLength": 1 },
-            "emoji": { "type": "string", "minLength": 1 },
+            "emoji": {
+              "type": "string",
+              "pattern": "^(?:\\p{RI}\\p{RI}|[#*0-9]\\uFE0F?\\u20E3|\\p{Extended_Pictographic}(?:\\uFE0F|\\p{Emoji_Modifier})?(?:[\\u{E0020}-\\u{E007E}]+\\u{E007F})?(?:\\u200D\\p{Extended_Pictographic}(?:\\uFE0F|\\p{Emoji_Modifier})?)*)$"
+            },
             "anchor": {
               "type": ["object", "null"],
               "properties": {
@@ -908,6 +908,13 @@
               "type": "string",
               "minLength": 1,
               "maxLength": 80,
+              "pattern": "\\S",
+              "not": { "pattern": "[\\r\\n]" }
+            },
+            "waiting_on": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 30,
               "pattern": "\\S",
               "not": { "pattern": "[\\r\\n]" }
             },
@@ -969,7 +976,6 @@
               }
             },
             "unannounced": {
-              "required": ["text"],
               "properties": { "author": { "const": "agent" } },
               "not": {
                 "anyOf": [
@@ -980,10 +986,10 @@
               }
             },
             "todo": {
-              "required": ["text"],
               "properties": { "author": { "const": "agent" } },
               "not": { "required": ["failure"] }
             },
+            "waiting_on": { "required": ["todo"] },
             "failure": {
               "required": ["text", "responds"],
               "properties": { "author": { "const": "agent" } }
@@ -1011,6 +1017,9 @@
             "anyOf": [
               {
                 "required": ["todo"]
+              },
+              {
+                "required": ["waiting_on"]
               },
               {
                 "required": ["anchor"]
@@ -1256,7 +1265,14 @@
               "not": { "pattern": "[\\r\\n]" }
             },
             "agent": { "type": "string", "minLength": 1 },
-            "session": { "type": "string", "minLength": 1 }
+            "session": { "type": "string", "minLength": 1 },
+            "waiting_on": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 30,
+              "pattern": "\\S",
+              "not": { "pattern": "[\\r\\n]" }
+            }
           },
           "required": [
             "attention",
@@ -1613,6 +1629,7 @@
               "additionalProperties": false
             },
             "revision": { "type": "integer", "minimum": 1 },
+            "answered": { "type": "boolean" },
             "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" }
           },
           "required": [
@@ -1711,6 +1728,7 @@
             "kind": { "const": "undo" },
             "seq": { "type": "integer", "minimum": 1 },
             "undoes": { "type": "string", "minLength": 1 },
+            "answered": { "type": "boolean" },
             "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" }
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "undoes"],

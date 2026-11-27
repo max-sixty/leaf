@@ -115,6 +115,7 @@ def _page_pick(page_dir: Path) -> dict:
             "widget": "choice",
             "action": "choose",
             "detail": {"value": ["backfill-first"]},
+            "answered": True,
         },
     )
 
@@ -246,6 +247,7 @@ def test_a_harness_failure_receipt_answers_a_gesture_on_its_thread(page_dir):
             "widget": "region",
             "action": "choose",
             "detail": {"value": ["east"]},
+            "answered": True,
         },
     )
 
@@ -305,6 +307,7 @@ def test_an_unanswered_widget_gesture_is_receipted_on_its_thread(page_dir, monke
             "widget": "region",
             "action": "choose",
             "detail": {"value": ["east"]},
+            "answered": True,
         },
     )
     with website_server.PageTransaction(page_dir) as page:

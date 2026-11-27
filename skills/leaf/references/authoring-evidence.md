@@ -94,8 +94,9 @@ labelled once. The default is a `<table>` with one linked capture per cell, a
 row's. Give each capture's `<img>` an `id`, so the user can point at one capture and
 comment on it alone (`page-authoring.md`, "Stable anchors"). Captures of an option's
 outcome go inside that option, in such a table where
-there are several (`authoring-on-me.md`). Place captures the reader compares side by
-side or one above the other, so whatever moved shows as a misalignment.
+there are several (`authoring-on-me.md`). In such a table, put captures the reader
+compares in neighbouring cells, side by side or one above the other, so whatever
+moved shows as a misalignment.
 
 Use a recording for a fixed demo and a live widget where the user should operate the
 subject. Show a browser journey recorded with Playwright as its trace rather than a

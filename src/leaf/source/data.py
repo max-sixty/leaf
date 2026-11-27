@@ -18,13 +18,29 @@ including a rerun with the same value. Both survive copying the page directory.
 Nothing retains an earlier value: a reader or anchor naming a revision the source
 no longer holds is reading a replaced value. A document that must keep one value
 binds a source id nothing rewrites.
+
+A file the page binds (`file_bindings`) is a source too, under its binding's id:
+a `text-document` valued `{key, name, text, revision}`, the binding, the file's label,
+its text and the revision a save names, read again whenever what the filesystem says
+of the file moves (`file_sources`). Its revision digests that value, as every
+source's does, so a new label is a new revision, as a new text is. Its run digests
+the path, the label and what the filesystem says of the file the bytes came from, so
+it moves with every write, a rewrite of the same bytes included, and `updated` is when
+that file was last written. Readers judge its value as they judge a publication's.
+Nothing else writes it: `leaf data set` and `leaf data clear` refuse its id
+(`page_data`), and a publication under that id stands behind it. A file the page
+can't read is a source holding the reason as its error. A widget input of another
+contract can't draw it, which `page check` refuses (`bound_file_conflicts`).
 """
 
 import hashlib
 import json
+from collections.abc import Container
+from datetime import datetime
 from pathlib import Path
 
 from leaf.base.files import file_stamp, replace_files
+from leaf.base.findings import Finding
 from leaf.base.page_memory import memo
 from leaf.base.schema import DATA_DIR
 from leaf.base.state import (
@@ -33,9 +49,22 @@ from leaf.base.state import (
     Record,
     described,
     json_bytes,
+    now_iso,
     object_schema,
 )
-from leaf.source.data_contracts import payload_error
+from leaf.source.data_contracts import data_bindings, payload_error
+from leaf.source.file_bindings import (
+    FileAccessError,
+    FileBindingError,
+    bound_paths,
+    labels,
+    observed,
+    read_bound,
+)
+
+# The contract a bound file is a source under. The `default` package declares it, and
+# every layer composes that package.
+FILE_CONTRACT = "text-document"
 
 PUBLICATION = Record(
     "data-source",
@@ -72,14 +101,17 @@ def _source_names(page_dir: Path) -> list[str]:
 
 
 def read_contracts(page_dir: Path) -> dict[str, str]:
-    """Source id → the contract its publication was set under."""
+    """Source id → the contract its publication was set under, or a bound file's."""
     readings = {
         source: _publication(page_dir, source) for source in _source_names(page_dir)
     }
     return {
-        source: kept[0]["contract"]
-        for source, kept in readings.items()
-        if kept is not None
+        **{
+            source: kept[0]["contract"]
+            for source, kept in readings.items()
+            if kept is not None
+        },
+        **dict.fromkeys(bound_paths(page_dir), FILE_CONTRACT),
     }
 
 
@@ -163,34 +195,183 @@ def read_source(page_dir: Path, source: str, registry: dict) -> dict | None:
     if kept is None:
         return None
     publication, revision = kept
-    contract, value = publication["contract"], publication["value"]
-    reading = {
-        "contract": contract,
-        "revision": revision,
-        "run": publication["run"],
-        "updated": publication["updated"],
-    }
+    return _judged(
+        source,
+        {
+            "contract": publication["contract"],
+            "revision": revision,
+            "run": publication["run"],
+            "updated": publication["updated"],
+            "value": publication["value"],
+        },
+        registry,
+    )
+
+
+def _judged(source: str, reading: dict, registry: dict) -> dict:
+    """`reading` as readers receive it: its value, or the error that keeps the value
+    from fitting its contract's declaration in `registry`."""
+    if "value" not in reading:
+        return reading
+    contract, value, revision = (reading[k] for k in ("contract", "value", "revision"))
     if error := _value_error(source, contract, value, revision, registry):
-        return {**reading, "error": error}
-    return {**reading, "value": value}
+        return {
+            **{name: item for name, item in reading.items() if name != "value"},
+            "error": error,
+        }
+    return reading
+
+
+class _Files:
+    """Each bound file's source by binding, kept under the observation of the file
+    that moves the page's news (`page_inputs`): its path, its label and what
+    `file_bindings.observed` says of it, which moves with whatever moves the read's
+    answer, but for a failed access (`_file_source`)."""
+
+    def __init__(self) -> None:
+        self.held: dict[str, tuple] = {}
+
+
+def _file_reading(page_dir: Path, binding: str, path: Path, label: str) -> dict:
+    """The source of the bound file at `path`."""
+    seen = (str(path), label, observed(path))
+    held = memo(page_dir, _Files).held
+    kept = held.get(binding)
+    if kept is not None and kept[0] == seen:
+        return kept[1]
+    reading, settled = _file_source(page_dir, binding, path, label)
+    if settled:
+        held[binding] = (seen, reading)
+    else:
+        held.pop(binding, None)
+    return reading
+
+
+def file_sources(page_dir: Path) -> dict[str, dict]:
+    """Each file the page binds as a source, by binding (the module header)."""
+    paths = bound_paths(page_dir)
+    named = labels(paths)
+    held = memo(page_dir, _Files).held
+    for binding in held.keys() - paths.keys():
+        held.pop(binding, None)
+    return {
+        binding: _file_reading(page_dir, binding, path, named[binding])
+        for binding, path in paths.items()
+    }
+
+
+def _file_source(
+    page_dir: Path, binding: str, path: Path, label: str
+) -> tuple[dict, bool]:
+    """The source of the file at `path`, and whether its file's observation names it,
+    so it can be kept under that observation: a value or a refusal of the file's bytes
+    can, and a failed access, which the next read may not meet, can't. The run digests
+    the path, the label and what the filesystem says of the file the bytes were read
+    from, so a write, a rewrite of the same bytes included, or a new label moves it,
+    as a rerun of a publication does."""
+
+    def run(*stamp) -> str:
+        return hashlib.sha256(repr((str(path), label, stamp)).encode()).hexdigest()[:16]
+
+    try:
+        read, stat = read_bound(page_dir, path, label)
+    except FileBindingError as error:
+        reading = {
+            "contract": FILE_CONTRACT,
+            "revision": value_revision(str(error)),
+            "run": run(str(error)),
+            "updated": now_iso(),
+            "error": str(error),
+        }
+        return reading, not isinstance(error, FileAccessError)
+    value = {
+        "key": binding,
+        "name": label,
+        "text": read["text"],
+        "revision": read["revision"],
+    }
+    reading = {
+        "contract": FILE_CONTRACT,
+        "revision": value_revision(value),
+        "run": run(stat.st_ino, stat.st_mtime_ns, stat.st_ctime_ns, stat.st_size),
+        "updated": datetime.fromtimestamp(stat.st_mtime)
+        .astimezone()
+        .isoformat(timespec="milliseconds"),
+        "value": value,
+    }
+    return reading, True
+
+
+def source_reading(page_dir: Path, source: str, registry: dict) -> dict | None:
+    """One source as `read_data` gives it, or None where the page holds none. It reads
+    only that source, the file it names where it is a bound file's."""
+    paths = bound_paths(page_dir)
+    if source in paths:
+        reading = _file_reading(page_dir, source, paths[source], labels(paths)[source])
+        return _judged(source, reading, registry)
+    return read_source(page_dir, source, registry)
+
+
+def bound_file_conflicts(
+    page_dir: Path, lf_elements: list, registry: dict
+) -> list[Finding]:
+    """Each input in a document that binds a bound file's id under another contract
+    than the file's, which its widget can't draw."""
+    files = bound_paths(page_dir)
+    return [
+        Finding(
+            "file-contract",
+            values={
+                "source": source,
+                "seat": {
+                    "contract": spec["contract"],
+                    "tag": rec["tag"],
+                    **({"widget": rec["attrs"]["id"]} if "id" in rec["attrs"] else {}),
+                    "input": input_name,
+                    "line": rec["line"],
+                },
+            },
+        )
+        for _ordinal, rec, input_name, spec, source in data_bindings(
+            lf_elements, registry
+        )
+        if source in files and spec["contract"] != FILE_CONTRACT
+    ]
 
 
 def read_data(page_dir: Path, registry: dict | None) -> dict:
-    """Every source the page holds, read and judged against `registry`, with their
-    `data_version`. A page whose layer cannot be read has no contracts to judge its
-    values by, and reads as holding none."""
+    """Every source the page holds, the files it binds among them, read and judged
+    against `registry`, with their `data_version`. A page whose layer cannot be read
+    has no contracts to judge its values by, and reads as holding none."""
     names = _source_names(page_dir)
     # A source the page no longer holds keeps nothing.
     held = memo(page_dir, _Publications).held
     for source in held.keys() - set(names):
         held.pop(source, None)
     readings = (
-        {source: read_source(page_dir, source, registry) for source in names}
+        {
+            **{source: read_source(page_dir, source, registry) for source in names},
+            **{
+                binding: _judged(binding, reading, registry)
+                for binding, reading in file_sources(page_dir).items()
+            },
+        }
         if registry is not None
         else {}
     )
     sources = {
         source: reading for source, reading in readings.items() if reading is not None
+    }
+    return {"version": data_version(sources), "sources": sources}
+
+
+def data_of(stored: dict, chosen: Container[str]) -> dict:
+    """The data `stored` (`read_data`) holds of the sources `chosen` names, with the
+    version of exactly those, so a reader naming that version is sent them."""
+    sources = {
+        source: reading
+        for source, reading in stored["sources"].items()
+        if source in chosen
     }
     return {"version": data_version(sources), "sources": sources}
 

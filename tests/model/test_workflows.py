@@ -397,7 +397,9 @@ def test_a_request_outlives_the_users_resolve_and_not_the_agents(page_dir):
     assert reading() == ("user", [], [])
 
 
-def test_settling_reaction_closes_an_agent_root_obligation(page_dir):
+def test_a_reaction_on_a_question_answers_it_and_hands_the_thread_over(page_dir):
+    """The user's reaction on the agent's question answers it as their words would,
+    and the thread waits on the agent's answer to the reaction."""
     publish(page_dir)
     question = thread_model.cmd_comment(page_dir, "", "", "", "Forty?", obligation=True)
     browser = page_state(page_dir)["browser"]
@@ -406,7 +408,7 @@ def test_settling_reaction_closes_an_agent_root_obligation(page_dir):
     assert owed["message"] == question["id"]
     assert before["attention"] == owed["id"]
 
-    append_carried_log_record(
+    reaction = append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
@@ -419,7 +421,7 @@ def test_settling_reaction_closes_an_agent_root_obligation(page_dir):
     browser = page_state(page_dir)["browser"]
     [after] = served_thread(browser)["threads"]
     assert served_obligations(browser)["user"] == []
-    assert after["attention"] is None
+    assert after["attention"] == f"update:{reaction['id']}"
 
 
 def test_thread_widget_workflow_contributes_to_its_thread_attention(page_dir):
@@ -446,6 +448,7 @@ def test_thread_widget_workflow_contributes_to_its_thread_attention(page_dir):
             "widget": "thread-region",
             "action": "choose",
             "detail": {"value": ["thread-east"]},
+            "answered": True,
         },
     )
     answered = append_command(
@@ -457,6 +460,7 @@ def test_thread_widget_workflow_contributes_to_its_thread_attention(page_dir):
             "widget": "thread-region",
             "action": "answer",
             "detail": {},
+            "answered": True,
         },
     )
     # The move owes a reply in its thread, and the agent starts the move itself.
@@ -544,6 +548,7 @@ def test_an_owed_pick_in_a_thread_outlives_the_users_resolve(page_dir):
             "widget": "thread-region",
             "action": "choose",
             "detail": {"value": ["thread-east"]},
+            "answered": True,
         },
     )
     append_carried_log_record(
@@ -646,21 +651,10 @@ def test_a_thread_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothi
         (moved["id"], "running")
     ]
 
-    # A mark is no turn; the agent's next spoken turn takes the move in.
+    # The agent's next turn in the thread takes the move in, an emoji as words would.
     append_carried_log_record(
         page_dir,
         {"kind": "reply", "author": "agent", "parent": asked["id"], "emoji": "👍"},
-    )
-    state, attention = reading()
-    assert [item["input"] for item in state["workflows"]] == [moved["id"]]
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "parent": asked["id"],
-            "text": "Baffle is in progress now.",
-        },
     )
     state, attention = reading()
     assert state["workflows"] == []
@@ -725,13 +719,20 @@ def test_settings_the_user_has_not_sent_ask_nothing_of_the_agent():
 
     action = {"kind": "action", "author": "user", "revision": 1}
     action |= {"widget": "tone-playground"}
-    tune = {**action, "action": "tune", "detail": {"values": {"tone": "urgent"}}}
+    # A playground is answered once its settings are submitted, not by a tune.
+    tune = {
+        **action,
+        "action": "tune",
+        "detail": {"values": {"tone": "urgent"}},
+        "answered": False,
+    }
     assert admit(tune)["attention"] is False
     chosen = admit(
         {
             **action,
             "action": "choose",
             "detail": {"values": {"tone": "urgent"}, "instruction": "Build it."},
+            "answered": True,
         }
     )
     assert chosen["attention"] is True
@@ -740,7 +741,9 @@ def test_settings_the_user_has_not_sent_ask_nothing_of_the_agent():
     working = attention_reading(AdmissionReadings(page, log, page.registry(1)))
     assert working["work"] == [{"id": chosen["id"], "inputs": [chosen["id"]]}]
 
-    assert admit({**tune, "detail": {"values": {"tone": "calm"}}})["attention"] is False
+    # The submitted settings still stand, so a tune after them leaves it answered.
+    calmer = {**tune, "detail": {"values": {"tone": "calm"}}, "answered": True}
+    assert admit(calmer)["attention"] is False
     assert attention_reading(AdmissionReadings(page, log, page.registry(1))) == working
 
 
@@ -1032,6 +1035,7 @@ def test_a_widget_reply_does_not_settle_newer_thread_input(page_dir):
             "widget": "region",
             "action": "choose",
             "detail": {"value": ["east"]},
+            "answered": True,
         },
     )
     newer = append_carried_log_record(
@@ -1093,6 +1097,7 @@ def test_settling_a_thread_widget_move_does_not_revive_its_superseded_move(
             "widget": "regions",
             "action": "choose",
             "detail": {"value": ["east"]},
+            "answered": False,
         },
     )
     selecting = state_json(page_dir)
@@ -1112,6 +1117,7 @@ def test_settling_a_thread_widget_move_does_not_revive_its_superseded_move(
             "widget": "regions",
             "action": "answer",
             "detail": {},
+            "answered": True,
         },
     )
     completed = state_json(page_dir)
@@ -1141,6 +1147,7 @@ def test_settling_a_thread_widget_move_does_not_revive_its_superseded_move(
             "widget": "regions",
             "action": "answer",
             "detail": {},
+            "answered": True,
         },
     )
     assert [item["input"] for item in owed(state_json(page_dir))] == [answered["id"]]

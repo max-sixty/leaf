@@ -133,11 +133,9 @@ def complete_declarations(registry: dict) -> dict:
     names the detail field that tells its members apart, and a verb recording
     positions always tells them apart by `unit`, so only a verb with a `detail` schema
     that keeps a state for each member says its `unit`. A record that names no `kind`
-    is one value in the attribute it names (`kind: "value"`). An obligation (`awaits`)
-    is answered while the verb its `value` names has a state (`answered:
-    {<verb>: {}}`) unless `answered` says when. So the fold, admission and each
-    event's stored `meaning.state` read the same `unit`, `record` and `answered`
-    whether the declaration spelt them or left them to their defaults.
+    is one value in the attribute it names (`kind: "value"`). So the fold, admission
+    and each event's stored `meaning.state` read the same `unit` and `record` whether
+    the declaration spelt them or left them to their defaults.
 
     It runs before validation, so it completes only an entry of the shape it reads
     and leaves any other for validation to refuse."""
@@ -157,9 +155,6 @@ def complete_declarations(registry: dict) -> dict:
                 spec["record"] = record = {"kind": "value", **record}
             # Each default stands first, where a declaration that writes it puts it.
             verbs[verb] = {"unit": record_unit(record), **spec}
-        awaits = entry.get("awaits")
-        if isinstance(awaits, dict) and isinstance(value := awaits.get("value"), str):
-            awaits.setdefault("answered", {value: {}})
         inputs = entry.get("inputs")
         for spec in inputs.values() if isinstance(inputs, dict) else ():
             for key in INPUT_BINDINGS if isinstance(spec, dict) else ():
@@ -233,8 +228,9 @@ def event_clauses(entry: dict, registry: dict | None) -> list[dict]:
 
     `entry` is the event record, plus the `answer` a delivery captured when the
     event owes one, addressed for the route delivering it (`workflows` and
-    `delivery` own those derivations), and the `thread` digest of the thread
-    it belongs to (`thread_context` owns that one). `delivery.DELIVERY` declares
+    `delivery` own those derivations), the `thread` digest of the thread
+    it belongs to (`thread_context` owns that one), and its batch's `held` to-dos
+    (`delivery.batch_data`). `delivery.DELIVERY` declares
     the shape of each, as its batches carry them. A `when` can therefore read any
     of them as well as the record, so a clause states the case a delivery is in
     rather than naming a condition the delivery already settles, such as a
@@ -845,6 +841,9 @@ def require_module(tag: str, entry: dict, registry: dict, path) -> None:
         )
         if entry.get(key)
     ] + (["visual"] if isinstance(entry.get("visual"), dict) else [])
+    # Leaf sets an input's `property` only on an element whose class is defined.
+    if any(spec.get("property") for spec in entry.get("inputs", {}).values()):
+        needs_module.append("inputs")
     if needs_module and MODULES in registry and not upgraded(registry, tag):
         raise registry_error(
             "needs-module", path, tag, keys=needs_module, module=f"widgets/{tag}.js"

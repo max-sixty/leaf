@@ -180,17 +180,25 @@ Adds --dry-run to every mutating command.
     )
     page = open_page(browser, url)
     door = url.rsplit("/versions/", 1)[0] + "/api/event"
-    for widget, action, detail in [
-        ("note", "edit", {"value": "Adds --dry-run to every command."}),
-        ("cache", "add", {"option": "cache-redis", "text": "**Redis** in front"}),
-        ("cache", "choose", {"value": ["cache-redis"]}),
-        ("tags", "answer", {}),
+    # Each with the word its widget sends: an added option, like a tune, answers
+    # nothing until the pick or the choice that follows it.
+    for widget, action, detail, answered in [
+        ("note", "edit", {"value": "Adds --dry-run to every command."}, True),
+        (
+            "cache",
+            "add",
+            {"option": "cache-redis", "text": "**Redis** in front"},
+            False,
+        ),
+        ("cache", "choose", {"value": ["cache-redis"]}, True),
+        ("tags", "answer", {}, True),
         # The controls draw the tune in force, which submitting records first.
-        ("tone", "tune", {"values": {"format": "strip"}}),
+        ("tone", "tune", {"values": {"format": "strip"}}, False),
         (
             "tone",
             "choose",
             {"values": {"format": "strip"}, "instruction": "Build the strip one."},
+            True,
         ),
     ]:
         posted = post_event(
@@ -202,6 +210,7 @@ Adds --dry-run to every mutating command.
                 "widget": widget,
                 "action": action,
                 "detail": detail,
+                "answered": answered,
             },
         )
         assert posted.ok, posted.text()

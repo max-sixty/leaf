@@ -31,29 +31,26 @@ from model.interact_contract import declare_vocabulary, vocabulary
 
 
 def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
-    """Late answers keep their exact scope; marks and failure receipts stay closed."""
+    """Late answers keep their exact scope; a failure receipt stays closed."""
     publish(page_dir)
     append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "question", "author": "user", "text": "Why?"},
     )
     thread_model.cmd_resolve(page_dir, "question")
-    for message in (
-        {"author": "user", "emoji": "👍"},
+    append_carried_log_record(
+        page_dir,
         {
+            "kind": "reply",
+            "parent": "question",
             "author": "agent",
             "text": "Delivery failed",
             "failure": "unavailable",
             "responds": "question",
         },
-    ):
-        append_carried_log_record(
-            page_dir, {"kind": "reply", "parent": "question", **message}
-        )
-        threads = event_folds_model.build_threads(
-            events_model.read_events(page_dir), {}
-        )
-        assert threads["question"]["resolved"] is not None
+    )
+    threads = event_folds_model.build_threads(events_model.read_events(page_dir), {})
+    assert threads["question"]["resolved"] is not None
 
     answer = thread_model.post_reply(
         page_dir,
@@ -127,6 +124,7 @@ def test_late_answer_to_a_thread_widget_reopens_without_repeating_its_obligation
                 "widget": "thread-picks",
                 "action": "choose",
                 "detail": {"value": ["thread-option"]},
+                "answered": True,
             }
         ).encode(),
     )
@@ -178,6 +176,7 @@ PICKED = {
     "widget": "sug-a",
     "action": "decide",
     "detail": {"outcome": "accept"},
+    "answered": True,
 }
 
 
@@ -186,6 +185,7 @@ TURNED_DOWN = {
     "widget": "sug-a",
     "action": "decide",
     "detail": {"outcome": "reject"},
+    "answered": True,
 }
 
 
@@ -247,7 +247,7 @@ def test_the_answer_that_settles_a_thread_acknowledges_what_it_said():
 
     assert unread() == ["e2"]
     assert unread(PICKED) == []
-    assert unread(PICKED, {"kind": "undo", "undoes": "e3"}) == ["e2"]
+    assert unread(PICKED, {"kind": "undo", "undoes": "e3", "answered": False}) == ["e2"]
     assert unread(PICKED, {**edit, "text": "Try sug-a first."}, TURNED_DOWN) == ["e4"]
 
 
@@ -340,7 +340,8 @@ def test_taking_back_a_reject_lets_the_accept_it_superseded_stand_again():
     holding nothing that says so."""
     assert settlement(ASKED, PICKED, TURNED_DOWN) is None
     # The reject is the third event written, so `e3` is what the undo names.
-    taken_back = {"kind": "undo", "undoes": "e3"}
+    # The accept still stands, so the suggestion stays decided.
+    taken_back = {"kind": "undo", "undoes": "e3", "answered": True}
     assert settlement(ASKED, PICKED, TURNED_DOWN, taken_back)["detail"] == {
         "outcome": "accept"
     }
@@ -463,6 +464,8 @@ def test_independent_state_does_not_reopen_an_answer_even_after_retirement(
             "widget": "proposal",
             "action": action,
             "detail": detail,
+            # A decided suggestion says its question is answered.
+            "answered": True,
             "attempt": attempt,
         }
         status, body = fetch(f"{server}/api/event", data=json.dumps(command).encode())
@@ -526,6 +529,7 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
         "widget": "sug-a",
         "action": "label",
         "detail": {},
+        "answered": True,
     }
     html = '<lf-suggestion id="sug-a" resolves="c1"><lf-new><p>Proposed</p></lf-new></lf-suggestion>'
     stated = ModelPage(html, registry=registry)

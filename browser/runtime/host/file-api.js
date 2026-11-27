@@ -2,9 +2,10 @@
    This transport keeps their addresses within the current page, including samples,
    and applies the same delivery-generation gate as Leaf's other HTTP consumers.
    A captured document or export never gains write access to a live file. The state
-   answer names and stamps each binding (`file_bindings.bound_files`), so `label`
-   names a file before it is read and `watch` hears a file move on the page's own
-   news rather than by reading it on a timer. */
+   answer names each binding (`file_bindings.bound_files`), so `label` names a file
+   before it is read, and holds the file as the source under the binding's id
+   (`data.file_sources`), whose run moves with each write, so `watch` hears a file move
+   on the page's own news rather than by reading it on a timer. */
 import { offlineInteractive, pageUrl } from "../state/context.js";
 import { LayerRefused, RequestError, requestJson } from "../transport/layer-client.js";
 import { applicationState, readPart } from "../state/semantic-state.js";
@@ -53,6 +54,16 @@ export function boundFile(binding) {
     get label() {
       return label();
     },
+    // The address the page's own server answers a file at by its path from the bound
+    // file's folder, such as a picture a README names, `../` included, or null where
+    // the page can't reach its server's files, as in an export.
+    /** @param {string} path */
+    beside: (path) =>
+      writable()
+        ? pageUrl(
+            `api/files/${encodeURIComponent(binding)}/beside?path=${encodeURIComponent(path)}`,
+          )
+        : null,
     // The server answers a binding the page lacks as no file, keeping the console
     // clean for a designed state; the editor still shows it as unavailable.
     read: async () => {
@@ -64,7 +75,9 @@ export function boundFile(binding) {
     // Resolves the saved file, or a refusal in the server's own words, which wrote
     // nothing, with the newer file where the file had moved on from `revision`. It
     // rejects where the page can't write, and where no such answer came, when the save
-    // may have reached the file.
+    // may have reached the file. A server fault (5xx) is no such answer: the server
+    // may have written the file and then failed, as a host that keeps the page
+    // elsewhere does when its store refuses the commit.
     /** @param {Pick<import("../../types/contract.js").ServedFileSnapshot, "revision" | "text">} snapshot
      * @returns {Promise<import("../../types/contract.js").ServedFileSnapshot | {refused: string, current: import("../../types/contract.js").ServedFileSnapshot | null}>} */
     save: async (snapshot) => {
@@ -76,19 +89,28 @@ export function boundFile(binding) {
         });
       } catch (error) {
         // `request` passes on a `RequestError` only where the server said why.
-        if (!(error instanceof RequestError)) throw error;
+        if (!(error instanceof RequestError) || error.status >= 500) throw error;
         return { refused: error.message, current: error.current ?? null };
       }
     },
-    // Calls back each time an adopted state answer carries a different label or stamp
-    // for this binding, the tab's first answer included, until the returned function
-    // stops it. A stamp says only that the file may have moved; `read()`'s revision
-    // says whether it did.
+    // Calls back each time an adopted state answer carries a different label for this
+    // binding, or a different run of its source, the tab's first answer included,
+    // until the returned function stops it. A run says only that the file was
+    // written; `read()`'s revision says whether its text moved.
     /** @param {() => void} callback */
     watch(callback) {
       let subscribing = true;
       const stop = applicationState
-        .select((root) => root.authoritative?.files[binding])
+        .select((root) => {
+          // A source under the id is the file's only while the page grants it; a
+          // publication under an unbound id is not.
+          const name = root.authoritative?.files[binding]?.label;
+          if (!name) return "";
+          const file = Object.hasOwn(root.data.sources, binding)
+            ? root.data.sources[binding]
+            : null;
+          return `${name}\n${file?.run ?? ""}`;
+        })
         .subscribe(() => {
           if (!subscribing) callback();
         });

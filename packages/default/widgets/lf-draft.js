@@ -116,8 +116,9 @@ const TOOLS = [
 /** @param {HTMLElement} body @param {number} x @param {number} y @returns {[number, number] | null} */
 function caretAt(body, x, y) {
   const pos = document.caretPositionFromPoint(x, y);
-  if (!pos) return null;
-  const offset = markdownSourceOffset(body, pos.offsetNode, pos.offset);
+  const source = body.dataset.lfSourceWords;
+  if (!pos || source === undefined) return null;
+  const offset = markdownSourceOffset(body, source, pos.offsetNode, pos.offset, false);
   return offset === null ? null : [offset, offset];
 }
 

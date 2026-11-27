@@ -425,7 +425,9 @@ def test_late_gesture_wakes_for_the_active_vocabulary(
 ):
     """An old tab validates under its capture and changes the current page's
     obligations and requested input. The page's own widget changes between the two
-    revisions, as its author's declarations do."""
+    revisions, as its author's declarations do. A widget that asks only under the
+    current declaration said nothing of an answer in the old tab, so its question stays
+    open and wakes nobody."""
     from leaf.base.state import write_json
 
     def publish_choice(needs_attention):
@@ -433,7 +435,6 @@ def test_late_gesture_wakes_for_the_active_vocabulary(
         if needs_attention and declaration == "obligation":
             pick["awaits"] = {
                 "value": "first",
-                "answered": {"first": {}},
             }
         elif needs_attention:
             pick["verbs"]["first"]["attention"] = True
@@ -455,6 +456,9 @@ def test_late_gesture_wakes_for_the_active_vocabulary(
     assert original is not None
     assert value_2 > original
 
+    # The old tab's widget asks only under the capture it was drawn with, and only a
+    # widget that asks says whether its question is answered.
+    asked = not active_attention and declaration == "obligation"
     action = append_command(
         page_dir,
         {
@@ -464,14 +468,14 @@ def test_late_gesture_wakes_for_the_active_vocabulary(
             "widget": "choice",
             "action": "first",
             "detail": {"value": "user"},
+            **({"answered": True} if asked else {}),
         },
     )
-    assert action["attention"] is active_attention
-    assert ("answer" in action["meaning"]) is (
-        not active_attention and declaration == "obligation"
-    )
+    woke = active_attention and declaration == "attention"
+    assert action["attention"] is woke
+    assert ("answer" in action["meaning"]) is asked
     assert transaction_model.unacknowledged(events_model.read_events(page_dir), 0) == (
-        [action] if active_attention else []
+        [action] if woke else []
     )
 
 

@@ -21,6 +21,7 @@ import { answeredInWords } from "../records/obligations/model.js";
 import { readObligations } from "../records/obligations/place.js";
 import { watchPendingTraffic } from "../transport/traffic.js";
 import { createCommandDispatch } from "../records/pending/dispatch.js";
+import { widgetAnswered } from "./widget-state.js";
 import { createDelivery, deliverBookkeeping } from "./delivery.js";
 import { keepRefusedWords } from "../records/drafts.js";
 import { createProjectionPresentation } from "../records/projection/presentation.js";
@@ -46,7 +47,7 @@ import { createSinceSeen } from "./since-seen.js";
 import { createMarginBars } from "../features/margin-bars.js";
 import { renderMarginThread } from "../records/thread/inline.js";
 import { showHeld } from "../records/thread/held-news.js";
-import { isMessageEvent } from "../state/pending/model.js";
+import { isThreadEvent } from "../state/pending/model.js";
 import {
   placePageThreads as registerPageConsumer,
   renderSurfaces,
@@ -232,7 +233,8 @@ function createApplication(dependencies) {
     // than turning an accepted gesture into an apparent refusal, and it cannot strand
     // the gesture before transport or leave later sends behind an unanswered entry.
     try {
-      if (isMessageEvent(entry.event)) announce("Message added");
+      // A reaction announces its own emoji and place as it is sent (reactions.js).
+      if (isThreadEvent(entry.event) && !entry.event.emoji) announce("Message added");
       if (entry.event.kind === "edit") announce("Message edited");
     } catch (error) {
       reportPageError(error, "optimistic presentation");
@@ -255,6 +257,7 @@ function createApplication(dependencies) {
     withdraw: (candidate) => undo.withdraw(candidate),
     onCollision: (attempt) =>
       raiseError(`Couldn't send — attempt ${attempt} is already in use`),
+    answered: widgetAnswered,
   });
 
   const { post } = commandDispatch;

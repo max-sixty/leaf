@@ -38,7 +38,7 @@
     }
   },
   "lf-shortlist": {
-    "description": "A list of candidates the user picks from, each pick recorded on its own. It holds the list and its picks as its `shortlist` output, and a `--toggle` command picks or drops the candidate its button's value names.",
+    "description": "A list of candidates the user picks from, each pick recorded on its own. It holds the list and its picks as its `shortlist` output.",
     "attributes": { "required": ["id"] },
     "verbs": {
       "pick": {

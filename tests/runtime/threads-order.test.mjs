@@ -21,7 +21,7 @@ test("Threads reads newest first by each thread's latest turn or its closing", (
       ],
       { seq: 3 },
     ),
-    // A reaction is no turn; a rewrite is one, where the log holds it.
+    // A reaction is a turn as words are, and so is a rewrite, where the log holds it.
     thread("reacted", [
       { id: "b", seq: 4 },
       { id: "b2", seq: 10, emoji: "👍" },
@@ -46,10 +46,10 @@ test("Threads reads newest first by each thread's latest turn or its closing", (
     [
       "rewriting",
       "resolving",
+      "reacted",
       "rewritten",
       "replied",
       "streaming",
-      "reacted",
       "resolved-then-told",
     ],
   );

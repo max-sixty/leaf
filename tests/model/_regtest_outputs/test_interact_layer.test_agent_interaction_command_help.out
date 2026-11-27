@@ -122,7 +122,7 @@ Usage: leaf thread create [OPTIONS] PAGE
   The text is Markdown, and HTML in it draws, checked here.
 
   Use --obligation when the next move is the user's: the message waits on On Me
-  until their reply or settling reaction. A question whose answers you can list
+  until their next message in the thread. A question whose answers you can list
   takes a widget that asks in the text instead, such as an `lf-options` choice,
   which waits on the user until they pick. Refuses a quote the active revision
   does not show, or shows more than once; words a page's script draws are found
@@ -139,7 +139,7 @@ Options:
                 option, from piped stdin
   --title TEXT  a few words naming the thread's subject; one past 80 characters
                 is cut at a word  [required]
-  --obligation  put this message on On Me until the user replies or settles it
+  --obligation  put this message on On Me until the user replies
   --help        Show this message and exit.
 
 ## leaf thread reply --help
@@ -147,7 +147,8 @@ Usage: leaf thread reply [OPTIONS] REFERENCE_OR_PAGE [MESSAGE]
 
   Answer a delivered update by its `answer.ref` alone, or post into the thread
   PAGE MESSAGE names, which answers nothing that thread owes. The text is
-  Markdown, and HTML in it draws, checked here.
+  Markdown, and HTML in it draws, checked here; --emoji says one emoji in its
+  place.
 
   An answer declares what it leaves with --done, --todo or --obligation, or
   carries a widget in its text that asks, as an `lf-options` choice asks a
@@ -161,15 +162,20 @@ Options:
   --text TEXT        the reply's text
   --file PATH        read the reply's text from PATH, - for stdin; with neither
                      option, from piped stdin
+  --emoji EMOJI      the reply as one emoji, a reaction, in place of --text or
+                     --file
   --todo TITLE       the reply promises work it doesn't deliver; opens that to-
                      do on the thread, ended by `leaf task end` with the reply's
                      id
+  --waiting-on WHAT  with --todo: what the work waits on that you don't control,
+                     in a few words; the to-do reads Waiting on WHAT until you
+                     start or end it
   --ephemeral        one-line progress, without answering
   --title TEXT       a few words naming the thread's subject, needed where it
                      has no title yet; one past 80 characters is cut at a word
-  --obligation [ID]  put this message on On Me until the user replies or settles
-                     it; with the ID of a question their reply left standing,
-                     ask that question again, once per question
+  --obligation [ID]  put this message on On Me until the user replies; with the
+                     ID of a question their reply left standing, ask that
+                     question again, once per question
   --quote TEXT       new passage text to move this thread onto
   --section ID       new element ID, or scope for --quote
   --part ID          a new visual part within --section, such as one `page

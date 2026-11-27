@@ -21,6 +21,7 @@ runtime, so its answers name none, and the edge in front of it names the release
 import hashlib
 import json
 import math
+import mimetypes
 import re
 import secrets
 import time
@@ -58,8 +59,9 @@ from leaf.base.schema import (
     SERVED_PATH,
 )
 from leaf.base.server import page_origin, preview_metadata, running_server
-from leaf.base.state import page_key
+from leaf.base.state import page_key, state_home
 from leaf.log.interaction_log import admit_batch, append_interactions, client_records
+from leaf.records.transaction import PageTransaction, commit_provider
 from leaf.serving.drafts import write_draft
 from leaf.serving.event_endpoint import (
     accept_event,
@@ -90,6 +92,7 @@ from leaf.serving.user_views import observe_user_view
 from leaf.source.file_bindings import (
     FileBindingError,
     StaleFileError,
+    bound_paths,
     read_file,
     save_file,
 )
@@ -381,6 +384,9 @@ class PageEndpoint:
         self.layer_revision: int | None = None
         # Set by `authorized` when the key arrived in the query.
         self.set_cookie = False
+        # Set by `authorized` when the request carried the page's key, as only the
+        # keyed local server's requests do (`_file_beside`).
+        self.keyed = False
         # A declared body no route will read. The answer closes the connection, so the
         # transport doesn't drain a body the peer may never finish sending.
         self.body_unread = False
@@ -687,6 +693,7 @@ class PageEndpoint:
                 self.request.cookies.get(self.key_cookie, ""), self.token
             ):
                 return False
+        self.keyed = True
         return True
 
     def _frame_ancestors(self) -> str:
@@ -778,6 +785,36 @@ class PageEndpoint:
         response, such as a health check.
         """
         return None
+
+    def _file_beside(self, binding: str, name: str) -> Response:
+        """A file the bound file `binding` names by a path from its folder, as a README
+        names its pictures (`boundFile(binding).beside`). A live page reads any file
+        the server can this way, as its own scripts already reach any address, but only
+        through its key: a sample's capability and the website's container answer
+        none. Leaf's own state stays unread, since it holds each page's connection
+        credentials, which a page's scripts never receive (http_connections.py). Text
+        answers as plain text, so a linked file shows rather than downloads, and every
+        answer is sandboxed, so an SVG a README names, opened on its own, runs no
+        script as the page."""
+        bound = bound_paths(self.page_dir).get(binding) if self.keyed and name else None
+        file = bound.parent / name if bound else None
+        if (
+            file is None
+            or not self.source.writable
+            or not file.is_file()
+            or path_is_within(file, state_home())
+        ):
+            return self._not_found()
+        media = (
+            CONTENT_TYPES.get(file.suffix.lower())
+            or mimetypes.guess_type(file.name)[0]
+            or "text/plain"
+        )
+        response = self._resource_content(
+            Resource(file, "text/plain" if media.startswith("text/") else media)
+        )
+        response.headers["Content-Security-Policy"] = "sandbox"
+        return response
 
     def _not_found(self) -> Response:
         # No route reads this body, so the answer closes the connection (`body_unread`).
@@ -1221,9 +1258,12 @@ class PageEndpoint:
             if not self.source.writable:
                 return self._json(None)
             try:
-                return self._json(read_file(self.page_dir, match[1]))
+                file = read_file(self.page_dir, match[1])
             except FileBindingError as error:
                 return self._refuse(str(error))
+            return self._file_answer(self._json(file))
+        if match := re.fullmatch(r"/api/files/([^/]+)/beside", path):
+            return self._file_beside(match[1], self.query.get("path", [""])[0])
         if probe_source := serving_runtime().probes.get(path):
             return self._content(200, "text/javascript; charset=utf-8", probe_source)
         if path == "/":
@@ -1416,11 +1456,27 @@ class PageEndpoint:
 
     def _save_file(self, name: str) -> Response:
         try:
-            return self._json(save_file(self.page_dir, name, self.posted))
+            answer = self._json(save_file(self.page_dir, name, self.posted))
         except StaleFileError as error:
-            return self._json({"error": str(error), "current": error.current}, 409)
+            answer = self._json({"error": str(error), "current": error.current}, 409)
         except (FileBindingError, UnicodeEncodeError) as error:
             return self._refuse(str(error))
+        return self._file_answer(answer)
+
+    def _file_answer(self, answer: Response) -> Response:
+        """`answer`, which tells the browser what a bound file holds, once a host
+        that keeps the page elsewhere holds the page as it now stands. Such a host
+        holds a page as a page transaction commits it (`transaction.commit_provider`),
+        and `file_bindings` reads and writes the file outside one, so this commits
+        one. The host then holds the text a save's receipt, the newer file a stale
+        save meets, or a read names, or a later write to the file. A read is how the
+        editor settles a save whose commit failed. A page this machine keeps needs no
+        commit, and a transaction's reading of the log would make each save cost more
+        as the log grows."""
+        if commit_provider() is not None:
+            with PageTransaction(self.page_dir):
+                pass
+        return answer
 
     def _write_draft(self) -> Response:
         try:

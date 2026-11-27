@@ -33,6 +33,23 @@ export function obligationWord(item) {
   return capitalized(widgetWord(item.source.tag, addressableAt(item.source.id)));
 }
 
+/** A widget class's static `name` and the authored markup Leaf hands it: the widget's
+ * element wherever it stands, on the page or in the message that sent it. A class
+ * reads only that markup, never what its module draws. `answerWords` and the widget's
+ * word on its question (`widgetAnswered`, host/widget-state.js) are read this way.
+ * @template {"answerWords" | "answered"} N
+ * @param {string} tag @param {string} id @param {N} name
+ * @returns {{call: NonNullable<CustomElementConstructor[N]>, element: Element | null} | null} */
+export function widgetStatic(tag, id, name) {
+  const call = customElements.get(tag)?.[name];
+  return typeof call === "function"
+    ? {
+        call: /** @type {NonNullable<CustomElementConstructor[N]>} */ (call),
+        element: addressableAt(id),
+      }
+    : null;
+}
+
 /** Answer text where the source supplies words or a widget formatter; other sources have none.
  * @param {import("../../state/semantic-application.js").ObligationRecord} item */
 export function answerWords(item) {
@@ -40,9 +57,10 @@ export function answerWords(item) {
   if (answeredInWords(item))
     return item.answer.value.text ?? item.answer.value.emoji ?? "";
   if (!hasObligationSource(item, "widget")) return "";
-  const source = addressableAt(item.source.id);
-  const formatter = customElements.get(item.source.tag)?.answerWords;
-  return labelWords(source && formatter ? formatter(item.answer.value, source) : "");
+  const formatter = widgetStatic(item.source.tag, item.source.id, "answerWords");
+  return labelWords(
+    formatter?.element ? formatter.call(item.answer.value, formatter.element) : "",
+  );
 }
 
 /* How a finished obligation ended, in the words a Done row and the floating panel show:

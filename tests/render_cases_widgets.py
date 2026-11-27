@@ -18,7 +18,6 @@ from leaf.source.structure import SourceDocument
 # controlled independently, for page and thread-message presentation journeys.
 PAGE_WIDGET = """\
 import { html, live } from "/vendor/lit.js";
-import { layerFact } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
 import { keeps } from "/runtime/lib/keeps.js";
@@ -29,7 +28,6 @@ customElements.define("lf-local", class extends LeafElement {
   }
 
   setup() {
-    layerFact("$tones");
     keeps(this, "data-page-widget", "ready");
     const held = globalThis.__heldLocalPresentations?.get(this.id);
     // Said from inside the widget, the work is its preparation, which holds the page

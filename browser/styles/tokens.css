@@ -640,6 +640,13 @@
        (layouts.css), stands its marks at a control's gap: inside, they would run over
        its words and under what it holds.
 
+     The runtime stands the marks it draws one band inside a box whatever the box's kind
+     where a box clipping it would cut them outside, as round a table filling a scroll
+     area (`[data-lf-flush]`, element-marks.css), since that turns on what holds the box.
+     Those are the aim, the trace, a comment's mark, the location and proxy rings, and
+     focus on the page's own content; a ring a widget draws on its own control stands
+     where the control's kind says.
+
      The width is a token of its own because the ring is drawn outside the box it
      names, so a scroll region has to reserve room for it: a shorthand cannot be
      read back in a calc, and without the token the number would be retyped wherever

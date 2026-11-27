@@ -7,6 +7,7 @@ import {
   assignRows,
   timeAxis,
   elapsed,
+  onCalendar,
   AXIS_EDGE as EDGE,
   AXIS_LABEL_GAP as LABEL_GAP,
   AXIS_LABEL_CHROME as LABEL_CHROME,
@@ -18,18 +19,6 @@ import {
 /** @typedef {{time: number, events: TimelineEvent[]}} TimelineStep */
 /** @param {string | null} value */
 const time = (value) => (value == null || value === "" ? null : Number(value));
-
-/** Whether an ISO date-time names a real moment on its clock. The registry's pattern
- * bounds each part, but admits a 30 February, which `Date` carries into March, so the
- * clock reading must write back the date and time it was given. */
-/** @param {string} start */
-const onCalendar = (start) => {
-  const written = start.replace(/(Z|[+-]\d{2}:\d{2})$/, "");
-  const ms = Date.parse(`${written}Z`);
-  return (
-    Number.isFinite(ms) && new Date(ms).toISOString().startsWith(written.slice(0, 16))
-  );
-};
 
 /** Authored runs, lanes and events become the timeline's one ordered reading. Every
  * run shares the one axis, scaled to the longest, and the one playhead, so a moment

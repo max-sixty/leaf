@@ -145,6 +145,17 @@ export function seconds(ms, digits) {
 const wallClock = (start) =>
   Date.parse(`${start.replace(/(Z|[+-]\d{2}:\d{2})$/, "")}Z`);
 
+/** Whether an ISO date-time names a moment on the calendar, so that an axis can read
+ * from it. `Date` carries a date the calendar lacks, such as 30 February, into the
+ * next month, so the clock reading must write back the date and time it was given. */
+/** @param {string} start */
+export const onCalendar = (start) => {
+  const ms = wallClock(start);
+  return (
+    Number.isFinite(ms) && new Date(ms).toISOString().startsWith(start.slice(0, 16))
+  );
+};
+
 /** The clock time `ms` after `start`, such as "15:46": as a date, such as
  * "2026-11-25", for a `step` of a day or longer, and otherwise with the parts the
  * step needs, or with as few as show the time where no step is given. */

@@ -8,9 +8,12 @@
    children in place. Either way the authored children stay where the author put them,
    for Leaf's revisions and for `inputs` to read: the box is a `display: contents`
    `div` marked as words the source lacks (`data-lf-gen`), and a widget that draws its
-   authored children in their place hides them from its stylesheet. The component's
-   Model holds only what the user is doing in the widget, such as an open disclosure;
-   what Leaf knows arrives as props:
+   authored children in their place hides them from its stylesheet. A widget that
+   decorates those children, drawing its controls in its shadow root around the slot
+   and exposing them to the theme as shadow parts, takes the shape lf-options.js's
+   header gives ("How it is drawn: a decorating widget"). The component's Model holds
+   only what the user is doing in the widget, such as an open disclosure; what Leaf
+   knows arrives as props:
 
    - `state`, the reading Leaf sets on a widget whose tag declares `verbs`, as the
      `state` property every widget gets.
@@ -40,7 +43,8 @@
    and makes its sets first; where Leaf cancels the event, the element mounts once
    `state` arrives. A descendant's `lf-connect` reads `inputs` again, since a revision
    may have replaced the members they read, as `LeafElement` draws again then.
-   `lfPatch` is the class's static `lfPatch` (module-authoring.md, "Revisions"). Moving
+   `statics` are the class's static members Leaf reads off a widget's class, such as
+   `lfPatch` (module-authoring.md, "Revisions") and `answered` (module-state.md). Moving
    the element keeps its root (`connectedMoveCallback`), and leaving the document
    closes it a microtask later, as `defineElement`'s elements do.
 
@@ -91,14 +95,14 @@ const microtasks = new Scheduler.MixedScheduler("sync");
  * @param {string} tag
  * @param {any} component an Effect UI HTML component whose props hold `state`, what
  *   `inputs` returns and the `properties`
- * @param {{shadow?: boolean, lfPatch?: "members",
+ * @param {{shadow?: boolean, statics?: Record<string, unknown>,
  *   inputs?: (element: HTMLElement, reread: () => void) => Record<string, unknown>,
  *   properties?: readonly string[], members?: Record<string, Member>}} [options]
  */
 export function defineWidget(
   tag,
   component,
-  { shadow = false, lfPatch, inputs, properties = [], members = {} } = {},
+  { shadow = false, statics, inputs, properties = [], members = {} } = {},
 ) {
   const Widget = class extends HTMLElement {
     static {
@@ -328,9 +332,10 @@ export function defineWidget(
       this.dispatchEvent(new PendingTaskEvent(drawn));
     }
 
+    // Said on the element, which Leaf reads off the event's path, and which holds
+    // every scope its shadow root draws.
     #drawn() {
-      const root = this.shadowRoot ?? this;
-      root.dispatchEvent(
+      this.dispatchEvent(
         new CustomEvent(COMMANDS, {
           bubbles: true,
           composed: true,
@@ -350,6 +355,6 @@ export function defineWidget(
       );
     }
   };
-  if (lfPatch) Object.assign(Widget, { lfPatch });
+  Object.assign(Widget, statics);
   customElements.define(tag, Widget);
 }

@@ -118,6 +118,26 @@ test("what its inputs read gives it new props when a signal they read moves", as
   el.remove();
 });
 
+test("a property its host sets reaches the component as a prop of that name", async () => {
+  const el = /** @type {HTMLElement & {note: unknown}} */ (
+    /** @type {unknown} */ (widget({ properties: ["note"] }))
+  );
+  el.note = "told before it connects";
+  document.body.append(el);
+  const text = () => el.querySelector(".note")?.textContent;
+  assert.equal(text(), "told before it connects");
+  /** @type {PromiseLike<unknown>[]} */
+  const pending = [];
+  el.addEventListener("pending-task", (event) =>
+    pending.push(/** @type {any} */ (event).complete),
+  );
+  el.note = "told again";
+  assert.equal(el.note, "told again");
+  await Promise.all(pending);
+  assert.equal(text(), "told again");
+  el.remove();
+});
+
 test("inputs that throw when a signal moves fail the widget, not the code that moved it", () => {
   const note = signal("first");
   const el = widget({

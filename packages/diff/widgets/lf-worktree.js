@@ -81,7 +81,7 @@ const Worktree = Html.component({
 
 defineWidget("lf-worktree", Worktree, {
   shadow: true,
-  lfPatch: "members",
+  statics: { lfPatch: "members" },
   inputs: (host) => {
     const branch = host.getAttribute("branch");
     const head = host.getAttribute("head");

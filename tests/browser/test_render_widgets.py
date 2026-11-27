@@ -194,9 +194,9 @@ def test_suggestion_emphasis_skips_generated_interface_between_changed_words(
     page = open_page(browser, serve(NESTED_PROPOSAL_PAGE))
     page.locator('[data-lf-margin-for="route-ask"] .lf-margin-marker').click()
     page.locator("#route .lf-pick").first.focus()
-    badges = page.locator("#route > lf-option > .lf-key-badge")
+    badges = page.locator("#route > lf-option .lf-key-badge")
     expect(
-        page.locator("#route > lf-option > .lf-key-badge[data-lf-binding-badge]")
+        page.locator("#route > lf-option .lf-key-badge[data-lf-binding-badge]")
     ).to_have_count(2)
     expect(badges).to_have_text(["1", "2"])
 

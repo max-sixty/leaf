@@ -1125,7 +1125,7 @@ def test_a_card_is_one_press_to_leave_however_it_came_to_its_thread(
         """Comment from an option. The comment is the option's whole ask's, where `c`
         would next enter its reply, so each send takes an ask with no thread yet."""
         put_card_away(page)
-        stood = page.locator(f"#{option} lf-option-control")
+        stood = page.locator(f"#{option} .lf-pick")
         stood.focus()
         expect(stood).to_be_focused()
         page.keyboard.press("c")
@@ -1209,7 +1209,7 @@ def test_an_asks_card_closes_beside_its_options_and_comes_back_with_them(
     scroll_settled(page)
     leave_card(page)
     page.keyboard.press("Tab")
-    expect(page.locator("#tl-clamp lf-option-control")).to_be_focused()
+    expect(page.locator("#tl-clamp .lf-pick")).to_be_focused()
     expect(card).to_contain_text("torque wrench")
 
 

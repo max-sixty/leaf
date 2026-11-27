@@ -1835,7 +1835,8 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
     expect(controls).not_to_have_count(0)
     pick_code = page.evaluate(
         """() => {
-             const mark = document.querySelector('#opt-a .lf-pick').getBoundingClientRect();
+             const mark = document.querySelector('#opt-a').shadowRoot
+               .querySelector('.lf-pick').getBoundingClientRect();
              const chip = [...document.querySelectorAll(
                '.lf-go-to-hints .lf-go-to-hint[data-lf-go-to-kind="Control"]')]
                .find(c => {

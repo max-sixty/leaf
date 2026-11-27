@@ -1063,7 +1063,7 @@ def leave_field(tab: Tab) -> None:
 def focus_option(tab: Tab) -> Goals:
     """Focus the first option's control, from which Tab crosses the same stops at every
     size: its ask's other controls and, after a short ask, the first link or listing."""
-    tab.page.locator("lf-option-control").first.focus()
+    tab.page.locator(".lf-pick").first.focus()
     tab.quiet(600)
     return {}
 

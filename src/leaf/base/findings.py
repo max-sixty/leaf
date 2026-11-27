@@ -2436,18 +2436,18 @@ _TEXT = {
     # What a quote's capture notes beside its thread where the file's reading of the
     # page finds the words zero or several times (`anchor_capture.capture_anchor`):
     # only the drawn page says whether it shows them once, which places the thread.
+    # The thread is already posted, so the note says where it stands and gives no
+    # advice to quote again, which would post a second thread beside it.
     "unplaced-quote": lambda at, v: (
         f"Leaf's reading of the page's files finds {v['quote']!r}"
         + (" nowhere" if not v["found"] else f" {v['found']} times")
         + (f" in § {v['section']}" if v["section"] else "")
-        + "; where the page as drawn doesn't show it once either, the thread stands "
+        + ", so unless the page as drawn shows it once, the thread stands "
         + (
-            f"on § {v['section']} as a whole"
+            f"on § {v['section']} as a whole, with the quote above its messages"
             if v["section"]
             else "in Threads, on no passage"
         )
-        + ". To place it on the words, quote more of the passage or name the section"
-        " it sits in"
     ),
     # What `thread create --part` notes beside a thread on a part its visual didn't
     # draw (`anchor_capture.drawn_part`): one the page shows on the whole visual, and

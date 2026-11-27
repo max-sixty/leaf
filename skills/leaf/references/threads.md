@@ -31,10 +31,9 @@ words the user can see once, within one widget part, including words a page's sc
 draws. The page finds them as it draws them: where it doesn't show them once, the
 thread stands on the `--section` you named, or in Threads without one. Where Leaf's
 reading of the page's files finds the words zero or several times, the record the
-command prints carries a note saying so; quote more of the passage or name its
-section. The command refuses a `--section` the active revision doesn't hold or a
-decision took off the page. The thread's id is the `id` of its opening comment, in the
-record the command prints.
+command prints carries a note saying where the thread stands. The command refuses a
+`--section` the active revision doesn't hold or a decision took off the page. The
+thread's id is the `id` of its opening comment, in the record the command prints.
 `leaf page state <page> <message>`, `leaf thread reply`, `edit`, `resolve` and
 `reopen` take the id of any message in the thread.
 

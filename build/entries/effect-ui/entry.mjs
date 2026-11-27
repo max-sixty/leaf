@@ -7,6 +7,7 @@ export * as Exit from "effect/Exit";
 export * as Layer from "effect/Layer";
 export * as Queue from "effect/Queue";
 export * as Schema from "effect/Schema";
+export * as Scheduler from "effect/Scheduler";
 export * as Scope from "effect/Scope";
 export * as Stream from "effect/Stream";
 export { Command, Component, Mount, UiSchema } from "@effect/ui";

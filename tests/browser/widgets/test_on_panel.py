@@ -928,8 +928,8 @@ def test_a_choice_asked_in_a_thread_answers_on_its_card(browser, serve):
     page.keyboard.press("ArrowDown")
     card = on_card(page, "widget:ship")
     expect(card).to_be_focused()
-    expect(card.locator("#ship-friday > .lf-key-badge")).to_have_text("1")
-    expect(card.locator("#ship-wait > .lf-key-badge")).to_have_text("2")
+    expect(card.locator("#ship-friday .lf-key-badge")).to_have_text("1")
+    expect(card.locator("#ship-wait .lf-key-badge")).to_have_text("2")
     # The options themselves, with no second set of choices beside them.
     rendered(page)
     expect(card.locator(".lf-fp-answer:visible")).to_have_count(0)

@@ -370,7 +370,7 @@ def test_a_reload_keeps_focus_on_the_add_beside_an_option_being_added(
     as it does for a control in a comment's box: the option's box is a draft's box like
     any other (records/drafts.js, `draftFocus`)."""
     page = open_page(request.getfixturevalue(engine), serve(OBLIGATION_PAGE))
-    another = page.locator("#jobs > .lf-another")
+    another = page.locator("#jobs .lf-another")
     field = another.locator("leaf-text")
     write(field, "An option of mine.")
     page.keyboard.press("Tab")

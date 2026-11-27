@@ -88,7 +88,6 @@ from render_harness import (
     stored_draft_text,
     told,
     wait_for_revision,
-    without_end_room,
     write,
 )
 
@@ -407,8 +406,6 @@ def test_a_text_comment_chooses_above_when_the_page_has_more_room_there(browser,
             )
         ),
     )
-    # The passage's page ends 800px below it, with no room kept past that end.
-    without_end_room(page)
     resized(page, 390, 900)
     page.evaluate(
         "() => scrollTo({top: document.getElementById('passage').offsetTop - 300})"

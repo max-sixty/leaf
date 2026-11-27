@@ -37,7 +37,6 @@ from render_harness import (
     scroll_settled,
     sending,
     suggestion_control,
-    without_end_room,
 )
 
 from browser.navigation import expect_walk_position, walk_position
@@ -296,7 +295,7 @@ def test_keys_answer_an_obligation_from_its_marks(browser, serve):
     Moving focus does not replace the obligation's numeric action context with a widget copy.
     """
     page = open_page(browser, serve_obligations(serve))
-    nums = page.locator("#live-question > lf-option > .lf-key-badge")
+    nums = page.locator("#live-question > lf-option .lf-key-badge")
     expect(nums.first).to_be_hidden()
 
     page.keyboard.press("m")
@@ -305,9 +304,7 @@ def test_keys_answer_an_obligation_from_its_marks(browser, serve):
     # The arrival stands on the obligation, which wears its options' digits; the marks
     # are the next Tab stops.
     expect(
-        page.locator(
-            "#live-question > lf-option > .lf-key-badge[data-lf-binding-badge]"
-        )
+        page.locator("#live-question > lf-option .lf-key-badge[data-lf-binding-badge]")
     ).to_have_text(["1", "2"])
     page.evaluate(
         """async () => {
@@ -320,17 +317,13 @@ def test_keys_answer_an_obligation_from_its_marks(browser, serve):
         "data-lf-says", "notice"
     )
     expect(
-        page.locator(
-            "#live-question > lf-option > .lf-key-badge[data-lf-binding-badge]"
-        )
+        page.locator("#live-question > lf-option .lf-key-badge[data-lf-binding-badge]")
     ).to_have_text(["1", "2"])
     page.keyboard.press("Tab")
     expect(marks.first).to_be_focused()
     expect_walk_position(page, "1 of 4 waiting on me")
     expect(
-        page.locator(
-            "#live-question > lf-option > .lf-key-badge[data-lf-binding-badge]"
-        )
+        page.locator("#live-question > lf-option .lf-key-badge[data-lf-binding-badge]")
     ).to_have_text(["1", "2"])
     expect(nums.first).to_be_visible()
     expect(nums.nth(1)).to_have_text("2")
@@ -731,7 +724,7 @@ def test_digits_leave_an_obligation_the_user_scrolled_away_from(browser, serve):
 
     page.keyboard.press("m")
     page.keyboard.press("Tab")
-    digit = page.locator("#right > .lf-key-badge")
+    digit = page.locator("#right .lf-key-badge")
     expect(digit).to_be_visible()
     scroll(down=True)
     expect(page.locator("#routes")).not_to_be_in_viewport()
@@ -778,7 +771,7 @@ def test_a_digit_shows_on_its_choice_as_a_scroll_brings_the_choice_into_view(
         ),
     )
     page.keyboard.press("m")
-    expect(page.locator("#left > .lf-key-badge")).to_be_visible()
+    expect(page.locator("#left .lf-key-badge")).to_be_visible()
     gesture_writes(page, 2600)
     expect(page.locator("#right")).not_to_be_in_viewport()
     _, _, samples = gesture_writes(
@@ -786,7 +779,7 @@ def test_a_digit_shows_on_its_choice_as_a_scroll_brings_the_choice_into_view(
         -1200,
         sample="""() => {
           const choice = document.getElementById('right');
-          const digit = choice.querySelector(':scope > .lf-key-badge');
+          const digit = choice.shadowRoot.querySelector('.lf-key-badge');
           const top = choice.getBoundingClientRect().top;
           return {
             seen: top >= 0 && top < innerHeight / 2,
@@ -1260,7 +1253,7 @@ def test_letting_go_of_an_obligation_on_screen_leaves_the_user_beside_it(
     expect(page.locator("#ask-2")).to_be_focused()
     page.keyboard.press("Escape")
     page.keyboard.press("Tab")
-    expect(page.locator("#pick-2 lf-option-control").first).to_be_focused()
+    expect(page.locator("#pick-2 .lf-pick").first).to_be_focused()
 
 
 def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an_obligation(
@@ -1311,8 +1304,6 @@ def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an
         },
     )
     page = open_page(browser, live_url(url))
-    # A page with no room below it, so no scroll lifts its obligations clear of a view.
-    without_end_room(page)
 
     # A thread is chrome holding no obligation, so the walk starts from the page.
     page.keyboard.press("t")

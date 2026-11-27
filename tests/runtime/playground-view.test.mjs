@@ -41,3 +41,21 @@ test("a playground reads its own fields and leaves quoted and generated fields a
   );
   host.remove();
 });
+
+test("a reading follows its field while a script's provider writes the instruction", () => {
+  const host = document.createElement("lf-playground");
+  host.id = "provided-instruction-reading";
+  host.innerHTML = `
+    <aside><input type="range" name="q" min="0" max="5" step="0.5" value="3">
+      <output for="q">3</output></aside>
+    <p>Preview</p>
+    <lf-playground-output>Use q.</lf-playground-output>`;
+  document.body.append(host);
+  const view = createPlayground(host);
+  render(view.render({ values: { q: 1.5 }, instruction: "Use q 1.5." }), host, {
+    host,
+  });
+  assert.equal(host.querySelector('aside output[for="q"]').textContent, "1.5");
+  assert.equal(view.output.textContent, "Use q 1.5.");
+  host.remove();
+});

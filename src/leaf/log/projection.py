@@ -8,17 +8,14 @@ from typing import NamedTuple
 from leaf.base.schema import agent_name
 from leaf.log.events import (
     InForce,
+    ThreadStructure,
     event_coordinate,
     report_settlements,
     retractions,
     taken_back,
-)
-from leaf.log.thread_context import (
-    ThreadStructure,
-    thread_names,
     thread_structure,
-    thread_widgets,
 )
+from leaf.log.thread_context import thread_names, thread_widgets
 from leaf.source.passages import EMPTY, Passages, enclosing_of, page_passages
 from leaf.source.reading import SourceReading
 from leaf.source.registry.contract import (

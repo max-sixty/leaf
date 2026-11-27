@@ -7,7 +7,7 @@ revision's document and the current source. A later document's binding replaces 
 earlier one's (`working_data_bindings`).
 
 Reading a message's markup as it now reads takes the log
-(`thread_context.thread_structure`), and a write holds the page transaction while it
+(`events.thread_structure`), and a write holds the page transaction while it
 validates its value against those bindings and replaces the source's publication. So
 this module sits in `records`, beside the transaction and above the log. One
 document's bindings and the contracts that judge a value stay in `source`, in
@@ -24,7 +24,7 @@ from leaf.base.findings import Finding
 from leaf.base.json_block import json_value
 from leaf.base.schema import DATA_SOURCE_NAME
 from leaf.base.state import now_iso
-from leaf.log.thread_context import thread_structure
+from leaf.log.events import thread_structure
 from leaf.records.transaction import PageTransaction
 from leaf.source.data import (
     PUBLICATION,

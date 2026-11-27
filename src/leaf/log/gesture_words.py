@@ -32,14 +32,15 @@ from collections.abc import Callable
 from functools import cached_property
 from pathlib import Path
 
-from leaf.log.events import InForce, event_document
-from leaf.log.projection import attribute_marks, markup_value, state_projection
-from leaf.log.thread_context import (
+from leaf.log.events import (
+    InForce,
     ThreadStructure,
+    event_document,
     logged_fragment,
     message_wording,
     thread_structure,
 )
+from leaf.log.projection import attribute_marks, markup_value, state_projection
 from leaf.source.passages import (
     collapse,
     created_words,

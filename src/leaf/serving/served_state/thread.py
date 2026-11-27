@@ -114,7 +114,7 @@ def browser_thread(
     A provisional reply joins its thread once it has words. Before then the input's
     workflow says the agent is replying, and an empty message would only reserve a
     bubble with nothing in it. An agent's message whose current Markdown holds HTML
-    carries `html` (`thread_context.thread_structure`), which the browser draws as
+    carries `html` (`events.thread_structure`), which the browser draws as
     markup. A progress message the thread no longer shows carries `completed_by`
     (`progress_ends`), where `runs` says whether the turn that wrote an event still
     runs."""

@@ -912,10 +912,16 @@ FOCUS_IN_PAGE = """() => {
 # What the check is for survives untouched — a stray pick writes `selected` on the option
 # and a stray tab switch moves the panels' attributes, both of them authored rather than
 # generated, and structure is compared either way.
-# The page as a press leaves it. Where the pointer is resting, the marks Leaf has a box
-# draw round itself (surfaces.css), and the generated binding seat are not authored
-# state, so none belongs in this reading.
-PAGE_MARKUP = r"""() => [...document.body.children]
+# The page as a press leaves it. The runtime's paint (`RUNTIME_PAINT_ATTRIBUTE`,
+# base/page-paint.js), such as where the pointer rests, the marks Leaf has a box draw
+# round itself and the room it reads for them, is read from the runtime's own list, as
+# source snapshots read it. The element marks' attributes (visual-mark-paint.js) and the
+# generated binding seat are not authored state either, so none belongs in this reading.
+PAGE_MARKUP = r"""async () => {
+  const {RUNTIME_PAINT_ATTRIBUTE} = await import("/runtime/base/page-paint.js");
+  const paints = [...Object.values(RUNTIME_PAINT_ATTRIBUTE), "data-lf-mark",
+                  "data-lf-projected-mark"];
+  return [...document.body.children]
     .filter((n) => !n.classList.contains("lf-chrome"))
     .map((n) => {
         const c = n.cloneNode(true);
@@ -926,20 +932,16 @@ PAGE_MARKUP = r"""() => [...document.body.children]
                 "lf-mark-hover",
                 "lf-binding-seat",
             );
-            for (const paint of ["data-lf-mark", "data-lf-aimed", "data-lf-traced",
-                "data-lf-proxied", "data-lf-projected-location", "data-lf-projected-mark",
-                "data-lf-over-mark", "data-lf-over-item"])
-                el.removeAttribute?.(paint);
-            // Anchor naming is presentation state. A heading borrows a name by
-            // attribute while its link shows, and the layout may copy a name
-            // from a stylesheet into inline style while positioning a comment.
-            el.removeAttribute?.("data-lf-heading-link");
+            for (const paint of paints) el.removeAttribute?.(paint);
+            // The layout may copy an anchor name from a stylesheet into inline style
+            // while positioning a comment, which is presentation state too.
             el.style?.removeProperty("anchor-name");
             if (!el.getAttribute("style")) el.removeAttribute("style");
         }
         return c.outerHTML;
     })
-    .join("").replaceAll(' class=""', "")"""
+    .join("").replaceAll(' class=""', "");
+}"""
 # Every legend box stands on its addressable element: same corner, one pixel out, for every element wholly
 # on screen. Items partly off it are clipped to the scroller (shownRect) and are not
 # compared, and items off it have no box shown at all. An item with no box of its own —

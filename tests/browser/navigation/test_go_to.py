@@ -784,6 +784,56 @@ def test_go_to_names_leaf_s_own_controls_but_not_its_own_way_out(browser, serve)
     expect(page.locator(".lf-fp-tab", has_text="On Me")).to_be_focused()
 
 
+def test_go_to_armed_as_a_panel_view_replaces_another_names_the_arriving_view(
+    browser, serve
+):
+    """A panel view arriving in place of another stays unseen until the one leaving has
+    faded out. Go-to armed meanwhile shows its chips once the arriving view shows, so
+    the view's own controls wear chips and no code changes after the first chips show.
+    The page's animations run at a tenth of their speed, so Go-to arms inside the swap
+    however fast the keys land."""
+    url = serve(PANEL_PAGE)
+    panel_comment(serve.page_dir, "Why forty?", {"section": "how-cap"})
+    page = open_page(browser, url)
+    panel = page.locator(".lf-floating-panel")
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+m")
+    expect(panel).to_have_attribute("data-lf-open", "queue")
+    rendered(page)
+    cdp = page.context.new_cdp_session(page)
+    cdp.send("Animation.enable")
+    cdp.send("Animation.setPlaybackRate", {"playbackRate": 0.1})
+    page.evaluate(
+        """() => { window.seenCodes = [];
+          const tick = () => {
+            const codes = [...document.querySelectorAll('.lf-go-to-hint[data-lf-hint-code]')]
+              .filter((chip) => chip.checkVisibility({ visibilityProperty: true }))
+              .map((chip) => chip.dataset.lfHintCode).sort().join(' ');
+            if (codes && window.seenCodes.at(-1) !== codes) window.seenCodes.push(codes);
+            requestAnimationFrame(tick);
+          };
+          requestAnimationFrame(tick); }"""
+    )
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
+    page.keyboard.press("g")
+    expect(panel).to_have_attribute("data-lf-open", "threads")
+    routes = heard_routes(page)
+    view = page.locator(".lf-fp-view:not([data-lf-leaving])").bounding_box()
+    in_view = [
+        box
+        for box in page.locator(CHIPS).evaluate_all(
+            "chips => chips.map((chip) => chip.getBoundingClientRect().toJSON())"
+        )
+        if view
+        and view["y"] <= box["y"] + box["height"] / 2 <= view["y"] + view["height"]
+    ]
+    assert in_view, routes
+    assert len(page.evaluate("window.seenCodes")) == 1, page.evaluate(
+        "window.seenCodes"
+    )
+
+
 def test_a_message_s_controls_wear_chips_only_while_they_show(browser, serve):
     """A message's controls stay transparent until the pointer or focus is on the
     message, and take a press meanwhile. Go-to names what the user sees, so a reply's

@@ -242,8 +242,10 @@ html[data-lf-draw-mode] {
     text-transform: none;
   }
   /* Page paint belongs under the chrome. Paint whose target is inside the chrome belongs
-     above it, including when the same aim or response bar moves between the two. The target owner states the plane; document order keeps the aim,
-     with the design name standing in its stand, under the response bar within it. */
+     above it, including when the same aim or response bar moves between the two. The
+     target owner states the plane; document order keeps the aim, with the design name
+     standing in its stand, under the response bar within it. Over a page target the bar
+     floats higher, just under the thread card (annotation-chrome.css). */
   :is(.lf-page-paint, .lf-target-paint) {
     z-index: var(--lf-z-page-paint);
   }

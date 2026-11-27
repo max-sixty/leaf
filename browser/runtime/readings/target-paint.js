@@ -13,7 +13,7 @@
 import { nextRender } from "../lib/frame-pass.js";
 import { move } from "../dom/dom-move.js";
 import { keeps, keepsOnEach } from "../lib/keeps.js";
-import { inkedBox, markedBox, readMarkerSides, shownParts } from "../dom/geometry.js";
+import { inkedBox, markedBox, readMarkRoom, shownParts } from "../dom/geometry.js";
 import { renderedUnder } from "../lib/shadow-tree.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "../base/page-paint.js";
 import { paintStand, placement, standAt, standBox } from "./target-paint-geometry.js";
@@ -31,9 +31,9 @@ function markOne(attribute, boxesOf = shownParts) {
   const paint = keepsOnEach(attribute);
   function draw() {
     const boxes = target?.isConnected ? boxesOf(target) : [];
-    const sideMarkers = readMarkerSides(boxes);
+    const room = readMarkRoom(boxes);
     paint(new Map(boxes.map((box) => [box, ""])));
-    sideMarkers();
+    room();
   }
   return {
     /** @param {Element | null} element */

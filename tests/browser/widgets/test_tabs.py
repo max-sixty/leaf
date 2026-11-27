@@ -5,6 +5,7 @@ import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from interact_support import append_command
 from playwright.sync_api import expect
 from render_cases_interaction import live_url, panel_comment
 from render_cases_layout import SHOT_SRC, SHOTS
@@ -869,11 +870,24 @@ def test_side_tabs_distinguish_withdrawn_obligations_from_answers(browser, serve
         '<lf-tab id="only" label="Only withdrawn">'
         '<lf-group id="only-options-q" label="Keep it?"><lf-options id="only-options"><lf-option id="only-pick">Only</lf-option></lf-options></lf-group>'
         '</lf-tab><lf-tab id="mixed" label="Answer and withdrawal">'
-        '<lf-group id="answered-options-q" label="Keep it?"><lf-options id="answered-options"><lf-option id="answered-pick" selected>Keep</lf-option></lf-options></lf-group>'
+        '<lf-group id="answered-options-q" label="Keep it?"><lf-options id="answered-options"><lf-option id="answered-pick">Keep</lf-option></lf-options></lf-group>'
         '<lf-group id="withdrawn-options-q" label="Retire it?"><lf-options id="withdrawn-options"><lf-option id="withdrawn-pick">Retire</lf-option></lf-options></lf-group>'
         "</lf-tab></lf-tabs>",
     )
-    page = open_page(browser, live_url(serve(source)))
+    url = serve(source)
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "answered-options",
+            "action": "choose",
+            "detail": {"value": ["answered-pick"]},
+            "answered": True,
+        },
+    )
+    page = open_page(browser, live_url(url))
     marks = page.locator("#queue .lf-tab-answer")
     on_me = page.locator("#queue .lf-tab-btn .lf-tab-on-me")
     # The user's turn ends each row's name in On Me's symbol and leaves the answer line
@@ -963,6 +977,7 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
             "widget": "o-a",
             "action": "choose",
             "detail": {"value": ["o-a-fix"]},
+            "answered": True,
         },
     )
     assert posted.ok, posted.text()

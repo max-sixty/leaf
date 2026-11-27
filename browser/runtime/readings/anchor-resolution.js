@@ -2,9 +2,12 @@
  *
  * This module reads authored markup and resolves semantic coordinates into the current
  * document. It owns no controls, travel, paint, thread state, or command path.
- * Selection capture and file-side capture produce the same quote/context coordinate;
- * `resolveAnchor` is the only search implementation, so repeated text detaches unless
- * its context identifies one occurrence.
+ * `resolveAnchor` is the only reader of a stored quote's words: selection capture
+ * stores a quote with the context that tells its occurrence apart, and an agent's
+ * capture stores the context of the one copy the page's files hold, or none where they
+ * hold the words zero or several times (`anchor_capture.py`). Words it can't
+ * place once, repeated text whose context identifies no one occurrence included, stand
+ * on their section as a fallback, or nowhere without one.
  */
 
 import { excerptWords, labelWords, lastWords } from "../lib/words.js";
@@ -52,7 +55,8 @@ import {
   elementById,
   excerpt,
   findQuote,
-  fileModelsPassage,
+  quoteCopies,
+  holdsEditedValue,
   leafSurface,
   pageDocument,
   pageQueryAll,
@@ -210,6 +214,17 @@ export const standsIn = (anchor, placement) =>
     placement.status !== "exact" &&
     !placement.datumElement,
   );
+
+// Whether the page shows a quote's words more than once where its anchor looks for
+// them, so where no context picks a copy, the words are on the page but no passage of
+// them is the thread's (`resolveAnchor`).
+/** @param {Anchor | null | undefined} anchor */
+export function quoteRepeats(anchor) {
+  if (!anchor?.quote || anchor.datum || anchor.visual) return false;
+  const section = sectionOf(anchor);
+  if (anchor.section && !section) return false;
+  return quoteCopies(pageText(), anchor.quote, section) > 1;
+}
 
 // Whether the part a thread stands in for is yet to be drawn, so drawing it moves the
 // thread there, or gives it a seat beside it. A thread on earlier data stays on the
@@ -446,7 +461,7 @@ export function datumAimTarget(datum) {
 }
 
 // Capture enough context to identify the selected span, stopping at the reading’s
-// semantic fences. A short unique quote keeps the file capture’s initial context;
+// semantic fences. A short unique quote keeps the initial context (`$passages.context`);
 // repeated words grow their context until the shared resolver finds this exact span
 // or the real boundary is exhausted. An unresolved passage remains unresolved.
 // `anchorForPassage` captures segments already taken from the page reading, under
@@ -480,10 +495,9 @@ export function anchorForPassage(selected, node) {
       ? node
       : upFrom(node);
   while (holder && lastText && !under(lastText, holder)) holder = upFrom(holder);
-  // The neighbours come from the same indexed reading the search uses and stop at
-  // the same opaque-widget fences as the file-side capture. The browser knows words
-  // a module generated and may quote them; it does not pretend the file can confirm
-  // context across their seam.
+  // The neighbours come from the same indexed reading the search uses and stop at its
+  // fences, so a selection's context holds none of the words a module draws beside it,
+  // which the module may rewrite or rearrange.
   const { text: quote, units } = readingFrom(segments);
   /** @param {import("./passages.js").Segment | undefined} seg */
   const datumOf = (seg) => (seg ? closestAcross(seg.node, DATUM) : null);
@@ -664,7 +678,10 @@ function visiblePassage(segments) {
     const holder = segment.node.parentElement;
     if (
       !holder ||
-      !holder.checkVisibility({ opacityProperty: true, visibilityProperty: true })
+      !holder.checkVisibility({
+        opacityProperty: true,
+        visibilityProperty: true,
+      })
     )
       return false;
     return [...rangeOf([segment]).getClientRects()].some(
@@ -760,7 +777,7 @@ function designTargetAt(
       // visible words on each face without inventing quote text from an ARIA name.
       for (const face of faces) {
         for (const passage of controlPassages(face, partElement)) {
-          if (!passage.length || !fileModelsPassage(passage)) continue;
+          if (!passage.length || holdsEditedValue(passage)) continue;
           const captured = anchorForRange(rangeOf(passage));
           if (!captured) continue;
           const resolved = captured.quote
@@ -937,7 +954,9 @@ export function resolveAnchor(anchor) {
         status: "fallback",
       };
     if (!basisMatches) {
-      const contextual = source?.lfDataDatum?.(anchor.datum, { outdated: true });
+      const contextual = source?.lfDataDatum?.(anchor.datum, {
+        outdated: true,
+      });
       const fallback =
         contextual instanceof Element && under(contextual, source)
           ? contextual
@@ -1058,9 +1077,27 @@ export function resolveAnchor(anchor) {
     return anchor.part ? { ...target, exact: false, status: "fallback" } : target;
   }
 
-  const segments = findQuote(pageText(), anchor.quote, anchor, sectionOf(anchor));
+  const section = sectionOf(anchor);
+  // A section the page doesn't hold, as one a revision dropped, leaves its words
+  // nowhere to be looked for.
+  if (anchor.section && !section) return null;
+  const segments = findQuote(pageText(), anchor.quote, anchor, section);
   const [first] = segments;
-  if (!first) return null;
+  // Words the page doesn't show once, and no context picks a copy of, stand on their
+  // section, as a dropped part stands on its visual, until they stand there once
+  // again: a revision rewrote them, or the agent quoted words the page draws twice or
+  // not at all. A quote with no section has nowhere to stand.
+  if (!first)
+    return section && !settledAway(section)
+      ? {
+          ...resolvedElement({
+            element: section,
+            surface: wholeVisualSurface(section),
+          }),
+          exact: false,
+          status: "fallback",
+        }
+      : null;
   // An exact named-control quote identifies its actual readable face, so both the
   // editor and sent thread clear that face. Ordinary prose still clears its block.
   const face = anchor.part && closestAcross(first.node, WORKS);

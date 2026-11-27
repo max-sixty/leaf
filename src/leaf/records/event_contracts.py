@@ -381,6 +381,8 @@ def action_contract_error(view, event: dict, readings: AdmissionReadings):
     page_rec = document.by_id.get(event["widget"])
     rec = page_rec or thread_by_id[event["widget"]]
     tag = rec["tag"]
+    if error := word_error(event, tag, registry):
+        return error
     spec = registry[tag]["verbs"][event["action"]]
     # A created child is new: an id the markup already holds is an authored element,
     # which a user's gesture can mark or move but never write into being.
@@ -578,9 +580,8 @@ def _anchored_comment_error(view, event: dict, registry: dict):
     answered: the page holds words no file reading can produce — a widget's label,
     a module's own rendering — and an earlier runtime may spell the same words in
     whitespace this reading collapses away. Reading it back off the file would
-    refuse both. `leaf thread create` captures its anchor before it writes, against the
-    file reading, or against the drawn page where that reading lacks the quote
-    (`render_gate.drawn_anchor`).
+    refuse both. `leaf thread create` checks its anchor's section before it writes, and
+    leaves its quote to the drawn page (`anchor_capture.capture_anchor`).
     """
     if event["kind"] != "comment":
         return None
@@ -711,7 +712,29 @@ def _withdrawal_error(
         return None
     newest = view.revisions[-1]
     absorbed = readings.page(newest).projection.absorbed
-    return undo_error(event, events, absorbed)
+    if error := undo_error(event, events, absorbed):
+        return error
+    # The gesture taken back is a widget's action, whose meaning names its tag, or
+    # another kind, which no widget's word speaks for.
+    target = next(e for e in events if e["id"] == event["undoes"])
+    if target["kind"] != "action":
+        return word_error(event, target["kind"], {})
+    origin = target["meaning"].get("state", {}).get("origin")
+    return word_error(event, origin, readings.registry)
+
+
+def word_error(event: dict, tag: str | None, registry: dict) -> Finding | None:
+    """Why a gesture of a `tag` element carries the wrong word on its question: a
+    widget that asks says on each act and undo of it whether its question is answered
+    (`obligations.gesture_answers`), and one that doesn't says nothing. An act that
+    left the word out would answer nothing however the user acted, with nothing to
+    tell anyone."""
+    asks = bool((registry.get(tag) or {}).get("awaits"))
+    if asks and "answered" not in event:
+        return Finding("answered-missing", values={"tag": tag})
+    if not asks and "answered" in event:
+        return Finding("answered-unasked", values={"tag": tag})
+    return None
 
 
 def admission_error(

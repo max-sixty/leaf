@@ -20,7 +20,7 @@ import re
 from pathlib import Path
 
 from leaf.log.event_log import read_events
-from leaf.log.thread_context import logged_fragment
+from leaf.log.events import logged_fragment
 from leaf_dev.authoring_eval import leaf_command
 
 # The findings that say something failed to run or draw, as opposed to the geometry

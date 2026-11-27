@@ -331,6 +331,110 @@ variants:
           literal too. Showing how either renders beside the source is fine. Fail if the
           typed Markdown appears only rendered, or only inside an lf-text-document whose
           preview tab opens first.
+  # Prompt reconstruction: a session's page sparkjoy-size-in-code showed the prompt a
+  # plugin sends a model, three paragraphs and a ```json fence, in a plain <pre>, every
+  # line wrapping behind a mark and the JSON uncoloured. The user wanted it read as
+  # Markdown with the JSON coloured. page-authoring.md then named "a message as an
+  # agent receives it" among the texts kept literal.
+  prompt-with-schema:
+    metadata:
+      purpose:
+        A prompt written in Markdown reads rendered, its fenced JSON coloured, with its
+        exact text kept.
+    vars:
+      prompt: |
+        You are writing a Leaf page that proposes a change to sparkjoy, a Claude Code
+        plugin that asks a model whether to compact the session when a turn ends.
+        Write the page's section "The question sparkjoy asks": a sentence on when the
+        plugin sends it, then the prompt the model receives, given below exactly as
+        the plugin sends it, so the user can judge its wording and the schema of the
+        answer it asks for.
+
+        <prompt>
+        Estimate what compacting this session now would cost the work ahead. This request comes from the sparkjoy plugin, not from the user, and a program reads your answer.
+
+        Your turn just ended. A compaction would replace the transcript with a summary. A summary drops detail: exact output, what was tried and failed, what the user objected to and why, the state of a design or fix still taking shape. Work that iterates with the user on something just shown, or takes up a half-done fix or design, needs that detail: after a compaction it spends requests re-reading files and re-running commands, and redoes what goes wrong without the rest. Work that only reports a result, or starts something new, needs no more than a summary, so the work's next natural break, such as a change landed or a question answered, is where a compaction loses least.
+
+        Answer with nothing but one JSON object that matches this schema, filling its fields in the order listed:
+
+        ```json
+        {
+          "type": "object",
+          "properties": {
+            "next": {"type": "string", "description": "what most likely comes next, in a few words"},
+            "requests_to_break": {"type": "integer", "description": "how many requests from now the work will most likely reach its next natural break; 0 if it is at one now"},
+            "extra_wasted_requests": {"type": "integer", "description": "how many more requests a compaction now would waste than one at that break would: re-reading, re-running, and redoing what goes wrong without the detail it drops; 0 if the work is at a break now"},
+            "reason": {"type": "string", "description": "one short line saying why"}
+          },
+          "required": ["next", "requests_to_break", "extra_wasted_requests", "reason"],
+          "additionalProperties": false
+        }
+        ```
+        </prompt>
+
+        The page is in the reading theme. The page directory is unavailable here.
+        Reply with the section HTML and any page setup commands it needs.
+    assert:
+      - type: llm-rubric
+        metric: prompt-reads-rendered
+        value: |
+          The prompt is shown through Leaf's Markdown rendering of its exact text: an
+          lf-text-document with preview="markdown" holding the whole prompt, HTML-escaped
+          in its `<pre>` or through a data source the commands supply, so its three
+          paragraphs read as prose and its ```json fence as a JSON code block. Every
+          character of the prompt is kept, the fence and its JSON included. Fail if the
+          prompt is shown only as source, such as in a pre, a pre/code with or without a
+          language class, an lf-code, or an lf-text-document without
+          preview="markdown"; if the author converted it to HTML by hand; or if any of
+          its words or JSON are changed or dropped.
+  # Guardrail for prompt-with-schema: a Markdown preview draws a prompt's own tags as
+  # HTML, so `<instructions>` and `<answer>` vanish and the Markdown inside them shows
+  # as source. A prompt structured by its tags shows its source.
+  prompt-with-tags:
+    metadata:
+      purpose: A prompt whose tags carry its structure keeps the tags visible.
+    vars:
+      prompt: |
+        You are writing a Leaf page that reviews the judge our eval harness uses to
+        grade a support agent's answers. Write the page's section "What the judge is
+        asked": a sentence on when the harness sends it, then the prompt the judge
+        receives, given below exactly as the harness sends it with one real answer
+        filled in, so the user can judge its wording.
+
+        <prompt>
+        Grade the support agent's answer below against the rubric. Reply with nothing but one JSON object.
+
+        <rubric>
+        Pass only if the answer names the order the ticket is about and says what the customer should do next. Fail an answer that asks the customer for something the ticket already holds.
+        </rubric>
+
+        <ticket>
+        Customer cust_9f31 was charged twice for order 77120 and asked for a refund of one charge.
+        </ticket>
+
+        <answer>
+        I've refunded the duplicate charge on **order 77120**. You'll see it on your statement within 5 business days; there's nothing else you need to do.
+        </answer>
+
+        Use this format:
+
+        ```json
+        {"pass": true, "reason": "one short line saying why"}
+        ```
+        </prompt>
+
+        The page is in the reading theme. The page directory is unavailable here.
+        Reply with the section HTML and any page setup commands it needs.
+    assert:
+      - type: llm-rubric
+        metric: tags-stay-visible
+        value: |
+          The prompt appears exactly, with its `<rubric>`, `<ticket>` and `<answer>`
+          tags visible as text where the reader first sees it, HTML-escaped in the
+          markup. Fail if the block that shows the prompt opens on a rendered Markdown
+          preview, as an lf-text-document with preview="markdown" does, since that draws
+          the tags as HTML and hides them; if the author converted the prompt to HTML
+          by hand or dropped its tags; or if any of its words change.
   # A page-owned stepper stands over the source it walks, and the user asks which line
   # a step is on. An author who misses the excerpt's input scripts the excerpt from
   # the stepper's module, which ties the two widgets to each other.

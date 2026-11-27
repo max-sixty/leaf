@@ -333,16 +333,11 @@ test("one widget selection publishes optimistic state without writable access", 
   const seen = [];
   const stop = selected.subscribe((reading) => seen.push(reading));
   assert.equal(selected.read().actions.decide.available, true);
-  assert.equal(selected.read().authored.decide.action, null);
   app.enqueue(action("first"), "now");
-  assert.equal(selected.read().authored.decide.action, null);
   assert.equal(outcomeOf(selected.read().state), "accept");
   assert.equal(seen.at(-1).actions.decide.inForce[0].event.attempt, "first");
   assert.throws(() => {
     selected.read().actions.decide.available = false;
-  }, TypeError);
-  assert.throws(() => {
-    selected.read().authored.decide.value = "corrupt";
   }, TypeError);
   const beforeUnrelated = seen.length;
   app.acceptData({ version: "unrelated", sources: { unrelated: { value: true } } }, 1);
@@ -416,14 +411,12 @@ test("widget undo candidates name only exact attempts currently in force", () =>
   assert.deepEqual(selected.read().actions.decide.undo, []);
 });
 
-test("widget action history excludes an action the view classifies nowhere", () => {
+test("a widget event the view classifies nowhere counts toward the applied stamp", () => {
   const app = setup();
   const terminal = { ...action("old"), id: "e-old", seq: 1 };
   const read = state(2);
   read.events = [terminal];
   app.adopt(read);
-  assert.deepEqual(app.selectWidget(descriptor).read().actions.decide.history, []);
-  // The log's widget events count toward the applied stamp all the same.
   assert.deepEqual(app.read().effective.coverage, [
     { event: terminal, coordinate: null },
   ]);
@@ -449,7 +442,7 @@ test("a publication that adds no widget event keeps the coverage records", () =>
   assert.equal(app.read().effective.coverage.length, 2);
 });
 
-test("the selected revision keeps carried action history from earlier revisions", () => {
+test("the selected revision keeps actions carried from earlier revisions in force", () => {
   const app = setup();
   const current = {
     ...descriptor,
@@ -471,7 +464,7 @@ test("the selected revision keeps carried action history from earlier revisions"
     app
       .selectWidget(current)
       .read()
-      .actions.decide.history.map(({ id }) => id),
+      .actions.decide.inForce.map(({ event }) => event.id),
     ["e-old"],
   );
 });
@@ -1773,7 +1766,7 @@ test("An obligation contains the local typed answer while completion waits for a
     ...descriptor,
     declaration: {
       ...descriptor.declaration,
-      awaits: { value: "decide", answered: { decide: {} } },
+      awaits: { value: "decide" },
     },
   };
   const app = capture([[declared.id, declared]]);
@@ -1807,7 +1800,7 @@ test("empty completed answer and wrapper changes preserve obligation identity", 
     ...descriptor,
     declaration: {
       verbs: { choose },
-      awaits: { value: "choose", answered: { choose: {} } },
+      awaits: { value: "choose" },
     },
   };
   const app = capture(
@@ -1843,7 +1836,7 @@ test("empty completed answer and wrapper changes preserve obligation identity", 
   assert.equal(app.read().effective.obligations.all[0].prompt.target, "new-context");
 });
 
-test("pending undo removes completed empty obligation values and refusal restores them", () => {
+test("a pending undo's word reopens a completed empty answer and refusal restores it", () => {
   for (const [record, value] of [
     [{ kind: "attribute", attr: "selected" }, []],
     [{ kind: "body" }, ""],
@@ -1854,7 +1847,7 @@ test("pending undo removes completed empty obligation values and refusal restore
       ...descriptor,
       declaration: {
         verbs: { choose, answer },
-        awaits: { value: "choose", answered: { answer: {} } },
+        awaits: { value: "choose" },
       },
     };
     const app = capture(
@@ -1897,9 +1890,11 @@ test("pending undo removes completed empty obligation values and refusal restore
     app.adopt(reading);
     assert.deepEqual(app.read().effective.obligations.all[0].answer.value, value);
     app.enqueue({ kind: "undo", undoes: accepted.id, attempt: "undo-empty" }, "now");
-    assert.equal(app.read().effective.obligations.all[0].state, "done");
+    // The widget says the undo leaves its question open, as the runtime asks it.
+    app.answer("undo-empty", () => false);
+    assert.equal(app.read().effective.obligations.all[0].state, "waiting");
     assert.equal(app.read().effective.obligations.all[0].answer, null);
-    assert.equal(app.read().effective.queues.done[0].obligation.answer, null);
+    assert.equal(app.read().effective.queues.on_user[0].obligation.answer, null);
     app.refuse("undo-empty");
     assert.deepEqual(app.read().effective.obligations.all[0].answer.value, value);
   }
@@ -1910,7 +1905,7 @@ test("pending undo withdraws a decision an earlier Leaf recorded with another fi
     ...descriptor,
     declaration: {
       ...descriptor.declaration,
-      awaits: { value: "decide", answered: { decide: {} } },
+      awaits: { value: "decide" },
     },
   };
   const app = capture([[declared.id, declared]]);
@@ -1945,7 +1940,7 @@ test("pending undo removes a custom obligation answer before authoritative compl
     ...descriptor,
     declaration: {
       ...descriptor.declaration,
-      awaits: { value: "decide", answered: { decide: {} } },
+      awaits: { value: "decide" },
     },
   };
   const app = capture([[declared.id, declared]]);

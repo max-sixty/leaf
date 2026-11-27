@@ -294,13 +294,17 @@ session.</p></details>
 # Generated go-to hints, painted in their own transient layer. The code is metadata on the
 # chip because its visible text also carries the ellipsis marking a sequence in progress.
 # A chip a typed letter or a filter rules out keeps its seat, hidden, so a count of the
-# map the user sees counts `:visible` chips.
+# map the user sees counts `:visible` chips. The map holds Leaf's own controls too, the
+# floating panel's leaf on every page, so a count of a page's links and folds counts
+# `ROUTE_CHIPS`, the chips of every kind but a control's, the page's own presses
+# left out with Leaf's.
 CHIPS = ".lf-go-to-hints .lf-go-to-hint[data-lf-hint-code]"
+ROUTE_CHIPS = f'{CHIPS}:not([data-lf-go-to-kind="Control"])'
 
 
-def address_codes(page):
+def address_codes(page, chips=CHIPS):
     rendered(page)
-    return page.locator(f"{CHIPS}:visible").evaluate_all(
+    return page.locator(f"{chips}:visible").evaluate_all(
         "chips => chips.map(chip => chip.dataset.lfHintCode)"
     )
 
@@ -467,19 +471,6 @@ NESTED_SUGGESTION = (
     )
     .replace('<p id="insert">', '<div id="insert">')
     .replace("</lf-suggestion></p>\n<lf-board", "</lf-suggestion></div>\n<lf-board")
-)
-FENCED_CAPTURE_PAGE = leaf_page(
-    "fenced capture",
-    """
-<h1 id="h">Roadmap</h1>
-<lf-board id="gate-board"><lf-column id="gate-milestone" label="active · week-1 · wood · solar"><lf-card id="gate-card" label="Build feeders"><strong>Build feeders</strong> Two classic models.</lf-card></lf-column></lf-board>
-<p id="after-milestone">Ready next.</p>
-<lf-group id="fence-q" label="Which fence?"><lf-options id="fence-options">
-  <lf-option id="fence-option" label="Classic feeder"><small class="lf-tag">effort: low</small><small class="lf-tag">risk: high</small> <strong>Classic feeder</strong>
-    Easy to clean.
-  </lf-option>
-</lf-options></lf-group>
-""",
 )
 # A label a widget renders into a control it also built. The tab strip is the case with
 # nowhere else to say it: once the strip exists the panel heading stands down, so the

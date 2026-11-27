@@ -406,9 +406,9 @@ import {
   placeBox,
   placeHolder,
   seenRect,
-  stateFootBand,
 } from "../dom/geometry.js";
 import { overlaps } from "../dom/rect.js";
+import { elementBorderFrame, elementMatrix } from "../dom/element-axes.js";
 import { registerReadingRegion } from "../readings/reading-regions.js";
 import { sectionsInView } from "../readings/reading-place.js";
 import { agentName, documentChanged } from "../state/semantic-state.js";
@@ -2005,7 +2005,7 @@ export function createFloatingPanel({
    *   room: number | null,
    *   rewriting: boolean,
    *   pressed: {
-   *     node: Element, at: number, height: number, holds: number, keep: () => void,
+   *     node: Element, at: number, height: number | null, holds: number, keep: () => void,
    *   } | null,
    *   drawnRows: Map<string, {section: string, at: number}> | null,
    *   drawnDrafts: Set<string> | null,
@@ -2258,7 +2258,7 @@ export function createFloatingPanel({
   // delivers no observer a box shallower than the view later in the frame it resized,
   // so the box is read again here, before that frame paints what moved.
   const fit = sizeObserver(() => {
-    stood = openView()?.offsetHeight ?? null;
+    stood = heightOf(openView());
     followBox();
   });
   const follow = sizeObserver(() => {
@@ -2283,7 +2283,7 @@ export function createFloatingPanel({
   ground.setAttribute("part", "panel");
   // The box stands over the window's foot, the row and any view open above it: what it
   // covers reads as unseen (dom/geometry.js, `declareCover`), and a landing stands clear of
-  // its reach (`followBox`). It covers where its surface is drawn
+  // where it comes to rest (`footCover` there). It covers where its surface is drawn
   // (dom/box-motion.js, `outline`): while the box moves, the card stands transparent at its
   // rest and the surface carries the panel from where it stood. The card's own box is
   // where that motion ends, which a landing about to show a place asks (`standsOver`).
@@ -2299,9 +2299,11 @@ export function createFloatingPanel({
   function streamSend() {
     following.stream();
   }
-  let bandFrame = 0;
+  let roomFrame = 0;
+  /** @type {number | null} */
+  let reachStated = null;
   function followBox() {
-    stateBand();
+    announceReach();
     const compact = host.dataset.lfRest === "mark";
     const duration = compact
       ? foldMs()
@@ -2310,31 +2312,23 @@ export function createFloatingPanel({
         : resizeMs();
     following.follow({ duration, easing: compact ? foldEase() : ease() }, compact);
   }
-  function stateBand() {
-    // How far the box reaches up from the window's foot, with the gap above the box and
-    // at least the foot's room (`--lf-foot-band`, base.css): the band Leaf's landings
-    // keep clear of (dom/geometry.js, `stateFootBand`, `landingBand`), so `m`, `t`, a Go-to or
-    // an On Me row's Show lands what it reaches above an open view rather than under it.
+  // The box's cover changed height (`declareCover` above), which no scroll or resize
+  // tells the readings of what the user sees (dom/geometry.js, `watchRoom`).
+  function announceReach() {
     const box = card.getBoundingClientRect();
-    const reach = box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0;
-    const root = document.documentElement;
-    const [rest = 0, clear = 0] = getComputedStyle(root)
-      .getPropertyValue("--lf-foot-band")
-      .trim()
-      .split(/\s+/)
-      .map(Number.parseFloat);
-    const band = atLayoutPrecision(Math.max(rest, reach + clear));
-    if (stateFootBand(band)) {
-      // This runs in the box's size delivery, which may write only what no one observes
-      // (page-layout.js). The margin hears the news of the room, and its pass places an
-      // open thread card in the same delivery, resizing a box shallower than any the
-      // delivery can still reach: a ResizeObserver loop. So the news waits for the
-      // frame; Leaf's own landings read the band stated above at once.
-      bandFrame ||= nextRender(() => {
-        bandFrame = 0;
-        announceRoom();
-      });
-    }
+    const reach = atLayoutPrecision(
+      box.height > 0 ? ground.getBoundingClientRect().bottom - box.top : 0,
+    );
+    if (reach === reachStated) return;
+    reachStated = reach;
+    // This runs in the box's size delivery, which may write only what no one observes
+    // (page-layout.js). The margin hears the news of the room, and its pass places an
+    // open thread card in the same delivery, resizing a box shallower than any the
+    // delivery can still reach: a ResizeObserver loop. So the news waits for the frame.
+    roomFrame ||= nextRender(() => {
+      roomFrame = 0;
+      announceRoom();
+    });
   }
 
   // A view is as tall as what it holds, up to its cap (floating-panel.css,
@@ -2395,6 +2389,15 @@ export function createFloatingPanel({
   // holds.
   /** @type {number | null} */
   let stood = null;
+  // The height a view stands at, which a hold writes back as its `height`: in the
+  // view's own layout pixels, fraction included (dom/element-axes.js,
+  // `elementBorderFrame`). The view stands on its foot, so a height off by any amount
+  // carries all it holds by that much as the hold takes: `offsetHeight`'s whole pixel
+  // by up to half of one, a device pixel on a screen of two to the CSS pixel, and a
+  // bounding rect's height by the page's `zoom`.
+  /** @param {Element | null} view */
+  const heightOf = (view) =>
+    view instanceof HTMLElement ? elementBorderFrame(view).height : null;
   /** @param {number | null} height */
   const holdThread = (height) => {
     if (!trail.value.at(-1)?.thread || opening.room !== null || height === null)
@@ -2421,7 +2424,7 @@ export function createFloatingPanel({
       // Drawn once the script that made the press ends, still before the frame: a
       // press that leaves the thread, as Back does, takes the hold with the view, so
       // the hold never writes a height the leaving view would lose in the same script.
-      if (holdThread(view?.getBoundingClientRect().height ?? null)) afterScript(paint);
+      if (holdThread(heightOf(view))) afterScript(paint);
       if (press.closest(".lf-fp-news-outlet") && view)
         landing = {
           key: threadByKey(route.thread)?.key ?? route.thread,
@@ -2518,7 +2521,7 @@ export function createFloatingPanel({
     opening.pressed = {
       node,
       at: contentTop(node, view),
-      height: view.offsetHeight,
+      height: heightOf(view),
       holds: holding(view),
       keep: holdPlaceOf(node),
     };
@@ -2607,7 +2610,7 @@ export function createFloatingPanel({
     if (!opening.drawn) return false;
     const view = shownView();
     if (!view || view.querySelector(".lf-fp-asked:empty")) return false;
-    opening.room = view.offsetHeight;
+    opening.room = heightOf(view);
     return true;
   }
   // A tab, filter or search the user presses changes what the list shows, which it
@@ -2758,7 +2761,8 @@ export function createFloatingPanel({
   // knows before pressing that it leads further rather than acting.
   /** @param {unknown} label @param {unknown} end @param {(event: MouseEvent) => unknown} press
    * @param {{urgent?: boolean, disabled?: boolean, role?: string | null, row?: string | null,
-   * key?: string | null, opens?: boolean, title?: string | null, current?: boolean}} [options] */
+   * key?: string | null, command?: string | null, opens?: boolean, title?: string | null,
+   * current?: boolean}} [options] */
   const menuItem = (
     label,
     end,
@@ -2768,6 +2772,7 @@ export function createFloatingPanel({
       disabled = false,
       row = null,
       key = null,
+      command = null,
       opens = false,
       title = null,
       current = false,
@@ -2777,6 +2782,7 @@ export function createFloatingPanel({
       type="button"
       data-lf-row=${row ?? nothing}
       data-lf-key=${key ?? nothing}
+      data-lf-command=${command ?? nothing}
       .lfPreview=${() => (title ? { detail: [title] } : null)}
       ${offeredAction("row", "lf-fp-item")}
       aria-current=${current ? "location" : nothing}
@@ -2810,16 +2816,22 @@ export function createFloatingPanel({
     );
   // A row's end says its value in words, then its shortcut where a keyboard is there to
   // press it, each press a key as the command reference draws it, so the two never read
-  // as one run of text.
+  // as one run of text. A row that names no shortcut of its own shows the keys of the
+  // command it runs.
   /** @param {ReturnType<typeof pageControls>[number]} entry */
-  const rowEnd = (entry) =>
-    html`${
+  const rowEnd = (entry) => {
+    const shortcut =
+      entry.shortcut.length || !entry.command
+        ? entry.shortcut
+        : commandSteps(entry.command);
+    return html`${
       entry.value ? html`<span class="lf-fp-value">${entry.value}</span>` : nothing
     }${
-      entry.shortcut.length && advertisesKeys()
-        ? keySequenceTemplate(keySequenceModel(neutralSteps(entry.shortcut)))
+      shortcut.length && advertisesKeys()
+        ? keySequenceTemplate(keySequenceModel(neutralSteps(shortcut)))
         : nothing
     }`;
+  };
   // Copy shortcuts close on success; a refusal opens About's selectable text.
   /** @type {Map<string, ReturnType<typeof copyControl>>} */
   const copyItems = new Map();
@@ -2879,6 +2891,7 @@ export function createFloatingPanel({
         urgent: Boolean(entry.urgent),
         disabled: entry.disabled,
         row: entry.key,
+        command: entry.command,
         opens: Boolean(route && viewOf(route).over?.includes("menu")),
       },
     );
@@ -3768,7 +3781,7 @@ export function createFloatingPanel({
       landing: (resolved) => {
         // Enter on Resolve runs the thread's command before any click, so the press
         // holds the view here as a pointer's does on the head line (`head`).
-        if (holdThread(openView()?.getBoundingClientRect().height ?? null)) paint();
+        if (holdThread(heightOf(openView()))) paint();
         return resolved ? null : resolveLanding(thread.key);
       },
       drawn: threadDrawn(thread, view, outlet),
@@ -4225,13 +4238,20 @@ export function createFloatingPanel({
     if (view && listed && opening.room === null) return;
     fitting = false;
     if (!view || !listed || opening.room === null) return;
+    // Measured on screen and held in the view's own pixels, which a page's `zoom`
+    // scales (`heightOf`).
+    const scale = elementMatrix(view).d;
     const foot =
       view.getBoundingClientRect().bottom -
-      Number.parseFloat(getComputedStyle(view).paddingBottom);
+      scale * Number.parseFloat(getComputedStyle(view).paddingBottom);
     const card = view.querySelector(".lf-fp-on-item[data-lf-open]");
     const end = (card ?? view.lastElementChild)?.getBoundingClientRect().bottom;
     const change =
-      end === undefined ? 0 : card ? Math.max(0, end - foot) : Math.min(0, end - foot);
+      (end === undefined
+        ? 0
+        : card
+          ? Math.max(0, end - foot)
+          : Math.min(0, end - foot)) / scale;
     if (change) {
       opening.room = Math.max(0, opening.room + change);
       viewMovingUntil = performance.now() + viewResizeMs();
@@ -4959,8 +4979,9 @@ export function createFloatingPanel({
   // centred in a room wider on both sides, which stood it off centre once it had a
   // count, as On Me nearly always does. An empty gap stands between two tabs, for the
   // strip's gutter track (floating-panel.css, `.lf-fp-filters`). A tab the view doesn't
-  // show previews the keys of the Go-to door that opens it (`door`), such as `g A` on
-  // On <agent>'s, where they would press it from where the user is, so the user meets
+  // show names the Go-to door that opens it (`door`), so it previews the door's keys,
+  // such as `g A` on On <agent>'s, where they would press it from where the user is,
+  // and wears the door's key as its Go-to chip (`data-lf-command`), so the user meets
   // the key where they reach for the list. A tab is named for its list alone and
   // described by its count, so a screen reader hears "Threads", then "2", and its
   // preview's keys follow "Threads", not "Threads 2".
@@ -4972,15 +4993,16 @@ export function createFloatingPanel({
       ${names.map((name, at) => {
         const counted = count(name);
         const gap = at ? html`<span class="lf-fp-tab-gap"></span>` : nothing;
-        const opens = door(name);
+        const opens = current === name ? null : door(name);
         return html`${gap}<button
             type="button"
             ${offeredAction("word", "lf-fp-tab")}
             aria-pressed=${String(current === name)}
             aria-label=${label(name)}
             aria-description=${counted === null ? nothing : String(counted)}
+            data-lf-command=${opens ?? nothing}
             .lfPreview=${() => {
-              const steps = opens && current !== name ? commandBindingsNow(opens) : [];
+              const steps = opens ? commandBindingsNow(opens) : [];
               return steps.length ? { keys: [steps] } : null;
             }}
             @click=${() => {
@@ -5270,7 +5292,7 @@ export function createFloatingPanel({
         const key = card.getAttribute("data-lf-key");
         if (key === null) throw new Error("On Me card has no item key");
         if (!opening.seatHeights.has(key))
-          opening.seatHeights.set(key, card.getBoundingClientRect().height);
+          opening.seatHeights.set(key, elementBorderFrame(card).height);
       }
     }
     // The drawing grows the card after it was fitted, so it is fitted again once the
@@ -6239,13 +6261,7 @@ export function createFloatingPanel({
           }
         }
         open({ view: "thread", thread: thread.key }, { reopen: true, focus: false });
-        // The band the view takes is stated once it is drawn, before the box's size
-        // delivery, so the route's landing of the thread's passage, which may follow in
-        // the same task, stands clear of the view (records/thread/destination.js, `taken`).
-        return present({ release: true }).then((shown) => {
-          stateBand();
-          return shown;
-        });
+        return present({ release: true });
       },
     });
     // Upgrade turns the status to its loading words without a publication.
@@ -6318,6 +6334,17 @@ export function createFloatingPanel({
     // alone, as Threads, On, Versions and All pages are; one a route qualifies, as a
     // menu group or Errors, stays shut.
     shownThread: () => threadOf(trail.value.at(-1))?.id ?? null,
+    // Whether an element is part of the row a stance holds while it stands (**The
+    // row**): the field, whose end offers the stance's Close, and the ✕ that ends it,
+    // but not the leaf, and nothing while a search holds the field. Read from the
+    // dispatcher, as `stanceHolds` is, so it answers in the task that arms a stance,
+    // before the row draws it. Go-to, itself a stance, leaves these parts out of its
+    // map (page-keys/go-to-sequence.js), since each would only end it.
+    heldByStance: (/** @type {Element} */ element) =>
+      stanceHolds() &&
+      !activeSearch() &&
+      element.closest(".lf-fp-row") !== null &&
+      element.closest(".lf-fp-leaf") === null,
     /** @param {import("../records/history.js").RecordList | null} list @param {string | null} from
      * @param {import("../dom/user-intent.js").UserIntent} intent */
     putThreadAway: (list, from, intent) => {

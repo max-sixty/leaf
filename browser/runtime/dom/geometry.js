@@ -18,7 +18,7 @@ import { cancelRender, nextRender } from "../lib/frame-pass.js";
 import { watchScrolls } from "./arrivals.js";
 import { reachable } from "./scrolling.js";
 import { holdingElement, isHTML, isElement, isSVG } from "../lib/shadow-tree.js";
-import { elementBox } from "../lib/shown-box.js";
+import { contentsRects, draws, elementBox } from "../lib/shown-box.js";
 import {
   carriedBox,
   elementAxes,
@@ -29,6 +29,7 @@ import {
 } from "./element-axes.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "../base/page-paint.js";
 import { keeps } from "../lib/keeps.js";
+import { scrollRange } from "../lib/scroll-range.js";
 
 /** @typedef {import("../base/box.js").Box} Box
  * @typedef {{matrix: DOMMatrixReadOnly, band: Box | null, axes: {x: boolean, y: boolean},
@@ -690,30 +691,57 @@ function displaced(sticky, style, axis) {
   return { by: own - box[start], scroller };
 }
 // A scroller's landing band: its shown band less the room its landings keep at each
-// edge (`landingInsets`); the root's ends at the foot band the panel states
-// (`stateFootBand`). The chrome at the window's foot takes no room from the page, so a
-// scroller inside the page can reach under it. Where a surface stands across the
-// columns a landing's destination stands in (`across`), the band ends at the root's
-// foot plus however far a scroll of the page that far carries the scroller up before
-// it first stops (`carried`), and the root's band brings the destination the rest of
-// the way clear.
+// edge (`landingInsets`). The chrome at the window's foot takes no room from the page,
+// so a scroller inside the page can reach under it. Where a cover stands across the
+// columns a landing's destination stands in (`across`), the band ends above it
+// (`footCover`) plus however far a scroll of the page that far carries the scroller up
+// before it first stops (`carried`), and the root's band brings the destination the
+// rest of the way clear.
 /** @param {Element} scroller @param {{left: number, right: number} | null} [across] */
 export const landingBand = (scroller, across = null) => {
   const band = insetBand(scroller, landingInsets(scroller));
-  if (!band || !across || footBand === null) return band;
   const root = document.documentElement;
-  if (scroller === root) return band;
-  const foot = layoutWindow().bottom - footBand;
-  if (
-    band.bottom > foot &&
-    coverBoxes(scroller).some((box) => overlapsAcross(box, across))
-  )
+  if (!band || !across || scroller === root) return band;
+  const reach = footCover(
+    getComputedStyle(root),
+    coverBoxes(scroller, { rest: true }),
+    across,
+  );
+  if (reach === null) return band;
+  const foot = layoutWindow().bottom - reach;
+  if (band.bottom > foot)
     band.bottom = Math.max(
       band.top,
       foot + carried(scroller, root, band.bottom - foot),
     );
   return band;
 };
+// How far up from the window's foot a landing stops for the covers standing at that
+// foot (`coverBoxes`), read where they come to rest: their reach, with the room the
+// root keeps above them (`--lf-landing-foot`, base.css), or null where none stands
+// there or nothing states that room, as on an export. `across` narrows them to the
+// covers in a destination's columns.
+//
+// Reading the covers keeps a landing above a view the panel holds open, as when a
+// thread opened in the panel lands its passage, `m` walks with On Me open, or a press
+// on words the view opens over brings them clear. A fixed room above the window's foot
+// needs none of this code. Sized to the panel's row, it left each of those landings
+// under the open view; sized at half the window, it still left some under a tall view,
+// and it moved tall boxes the user already saw whole. The maintainer chose to read the
+// covers, though it may be more than landings need. Once it needs more code than this,
+// replace it with a fixed room and let those landings stand under an open view.
+/** @param {CSSStyleDeclaration} rootStyle @param {Box[]} boxes
+ * @param {{left: number, right: number} | null} [across] */
+function footCover(rootStyle, boxes, across = null) {
+  const clear = Number.parseFloat(rootStyle.getPropertyValue("--lf-landing-foot"));
+  if (Number.isNaN(clear)) return null;
+  const { bottom } = layoutWindow();
+  let top = bottom;
+  for (const box of boxes)
+    if (box.top + box.bottom > bottom && (!across || overlapsAcross(box, across)))
+      top = Math.min(top, box.top);
+  return top < bottom ? bottom - top + clear : null;
+}
 // How far a scroll of `box` by `by`, in its scroll offset and down positive, carries
 // `node` before `node` first stops riding it, in the same measure: the whole scroll for
 // what the box scrolls as content, as far as the box can scroll that way (scrolling.js,
@@ -779,23 +807,14 @@ function insetBand(scroller, inset) {
     bottom: band.bottom - inset.bottom,
   };
 }
-// The root's band at the window's foot, in pixels, which the floating panel states as
-// its box changes height (panel/floating-panel.js, `followBox`), or null where no panel
-// stands, as on an export. Returns whether the band changed.
-/** @type {number | null} */
-let footBand = null;
-/** @param {number} band */
-export function stateFootBand(band) {
-  if (band === footBand) return false;
-  footBand = band;
-  return true;
-}
 // How far each edge of `landingBand` stands in from the scroller's shown band: the
 // band the scroller states, else the `scroll-padding` it declares. The root states its
-// top in `--lf-landing-top` (base.css), and the floating panel its foot
-// (`stateFootBand`), both of which a floating editor's override hides from the browser
-// alone. Callers that measure from the scroller's own box take the clearance here
-// rather than reading the style themselves.
+// top in `--lf-landing-top` (base.css), which a floating editor's override hides from
+// the browser alone, and ends above the chrome at the window's foot (`footCover`),
+// which never reaches the browser: as the root's `scroll-padding-bottom`, a band across
+// the whole window would have the browser's own reveals scroll the page under a box
+// stuck beside the panel. Callers that measure from the scroller's own box take the
+// clearance here rather than reading the style themselves.
 /** @param {Element} scroller */
 export function landingInsets(scroller) {
   const style = getComputedStyle(scroller);
@@ -805,7 +824,9 @@ export function landingInsets(scroller) {
   return {
     ...padding,
     top: Number.isNaN(top) ? padding.top : top,
-    bottom: root && footBand !== null ? footBand : padding.bottom,
+    bottom: root
+      ? (footCover(style, coverBoxes(null, { rest: true })) ?? padding.bottom)
+      : padding.bottom,
   };
 }
 /** @param {CSSStyleDeclaration} style */
@@ -928,20 +949,114 @@ function opens(at, holder, style) {
   const edge = style.direction === "rtl" ? at.right : at.left;
   return Math.abs(edge - start) <= 1 && Math.abs(at.top - top) <= 1;
 }
-// Reads the side each of `boxes` reaches over a list marker on (`markerReach`), and
-// returns the write that says it on each (`data-lf-beside-marker`), which surfaces.css
-// reads to draw the box's marks. A mark's writer reads this with its other reads and
-// writes it with its other writes, so marking many boxes lays the page out once.
+// Reads what decides where the marks on each of `boxes` stand besides the box's kind,
+// which only its layout says, and returns the write that says it on each, which
+// element-marks.css reads to draw them: the side the box reaches over a list marker on
+// (`markerReach`, `data-lf-beside-marker`), and whether a box clipping it would cut
+// marks standing outside it (`clipsMarks`, `data-lf-flush`). A mark's writer reads this
+// with its other reads and writes it with its other writes, so marking many boxes lays
+// the page out once.
 /** @param {Element[]} boxes */
-export function readMarkerSides(boxes) {
-  const sides = boxes.map((box) => {
+export function readMarkRoom(boxes) {
+  /** @type {ClipCache} */
+  const clips = new Map();
+  const reads = boxes.map((box) => {
     const { left, right } = markerReach(box);
-    return left ? "left" : right ? "right" : null;
+    return {
+      box,
+      side: left ? "left" : right ? "right" : null,
+      flush: clipsMarks(box, clips, Boolean(left || right)) ? "" : null,
+    };
   });
   return () =>
-    boxes.forEach((box, at) =>
-      keeps(box, RUNTIME_PAINT_ATTRIBUTE.besideMarker, sides[at]),
+    reads.forEach(({ box, side, flush }) => {
+      keeps(box, RUNTIME_PAINT_ATTRIBUTE.besideMarker, side);
+      keeps(box, RUNTIME_PAINT_ATTRIBUTE.flush, flush);
+    });
+}
+// Whether the box clipping `box` would cut the marks Leaf draws outside it: on an axis
+// it clips, their room (`markedOf`) reaches past what it shows, which for a box that
+// scrolls is everything it scrolls through (`scrolledBox`), so a scroll never changes
+// the answer. Only the nearest clip on each axis counts: it holds the marks it leaves
+// whole inside its own box, and a clip further out cuts that box as it would the
+// marks. A box sticky on an axis doesn't stand where it would in what scrolls, so on
+// that axis it is read against what the clip shows, the scrollport it sticks in. Where
+// the clip would cut the marks, the box stands them inside its edge (element-marks.css,
+// `[data-lf-flush]`), as a table filling a scroll area does. A box's kind can't say
+// this, since it turns on what holds the box, and no CSS can: no selector asks whether
+// a box meets a clip's edge, and `overflow-clip-margin` lets a clip's contents paint
+// past it only for `overflow: clip`, never for a box that scrolls. The window is no
+// such clip: a box that a layout stands at the window's edge, as a full-height
+// workspace's body, says where its marks stand (layouts.css). Read half a pixel of the
+// box's own short, for the whole pixels of a scroll size.
+// A box whose stamp is in force (`--lf-flush-at`) reads where the stamp stands its
+// marks, so it keeps the stamp while a mark shows, standing the mark inside, whole,
+// until it goes. A painter reads before it marks, so a fresh mark reads the box as its
+// kind and layout leave it, and a stamp left on a box no longer marked decides nothing.
+// The stamp stands marks no further in than a box whose kind stands them inside, so
+// such a box takes it only to stop reaching over a list marker (`reaches`).
+/** @param {Element} box @param {ClipCache} clips @param {boolean} reaches */
+function clipsMarks(box, clips, reaches) {
+  if (getComputedStyle(box).getPropertyValue("--lf-flush-at")) return true;
+  const room = bandRoom(box);
+  if (room <= 0 && !reaches) return false;
+  const scale = scaleOf(box);
+  const marked = markedOf(box, room, scale);
+  const { cuts } = clipWalk(box, clips, false);
+  return /** @type {const} */ (["x", "y"]).some((axis) => {
+    const cut = cuts.find(({ axes }) => axes[axis]);
+    const entry = cut && clips.get(cut.box);
+    if (!cut || !entry || cut.box === box.ownerDocument.scrollingElement) return false;
+    const shows =
+      cut.scrolls && isHTML(cut.box) && !sticksIn(box, cut.box, axis)
+        ? scrolledBox(cut.box, entry.matrix)
+        : entry.band;
+    const short = 0.5 * scale[axis];
+    return Boolean(
+      shows &&
+      (axis === "x"
+        ? marked.left < shows.left - short || marked.right > shows.right + short
+        : marked.top < shows.top - short || marked.bottom > shows.bottom + short),
     );
+  });
+}
+// Whether `box`, or a box round it inside `clip`, sticks on `axis`.
+/** @param {Element} box @param {Element} clip @param {"x" | "y"} axis */
+function sticksIn(box, clip, axis) {
+  const sides =
+    axis === "x"
+      ? /** @type {const} */ (["left", "right"])
+      : /** @type {const} */ (["top", "bottom"]);
+  for (
+    let at = /** @type {Element | null} */ (box);
+    at && at !== clip;
+    at = renderedParent(at)
+  ) {
+    const style = getComputedStyle(at);
+    if (style.position === "sticky" && sides.some((side) => style[side] !== "auto"))
+      return true;
+  }
+  return false;
+}
+// Everything `scroller` scrolls through, wherever it is scrolled to: its padding box
+// carried back to where its scroll starts (`scrollRange`) and grown to its scroll
+// size, on screen, so where a box stands in it is the same at every scroll. Not the
+// document's scroller, whose box travels with its scroll.
+/** @param {HTMLElement} scroller @param {DOMMatrixReadOnly} [matrix] */
+export function scrolledBox(scroller, matrix) {
+  const range = scrollRange(scroller);
+  const left = scroller.clientLeft - (scroller.scrollLeft - range.left[0]);
+  const top = scroller.clientTop - (scroller.scrollTop - range.top[0]);
+  return innerBox(
+    scroller,
+    {
+      left,
+      top,
+      right: left + Math.max(scroller.scrollWidth, scroller.clientWidth),
+      bottom: top + Math.max(scroller.scrollHeight, scroller.clientHeight),
+    },
+    matrix,
+  );
 }
 // How many of the window's pixels a band one CSS pixel wide round `box` takes across
 // (`x`) and down (`y`), under the transforms on it and every box round it
@@ -971,18 +1086,20 @@ function inkOf(part, rect = part.getBoundingClientRect(), scale = scaleOf(part))
 /** @param {Element} target @returns {Box | null} */
 export const inkedBox = (target) =>
   union(shownParts(target).map((part) => inkOf(part)));
-// Where the marks Leaf draws round `part` stand: the room its band takes
-// (`--lf-band-room`, its gap and its width) outside what it draws (`inkOf`), or none
-// where they stand inside it, as a table cell's do.
-/** @param {Element} part @returns {Box} */
-function markedOf(part) {
-  const rect = part.getBoundingClientRect();
-  const scale = scaleOf(part);
-  const ink = inkOf(part, rect, scale);
-  const room = Math.max(
+// The room the band of a mark on `part` takes outside it (`--lf-band-room`, its gap
+// and its width), or none where it stands inside it, as a table cell's does.
+/** @param {Element} part */
+const bandRoom = (part) =>
+  Math.max(
     0,
     Number.parseFloat(getComputedStyle(part).getPropertyValue("--lf-band-room")),
   );
+// Where the marks Leaf draws round `part` stand: `room` (`bandRoom`) outside what it
+// draws (`inkOf`).
+/** @param {Element} part @param {number} [room] @param {{x: number, y: number}} [scale] @returns {Box} */
+function markedOf(part, room = bandRoom(part), scale = scaleOf(part)) {
+  const rect = part.getBoundingClientRect();
+  const ink = inkOf(part, rect, scale);
   return {
     left: ink.left - room * scale.x,
     top: ink.top - room * scale.y,
@@ -996,7 +1113,8 @@ function markedOf(part) {
 // so a surface that stands clear of the marks, such as a thread's card or a preview,
 // clears them before they show.
 /** @param {Element} target @returns {Box | null} */
-export const markedBox = (target) => union(shownParts(target).map(markedOf));
+export const markedBox = (target) =>
+  union(shownParts(target).map((part) => markedOf(part)));
 // An item's bounds, held to what the page shows of them: the rect a box in the chrome's
 // layer is drawn from, for the aim's box and the legend's alike. The layer is one no
 // ancestor's clip can reach — that is the point of it — so the box owes the clips an
@@ -1359,6 +1477,32 @@ export const startsAt = (item, clips) => {
     .map((box) => clippedRect(box, item, clips))
     .find(Boolean);
 };
+// What `item` draws inside `within`, one of its own boxes: the box round its words
+// (`drawsText`) and the drawings among its contents (`draws`), or null where it draws
+// neither there, as a control its stylesheet alone draws. A control's box can begin in
+// padding the user can't see, as a tab's or an icon button's does, so a chip hung on
+// that corner stands as near a neighbour's label as its own; hung on what the control
+// draws, it stands on its label or glyph.
+/** @param {Element} item @param {Box} within */
+export function drawnBox(item, within) {
+  /** @type {Box[]} */
+  const drawn = [];
+  /** @param {Node} node */
+  const visit = (node) => {
+    for (const child of node.childNodes)
+      if (child.nodeType === Node.TEXT_NODE) {
+        if (drawsText(child.parentElement)) drawn.push(...contentsRects(child));
+      } else if (child instanceof Element) {
+        if (!draws(child)) visit(child);
+        else if (
+          child.checkVisibility({ opacityProperty: true, visibilityProperty: true })
+        )
+          drawn.push(child.getBoundingClientRect());
+      }
+  };
+  visit(item);
+  return union(drawn.map((box) => intersect(box, within)).filter(hasArea));
+}
 // The clips standing over a box, applied to it. Taken apart from shownRect because the two
 // readings above and a painted Range want the same walk over different boxes.
 // `stop` reads only native ancestor bands before that boundary. The viewport and sticky

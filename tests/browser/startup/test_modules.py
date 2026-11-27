@@ -152,7 +152,7 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
 
     With every tag's module imported on every page, a triage board with no diff
     anywhere on it would fetch Pierre's renderer. The board page's own modules, the
-    board, its grid and its activity feed, are the population: a page that asked for nothing
+    board, its cards and its activity feed, are the population: a page that asked for nothing
     would satisfy every refusal below and
     say nothing about which of them holds.
 
@@ -170,6 +170,7 @@ def test_a_page_loads_only_the_widget_modules_its_markup_uses(browser, serve):
     assert modules == [
         "/widgets/lf-activity.js",
         "/widgets/lf-board.js",
+        "/widgets/lf-card.js",
     ], modules
     assert not [p for p in asked if "pierre-diffs" in p], asked
     assert not [p for p in asked if "pele" in p], asked

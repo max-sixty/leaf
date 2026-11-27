@@ -73,7 +73,6 @@ from leaf.commands import agent_state as agent_state_model
 from leaf.commands import cli as cli_model
 from leaf.log import event_log as events_model
 from leaf.log import projection as projection_model
-from leaf.pages.render_gate import readings as render_gate_readings
 from leaf.records import page_data as page_data_model
 from leaf.records import publishing as publishing_model
 from leaf.records import reports as reports_model
@@ -86,7 +85,6 @@ from leaf.serving import revision_delivery as revision_delivery_model
 from leaf.serving import samples as samples_model
 from leaf.serving.served_state.context import read_page
 from leaf.serving.served_state.page import read_served_page
-from leaf.source import anchor_capture as anchor_capture_model
 from leaf.source import capture_refusals as capture_refusals_model
 from leaf.source import data as data_model
 from leaf.source import data_contracts as data_contracts_model
@@ -765,83 +763,6 @@ def test_an_anchorless_comment_uses_the_last_good_revision_during_an_edit(page_d
     assert (anchored.code, anchored.values["operation"]) == ("invalid-source", "anchor")
 
 
-def test_compositional_verbatim_uses_passage_collapse_and_structured_boundaries():
-    registry = with_modules(
-        {
-            "lf-shell": {
-                "verbatim": True,
-            },
-            "lf-piece": {
-                "verbatim": True,
-            },
-        },
-        "lf-shell",
-        "lf-piece",
-    )
-    plain = passages_model.page_passages(
-        structure_model.SourceDocument(
-            '<lf-shell id="shell"><p>set<em>up</em></p>'
-            "<lf-piece>child words</lf-piece><p>after</p></lf-shell>"
-        ),
-        registry,
-    ).verbatim[("page", None, 0)]
-    wrapped = passages_model.page_passages(
-        structure_model.SourceDocument(
-            '<lf-shell id="shell"><p><span>set</span>up</p>'
-            "<lf-piece>different child rendering</lf-piece><p>after</p></lf-shell>"
-        ),
-        registry,
-    ).verbatim[("page", None, 0)]
-    separated = passages_model.page_passages(
-        structure_model.SourceDocument(
-            '<lf-shell id="shell"><p>set up</p>'
-            "<lf-piece>child words</lf-piece><p>after</p></lf-shell>"
-        ),
-        registry,
-    ).verbatim[("page", None, 0)]
-    non_js_whitespace = passages_model.page_passages(
-        structure_model.SourceDocument(
-            '<lf-shell id="shell">\u0085edge\u0085</lf-shell>'
-        ),
-        registry,
-    ).verbatim[("page", None, 0)]
-    # A label and the words after it, which the page shows apart outside a text block,
-    # read apart here as in the page's reading.
-    labelled = passages_model.page_passages(
-        structure_model.SourceDocument(
-            '<lf-shell id="shell"><div><b>Status</b>Ready</div></lf-shell>'
-        ),
-        registry,
-    )
-
-    assert (
-        plain
-        == wrapped
-        == [
-            {"text": "setup"},
-            {"boundary": [["page", None, 0], 0, "lf-piece", None]},
-            {"text": "after"},
-        ]
-    )
-    assert separated[0] == {"text": "set up"}
-    assert non_js_whitespace == [{"text": "\u0085edge\u0085"}]
-    assert labelled.text == "Status Ready"
-    assert labelled.verbatim[("page", None, 0)] == [{"text": "Status Ready"}]
-
-
-def test_an_anchor_resolves_by_context_the_browser_keeps():
-    """Context is trimmed of the collapse class alone, as the browser trims it, so a
-    character only Python calls whitespace stays part of the context the browser
-    captured. U+0085 before the first of two equal words is all that tells them apart."""
-    passages = passages_model.page_passages(
-        structure_model.SourceDocument(f'<p id="p">\u0085repeat {"x" * 40} repeat</p>'),
-        {},
-    )
-    anchor = {"quote": "repeat", "prefix": "\u0085", "suffix": "x" * 24}
-
-    assert anchor_capture_model.resolve_quote(passages, anchor) == 1
-
-
 def test_file_readings_follow_browser_tree_recovery():
     html = (
         '<main id="page"><table id="grid"><p id="lead">Lead'
@@ -937,7 +858,6 @@ def test_markdown_body_passages_preserve_source_state_and_read_visible_words():
         doc, registry, rewrites={"note": ("edit", edited)}
     )
     assert projected.text == "Changed --dry-run. First Second"
-    assert projected.verbatim == {("page", None, 0): [{"text": projected.text}]}
 
 
 def test_structural_errors_distinguish_recovery_from_ambiguous_source():
@@ -1294,7 +1214,11 @@ def test_page_state_lists_each_user_move_over_the_active_html(page_dir):
         ("b1", "move", {"unit": "card-y", "value": "c-done", "rank": "i"}),
         ("b1", "move", {"unit": "card-x", "value": "c-done", "rank": "9"}),
     ]
+    # The group and the draft ask, so their gestures say whether they are answered;
+    # the board asks nothing.
+    words = {("g1", "add"): False, ("g1", "choose"): True, ("summary", "edit"): True}
     for widget, action, detail in actions:
+        word = words.get((widget, action))
         append_command(
             page_dir,
             {
@@ -1304,6 +1228,7 @@ def test_page_state_lists_each_user_move_over_the_active_html(page_dir):
                 "widget": widget,
                 "action": action,
                 "detail": detail,
+                **({} if word is None else {"answered": word}),
             },
         )
     state = state_json(page_dir)
@@ -1471,6 +1396,7 @@ def test_thread_read_reads_message_construction(page_dir):
             "widget": "route",
             "action": "choose",
             "detail": {"value": ["second"]},
+            "answered": True,
         },
     )
     runner = CliRunner()
@@ -2458,6 +2384,7 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
             "widget": "g1",
             "action": "choose",
             "detail": {"value": ["o-shim"]},
+            "answered": True,
         },
     )
     runner = CliRunner()
@@ -2507,10 +2434,12 @@ def test_any_id_names_one_subject_for_every_command(page_dir):
             "widget": "t-store",
             "action": "choose",
             "detail": {"value": ["t-sqlite"]},
+            "answered": True,
         },
     )
     undone = append_carried_log_record(
-        page_dir, {"kind": "undo", "author": "user", "undoes": picked["id"]}
+        page_dir,
+        {"kind": "undo", "author": "user", "undoes": picked["id"], "answered": False},
     )
     for name in ("t-store", opened["id"], renamed["id"], picked["id"], undone["id"]):
         read = run("page", "state", name)
@@ -2707,6 +2636,7 @@ def test_a_save_goes_live_during_a_stamps_check_and_the_stamp_names_it(
         "widget": "choice",
         "action": "choose",
         "detail": {"value": ["flag-first"]},
+        "answered": True,
     }
 
     def tab():
@@ -2798,6 +2728,7 @@ def test_a_stamp_lands_on_a_page_that_moves_during_every_check(monkeypatch, page
                         "widget": "choice",
                         "action": "choose",
                         "detail": {"value": ["flag-first"]},
+                        "answered": True,
                     },
                 )
             )
@@ -2856,6 +2787,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
             "widget": "g1",
             "action": "choose",
             "detail": {"value": ["o-shim"]},
+            "answered": True,
         },
     )
     state = state_json(page_dir)
@@ -2892,6 +2824,7 @@ def test_page_state_folds_the_log_onto_the_published_page(page_dir):
             "widget": "g1",
             "action": "answer",
             "detail": {},
+            "answered": True,
         },
     )
     assert [item["action"] for item in state_json(page_dir)["state"]] == [
@@ -3353,6 +3286,7 @@ def test_page_state_names_the_obligation_region_but_keeps_state_on_its_request(
             "widget": "g1",
             "action": "choose",
             "detail": {"value": ["o-shim"]},
+            "answered": True,
         },
     )
     state = state_json(page_dir)
@@ -3360,12 +3294,24 @@ def test_page_state_names_the_obligation_region_but_keeps_state_on_its_request(
     assert state["state"][0]["widget"] == "g1"
 
 
-def test_page_state_reads_an_authored_answer_with_no_log(page_dir):
-    """A version that honors a pick in its markup reads as answered with no log
-    at all — the shipped examples arrive that way."""
+def test_page_state_asks_a_question_whose_pick_only_the_markup_holds(page_dir):
+    """Only a gesture carries a widget's word that its question is answered, so a
+    version that writes a pick into its markup still asks until the user acts, and a
+    version that settles the question retires it."""
     opts = OPTIONS.format(a=" selected", b="", shim="s.", stage="t.")
     (page_dir / "index.html").write_text(
         PAGE.replace("<h2>Plan</h2>", "<h2>Plan</h2>" + opts)
+    )
+    publish(page_dir)
+    assert [item["id"] for item in obligations_on_user(state_json(page_dir))] == [
+        "widget:g1"
+    ]
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "<h2>Plan</h2>",
+            "<h2>Plan</h2>"
+            + opts.replace('<lf-options id="g1"', '<lf-options id="g1" settled'),
+        )
     )
     publish(page_dir)
     assert obligations_on_user(state_json(page_dir)) == []
@@ -3641,6 +3587,7 @@ def test_page_state_holds_a_thread_obligation_open_until_its_verb(page_dir):
             "widget": "gm",
             "action": "choose",
             "detail": {"value": ["m-cap"]},
+            "answered": False,
         },
     )
     assert obligations_on_user(state_json(page_dir)) == [
@@ -3661,6 +3608,7 @@ def test_page_state_holds_a_thread_obligation_open_until_its_verb(page_dir):
             "widget": "gm",
             "action": "answer",
             "detail": {},
+            "answered": True,
         },
     )
     assert obligations_on_user(state_json(page_dir)) == []
@@ -3905,6 +3853,7 @@ def test_an_interactive_sample_records_a_pick_without_asking_for_it(page_dir):
             "widget": "practice-policy",
             "action": "choose",
             "detail": {"value": ["practice-a"]},
+            "answered": True,
         },
     )
     assert not pick["attention"]
@@ -3948,6 +3897,7 @@ def test_page_state_and_browser_share_a_conditional_edit_decision(page_dir):
             "widget": "cargo",
             "action": "edit",
             "detail": {"value": "ledger_id,amount\n7,42"},
+            "answered": True,
         },
     )
     assert obligations_on_user(state_json(page_dir)) == []
@@ -4558,130 +4508,6 @@ def test_a_reading_under_outcomes_is_the_walk_under_them():
     assert retired.gone == {"cut": "accepted"}
 
 
-def test_projected_verbatim_scopes_page_state_to_here_and_thread_state_to_its_log():
-    from leaf.source.registry.contract import state_definition
-
-    registry: dict[str, dict] = {
-        "lf-draft": {
-            "verbatim": True,
-            "verbs": {
-                "edit": {
-                    "unit": "widget",
-                    "record": {"kind": "body"},
-                }
-            },
-        }
-    }
-    with_modules(registry, "lf-draft")
-    page = '<lf-draft id="page-draft"><pre>Page authored.</pre></lf-draft>'
-    reply = '<lf-draft id="reply-draft">\n<pre>Reply authored.</pre></lf-draft>'
-
-    def action(identity, text, seq):
-        return {
-            "kind": "action",
-            "id": f"a-{identity}",
-            "author": "user",
-            "revision": 2,
-            "widget": identity,
-            "action": "edit",
-            "detail": {"value": text},
-            "meaning": {
-                "unit": identity,
-                "depends": [identity],
-                "answer": None,
-                "scope": "page",
-                "state": state_definition(
-                    "lf-draft",
-                    registry["lf-draft"],
-                    registry["lf-draft"]["verbs"]["edit"],
-                ),
-            },
-            "seq": seq,
-        }
-
-    events = [
-        {
-            "kind": "comment",
-            "id": "c-scope",
-            "author": "user",
-            "revision": 1,
-            "text": "Keep the reply's answer current.",
-            "seq": 1,
-        },
-        {
-            "kind": "reply",
-            "id": "r-scope",
-            "author": "agent",
-            "parent": "c-scope",
-            "revision": 1,
-            "text": f"Here it is:\n\n{reply}",
-            "seq": 2,
-        },
-        action("page-draft", "Page future.", 3),
-        action("reply-draft", "Reply current.", 4),
-    ]
-
-    expected = render_gate_readings._expected_verbatim(page, events, registry, here=1)
-
-    assert expected == {
-        ("page", None, 0): [{"text": "Page authored."}],
-        ("event", "r-scope", 0): [{"text": "Reply current."}],
-    }
-
-
-def test_projected_verbatim_includes_generated_children():
-    registry = {
-        "lf-list": {
-            "verbatim": True,
-            "verbs": {
-                "add": {
-                    "detail": {
-                        "type": "object",
-                        "properties": {
-                            "item": {"type": "string"},
-                            "text": {"type": "string", "minLength": 1},
-                        },
-                        "required": ["item", "text"],
-                        "additionalProperties": False,
-                    },
-                    "unit": "item",
-                    "creates": {"child": "lf-item", "words": "text"},
-                }
-            },
-        },
-        "lf-item": {},
-    }
-    with_modules(registry, "lf-list")
-    markup = '<lf-list id="list">Authored item.</lf-list>'
-    event: dict[str, dict | str | int] = {
-        "kind": "action",
-        "id": "a-add",
-        "author": "user",
-        "revision": 1,
-        "widget": "list",
-        "action": "add",
-        "detail": {"item": "new-item", "text": "Generated item."},
-        "meaning": {
-            "unit": "new-item",
-            "depends": ["list", "new-item"],
-            "creates": "lf-item",
-            "scope": "page",
-        },
-        "seq": 1,
-    }
-
-    from leaf.source.registry.contract import state_definition
-
-    event["meaning"]["state"] = state_definition(
-        "lf-list", registry["lf-list"], registry["lf-list"]["verbs"]["add"]
-    )
-    expected = render_gate_readings._expected_verbatim(
-        markup, [event], registry, here=1
-    )
-
-    assert expected == {("page", None, 0): [{"text": "Authored item. Generated item."}]}
-
-
 def test_a_unified_diff_capture_refuses_a_line_range(tmp_path):
     """A patch is captured whole: a `lines` range beside `"format": "unified-diff"`
     is refused rather than silently dropped, and the same range on text applies."""
@@ -4789,6 +4615,7 @@ def test_exact_markdown_body_retains_saved_whitespace_across_revision(page_dir, 
             "widget": "exact",
             "action": "edit",
             "detail": {"value": source},
+            "answered": bool(source),
         },
     )
     write(source)
@@ -4818,6 +4645,7 @@ def test_revisions_change_decision_words_labels_and_defaults_without_retracting(
             "widget": "g1",
             "action": "choose",
             "detail": {"value": ["o-shim"]},
+            "answered": True,
         },
     )
     edited = live.replace(
@@ -4861,6 +4689,7 @@ def test_a_decision_stands_when_an_earlier_leaf_recorded_its_operation(page_dir)
             "widget": "g1",
             "action": "choose",
             "detail": {"value": ["o-shim"]},
+            "answered": True,
         },
     )
     log = page_dir / "events.jsonl"
@@ -4913,6 +4742,7 @@ def test_revisions_can_move_rewrite_or_remove_authored_generated_children(page_d
             "widget": "g1",
             "action": "add",
             "detail": {"option": added, "text": "My route."},
+            "answered": False,
         },
     )
     for authored in (

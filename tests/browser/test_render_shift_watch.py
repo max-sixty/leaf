@@ -629,6 +629,71 @@ def test_a_permitted_step_permits_nothing_after_it(browser):
     consume_browser_errors(page, moved_within("button#act"))
 
 
+# How a card's transcript changes as the card widens and its padding lifts its head,
+# and whether the watch credits that rise.
+RISES = {
+    "a-message-joins": ("log.append(answer)", True),
+    "the-reply-grows": ("log.lastElementChild.append(answer.textContent)", True),
+    "nothing-joins": ("card.style.paddingTop = '120px'", False),
+    "a-hidden-child-joins": (
+        "answer.hidden = true; log.append(answer); card.style.paddingTop = '120px'",
+        False,
+    ),
+    "the-transcript-pads": ("log.style.paddingBottom = '120px'", False),
+    "a-short-message-joins-past-it": (
+        "answer.textContent = 'Yes.'; log.append(answer);"
+        " card.style.paddingTop = '120px'",
+        False,
+    ),
+}
+
+
+@pytest.mark.parametrize("change", list(RISES))
+def test_a_card_standing_on_its_foot_rises_as_it_widens_only_as_far_as_its_transcript_grew(
+    browser, change
+):
+    """A card over its subject stands on its foot (`data-lf-rises`), so the long message
+    that widens it once (`data-lf-widens`) lifts its head in the same frame, carrying
+    its controls up and sideways, whether the message joins its transcript or grows
+    the reply streaming into it. A card whose head rises further than what joined its
+    transcript, as with no message, a hidden one, padding or a short one with padding
+    past it, is reported."""
+    script, credited = RISES[change]
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0"><div data-lf-runtime>'
+            '<div id="card" data-lf-widens data-lf-rises style="position:fixed;'
+            'bottom:40px;right:40px;width:160px">'
+            '<button id="close">Close</button>'
+            '<div id="log" data-lf-reflow="append">'
+            "<p data-lf-append-tail>A short question.</p></div>"
+            "</div></div></body>"
+        )
+    )
+    paint(page)
+    page.evaluate(
+        """script => new Promise((done) => {
+          const answer = document.createElement("p");
+          answer.textContent = "An answer long enough to stand taller than wide. ".repeat(12);
+          card.style.width = "320px";
+          new Function("answer", script)(answer);
+          requestAnimationFrame(() => requestAnimationFrame(done));
+        })""",
+        script,
+    )
+    judge_watches()
+    if not credited:
+        consume_browser_errors(
+            page,
+            lambda problem: (
+                problem.code == "moved-without-input"
+                and ["div#card"] in problem.values["beside"]
+            ),
+        )
+
+
 def test_the_document_moves_what_it_painted_half_parsed_without_a_finding(browser):
     """Chrome may paint a document the parser has only partly added, as a slow
     runner's parser yields mid-page: a select before its option and the taller box
@@ -4484,6 +4549,7 @@ TURNED = "scale(.8) rotate(10deg)"
 ANCHOR_SCROLL_CASES = [
     ("", "inline", "none"),
     ("", "inline", TURNED),
+    ("", "fallbacks", "none"),
     ("", "scoped_rule", "none"),
     ("portal_x", "inline", "none"),
     ("portal_x", "inline", TURNED),
@@ -4506,8 +4572,9 @@ def test_native_anchor_scroll_retains_local_motion_proof(
     browser, fault, declared, transform
 ):
     """A portal following its anchor's scroll is credited whether its insets are
-    written inline or stated in its tree's stylesheet, and whether its anchor's name is
-    unique or repeated under `anchor-scope`; moving either independently still fails.
+    written inline, with or without a fallback, or stated in its tree's stylesheet, and
+    whether its anchor's name is unique or repeated under `anchor-scope`; moving either
+    independently still fails.
     A direct anchor inset that a more specific rule overrides credits nothing, even
     where a later rule in sheet order states it, and neither does an inline one an
     important rule overrides. A popover's implicit anchor, the `source` it was shown
@@ -4516,6 +4583,9 @@ def test_native_anchor_scroll_retains_local_motion_proof(
     field_style = "position:fixed;position-anchor:--target;left:calc(anchor(left) + 100px);top:calc(anchor(top) + 10px)"
     if fault == "declared_unused":
         field_style = "position:fixed;position-anchor:--target;left:100px;top:50px"
+    if declared == "fallbacks":
+        # Floating placement's form, the fallback a far edge's written back from 100%.
+        field_style = "position:fixed;position-anchor:--target;left:calc(anchor(left, 8px) + 100px);top:calc(anchor(top, calc(100% - 300px)) + 10px)"
     sheet, scope, decoy = "", "", ""
     if declared == "scoped_rule":
         sheet = f"<style>#field {{ {field_style} }}</style>"

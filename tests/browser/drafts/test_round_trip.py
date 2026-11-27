@@ -1,7 +1,8 @@
 """The loop between user and agent across versions: comments and edits reaching the
-agent, decisions surviving the next version, and the action history."""
+agent, decisions surviving the next version, and which edits each version shows."""
 
 import itertools
+import json
 
 import pytest
 from click.testing import CliRunner
@@ -139,6 +140,7 @@ def test_page_round_trip(browser, serve):
         "section": "intro",
         "quote": SENTENCE,
         "prefix": "Journey",
+        "suffix": "",
     }
     assert events[1]["text"] == "Is 0041 idempotent?"
     assert {k: events[2][k] for k in ("widget", "action", "detail")} == {
@@ -201,7 +203,7 @@ def test_a_comment_inside_a_widget_stays_out_of_what_the_widget_reads(
     ), "the user's editor opened on text the runtime had written into"
 
 
-def test_text_alignment_keeps_every_character_and_action_history_is_read_only(
+def test_text_alignment_keeps_every_character_and_each_saved_edit_is_logged(
     browser, serve
 ):
     """The text aligner may choose where an ambiguous repeated word aligns, but never
@@ -211,8 +213,7 @@ def test_text_alignment_keeps_every_character_and_action_history_is_read_only(
     not: an inline version comparison starts with sentences and refines a local edit by
     word. Its words come from Intl.Segmenter, so it is read in the browser.
 
-    A draft's saved edits reach a widget as its action history, in log order, and a
-    widget cannot rewrite that history by mutating what it read."""
+    A draft saved twice shows each edit as it is saved and logs both, in order."""
     url = serve(JOURNEY_V1)
     page = open_page(browser, url)
     cases = [
@@ -294,25 +295,11 @@ def test_text_alignment_keeps_every_character_and_action_history_is_read_only(
     assert [event["detail"]["value"] for event in events] == edits
     assert [event["action"] for event in events] == ["edit", "edit"]
 
-    sequence = page.evaluate(
-        """async () => {
-          const {widgetController} = await window.__lfWidgetApi();
-          const widget = document.getElementById('draft-ops');
-          const controller = widgetController(widget);
-          const first = controller.read().actions.edit.history;
-          first[0].detail.value = 'A widget must not mutate the runtime log.';
-          return controller.read().actions.edit.history
-            .map(event => [event.seq, event.detail.value]);
-        }"""
-    )
-    assert [text for _, text in sequence] == edits
-    assert [seq for seq, _ in sequence] == sorted(seq for seq, _ in sequence)
 
-
-def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
-    """A historical page cannot narrate an edit that had not happened yet. The
-    helper owns the same version boundary replay does, so every future widget that
-    consumes a sequence gets this right without copying the filter."""
+def test_a_pinned_version_shows_only_the_edits_logged_up_to_it(browser, serve):
+    """A historical page cannot show an edit that had not happened yet: a widget's
+    state draws only on actions logged up to the version the page shows, the same
+    boundary replay uses."""
     url = serve(JOURNEY_V1)
     d = serve.page_dir
     for version, text in ((1, "First recorded body."), (2, "Second recorded body.")):
@@ -327,6 +314,7 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
                 "widget": "draft-ops",
                 "action": "edit",
                 "detail": {"value": text},
+                "answered": True,
             },
         )
 
@@ -334,23 +322,11 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
     expect(old.locator("#draft-ops .lf-draft-body")).to_have_text(
         "First recorded body."
     )
-    old_sequence = old.evaluate(
-        """async () => (await window.__lfWidgetApi())
-          .widgetController(document.getElementById('draft-ops')).read().actions.edit.history
-          .map(event => event.revision)"""
-    )
-    assert old_sequence == [1]
 
     latest = open_page(browser, url.replace("v1.html", "v2.html"), pin=True)
     expect(latest.locator("#draft-ops .lf-draft-body")).to_have_text(
         "Second recorded body."
     )
-    latest_sequence = latest.evaluate(
-        """async () => (await window.__lfWidgetApi())
-          .widgetController(document.getElementById('draft-ops')).read().actions.edit.history
-          .map(event => event.revision)"""
-    )
-    assert latest_sequence == [1, 2]
 
 
 def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve):
@@ -387,6 +363,7 @@ def test_an_acknowledged_decision_still_survives_the_next_version(browser, serve
             "widget": "draft-ops",
             "action": "edit",
             "detail": {"value": DRAFT_EDITED},
+            "answered": True,
         },
     )
     # The highest user event reached context, so everything so far is ours to answer.
@@ -412,9 +389,8 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
     """`leaf thread create` reads the mapped revision plus the log; the user's tab reads
     the DOM replay builds from the same two. An edited draft is where those readings
     could drift — the file holds words the page stopped showing — so write the anchor
-    blind, on the user's own words, and prove the page paints it. The words the edit
-    replaced are refused at the CLI, because posted they would detach in front of the
-    user."""
+    blind, on the user's own words, and prove the page paints it. The CLI notes that
+    the page no longer shows the words the edit replaced."""
     url = serve(JOURNEY_V1)
     d = serve.page_dir
     append_command(
@@ -426,6 +402,7 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
             "widget": "draft-ops",
             "action": "edit",
             "detail": {"value": DRAFT_EDITED},
+            "answered": True,
         },
     )
     refused = CliRunner().invoke(
@@ -442,7 +419,8 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
             "x",
         ],
     )
-    assert refused.exit_code != 0 and "doesn't say" in refused.output
+    assert refused.exit_code == 0, refused.output
+    assert "finds 'It is online.' nowhere" in refused.output
     written = CliRunner().invoke(
         cli_model.cli,
         [
@@ -462,9 +440,7 @@ def test_a_comment_written_on_an_edited_draft_lands_on_their_words(browser, serv
 
     page = open_page(browser, url)
     page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
-    comment = next(
-        e["id"] for e in events_model.read_events(d) if e["kind"] == "comment"
-    )
+    comment = json.loads(written.output)["id"]
     head = open_panel_thread(page, comment).locator(".lf-thread-quote-head")
     expect(head).not_to_have_attribute("data-lf-detached", "")
     assert painted(page, "lf-mark") == "It takes about a minute."

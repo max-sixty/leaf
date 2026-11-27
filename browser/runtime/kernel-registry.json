@@ -90,7 +90,7 @@
     "awaits": { "attribute": "data-lf-awaits", "presence": true, "message": true }
   },
   "$passages": {
-    "description": "How Python (`leaf/source/passages.py`, `leaf/source/anchor_capture.py`) and the browser (`runtime/state/kernel-facts.js`) turn a page into text, so `leaf thread create` can confirm any quote the browser captures. Both read the serving Leaf's copy.",
+    "description": "How the browser (`runtime/state/kernel-facts.js`) turns a page into text, which Python (`leaf/source/passages.py`) reads the page's files by too, so the words Leaf tells the agent a page says read as the page shows them. Both read the serving Leaf's copy.",
     "collapse": "\t\n\u000b\f\r \u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff",
     "why-collapse-is-spelled-out": "`collapse` lists the characters both readings fold to one space. JavaScript's \\s and Python's str.isspace() disagree on a few: U+FEFF is whitespace only to JavaScript, U+0085 only to Python. The browser captures every quote, so the list is JavaScript's set.",
     "blocks": [
@@ -170,15 +170,15 @@
       "video",
       "wbr"
     ],
-    "why-phrasing": "HTML's phrasing content, the elements a line of words runs through, less the autonomous custom elements, which stand in a line only where their widget declares `inline`. A suggestion's slot holding an element outside it is a block (`base.css`, held to this list by `build/registry.test.mjs`). Both readings read it (`enter` in readings/passages.js, `passages.py`): an element outside it, a text block or a widget among them, starts words of its own, parted from those around it by a space, while two runs of words that meet where an element in it starts or ends meet at an edge, a place a word may end, so `<span>one</span><span>two</span>` reads as one word or as two. So it decides the words a capture writes to the log and whether a logged quote still resolves.",
+    "why-phrasing": "HTML's phrasing content, the elements a line of words runs through, less the autonomous custom elements, which stand in a line only where their widget declares `inline`. A suggestion's slot holding an element outside it is a block (`base.css`, held to this list by `build/registry.test.mjs`). Both readings read it (`enter` in readings/passages.js, `passages.py`): an element outside it, a text block or a widget among them, starts words of its own, parted from those around it by a space, while two runs of words that meet where an element in it starts or ends meet at an edge, a place a word may end, so the browser finds `<span>one</span><span>two</span>` quoted as one word or as two. So it decides the words a capture writes to the log and whether a logged quote still resolves.",
     "context": 24,
-    "why-context": "How many characters of context a captured anchor keeps on each side of its quote. A quote read from the file must be unique. The browser knows which occurrence the user selected, and widens the context until the shared resolver finds that one.",
+    "why-context": "How many characters of context a selection's anchor keeps on each side of its quote at first. The browser knows which occurrence the user selected, and widens the context until the resolver finds that one. An agent's quote carries the context around the one copy the page's files hold, and none where they hold the words zero or several times, so then only a sole copy answers it.",
     "closing": ".,;:!?…)]}'’”»",
     "opening": "([{\"‘“«",
     "why-closing-and-opening": "Outside a text block, where two elements' words meet with nothing between them, the words a reading shows put a space (`shownApart` in readings/passages.js, `_write` in passages.py), since a page most often draws such words apart, as a chip beside its title or a title above its description. No space goes before a mark that closes what precedes it or after one that opens what follows, so `<strong>Leave it</strong>; the send` reads \"Leave it; the send\" and `(<code>beta</code>)` reads \"(beta)\". A straight `'` only closes, as a possessive after code does (`<code>Foo</code>'s`), and a straight `\"` only opens, so a chip before a quoted title (`<small class=\"lf-tag\">recommended</small><strong>\"Update\" …`) still reads apart. A capture logs the words beside an anchor's quote with these spaces."
   },
   "$events": {
-    "protocol": 60,
+    "protocol": 62,
     "draft": {
       "description": "The selection composer's submission payload, kept beside its words in the shared draft generation (`runtime/records/drafts.js`): the anchor and the revision it was captured on, whether it is a suggestion or about design, its drawing, and when it was last touched. A draft's drawing adds `at`, the matrix that stands it in its anchor's section, which the comment leaves out: here `properties` beside a `leaf:` reference add to the object it names, as the build writes it in for the protocol baseline (`build/browser/contract-types.mjs`). Its `format`, `leaf-draft/<since>`, names the protocol at which this payload's shape last changed; the composer reads only its current format.",
       "since": 52,
@@ -1629,6 +1629,7 @@
               "additionalProperties": false
             },
             "revision": { "type": "integer", "minimum": 1 },
+            "answered": { "type": "boolean" },
             "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" }
           },
           "required": [
@@ -1727,6 +1728,7 @@
             "kind": { "const": "undo" },
             "seq": { "type": "integer", "minimum": 1 },
             "undoes": { "type": "string", "minLength": 1 },
+            "answered": { "type": "boolean" },
             "attempt": { "type": "string", "pattern": "^[A-Za-z0-9_-]{16,128}$" }
           },
           "required": ["attention", "id", "ts", "author", "kind", "seq", "undoes"],

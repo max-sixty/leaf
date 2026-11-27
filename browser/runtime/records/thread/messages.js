@@ -377,7 +377,7 @@ export function draftPreview(drafts, about = null) {
 // mechanism of its own (SOUL.md, "Keep Leaf's code plain"). For
 // the same reason a thread gesture names no wording: one a tab makes before an
 // edit reaches it is read in the wording in force when it lands
-// (`thread_context.message_wording`).
+// (`events.message_wording`).
 /** @typedef {{
  * message: string,
  * body: {text: string, heldElsewhere: string, document: {thread: string, message: string}},
@@ -517,7 +517,7 @@ export function prepareAuthoredMessage(message, thread) {
     });
     bindWidgetDescriptors(descriptors.bindings);
     const authored = stageAuthoredStates(template.content);
-    rememberPassageParts(template.content, ["event", message.id]);
+    rememberPassageParts(template.content);
     // The message's words as the page reading says them (`says`). `says` refuses text
     // with no element over it, and a message may open with bare text, so it reads a
     // copy inside a <div> of the template's inert document, where nothing upgrades.

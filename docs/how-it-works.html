@@ -2221,7 +2221,7 @@ flowchart TD
             <h2>Verb declarations</h2>
             <p id="verbs-lede">
               This is everything <code>lf-options</code> tells Leaf about its three
-              verbs and when its obligation counts as answered.
+              verbs and the question it asks.
             </p>
             <lf-code id="options-verbs" data-width="wide">
               <pre><code class="language-json">
@@ -2240,11 +2240,7 @@ flowchart TD
   "answer": {"detail": {}}
 },
 "awaits": {
-  "value": "choose",
-  "answered": {
-    "choose": {"when": {"multiple": [false]}},
-    "answer": {"when": {"multiple": [true]}}
-  }
+  "value": "choose"
 }
 </code></pre>
               <lf-note at="2"
@@ -2272,14 +2268,16 @@ flowchart TD
                 ><code>answer</code> is the Done press that closes a
                 <code>multiple</code> choice.</lf-note
               >
+              <lf-note at="15"
+                >Whether the question is answered is the widget's own word: after each
+                pick, Done or undo, Leaf asks the module's static <code>answered</code>,
+                which says a single choice is answered once an option is selected and a
+                multiple choice once the user presses Done, and sends the word with the
+                gesture.</lf-note
+              >
               <lf-note at="16"
                 >The obligation's typed answer comes from the current
                 <code>choose</code> value.</lf-note
-              >
-              <lf-note at="17"
-                >A single choice is answered when an option is selected. A multiple
-                choice is answered when the user presses Done. Undo can make the
-                obligation unanswered again.</lf-note
               >
             </lf-code>
             <p id="coordinate">
@@ -2371,7 +2369,7 @@ flowchart TD
 {"kind": "action", "revision": 1, "widget": "ship", "action": "add",
  "detail": {"option": "ship-option-1f82bf7ba6828718a418aa6076e29c63",
    "text": "After the canary is healthy"},
- "attempt": "1f82bf7ba6828718a418aa6076e29c63", "author": "user",
+ "answered": false, "attempt": "1f82bf7ba6828718a418aa6076e29c63", "author": "user",
  "id": "f541943a",
  "meaning": {"scope": "page",
    "unit": "ship-option-1f82bf7ba6828718a418aa6076e29c63",
@@ -2390,7 +2388,7 @@ flowchart TD
  "attention": false, "ts": "2026-09-23T22:09:53-07:00", "seq": 2}
 {"kind": "action", "revision": 1, "widget": "ship", "action": "choose",
  "detail": {"value": ["ship-option-1f82bf7ba6828718a418aa6076e29c63"]},
- "attempt": "d10bc95f51e47796494c2aa01b7c872f", "author": "user",
+ "answered": true, "attempt": "d10bc95f51e47796494c2aa01b7c872f", "author": "user",
  "id": "c47d1659",
  "meaning": {"scope": "page",
    "unit": "ship",
@@ -2410,7 +2408,7 @@ flowchart TD
  "attention": true, "ts": "2026-09-23T22:09:53-07:00", "seq": 3}
 {"kind": "action", "revision": 1, "widget": "ship", "action": "choose",
  "detail": {"value": ["ship-later"]},
- "attempt": "26e7a30143df35cda03ec8b7b164f2b6", "author": "user",
+ "answered": true, "attempt": "26e7a30143df35cda03ec8b7b164f2b6", "author": "user",
  "id": "0450d79c",
  "meaning": {"scope": "page",
    "unit": "ship",
@@ -2428,19 +2426,20 @@ flowchart TD
        "additionalProperties": false}},
    "answer": null},
  "attention": true, "ts": "2026-09-23T22:09:54-07:00", "seq": 4}
-{"kind": "undo", "attempt": "abec07d894a0444733756c659d4edafe", "undoes": "0450d79c", "author": "user",
+{"kind": "undo", "attempt": "abec07d894a0444733756c659d4edafe", "undoes": "0450d79c", "answered": true, "author": "user",
  "id": "6d9e1f06", "attention": true, "ts": "2026-09-23T22:09:54-07:00", "seq": 5}
-{"kind": "undo", "attempt": "5a3b1fb07f32ba1933b472b288a03e36", "undoes": "c47d1659", "author": "user",
+{"kind": "undo", "attempt": "5a3b1fb07f32ba1933b472b288a03e36", "undoes": "c47d1659", "answered": false, "author": "user",
  "id": "935db19d", "attention": true, "ts": "2026-09-23T22:09:55-07:00", "seq": 6}
-{"kind": "undo", "attempt": "7d324c8ea06016e59db0ca09ea0303e4", "undoes": "f541943a", "author": "user",
+{"kind": "undo", "attempt": "7d324c8ea06016e59db0ca09ea0303e4", "undoes": "f541943a", "answered": false, "author": "user",
  "id": "b0f9f750", "attention": false, "ts": "2026-09-23T22:09:55-07:00", "seq": 7}
 </code></pre>
               <lf-note at="1"
                 >The browser sent <code>kind</code>, <code>revision</code>,
-                <code>widget</code>, <code>action</code>, <code>detail</code>, and
-                <code>attempt</code>, its retry key. Leaf added the remaining fields.
-                <code>attention</code> records whether the action changes work the agent
-                owes.</lf-note
+                <code>widget</code>, <code>action</code>, <code>detail</code>,
+                <code>answered</code>, the widget's word on whether its question is
+                answered, and <code>attempt</code>, its retry key. Leaf added the
+                remaining fields. <code>attention</code> records whether the action
+                changes work the agent owes.</lf-note
               >
               <lf-note at="6"
                 >Leaf derives <code>meaning</code> and refuses a sender that supplies
@@ -2457,10 +2456,9 @@ flowchart TD
                 record's line in the log.</lf-note
               >
               <lf-note at="39"
-                >This pick makes the obligation's answered condition hold, so it
-                completes the obligation. <code>null</code> means it closes no thread; a
-                widget with a <code>resolves</code> attribute would name one
-                here.</lf-note
+                >The widget said this pick answers its question, so it completes the
+                obligation. <code>null</code> means it closes no thread; a widget with a
+                <code>resolves</code> attribute would name one here.</lf-note
               >
               <lf-note at="61"
                 >An undo names the gesture to withdraw. Leaf excludes that gesture when
@@ -2542,9 +2540,8 @@ flowchart TD
                 <a
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/package-data.md#user-state"
                   >User state</a
-                >: how a package declares <code>verbs</code>,
-                <code>awaits.answered</code>, <code>creates</code>, and agent-written
-                verbs.
+                >: how a package declares <code>verbs</code>, <code>awaits</code>,
+                <code>creates</code>, and agent-written verbs.
               </li>
               <li>
                 <a href="/extending/#verbs">Registry keys</a>: the exact definition of
@@ -3120,8 +3117,8 @@ flowchart TD
             <p id="progress-lists-answer">
               On the page, an item On Me is answered only in the widget or thread that
               asks it, and Leaf adds no control of its own to end one. A widget’s
-              obligation is answered by the actions its
-              <code>awaits</code> declaration names, such as a pick, or the Done a
+              obligation is answered when the widget says the user's gesture on it
+              answered it (<code>awaits</code>), as a pick does, or the Done a
               multi-select choice offers as its own control. A question in a thread is
               answered by the user’s reply there, in words or a reaction such as 👍. The
               agent ends its to-dos with <code>leaf task end</code>, and ends a thread
@@ -3420,21 +3417,20 @@ EOF</code></pre>
               <code>wrote</code>, so words a widget draws do not appear as edits.
             </p>
             <p id="passage-sides">
-              The browser makes an anchor from a selection.
-              <code>leaf thread create</code>
-              makes one in Python, from the HTML file. Both apply the same rules: the
-              same whitespace characters collapse to one space, the same elements count
-              as separate blocks, the context is the same 24 characters, and the search
-              is the same.
+              The browser makes an anchor from a selection, with the words on each side
+              that tell the selected copy apart from others.
+              <code>leaf thread create</code> stores the words the agent quotes and the
+              section it names. Where the page's file holds the words once, it also
+              stores the words on each side, as a selection does, and the section around
+              them if the agent named none. Where the page shows the words twice and the
+              stored words tell neither copy apart, or doesn't show them at all, the
+              thread stands on its section, or in Threads when it has none.
             </p>
             <p id="passage-refusals">
-              The file holds the author's HTML, not the words a widget's script draws
-              between its parts, such as a board column's heading or a diagram drawn
-              from its source. A quote may not cross such words on either side.
-              <code>leaf thread create</code> refuses a quote that crosses them, that
-              occurs more than once in the section, or that sits in content the user's
-              decision removed, and says what to quote instead. An agent's anchor is
-              therefore one the user's page can find.
+              The browser is the only reader of an anchor's words, since the file holds
+              the author's HTML, not the words a widget's script draws. Python reads the
+              file only as advice: where it finds the quote zero or several times,
+              <code>leaf thread create</code> says where the page will show the thread.
             </p>
           </section>
           <section id="anchors-revisions">
@@ -3576,8 +3572,8 @@ EOF</code></pre>
                   <text x="154" y="121">No longer here</text>
                 </svg>
                 <figcaption id="cap-anchor-detached">
-                  <strong>Element removed</strong> The agent moves the thread or
-                  detaches it in a reply. A detached thread stays open in Threads.
+                  <strong>Element removed</strong> Leaf detaches the thread, which stays
+                  open in Threads until the agent moves it in a reply.
                 </figcaption>
               </figure>
             </div>
@@ -3585,18 +3581,19 @@ EOF</code></pre>
               When the quoted words change but their element survives, Leaf moves the
               thread to the element its anchor names in <code>section</code> and records
               the move in the log as a <code>reanchor</code> event, without adding a
-              message. Clicking the quote scrolls to the element. The same happens when
-              a revision repeats the words without context that tells the copies apart.
+              message. Clicking the quote scrolls to the element. Where a revision
+              repeats the words and the words stored beside them tell neither copy
+              apart, the page shows the thread on that element too, and the log records
+              no move.
             </p>
             <p id="revisions-refused">
-              When the element is gone too, Leaf refuses the revision and names the
-              thread. The agent keeps the element, moves the thread with a reply that
-              names a new passage, or detaches it with a reply passing
-              <code>--detach</code>, which says the subject has left the page. Leaf
-              refuses a revision that removes the element an open element-anchored
-              thread is on in the same way. Only the agent chooses a new passage for a
-              thread, in a reply that says why; Leaf's own move goes only to the element
-              the anchor already named.
+              When the element is gone too, Leaf detaches the thread, records that in
+              the log as a <code>reanchor</code> event without adding a message, and
+              names the thread to the agent in <code>page check</code> and beside its
+              next reply. The agent can move the thread with a reply that names a new
+              passage, or detach it itself with a reply passing <code>--detach</code>,
+              which says the subject has left the page. Only the agent chooses a new
+              passage for a thread, in a reply that says why.
             </p>
             <p id="revisions-detached">
               A detached thread stays open in Threads, and its first comment keeps its
@@ -4747,7 +4744,8 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
                     <td>
                       Activate the labelled margin entry, tab, control or link, or open
                       a disclosure at its summary. A hint letter lasts only for the
-                      current view.
+                      current view. A control that one of the keys above already opens
+                      wears that key instead, as On Me's tab wears M.
                     </td>
                   </tr>
                 </tbody>

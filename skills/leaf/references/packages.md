@@ -286,8 +286,7 @@ takes (`leaf page vocabulary PAGE | jq '."$keys"'`); `$verbs` defines the member
 for its kind that depends on the element is its `lfWord()`. So does a rule about the
 widget's markup that no declared fact states: the module checks it as it draws and
 reports a breach with an `error` event
-([module-authoring.md, "Upgrade"](module-authoring.md#upgrade)), as a board reports a
-card whose `shows` names a widget with no answer. Every declaration has
+([module-authoring.md, "Upgrade"](module-authoring.md#upgrade)). Every declaration has
 a `description` saying what the widget is for and when to use it, and a valid
 `example`. The optional `instructions` gives the choices and obligations
 of using it; a package's shared author instructions own guidance spanning its widgets.
@@ -305,11 +304,12 @@ A tag that stands only inside another widget, as `lf-option` does inside `lf-opt
 is declared like any other and lists the tags that may hold it in `owners`; the holder
 declares `content: members`, and the tag's `example` writes it inside a holder.
 
-`verbatim: true` says the upgraded element still shows its authored words, with its
-nested widgets in authored order, so users can quote those words; the render check
-refuses a page where they changed. Declare it on a wrapper round authored content, and
-leave it off a widget whose module rewrites or reorders what it holds. Whatever the
-module adds to a verbatim widget stands inside a box of controls the library built
+`verbatim: true` says the upgraded element still shows its authored words where they
+stand, so a comment can quote across them as across any prose. Declare it on a wrapper
+round authored content, and leave it off a widget whose module rewrites or reorders
+what it holds: a comment's quote then stays inside one of its authored children, which
+keeps it on its words when the module moves them. Whatever the module adds to a
+verbatim widget stands inside a box of controls the library built
 (`module-controls.md`), with no words marked `data-lf-said`, which would make them the
 page's (`module-plain-elements.md`, "Words it writes").
 

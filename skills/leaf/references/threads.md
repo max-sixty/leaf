@@ -27,10 +27,14 @@ draws only while a view of it is open, is missing from the list; name such a par
 widget's guidance says.
 
 `leaf thread create` anchors in the active revision as the user sees it. Quote exact
-words the user can see, within one widget part, including words a page's script
-draws. The command refuses a quote that matches more than one place, or is retired,
-replaced, or crosses a boundary, rather than open a thread with no anchor. The thread's id is
-the `id` of its opening comment, in the record the command prints.
+words the user can see once, within one widget part, including words a page's script
+draws. The page finds them as it draws them: where it doesn't show them once, the
+thread stands on its section, or in Threads without one. Its section is the
+`--section` you named, or else the element around the one copy Leaf's reading of the
+page's files finds. Where that reading finds the words zero or several times, the
+record the command prints carries a note saying where the thread stands. The command refuses a
+`--section` the active revision doesn't hold or a decision took off the page. The
+thread's id is the `id` of its opening comment, in the record the command prints.
 `leaf page state <page> <message>`, `leaf thread reply`, `edit`, `resolve` and
 `reopen` take the id of any message in the thread.
 
@@ -131,12 +135,15 @@ leaf thread reply <page> <message> --text "The monitoring window has ended."
 ```
 
 Use the whole `answer.ref` when answering a delivered update or posting progress on
-it. The reference identifies the page, thread and exact input being answered.
-A message posted by page and message id answers nothing, so an answer its thread
-owes stays owed.
+it. The reference names the thread's newest input you were shown, and a reply there
+answers every input in the thread up to it. If the user has added to the thread
+or taken that input back since, Leaf refuses the reply, and the change reaches you:
+write again, answering it with the rest or apart from it, as you judge. Replies at the newest
+reference all go in, so you can answer part now and the rest later; a `--todo`
+holds you to the rest. A message posted by page and message id answers nothing, so
+an answer its thread owes stays owed.
 While the session an update was delivered to holds the page,
-`leaf page state` shows the same `ref` on the update's `answer`. A reply on a `ref`
-delivered before the user's newer correction does not answer that correction.
+`leaf page state` shows the same `ref` on the update's `answer`.
 
 Successful answers check the saved `index.html` and make it the active revision
 with the answer; the first answer on a revision also notes the advice `page check`

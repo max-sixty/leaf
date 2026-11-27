@@ -9,6 +9,7 @@ import pytest
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
+    append_command,
     page_packages,
     serving,
     stamp,
@@ -29,6 +30,7 @@ from leaf.commands import hooks as hooks_model
 from leaf.log import event_log as events_model
 from leaf.log import file_changes as file_changes_model
 from leaf.log.interaction_log import read_interactions
+from leaf.records import revisioning as revisioning_model
 from leaf.records import transaction as transaction_model
 from leaf.records.transaction import PageTransaction
 from leaf.serving import event_endpoint as endpoint_model
@@ -240,6 +242,46 @@ def test_a_turn_joining_a_round_before_its_line_gets_a_line_fork_about_all(
     assert posted["outcome"] == "posted", posted
     assert agents_words(claimed) == ["weighing the interval"]
     assert deliverable(claimed) == [first["id"], second["id"]]
+
+
+def test_a_pick_after_the_rounds_message_takes_its_line(claimed):
+    """A pick on an option the agent offered in the thread, made after the user's
+    message, joins that message's batch and carries the thread's one answer
+    (`workflows.handed_over`). The round is still the message's, and its line goes in
+    at the thread's answer."""
+    assert revisioning_model.activate_source(claimed).error is None
+    asked = append_carried_log_record(
+        claimed,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "revision": 1,
+            "text": 'File it?\n\n<lf-options id="file-issue">'
+            '<lf-option id="file" label="File it"><strong>File it</strong></lf-option>'
+            "</lf-options>",
+        },
+    )
+    message = said(claimed, "ok, can we file an issue?", parent=asked["id"])
+    append_command(
+        claimed,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "file-issue",
+            "action": "choose",
+            "detail": {"value": ["file"]},
+            "answered": True,
+        },
+    )
+    round_ = basis(claimed, asked["id"], message["id"])
+    assert listed(claimed) == [round_]
+    assert forks_model.ask("s1", round_, []) is not None
+    posted = forks_model.route(
+        "s1", round_, answer=line_answer("filing the issue"), failed=None
+    )
+    assert posted["outcome"] == "posted", posted
+    assert agents_words(claimed) == ["filing the issue"]
 
 
 @pytest.mark.parametrize("first", ["answer", "message", "progress", "rewrite"])

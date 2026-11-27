@@ -28,11 +28,13 @@ from leaf.log.events import (
     active_summaries,
     build_threads,
     is_answer,
+    settle,
     taken_back,
+    thread_structure,
 )
 from leaf.log.obligations import questions_in_words
 from leaf.log.projection import page_reading
-from leaf.log.thread_context import thread_message, thread_names, thread_structure
+from leaf.log.thread_context import thread_message, thread_names
 from leaf.records.activity import answer_command, reply_command
 from leaf.records.authored_checks.admission import (
     check_markup,
@@ -51,7 +53,7 @@ from leaf.records.event_contracts import append_admitted, append_all_admitted
 from leaf.records.todos import TodoReading
 from leaf.records.transaction import PageTransaction
 from leaf.records.work import page_subject
-from leaf.source.anchor_capture import Drawing, Unsaid, capture_anchor, drawn_part
+from leaf.source.anchor_capture import Drawing, capture_anchor, drawn_part
 from leaf.source.data import read_data
 from leaf.source.obligation_sources import local_obligation_entry
 from leaf.source.passages import holds_html, message_markup
@@ -244,8 +246,9 @@ def current_anchor(
     revision: int | None = None,
     *,
     transaction=None,
-) -> tuple[int, dict | None]:
-    """Capture one optional target against the page's active reading."""
+) -> tuple[int, dict | None, Finding | None]:
+    """Capture one optional target against the page's active reading: the revision,
+    the anchor, and the note to give beside it (`anchor_capture.capture_anchor`)."""
     if revision is None:
         from leaf.records.revisioning import activate_source
 
@@ -261,21 +264,12 @@ def current_anchor(
             )
         revision = require_revision(page_dir)
     if not (quote or section or part):
-        return revision, None
+        return revision, None, None
 
     reading = read_revision(page_dir, revision).under(require_registry(page_dir))
-    return revision, _capture_anchor(
+    return revision, *_capture_anchor(
         page_dir, events, reading, quote, section, part, revision
     )
-
-
-class UnsaidQuote(Rejected):
-    """A quote the file's reading of `revision` lacks, which the drawn page may show
-    (`render_gate.drawn_anchor`)."""
-
-    def __init__(self, findings: list[Finding], revision: int):
-        super().__init__(findings)
-        self.revision = revision
 
 
 def _capture_anchor(
@@ -286,12 +280,11 @@ def _capture_anchor(
     section: str,
     part: str,
     revision: int,
-) -> dict:
-    """Capture a target against one exact document reading. A quote the reading
-    lacks is refused as `UnsaidQuote`, which a caller may answer from the drawn page."""
+) -> tuple[dict, Finding | None]:
+    """Capture a target against one exact document reading, with its note."""
     page = page_reading(reading, events, revision)
     try:
-        anchor = capture_anchor(
+        return capture_anchor(
             page.document,
             page.registry,
             quote,
@@ -305,16 +298,14 @@ def _capture_anchor(
             if section
             else None
         )
-        found = [
-            Finding(
-                "unanchorable",
-                values={"revision": revision, "error": str(err), "held": held},
-            )
-        ]
-        if isinstance(err, Unsaid):
-            raise UnsaidQuote(found, revision) from err
-        raise Rejected(found) from err
-    return anchor
+        raise Rejected(
+            [
+                Finding(
+                    "unanchorable",
+                    values={"revision": revision, "error": str(err), "held": held},
+                )
+            ]
+        ) from err
 
 
 # How a message names the page's render reading as the drawing that read its visuals
@@ -334,12 +325,11 @@ class UndrawnPart(Exception):
 
 class Drawn(NamedTuple):
     """What the page drew of `revision` in a browser, where the files couldn't settle a
-    thread's target (`render_gate.drawn_anchor`): the `anchor` a quote takes there, or
-    the `drawing` of the page's visuals that a `--part` is checked against."""
+    `--part` (`render_gate.drawn_anchor`): the `drawing` of the page's visuals the part
+    is checked against."""
 
     revision: int
-    anchor: dict | None = None
-    drawing: Drawing | None = None
+    drawing: Drawing
 
 
 def _drawn_part(
@@ -393,20 +383,21 @@ def cmd_comment(
     revision they are looking at and read as they see it: a slot
     their decision retired is off the page, and a draft they edited holds their words,
     so a quote is met here the way it would land there, and a `--part` is checked
-    against what the page drew (`anchor_capture.drawn_part`).
+    against what the page drew (`anchor_capture.drawn_part`). A quote is stored as
+    given, and the record carries the note on where the page shows it where the file's
+    reading doesn't find its words once (`unplaced-quote`).
 
-    Two targets need the drawn page, which the command draws and passes back as
-    `drawn` (`render_gate.drawn_anchor`), since the render gate stands above this
-    module. A quote the file's reading lacks is refused as `UnsaidQuote`, and a part in
-    a visual no render reading of the version read as `UndrawnPart`. For the same
-    reason the command passes `check`, which runs the message's HTML before the page
-    lease is taken."""
+    A part in a visual no render reading of the version read needs the drawn page,
+    which the command draws and passes back as `drawn` (`render_gate.drawn_anchor`),
+    since the render gate stands above this module; until then it is raised as
+    `UndrawnPart`. For the same reason the command passes `check`, which runs the
+    message's HTML before the page lease is taken."""
     title = agent_title(title)
     body = checked_text(page_dir, text, html=True)
     if check is not None and (markup := drawn_markup(body)):
         check(page_dir, "comment", markup)
     with PageTransaction(page_dir) as page:
-        return open_thread(
+        record, found = open_thread(
             page_dir,
             page,
             body,
@@ -417,6 +408,8 @@ def cmd_comment(
             obligation=obligation,
             drawn=drawn,
         )
+    note(*found)
+    return record
 
 
 def open_thread(
@@ -431,26 +424,23 @@ def open_thread(
     obligation: bool = False,
     identity: dict | None = None,
     drawn: Drawn | None = None,
-) -> dict:
+) -> tuple[dict, list[Finding]]:
     """The agent's thread opened in `page`, an open transaction, as `cmd_comment`
-    describes, from a `body` already checked (`checked_text`); `identity` names the
-    agent and session where the writer isn't the agent's own process, as Leaf's clerk
-    is (`clerk.apply_answer`). `drawn` is what the page drew of the revision the
-    command's first attempt read, where the files couldn't settle the target
-    (`render_gate.drawn_anchor`)."""
+    describes, from a `body` already checked (`checked_text`), and the notes to give
+    beside it; `identity` names the agent and session where the writer isn't the
+    agent's own process, as Leaf's clerk is (`clerk.apply_answer`). `drawn` is what
+    the page drew of the revision the command's first attempt read, where the files
+    couldn't settle a part (`render_gate.drawn_anchor`)."""
     events = page.events
-    if drawn is not None and drawn.anchor is not None:
-        revision, anchor = drawn.revision, drawn.anchor
-    else:
-        revision, anchor = current_anchor(
-            page_dir,
-            events,
-            quote,
-            section,
-            part,
-            None if drawn is None else drawn.revision,
-            transaction=page,
-        )
+    revision, anchor, quoted = current_anchor(
+        page_dir,
+        events,
+        quote,
+        section,
+        part,
+        None if drawn is None else drawn.revision,
+        transaction=page,
+    )
     placed = (
         _drawn_part(
             page_dir, revision, section, part, None if drawn is None else drawn.drawing
@@ -480,9 +470,9 @@ def open_thread(
     if title is not None:
         event["title"] = title
     record = append_admitted(page, event)[0]
-    # Said once the message stands, which a later gate could still refuse.
-    note(*twice, *([placed] if placed else []))
-    return record
+    # The caller says them once the message stands, which a later gate could still
+    # refuse.
+    return record, [*twice, *(found for found in (placed, quoted) if found)]
 
 
 class OwedAnswer(Exception):
@@ -572,6 +562,28 @@ def thread_questions(events: list, thread: str, registry: dict) -> dict[str, boo
     return asked
 
 
+def settling_answer(page_dir: Path, events: list[dict], responds: str) -> dict | None:
+    """The agent's latest answer since the input `responds` names that names it or an
+    input after it in its thread, which leaves that input answered (`events.settle`);
+    else None. A failure receipt is no answer, so the first answer after one at the
+    same input carries `responds`, and every later one finds it here."""
+    for thread in build_threads(events, active_enclosing(page_dir)).values():
+        places = settle(thread).places
+        if (place := places.get(responds)) is None:
+            continue
+        return next(
+            (
+                turn
+                for turn in reversed(thread["turns"])
+                if is_answer(turn)
+                and turn["seq"] > place
+                and places.get(turn["responds"], -1) >= place
+            ),
+            None,
+        )
+    return None
+
+
 def successful_replies(events: list[dict], responds: str) -> list[dict]:
     """Agent answers to this exact input (`events.is_answer`)."""
     return [
@@ -581,9 +593,9 @@ def successful_replies(events: list[dict], responds: str) -> list[dict]:
 
 @dataclass(frozen=True)
 class Refuse:
-    """An ordinary writer's settlement: an answer at a stale or settled response
-    address is refused, with what the log holds instead (`post_reply` names the
-    writes that post there all the same)."""
+    """An ordinary writer's settlement: a write at a reference that no longer names its
+    thread's newest standing input is refused, with the command that answers the
+    thread instead (`post_reply`)."""
 
 
 @dataclass(frozen=True)
@@ -591,10 +603,14 @@ class ProviderFinal:
     """A provider turn's final message, committed at the address its delivery
     reserved (`reserve_delivery_reply`), or its opening, posted there as progress.
 
-    It keeps that address after the user settled the update, but yields to an answer
-    another writer already gave it (a failure receipt is no answer), so a turn's
-    answer committed after its reservation lapsed never answers twice; and it writes
-    nothing once another delivery holds the address."""
+    It yields to an answer another writer already gave the update, by naming it or a
+    newer input in its thread (`settling_answer`; a failure receipt is no answer), so
+    a turn's answer committed after its reservation lapsed never answers twice, and
+    it writes nothing once another delivery holds the address. Where its reference no
+    longer names the thread's newest standing input, it skips that check and answers
+    the input it was written for (`_resolve_obligation`): the turn can't write again,
+    and the user watched it write those words. Codex alone writes this way, so it
+    stands as a special case outside the rule every other write follows."""
 
     reservation: str
 
@@ -669,14 +685,14 @@ def post_reply(
     notes beside it (`owed-response`). ``input`` and ``claim``, which a delivery
     captured, fence it to that page log and delivery owner.
 
-    A ``responds`` that no longer names the update owed refuses an answer, which
-    would mark an unread newer message answered (`superseded-reply`), with two
-    exceptions that post in the thread and answer nothing. Progress takes in hand
-    the newest still-open to-do that an earlier answer to it opened, and otherwise
-    nothing, with a note of what the log holds the event as. An answer that
-    declares nothing further, to an update whose earlier answer promised a to-do
-    still open, is noted with the `leaf task end` that ends that to-do, so `--todo`
-    and then `--done` on one reference both go in.
+    A ``responds`` that no longer names its thread's newest standing input refuses
+    the write, which would mark input the agent never read answered
+    (`superseded-reply`); that is the one check (`_resolve_obligation`). At the newest input, a write goes in
+    whether or not that input is still owed, and answers it only where it is. So
+    progress after an answer takes in hand the newest still-open to-do an earlier
+    answer there opened, and an answer that declares nothing further is noted with
+    the `leaf task end` that ends such a to-do: `--todo` and then `--done` on one
+    reference both go in.
 
     A repeated ``attempt`` returns the reply it appended, matched by kind,
     progress, failure receipt or answer, and response address rather than by the
@@ -891,26 +907,40 @@ def _resolve_obligation(
     failure: str | None,
     done: bool = False,
 ) -> _Obligation | None:
-    """Check `address` against the obligations the log holds now; where the reply
-    goes and what the command notes beside it, or None where `settlement` says to
-    write nothing. `done` says the write is an answer that declares nothing further
-    (`post_reply`)."""
+    """Check `address` against the thread it writes to; where the reply goes and what
+    the command notes beside it, or None where `settlement` says to write nothing.
+    `done` says the write is an answer that declares nothing further (`post_reply`).
+
+    A write at a reference goes in only while the input it names is its thread's
+    newest standing input, answered or not (`workflows.Handover`), and an answer then
+    settles every input up to there (`events.settle`). Any other is refused
+    (`superseded-reply`): the user has added to the thread or taken that input back
+    since, and the agent writes again once it has read the thread as it stands. A
+    receipt writes nothing instead, and a provider's final, which can't be written
+    again, goes in answering the input it was written for (`ProviderFinal`). That is
+    the one check on what a reply answers: a second reply at the newest reference
+    goes in like the first, answering nothing new."""
+    from leaf.agents.presence import read_work
+
     page_dir, events = page.page_dir, page.events
     parent, responds = address.get("parent"), address.get("responds")
     if (
         isinstance(settlement, ProviderFinal)
         and responds is not None
-        and successful_replies(events, responds)
+        and settling_answer(page_dir, events, responds)
     ):
         return None
-    responses = current_responses(page_dir, events)
+    work = read_work(page_dir, events)
+    responses = current_responses(page_dir, events, work)
     expected = responses.get(responds)
+    owed = expected is not None and expected["kind"] == "reply"
     if responds is not None and parent is None:
-        if expected is None or expected["kind"] != "reply":
+        if not owed:
             # Only a receipt addresses an update by `responds` alone; every other
             # writer names the reply's parent (`obligations.response_address`).
             assert isinstance(settlement, Receipt)
             return None
+        assert expected is not None
         parent = expected["parent"]
     assert parent is not None
     thread_id, parent = thread_addressed(page_dir, events, parent)
@@ -923,49 +953,53 @@ def _resolve_obligation(
         and any(todo["id"] == address["parent"] for todo in TodoReading(events).owed)
         else None
     )
-    answers = None if ephemeral else responds
+    # A write at an input an earlier answer settled goes in, and answers nothing new.
+    answered = responds is not None and settling_answer(page_dir, events, responds)
+    answers = None if ephemeral or answered else responds
     advice: list[Finding] = []
     if responds is not None:
-        if (
-            expected is None
-            or expected["kind"] != "reply"
-            or expected["parent"] != parent
-        ):
-            if isinstance(settlement, Receipt):
-                return None
-            if not isinstance(settlement, ProviderFinal):
-                held = logged_id(page_dir, events, responds, responses)
-                # The to-dos earlier answers to it opened that are still open.
-                opened = {reply["id"] for reply in successful_replies(events, responds)}
-                owed_todos = [
-                    todo for todo in TodoReading(events).owed if todo["id"] in opened
-                ]
-                promised = [
-                    {"todo": todo["id"], "title": todo["prompt"]["text"]}
-                    for todo in owed_todos
-                    if done
-                ]
-                if not (ephemeral or promised):
-                    found = {"event": responds, "parent": parent, "held": held}
-                    raise Rejected([Finding("superseded-reply", values=found)])
-                answers = None
-                advice += [
-                    Finding(
-                        "promised-todo",
-                        values={"event": responds, "page": str(page_dir), **todo},
-                    )
-                    for todo in promised
-                ]
-                if ephemeral and owed_todos:
-                    in_hand = owed_todos[-1]["id"]
-                elif ephemeral:
-                    advice.append(
-                        Finding(
-                            "superseded-progress",
-                            values={"event": responds, "held": held},
-                        )
-                    )
-        elif ephemeral and not isinstance(settlement, Receipt):
+        thread = work.durable.threads.get(thread_id)
+        place = settle(thread).places.get(responds) if thread else None
+        newest = work.durable.newest_inputs.get(thread_id)
+        stale = place is None or place != newest
+        if stale and isinstance(settlement, Receipt):
+            return None
+        if stale and not isinstance(settlement, ProviderFinal):
+            owed_here = thread_obligation(events, responses, thread_id)
+            held = (
+                f"{answer_command(owed_here, page_dir)} answers the thread"
+                if owed_here is not None
+                else "nothing in it is owed now, and"
+                f" `leaf thread reply {page_dir} {thread_id}` posts into it"
+            )
+            found = {"event": responds, "held": held}
+            raise Rejected([Finding("superseded-reply", values=found)])
+        if isinstance(settlement, Receipt) and not owed:
+            return None
+        elif answered:
+            # The to-dos earlier answers at this reference opened that are still
+            # open: progress takes the newest in hand, and an answer that declares
+            # nothing further is noted with the `leaf task end` that ends each.
+            opened = {reply["id"] for reply in successful_replies(events, responds)}
+            open_todos = [
+                todo for todo in TodoReading(events).owed if todo["id"] in opened
+            ]
+            if ephemeral and open_todos:
+                in_hand = open_todos[-1]["id"]
+            advice += [
+                Finding(
+                    "promised-todo",
+                    values={
+                        "event": responds,
+                        "page": str(page_dir),
+                        "todo": todo["id"],
+                        "title": todo["prompt"]["text"],
+                    },
+                )
+                for todo in open_todos
+                if done
+            ]
+        elif ephemeral and owed and not isinstance(settlement, Receipt):
             in_hand = responds
         # The open reply reservation decides who may write, whatever the
         # captured `writer` hint or a caller-supplied retry key says.
@@ -1136,10 +1170,11 @@ def _compose_and_append(
                 part,
                 reply_revision,
             )
+    quoted = None
     if prospective_anchor is not None:
-        revision, anchor = reply_revision, prospective_anchor
+        revision, (anchor, quoted) = reply_revision, prospective_anchor
     elif moving:
-        revision, anchor = current_anchor(
+        revision, anchor, quoted = current_anchor(
             page_dir,
             events,
             quote,
@@ -1223,7 +1258,7 @@ def _compose_and_append(
     else:
         record, _ = append_admitted(page, event)
     # Said once the message stands, which a later gate could still refuse.
-    note(*twice)
+    note(*twice, *([quoted] if quoted else []))
     if title is not None and before and before["title"] not in (None, title):
         # A thread keeps the first title it was given (`events.build_threads`), so
         # the agent hears which one stands.
@@ -1470,7 +1505,7 @@ def cmd_edit(
 
     The message event is immutable: the edit points back to it, so the log retains
     every wording while readings take the latest, its HTML included
-    (`thread_context.thread_structure`). HTML in the new words meets the gates a new
+    (`events.thread_structure`). HTML in the new words meets the gates a new
     message's does, `check` included, under the revision the user is looking at,
     which the edit names as such a message does. Where the message holds a widget
     the user has acted on, the edit goes in and Leaf says what becomes of their

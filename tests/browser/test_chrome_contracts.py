@@ -656,7 +656,7 @@ def test_writing_in_a_comment_box_over_the_window_foot_moves_no_words(
     page.keyboard.type("Fine")
     rendered(page)
     assert page.evaluate("scrollY") == scrolled
-    # The band the panel states on the root, which the rule hides from the browser.
+    # The root's landing band at the window's foot, over the floating panel's cover.
     caret, band_top = field.evaluate(f"""async box => {{{CARET_AT}
       const caret = document.createRange();
       caret.setStart(at, offset);
@@ -841,7 +841,7 @@ def test_a_caret_is_drawn_at_a_lines_end_and_after_a_list_bullet(
 
     with subtests.test("a caret at a line's end paints inside the field"):
         # The caret after a line's last character stands at the very end of the text
-        # column: in the box at the full measure, and in a narrow allocation.
+        # column: in a box widened to its words, and in a narrow allocation.
         # Firefox paints the caret a pixel wide from that offset onward, pulled inside
         # only by a scroll container (nsCaret, `AdjustRectForClipping`), so a field
         # clipping its words at the column's end would hide it, and it would read as gone
@@ -870,8 +870,9 @@ def test_a_caret_is_drawn_at_a_lines_end_and_after_a_list_bullet(
             arg=least["height"] + 0.5,
         )
         one_line = box.bounding_box()
-        # The box neither narrows to its words nor widens as they arrive.
-        assert least["width"] == one_line["width"] == wrapped["width"], (
+        # The box opens slim and widens with its first line, up to the measure its
+        # wrapped words fill.
+        assert least["width"] < one_line["width"] <= wrapped["width"], (
             least,
             one_line,
             wrapped,

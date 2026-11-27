@@ -127,6 +127,11 @@ class WorkReading:
         return self._handover.records
 
     @property
+    def newest_inputs(self) -> dict[str, int]:
+        """The place of each thread's newest standing input (`workflows.Handover`)."""
+        return self._handover.newest
+
+    @property
     def plan_ids(self) -> set[str]:
         """The ids a plan step may name: the obligations and the updates, which `plan`
         resolves, its `records` being `updates` as `activity` stands them."""

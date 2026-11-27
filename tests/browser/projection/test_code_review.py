@@ -1161,7 +1161,11 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     }
     if quote_anchor:
         # The document's own words around the quote, its caption here, are its context.
-        expected_anchor |= {"quote": "Original source words.", "prefix": "document"}
+        expected_anchor |= {
+            "quote": "Original source words.",
+            "prefix": "document",
+            "suffix": "",
+        }
     assert comment["anchor"] == expected_anchor
     if quote_anchor:
         # Its words are gone, so the thread stands nowhere on the page, and its head

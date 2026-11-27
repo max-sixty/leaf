@@ -143,7 +143,6 @@ import { restrictUserIntent, retainUserIntent } from "../dom/user-intent.js";
 import { focusPlace } from "../readings/user-place.js";
 import { SourcePairs, patchTree, patchRetains } from "../dom/dom-children.js";
 import { handingBackPlace, savedReadingSettled } from "../dom/keyboard/bindings.js";
-import { commandSteps } from "../dom/keyboard/control-keys.js";
 import { paintKeys, pruneScopedElements } from "../dom/keyboard/scopes.js";
 import { repaint } from "../dom/repaint.js";
 import { gesture, notice } from "../transport/notifications.js";
@@ -240,7 +239,6 @@ import { latestVersionLabel, versionPicker } from "./version-picker.js";
 import {
   preloadWidgets,
   patchDocument,
-  reindexPassageOwners,
   rememberPassageParts,
 } from "../records/widget-loader.js";
 import { byRenderedOrder, under } from "../lib/shadow-tree.js";
@@ -696,7 +694,7 @@ registerPageControl({
   rank: PAGE_CONTROL_RANK.versions,
   label: "Versions",
   value: () => versionsReading().picker.token,
-  shortcut: () => commandSteps("version.open"),
+  command: "version.open",
   disabled: () => !versionsReading().picker.offered,
   group: "page",
 });
@@ -743,15 +741,17 @@ const diffBlockSel = () =>
     // opaque, and its paragraph's words would run across it.
     ...tagsDeclaring((e) => !e.inline && e.verbatim),
   ].join(",");
-// Opaque: a widget whose upgrade renders its data body, so the text on screen is the
-// module's and can't compare; and one whose slots a decision retires, which holds two
-// versions of one passage and is already its own mark. Plus svg, drawn by either.
+// Opaque: a widget whose upgrade renders its data body or its bound data, so the text on
+// screen is the module's and can't compare; and one whose slots a decision retires,
+// which holds two versions of one passage and is already its own mark. Plus svg, drawn
+// by either. A widget that keeps its authored words (`verbatim`) compares them, whatever
+// data it takes in besides.
 const diffOpaqueSel = () =>
   [
     ...tagsDeclaring((e, tag) => upgrades(tag) && !e.verbatim && bodyIsData(e)),
     // External data is absent from both authored documents. Its seat is opaque, and
     // the authored binding and immutable selector below are the comparison key.
-    ...tagsDeclaring((e, tag) => upgrades(tag) && e.inputs),
+    ...tagsDeclaring((e, tag) => upgrades(tag) && !e.verbatim && e.inputs),
     ...Object.entries(registry.$decisions)
       .filter(([, { retires }]) => Object.keys(retires).length)
       .map(([owner]) => owner),
@@ -2297,10 +2297,6 @@ export function createVersionController({
         carry.held,
         currentIntent.handoff,
       );
-      // After the patch, over the document the patch left: an owner's number is its
-      // place among the document's preserving owners, and an insertion moves the ones
-      // after it.
-      reindexPassageOwners(live);
       pruneScopedElements();
       // The roots the install dresses, and the widgets among the arrivals whose
       // rendering and preparation it waits for: what this patch brought, and only that.

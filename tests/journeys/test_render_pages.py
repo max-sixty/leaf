@@ -34,7 +34,7 @@ from render_harness import (
 from journeys import detached_threads, listed_threads
 from leaf.log import event_log as events_model
 from leaf.log import events as thread_model
-from leaf.log.thread_context import logged_fragment
+from leaf.log.events import logged_fragment
 from leaf.pages.hosting import TemporaryPageServer
 from leaf.pages.render_gate import version as render_gate_model
 from leaf.source import render_checks as render_checks_model
@@ -426,8 +426,10 @@ def test_a_shipped_log_replays_its_example_state(browser, serve):
 def test_an_anchor_written_from_the_mapped_revision_lands_on_the_page(
     browser, serve, source
 ):
-    """The claim `leaf thread create` makes is that a quote read out of the mapped revision
-    names the same passage in the browser. Four unlike authored pages cover native
+    """A quote the file's reading of the mapped revision finds once gets no note from
+    `leaf thread create`, so the browser should place it on those words, which the
+    neighbours the capture stores pick out where the page draws another copy. Four
+    unlike authored pages cover native
     blocks, representative widgets, and projected text that can make the file and
     browser readings disagree. The generated corpus derives its tab bodies from these
     sources, and its generation check owns that composition. A page that authors only a

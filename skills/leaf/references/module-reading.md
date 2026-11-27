@@ -78,20 +78,11 @@ link preview counts a thread about any of them.
 
 `anchorLabel(anchor, about)` names a comment's anchor as Threads does.
 
-### Reading declarations
-
-Read the registry rather than repeating it. `layerFact(name)` returns the registry's
-entry under a name, as the package's `registry.json` spells it: a widget's declaration
-under its tag, each fact under its own name, as `layerFact(element.localName)?.awaits`
-reads a widget's `awaits`, or a frozen layer-wide `$` declaration, such as
-`$reactions`. A plain HTML tag, such as `table`, can have an entry of authoring
-guidance, so read the fact you need rather than whether an entry exists.
-
 ### Following a reference
 
-Reach another widget through an attribute declared in `refers`
+Take the user to another widget through an attribute declared in `refers`
 ([package-data.md, "References between widgets"](package-data.md#references-between-widgets)),
-not by looking up the id yourself.
+rather than by finding its element and moving there yourself.
 
 `navigateToDatum(this, attribute, key, {success, missing, focus})` takes the user to
 the first element `key` names in the referenced widget: a visual part's id, a projected
@@ -250,8 +241,8 @@ arrives. Each `source.kind` adds its own facts:
   obligation, is owed. `source.id` names the event and `source.subject` the thread or
   widget the update concerns. Its next actor is the agent while it owes a reply or a version,
   the user when it was handed back to send again, and `null` once a reply, named by
-  `answer.event`, answered it. Of several messages the user sent in a row, only the
-  newest has one. No region holds an update.
+  `answer.event`, answered it. Where the user sends several of these in one Thread
+  before an answer, only the newest has one. No region holds an update.
 
 `answerWords(obligation)` words an answer for display, using a widget's `answerWords`
 (`module-state.md`, "Declared widget state").

@@ -306,7 +306,7 @@ def ask(session_id: str, basis: dict, running: list[dict]) -> dict | None:
             if claim is None or claim["id"] != session_id:
                 return None
             awaits = _awaits_line(page, basis)
-            data = _thread_data(page, basis["inputs"])
+            data = _thread_data(page, basis)
             summary = summary_fork.due(page, basis) if data else None
     except FileNotFoundError:
         return None
@@ -338,22 +338,38 @@ def ask(session_id: str, basis: dict, running: list[dict]) -> dict | None:
     }
 
 
-def _thread_data(page: PageTransaction, inputs: list[str]) -> dict | None:
-    """The thread's waiting messages `inputs` as Leaf delivers them
-    (`delivery.batch_data`), with the thread whole, or None where the newest owes
-    no reply."""
+def _owed(page: PageTransaction, thread: str, responses: dict) -> str | None:
+    """The input `thread`'s one owed reply is addressed to, among `responses`
+    (`delivery.current_responses`): the newest owed input waiting there, which may
+    be newer than the round's turns, as a pick on an option the agent sent in the
+    thread is (`workflows.handed_over`); None where the thread owes no reply."""
+    from leaf.log.events import settle
+
+    held = _threads(page).get(thread)
+    return next(
+        (
+            turn["id"]
+            for turn in reversed(settle(held).waiting if held else [])
+            if responses.get(turn["id"], {}).get("kind") == "reply"
+        ),
+        None,
+    )
+
+
+def _thread_data(page: PageTransaction, basis: dict) -> dict | None:
+    """The round's waiting messages as Leaf delivers them (`delivery.batch_data`),
+    with the thread whole, or None where its thread owes no reply."""
     from leaf.agents.presence import read_work
 
     work = read_work(page.page_dir, page.events)
     responses = current_responses(page.page_dir, page.events, work)
-    owed = responses.get(inputs[-1])
-    if owed is None or owed["kind"] != "reply":
+    if _owed(page, basis["thread"], responses) is None:
         return None
     by_id = {event["id"]: event for event in page.events}
     return batch_data(
         page.page_dir,
         page,
-        [by_id[i] for i in inputs],
+        [by_id[i] for i in basis["inputs"]],
         work=work,
         whole=True,
     )
@@ -469,13 +485,23 @@ def _line(session_id: str, basis: dict, text: str) -> dict:
     "posted", "text", "line"}` with the posted message's id, or why Leaf posted
     nothing."""
     try:
-        record = post_reply(
-            Path(basis["page"]),
-            {"responds": basis["inputs"][-1]},
-            text,
-            settlement=Receipt(fence=lambda page: _awaits_line(page, basis)),
-            claimed_session=session_id,
-            ephemeral=True,
+        with PageTransaction(Path(basis["page"])) as page:
+            owed = _owed(
+                page,
+                basis["thread"],
+                current_responses(page.page_dir, page.events),
+            )
+        record = (
+            post_reply(
+                Path(basis["page"]),
+                {"responds": owed},
+                text,
+                settlement=Receipt(fence=lambda page: _awaits_line(page, basis)),
+                claimed_session=session_id,
+                ephemeral=True,
+            )
+            if owed is not None
+            else None
         )
     except (FileNotFoundError, ReceiptRefused) as error:
         return {"outcome": "dropped", "why": str(error), "text": text}

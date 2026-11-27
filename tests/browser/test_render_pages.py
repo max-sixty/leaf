@@ -437,6 +437,9 @@ def test_a_written_anchor_keeps_its_copy_when_the_page_grows_another(browser, se
             str(d),
             "--title",
             "Version stamp",
+            # Both copies stand in this section, so only the neighbours tell them apart.
+            "--section",
+            "twin",
             "--quote",
             "The version stamp never lands",
             "--text",

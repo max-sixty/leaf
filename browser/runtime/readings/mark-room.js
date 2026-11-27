@@ -9,7 +9,7 @@
  * frame. A box whose every edge stands further out holds the surface inside it, as a
  * section holds the card beside one of its paragraphs, so the surface stands over that
  * box's ring; the walk ends there, since the boxes round it stand further out still.
- * Every box states the room its marks take (base.css, `:where(*)`) whether or not
+ * Every box states the room its marks take (element-marks.css, `:where(*)`) whether or not
  * Leaf ever marks it, so the walk skips a box nothing can name, such as a padded
  * wrapper, which never wears a mark and would otherwise push the surface out.
  * A margin seat stands for the element it marks (`[data-lf-margin-for]`, whose

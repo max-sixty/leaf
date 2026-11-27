@@ -4,6 +4,12 @@
    the Leaf that hosts that element. A test or a story provides a fake instead
    (`X.toLayer(fn)`), with no page.
 
+   This module and the adapter load in any document (portable-api.js), so a portable
+   widget draws on a page without Leaf. So the module imports statically only what
+   portable-api.js re-exports and the library (`lib/`); a service that needs Leaf's
+   host, records or another module that reads what Leaf composes into a page imports
+   it dynamically as it runs, and is called only on a Leaf page.
+
    Each service is one of the widget protocol's calls (module-plain-elements.md) or a
    function `widget-api.js` exports, under one name:
 
@@ -14,10 +20,13 @@
      new `state` before the Command runs to its end, so a component that draws from
      `state` maps the delivery to nothing.
    - `NextOnMe` steps to the next obligation waiting on the user within `within`, as
-     `obligationActions.next` does. */
+     `obligationActions.next` does.
+   - `Announce` is `lf-announce`: words a listener should hear now.
+   - `KeepInTab` is `tabStore.set`: how the user looks at the widget, kept for this
+     tab, which the widget's inputs read back with `tabStore.get`. */
 import { Command, Effect, Layer, Schema } from "/vendor/effect-ui.js";
-import { obligationActions } from "./host/application.js";
-import { sendGesture } from "./lib/widget-events.js";
+import { tabStore } from "./state/tab-store.js";
+import { ANNOUNCE, sendGesture } from "./lib/widget-events.js";
 
 /** What became of a recorded gesture. */
 const Delivery = Schema.Literals(["admitted", "refused", "unrecorded"]);
@@ -34,6 +43,14 @@ export class RecordAction extends Command.Service()("leaf/RecordAction", {
 
 export class NextOnMe extends Command.Service()("leaf/NextOnMe", {
   args: { within: Schema.Unknown },
+}) {}
+
+export class Announce extends Command.Service()("leaf/Announce", {
+  args: { words: Schema.String },
+}) {}
+
+export class KeepInTab extends Command.Service()("leaf/KeepInTab", {
+  args: { key: Schema.String, value: Schema.String },
 }) {}
 
 /** Record a gesture on `element` and wait for what became of it.
@@ -53,7 +70,18 @@ export const leafServices = (element) =>
       send(element, stripUndefined(args)),
     ),
     NextOnMe.toLayer((/** @type {any} */ { within }) =>
-      Effect.sync(() => obligationActions.next({ within })),
+      Effect.promise(async () => {
+        const { obligationActions } = await import("./host/application.js");
+        obligationActions.next({ within });
+      }),
+    ),
+    Announce.toLayer((/** @type {any} */ { words }) =>
+      Effect.sync(() =>
+        window.dispatchEvent(new CustomEvent(ANNOUNCE, { detail: words })),
+      ),
+    ),
+    KeepInTab.toLayer((/** @type {any} */ { key, value }) =>
+      Effect.sync(() => tabStore.set(key, value)),
     ),
   );
 

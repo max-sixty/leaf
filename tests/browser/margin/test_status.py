@@ -621,7 +621,7 @@ def test_a_thread_waiting_on_the_user_colors_its_margin_entry(
     rendered(page)
     assert any("Your turn" in part for part in preview_parts(marker))
     expect(marker).to_have_attribute(
-        "aria-label", re.compile(r"^Threads \(2\), Your turn,")
+        "aria-label", re.compile(r"^Threads 2, Your turn,")
     )
     on_user = _margin_entry_paint(marker)
     assert on_user == {

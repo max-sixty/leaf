@@ -5081,11 +5081,9 @@ def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):
     on_mark.click()
     queue = page.locator(panel_view("queue"))
     expect(queue).to_be_focused()
-    # Each tab is named for its list and described by its count.
-    on_me = page.get_by_role("button", name="On Me", exact=True)
-    expect(on_me).to_have_accessible_description("2")
-    threads = page.get_by_role("button", name="Threads", exact=True)
-    expect(threads).to_have_accessible_description("2")
+    # Each tab is named by the words it shows: its list and its count.
+    expect(page.get_by_role("button", name="On Me 2", exact=True)).to_be_visible()
+    threads = page.get_by_role("button", name="Threads 2", exact=True)
     expect(threads.locator(".lf-fp-count")).to_have_text("2")
     cards = queue.locator(".lf-fp-on-item")
     expect(cards).to_have_count(2)

@@ -41,27 +41,27 @@ shouldn't see.
 
 ## Address and authentication
 
-Leaf serves a new page on the hostname the user sets in `LEAF_HOST`, binding every
-interface as `--host` does. Without it, Leaf serves on the address the session arrived
-through: the SSH destination for an SSH session, otherwise loopback. The document, its
-files and its events all need the URL's key, which the browser keeps in a cookie. One
-key covers every page on the machine, so sharing one page's URL gives access to all of
-them. Leaf opens no public tunnel; binding beyond loopback exposes the port to that
-network.
+Leaf serves a new page on the hostname the user sets as `host` in Leaf's config file,
+`~/.config/leaf/config.toml`, binding every interface as `--host` does. Without it,
+Leaf serves on the address the session arrived through: the SSH destination for an SSH
+session, otherwise loopback. The document, its files and its events all need the URL's
+key, which the browser keeps in a cookie. One key covers every page on the machine, so
+sharing one page's URL gives access to all of them. Leaf opens no public tunnel;
+binding beyond loopback exposes the port to that network.
 
 A page keeps its host and port in its directory's service record, so serving again,
-changing its packages and reviving keep the same URL. `LEAF_HOST` applies only to a page
-with no service record yet. `--host` changes the hostname and keeps the port. On macOS,
-restarting a `--host` page can wait about 30 seconds for the port to free up, and serving
-refuses if it is still taken.
+changing its packages and reviving keep the same URL. The `host` setting applies only
+to a page with no service record yet. `--host` changes the hostname and keeps the
+port. On macOS, restarting a `--host` page can wait about 30 seconds for the port to
+free up, and serving refuses if it is still taken.
 
 ## Unreachable URLs and `--host`
 
 When a server binds only loopback, `server start` prints a `loopback-only` note. That
-is the default for any session that didn't arrive over SSH and has no `LEAF_HOST`, such
-as a scheduler or a background job. If you see it and the user isn't at this machine,
-ask them for a hostname their browser can reach and serve on it, or export the version
-as a file.
+is the default for any session that didn't arrive over SSH on a machine with no `host`
+setting, such as a scheduler or a background job. If you see it and the user isn't at
+this machine, ask them for a hostname their browser can reach and serve on it, or
+export the version as a file.
 
 Otherwise only the user can tell you a URL doesn't load. When they do, restart the
 server with a hostname their browser can use:
@@ -72,9 +72,15 @@ leaf server start <page> --host <reachable-name>
 ```
 
 `--host` puts that name in the URL and binds every interface; the name needn't resolve
-on this machine, and an overlay-network hostname works. A user who opens every page by
-the same name can set `LEAF_HOST` to it in the environment your commands run in, so each
-new page is served there. If no route works, export the version as a file.
+on this machine, and an overlay-network hostname works. If no route works, export the
+version as a file.
+
+A user who opens every page by the same name can set it once in
+`~/.config/leaf/config.toml`, and each new page is served there:
+
+```toml
+host = "<reachable-name>"
+```
 
 ## Leaf updates
 

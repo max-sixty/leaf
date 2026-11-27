@@ -811,9 +811,10 @@
       & > aside > .layout-track {
         overflow: visible;
         --lf-track-spine: 1;
-        /* Beside the body, where the map takes its spine form (toc.css). */
+        /* Beside the body, where the map takes its spine form (toc.css), and where the
+         * window scrolls the page rather than a scroller round the sidebar. */
         @media (min-height: 480px) {
-          @container (width < 8rem) and style(--lf-sidebar-spans-page: 1) {
+          @container (width < 8rem) and style(--lf-sidebar-spans-page: 1) and (not style(--lf-track-scroll-behavior: flow)) {
             position: fixed;
             inline-size: 100cqi;
             margin-block: 0;
@@ -907,9 +908,9 @@
      * counts, since browser extensions append elements of their own to `body`; other
      * content after `main`, which page-layout.md keeps inside it, would stand under the
      * track at the page's end. A sidebar that is the page's Layout box with no header
-     * and no such footer spans the page (`--lf-sidebar-spans-page: 1`), where the
-     * contents map's track stands fixed (above). The first rule has no specificity, so
-     * each condition overrides it. */
+     * in it or before it or its `main`, and no such footer, spans the page
+     * (`--lf-sidebar-spans-page: 1`), where the contents map's track stands fixed
+     * (above). The first rule has no specificity, so each condition overrides it. */
     :where(.layout-sidebar) {
       --lf-track-end-room: var(--lf-page-pad-end);
       --lf-sidebar-spans-page: 0;
@@ -931,7 +932,9 @@
       --lf-track-end-room: 0px;
       --lf-sidebar-spans-page: 0;
     }
-    .layout-sidebar:has(> header) {
+    .layout-sidebar:has(> header),
+    header ~ .layout-sidebar,
+    :where(header ~ main) > .layout-sidebar {
       --lf-sidebar-spans-page: 0;
     }
     @container not style(--lf-track-scroll-behavior: flow) {

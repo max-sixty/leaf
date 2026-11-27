@@ -419,6 +419,47 @@ def test_a_sidebar_among_a_column_s_blocks_keeps_its_track_off_what_follows(
     assert overlap <= 0.5, overlap
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+@pytest.mark.parametrize(
+    "header", ["in the sidebar", "before the sidebar", "before main"]
+)
+def test_a_header_above_a_contents_map_keeps_the_map_below_it(
+    request, serve, engine, header
+):
+    """The contents map's track stands fixed in the window only where nothing stands
+    above its sidebar. A header in the sidebar, before it or before its `main`, as a
+    site header, keeps the map below the header as the page opens."""
+    head = '<header id="head"><h1>Release review</h1><p>Three parts.</p></header>'
+    regions = (
+        '<aside><div class="layout-track" id="track"><lf-toc id="contents"></lf-toc>'
+        '</div></aside><div class="layout-column">'
+        + "".join(
+            f'<h2 id="part-{n}">Part {n}</h2>'
+            + "".join(f"<p>Paragraph {k} of part {n}.</p>" for k in range(20))
+            for n in range(3)
+        )
+        + "</div>"
+    )
+    if header == "in the sidebar":
+        source = leaf_page("header above a map", head + regions, layout="sidebar")
+    elif header == "before the sidebar":
+        source = leaf_page(
+            "header above a map",
+            f'{head}<div class="layout-sidebar">{regions}</div>',
+            layout=None,
+        )
+    else:
+        source = leaf_page("header above a map", regions, layout="sidebar").replace(
+            "<main", f"{head}<main", 1
+        )
+    page = open_page(request.getfixturevalue(engine), serve(source))
+    resized(page, 1400, 900)
+    gap = page.evaluate("""() =>
+      document.getElementById('track').getBoundingClientRect().top
+        - document.getElementById('head').getBoundingClientRect().bottom""")
+    assert gap >= 0, gap
+
+
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
 def test_annotations_read_the_native_prose_track_with_authored_geometry(
     browser, serve, direction

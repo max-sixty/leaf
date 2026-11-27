@@ -1,7 +1,7 @@
 {
   "$data": {
     "contracts": {
-      "choice": {
+      "control-value": {
         "description": "The one value a control holds, the empty string while it holds none.",
         "schema": { "type": "string" }
       }
@@ -21,17 +21,17 @@
       }
     },
     "awaits": { "value": "choose" },
-    "outputs": { "value": { "contract": "choice" } },
+    "outputs": { "value": { "contract": "control-value" } },
     "example": "<lf-group id=\"plan\" label=\"Which plan?\"><lf-select id=\"plan-choice\"><wa-select placeholder=\"Choose a plan\"><wa-option value=\"starter\">Starter</wa-option><wa-option value=\"team\">Team</wa-option></wa-select></lf-select></lf-group>"
   },
   "lf-chosen": {
-    "description": "The choice another widget holds, as words. Set `for` to the id of a widget that holds a `choice`.",
+    "description": "The choice another widget holds, as words. Set `for` to the id of a widget that holds a `control-value`.",
     "attributes": {
       "required": ["id", "for"]
     },
     "content": "empty",
     "inputs": {
-      "choice": { "contract": "choice", "reference": "for", "property": "value" }
+      "choice": { "contract": "control-value", "reference": "for", "property": "value" }
     },
     "example": "<lf-chosen id=\"plan-chosen\" for=\"plan-choice\"></lf-chosen>"
   },

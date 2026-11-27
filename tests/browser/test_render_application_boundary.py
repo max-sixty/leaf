@@ -675,7 +675,7 @@ def test_admission_keeps_the_obligation_open_until_the_answer_is_in_the_log(
     expect_obligations_answered(page, "1/1")
 
 
-def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, serve):
+def test_page_owned_registry_and_widget_use_the_captured_controller(browser, serve):
     # The widget the test takes out and puts back stands last in the page, where neither
     # moves anything else.
     source = LIVE_V1.replace(
@@ -733,7 +733,7 @@ def test_page_owned_registry_and_widget_use_the_captured_public_api(browser, ser
 
     assert page.evaluate(
         """async () => {
-          window.localController = (await window.__lfWidgetApi()).widgetController;
+          window.localController = (await window.__lfCheckApi()).controllerOf;
           window.pageLocal = document.querySelector('#page-local');
           return localController(pageLocal)
             .dispatch({kind: 'undo', target: 'not-a-candidate'}) === null;

@@ -287,8 +287,8 @@ customElements.define("lf-tally", class extends LeafElement {
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "3")
     kept = page.evaluate(
         """async () => {
-          const {state} = (await window.__lfWidgetApi())
-            .widgetController(document.getElementById('tally-fitted')).read();
+          const {state} = (await window.__lfCheckApi())
+            .controllerOf(document.getElementById('tally-fitted')).read();
           return [state.set.value, state.observe.value];
         }"""
     )
@@ -496,10 +496,10 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
     expect(page.locator("#piece")).to_have_attribute("pinned", "yes")
     kept = page.evaluate(
         """async () => {
-          const {widgetController} = await window.__lfWidgetApi();
+          const {controllerOf} = await window.__lfCheckApi();
           return ['owner', 'piece'].map(id => {
             const widget = document.getElementById(id);
-            const {state} = widgetController(widget).read();
+            const {state} = controllerOf(widget).read();
             return [id, (state.move.units?.piece ?? state.move).action];
           });
         }"""

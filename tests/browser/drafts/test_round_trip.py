@@ -211,8 +211,8 @@ def test_text_alignment_keeps_every_character_and_action_history_is_read_only(
     not: an inline version comparison starts with sentences and refines a local edit by
     word. Its words come from Intl.Segmenter, so it is read in the browser.
 
-    A draft's saved edits reach a widget as its action history, in log order, and a
-    widget cannot rewrite that history by mutating what it read."""
+    A draft's reading holds its saved edits as an action history, in log order, and
+    mutating one read's history does not change what the next read returns."""
     url = serve(JOURNEY_V1)
     page = open_page(browser, url)
     cases = [
@@ -296,9 +296,9 @@ def test_text_alignment_keeps_every_character_and_action_history_is_read_only(
 
     sequence = page.evaluate(
         """async () => {
-          const {widgetController} = await window.__lfWidgetApi();
+          const {controllerOf} = await window.__lfCheckApi();
           const widget = document.getElementById('draft-ops');
-          const controller = widgetController(widget);
+          const controller = controllerOf(widget);
           const first = controller.read().actions.edit.history;
           first[0].detail.value = 'A widget must not mutate the runtime log.';
           return controller.read().actions.edit.history
@@ -310,9 +310,9 @@ def test_text_alignment_keeps_every_character_and_action_history_is_read_only(
 
 
 def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
-    """A historical page cannot narrate an edit that had not happened yet. The
-    helper owns the same version boundary replay does, so every future widget that
-    consumes a sequence gets this right without copying the filter."""
+    """A historical page cannot narrate an edit that had not happened yet. A widget's
+    reading ends its action history at the version the page shows, the same boundary
+    replay uses."""
     url = serve(JOURNEY_V1)
     d = serve.page_dir
     for version, text in ((1, "First recorded body."), (2, "Second recorded body.")):
@@ -336,8 +336,8 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
         "First recorded body."
     )
     old_sequence = old.evaluate(
-        """async () => (await window.__lfWidgetApi())
-          .widgetController(document.getElementById('draft-ops')).read().actions.edit.history
+        """async () => (await window.__lfCheckApi())
+          .controllerOf(document.getElementById('draft-ops')).read().actions.edit.history
           .map(event => event.revision)"""
     )
     assert old_sequence == [1]
@@ -347,8 +347,8 @@ def test_action_history_is_bounded_by_the_pinned_version(browser, serve):
         "Second recorded body."
     )
     latest_sequence = latest.evaluate(
-        """async () => (await window.__lfWidgetApi())
-          .widgetController(document.getElementById('draft-ops')).read().actions.edit.history
+        """async () => (await window.__lfCheckApi())
+          .controllerOf(document.getElementById('draft-ops')).read().actions.edit.history
           .map(event => event.revision)"""
     )
     assert latest_sequence == [1, 2]

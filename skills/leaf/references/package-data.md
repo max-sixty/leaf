@@ -15,16 +15,21 @@ convention ("References between widgets"), and then:
 | ask it to act, such as "hold this step"          | an HTML invoker command, `commandfor` with `command="--name"` ("Asking another widget to act")                                                        | that an authored button names an element                          |
 | take the user to a part of it                    | `navigateToDatum` with the part's key, or a link to `#id:key` ([module-reading.md, "Following a reference"](module-reading.md#following-a-reference)) | that the `refers` attribute names an element; a link is unchecked |
 
-A recorded answer stays its owner's, and only the owner's module records it
-("User state"). Another widget shows that answer by reading an output the owner holds,
-and changes it by asking the owner with a command the owner turns into its own verb. The
-log then holds one answer whichever widget the user changed it in, Undo takes back
-that one action, and the same two modules work off Leaf, where the owner keeps the
-answer itself. A view whose own place on the page is that answer, as a board card
-stands in the column of a pick, names the owner in a `refers` attribute too, as
-`lf-card` does in `shows`, but its module reads the owner's state and records the
-owner's verb through `widgetController(owner)`
-([module-state.md, "The widget controller"](module-state.md#the-widget-controller)).
+Point when the result belongs in the address: the user goes to the part, Back returns,
+and a reload or a copied link reaches it again. Ask when the user stays where they are
+and the owner changes something it keeps: a recorded change Undo takes back, or a view
+only this tab holds. Either way the shared contract's `producer` instructions say what
+the target takes: the invoker commands it answers and the keys it reveals.
+
+A recorded answer stays its owner's: only the owner's module records it ("User
+state"), and no module records another widget's verb. Another widget shows that answer
+by reading an output the owner holds, and changes it by asking the owner with an
+invoker command the owner turns into its own verb. The log then holds one answer
+whichever widget the user changed it in, and Undo takes back that one action. A board
+card shows an `lf-options` pick this way: its `shows` binds the `choice` the
+`lf-options` holds, and a drop asks the `lf-options` to `--choose` the column's value.
+Two modules written this way also work on a page without Leaf, where the owner keeps
+the answer itself and the host sets the reader's input ("Widget outputs").
 
 Packages declare no dependency on each other. A widget that holds a value names a
 contract that its own package or Leaf's `default` package declares in
@@ -34,9 +39,8 @@ by `reference` names the producer's contract, and its package doesn't declare it
 `page check` matches the input to the output by the contract's name, and `page check
 --render` holds what the producer holds to the contract. Two packages that both
 declare a contract declare it word for word, and a page composing both keeps one copy.
-What a producer of the contract must take as commands goes in the contract's
-`instructions`, under `producer`: on a page that selects a package declaring the
-contract, `leaf page instructions --use` returns it for a widget on either side.
+On a page that selects a package declaring the contract, `leaf page instructions --use`
+returns its `producer` instructions for a widget on either side.
 
 `package check` reads one package, so check a pair on a page. Start one in a directory
 outside both packages that selects them by path, write both widgets into its
@@ -66,44 +70,50 @@ this.addEventListener("command", (event) => {
 ```
 
 A custom command's name starts with `--`; HTML's own, such as `show-modal` and
-`toggle-popover`, act on dialogs and popovers. An argument rides on the button's
-`value`, and `type="button"` keeps a button inside a form from submitting it
-instead. The target's `description` says which commands it takes and what each
-value means, since nothing else tells a page's author. `page check` refuses an
-authored button whose `commandfor` names no element, or whose `command` is neither
-kind; a custom command the target doesn't handle does nothing, with no error.
+`toggle-popover`, act on dialogs and popovers. The request's argument is the button's
+plain `value`, JSON text only where a request needs several fields, and the button's
+words name the gesture, as Undo shows it. `type="button"` keeps a button inside a form from
+submitting it instead. `page check` refuses an authored button whose `commandfor`
+names no element, or whose `command` is neither kind; a custom command the target
+doesn't handle does nothing, with no error.
 
-A request no button makes, such as a dragged handle or a typed number, is the same
-event, dispatched by the module with its own element as the source and the argument as
-that element's `value`, which may be an object:
+The target decides what a request does: it takes the request as its own change,
+adjusts it, or refuses it with `event.preventDefault()`. So the asker draws the
+target's value, never what it asked for, and draws again from that value after every
+request, taken or not. Where the target sets its value inside its `command` listener,
+Leaf has set the asker's input by the time `dispatchEvent` returns, and where the value
+stays as it was, Leaf sets nothing. So a rent slider that asks a budget table for 60,
+when the table already holds rent at its cap of 40, gets no set, and one that kept
+its thumb where the user dragged it would show 60 beside 40.
+
+A request no button on the page makes, such as a dragged handle, a typed number or a
+drop on a board, is the same event. The module dispatches it on the target, found
+with `elementById`, from a button it makes and keeps out of the page, since `click()`
+on that button would send nothing. It sends the event `cancelable`, as the browser
+does, so the target can refuse it:
 
 ```js
-this.value = { category: "rent", amount: 40 };
-const taken = target.dispatchEvent(
+const taken = elementById(this.getAttribute("for"), this)?.dispatchEvent(
   new CommandEvent("command", {
     command: "--set-amount",
-    source: this,
+    source: Object.assign(document.createElement("button"), {
+      value: "60",
+      textContent: "Set rent to 60",
+    }),
     cancelable: true,
   }),
 );
 ```
 
-A target that refuses a request calls `event.preventDefault()`, so `taken` is `false`
-and the asker puts back what it showed. A request the target takes shows in the value
-it holds next, which may differ from what was asked, as when a budget clamps an amount.
-
-A module that draws the button writes the same attributes, taking the id from its own
-reference attribute, as in `commandfor=${this.getAttribute("for")}`. Inside a shadow
-tree the attribute can't name a page element, so set the element instead
-(`button.commandForElement = this.getRootNode().getElementById(id)`); the target then
-sees the button's host as `event.source`, so the host holds the argument as its
-`value`.
-
-The browser makes the press, so the button needs no click listener and no `lfCommands`
-row, a key and a finger press it as a pointer does, and it works the same on a page
-without Leaf. A press does nothing until the target's module has loaded, as with any
-control a module wires. The target decides whether to act, as it does for its own
-controls.
+A module that draws a button in the page writes the same attributes as an authored
+one, taking the id from its own reference attribute, as in
+`commandfor=${this.getAttribute("for")}`. The browser makes the press, so the button
+needs no click listener and no `lfCommands` row, a key and a finger press it as a
+pointer does, and it works the same on a page without Leaf. A press does nothing until
+the target's module has loaded, as with any control a module wires. A button in a
+shadow tree can't send a request to a target outside that tree this way, since the
+target sees the shadow's host as `event.source`, so a module drawing there sends from
+its button's click listener as above.
 
 ## User state
 
@@ -247,7 +257,7 @@ obligation's question, its region and its words (`authoring-on-me.md`, "On the p
 so a widget needs no prompt of its own.
 
 The module reads this state as `this.state` and records it with `record()`
-([module-state.md, "The widget controller"](module-state.md#the-widget-controller)),
+([module-state.md, "Reading and recording state"](module-state.md#reading-and-recording-state)),
 words answers with `static answerWords` ([module-state.md, "Declared widget
 state"](module-state.md#declared-widget-state)), and reads obligations with `readObligations()`
 ([module-reading.md, "Reading obligations and the

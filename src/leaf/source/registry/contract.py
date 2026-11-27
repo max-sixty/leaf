@@ -841,6 +841,9 @@ def require_module(tag: str, entry: dict, registry: dict, path) -> None:
         )
         if entry.get(key)
     ] + (["visual"] if isinstance(entry.get("visual"), dict) else [])
+    # Leaf sets an input's `property` only on an element whose class is defined.
+    if any(spec.get("property") for spec in entry.get("inputs", {}).values()):
+        needs_module.append("inputs")
     if needs_module and MODULES in registry and not upgraded(registry, tag):
         raise registry_error(
             "needs-module", path, tag, keys=needs_module, module=f"widgets/{tag}.js"

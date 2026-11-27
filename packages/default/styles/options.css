@@ -36,6 +36,13 @@
   inherits: false;
   initial-value: 0;
 }
+/* Whether the reserve for the cells still to come stands below an option (below), so
+ * that the option, though its group's last child, is not at its foot. */
+@property --lf-option-over-reserve {
+  syntax: "<integer>";
+  inherits: false;
+  initial-value: 0;
+}
 /* The line an option's words stand on, resolved on the group and inherited: the prose
  * line for a card, the row face below. The add field stands on the same line whatever
  * its type (--lf-entry-floor), so the option that replaces it keeps the row's height. */
@@ -559,6 +566,9 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
         grid-column: 1 / -1;
         height: var(--lf-missing-cells);
       }
+      & > lf-option {
+        --lf-option-over-reserve: 1;
+      }
     }
     & > .lf-another {
       min-height: var(--lf-add-cell-height);
@@ -663,11 +673,13 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
      * both corners at that end of the group, as every cell does in a stack and Add and
      * Done always do. Options laid across (`--lf-option-in-row`) share the head: the last
      * takes its end corner and, where no cell follows them, the first takes the foot's
-     * start corner. Each selector names its cell, an option, Add or Done, since a
-     * subject after the group's `:has()` names an element, one key per selector
-     * (browser/AGENTS.md, "What a style rule costs"). Options come first, so the first
-     * option is the first cell, though not always the first child: a word for a screen
-     * reader, such as "my change", stands before it (records/declared-words.js). */
+     * start corner. While the reserve for the cells the runtime adds stands at the foot
+     * (above), no option takes the foot's corners. Each selector names its cell, an
+     * option, Add or Done, since a subject after the group's `:has()` names an element,
+     * one key per selector (browser/AGENTS.md, "What a style rule costs"). Options come
+     * first, so the first option is the first cell, though not always the first child:
+     * a word for a screen reader, such as "my change", stands before it
+     * (records/declared-words.js). */
     & > lf-option:first-of-type {
       border-start-start-radius: var(--lf-r-in);
       border-start-end-radius: calc(var(--lf-r-in) * (1 - var(--lf-option-in-row)));
@@ -675,15 +687,20 @@ lf-options > lf-options-done > .lf-done > .lf-key-badge {
     & > lf-option:last-child,
     & > .lf-another:last-child,
     & > lf-options-done:last-child {
-      border-end-start-radius: calc(var(--lf-r-in) * (1 - var(--lf-option-in-row)));
-      border-end-end-radius: var(--lf-r-in);
+      border-end-start-radius: calc(
+        var(--lf-r-in) * (1 - var(--lf-option-in-row)) *
+          (1 - var(--lf-option-over-reserve))
+      );
+      border-end-end-radius: calc(var(--lf-r-in) * (1 - var(--lf-option-over-reserve)));
     }
     & > lf-option:last-of-type:not(:first-of-type) {
       border-start-end-radius: calc(var(--lf-r-in) * var(--lf-option-in-row));
     }
     &:not(:has(> lf-option:last-of-type ~ *))
       > lf-option:first-of-type:not(:last-child) {
-      border-end-start-radius: calc(var(--lf-r-in) * var(--lf-option-in-row));
+      border-end-start-radius: calc(
+        var(--lf-r-in) * var(--lf-option-in-row) * (1 - var(--lf-option-over-reserve))
+      );
     }
   }
   /* A group whose options hold a picture stands its cells apart, each framed as the

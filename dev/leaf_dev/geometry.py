@@ -2,18 +2,23 @@
 compared: the reading `leaf-dev stills` takes of each arm beside its stills, and
 reports where the head adds a fault the base doesn't have.
 
-Three readings, each a list of findings:
+Two readings, each a list of findings:
 
 - edges: a box Leaf draws that nearly meets its frame's edge, crosses it or is cut by
   it, and a round mark closer to the edge than `--lf-clear` (browser/AGENTS.md, "A box
   inside a frame either meets its edge or stands clear of it"; `geometry.js`);
-- overlaps: two of Leaf's boxes on one surface that cross (`geometry.js`);
 - rings: a focus ring a clip cuts or a box covers (`rings.py`).
 
-A finding is keyed by its kind, side, box and frame (or the box it crosses, or the rule
-that drew the ring), never by a length, so the same fault reads alike on both arms and
-a change that moves a fault without mending it adds nothing. A page has faults it has
-always had; the comparison is what keeps a change's report to the faults it causes.
+A finding is keyed by its kind, side, box and frame (or the rule that drew the ring),
+never by a length, so the same fault reads alike on both arms and a change that moves
+a fault without mending it adds nothing. A page has faults it has always had; the
+comparison keeps a change's report to the faults it causes.
+
+Rejected: a third reading, of two of Leaf's boxes crossing each other. Leaf's boxes
+cross on purpose far more often than by mistake, as a picture's removal mark stands on
+its corner, Copy over its code block and a chart's marks over its gridlines, and the
+crossings that were defects were either a single pixel deep, as a seam is, or on a
+page no state shows.
 """
 
 import json
@@ -43,8 +48,8 @@ IDIOMS = sorted(
 
 
 def read(page) -> list[dict]:
-    """The edge, overlap and ring findings of the settled tab `page`. A tab that takes
-    no script with arguments, as the iOS simulator's Safari doesn't, has none."""
+    """The edge and ring findings of the settled tab `page`. A tab that takes no script
+    with arguments, as the iOS simulator's Safari doesn't, has none."""
     if not isinstance(page, Page):
         return []
     findings = page.evaluate(GEOMETRY, {"idioms": IDIOMS})
@@ -82,8 +87,6 @@ def said(finding: dict) -> str:
     """A finding as one line of a report."""
     if finding["kind"] == "ring":
         return f"ring on {finding['box']}: {finding['said']}"
-    if finding["kind"] == "overlap":
-        return f"overlap {-finding['gap']}px: {finding['box']} and {finding['frame']}"
     return (
         f"{finding['kind']} {finding['side']} {finding['gap']}px: {finding['box']}"
         f" in {finding['frame']}"

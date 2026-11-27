@@ -1,24 +1,23 @@
-// Leaf's boxes against the frames they stand in and against each other, read in one
-// page as it stands: the in-page half of `leaf_dev.geometry`, whose header says how
-// `leaf-dev stills` compares two arms' readings.
+// Leaf's boxes against the frames they stand in (browser/AGENTS.md, "A box inside a
+// frame either meets its edge or stands clear of it"), read in one page as it stands:
+// the in-page half of `leaf_dev.geometry`, whose header says how `leaf-dev stills`
+// compares two arms' readings.
 //
 // A box is an element Leaf draws whose own edge shows: a border, a ground unlike the
-// one behind it, a picture, or a lifted shadow, and for the overlap reading a replaced
-// element such as an image. A gradient is a mark drawn inside a box (a rule, a fade,
-// stripes), not its edge, and a run of words' highlight takes its line's height, so
-// neither makes a box. Leaf draws it where it is Leaf's chrome (`inChrome`), a widget's
-// own control (`uiInside`), the inside of a widget's shadow tree, or wears an `lf-`
-// name no idiom gives an author (`idioms`, the registry's class keys). Three kinds of
-// box stand where something other than Leaf's placement puts them, and are not read:
-// a part of a library's component (a shadow tree whose host is no element of Leaf's),
-// whose own look Leaf keeps (root AGENTS.md, "Use dependencies"), and what that
-// component places through its slots; a thumb, inside a slider or scrollbar or moved
-// by a scroll timeline, which the rule lets stand anywhere on its track; and a box in
-// a drawing, which owns its coordinates (`--lf-drawing`).
+// one behind it, a picture, or a lifted shadow. A gradient is a mark drawn inside a box
+// (a rule, a fade, stripes), not its edge, and a run of words' highlight takes its
+// line's height, so neither makes a box. Leaf draws it where it is Leaf's chrome
+// (`inChrome`), a widget's own control (`uiInside`), the inside of a widget's shadow
+// tree, or wears an `lf-` name no idiom gives an author (`idioms`, the registry's class
+// keys). Three kinds of box stand where something other than Leaf's placement puts
+// them, and are not read: a part of a library's component (a shadow tree whose host is
+// no element of Leaf's), whose own look Leaf keeps (root AGENTS.md, "Use
+// dependencies"); a thumb, inside a slider or scrollbar or moved by a scroll timeline,
+// which the rule lets stand anywhere on its track; and a box in a drawing, which owns
+// its coordinates (`--lf-drawing`).
 //
-// Edges (browser/AGENTS.md, "A box inside a frame either meets its edge or stands
-// clear of it"). A box's frame is the nearest box around it in the flat tree; one
-// whose nearest box is the author's stands where the author put it, and is not read.
+// A box's frame is the nearest box around it in the flat tree; one whose nearest box
+// is the author's stands where the author put it, and is not read.
 // A floating box's outline is the one its surface draws, a layer of rings and fills cut
 // to the box (dom/box-motion.js, `.lf-box-ground`), so a box whose border box is a
 // surface's ring is framed by that ring's fill and its rounding. Only the sides both
@@ -35,18 +34,10 @@
 //              pixel or more off it
 //   rounded    the box meets a straight run of the edge with a rounded corner there
 //
-// Overlaps. Two innermost boxes of one surface (a mark, a picture, a control's face;
-// a box holding others is their ground) whose shown parts cross by two pixels or more
-// each way. A surface is what stands over the page on its own: a box placed against
-// the window, one stuck to its scroller's edge, or the top layer, so a card over the
-// page's words, a head stuck over the words it scrolls past and a menu over its trigger
-// are each on a surface of their own. A box's shown part is what the clips around it
-// leave in the window. A control's icon is its glyph, which its badges may stand over.
-//
-// Each finding names its kind, the box, its frame or the box it crosses, the side and
-// the clearance in CSS pixels, negative where it crosses. `api` is the page's own check
-// API, which geometry.py imports from the page's entry.
-({ idioms, slack = 0.5, seam = 2 }, api) => {
+// Each finding names its kind, the box, its frame, the side and the clearance in CSS
+// pixels, negative where it crosses. The second argument is the page's own check API,
+// which geometry.py imports from the page's entry.
+({ idioms, slack = 0.5 }, { inChrome, uiInside, shownBand }) => {
   const authored = new Set(idioms);
 
   const parentOf = (el) =>
@@ -55,31 +46,10 @@
     for (let a = parentOf(el); a && a !== document.documentElement; a = parentOf(a))
       yield a;
   };
-  const within = (node, outer) => {
-    for (let a = node; a; a = parentOf(a)) if (a === outer) return true;
-    return false;
-  };
-  // The runtime's answers where it exports them (`base/ui-marks.js`,
-  // `dom/geometry.js`), and the same questions asked here of a runtime that doesn't.
   const nearest = (el, selector) => {
     for (let a = el; a; a = parentOf(a)) if (a.matches?.(selector)) return a;
     return null;
   };
-  const inChrome = api.inChrome ?? ((el) => !!nearest(el, ".lf-chrome"));
-  const uiInside =
-    api.uiInside ??
-    ((el) => {
-      const near = nearest(el, ".lf-ui, [data-lf-said]");
-      return !!near && !near.matches("[data-lf-said]");
-    });
-  const shownBand =
-    api.shownBand ??
-    ((el) => {
-      const r = el.getBoundingClientRect();
-      const left = r.left + el.clientLeft,
-        top = r.top + el.clientTop;
-      return { left, top, right: left + el.clientWidth, bottom: top + el.clientHeight };
-    });
 
   // A computed colour as sRGB channels and alpha, whatever notation the engine
   // serializes it in (`rgb()`, `color(srgb …)`, `oklab()` from a mix), read back
@@ -128,15 +98,6 @@
   const libraryPart = (el) => {
     const root = el.getRootNode();
     return root instanceof ShadowRoot && !leafTag(root.host);
-  };
-  // The library component that places `el`, through a slot of its own that `el` or a
-  // box around it is assigned to, as a comparison stacks its two pictures.
-  const placedBy = (el) => {
-    for (let a = el; a; a = parentOf(a)) {
-      const root = a.assignedSlot?.getRootNode();
-      if (root instanceof ShadowRoot && !leafTag(root.host)) return root.host;
-    }
-    return null;
   };
   // A thumb, which moves along its track as its value changes: inside a slider or a
   // scrollbar, or moved by a scroll timeline, as an overview's window follows what its
@@ -315,18 +276,6 @@
     }
     return null;
   };
-  // The boxes that hold `el` as layout does, nearest first: the containing block of an
-  // absolutely placed box, nothing past a box placed against the window.
-  const holders = function* (el) {
-    for (let a = el; a;) {
-      const s = cs(a);
-      if (s.position === "fixed") return;
-      a = s.position === "absolute" ? containing(a) : parentOf(a);
-      if (!a || a === document.documentElement) return;
-      yield a;
-    }
-  };
-
   const short = (el) => {
     const names = [...el.classList].filter((c) => c.startsWith("lf-")).slice(0, 2);
     return el.localName + names.map((c) => `.${c}`).join("");
@@ -343,7 +292,6 @@
     }
     return parts.join(" > ");
   };
-  const rectOf = (r) => [r.left, r.top, r.right - r.left, r.bottom - r.top].map(round1);
 
   const all = [];
   const walk = (root) => {
@@ -354,11 +302,7 @@
   };
   walk(document);
 
-  // A picture or a frame of content a box can cover. An icon is a control's glyph,
-  // which the control's own badges may stand over.
-  const REPLACED = new Set(["img", "video", "canvas", "iframe"]);
   const findings = [];
-  const overlapping = [];
   for (const el of all) {
     if (el instanceof SVGElement && el.localName !== "svg") continue;
     if (!drawnByLeaf(el)) continue;
@@ -367,11 +311,11 @@
     const s = cs(el);
     if (s.display === "inline" || el.closest(".lf-box-ground")) continue;
     if (libraryPart(el) || thumb(el) || inDrawing(el)) continue;
+    if (s.position === "fixed" || lifted(el)) continue;
     const own = edges(el);
+    if (!own) continue;
     const rect = el.getBoundingClientRect();
     if (rect.width < 1 || rect.height < 1) continue;
-    if (own || REPLACED.has(el.localName)) overlapping.push(el);
-    if (!own || s.position === "fixed" || lifted(el)) continue;
 
     const isRound =
       Math.abs(rect.width - rect.height) <= 1 &&
@@ -429,7 +373,7 @@
         gap: round1(gap),
         box: placed(el),
         frame: placed(frame),
-        at: rectOf(rect),
+        at: [rect.left, rect.top, rect.width, rect.height].map(round1),
       });
 
     // Cuts: a clip between the box and its frame, the frame's own included. An
@@ -517,83 +461,5 @@
     }
   }
 
-  // The surface a box stands on: the nearest box around it, itself included, that
-  // stands over the page on its own.
-  const surfaceOf = (el) => {
-    for (let a = el; a && a !== document.documentElement; a = parentOf(a)) {
-      const position = cs(a).position;
-      if (position === "fixed" || position === "sticky" || lifted(a)) return a;
-    }
-    return document.documentElement;
-  };
-  // What of a box shows: its border box less what the clips around it cut off, in the
-  // window.
-  const shownOf = (el) => {
-    const r = el.getBoundingClientRect();
-    let shown = {
-      left: Math.max(r.left, 0),
-      top: Math.max(r.top, 0),
-      right: Math.min(r.right, innerWidth),
-      bottom: Math.min(r.bottom, innerHeight),
-    };
-    for (const a of holders(el)) {
-      if (!clipsOn(a, "x") && !clipsOn(a, "y")) continue;
-      const band = shownBand(a);
-      if (!band) continue;
-      shown = {
-        left: clipsOn(a, "x") ? Math.max(shown.left, band.left) : shown.left,
-        right: clipsOn(a, "x") ? Math.min(shown.right, band.right) : shown.right,
-        top: clipsOn(a, "y") ? Math.max(shown.top, band.top) : shown.top,
-        bottom: clipsOn(a, "y") ? Math.min(shown.bottom, band.bottom) : shown.bottom,
-      };
-    }
-    return shown.right - shown.left >= 1 && shown.bottom - shown.top >= 1
-      ? shown
-      : null;
-  };
-  // Only the innermost boxes cross: a mark, a picture, a control's face. A box holding
-  // others is the ground they stand on, as a card is its controls'.
-  const holding = new Set();
-  for (const el of overlapping)
-    for (const a of ancestors(el)) {
-      if (holding.has(a)) break;
-      holding.add(a);
-    }
-  const bySurface = new Map();
-  for (const el of overlapping) {
-    if (holding.has(el)) continue;
-    const shown = shownOf(el);
-    if (!shown) continue;
-    const surface = surfaceOf(el);
-    if (!bySurface.has(surface)) bySurface.set(surface, []);
-    bySurface.get(surface).push({ el, shown });
-  }
-  for (const boxes of bySurface.values())
-    for (let i = 0; i < boxes.length; i++)
-      for (let j = i + 1; j < boxes.length; j++) {
-        const a = boxes[i],
-          b = boxes[j];
-        if (within(a.el, b.el) || within(b.el, a.el)) continue;
-        const library = placedBy(a.el);
-        if (library && library === placedBy(b.el)) continue;
-        const across =
-          Math.min(a.shown.right, b.shown.right) - Math.max(a.shown.left, b.shown.left);
-        const down =
-          Math.min(a.shown.bottom, b.shown.bottom) - Math.max(a.shown.top, b.shown.top);
-        if (across < seam || down < seam) continue;
-        const [first, second] = [a, b].sort((p, q) =>
-          placed(p.el) < placed(q.el) ? -1 : 1,
-        );
-        const left = Math.max(a.shown.left, b.shown.left);
-        const top = Math.max(a.shown.top, b.shown.top);
-        findings.push({
-          kind: "overlap",
-          side: "",
-          gap: -round1(Math.min(across, down)),
-          box: placed(first.el),
-          frame: placed(second.el),
-          at: rectOf({ left, top, right: left + across, bottom: top + down }),
-        });
-      }
   return findings;
 };

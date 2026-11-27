@@ -126,8 +126,8 @@ declarations behind them (its module header covers `--base`, `--authored` and
 `--browser`). For a change to where a rule sits, such as its sheet, layer or selector,
 read those lists, with the corpus states covering every composed page, rather than
 writing a computed-style sweep. It also lists each geometry fault the change adds,
-such as a box nearly touching its frame's edge, two of Leaf's boxes crossing, or a
-focus ring a clip cuts (`leaf_dev.geometry`); hand over none the change can fix.
+such as a box nearly touching its frame's edge or a focus ring a clip cuts
+(`leaf_dev.geometry`); hand over none the change can fix.
 Where no state reaches a surface the change touches,
 add one to `STATES` as the `dev/leaf_dev/states.py` header says, rather than driving
 the surface by hand. In a screenshot you take yourself, capture the viewport where fixed

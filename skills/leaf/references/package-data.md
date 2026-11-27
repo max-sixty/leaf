@@ -72,8 +72,7 @@ this.addEventListener("command", (event) => {
 A custom command's name starts with `--`; HTML's own, such as `show-modal` and
 `toggle-popover`, act on dialogs and popovers. The request's argument is the button's
 plain `value`, JSON text only where a request needs several fields, and the button's
-words name the gesture, which the target records as the change's name where it
-records one, as Undo shows it. `type="button"` keeps a button inside a form from
+words name the gesture, as Undo shows it. `type="button"` keeps a button inside a form from
 submitting it instead. `page check` refuses an authored button whose `commandfor`
 names no element, or whose `command` is neither kind; a custom command the target
 doesn't handle does nothing, with no error.
@@ -83,18 +82,15 @@ adjusts it, or refuses it with `event.preventDefault()`. So the asker draws the
 target's value, never what it asked for, and draws again from that value after every
 request, taken or not. Where the target sets its value inside its `command` listener,
 Leaf has set the asker's input by the time `dispatchEvent` returns, and where the value
-stays as it was, Leaf sets nothing. Take a rent slider that asks a budget table for
-60 while the table already holds rent at its cap of 40: the table keeps 40, so Leaf
-sets the slider nothing, and a slider that kept its thumb where the user dragged it
-would show 60 beside a table holding 40.
+stays as it was, Leaf sets nothing. So a rent slider that asks a budget table for 60,
+when the table already holds rent at its cap of 40, gets no set, and one that kept
+its thumb where the user dragged it would show 60 beside 40.
 
 A request no button on the page makes, such as a dragged handle, a typed number or a
-drop on a board, is the same event. The module dispatches it on the target itself,
-from a button it makes and keeps out of the page, since `click()` on such a button
-sends nothing: the browser finds a target only in the button's own tree. It finds the
-target as it would any element it names (`module-reading.md`, "Reading the page"),
-and sends the event `cancelable`, as the browser sends its own, or the target can't
-refuse it:
+drop on a board, is the same event. The module dispatches it on the target, found
+with `elementById`, from a button it makes and keeps out of the page, since `click()`
+on that button would send nothing. It sends the event `cancelable`, as the browser
+does, so the target can refuse it:
 
 ```js
 const taken = elementById(this.getAttribute("for"), this)?.dispatchEvent(

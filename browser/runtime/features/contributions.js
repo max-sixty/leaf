@@ -40,7 +40,7 @@ import { focusDestination } from "../dom/focus.js";
  * hasCurrentLocation: () => boolean,
  * activate: (key: string, context?: ActivationRequest) => boolean,
  * activateReading: (id: string) => boolean,
- * focus: (key: string, cause: Parameters<typeof focusDestination>[1], surface?: ContributionSurface | null) => boolean,
+ * focus: (key: string, cause: Parameters<typeof focusDestination>[1], surface?: ContributionSurface | null, reveal?: ((control: Element) => unknown) | null) => boolean,
  * update: (options?: {immediate?: boolean, focus?: string | null}) => void,
  * unregister: () => void}} ContributionRegistration
  */
@@ -229,9 +229,10 @@ export function registerContribution({ key, target, source = target, read, activ
       return true;
     },
     // Puts the user on the entry's control, saying what moved them (dom/focus.js,
-    // `focusDestination`).
-    focus(entryKey, cause, surface = null) {
+    // `focusDestination`), after `reveal` shows a control its surface hides.
+    focus(entryKey, cause, surface = null, reveal = null) {
       return arrive(entryKey, surface, (destination) => {
+        reveal?.(destination);
         focusDestination(destination, cause);
         return true;
       });

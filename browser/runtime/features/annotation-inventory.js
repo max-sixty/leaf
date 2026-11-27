@@ -17,7 +17,7 @@ import { replyIsEditing } from "../records/thread/replies.js";
 import { KINDS } from "../base/contribution-model.js";
 import { excerptWords, labelWords } from "../lib/words.js";
 import { contributionEntries } from "./contributions.js";
-import { contributionAnswers } from "./contribution-controls.js";
+import { answersTo } from "./contribution-controls.js";
 import { marginEntry, threadMarks } from "./margin-model.js";
 import { agentName, readPart } from "../state/semantic-state.js";
 import { livePoint } from "../readings/pointed-place.js";
@@ -935,16 +935,19 @@ export function createAnnotationInventory({
       }
     }
     // Leaf's ask stands for a widget's question only where the widget's own answers
-    // don't: an entry beside it that runs one of the widget's decision commands asks it
-    // already, as a suggestion's Accept and Reject do.
+    // don't: a shown entry the widget contributes beside it that runs one of its
+    // decision commands asks it already, as a suggestion's Accept and Reject do.
     for (const { target, source, item } of asks) {
-      const answered = groups
-        .get(target)
-        ?.offers.some((offered) =>
-          offered.reading.entries.some(
-            (entry) => source && contributionAnswers(entry, source),
-          ),
-        );
+      const answers = source && answersTo(source);
+      const answered =
+        answers &&
+        groups
+          .get(target)
+          ?.offers.some(
+            (offered) =>
+              offered.source() === source &&
+              offered.reading.entries.some((entry) => entry.visible && answers(entry)),
+          );
       if (!answered) add(groups, target, item);
     }
 

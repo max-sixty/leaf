@@ -87,14 +87,16 @@ test("a kept item acts through the capabilities of the latest reading", () => {
   }
 });
 
-// A widget whose own margin entries run its decision commands asks its question there, so
-// Leaf's "Waiting on me" stands aside. Any other entry beside the widget, such as a
-// reaction, a Copy bound to one of its other commands, or another widget's answer, leaves
-// the ask standing.
-test("Leaf's ask stands aside only for entries that run the widget's own decisions", () => {
+// A widget whose shown margin entries run its decision commands asks its question there,
+// so Leaf's "Waiting on me" stands aside. A reaction, a Copy bound to another of its
+// commands, an answer it hides, or another widget's answer beside it leaves the ask
+// standing.
+test("Leaf's ask stands aside only for the widget's own shown answers", () => {
   document.body.innerHTML =
-    '<main><p id="asked">A question</p><p id="other">Other</p></main>';
+    '<main><div id="asked"><p>A question</p><span id="toolbar"></span></div>' +
+    '<p id="other">Other</p></main>';
   const asked = document.getElementById("asked");
+  const toolbar = document.getElementById("toolbar");
   const other = document.getElementById("other");
   const row = (id, decision) => ({
     id,
@@ -103,62 +105,61 @@ test("Leaf's ask stands aside only for entries that run the widget's own decisio
     control: () => null,
     run() {},
   });
-  asked.lfCommands = {
-    title: "Asked",
-    rows: [row("asked.yes", true), row("asked.copy", false)],
+  const declare = (element, title, rows) => {
+    element.lfCommands = { title, rows };
+    element.dispatchEvent(
+      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+    );
+    return element.lfCommands;
   };
-  other.lfCommands = { title: "Other", rows: [row("other.yes", true)] };
+  const own = declare(asked, "Asked", [
+    row("asked.yes", true),
+    row("asked.copy", false),
+  ]);
+  const nested = declare(toolbar, "Toolbar", [row("toolbar.approve", true)]);
+  const shared = declare(other, "Other", [row("other.yes", true)]);
   const inventory = inventoryOf([obligation("first")]);
   const asks = () =>
     entryFor(inventory.collect(), "asked")
       .items.filter((item) => item.id === "on-me:first")
       .map((item) => item.text);
-  /** @param {object} entry */
-  const beside = (entry) =>
+  /** @param {object} entry @param {Element} [source] */
+  const beside = (entry, source = asked) =>
     registerContribution({
       key: `probe:${entry.key}`,
       target: asked,
+      source,
       read: () => ({ entries: [entry] }),
       activate() {},
     });
-  const planted = [
-    { key: "react", label: "👍", glyph: "👍" },
-    {
-      key: "copy",
-      label: "Copy",
-      icon: "copy",
-      activation: "asked.copy",
-      scope: asked.lfCommands,
-    },
-    {
-      key: "elsewhere",
-      label: "Yes",
-      icon: "check",
-      activation: "other.yes",
-      scope: other.lfCommands,
-    },
-  ];
-  try {
-    for (const entry of planted) {
-      const registration = beside(entry);
-      try {
-        assert.deepEqual(asks(), ["Waiting on me"], `beside ${entry.key}`);
-      } finally {
-        registration.unregister();
-      }
-    }
-    const answering = beside({
-      key: "yes",
-      label: "Yes",
-      icon: "check",
-      activation: "asked.yes",
-      scope: asked.lfCommands,
-    });
+  const answer = (activation, scope, extra = {}) => ({
+    key: activation,
+    label: "Yes",
+    icon: "check",
+    activation,
+    scope,
+    ...extra,
+  });
+  /** @param {object} entry @param {string[]} expected @param {Element} [source] */
+  const expectAsks = (entry, expected, source) => {
+    const registration = beside(entry, source);
     try {
-      assert.deepEqual(asks(), []);
+      assert.deepEqual(asks(), expected, entry.key);
     } finally {
-      answering.unregister();
+      registration.unregister();
     }
+  };
+  const standing = ["Waiting on me"];
+  try {
+    expectAsks({ key: "react", label: "👍", glyph: "👍" }, standing);
+    expectAsks(answer("asked.copy", own), standing);
+    expectAsks(answer("other.yes", shared), standing);
+    expectAsks(answer("asked.yes", own, { visible: false }), standing);
+    // Another element holding the widget's scope object answers nothing of the widget's.
+    other.lfCommands = own;
+    expectAsks(answer("asked.yes", own), standing, other);
+    expectAsks(answer("asked.yes", own), []);
+    expectAsks(answer("toolbar.approve", nested), []);
   } finally {
     document.body.replaceChildren();
   }

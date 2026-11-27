@@ -39,7 +39,9 @@
    A widget whose page module talks to the element itself names those properties:
 
    - `options.properties` are props too, as `BrowserHost.defineElement`'s are: the
-     element keeps what the page sets, and a set gives the component new props.
+     element keeps what the page sets, and a set gives the component new props. A
+     value the page set before the tag was defined counts, so either module may load
+     first.
    - `options.members` read and write the component's Model: reading one gives what
      its `get` reads off the Model, and setting one sends the root the message its
      `set` returns. Out of the document a member reads the Model the closed root
@@ -93,6 +95,7 @@ export function defineWidget(
           set(value) {
             this.#properties = { ...this.#properties, [name]: value };
             if (this.#root) this.#update();
+            else this.#mount();
           },
         });
       for (const [name, { get, set }] of Object.entries(members))
@@ -129,6 +132,17 @@ export function defineWidget(
     constructor() {
       super();
       if (shadow) this.attachShadow({ mode: "open" });
+      // A page may set a property before this module defines the tag, which leaves an
+      // own property hiding the accessor. Its value moves into the props here, without
+      // the accessor's mount: an element upgraded in the document mounts from
+      // `connectedCallback`, once Leaf has answered `lf-connect`.
+      const own = /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (this));
+      for (const name of properties)
+        if (Object.hasOwn(this, name)) {
+          const value = own[name];
+          delete own[name];
+          this.#properties = { ...this.#properties, [name]: value };
+        }
       // A listener on a shadow host sees itself as the target of an event from inside
       // its root, so the element that connected is read off the path.
       this.addEventListener(CONNECT, (event) => {

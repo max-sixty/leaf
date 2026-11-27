@@ -224,6 +224,14 @@ const lineLabel = ({ path, side, oldLine, newLine }) => {
   return `${file} · old line ${oldLine} · new line ${newLine}`;
 };
 
+// A line number's name holds the numbers its gutter shows in the order it shows them,
+// so a user who speaks what they see reaches it (WCAG 2.5.3, Label in Name).
+/** @param {import("./diff-coordinates.js").DiffCoordinate} coordinate */
+const gutterLabel = (coordinate) =>
+  coordinate.side === "both"
+    ? `${coordinate.path || UNNAMED} · old and new line ${coordinate.oldLine} ${coordinate.newLine}`
+    : lineLabel(coordinate);
+
 /** @param {{path: string}} record */
 const fileLabel = ({ path }) => `${path || UNNAMED} · file`;
 // Only the header represents the file datum. The body contains independently
@@ -264,22 +272,24 @@ function lineNumber(line, canComment) {
   if (number instanceof HTMLButtonElement) {
     number.type = "button";
     number.tabIndex = -1;
-    number.setAttribute("aria-label", `Comment on ${lineLabel(line)}`);
+    number.setAttribute("aria-label", `Comment on ${gutterLabel(line)}`);
     number.setAttribute(LINE_KEY, diffDatumKey(line));
   }
   // Two cells, the old file's number and the new file's, as a unified diff reads: one
   // column holding whichever number a row has would mix the two files' counts, which
-  // drift apart once a hunk adds or removes lines.
+  // drift apart once a hunk adds or removes lines. A space stands between the cells,
+  // where the gutter's grid draws nothing, so the numbers read as two words.
   number.toggleAttribute("data-lf-echo", true);
+  /** @param {number | string} value */
+  const cell = (value) => {
+    const span = document.createElement("span");
+    span.textContent = String(value);
+    return span;
+  };
   number.replaceChildren(
-    ...[
-      line.side === "new" ? "" : line.oldLine,
-      line.side === "old" ? "" : line.newLine,
-    ].map((value) => {
-      const cell = document.createElement("span");
-      cell.textContent = String(value);
-      return cell;
-    }),
+    cell(line.side === "new" ? "" : line.oldLine),
+    " ",
+    cell(line.side === "old" ? "" : line.newLine),
   );
   return number;
 }

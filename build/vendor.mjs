@@ -611,6 +611,12 @@ const bundles = {
   // The chart's preview says a point by those decisions, so Plot's published module,
   // `dist/plot.js`, exports them (`tipSources` and `tipRows` in the entry), each line
   // naming the channel it says.
+  //
+  // `build/@observablehq__plot.patch` has Plot's pointer pool rank only the pointers
+  // that picked something. Unpatched, a pointer or facet that picks nothing outranks a
+  // pick farther than its 40px reach, so a faceted chart with `tip: "x"` shows no tip,
+  // and lf-chart's pick (chart-points.js `nearest`) no longer matches Plot's. The hunk
+  // goes once Plot ships the fix (observablehq/plot#2475).
   plot: () => ({
     out: `${packageVendor("default")}/plot.esm.js`,
     entryPoints: [input("entries/plot/entry.mjs")],

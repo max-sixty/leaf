@@ -49,12 +49,12 @@ const titlesName = () => !document.documentElement.hasAttribute("data-lf-interac
 // `focus()` and `click()`.
 // The marks a press or box of controls wears, as attributes: what `offerElement` writes
 // on a node and what a view that builds its own elements, such as an Effect UI
-// component's, sets (`pressAttributes`). `type` is a button's or input's own type, where
-// it has one; a button without one becomes `type="button"`.
+// component's, sets (`pressAttributes` for a worded press). `type` is a button's or
+// input's own type, where it has one; a button without one becomes `type="button"`.
 /** @param {string} localName @param {string} [cls]
  *  @param {{type?: string | undefined, pressable?: boolean}} [options]
  *  @returns {Record<string, string>} */
-function offerAttributes(localName, cls, { type, pressable = false } = {}) {
+export function offerAttributes(localName, cls, { type, pressable = false } = {}) {
   const face = localName.includes("-") ? "" : " lf-ui-face";
   const buttonType = localName === "button" ? (type ?? "button") : undefined;
   return {
@@ -161,17 +161,20 @@ const buildAction = (role, cls, label) => {
     node.textContent = label;
   return node;
 };
+// A selectable offer's marks as attributes, for a span a view builds itself, such as an
+// Effect UI component's: what `selectableOffered` writes, with the label and the tab
+// stop left to the view.
+/** @param {string} role @param {string} [cls] @param {LeafActionRole} [face]
+ *  @returns {Record<string, string>} */
+export const selectableAttributes = (role, cls, face) => ({
+  role,
+  class: [face && actionClass(face), cls, "lf-ui lf-ui-face"].filter(Boolean).join(" "),
+  "data-lf-gen": "1",
+  "data-lf-offer": role,
+});
 /** @param {Element} node @param {string} role @param {string} [cls] @param {LeafActionRole} [face] */
-const selectableOfferElement = (node, role, cls, face) => {
-  keeps(node, "role", role);
-  keeps(
-    node,
-    "class",
-    [face && actionClass(face), cls, "lf-ui lf-ui-face"].filter(Boolean).join(" "),
-  );
-  keeps(node, "data-lf-gen", "1");
-  keeps(node, "data-lf-offer", role);
-};
+const selectableOfferElement = (node, role, cls, face) =>
+  writeAttributes(node, selectableAttributes(role, cls, face));
 
 // Some page words also act as controls: a tab name, a chosen mark, or the title of a
 // settled decision. Chromium and Firefox begin a selection inside a button styled

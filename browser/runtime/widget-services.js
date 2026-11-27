@@ -4,6 +4,13 @@
    the Leaf that hosts that element. A test or a story provides a fake instead
    (`X.toLayer(fn)`), with no page.
 
+   This module and the adapter load in any document (portable-api.js), so a portable
+   widget draws on a page without Leaf. So the module imports statically only what
+   portable-api.js re-exports, the library (`lib/`) and `host/mounted.js`, which
+   imports nothing. A service that needs Leaf's application reaches it there, as
+   `mountApplication` sets it, so it calls the application in the task of the input
+   that asked, and does nothing on a page without Leaf.
+
    Each service is one of the widget protocol's calls (module-plain-elements.md) or a
    function `widget-api.js` exports, under one name:
 
@@ -18,12 +25,13 @@
    - `NavigateToDatum` reveals the datum `key` names through the element's reference
      attribute `reference`, as `navigateToDatum` does, announcing `success` or
      `missing`. Focus stays where the user is.
-
-   The last two reach the application Leaf mounted (`host/mounted.js`) without
-   importing it, so a page Leaf doesn't serve loads none of it; there they do nothing. */
+   - `Announce` is `lf-announce`: words a listener should hear now.
+   - `KeepInTab` is `tabStore.set`: how the user looks at the widget, kept for this
+     tab, which the widget's inputs read back with `tabStore.get`. */
 import { Command, Effect, Layer, Schema } from "/vendor/effect-ui.js";
 import { mounted } from "./host/mounted.js";
-import { sendGesture } from "./lib/widget-events.js";
+import { tabStore } from "./state/tab-store.js";
+import { ANNOUNCE, sendGesture } from "./lib/widget-events.js";
 
 /** What became of a recorded gesture. */
 const Delivery = Schema.Literals(["admitted", "refused", "unrecorded"]);
@@ -49,6 +57,14 @@ export class NavigateToDatum extends Command.Service()("leaf/NavigateToDatum", {
     success: Schema.String,
     missing: Schema.String,
   },
+}) {}
+
+export class Announce extends Command.Service()("leaf/Announce", {
+  args: { words: Schema.String },
+}) {}
+
+export class KeepInTab extends Command.Service()("leaf/KeepInTab", {
+  args: { key: Schema.String, value: Schema.String },
 }) {}
 
 /** Record a gesture on `element` and wait for what became of it.
@@ -80,6 +96,14 @@ export const leafServices = (element) =>
           missing,
         });
       }),
+    ),
+    Announce.toLayer((/** @type {any} */ { words }) =>
+      Effect.sync(() =>
+        window.dispatchEvent(new CustomEvent(ANNOUNCE, { detail: words })),
+      ),
+    ),
+    KeepInTab.toLayer((/** @type {any} */ { key, value }) =>
+      Effect.sync(() => tabStore.set(key, value)),
     ),
   );
 

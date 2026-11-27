@@ -173,14 +173,26 @@ const dialMembers = {
   },
 };
 
-test("a member set before the element connects reaches its root", () => {
+test("a member set before the element connects reaches its root, and draws before lf-commands", async () => {
   const tag = `lf-effect-${++tags}`;
   defineWidget(tag, Dial, { members: dialMembers });
   const el = /** @type {HTMLElement & {at: number}} */ (document.createElement(tag));
   el.at = 3;
+  /** @type {PromiseLike<unknown>[]} */
+  const pending = [];
+  /** @type {(string | null | undefined)[]} */
+  const announced = [];
+  el.addEventListener("pending-task", (event) =>
+    pending.push(/** @type {any} */ (event).complete),
+  );
+  el.addEventListener("lf-commands", () => announced.push(shown(el)));
   document.body.append(el);
   try {
     assert.equal(el.at, 3);
+    assert.equal(pending.length, 1);
+    await pending[0];
+    assert.equal(shown(el), "3");
+    assert.equal(announced.at(-1), "3");
   } finally {
     el.remove();
   }

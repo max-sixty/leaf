@@ -52,7 +52,7 @@
      first.
    - `options.members` read and write the component's Model: reading one gives what
      its `get` reads off the Model, and setting one sends the root the message its
-     `set` returns. Out of the document a member reads the Model the closed root
+     `set` returns, which draws as a set of props does. Out of the document a member reads the Model the closed root
      ended with, and a set waits for the next root, as one made before the tag was
      defined does. */
 import {
@@ -126,8 +126,11 @@ export function defineWidget(
           set(value) {
             if (!set) return;
             const message = set(value);
-            if (this.#root) this.#root.send(message);
-            else this.#held.push(message);
+            if (!this.#root) this.#held.push(message);
+            else {
+              this.#root.send(message);
+              this.#redraws();
+            }
           },
         });
     }
@@ -295,8 +298,10 @@ export function defineWidget(
           Scope.provide(scope),
         ),
       ));
-      for (const message of this.#held.splice(0)) root.send(message);
+      const held = this.#held.splice(0);
+      for (const message of held) root.send(message);
       this.#drawn();
+      if (held.length) this.#redraws();
     }
 
     // The box a light widget draws in, since Effect UI empties the container it mounts
@@ -313,8 +318,12 @@ export function defineWidget(
       const root = this.#root;
       if (!root) return;
       root.setProps(this.#props());
-      // Effect UI's flush is the microtask setProps queued, so a task queued now
-      // runs after it.
+      this.#redraws();
+    }
+
+    // The root draws a change in Effect UI's flush, the microtask that `setProps` or
+    // `send` queued, so a task queued now runs after it.
+    #redraws() {
       const drawn = Promise.resolve().then(() => this.#drawn());
       this.dispatchEvent(new PendingTaskEvent(drawn));
     }

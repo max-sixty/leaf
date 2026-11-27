@@ -1,3 +1,4 @@
+// Compiled from replies.ts by build/typescript.mjs; edit that file.
 /* One reply draft and send lifecycle shared by every view of a thread.
 
    A reply send draws its turn in the gesture that makes it. Its provisional result
@@ -73,55 +74,27 @@ import { TEXT_FIELD } from "../../dom/control-selectors.js";
 import { tick } from "../../state/version-signal.js";
 import { closestAcross } from "../../lib/shadow-tree.js";
 
-/** @import { WireInput } from "../composition-input.js" */
-/** A reply box's field, which the box puts the caret back in as it changes hands.
- * @typedef {import("../composition-input.js").InputField & {setSelectionRange:
- * (...caret: import("../../base/held-place.js").Caret) => void}} ReplyField */
-/** @typedef {{actions: {reply: (key: string, text: string, options: {attempt: string}) => ReturnType<ReturnType<typeof import("./actions.js").createThreadActions>["reply"]>},
- * wireInput: WireInput,
- * landSent: typeof import("./landing.js").landSent,
- * landInThread: typeof import("./landing.js").landInThread}} ReplyCommands */
-/** @typedef {Partial<Pick<import("../composition-input.js").InputOptions,
- * "hint" | "hintParts" | "hintLead" | "enters" | "accessibleName" | "busy" | "closed" | "cornerAtRest">> & {
- * onChange?: () => void,
- * editLast?: ReturnType<typeof import("./message-edit.js").threadRewrites>["editLast"] | null,
- * sending?: (() => void) | null, sent?: (() => unknown) | null}} ReplyOptions */
-/** @typedef {Required<Pick<ReplyOptions, "hint" | "hintParts" | "hintLead" | "enters" | "accessibleName" | "busy" | "closed" | "cornerAtRest">>} BoxOptions */
-/** @typedef {ReplyCommands & {onChange: () => void,
- * editLast: ReplyOptions["editLast"], sending: ReplyOptions["sending"], sent: ReplyOptions["sent"],
- * give: () => () => void, take: (owner: Composition) => void, box: BoxOptions}} Binding */
-/** @typedef {{context: string, key: string, row: HTMLDivElement,
- * controls: {input: ReplyField, send: HTMLButtonElement | null},
- * send: import("../composition-input.js").Sender | null,
- * binding: Binding | null, changed: () => void, sync: ReturnType<WireInput>, retired?: boolean}} Composition */
-/** @typedef {{owner: Composition | null,
- * editing?: NonNullable<ReturnType<typeof captureDraftEditing>>, continuing?: boolean}} Session */
-/** @type {WeakMap<Element, Composition>} */
+/** A reply box's field, which the box puts the caret back in as it changes hands. */
+
 const rowCompositions = new WeakMap();
-/** @type {Map<string, Session>} */
 const compositions = new Map(); // context -> native session, with its current owner
 // Which threads have a session is a reading paints follow (`replyIsEditing`): a
 // settled thread keeps its margin entry and its box while one stands, so a session's
 // start and end repaint them. Which view owns a session moves nothing here.
 const sessions = signal(0);
-/** @param {string} context @param {Session} session */
 function openSession(context, session) {
   compositions.set(context, session);
   tick(sessions);
   return session;
 }
-/** @param {string} context */
 function closeSession(context) {
   if (compositions.delete(context)) tick(sessions);
 }
-/** @type {Set<{composition: Composition, binding: Binding}>} */
 const views = new Set();
-/** @param {Composition | null | undefined} composition */
 const available = (composition) =>
   !!composition &&
   [...views].some((view) => view.composition === composition) &&
   composition.controls.input.isConnected;
-/** @param {string} context @param {Composition} composition */
 function adopt(context, composition) {
   const session = compositions.get(context);
   if (session?.owner !== composition) session?.owner?.sync.cancelDictation();
@@ -131,37 +104,28 @@ function adopt(context, composition) {
   if (caret) composition.controls.input.setSelectionRange(...caret);
   remember(composition);
 }
-/** @param {Composition} composition */
 function remember(composition) {
   const session = compositions.get(composition.context);
   if (!session || session.owner !== composition) return;
   const editing = captureDraftEditing(composition.controls.input);
   if (editing) session.editing = editing;
 }
-/** @param {Element | null | undefined} node */
 const compositionOf = (node) => {
   const row = closestAcross(node ?? null, SAY_ROW);
   return row ? rowCompositions.get(row) : undefined;
 };
-/** @param {Element | null} node */
 export const replyDraftContext = (node) => compositionOf(node)?.context ?? null;
 // The `threadKey` of the thread a reply row writes in, wherever the row stands, the park
 // included.
-/** @param {Element | null} node */
 export const replyThreadKey = (node) => compositionOf(node)?.key ?? null;
 // Capture native owners before preparation can detach their subscriptions. A complete
 // cohort then continues through the core destination policy, independently of its own
 // presentation ticket: revealing that route may need another Thread presentation.
-/** @param {readonly import("./thread-card.js").ThreadRecord[]} threads
- * @param {(id: string, intent: ReturnType<typeof retainUserIntent>) => Promise<Element | null>} realize */
 export function holdReplyCompositions(threads, realize) {
   const current = new Map(
     threads.map((thread) => [replyContext(threadKey(thread)), thread]),
   );
-  /** @type {{context: string, session: Session, owner: Composition,
-   * id: string, intent: ReturnType<typeof retainUserIntent>}[]} */
   const retained = [];
-  /** @type {[string, Session][]} */
   const retired = [];
   for (const [context, session] of compositions) {
     const thread = current.get(context);
@@ -183,7 +147,7 @@ export function holdReplyCompositions(threads, realize) {
     );
     retained.push({ context, session, owner, intent, id: thread.id });
   }
-  return async (/** @type {(() => unknown) | null | undefined} */ restore) => {
+  return async (restore) => {
     for (const [context, session] of retired)
       if (compositions.get(context) === session) endSession(context);
     const displaced = retained.filter(
@@ -215,14 +179,12 @@ export function holdReplyCompositions(threads, realize) {
 
 // Whether the thread under `key` holds words the user has not sent: in its reply box,
 // or in a rewrite of one of its messages, `ids`, they closed without saving.
-/** @param {string} key @param {readonly string[]} ids */
 export const threadHoldsDraft = (key, ids) =>
   draftHasContent(replyContext(key)) ||
   ids.some((id) => draftHasContent(rewriteContext(id)));
 
 // Revision admission asks the owner about every native editing session, including
 // one the user left by Tab. Persisted words alone do not create a session.
-/** @param {(input: Element | undefined) => boolean} retains */
 export const replyDraftsHold = (retains) =>
   [...compositions].some(
     ([context, session]) =>
@@ -231,7 +193,6 @@ export const replyDraftsHold = (retains) =>
 
 // A composition is the row's mechanical session, not the saved draft and not focus.
 // Native Tab walks its controls and the surrounding page without dismissing it.
-/** @param {string} context */
 function endSession(context) {
   const session = compositions.get(context);
   closeSession(context);
@@ -239,19 +200,16 @@ function endSession(context) {
   if (session?.owner && !session.owner.binding) session.owner.row.remove();
   return session;
 }
-/** @param {string} context */
 function dismissContext(context) {
   const session = endSession(context);
   if (!session) return;
   session.owner?.sync.cancelDictation();
   session.owner?.changed();
 }
-/** @param {string} key */
 export const dismissReply = (key) => dismissContext(replyContext(key));
 // A press within the owning thread keeps its composition, including its controls
 // and messages outside the reply row. Read the row first so a parked editor still
 // owns its press. The declared reply part gives a split drawing the same scope.
-/** @param {EventTarget | undefined} target */
 const pressContext = (target) => {
   const node = target instanceof Element ? target : null;
   const row = replyDraftContext(node);
@@ -271,7 +229,6 @@ onPressAway(
   },
 );
 
-/** @param {Element | null} node */
 export const dismissReplyAt = (node) => {
   const context = replyDraftContext(node);
   if (context !== null) dismissContext(context);
@@ -279,7 +236,6 @@ export const dismissReplyAt = (node) => {
 
 // The giver lets go before the taker attaches, and draws its fresh row only once the
 // taker has moved this one out, so the row never leaves the document between them.
-/** @param {Composition} owner @param {Binding} binding */
 function handOver(owner, binding) {
   const redrawGiver = owner.binding?.give();
   binding.take(owner);
@@ -292,7 +248,6 @@ function handOver(owner, binding) {
 // Once no view shows the session's row, the view now drawing its thread puts that row
 // in place of its own, and the user goes on in their own editor, with its undo history.
 // A view holding the row out of sight gives it up and draws a fresh one.
-/** @param {Composition} target @param {Composition} owner */
 function carry(target, owner) {
   if (
     target === owner ||
@@ -311,9 +266,7 @@ function carry(target, owner) {
 // and hidden. The thread pass that released it puts the thread up again in the same
 // task, where a view drawing it claims the row (`claim`) before the browser drops focus
 // from a hidden node.
-/** @type {HTMLDivElement | null} */
 let park = null;
-/** @param {HTMLDivElement} row */
 function parkRow(row) {
   if (!park) {
     park = el("div", "lf-reply-park");
@@ -325,7 +278,6 @@ function parkRow(row) {
 
 // A view that can draw its thread no more (above) releases the session rows it holds
 // within `surface`: each goes to a view drawing that thread now, or to the park.
-/** @param {Element} surface */
 export function releaseReplies(surface) {
   for (const { owner } of compositions.values()) {
     if (!owner?.binding || !surface.contains(owner.row)) continue;
@@ -344,15 +296,13 @@ export function releaseReplies(surface) {
 // The producer gives each native control its place in the same row on another view.
 // A handoff carries Send as Send and an editor as that editor, in the row itself where
 // no view holds it any more (`carry`).
-/** @param {Element | null} node */
 export function replyControlDestination(node) {
   const composition = compositionOf(node);
   if (!composition) return null;
-  /** @type {readonly (keyof Composition["controls"])[]} */
   const parts = ["input", "send"];
   const part = parts.find((name) => composition.controls[name] === node);
   if (!part) return null;
-  return (/** @type {Element | null} */ thread) => {
+  return (thread) => {
     const target = compositionOf(thread?.querySelector(SAY_ROW));
     return target ? carry(target, composition).controls[part] : null;
   };
@@ -363,9 +313,6 @@ export function replyControlDestination(node) {
 // spent and refuses on its own — in this tab and in any other showing the page, which a
 // hold kept in this document's memory would not reach. A send returns the
 // message it drew; nothing when nothing was sent. A refusal comes `back` to the box.
-/** @param {string} draftCtx @param {string} key @param {string} text
- * @param {Parameters<typeof sendMessage>[1]} owns @param {ReplyCommands["actions"]} actions
- * @param {() => unknown} back */
 function sendReply(draftCtx, key, text, owns, actions, back) {
   return sendMessage(
     draftCtx,
@@ -381,10 +328,6 @@ function sendReply(draftCtx, key, text, owns, actions, back) {
 // after the draft began. The typed action resolves that target from the current reading.
 // What the row does for a view, its actions, `onChange` and `editLast`, is the binding
 // of whichever view holds it now (`attach`).
-/** @param {string} key @param {HTMLDivElement} row
- * @param {ReplyField} input
- * @param {ReplyCommands} commands
- * @param {BoxOptions} options */
 function wireReply(key, row, input, commands, options) {
   row.classList.add("lf-comment-box");
   input.setAttribute("data-lf-voice", "leaf");
@@ -393,10 +336,8 @@ function wireReply(key, row, input, commands, options) {
   // What the box says and offers is the view's that holds the row now, so a row another
   // view takes (`take`) reads that view's words, keys, corner and stance, not those of
   // the view it was made for.
-  /** @type {Composition | undefined} */
   let composition;
   const box = () => composition?.binding?.box ?? options;
-  /** @param {import("../../base/command-declaration.js").Cell<string> | null} cell */
   const read = (cell) => (typeof cell === "function" ? cell() : cell);
   const sync = commands.wireInput(input, {
     hint: () => read(box().hint) ?? "",
@@ -442,7 +383,6 @@ function wireReply(key, row, input, commands, options) {
       },
     ],
   });
-  /** @type {Composition} */
   const made = {
     context: draftCtx,
     key,
@@ -461,13 +401,11 @@ function wireReply(key, row, input, commands, options) {
 
 // Make this row the owner of its thread's session, opening the session where none
 // stands.
-/** @param {Composition} composition */
 function beginIn(composition) {
   adopt(composition.context, composition);
   composition.changed();
 }
 // A command that takes the user into a box says so as it lands (landing.js, `landIn`).
-/** @param {Element | null} node */
 export const beginReplyAt = (node) => {
   const composition = compositionOf(node);
   if (composition?.binding) beginIn(composition);
@@ -489,7 +427,6 @@ onCurrentLocation((node, cause, left) => {
 // A view takes the row: it joins the thread's draft views and mirrors the draft, and a
 // press in its box makes it the editing session's owner, a caret already there included,
 // which moves no focus. The returned detach gives it up.
-/** @param {Composition} composition @param {Binding} binding */
 function attach(composition, binding) {
   const { context, controls, sync } = composition;
   composition.binding = binding;
@@ -543,7 +480,6 @@ function attach(composition, binding) {
 // null means this is not a reply composition. False is the useful third state: a row
 // opened by the runtime but never edited, whose empty focus is a landing rather than
 // a composition the next live revision must preserve.
-/** @param {Element | null} node */
 export const replyCompositionHasDraft = (node) => {
   const ctx = replyDraftContext(node);
   return ctx ? loadDraft(ctx) !== null : null;
@@ -551,7 +487,6 @@ export const replyCompositionHasDraft = (node) => {
 
 // Editing belongs to the reply row's session, including Send and native Tab browsing.
 // Persisted words alone never reopen an editor after settlement or reload.
-/** @param {string} key */
 export const replyIsEditing = (key) => {
   sessions.value;
   return compositions.has(replyContext(key));
@@ -564,8 +499,6 @@ export const replyIsEditing = (key) => {
 // A session that no longer stands, as one whose words another tab sent or cleared,
 // keeps nothing open, and `land` runs all the same, since it carries more of the
 // arrival than the session (features/version.js, `keepReplySession`).
-/** @param {ReturnType<typeof captureDraftEditing>} editing
- * @param {() => Promise<Element | null>} land */
 export async function restoreReplyEditing(editing, land) {
   if (!editing?.mirrored || !draftEditingStands(editing)) return land();
   const context = editing.context;
@@ -586,8 +519,6 @@ export async function restoreReplyEditing(editing, land) {
 // land a send's turn itself (`sent`), as the floating panel's view does at its end,
 // told before the send draws (`sending`). The view draws its row again
 // on `redraw`, as it takes another in its place.
-/** @param {string} key @param {ReplyCommands} commands
- * @param {() => void} redraw @param {ReplyOptions} [options] */
 export function createReplyView(
   key,
   commands,
@@ -614,7 +545,6 @@ export function createReplyView(
     row.append(input);
     return wireReply(key, row, input, commands, box);
   };
-  /** @type {BoxOptions} */
   const box = {
     hint,
     hintParts,
@@ -626,7 +556,6 @@ export function createReplyView(
     cornerAtRest,
   };
   let composition = fresh();
-  /** @type {Binding} */
   const binding = {
     ...commands,
     box,
@@ -665,7 +594,6 @@ export function createReplyView(
     // A view drawing the thread takes its session's row where no view holds it: one
     // released to the park, or one whose view went. It does so once it stands in the
     // document, `shown`, so the move keeps the user in the row (dom/dom-move.js).
-    /** @param {() => boolean} shown */
     claim(shown) {
       const owner = compositions.get(composition.context)?.owner;
       if (owner && owner !== composition && !owner.binding && !owner.retired && shown())

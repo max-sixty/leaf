@@ -1,3 +1,4 @@
+// Compiled from messages.ts by build/typescript.mjs; edit that file.
 /* Synchronous Lit message presentation and authored message islands.
 
    Every surface uses the same message, header and body vocabulary. Generated
@@ -104,13 +105,10 @@ import { messageLink } from "./address.js";
 // as that binding drew it, rather than diffed at the square of its length.
 const keptWords = directive(
   class extends Directive {
-    /** @type {string | null} */
     #drawn = null;
-    /** @param {string} _markup */
     render(_markup) {
       return noChange;
     }
-    /** @param {import("/vendor/lit.js").ElementPart} part @param {[string]} markup */
     update(part, [markup]) {
       if (markup === this.#drawn) return noChange;
       this.#drawn = markup;
@@ -128,12 +126,7 @@ export const loadMessageMarkdown = () =>
 // Prose parsing is shared across descriptor passes and surfaces. Its value changes
 // with admission, edits, stream text, or the lazy Markdown renderer becoming ready;
 // clock and receipt paint reuse the same HTML without retaining generated DOM.
-/** @typedef {import("../../base/snapshot.js").Immutable<ReturnType<typeof import("../../state/thread/model.js").readThreadRecords>[number]["msgs"][number]>} MessageRecord */
-/** @typedef {{id: string | undefined, edited: string | null, text: string,
- * markdown: boolean, html: string, mediaHtml: string, plainText: string}} ProseReading */
-/** @type {Map<string | undefined, ProseReading>} */
 const renderedProse = new Map();
-/** @param {Parameters<typeof messageText>[0]} message @returns {ProseReading} */
 function proseReading(message) {
   const key = message.attempt ?? message.id;
   const edited = message.edited?.id ?? null;
@@ -170,7 +163,6 @@ function proseReading(message) {
 // What a deleted message reads in its place, in Leaf's voice, as what the user did.
 const DELETED = leafSays("Deleted");
 
-/** @param {{readonly id?: string, readonly attempt?: string, readonly text?: string | undefined, readonly emoji?: string, readonly suggestion?: boolean, readonly body?: {readonly kind: string, readonly text: string}, readonly edited?: {readonly id?: string} | null | undefined}} message @returns {string} */
 export function messageText(message) {
   if (message.body?.kind === "authored") return message.body.text;
   if (message.emoji) return message.emoji;
@@ -180,7 +172,6 @@ export function messageText(message) {
 // A whole message in words, on one line, as a thread holds it: what it renders, its
 // widgets' words and its images' alt text included (`messageText`), else Drawing for
 // one drawn without words, or Deleted message.
-/** @param {Parameters<typeof messageText>[0] & {readonly drawing?: unknown, readonly withdrawn?: unknown}} message */
 export const messageWords = (message) =>
   labelWords(messageText(message)) ||
   (message.drawing ? "Drawing" : deleted(message) ? "Deleted message" : "");
@@ -188,7 +179,6 @@ export const messageWords = (message) =>
 // A thread's name in words, as search, accessible names and prose read it: its title,
 // else its opening message's words (`messageWords`). A surface clips it to its own
 // room, and one that draws the name draws `threadHeading`.
-/** @param {{readonly title: string | null, readonly root: Parameters<typeof messageWords>[0]}} thread */
 export const threadName = (thread) => thread.title ?? messageWords(thread.root);
 
 // Whether a title is on its way to an untitled thread. Leaf asks the claimant's
@@ -197,7 +187,6 @@ export const threadName = (thread) => thread.title ?? messageWords(thread.root);
 // the agent owes the thread work. A turn that ended, stalled or was never picked up
 // sends none. On a page nobody has claimed only an agent's reply names the thread, and
 // the page can't tell whether an agent hears it, so the thread reads its opening words.
-/** @param {Parameters<typeof threadName>[0] & {readonly attention?: {readonly next_actor: string | null, readonly state: string, readonly source: {readonly kind: string}} | null}} thread */
 export const titlePending = (thread) =>
   thread.title == null &&
   thread.attention?.next_actor === "agent" &&
@@ -211,7 +200,6 @@ export const titlePending = (thread) =>
 // its title.
 // The opening words stay in its accessible name, after the placeholder, so a screen
 // reader still tells two pending threads apart.
-/** @param {Parameters<typeof titlePending>[0]} thread */
 export const threadHeading = (thread) =>
   titlePending(thread)
     ? html`<span class="lf-thread-name-pending">Generating thread name…</span
@@ -220,13 +208,11 @@ export const threadHeading = (thread) =>
 
 // A message's opening line, as a preview reads it: its first line of words, else
 // Drawing for one drawn without words.
-/** @param {Parameters<typeof messageText>[0] & {readonly drawing?: unknown}} message */
 const openingLine = (message) =>
   messageText(message).split("\n").map(labelWords).find(Boolean) ??
   (message.drawing ? "Drawing" : "");
 
 // Who a message's head names: the agent by its name, the user as Me.
-/** @param {{readonly author: string, readonly agent?: string | null}} message */
 const authorName = (message) => (message.author === "agent" ? message.agent : "Me");
 
 // The characters of a thread's name or a message's opening line a preview keeps,
@@ -239,7 +225,6 @@ export const LISTED_NAME = 60;
 // (`threadAttention`) and the agent's line on the work in hand, what it holds unread
 // and how many messages it holds, each said by whoever says it, less the part `said`,
 // which what it describes already says.
-/** @param {import("./workflow.js").ThreadRecord} thread @param {string | null} said */
 function threadStands(thread, said) {
   const attention = threadAttention(thread, agentName());
   const detail = attention?.turn === "agent" ? attention.workflow?.detail : null;
@@ -261,7 +246,6 @@ function threadStands(thread, said) {
 // day, then its time. A head too narrow for both keeps the day whole and drops the
 // time onto a line it clips (surfaces.css), so a crowded head still says which day,
 // where an ellipsis cut it to "Nov 1…"; the preview reads the time whole.
-/** @param {string | null | undefined} timestamp */
 export function saidTime(timestamp) {
   const said = saidAt(timestamp);
   return said
@@ -287,14 +271,10 @@ export function saidTime(timestamp) {
  * panel's list of them, where each row previews its thread. A line in the user's turn
  * wears the turn's mark (`data-lf-turn`). Where the preview describes something that already says one
  * thread's word, as a margin entry's name does to the keyboard, `said` is that word,
- * which its line leaves out, so a screen reader hears it once.
- * @param {readonly import("./workflow.js").ThreadRecord[]} threads
- * @param {string | null} [said]
- * @returns {import("../../base/preview-declaration.js").Preview | null} */
+ * which its line leaves out, so a screen reader hears it once. */
 export function threadPreview(threads, said = null) {
   const [only] = threads;
   if (!only) return null;
-  /** @param {ReturnType<typeof threadStands>} stands @param {string} [lead] */
   const standing = ({ turn, words }, lead = "") =>
     html`<span data-lf-turn=${turn ?? nothing}>${lead}${voiced(words)}</span>`;
   if (threads.length === 1) {
@@ -329,11 +309,8 @@ export function threadPreview(threads, said = null) {
 
 // A listed draft in words, on one line, as it now stands (records/drafts.js, the drafts list):
 // what its message would say, Drawing for ink alone.
-/** @param {import("../drafts.js").ListedDraft} draft */
 export const draftWords = (draft) => {
-  const payload = /** @type {{suggest?: unknown, drawing?: unknown} | undefined} */ (
-    draft.payload
-  );
+  const payload = draft.payload;
   return messageWords({
     attempt: `draft:${draft.context}`,
     text: loadDraft(draft.context)?.text ?? "",
@@ -342,14 +319,10 @@ export const draftWords = (draft) => {
   });
 };
 // A listed draft's words as a preview reads them: a line of them, cut at its length.
-/** @param {import("../drafts.js").ListedDraft} draft */
 export const draftLine = (draft) => excerptWords(draftWords(draft), PREVIEWED_LINE);
 // What drafts say when pointed at, on a row of Threads and on a margin entry: each
 // one's words, a line of them, under what it is about where the place pointed at
 // doesn't already say it. What Send makes of it stands beside it on both.
-/** @param {readonly import("../drafts.js").ListedDraft[]} drafts
- * @param {import("../../base/voice.js").Words | null} [about]
- * @returns {import("../../base/preview-declaration.js").Preview | null} */
 export function draftPreview(drafts, about = null) {
   const [only] = drafts;
   if (!only) return null;
@@ -378,24 +351,14 @@ export function draftPreview(drafts, about = null) {
 // the same reason a thread gesture names no wording: one a tab makes before an
 // edit reaches it is read in the wording in force when it lands
 // (`events.message_wording`).
-/** @typedef {{
- * message: string,
- * body: {text: string, heldElsewhere: string, document: {thread: string, message: string}},
- * authored: ReturnType<typeof stageAuthoredStates>,
- * descriptors: ReturnType<typeof stageWidgetDescriptors>,
- * nodes: readonly ChildNode[], root: DocumentFragment,
- * preparation: Promise<PreparedAuthoredMessage> | null,
- * }} PreparedAuthoredMessage */
-/** Each message → its islands by the Markdown each was prepared from.
- * @type {Map<string, Map<string, PreparedAuthoredMessage>>} */
+
+/** Each message → its islands by the Markdown each was prepared from. */
 const authoredMessages = new Map();
-/** Each message → the island the adopted reading draws its widgets from.
- * @type {Map<string, PreparedAuthoredMessage>} */
+/** Each message → the island the adopted reading draws its widgets from. */
 const adoptedIslands = new Map();
 // Each element with an id that an adopted island keeps, with its message's document,
 // so finding one by id (`messageHolding`) costs one read however many messages the
 // page holds. Its ids are the authored ones, which no other message takes.
-/** @type {Map<string, {element: Element, document: {thread: string, message: string}}>} */
 const keptElements = new Map();
 // The markup a drawing that doesn't hold an authored message draws in its place
 // (`authoredHolders`): the message less what a second copy would duplicate, each id
@@ -406,14 +369,12 @@ const keptElements = new Map();
 // in Python), is its question, so it goes whole with it rather than leaving the
 // question's words with nothing to answer them. Any other group leaves what it holds,
 // less its widgets, as a figure keeps its caption when its chart goes.
-/** The innermost named group holding `element`, or null.
- * @param {Element} element @returns {Element | null} */
+/** The innermost named group holding `element`, or null. */
 function groupRound(element) {
   for (let at = element.parentElement; at; at = at.parentElement)
     if (declarationFor(at)?.["reading-role"] === "group") return at;
   return null;
 }
-/** @param {DocumentFragment} message */
 function heldElsewhere(message) {
   const copy = document.createElement("template");
   copy.content.append(message.cloneNode(true));
@@ -431,7 +392,6 @@ function heldElsewhere(message) {
   return copy.innerHTML;
 }
 
-/** @param {PreparedAuthoredMessage} island @returns {Iterable<Element>} */
 function* islandElements(island) {
   for (const node of island.nodes)
     if (node instanceof Element) {
@@ -440,20 +400,14 @@ function* islandElements(island) {
     }
 }
 
-/**
- * What adopting a reading changes about the islands its messages draw their widgets
+/** What adopting a reading changes about the islands its messages draw their widgets
  * from, against the reading adopted before it: `retired`, the widget ids an island
  * held that its message's island in this reading doesn't, as when an edit rewrote
  * the message or left it no HTML; and `commit`, which makes this reading's islands
  * the adopted ones once the page adopts it. `prepared` is null for a message drawn
- * as Markdown alone. A message whose island is unchanged costs one lookup.
- * @param {readonly {message: {id: string, attempt?: string | null},
- *   prepared: PreparedAuthoredMessage | null | undefined}[]} entries
- */
+ * as Markdown alone. A message whose island is unchanged costs one lookup. */
 export function islandChange(entries) {
-  /** @type {[string, PreparedAuthoredMessage | null, PreparedAuthoredMessage | null][]} */
   const changed = [];
-  /** @type {string[]} */
   const retired = [];
   for (const { message, prepared = null } of entries) {
     const key = message.attempt ?? message.id;
@@ -483,8 +437,6 @@ export function islandChange(entries) {
   };
 }
 
-/** @param {{id: string, attempt?: string, text?: string}} message @param {string} thread
- * @returns {Promise<PreparedAuthoredMessage>} */
 export function prepareAuthoredMessage(message, thread) {
   const key = message.attempt ?? message.id;
   if (typeof thread !== "string" || !thread)
@@ -560,7 +512,6 @@ export function prepareAuthoredMessage(message, thread) {
   ));
 }
 // The island of the wording a drawing shows, its Markdown (`messageReading`).
-/** @param {{id: string, attempt?: string | null, markdown: string | null}} message */
 const authoredMessage = (message) => {
   const prepared = authoredMessages
     .get(message.attempt ?? message.id)
@@ -590,19 +541,12 @@ const authoredMessage = (message) => {
 // (`authoredHolder`). Rejected: On Me's card ranking as the primary
 // reader's view, so opening it empties a thread on the page of its widgets.
 export const HOLDS = Object.freeze({ reader: 4, margin: 3, page: 2, aside: 1 });
-/** @typedef {{node: HTMLDivElement, model: ReturnType<typeof messageReading>,
- * present: (model: ReturnType<typeof messageReading>) => HTMLDivElement}} PresentedMessage */
-/** @type {Map<string, Set<PresentedMessage>>} */
+
 const authoredDrawings = new Map();
-/** @type {Map<string, PresentedMessage>} */
 const authoredHolders = new Map();
-/** @param {PresentedMessage} view */
 const shown = (view) => view.node.isConnected && showsContents(view.node);
-/** @param {PresentedMessage} view */
 const hidden = (view) => view.node.isConnected && !showsContents(view.node);
-/** @param {PresentedMessage} a @param {PresentedMessage} b */
 const outranks = (a, b) => a.model.authoredRank > b.model.authoredRank;
-/** @param {string} key */
 function settleAuthored(key) {
   const drawings = authoredDrawings.get(key) ?? new Set();
   const holder = authoredHolders.get(key);
@@ -615,9 +559,7 @@ function settleAuthored(key) {
   best.present(best.model);
   if (holder && drawings.has(holder)) holder.present(holder.model);
 }
-/** @type {Set<string>} */
 const unsettled = new Set();
-/** @param {string} key */
 function settleAuthoredSoon(key) {
   if (unsettled.has(key)) return;
   unsettled.add(key);
@@ -626,14 +568,12 @@ function settleAuthoredSoon(key) {
     settleAuthored(key);
   });
 }
-/** @param {string} key @param {PresentedMessage} view */
 function releaseAuthored(key, view) {
   if (authoredHolders.get(key) !== view) return;
   authoredHolders.delete(key);
   settleAuthored(key);
 }
 // Lets go of the widgets the drawings under `root` hold, as a card closing does.
-/** @param {Element} root */
 export function releaseAuthoredUnder(root) {
   for (const [key, view] of [...authoredHolders])
     if (root.contains(view.node)) releaseAuthored(key, view);
@@ -641,17 +581,12 @@ export function releaseAuthoredUnder(root) {
 // The drawn message holding the widgets of the message `id`, if a drawing holds them,
 // where an arrival at the message lands (destination.js). None while a drawing aside
 // holds them, since no thread opens there.
-/** @param {string} id */
 export function authoredHolder(id) {
   for (const view of authoredHolders.values())
     if (view.model.id === id && view.model.authoredRank !== HOLDS.aside && shown(view))
       return view.node;
   return null;
 }
-/** @param {MessageRecord} message
- * @param {{authoredRank?: number,
- * workflows: readonly import("../../../types/domain.js").Workflow[],
- * leaves?: {word: import("../../base/voice.js").Said, todo: string | null} | null}} options */
 export function messageReading(
   message,
   { authoredRank = 0, workflows, leaves = null },
@@ -728,58 +663,38 @@ export function messageReading(
   });
 }
 
-/** @typedef {{read: Pick<ReturnType<typeof import("./read.js").createReadTracking>, "observeMessage">,
- * reply: {wireInput: import("../composition-input.js").WireInput,
- * actions: Pick<ReturnType<typeof import("./actions.js").createThreadActions>, "edit">},
- * reaction: ConstructorParameters<typeof ReactionStripView>[0],
- * edit: ReturnType<typeof import("./message-edit.js").threadRewrites>["edit"],
- * showTodo: (todo: string) => unknown}} MessageCommands */
-
 // The tint a turn arrives in, a message or a step's face (transcript.js):
 // one phase drives its ground and its sticky head (surfaces.css, `--lf-msg-arrival`).
 // CSS resolves the tint and resting colour at the node after insertion; Firefox's Web
 // Animations interpolates a var() colour keyframe discretely. The shared motion gate
 // answers for restoration and reduced motion.
-/** @param {Element} node */
 export const arrivalTint = (node) =>
   motion(node, [{ "--lf-msg-arrival": 1, offset: 0 }], motionTime("--lf-motion-flash"));
 
 export class MessageView {
   #commands;
-  /** @type {PresentedMessage | null} */
   #presentation = null;
   get #model() {
     return this.#presentation?.model ?? null;
   }
-  /** @type {ReactionStripView | null} */
   #reaction = null;
-  /** @type {ReturnType<typeof copyControl> | null} */
   #copy = null;
-  /** @type {ReturnType<typeof copyControl> | null} */
   #link = null;
   // Bumped each time this view takes the message's widgets back from another drawing.
   #authoredTake = 0;
   // The island this view last dressed (`prepareAuthoredMessage`'s `nodes`), which an
   // edit replaces.
-  /** @type {readonly ChildNode[] | null} */
   #dressed = null;
-  /** @type {ReturnType<typeof motion> | null} */
   #arrivalMotion = null;
-  /** @type {(() => void) | null} */
   #stopRead = null;
-  /** @type {MessageEditor | null} */
   #editor = null;
   #kept = false;
-  /** @type {(() => void) | null} */
   #stopKept = null;
-  /** @param {MessageCommands} commands */
   constructor(commands) {
     this.#commands = commands;
     this.node = document.createElement("div");
   }
 
-  /** @param {ReturnType<typeof messageReading>} model
-   * @param {{arrived?: boolean, headerControls?: unknown}} [options] */
   present(model, { arrived = false, headerControls = nothing } = {}) {
     const prior = this.#model;
     const presentation = (this.#presentation ??= {
@@ -1028,7 +943,6 @@ export class MessageView {
   // Open the user's own words for rewriting here, with the caret after them; `walked`
   // where ↑ opened them (message-edit.js, `enter`). False where the message is not one
   // they may rewrite.
-  /** @param {{walked?: boolean}} [options] */
   openEdit({ walked = false } = {}) {
     const model = this.#model;
     if (!model?.editable) return false;
@@ -1069,7 +983,6 @@ export class MessageView {
   // draws one. The user chose the press over keeping the word plain, and the underline
   // over a chevron after the word and over a symbol in its place, which hides the word
   // until hovered and means nothing readers already know.
-  /** @param {ReturnType<typeof messageReading>["leaves"]} leaves */
   #leavesWord(leaves) {
     if (!leaves) return nothing;
     const { word, todo } = leaves;
@@ -1092,7 +1005,6 @@ export class MessageView {
   // copies the message whole as Markdown. Like Edit it is no Tab stop, which would add
   // one to every message between a thread's controls; the keyboard presses it with the
   // copy key in the thread (landing.js, `message.copy`).
-  /** @param {string} markdown */
   #copyControl(markdown) {
     if (!this.#copy) {
       this.#copy = copyControl("lf-msg-control lf-msg-copy", {
@@ -1135,7 +1047,6 @@ export class MessageView {
     return this.#link;
   }
 
-  /** @param {ReturnType<typeof messageReading>["body"]} body @param {string | null} edited */
   #body(body, edited) {
     if (body.kind === "deleted")
       return html`<div
@@ -1189,20 +1100,17 @@ export class MessageView {
 // stands on the page only while a drawing of that message does, as a margin card or the
 // floating panel's view of its thread, so a thread about it is named by its words, and
 // placed in its message (annotations/anchor-placement.js), while the message is put away.
-/** @param {string} id */
 export function messageHolding(id) {
   const kept = keptElements.get(id);
   return kept ? { element: kept.element, ...kept.document } : null;
 }
 
 // The element an id names: the page's, else one a message keeps, drawn or not.
-/** @param {string} id */
 export const addressableAt = (id) =>
   elementById(id) ?? messageHolding(id)?.element ?? null;
 
 // What a coordinate names besides any words it quotes: a design subject, a datum, a
 // drawing's part or a section. A passage is named by its words alone.
-/** @param {import("../../../types/domain.js").Anchor | null | undefined} anchor @param {string | null | undefined} about */
 function coordinatePlace(anchor, about) {
   if (about === "design") {
     const addressable = anchor?.section ? addressableAt(anchor.section) : null;
@@ -1222,14 +1130,12 @@ function coordinatePlace(anchor, about) {
 // The words a thread is about, as its head quotes them: those a version's rewrite took
 // from it (`rewritten_from`, events.md), else those it was detached from, else its
 // anchor.
-/** @param {Pick<import("../../../types/domain.js").Thread, "rewritten_from" | "detached_from" | "anchor">} thread */
 export const threadPassage = (thread) =>
   thread.rewritten_from ?? thread.detached_from ?? thread.anchor;
 
 // Where an anchor stands, apart from the words it quotes: "design · heading · t", or
 // "" for a passage, which its words name alone. A named control part belongs to the
 // place in every reading, not just Design.
-/** @param {import("../../../types/domain.js").Anchor | null | undefined} anchor @param {string | null | undefined} [about] */
 export const anchorPlace = (anchor, about) =>
   [about === "design" && "design", anchor?.part, coordinatePlace(anchor, about)]
     .filter(Boolean)
@@ -1239,7 +1145,6 @@ export const anchorPlace = (anchor, about) =>
 // then the words it quotes, which only the marks set off from the words around them. A
 // surface that draws the two apart, as a thread's quote does (thread-card.js,
 // `quoteReading`), reads `anchorPlace` and the quote instead.
-/** @param {import("../../../types/domain.js").Anchor | null | undefined} anchor @param {string | null | undefined} [about] */
 export const anchorLabel = (anchor, about) =>
   [anchorPlace(anchor, about), anchor?.quote && `“${anchor.quote}”`]
     .filter(Boolean)

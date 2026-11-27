@@ -1,3 +1,4 @@
+// Compiled from data.ts by build/typescript.mjs; edit that file.
 /* Accepted external values, mounted-widget outputs, and their typed readers.
 
    The browser orders data readings by when the server took them, independently of
@@ -51,19 +52,11 @@ import { settledAway } from "../readings/passages.js";
 import { reportPageError } from "../transport/layer-client.js";
 import { tick } from "../state/version-signal.js";
 
-/** @import { SourceReading } from "../../types/domain.js" */
-/** @import { DataOrigin } from "../records/projection/data.js" */
-/** @typedef {{contract: string, value: unknown}} OutputReading
- * @typedef {(SourceReading & {source: string, origin: DataOrigin})
- *   | (OutputReading & {source?: never, revision?: never, origin: DataOrigin})} DataSnapshot
- */
-/** @param {{version: string | null, sources: Record<string, SourceReading>}} candidate @param {number} taken */
 export function acceptData(candidate, taken) {
   return applicationState.acceptData(candidate, taken);
 }
 
 // The regions that hold the data version until they have drawn a delivery.
-/** @type {Set<string>} */
 const joined = new Set();
 
 export async function notifyDataSubscribers() {
@@ -82,7 +75,6 @@ export async function notifyDataSubscribers() {
     setRuntimeRootAttribute(document.body, PAGE_PAINT_ATTRIBUTE.dataVersion, version);
 }
 
-/** @param {Element} element @param {string} input */
 const declaredInput = (element, input) => {
   const declaration = registry[element.localName]?.inputs?.[input];
   if (!declaration)
@@ -97,15 +89,12 @@ const declaredInput = (element, input) => {
 // again, and a page of many producers loads without each arrival reaching every
 // reader. One watch covers every such tag, started by the first reader. Each producer
 // a reader has resolved has a signal its `change` moves.
-/** @type {Map<string, {peek(): number, value: number}>} */
 const standing = new Map();
-/** @param {string} id */
 function standingUnder(id) {
   let moved = standing.get(id);
   if (!moved) standing.set(id, (moved = signal(0)));
   return moved;
 }
-/** @param {Element} element */
 function moveStanding(element) {
   const moved = element.id ? standing.get(element.id) : undefined;
   if (moved) tick(moved);
@@ -117,7 +106,6 @@ function watchProducers() {
   if (!tags || tags === producersWatched) return;
   producersWatched = tags;
   // An arrival is offered again when the nodes beside it change, which is no move.
-  /** @type {WeakSet<Element>} */
   const stood = new WeakSet();
   watchArrivals(tags, [], {
     arrive(element) {
@@ -131,9 +119,7 @@ function watchProducers() {
     },
   });
 }
-/** @type {WeakMap<Element, {peek(): number, value: number}>} */
 const changes = new WeakMap();
-/** @param {Element} producer */
 function changeOf(producer) {
   let said = changes.get(producer);
   if (!said) {
@@ -153,8 +139,7 @@ function changeOf(producer) {
   return said;
 }
 /** Have the readers of `element`'s outputs read them again, after a change the
- * element may have dispatched no `change` on itself to report.
- * @param {Element} element */
+ * element may have dispatched no `change` on itself to report. */
 export function heldMoved(element) {
   const said = changes.get(element);
   if (said) tick(said);
@@ -164,28 +149,24 @@ export function heldMoved(element) {
 // accepted one claims the element's region inside the publication that accepts it, and
 // the delivered one draws, so a reading accepted for a revision still being activated
 // never draws into the document it replaces. The first read takes the accepted reading.
-/** @param {string} source @param {import("../state/registry.js").InputDeclaration} declaration @param {string} input @param {() => void} accepted */
 function deliveredSource(source, declaration, input, accepted) {
-  const selected = applicationState.select(
-    /** @returns {DataSnapshot | null} */ (root) => {
-      const reading = Object.hasOwn(root.data.sources, source)
-        ? root.data.sources[source]
-        : null;
-      return reading
-        ? {
-            ...reading,
+  const selected = applicationState.select((root) => {
+    const reading = Object.hasOwn(root.data.sources, source)
+      ? root.data.sources[source]
+      : null;
+    return reading
+      ? {
+          ...reading,
+          source,
+          origin: {
+            input,
             source,
-            origin: {
-              input,
-              source,
-              contract: declaration.contract,
-              revision: reading.revision,
-            },
-          }
-        : null;
-    },
-  );
-  /** @type {(() => void) | null} */
+            contract: declaration.contract,
+            revision: reading.revision,
+          },
+        }
+      : null;
+  });
   let stopAccepted = null;
   return computed(
     () => {
@@ -220,14 +201,11 @@ function deliveredSource(source, declaration, input, accepted) {
 // reads as unchanged at no cost, so a large value held beside one that changes often
 // costs its readers nothing as the other moves. A new value is copied as it is read, so
 // the reading is the reader's own, and an equal one keeps the reading it replaced.
-/** @param {Element} element @param {string} widget @param {string} contract */
 function heldOutput(element, widget, contract) {
   watchProducers();
   const moved = standingUnder(widget);
-  /** @type {DataSnapshot | null} */
   let held = null;
   // What the producer held when `held` was copied from it.
-  /** @type {unknown} */
   let read;
   return computed(() => {
     moved.value;
@@ -240,11 +218,7 @@ function heldOutput(element, widget, contract) {
       const name = Object.keys(outputs).find(
         (key) => outputs[key].contract === contract,
       );
-      const value = name
-        ? /** @type {Record<string, unknown>} */ (/** @type {unknown} */ (producer))[
-            name
-          ]
-        : null;
+      const value = name ? producer[name] : null;
       if (value === null || value === undefined) return (held = null);
       if (value === read && held) return held;
       let copy;
@@ -254,7 +228,7 @@ function heldOutput(element, widget, contract) {
         const named = producer.id ? `#${producer.id}` : "";
         throw new Error(
           `<${producer.localName}${named}> holds a ${contract} value that cannot be copied: ` +
-            /** @type {Error} */ (error).message,
+            error.message,
           { cause: error },
         );
       }
@@ -267,13 +241,11 @@ function heldOutput(element, widget, contract) {
 
 // The snapshot each delivered object value came from. An object is one delivery's copy,
 // so the lookup is exact, and it lasts as long as something holds the value.
-/** @type {WeakMap<object, DataSnapshot>} */
 const supplied = new WeakMap();
-/** The snapshot that supplied a delivered object `value`, or undefined. @param {object} value */
+/** The snapshot that supplied a delivered object `value`, or undefined. */
 export const suppliedSnapshot = (value) => supplied.get(value);
 
 // Whether the markup binds a declared input, to a source or to a widget's output.
-/** @param {Element} element @param {import("../state/registry.js").InputDeclaration} declaration */
 export const bindsInput = (element, declaration) =>
   bindingAttributes(declaration).some((attribute) => element.getAttribute(attribute));
 
@@ -289,7 +261,6 @@ export const bindsInput = (element, declaration) =>
 const dataRead = applicationState.select(
   (root) => root.data.version !== null || root.phase === "offline",
 );
-/** @param {Element} element */
 export function awaitsData(element) {
   return (
     Object.values(registry[element.localName]?.inputs ?? {}).some(
@@ -302,7 +273,6 @@ export function awaitsData(element) {
 // render that reads it is drawn again when its reading moves. Markup owns the binding,
 // captured at the first read, so module code cannot turn a live attribute mutation into
 // an unvalidated rebind; a revision that rebinds mounts a new element.
-/** @param {Element} element @param {string} input @param {() => void} accepted @returns {() => DataSnapshot | null} */
 export function dataReader(element, input, accepted) {
   const declaration = declaredInput(element, input);
   const source = declaration.source ? element.getAttribute(declaration.source) : null;
@@ -318,9 +288,7 @@ export function dataReader(element, input, accepted) {
     : widget && declaration.reference
       ? heldOutput(element, widget, declaration.contract)
       : null;
-  /** @type {DataSnapshot | null} */
   let reported = null;
-  /** @type {{store: DataSnapshot, value: DataSnapshot} | null} */
   let copied = null;
   return () => {
     const sourceStore = bound?.value ?? null;
@@ -352,7 +320,6 @@ export function dataReader(element, input, accepted) {
 // A renderer that draws data as it reads it holds the data version until its region
 // presents; its readers hear the delivery itself.
 const deliveries = signal(0);
-/** @param {string} region */
 export function joinDataDelivery(region) {
   joined.add(region);
   return () => joined.delete(region);

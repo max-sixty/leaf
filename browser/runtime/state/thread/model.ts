@@ -26,7 +26,6 @@ import type {
   AuthoredWidget,
   ContentVersion,
   Message,
-  Settlement,
   Thread,
   ThreadGesture,
   Workflow,
@@ -37,15 +36,6 @@ import type {
   WidgetDescriptor,
 } from "../semantic-application.js";
 import type { foldWidgetStates } from "../projection/model.js";
-export type {
-  Anchor,
-  ContentVersion,
-  Message,
-  ObligationRecord,
-  Settlement,
-  Thread,
-  Workflow,
-};
 
 export type CapturedBody =
   NonNullable<SemanticDocument["messageBodies"]> extends ReadonlyMap<
@@ -198,7 +188,7 @@ export const bareReaction = <
 export const discussed = (thread: Pick<Thread, "bare_reaction">) =>
   !thread.bare_reaction;
 // A thread record's unread versions (`readThreadRecords`), in log order.
-export type Unread = { readonly unread: readonly unknown[] };
+type Unread = { readonly unread: readonly unknown[] };
 /** Whether a thread holds words the user hasn't read. */
 const hasUnread = (thread: Unread) => thread.unread.length > 0;
 /** Whether a thread announces the words that reach it: only while it stands open. A
@@ -504,6 +494,8 @@ export const moved = (message: {
 const versionKey = ({ message, version }: ContentVersion) =>
   `${message}\u0000${version}`;
 
+type Reactions = readonly string[];
+
 /* Public thread values. The publisher calls this after folding local gestures
    and admitted obligations. Authored source stays with its prepared document; only
    captured words, registry identities and current unit state cross this boundary.
@@ -523,7 +515,6 @@ const versionKey = ({ message, version }: ContentVersion) =>
    hold every message's. */
 
 // The reactions a registry declares none of.
-export type Reactions = readonly string[];
 const NO_REACTIONS: Reactions = Object.freeze([]);
 
 const NONE: readonly never[] = Object.freeze([]);
@@ -535,7 +526,7 @@ function grouped<T>(items: readonly T[], key: (item: T) => string | null | undef
   return groups as Map<string, T[]>;
 }
 
-export type Unit = {
+type Unit = {
   id: string;
   tag: string;
   message: string | undefined;

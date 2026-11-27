@@ -1,3 +1,4 @@
+// Compiled from anchor-paint.ts by build/typescript.mjs; edit that file.
 /* Decoration of the canonical current anchor reading.
  *
  * Anchor placement resolves conversations and composition before this optional paint.
@@ -53,20 +54,14 @@ const MARKED_WORDS = RUNTIME_PAINT_ATTRIBUTE.markedWords;
 // it below. `piecesAt` finds every piece covering a character by one walk down, reading
 // only the pieces it finds beside the tree's depth, which grows with the logarithm of
 // the pieces the node holds; it is built in the order of the pieces times that.
-/** @typedef {{start: number, end: number}} Span */
-/** @template {Span} P @typedef {{centre: number, byStart: P[], byEnd: P[],
- * before: PieceTree<P> | null, after: PieceTree<P> | null}} PieceTree */
-/** @template {Span} P @param {readonly P[]} pieces sorted by start, none empty
- * @returns {PieceTree<P> | null} */
+
+/** @param pieces sorted by start, none empty */
 function treeOf(pieces) {
   const middle = pieces[pieces.length >> 1];
   if (!middle) return null;
   const centre = middle.start;
-  /** @type {P[]} */
   const before = [];
-  /** @type {P[]} */
   const after = [];
-  /** @type {P[]} */
   const here = [];
   for (const piece of pieces)
     (piece.end <= centre ? before : piece.start > centre ? after : here).push(piece);
@@ -78,9 +73,7 @@ function treeOf(pieces) {
     after: treeOf(after),
   };
 }
-/** @template {Span} P @param {PieceTree<P> | null} tree @param {number} at */
 function piecesAt(tree, at) {
-  /** @type {P[]} */
   const found = [];
   for (let node = tree; node;) {
     if (at < node.centre) {
@@ -104,15 +97,6 @@ function piecesAt(tree, at) {
 // element under the pointer, `threadRow(id)` is the row Threads draws for a thread, and
 // `marginThread()` names
 // the thread whose margin entry the pointer is on; each is null where there is none.
-/** @typedef {Element | Range} Mark */
-/** @param {{targetPaint: ReturnType<typeof import("./visual-mark-paint.js").createVisualMarkPaint>,
- * pointer: typeof import("../base/pointer.js").pointerAt,
- * currentLocationThreadId: () => string | null,
- * rowThread: (under: Element | null) => string | null, threadRow: (id: string) => Element | null,
- * marginThread: () => string | null,
- * placedAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["placedAt"],
- * pendingAt: ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["pendingAt"],
- * settle: () => void}} capabilities */
 export function createAnchorPaint({
   targetPaint,
   pointer,
@@ -124,10 +108,8 @@ export function createAnchorPaint({
   pendingAt,
   settle,
 }) {
-  /** @type {Map<string, Mark[]>} */
   const marked = new Map();
   // Each marked thread's place in the page's reading order, as the last paint put them.
-  /** @type {Map<string, number>} */
   const orderOf = new Map();
   // Where the hit test finds each passage's mark (`markHit`), with its thread's place in
   // reading order: for each text node a passage's segments stand in, the pieces they
@@ -137,37 +119,24 @@ export function createAnchorPaint({
   // placement reads again for the anchors a change to the page's words touches
   // (anchor-placement.js, `settle`); the index then reads again only those threads'
   // pieces, in the text nodes they left and the ones they stand in (`replace`).
-  /** @typedef {{id: string, where: Range, order: number}} Findable */
-  /** @typedef {Findable & Span} Piece */
-  /** @type {Map<Node, {pieces: Piece[], tree: PieceTree<Piece> | null}>} */
+
   const inText = new Map();
   // Each passage painted, by its thread: its place in reading order, and the segments
   // and ranges placement gave it.
-  /** @typedef {{order: number, segments: readonly import("../readings/passages.js").Segment[], ranges: readonly Range[]}} Painted */
-  /** @type {Map<string, Painted>} */
+
   const passages = new Map();
-  /** @type {Map<string, readonly Range[]>} */
   const reacted = new Map();
   // The threads the last paint marks nothing for by their own state: resolved, or
   // drawn rather than marked.
-  /** @type {Set<string>} */
   const unmarked = new Set();
-  /** @type {Set<ShadowRoot>} */
   const markedRoots = new Set();
-  /** @type {Map<Element, Element>} */
   const visualTargets = new Map();
-  /** @type {Element[]} */
   let pendingOutline = [];
-  /** @type {Element[]} */
   let actionOutline = [];
-  /** @type {string | null} */
   let hovering = null;
   let hoverFromRow = false;
-  /** @type {Element[]} */
   let hoverParts = [];
-  /** @type {Element | null} */
   let hoveredRow = null;
-  /** @type {Element[]} */
   let hereParts = [];
   let hoverFrame = 0;
   let mounted = false;
@@ -184,7 +153,6 @@ export function createAnchorPaint({
   // WebKit, which read a highlight's `color: currentColor` as the element's colour and
   // paint it over a text document's syntax colours. The marks of a gesture (hover, the
   // thread the user is in, the draft) paint either way.
-  /** @param {typeof MARK | typeof REACT} name */
   function paintDurable(name) {
     const ranges = annotationsHidden()
       ? []
@@ -211,9 +179,7 @@ export function createAnchorPaint({
   // changes none, as a keystroke in a comment box may start, reads none of them. A
   // placement that moves some and a new draft add theirs, and the next paint that
   // changes a mark lets go of the rest.
-  /** @type {Set<Element>} */
   let wordsHeld = new Set();
-  /** @param {Iterable<AbstractRange>} ranges */
   function holdWords(ranges) {
     for (const range of ranges)
       for (const node of [range.startContainer, range.endContainer]) {
@@ -233,13 +199,10 @@ export function createAnchorPaint({
       if (!wordsHeld.has(element)) element.removeAttribute(MARKED_WORDS);
   }
 
-  /** @param {string | null} id */
   const marksFor = (id) => (id === null ? [] : (marked.get(id) ?? []));
-  /** @param {Iterable<Mark | readonly Mark[]>} where */
   const elementMarks = (where) =>
     [...where].flat().filter((mark) => mark instanceof Element);
 
-  /** @param {Parameters<typeof targetElement>[0]} resolved */
   const rememberVisual = (resolved) => {
     const element = targetElement(resolved);
     const surface = targetSurface(resolved);
@@ -272,7 +235,6 @@ export function createAnchorPaint({
     if (ownsRing && active.getRootNode() === document && pageWords(active))
       elements.add(active);
     const focus = new Set(ownsRing && elements.has(active) ? [active] : []);
-    /** @type {[string, Set<Element>][]} */
     const sources = [
       ["pending", pending],
       ["action", action],
@@ -296,7 +258,6 @@ export function createAnchorPaint({
 
   // Each element's outline classes follow the current record. Toggling the last pass's
   // elements with this one's writes only the classes that moved.
-  /** @param {Set<Element>} before */
   function paintOutlines(before) {
     const marks = new Set(elementMarks(marked.values()));
     const pending = new Set(pendingOutline);
@@ -314,7 +275,6 @@ export function createAnchorPaint({
   // The pointer on a thread's words, or on its row in Threads, lights the words. Its
   // element is lit only from the row, since on the page an element's thread takes no
   // pointer (header).
-  /** @param {string | null} id @param {boolean} fromRow @param {boolean} [repaintVisuals] */
   function paintHover(id, fromRow, repaintVisuals = true) {
     hovering = id;
     hoverFromRow = fromRow;
@@ -337,7 +297,6 @@ export function createAnchorPaint({
   // its margin entry or the row itself, is marked in Threads while Threads is open. A
   // thread with nothing lit on the page marks no row, so a marked row always has its
   // passage lit.
-  /** @param {string | null} id */
   function markRow(id) {
     const row = id && marksFor(id).length ? threadRow(id) : null;
     if (row === hoveredRow) return;
@@ -384,10 +343,9 @@ export function createAnchorPaint({
   // hand and opens nothing. With `whole`, a character's box reaches across its line's
   // leading (dom/geometry.js, `lined`), as a preview's room reads it (`markBox`); a
   // press and a hover read the character alone.
-  /** @param {number} x @param {number} y @param {Element | null} [under] the element
-   * under the point, where the caller has hit-tested it already
-   * @param {boolean} [whole] whether a character's box spans its whole line
-   * @returns {{id: string, where: Range, alike: readonly Findable[]} | null} */
+  /** @param under the element under the point, where the caller has hit-tested it
+   *   already
+   * @param whole whether a character's box spans its whole line */
   function markHit(x, y, under = elementFromPointAcross(x, y), whole = false) {
     if (annotationsHidden() || !under || !pageWords(under)) return null;
     // Changes to the page's words not yet placed are placed now, ahead of the reading.
@@ -403,20 +361,17 @@ export function createAnchorPaint({
       if (at < 0 || !overCharacter(caret.offsetNode, at, x, y, whole)) continue;
       const alike = piecesAt(text.tree, at);
       const hit = alike.reduce(
-        (/** @type {Findable | null} */ least, mark) =>
-          !least || mark.order < least.order ? mark : least,
+        (least, mark) => (!least || mark.order < least.order ? mark : least),
         null,
       );
       return hit && { id: hit.id, where: hit.where, alike };
     }
     return null;
   }
-  /** @param {number} x @param {number} y */
   const markAt = (x, y) => markHit(x, y)?.id ?? null;
   // A mark under a point beneath a preview, which the preview keeps clear of as it does
   // a control, since a press there opens its thread (preview.js, `declareRanges`): the
   // box of the mark's line there, across the line's leading (`lined`).
-  /** @param {number} x @param {number} y @param {Element} under */
   function markBox(x, y, under) {
     const where = markHit(x, y, under, true)?.where;
     if (!where) return null;
@@ -426,7 +381,6 @@ export function createAnchorPaint({
         .find((line) => holds(line, x, y)) ?? where.getBoundingClientRect()
     );
   }
-  /** @type {(() => void) | null} */
   let releaseMarks = null;
 
   // Index the passages' marks where the hit test finds them (`inText`).
@@ -438,7 +392,6 @@ export function createAnchorPaint({
   // A passage's pieces, one in the text node each of its segments stands in, and the
   // shadow trees holding them, every level of them, which the caret lookup must look
   // into to land inside them.
-  /** @param {string} id @param {Painted} passage */
   function indexPassage(id, { order, segments, ranges }) {
     segments.forEach((segment, at) => {
       const where = ranges[at];
@@ -456,7 +409,6 @@ export function createAnchorPaint({
   // The draft's marks: its passage's words, or the element it stands on, unless the
   // draft draws (`draftDraws`) or its anchor stands on an outdated datum.
   let draftDraws = false;
-  /** @param {ReturnType<typeof pendingAt>} resolved */
   function paintPending(resolved) {
     const marked = Boolean(resolved && resolved.status !== "outdated") && !draftDraws;
     pendingOutline = marked && targetElement(resolved) ? targetParts(resolved) : [];
@@ -478,7 +430,6 @@ export function createAnchorPaint({
   // so is one placed where the last paint marked nothing for it and chose not to mark it
   // for nothing, as a resolved thread, since only a paint of the page knows where it
   // falls among the marks.
-  /** @param {import("./anchor-placement.js").Placed} placed */
   function replace({ threads: ids, pending }) {
     if (pending) {
       const before = outlined();
@@ -498,7 +449,6 @@ export function createAnchorPaint({
     const shown = !annotationsHidden();
     const mark = shown ? CSS.highlights.get(MARK) : undefined;
     const react = shown ? CSS.highlights.get(REACT) : undefined;
-    /** @type {Set<Node>} */
     const nodes = new Set();
     let whole = false;
     for (const id of affected) {
@@ -514,7 +464,7 @@ export function createAnchorPaint({
         for (const range of ranges ?? []) react?.add(range);
         continue;
       }
-      const old = /** @type {Painted} */ (passages.get(id));
+      const old = passages.get(id);
       for (const segment of old.segments) nodes.add(segment.node);
       for (const range of old.ranges) mark?.delete(range);
       if (!found || !ranges) {
@@ -562,12 +512,8 @@ export function createAnchorPaint({
   // standing preview again each time it is told its piece, so it is told again only
   // when the threads under the pointer change: telling it on each move drew 512
   // threads' lines on every move over a word 512 threads mark.
-  /** @type {{id: string, where: Range} | null} */
   let standing = null;
-  /** @type {Set<string> | null} */
   let told = null;
-  /** @param {{id: string, where: Range, alike: readonly Findable[]} | null} hit
-   * @param {{x: number, y: number}} at */
   function pointMark(hit, at) {
     const id = resting && hit ? hit.id : null;
     if (!hit || !id) {
@@ -603,7 +549,6 @@ export function createAnchorPaint({
     );
   }
   // The user moved the pointer, or pressed a finger, which may rest on a mark.
-  /** @param {PointerEvent} event */
   function pointerAimed(event) {
     aimed = true;
     resting = event.pointerType === "touch" || !event.buttons;
@@ -653,7 +598,6 @@ export function createAnchorPaint({
   }
 
   // Whether a thread's element marks are the elements this pass would mark.
-  /** @param {readonly Mark[]} marks @param {readonly Element[]} parts */
   const sameParts = (marks, parts) =>
     marks.length === parts.length && marks.every((mark, at) => mark === parts[at]);
 
@@ -664,7 +608,6 @@ export function createAnchorPaint({
   // and the highlight painting them as they stand, and the hover stays bound to them;
   // only a pass that changes a mark, or the order of the threads marked, builds them
   // again.
-  /** @param {NonNullable<ReturnType<ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["read"]>>} reading */
   function paint({ readings, draft, action }) {
     const before = outlined();
     const last = new Map(marked);

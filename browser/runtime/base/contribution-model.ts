@@ -20,9 +20,9 @@ const RANK_PRIORITY = Object.freeze({
   overflow: 5,
 });
 const STATE_PRIORITY = Object.freeze({ idle: 3, engaged: 2, busy: 1, failed: 0 });
-export type Tone = keyof typeof TONES;
-export type Behavior = keyof typeof BEHAVIORS;
-export type Rank = keyof typeof RANK_PRIORITY;
+type Tone = keyof typeof TONES;
+type Behavior = keyof typeof BEHAVIORS;
+type Rank = keyof typeof RANK_PRIORITY;
 export type ContributionState = keyof typeof STATE_PRIORITY;
 export type ContributionKind = keyof typeof kinds;
 type EntryRelationInput =

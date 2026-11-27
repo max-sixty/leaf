@@ -1,3 +1,4 @@
+// Compiled from annotation-inventory.ts by build/typescript.mjs; edit that file.
 /* The current annotation inventory, independent of its page presentation.
 
    This owner projects the application's published Threads, On lists, provenance and
@@ -90,30 +91,8 @@ const inProgress = readPart(
     ),
 );
 
-/** @typedef {import("./margin-model.js").AnnotationItem} AnnotationItem
- * @typedef {import("./contributions.js").ContributionSource} ContributionSource
- * @typedef {import("./contributions.js").ContributionOffer} ContributionOffer
- * @typedef {import("./margin-model.js").MarginEntry<ContributionOffer>} InventoryEntry
- * @typedef {import("./margin-model.js").MarginGroup<ContributionOffer>} EntryGroup
- * @typedef {import("../../types/domain.js").Workflow} Workflow
- * @typedef {import("../records/thread/workflow.js").ThreadRecord} ThreadRecord
- * @typedef {import("../records/thread/placement.js").Placement} Placement
- * @typedef {import("../readings/passages.js").Segment} Segment
- * @typedef {{activate: (route?: {travel?: boolean}) => unknown, discloses?: () => ReturnType<typeof changeCard>, change?: import("./version.js").Change}} ItemSource
- * @typedef {AnnotationItem & ItemSource} LiveItem
- * @typedef {{key: string | null, element?: Element | null, passage?: Placement | null, name: string | null, surface?: Element | null}} Pointed
- * @typedef {{key: string, target: Element, point: Element | null, passage: Placement | null,
- * name: string | null, surface: Element | null, word: string, subject: string | null, title: string | null,
- * items: LiveItem[], offers: ContributionSource[]}} Group
- * @typedef {Map<string | Element, Group>} Groups
- * @typedef {ReturnType<typeof import("./anchor-travel.js").createAnchorTravel>["scrollToElement"]} ScrollToElement
- */
 /** The page map's commands (panel/page-map-dialog.js), as the margin and the host are
- * handed them.
- * @typedef {{leavePageMap: () => unknown,
- * openPageMap: (entry?: InventoryEntry | null, options?: {invoker?: Element | null, focusSpill?: boolean}) => unknown,
- * pageMapDialogContains: (candidate: Element | null, node: Node | null) => boolean,
- * renderPageMapDialog: (entries: readonly InventoryEntry[]) => unknown}} PageMapCommands */
+ * handed them. */
 
 // What the inventory reads from the semantic root: the Questions, the workflows its
 // entries report, the shown revision and the agent's to-dos, and the projection whose
@@ -122,7 +101,6 @@ const inProgress = readPart(
 // where the thread, or a saved draft, is placed (`placedAt`, `savedAt`) and whether a
 // widget seats it (`claimed`), so a pass that moves one repaints the margin, and one
 // that moves none leaves it.
-/** @param {import("../state/semantic-application.js").SemanticRoot} root */
 export const annotationSelection = (root) => ({
   projection: root.effective.projection,
   obligations: root.effective.obligations,
@@ -130,7 +108,6 @@ export const annotationSelection = (root) => ({
   revision: root.document.revision,
 });
 
-/** @param {{readObligations: typeof import("../records/obligations/place.js").readObligations, placedAt: import("../records/thread/placement.js").ThreadPlacements["placedAt"], savedAt: import("../records/thread/placement.js").ThreadPlacements["savedAt"], openThread: ReturnType<typeof import("../records/thread/destination.js").createThreadDestinations>["openPageThread"], goToObligation: (record: import("../state/obligations/source.js").AnswerableObligation) => Promise<boolean>, scrollToElement: ScrollToElement, resumeDraft: (context: string, route?: {travel?: boolean}) => Promise<void>}} dependencies */
 export function createAnnotationInventory({
   readObligations,
   placedAt,
@@ -140,7 +117,6 @@ export function createAnnotationInventory({
   scrollToElement,
   resumeDraft,
 }) {
-  /** @param {string | null | undefined} value */
   const humanized = (value) =>
     String(value ?? "")
       .replace(/[-_]+/g, " ")
@@ -150,7 +126,6 @@ export function createAnnotationInventory({
   // below that by each element's place among its authored siblings. A name reads only
   // the siblings between the target and that element, so naming every target costs the
   // page once rather than its square, and a name survives content added above the id.
-  /** @param {Element} target @returns {string} */
   function targetPath(target) {
     const host = shadowHost(target.getRootNode());
     // IDs and sibling paths are scoped to a shadow root. Prefix them with the host's
@@ -190,7 +165,6 @@ export function createAnnotationInventory({
 
   // Where a group stands in the page's reading order (readings/resolved-target.js,
   // `readingOrder`): the row it points into, else its passage, else its target.
-  /** @param {Group} group */
   const placeIn = (group) => {
     const place = readingPlace(group.passage, group.point);
     return place.node ? place : { ...place, node: group.target };
@@ -198,31 +172,23 @@ export function createAnnotationInventory({
 
   // Targets and generated-reading callbacks stay outside the model. Registered
   // contributions already publish their own immutable model readings.
-  /** @type {Map<string, Element>} */
   const targets = new Map();
-  /** @type {WeakMap<AnnotationItem, ItemSource>} */
   const itemSources = new WeakMap();
-  /** @param {Pick<InventoryEntry, "key"> | null | undefined} entry */
   const targetFor = (entry) => (entry ? (targets.get(entry.key) ?? null) : null);
   // The row a pointed entry stands by (groupFor), as anchor-placement last placed it, while
   // it still stands inside its target. Where the entry stands (`entryPlace`) is that
   // row, else the target: every reading of where an entry is on the page, as against
   // what it is about, asks this.
-  /** @type {Map<string, Element>} */
   const points = new Map();
-  /** @param {Pick<InventoryEntry, "key"> | null | undefined} entry */
   const entryPoint = (entry) =>
     entry ? livePoint(targetFor(entry), points.get(entry.key)) : null;
-  /** @param {Pick<InventoryEntry, "key"> | null | undefined} entry */
   const entryPlace = (entry) => entryPoint(entry) ?? targetFor(entry);
   // The surface of each entry about a part of a picture (groupFor), by the entry's key.
   // Such an entry is about the part alone, where a pointed row's comment is about its
   // whole target, so `entryPart` gives the part and the surface its anchor resolved to,
   // which pointing at the entry marks. It gives none while the picture draws no part,
   // and pointing at the entry then marks the picture.
-  /** @type {Map<string, Element>} */
   const parts = new Map();
-  /** @param {Pick<InventoryEntry, "key"> | null | undefined} entry */
   const entryPart = (entry) => {
     const element = entryPoint(entry);
     const surface = element && entry ? parts.get(entry.key) : undefined;
@@ -230,12 +196,9 @@ export function createAnnotationInventory({
   };
   // The passage a quoting entry stands by (groupFor), as anchor-placement last resolved
   // it (readings/resolved-target.js).
-  /** @type {Map<string, Placement>} */
   const passages = new Map();
-  /** @param {Pick<InventoryEntry, "key"> | null | undefined} entry */
   const entryPassage = (entry) => (entry ? (passages.get(entry.key) ?? null) : null);
   // A pointed row is named by its words as the page reads them, cells and blocks apart.
-  /** @param {string | null | undefined} words */
   const pointName = (words) => {
     const excerpt = words && excerptWords(words, 32);
     return excerpt ? `“${excerpt}”` : null;
@@ -244,8 +207,6 @@ export function createAnnotationInventory({
   // as the comment box names it (records/thread/messages.js, `anchorPlace`), which its anchor
   // resolved with it, and stands by the part where the picture draws it, at the
   // picture's top where it draws none yet.
-  /** @param {Element} target @param {Placement} placement @param {string} id
-   * @returns {Pointed} */
   const partRow = (target, placement, id) => {
     const element = targetElement(placement);
     const drawn = element && element !== target ? element : null;
@@ -256,11 +217,9 @@ export function createAnnotationInventory({
       surface: drawn && (targetSurface(placement) ?? drawn),
     };
   };
-  /** @param {AnnotationItem} item */
   const sourceItem = (item) => itemSources.get(item);
   // An item equal to the one last at its place comes back as that object (`share`), and
   // takes this reading's capabilities, which close over the live target.
-  /** @param {LiveItem} item @param {AnnotationItem | undefined} last */
   function captureItem(item, last) {
     const { activate, discloses, change, ...data } = item;
     const snapshot = Object.freeze(
@@ -282,11 +241,9 @@ export function createAnnotationInventory({
   // order is the margin's, so the strongest is the server's. A receipt is looked up by
   // its id among those still in progress, so each item costs what it holds rather than
   // every workflow on the page.
-  /** @param {readonly AnnotationItem[]} items */
   const workflowReceipt = (items) => {
     const at = inProgress();
     const published = workflows();
-    /** @type {Set<number>} */
     const receipts = new Set();
     for (const { workflowReceipt } of items) {
       const index = workflowReceipt ? at.get(workflowReceipt.id) : undefined;
@@ -306,7 +263,6 @@ export function createAnnotationInventory({
   // its id), the element it stands by or the passage (a resolved anchor), the words
   // that name it, and, where that element is the part the row is about, the part's
   // surface.
-  /** @param {Groups} groups @param {Element} target @param {Pointed | null} [pointed] */
   function groupFor(groups, target, pointed = null) {
     const key = pointed ? `${targetPath(target)}@${pointed.key}` : targetPath(target);
     const slot = pointed ? `point:${key}` : target;
@@ -350,16 +306,13 @@ export function createAnnotationInventory({
   // to one part of the page leaves a datum in another unchanged. Keyed afresh on every
   // collection, one comment on a large text document would read that document again
   // each time another document drew.
-  const passageKeys = keptEach((/** @type {Element} */ target) => {
+  const passageKeys = keptEach((target) => {
     readsElement(target);
-    return /** @type {Map<Text, Map<string, string>>} */ (new Map());
+    return new Map();
   });
-  /** @param {Element} target @param {readonly (readonly [Segment, ...Segment[]])[]} quoted
-   * @returns {string[]} */
   function passageRows(target, quoted) {
     // Each key by the passage's first text node, then by where it starts there and what
     // it says.
-    /** @type {Map<Text, Map<string, string>>} */
     const kept = passageKeys(target);
     const asked = quoted.map((passage) => ({
       passage,
@@ -373,23 +326,15 @@ export function createAnnotationInventory({
         unkeyed.map(({ passage }) => passage),
       );
       unkeyed.forEach(({ node, key }, at) =>
-        kept.set(
-          node,
-          (kept.get(node) ?? new Map()).set(key, /** @type {string} */ (read[at])),
-        ),
+        kept.set(node, (kept.get(node) ?? new Map()).set(key, read[at])),
       );
     }
-    return asked.map(
-      ({ node, key }) => /** @type {string} */ (kept.get(node)?.get(key)),
-    );
+    return asked.map(({ node, key }) => kept.get(node)?.get(key));
   }
-  /** @param {Element} target @param {readonly (readonly [Segment, ...Segment[]])[]} quoted
-   * @returns {string[]} */
   function readPassageRows(target, quoted) {
     // How many of the target's words stand before each passage's first character, as
     // reading the target only up to there would say: all of them where the passage
     // starts in none of its text nodes.
-    /** @type {Map<Text, Map<number, number | undefined>>} */
     const starts = new Map();
     for (const [{ node, start }] of quoted)
       starts.set(node, (starts.get(node) ?? new Map()).set(start, undefined));
@@ -397,12 +342,11 @@ export function createAnnotationInventory({
       const at = starts.get(node);
       if (at?.has(offset)) at.set(offset, length);
     });
-    /** @param {Segment} first */
     const before = ({ node, start }) => starts.get(node)?.get(start) ?? text.length;
     const words = quoted.map((segments) => quoteFrom(segments));
     const places = findEach(text, words);
     return quoted.map(([first], at) => {
-      const said = /** @type {string} */ (words[at]);
+      const said = words[at];
       const ahead = before(first);
       // No words split a reading between every character.
       let count = said ? 0 : ahead - 1;
@@ -417,17 +361,14 @@ export function createAnnotationInventory({
     });
   }
   // A reading of each target made once a pass, however many of its groups ask.
-  /** @template T @param {(target: Element) => T} read */
   const perTarget = (read) => {
-    /** @type {Map<Element, T>} */
     const kept = new Map();
-    return (/** @type {Element} */ target) => {
+    return (target) => {
       if (!kept.has(target)) kept.set(target, read(target));
-      return /** @type {T} */ (kept.get(target));
+      return kept.get(target);
     };
   };
 
-  /** @param {Groups} groups @param {Element | null | undefined} target @param {LiveItem} item @param {Pointed | null} [pointed] */
   function add(groups, target, item, pointed = null) {
     if (!target?.isConnected || inChrome(target)) return;
     const group = groupFor(groups, target, pointed);
@@ -443,8 +384,6 @@ export function createAnnotationInventory({
   // A receipt's face is its category's icon and rank under the receipt's own word,
   // so one reading of a receipt never names a different stage than its text does. Its
   // line says when, in the interface's words, and what the agent said of it.
-  /** @param {Workflow | null | undefined} receipt
-   * @returns {{kind: "waiting" | "activity" | "pickup" | "sent", word: import("../base/voice.js").Said, context: import("../base/voice.js").Words | null} | null} */
   function agentWorkflowFace(receipt) {
     if (!receipt) return null;
     const word = workflowWord(receipt, agentName());
@@ -469,43 +408,33 @@ export function createAnnotationInventory({
     };
   }
 
-  /** @overload @param {ThreadRecord} thread @returns {string} */
-  /** @overload @param {ThreadRecord | null | undefined} thread @returns {string | null} */
-  /** @param {ThreadRecord | null | undefined} thread */
   function marginThreadItem(thread) {
     return thread ? `comment:${threadKey(thread)}` : null;
   }
 
-  /** @type {readonly InventoryEntry[]} */
   let entries = Object.freeze([]);
   // Each entry by its key, with the group it was made from.
-  /** @type {Map<string, {group: EntryGroup, entry: InventoryEntry}>} */
   let lastEntries = new Map();
   // An entry is a function of its group (`marginEntry`), and each thing a group holds is
   // the same object while it holds still: a published record is shared across
   // publications, an item through `captureItem`, and a contribution's model is new only
   // when its producer publishes. So a group holding what the last under its key held
   // keeps that entry.
-  /** @param {EntryGroup} group @returns {InventoryEntry} */
   function keptEntry(group) {
     const last = lastEntries.get(group.key);
     if (!last) return marginEntry(group);
-    const held = (/** @type {keyof EntryGroup} */ field) => {
+    const held = (field) => {
       const [was, now] = [last.group[field], group[field]];
       return Array.isArray(now) && Array.isArray(was)
         ? was.length === now.length && now.every((thing, at) => thing === was[at])
         : was === now;
     };
-    return /** @type {(keyof EntryGroup)[]} */ (Object.keys(group)).every(held)
-      ? last.entry
-      : marginEntry(group);
+    return Object.keys(group).every(held) ? last.entry : marginEntry(group);
   }
-  /** @type {Set<(entries: readonly InventoryEntry[]) => void>} */
   const watchers = new Set();
 
   // A resolved thread leaves the margin, unless a reply is being written in it: saved
   // words and an editing session are distinct, and only an active session keeps it.
-  /** @param {ThreadRecord} thread */
   const threadHasDiscussion = (thread) =>
     !thread.resolved || replyIsEditing(threadKey(thread));
 
@@ -517,15 +446,12 @@ export function createAnnotationInventory({
   // as a chart's keys stand on a point (`focusedVisualPart`), and at no other place in
   // the picture. There it outranks a thread on the whole picture, as a pointed row
   // does, since it is about where the user stands.
-  /** @param {Node | null} node */
   function threadIdsAt(node) {
     const place = placeOf(node);
-    /** @type {string | null | undefined} */
     let standsOn;
     // How a thread on part `element` of picture `target` stands at the place: 3 where
     // it is about where the user stands, null where it is about another part, and
     // undefined for any other thread.
-    /** @param {ThreadRecord} thread @param {Element} element @param {Element} target */
     const partRank = ({ anchor }, element, target) => {
       if (!anchor?.visual || element === target) return undefined;
       if (place && under(place, element)) return 3;
@@ -573,10 +499,8 @@ export function createAnnotationInventory({
   // placing a new group into the kept order. A collection would then cost what the
   // gesture changed.
   function collectEntries() {
-    /** @type {Groups} */
     const groups = new Map();
     const labelOf = perTarget(addressableLabel);
-    /** @type {Map<string, Workflow>} */
     const receiptByCoordinate = new Map();
     for (const receipt of visibleWidgetWorkflows()) {
       // A widget's workflow names its owner, unit and verb.
@@ -587,7 +511,6 @@ export function createAnnotationInventory({
     // an entry where it is about: a reply or a rewrite in its thread's row, and a
     // comment at its passage or element. A press takes the user back to writing it
     // (`resumeDraft`), and its preview reads its words as they now stand.
-    /** @param {import("../records/drafts.js").ListedDraft} draft @returns {LiveItem} */
     const draftItem = (draft) => ({
       kind: "draft",
       id: `draft:${draft.context}`,
@@ -598,7 +521,6 @@ export function createAnnotationInventory({
       context: leafSays(draftSends(draft)),
       activate: (route) => resumeDraft(draft.context, route),
     });
-    /** @type {Map<string, LiveItem[]>} */
     const threadDrafts = new Map();
     const placedDrafts = [];
     for (const draft of draftsReading()) {
@@ -617,19 +539,13 @@ export function createAnnotationInventory({
     // the row its passage, pointed row or part gives it, so a draft about the passage a
     // thread quotes joins that thread's row, and drafts about two passages of one
     // paragraph, or two points of one chart, stand apart.
-    /** @type {{thread: ThreadRecord | null, drafts: LiveItem[], placement: Placement, target: Element, point: Element | null, passage: readonly [Segment, ...Segment[]] | null, anchor: import("../../types/domain.js").Anchor}[]} */
     const standing = [];
-    /** @type {Map<Element, (readonly [Segment, ...Segment[]])[]>} */
     const quotedIn = new Map();
-    /** @param {ThreadRecord | null} thread @param {LiveItem[]} drafts
-     * @param {Placement | null | undefined} placement
-     * @param {import("../../types/domain.js").Anchor} anchor */
     const stand = (thread, drafts, placement, anchor) => {
       const target = placement?.place;
       if (!target) return;
       const [first, ...rest] = targetSegments(placement);
       const point = livePoint(target, placement.point);
-      /** @type {readonly [Segment, ...Segment[]] | null} */
       const passage = !point && first ? [first, ...rest] : null;
       if (passage) quotedIn.set(target, [...(quotedIn.get(target) ?? []), passage]);
       standing.push({ thread, drafts, placement, target, point, passage, anchor });
@@ -645,7 +561,6 @@ export function createAnnotationInventory({
       const anchor = draftAnchor(draft);
       if (anchor) stand(null, [draftItem(draft)], savedAt(draft.context), anchor);
     }
-    /** @type {Map<Element, string[]>} */
     const rows = new Map(
       [...quotedIn].map(([target, quoted]) => [target, passageRows(target, quoted)]),
     );
@@ -658,7 +573,6 @@ export function createAnnotationInventory({
       passage,
       anchor,
     } of standing) {
-      /** @type {Pointed | null} */
       const pointed = point
         ? {
             key: placement.pointRow,
@@ -669,7 +583,7 @@ export function createAnnotationInventory({
           ? partRow(target, placement, anchor.visual)
           : passage
             ? {
-                key: /** @type {string} */ (rows.get(target)?.shift()),
+                key: rows.get(target)?.shift(),
                 passage: placement,
                 name: pointName(anchor.quote),
               }
@@ -936,15 +850,12 @@ export function createAnnotationInventory({
     points.clear();
     parts.clear();
     passages.clear();
-    /** @type {typeof lastEntries} */
     const nextEntries = new Map();
     const contextOf = perTarget(outlineContexts(subjects));
     // Each group's place read once for the sort, and each node's climb once in it.
     const places = new Map(collected.map((group) => [group, placeIn(group)]));
     const order = renderedOrdering();
-    /** @param {Group} group */
-    const placeOfGroup = (group) =>
-      /** @type {ReturnType<typeof placeIn>} */ (places.get(group));
+    const placeOfGroup = (group) => places.get(group);
     entries = Object.freeze(
       collected
         .sort((left, right) =>
@@ -956,7 +867,6 @@ export function createAnnotationInventory({
           if (group.surface) parts.set(group.key, group.surface);
           if (group.passage) passages.set(group.key, group.passage);
           const lastItems = lastEntries.get(group.key)?.group.items;
-          /** @type {EntryGroup} */
           const made = Object.freeze({
             key: group.key,
             targetId: group.target.id,
@@ -993,7 +903,6 @@ export function createAnnotationInventory({
     return entries;
   }
 
-  /** @param {Element | null} target @param {string} account @param {ScrollToElement} scrollToElement */
   function revealTarget(target, account, scrollToElement) {
     if (!target?.isConnected) return;
     scrollToElement(target, scrollBehavior(), "nearest");
@@ -1006,7 +915,6 @@ export function createAnnotationInventory({
   return Object.freeze({
     collect: collectEntries,
     read: () => entries,
-    /** @param {(entries: readonly InventoryEntry[]) => void} watcher */
     watch(watcher) {
       watchers.add(watcher);
       try {
@@ -1027,7 +935,6 @@ export function createAnnotationInventory({
     targetPath,
     threadItem: marginThreadItem,
     threadIdsAt,
-    /** @param {AnnotationItem} item @param {{travel?: boolean}} [route] */
     activate: (item, route) => sourceItem(item)?.activate(route),
   });
 }

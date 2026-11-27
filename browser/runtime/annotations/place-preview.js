@@ -1,3 +1,4 @@
+// Compiled from place-preview.ts by build/typescript.mjs; edit that file.
 /* What a place on the page shows as a preview (preview.js), so a link into the page
    says where it points before a press takes the reader there (browser/AGENTS.md,
    "Pointing reads; pressing acts").
@@ -94,14 +95,6 @@ import {
 import { leafSays, voiced } from "../base/voice.js";
 import { capitalized, counted, excerptWords, labelWords } from "../lib/words.js";
 
-/** @typedef {import("../base/voice.js").Words} Words
- * @typedef {{kind: "heading" | "text", words: string}
- *   | {kind: "list", items: {words: string, chosen: boolean}[], more: string | null}
- *   | {kind: "table", rows: {words: string, head: boolean}[][], more: string | null}
- *   | {kind: "figure", src: string, caption: string}
- *   | {kind: "code", lines: string}
- *   | {kind: "state", words: Words}} Part */
-
 // How much of a place a preview shows: its name's words, parts after its name, a
 // paragraph's words, a list's items, a table's rows and columns, a code block's lines.
 // The face cuts what its room doesn't hold.
@@ -127,24 +120,23 @@ const LIST = "ul, ol, menu, dl";
 // whole, as the platform's `innerText` reads an element it does not render; `stop`, the
 // heading that ends a heading's excerpt (`headingAfter`), null for any other place; and
 // `ended` once the reading has met it.
-/** @type {{whole: boolean, stop: Element | null, ended: boolean}} */
-let reading = { whole: false, stop: null, ended: false };
-/** @param {readonly Part[]} parts */
+let reading = {
+  whole: false,
+  stop: null,
+  ended: false,
+};
 const full = (parts) => reading.ended || parts.length >= PARTS;
 // The words an element shows, as the page draws them now, up to the heading that ends
 // the excerpt (readings/passages.js, `says`): the one reader of every word the preview says.
 // `whole` reads them drawn or not, as a widget's members are named (`membersPart`).
 // Each reading reads no more than the preview shows (readings/passages.js, `excerpt`), and words
 // cut short end in an ellipsis.
-/** @param {Element} element @param {"prose" | "lines"} [format] @param {boolean} [whole]
- * @param {{upTo?: number, lines?: number}} [bound] */
 const said = (
   element,
   format = "prose",
   whole = reading.whole,
   bound = { upTo: READ },
 ) => excerpt(element, { format, drawn: !whole, until: reading.stop, ...bound });
-/** @param {Element} element @param {boolean} [whole] */
 const words = (element, whole = reading.whole) => {
   const { text, cut } = said(element, "prose", whole);
   const shown = labelWords(text);
@@ -152,11 +144,9 @@ const words = (element, whole = reading.whole) => {
 };
 // Whether the page draws what `element` holds, for a part with no words of its own to
 // ask, as a list's item counted or a row of a table.
-/** @param {Element} element */
 const draws = (element) => reading.whole || drawsWithin(element, false);
 
-/** The place a link into the page names, or null for any other link.
- * @param {Element} link */
+/** The place a link into the page names, or null for any other link. */
 export function linkedPlace(link) {
   if (!link.matches('a[href^="#"]')) return null;
   const scope = authoredScope(link);
@@ -165,8 +155,7 @@ export function linkedPlace(link) {
   return authored ? fragmentTarget(link.getAttribute("href")) : null;
 }
 
-/** What a link into the page previews: the place it names (`placePreview`).
- * @param {Element} link */
+/** What a link into the page previews: the place it names (`placePreview`). */
 export function linkPreview(link) {
   const place = linkedPlace(link);
   return place ? placePreview(place) : null;
@@ -176,8 +165,7 @@ export function linkPreview(link) {
  * each of its parts and the conversations about it as a line of detail, so a face held to
  * a short room keeps the parts that fit whole and cuts the one the room ends in
  * (preview.js, `fit`), in the face's excerpt room, about the place itself, so where the
- * page shows the place, the card stands clear of it rather than over what it previews.
- * @param {Element} place */
+ * page shows the place, the card stands clear of it rather than over what it previews. */
 export function placePreview(place) {
   const heading = place.matches(HEADING);
   reading = {
@@ -209,7 +197,6 @@ export function placePreview(place) {
 // sub-heading's. Its parts then say its words. A widget in no named part takes its
 // word. A name an element gives is read as the page draws it, as the parts are, so a
 // name the page draws nothing of, as a title hidden away, gives way to the next.
-/** @param {Element} place */
 function placeName(place) {
   return (
     namedBy(ownNaming(place)) ||
@@ -217,12 +204,10 @@ function placeName(place) {
     (registry[place.localName] ? capitalized(addressableWord(place)) : "")
   );
 }
-/** @param {Element | null} part */
 const partName = (part) =>
   !part ? "" : part.matches(HEADING) ? words(part) : namedBy(ownNaming(part));
 
 // A name's words, read as the page draws them where an element gives them.
-/** @param {import("../readings/addressable-names.js").Naming | null} naming @param {boolean} [whole] */
 const namedBy = (naming, whole = reading.whole) =>
   !naming ? "" : "words" in naming ? naming.words : words(naming.by, whole);
 
@@ -230,19 +215,13 @@ const namedBy = (naming, whole = reading.whole) =>
 // heads (readings/passages.js, `headed`), as the reader asks for them: the next heading of the
 // outline ends the reading (`read`), and the reader stops asking once it holds what the
 // preview shows.
-/** @param {Element} heading @returns {Generator<Element>} */
 function* sectionOf(heading) {
   const container = headed(heading);
-  for (
-    let at = /** @type {Node | null} */ (heading);
-    at && at !== container;
-    at = readingParent(at)
-  )
+  for (let at = heading; at && at !== container; at = readingParent(at))
     yield* after(at);
 }
 // The elements after `node` in the page's reading, its run of siblings enumerated once:
 // a slot's assignment, or the elements after it in its tree.
-/** @param {Node} node @returns {Generator<Element>} */
 function* after(node) {
   if (!(node instanceof Element)) return;
   const holder = readingParent(node);
@@ -258,9 +237,7 @@ function* after(node) {
 }
 
 // The parts of the blocks a heading heads.
-/** @param {Element} heading */
 function sectionParts(heading) {
-  /** @type {Part[]} */
   const parts = [];
   for (const block of sectionOf(heading)) {
     if (full(parts)) break;
@@ -269,9 +246,7 @@ function sectionParts(heading) {
   return parts;
 }
 
-/** @param {Element} place @param {Element | null} title */
 function partsOf(place, title) {
-  /** @type {Part[]} */
   const parts = [];
   read(place, parts, title);
   return parts;
@@ -279,8 +254,7 @@ function partsOf(place, title) {
 
 // Read `element` into `parts`, until they hold what the preview shows. A title, and
 // what stands before it, has been said by the name; `title` is null once it has passed.
-/** @param {Element} element @param {Part[]} parts @param {Element | null} title
- * @returns {Element | null} the title still to come, or null once it has passed */
+/** @returns the title still to come, or null once it has passed */
 function read(element, parts, title) {
   if (element === reading.stop) reading.ended = true;
   if (reading.ended || element === title) return null;
@@ -304,7 +278,6 @@ function read(element, parts, title) {
 }
 
 // The part `element` makes as the page draws it, or its children's parts.
-/** @param {Element} element @param {Part[]} parts */
 function drawn(element, parts) {
   // A block holding the heading that ends the excerpt says what stands before it there.
   const holdsStop = reading.stop !== null && readingUnder(reading.stop, element);
@@ -330,7 +303,6 @@ function drawn(element, parts) {
   } else if (!membersPart(element, parts)) readChildren(element, parts, null);
 }
 
-/** @param {Element} element @param {Part[]} parts @param {Element | null} title */
 function readChildren(element, parts, title) {
   let still = title;
   for (const child of readingChildren(element)) {
@@ -340,24 +312,20 @@ function readChildren(element, parts, title) {
   return still;
 }
 
-/** @param {Part[]} parts @param {"heading" | "text"} kind @param {string} text */
 function part(parts, kind, text) {
   if (text) parts.push({ kind, words: excerptWords(text, WORDS) });
 }
 
 // Words standing in an element of their own, as an option's do, make it a block of text.
-/** @param {Element} element */
 const holdsText = (element) =>
   [...element.childNodes].some(
     (node) => node.nodeType === Node.TEXT_NODE && node.textContent?.trim(),
   );
 
-/** @param {Element} list @param {Part[]} parts */
 function listPart(list, parts) {
   const items = [...list.children].filter(
     (item) => item.matches(list.localName === "dl" ? "dt" : "li") && draws(item),
   );
-  /** @type {{words: string, chosen: boolean}[]} */
   const shown = [];
   for (const item of items) {
     if (shown.length >= ITEMS) break;
@@ -371,7 +339,6 @@ function listPart(list, parts) {
 // A run of like members, as a question's options, a board's columns or a set of tabs
 // are, reads as a list of their names, the first few and every one the widget's answer
 // picks, marked as picked.
-/** @param {Element} element @param {Part[]} parts */
 function membersPart(element, parts) {
   // Each member is named, shown or not, as a set of tabs names each of its panels and
   // a settled question its folded options.
@@ -411,7 +378,6 @@ const widgetStates = readPart((root) => root.effective.widgets);
 // (`verbs`), folded from the authored initial values and every action in force
 // since, so a group authored settled with its pick `selected` marks that pick as the
 // widget does.
-/** @param {Element} widget @returns {ReadonlySet<unknown>} */
 function picked(widget) {
   const verb = declarationFor(widget)?.awaits?.value;
   const record = verb ? declarationFor(widget)?.verbs?.[verb]?.record : null;
@@ -422,7 +388,6 @@ function picked(widget) {
   return new Set(Array.isArray(value) ? value : []);
 }
 
-/** @param {Part[]} parts @param {{words: string, chosen: boolean}[]} items @param {number} of */
 function listed(parts, items, of) {
   if (items.length)
     parts.push({
@@ -433,7 +398,6 @@ function listed(parts, items, of) {
 }
 
 // A term with the descriptions after it, as a list of facts reads: “Observed: 1 in 40”.
-/** @param {Element} term */
 function termWords(term) {
   const told = [];
   for (
@@ -445,12 +409,10 @@ function termWords(term) {
   return excerptWords([words(term), told.join("; ")].filter(Boolean).join(": "), WORDS);
 }
 
-/** @param {Element} table @param {Part[]} parts */
 function tablePart(table, parts) {
   const caption = table.querySelector(":scope > caption");
   if (caption) part(parts, "heading", words(caption));
-  const rows = /** @type {HTMLTableElement} */ (table).rows;
-  /** @type {{words: string, head: boolean}[][]} */
+  const rows = table.rows;
   const shown = [];
   for (const row of rows) {
     if (shown.length >= ROWS) break;
@@ -469,16 +431,16 @@ function tablePart(table, parts) {
     });
 }
 
-/** @param {Element} figure @param {Part[]} parts */
 function figurePart(figure, parts) {
-  const image = /** @type {HTMLImageElement | null} */ (
-    figure.localName === "img" ? figure : figure.querySelector("img:not([data-lf-gen])")
-  );
+  const image =
+    figure.localName === "img"
+      ? figure
+      : figure.querySelector("img:not([data-lf-gen])");
   const drawing = figure.querySelector("svg");
   const figcaption = figure.querySelector(":scope > figcaption");
   const caption = figcaption ? words(figcaption) : "";
   // A picture is said where the page draws it, as its words are.
-  const shows = (/** @type {Element | null} */ picture) =>
+  const shows = (picture) =>
     Boolean(picture && (reading.whole || drawsWithin(picture)));
   const src = image && shows(image) ? image.currentSrc || image.src : "";
   if (src)
@@ -501,7 +463,6 @@ function figurePart(figure, parts) {
 // What a widget asks of the user, where it asks, by the page's reading: its answer as a
 // Done row says it, or that it waits on the user; `settled` once its options no longer
 // stand open.
-/** @param {Element} element @returns {{words: Words, settled: boolean} | null} */
 function question(element) {
   if (!element.id || !registry[element.localName]) return null;
   const item = readObligations().byId.get(`widget:${element.id}`);
@@ -515,7 +476,6 @@ function question(element) {
 // How many conversations stand open about the place or anything in it, a heading's
 // about the part it heads, and the user's turn where one is theirs, as the outline's
 // owner gathered them (`conversationsAbout`).
-/** @param {Element} place */
 function conversations(place) {
   const about = conversationsAbout(place);
   if (!about) return null;
@@ -528,7 +488,6 @@ function conversations(place) {
   >`;
 }
 
-/** @param {Part} part */
 function partView(part) {
   switch (part.kind) {
     case "heading":
@@ -575,6 +534,5 @@ function partView(part) {
   }
 }
 
-/** @param {string | null} words */
 const more = (words) =>
   words ? html`<span class="lf-place-more">${words}</span>` : nothing;

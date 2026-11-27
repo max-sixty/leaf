@@ -176,7 +176,7 @@ export type StateAnswer = WholeAnswer | ServedTail;
 export type CompletedState = Omit<WholeAnswer, "data"> & {
   data: { version: string; sources: Record<string, SourceReading> };
 };
-export type Held = {
+type Held = {
   data: { version: string | null; sources: Record<string, SourceReading> };
   state: CompletedState | null;
 };
@@ -195,8 +195,8 @@ export const heldHeaders = ({ data, state }: Held) => ({
   ...(state?.browser.basis.key && { "Leaf-Held-Basis": state.browser.basis.key }),
 });
 
-export type Change = ServedChange;
-export type Container = Record<string, unknown> | unknown[];
+type Change = ServedChange;
+type Container = Record<string, unknown> | unknown[];
 
 // The list a change names, from the held one: the items it sent and those it changed in
 // their places, those it moved or added after the item it pairs each with, in the

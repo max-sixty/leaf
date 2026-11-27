@@ -1,3 +1,4 @@
+// Compiled from reports.ts by build/typescript.mjs; edit that file.
 /* The report feed exposed to widgets and chrome.
 
    Projection answers where state stands. Some modules also need to narrate how the state
@@ -65,8 +66,6 @@ import { closestAcross } from "../lib/shadow-tree.js";
 import { runtime } from "../state/context.js";
 import { stateAgain } from "./element-integration.js";
 
-/** @typedef {{kind: "widget" | "thread", id: string}} ReportTarget */
-/** @param {unknown} target @returns {ReportTarget | null} */
 function reportTarget(target) {
   if (target === null) return null;
   if (target instanceof Element) {
@@ -85,14 +84,11 @@ function reportTarget(target) {
     "report target must be a widget element or {kind: 'widget' | 'thread', id}",
   );
 }
-/** @param {ReportTarget | null} target */
 const targetKey = (target) =>
   target ? JSON.stringify([target.kind, target.id]) : null;
 // Each target's reports through a selection of its own, so a watcher reading one
 // target's sequence repaints when that target's reports move and no other's.
-/** @type {Map<string | null, () => readonly import("../../types/contract.js").ServedView["reports"][number][]>} */
 const reportsByTarget = new Map();
-/** @param {string | null} key */
 const reportsFor = (key) => {
   let read = reportsByTarget.get(key);
   if (!read) {
@@ -105,14 +101,11 @@ const reportsFor = (key) => {
   }
   return read();
 };
-/** @param {Element | ReportTarget | null} [target] */
 export const reportSequence = (target = null) =>
   reportsFor(targetKey(reportTarget(target))).map((report) => structuredClone(report));
 
 const publishedAt = readPart((root) => root.effective.view?.published_at ?? null);
-/** @param {Element} el */
 export const saidAt = (el) => {
-  /** @type {HTMLTimeElement | null | undefined} */
   const time = closestAcross(el, ".lf-msg")?.querySelector(
     ":scope > .lf-msg-head time",
   );
@@ -143,22 +136,18 @@ export const readHistory = readPart((root) => ({
 // that left is set as it returns, and asks afresh then. An element Leaf sets no
 // `state` on has no report of its own and no draw Leaf can start, so it waits on
 // nothing here.
-/** @type {WeakSet<Element>} */
 const proven = new WeakSet();
-/** @type {WeakSet<Element>} */
 const waiting = new WeakSet();
-/** @param {Element} target */
 const committed = (target) =>
   runtime.statePhase === "ready" &&
   applicationRegionsPresented(["projection:chrome", `widget:${target.id}:preparation`]);
-/** @param {Element} target */
 const reportsReady = (target) => {
   const again = stateAgain(target);
   if (!again || proven.has(target) || committed(target)) return true;
   if (waiting.has(target)) return false;
   waiting.add(target);
   // The watch's first call comes before it has returned its stop.
-  const watch = { stop: /** @type {(() => void) | null} */ (null), done: false };
+  const watch = { stop: null, done: false };
   watch.stop = watchPresentation(() => {
     if (watch.done || (target.isConnected && !committed(target))) return;
     watch.done = true;
@@ -177,7 +166,6 @@ const reportsReady = (target) => {
 // A widget's reading, as it draws its `state`, also waits on its report coordinates
 // (`reportsReady`), which it asks in every phase: a draw told that the page waits is
 // owed another too. A thread's, or the whole feed's, phase is the page's.
-/** @param {Element | ReportTarget | null} [target] */
 export const readReports = (target = null) => {
   const reports = reportSequence(target);
   const phase = runtime.statePhase;

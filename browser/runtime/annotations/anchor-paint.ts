@@ -1,0 +1,793 @@
+/* Decoration of the canonical current anchor reading.
+ *
+ * Anchor placement resolves conversations and composition before this optional paint.
+ * This instance owns highlights, outlines and pointer hit testing; its marks never
+ * supply target existence, surface admission, drawing placement or travel. Its one hit
+ * test answers which mark the pointer rests on, for a press (`markAt`) and for the
+ * preview owner (`pointMark`).
+ *
+ * The pointer finds a thread only where the page draws the thread's mark: on a
+ * passage's inked words. A thread on an element draws nothing on the element at rest
+ * (`paintVisualStates`), so the element takes no hand, preview or press for it. Its
+ * margin entry previews and opens the thread, and traces the element while pointed at
+ * (margin-projection.js, `refreshHighlight`). The user asked for a smaller target than
+ * an element's box. Rejected: an element's mark found anywhere inside the element,
+ * which previewed a section's thread wherever the pointer rested in the section's band,
+ * as wide as the window, where nothing was drawn to show the thread, and opened the
+ * thread at a press on any of the section's words.
+ */
+
+import { ringBox, visibleFocus } from "../dom/focus.js";
+import { lined, overCharacter } from "../dom/geometry.js";
+import { cancelRender, nextRender } from "../lib/frame-pass.js";
+import {
+  readingOrder,
+  readingPlace,
+  targetElement,
+  targetParts,
+  targetSegments,
+  targetSurface,
+} from "../readings/resolved-target.js";
+import { elementFromPointAcross, pageWords } from "../readings/passages.js";
+import { presentDocument } from "../state/semantic-state.js";
+import { WORKS } from "../dom/control-selectors.js";
+import { bareReaction } from "../state/thread/model.js";
+import { threadNamed } from "../records/thread/state.js";
+import { threadPreview } from "../records/thread/messages.js";
+import { declareRanges, pointRange } from "./preview.js";
+import { holds } from "../dom/rect.js";
+import { shadowHost, upFrom, closestAcross } from "../lib/shadow-tree.js";
+import { annotationsHidden, watchAnnotations } from "./annotation-layer.js";
+import { keepsOnOne } from "../lib/keeps.js";
+import { RUNTIME_PAINT_ATTRIBUTE } from "../base/page-paint.js";
+import type { createVisualMarkPaint } from "./visual-mark-paint.js";
+import type { pointerAt } from "../base/pointer.js";
+import type { Placed, createAnchorPlacement } from "./anchor-placement.js";
+import type { Segment } from "../readings/passages.js";
+
+const MARK = "lf-mark";
+const PENDING = "lf-pending";
+const REACT = "lf-react";
+const HOVER = "lf-mark-hover";
+const HERE = "lf-mark-here";
+const MARKED_WORDS = RUNTIME_PAINT_ATTRIBUTE.markedWords;
+
+// A text node's pieces as a centred interval tree: each node holds the pieces covering
+// its centre character, sorted by start and by end, with those wholly before and after
+// it below. `piecesAt` finds every piece covering a character by one walk down, reading
+// only the pieces it finds beside the tree's depth, which grows with the logarithm of
+// the pieces the node holds; it is built in the order of the pieces times that.
+type Span = { start: number; end: number };
+type PieceTree<P extends Span> = {
+  centre: number;
+  byStart: P[];
+  byEnd: P[];
+  before: PieceTree<P> | null;
+  after: PieceTree<P> | null;
+};
+/** @param pieces sorted by start, none empty */
+function treeOf<P extends Span>(pieces: readonly P[]): PieceTree<P> | null {
+  const middle = pieces[pieces.length >> 1];
+  if (!middle) return null;
+  const centre = middle.start;
+  const before: P[] = [];
+  const after: P[] = [];
+  const here: P[] = [];
+  for (const piece of pieces)
+    (piece.end <= centre ? before : piece.start > centre ? after : here).push(piece);
+  return {
+    centre,
+    byStart: here,
+    byEnd: [...here].sort((a, b) => b.end - a.end),
+    before: treeOf(before),
+    after: treeOf(after),
+  };
+}
+function piecesAt<P extends Span>(tree: PieceTree<P> | null, at: number) {
+  const found: P[] = [];
+  for (let node = tree; node;) {
+    if (at < node.centre) {
+      for (const piece of node.byStart) {
+        if (piece.start > at) break;
+        found.push(piece);
+      }
+      node = node.before;
+    } else {
+      for (const piece of node.byEnd) {
+        if (piece.end <= at) break;
+        found.push(piece);
+      }
+      node = node.after;
+    }
+  }
+  return found;
+}
+
+type Mark = Element | Range;
+
+// `rowThread(under)` names the thread whose row in the floating panel's Threads holds the
+// element under the pointer, `threadRow(id)` is the row Threads draws for a thread, and
+// `marginThread()` names
+// the thread whose margin entry the pointer is on; each is null where there is none.
+export function createAnchorPaint({
+  targetPaint,
+  pointer,
+  currentLocationThreadId,
+  rowThread,
+  threadRow,
+  marginThread,
+  placedAt,
+  pendingAt,
+  settle,
+}: {
+  targetPaint: ReturnType<typeof createVisualMarkPaint>;
+  pointer: typeof pointerAt;
+  currentLocationThreadId: () => string | null;
+  rowThread: (under: Element | null) => string | null;
+  threadRow: (id: string) => Element | null;
+  marginThread: () => string | null;
+  placedAt: ReturnType<typeof createAnchorPlacement>["placedAt"];
+  pendingAt: ReturnType<typeof createAnchorPlacement>["pendingAt"];
+  settle: () => void;
+}) {
+  const marked = new Map<string, Mark[]>();
+  // Each marked thread's place in the page's reading order, as the last paint put them.
+  const orderOf = new Map<string, number>();
+  // Where the hit test finds each passage's mark (`markHit`), with its thread's place in
+  // reading order: for each text node a passage's segments stand in, the pieces they
+  // cover there and, read as the hit test first asks, their tree (`piecesAt`); and the
+  // shadow trees holding a passage's text, which the caret lookup looks into. It is read
+  // from anchor placement's segments, the one record of where a passage stands, which
+  // placement reads again for the anchors a change to the page's words touches
+  // (anchor-placement.js, `settle`); the index then reads again only those threads'
+  // pieces, in the text nodes they left and the ones they stand in (`replace`).
+  type Findable = { id: string; where: Range; order: number };
+  type Piece = Findable & Span;
+  const inText: Map<Node, { pieces: Piece[]; tree: PieceTree<Piece> | null }> =
+    new Map();
+  // Each passage painted, by its thread: its place in reading order, and the segments
+  // and ranges placement gave it.
+  type Painted = {
+    order: number;
+    segments: readonly Segment[];
+    ranges: readonly Range[];
+  };
+  const passages = new Map<string, Painted>();
+  const reacted = new Map<string, readonly Range[]>();
+  // The threads the last paint marks nothing for by their own state: resolved, or
+  // drawn rather than marked.
+  const unmarked = new Set<string>();
+  const markedRoots = new Set<ShadowRoot>();
+  const visualTargets = new Map<Element, Element>();
+  let pendingOutline: Element[] = [];
+  let actionOutline: Element[] = [];
+  let hovering: string | null = null;
+  let hoverFromRow = false;
+  let hoverParts: Element[] = [];
+  let hoveredRow: Element | null = null;
+  let hereParts: Element[] = [];
+  let hoverFrame = 0;
+  let mounted = false;
+  // Whether the hover pass reads the pointer where the user's own input put it, whether
+  // it rests there rather than carrying a press, as selecting words does, and whether
+  // the preview owner was last told it rests on a thread's words (`pointMark`).
+  let aimed = false;
+  let resting = false;
+  let pointed = false;
+
+  // A comment's and a reaction's marks on words are the annotation layer's, and hiding
+  // the layer (`g H`) registers their highlights empty, so the words wear whatever the page
+  // and the highlights under them give them. Restyling them instead fails in Firefox and
+  // WebKit, which read a highlight's `color: currentColor` as the element's colour and
+  // paint it over a text document's syntax colours. The marks of a gesture (hover, the
+  // thread the user is in, the draft) paint either way.
+  function paintDurable(name: typeof MARK | typeof REACT) {
+    const ranges = annotationsHidden()
+      ? []
+      : name === MARK
+        ? [...passages.values()].flatMap(({ ranges }) => ranges)
+        : [...reacted.values()].flat();
+    CSS.highlights.set(name, new Highlight(...ranges));
+  }
+  watchAnnotations(() => {
+    if (!mounted) return;
+    paintDurable(MARK);
+    paintDurable(REACT);
+  });
+
+  // The highlights' rules name the elements whose words they paint (marks.css),
+  // so each such element carries MARKED_WORDS while it holds a comment's, a reaction's or
+  // the draft's words, hidden or shown. A mark then takes its colours from its own
+  // element's tokens and `color-scheme` in every engine, with or without highlight
+  // inheritance (notes/browser-support.md, "Highlight style inheritance"). The element is
+  // the words' parent in their own tree, the light parent of slotted words, which is the
+  // one element whose rule paints them in Firefox, or the host of a shadow tree holding
+  // them directly. A paint of the page that changes a comment's or a reaction's marks
+  // holds exactly the elements their passages stand in (`holdOnlyWords`), and one that
+  // changes none, as a keystroke in a comment box may start, reads none of them. A
+  // placement that moves some and a new draft add theirs, and the next paint that
+  // changes a mark lets go of the rest.
+  let wordsHeld = new Set<Element>();
+  function holdWords(ranges: Iterable<AbstractRange>) {
+    for (const range of ranges)
+      for (const node of [range.startContainer, range.endContainer]) {
+        const element = upFrom(node);
+        if (!element || wordsHeld.has(element)) continue;
+        wordsHeld.add(element);
+        if (!element.hasAttribute(MARKED_WORDS)) element.setAttribute(MARKED_WORDS, "");
+      }
+  }
+  function holdOnlyWords() {
+    const before = wordsHeld;
+    wordsHeld = new Set();
+    holdWords([...passages.values()].flatMap(({ ranges }) => ranges));
+    holdWords([...reacted.values()].flat());
+    holdWords(CSS.highlights.get(PENDING)?.keys() ?? []);
+    for (const element of before)
+      if (!wordsHeld.has(element)) element.removeAttribute(MARKED_WORDS);
+  }
+
+  const marksFor = (id: string | null) => (id === null ? [] : (marked.get(id) ?? []));
+  const elementMarks = (where: Iterable<Mark | readonly Mark[]>) =>
+    [...where].flat().filter((mark) => mark instanceof Element);
+
+  const rememberVisual = (resolved: Parameters<typeof targetElement>[0]) => {
+    const element = targetElement(resolved);
+    const surface = targetSurface(resolved);
+    if (element && surface) visualTargets.set(element, surface);
+  };
+
+  // An element's threads and reactions draw nothing on it at rest: its margin entry
+  // already says it holds them, and a contour means "this, now". Only a moment projects
+  // one — a draft, an action, the pointer on the thread's row in Threads, the thread the
+  // user is in.
+  function paintVisualStates() {
+    const pending = new Set(pendingOutline);
+    const action = new Set(actionOutline);
+    const hover = new Set(elementMarks(hoverParts));
+    const here = new Set(elementMarks(hereParts));
+    // Paint every element state in the chrome plane. A declared visual substitutes its
+    // registered surface so compound pictures keep their contour.
+    const elements = new Set(
+      [pending, action, hover, here]
+        .flatMap((states) => [...states])
+        .filter((element) => element instanceof Element),
+    );
+    // Read focus itself, not attributes a later paint reflects. Escape can return
+    // to an element after its draft (and thus its last annotation) has disappeared.
+    const active = visibleFocus();
+    // Page controls need the same cue whether or not an author gave them an id.
+    // Private controls and a face wearing another control's ring keep that paint. On a
+    // box the location ring stands on, the ring draws over the cue (surfaces.css).
+    const ownsRing = active && ringBox(active) === active;
+    if (ownsRing && active.getRootNode() === document && pageWords(active))
+      elements.add(active);
+    const focus = new Set(ownsRing && elements.has(active) ? [active] : []);
+    const sources: [string, Set<Element>][] = [
+      ["pending", pending],
+      ["action", action],
+      ["hover", hover],
+      ["focus", focus],
+      ["here", here],
+    ];
+    targetPaint.setTargets(
+      [...elements].map((element) => ({
+        element,
+        surface: visualTargets.get(element) ?? element,
+        states: new Set(
+          sources.filter(([, members]) => members.has(element)).map(([state]) => state),
+        ),
+      })),
+    );
+  }
+
+  const outlined = () =>
+    new Set([...elementMarks(marked.values()), ...pendingOutline, ...actionOutline]);
+
+  // Each element's outline classes follow the current record. Toggling the last pass's
+  // elements with this one's writes only the classes that moved.
+  function paintOutlines(before: Set<Element>) {
+    const marks = new Set(elementMarks(marked.values()));
+    const pending = new Set(pendingOutline);
+    const action = new Set(actionOutline);
+    for (const element of new Set([...before, ...outlined()])) {
+      element.classList.toggle(
+        "lf-mark-el",
+        marks.has(element) || pending.has(element),
+      );
+      element.classList.toggle(PENDING, pending.has(element));
+      element.classList.toggle("lf-action-target", action.has(element));
+    }
+  }
+
+  // The pointer on a thread's words, or on its row in Threads, lights the words. Its
+  // element is lit only from the row, since on the page an element's thread takes no
+  // pointer (header).
+  function paintHover(
+    id: string | null,
+    fromRow: boolean,
+    repaintVisuals: boolean = true,
+  ) {
+    hovering = id;
+    hoverFromRow = fromRow;
+    const where = marksFor(id);
+    const parts = fromRow ? where.filter((mark) => mark instanceof Element) : [];
+    for (const part of hoverParts)
+      if (!parts.includes(part)) part.classList.toggle(HOVER, false);
+    for (const part of parts) part.classList.toggle(HOVER, true);
+    hoverParts = parts;
+    CSS.highlights.set(
+      HOVER,
+      Object.assign(new Highlight(...where.filter((mark) => mark instanceof Range)), {
+        priority: -3,
+      }),
+    );
+    if (repaintVisuals) paintVisualStates();
+  }
+
+  // The other half of the link: the row of the thread the pointer is on, on its words,
+  // its margin entry or the row itself, is marked in Threads while Threads is open. A
+  // thread with nothing lit on the page marks no row, so a marked row always has its
+  // passage lit.
+  function markRow(id: string | null) {
+    const row = id && marksFor(id).length ? threadRow(id) : null;
+    if (row === hoveredRow) return;
+    hoveredRow?.classList.toggle(HOVER, false);
+    row?.classList.toggle(HOVER, true);
+    hoveredRow = row;
+  }
+
+  // Current location follows focus, rather than the last travel (records/thread/focus.js,
+  // `currentLocationThreadId`). Every route into a thread then paints the same fact and leaving
+  // it clears the mark without another command path.
+  function paintCurrentLocation(repaintVisuals = true) {
+    const where = marksFor(currentLocationThreadId());
+    const parts = where.filter((mark) => mark instanceof Element);
+    for (const part of hereParts)
+      if (!parts.includes(part)) part.classList.toggle(HERE, false);
+    for (const part of parts) part.classList.toggle(HERE, true);
+    hereParts = parts;
+    CSS.highlights.set(
+      HERE,
+      Object.assign(new Highlight(...where.filter((mark) => mark instanceof Range)), {
+        priority: -2,
+      }),
+    );
+    if (repaintVisuals) paintVisualStates();
+  }
+
+  // Which thread's passage mark lies under a point, and the piece of it there: of those
+  // the point lies in, the first thread's in reading order, which a press opens; and
+  // every thread marking the character under the point, in reading order, which the mark
+  // previews, as its margin entry does. The element under the point is the platform's
+  // hit test (`elementFromPointAcross`), so the chrome over the page's words holds no
+  // mark. A passage's piece is found by the character under the point: the caret lookup
+  // names a text node and an offset, one or two characters' boxes say whether the point
+  // is over the one before or after it, and that text node's tree names the pieces
+  // covering that character, so a point past the end of a line's words is on none of
+  // them. So a pointer move reads no mark's geometry, and what it reads besides grows
+  // only with the threads it finds and the logarithm of the marks the page, a paragraph
+  // or one run of words holds (root AGENTS.md, "Responsiveness"): reading the rects of
+  // the marks in the element pointed at cost 512 reads at the last of 512 marks in one
+  // paragraph, and the platform's own `highlightsFromPoint` walks every range a
+  // highlight holds (notes/browser-support.md, "Highlight hit testing"). With the
+  // annotation layer hidden there is no mark to be under: an unseen passage shows no
+  // hand and opens nothing. With `whole`, a character's box reaches across its line's
+  // leading (dom/geometry.js, `lined`), as a preview's room reads it (`markBox`); a
+  // press and a hover read the character alone.
+  /** @param under the element under the point, where the caller has hit-tested it
+   *   already
+   * @param whole whether a character's box spans its whole line */
+  function markHit(
+    x: number,
+    y: number,
+    under: Element | null = elementFromPointAcross(x, y),
+    whole: boolean = false,
+  ): { id: string; where: Range; alike: readonly Findable[] } | null {
+    if (annotationsHidden() || !under || !pageWords(under)) return null;
+    // Changes to the page's words not yet placed are placed now, ahead of the reading.
+    settle();
+    if (!inText.size) return null;
+    const caret = document.caretPositionFromPoint(x, y, {
+      shadowRoots: [...markedRoots],
+    });
+    const text = caret && inText.get(caret.offsetNode);
+    if (!caret || !text) return null;
+    text.tree ??= treeOf([...text.pieces].sort((a, b) => a.start - b.start));
+    for (const at of [caret.offset, caret.offset - 1]) {
+      if (at < 0 || !overCharacter(caret.offsetNode, at, x, y, whole)) continue;
+      const alike = piecesAt(text.tree, at);
+      const hit = alike.reduce(
+        (least: Findable | null, mark) =>
+          !least || mark.order < least.order ? mark : least,
+        null,
+      );
+      return hit && { id: hit.id, where: hit.where, alike };
+    }
+    return null;
+  }
+  const markAt = (x: number, y: number) => markHit(x, y)?.id ?? null;
+  // A mark under a point beneath a preview, which the preview keeps clear of as it does
+  // a control, since a press there opens its thread (preview.js, `declareRanges`): the
+  // box of the mark's line there, across the line's leading (`lined`).
+  function markBox(x: number, y: number, under: Element) {
+    const where = markHit(x, y, under, true)?.where;
+    if (!where) return null;
+    return (
+      [...where.getClientRects()]
+        .map((line) => lined(line, where.startContainer))
+        .find((line) => holds(line, x, y)) ?? where.getBoundingClientRect()
+    );
+  }
+  let releaseMarks: (() => void) | null = null;
+
+  // Index the passages' marks where the hit test finds them (`inText`).
+  function index() {
+    inText.clear();
+    markedRoots.clear();
+    for (const [id, passage] of passages) indexPassage(id, passage);
+  }
+  // A passage's pieces, one in the text node each of its segments stands in, and the
+  // shadow trees holding them, every level of them, which the caret lookup must look
+  // into to land inside them.
+  function indexPassage(id: string, { order, segments, ranges }: Painted) {
+    segments.forEach((segment, at) => {
+      const where = ranges[at];
+      if (!where || segment.end <= segment.start) return;
+      const text = inText.get(segment.node) ?? { pieces: [], tree: null };
+      text.pieces.push({ id, where, order, start: segment.start, end: segment.end });
+      text.tree = null;
+      inText.set(segment.node, text);
+      for (let root = segment.node.getRootNode(); root instanceof ShadowRoot;) {
+        markedRoots.add(root);
+        root = shadowHost(root)?.getRootNode() ?? document;
+      }
+    });
+  }
+  // The draft's marks: its passage's words, or the element it stands on, unless the
+  // draft draws (`draftDraws`) or its anchor stands on an outdated datum.
+  let draftDraws = false;
+  function paintPending(resolved: ReturnType<typeof pendingAt>) {
+    const marked = Boolean(resolved && resolved.status !== "outdated") && !draftDraws;
+    pendingOutline = marked && targetElement(resolved) ? targetParts(resolved) : [];
+    // The live ranges placement keeps of the draft's passage, as of a thread's.
+    const ranges =
+      marked && resolved?.kind === "passage" ? (resolved.ranges ?? []) : [];
+    if (resolved) rememberVisual(resolved);
+    holdWords(ranges);
+    CSS.highlights.set(
+      PENDING,
+      Object.assign(new Highlight(...ranges), { priority: 3 }),
+    );
+  }
+  // Placement read again the threads `ids` a change to the page's words touched
+  // (anchor-placement.js, `settle`): their passages' marks are its new ranges, painted
+  // in place of the old ones, and the index reads again only the text nodes they left
+  // and stand in, each once, however many of their pieces it holds. A thread whose
+  // anchor now stands on an element, or on nothing it marks, is painted again whole, and
+  // so is one placed where the last paint marked nothing for it and chose not to mark it
+  // for nothing, as a resolved thread, since only a paint of the page knows where it
+  // falls among the marks.
+  function replace({ threads: ids, pending }: Placed) {
+    if (pending) {
+      const before = outlined();
+      paintPending(pendingAt());
+      paintOutlines(before);
+      paintVisualStates();
+    }
+    const arrived = ids.some((id) => {
+      if (passages.has(id) || reacted.has(id) || unmarked.has(id)) return false;
+      const found = placedAt(id);
+      return Boolean(found && found.status !== "outdated");
+    });
+    if (arrived) return void presentDocument();
+    const affected = new Set(ids.filter((id) => passages.has(id) || reacted.has(id)));
+    if (!affected.size) return;
+    // Hidden, the durable highlights hold nothing, and showing them reads the maps.
+    const shown = !annotationsHidden();
+    const mark = shown ? CSS.highlights.get(MARK) : undefined;
+    const react = shown ? CSS.highlights.get(REACT) : undefined;
+    const nodes = new Set<Node>();
+    let whole = false;
+    for (const id of affected) {
+      const found = placedAt(id);
+      const segments = targetSegments(found);
+      const ranges =
+        found?.kind === "passage" && found.status !== "outdated" ? found.ranges : null;
+      const was = reacted.get(id);
+      if (was) {
+        for (const range of was) react?.delete(range);
+        reacted.set(id, ranges ?? []);
+        holdWords(ranges ?? []);
+        for (const range of ranges ?? []) react?.add(range);
+        continue;
+      }
+      const old = passages.get(id) as Painted;
+      for (const segment of old.segments) nodes.add(segment.node);
+      for (const range of old.ranges) mark?.delete(range);
+      if (!found || !ranges) {
+        passages.delete(id);
+        marked.delete(id);
+        whole ||= Boolean(found && targetElement(found));
+        continue;
+      }
+      passages.set(id, { order: old.order, segments, ranges });
+      marked.set(id, [...ranges]);
+      holdWords(ranges);
+      for (const range of ranges) mark?.add(range);
+      for (const segment of segments) nodes.add(segment.node);
+    }
+    if (whole) return void presentDocument();
+    for (const node of nodes) {
+      const text = inText.get(node);
+      if (!text) continue;
+      text.pieces = text.pieces.filter((piece) => !affected.has(piece.id));
+      text.tree = null;
+      if (!text.pieces.length) inText.delete(node);
+    }
+    for (const id of affected) {
+      const passage = passages.get(id);
+      if (passage) indexPassage(id, passage);
+    }
+    if (hovering && affected.has(hovering)) paintHover(hovering, hoverFromRow, false);
+    paintCurrentLocation(false);
+    paintVisualStates();
+    refreshHover();
+  }
+
+  // A passage's mark previews its threads, as its margin entry does (`threadPreview`),
+  // from the one hit a press reads too (`markHit`), wherever the hand stands. The
+  // preview owner hears only where the user's own input put the pointer, so a mark a
+  // scroll or a repaint carries under a still pointer shows nothing, as the owner holds
+  // for elements, and a pointer carrying a press, as in selecting words, rests on no
+  // mark.
+  // The owner is told the piece of the passage the pointer first came onto, and that
+  // piece is kept while the pointer stays on the thread's marks. So the preview stands
+  // once, by the line first pointed at, as the pointer crosses the pieces an inline
+  // element or a shadow root splits a passage into (preview.js, `pointRange`). One
+  // range from the passage's first piece to its last would collapse where the passage
+  // runs into a shadow tree (readings/passages.js, `rangeOf`). The owner reads a
+  // standing preview again each time it is told its piece, so it is told again only
+  // when the threads under the pointer change: telling it on each move drew 512
+  // threads' lines on every move over a word 512 threads mark.
+  let standing: { id: string; where: Range } | null = null;
+  let told: Set<string> | null = null;
+  function pointMark(
+    hit: { id: string; where: Range; alike: readonly Findable[] } | null,
+    at: { x: number; y: number },
+  ) {
+    const id = resting && hit ? hit.id : null;
+    if (!hit || !id) {
+      standing = null;
+      told = null;
+      pointed = false;
+      return void pointRange(null);
+    }
+    if (standing?.id !== id || !marksFor(id).includes(standing.where)) {
+      standing = { id, where: hit.where };
+      told = null;
+    }
+    pointed = true;
+    const { alike } = hit;
+    if (told?.size === alike.length && alike.every((mark) => told?.has(mark.id)))
+      return;
+    told = new Set(alike.map((mark) => mark.id));
+    // A thread the user is in is in front of them already, as an entry standing open
+    // previews nothing (preview.js). The threads are put in reading order as the
+    // preview reads them.
+    pointRange(
+      standing.where,
+      () => {
+        const here = currentLocationThreadId();
+        if (here && alike.some((mark) => mark.id === here)) return null;
+        return threadPreview(
+          [...alike]
+            .sort((a, b) => a.order - b.order)
+            .flatMap((mark) => threadNamed(mark.id) ?? []),
+        );
+      },
+      at,
+    );
+  }
+  // The user moved the pointer, or pressed a finger, which may rest on a mark.
+  function pointerAimed(event: PointerEvent) {
+    aimed = true;
+    resting = event.pointerType === "touch" || !event.buttons;
+    // A press is a new input the owner reads afresh, as a finger's hold after one it
+    // let go of or cancelled, even where it lands on the threads it was last told.
+    if (event.type === "pointerdown") told = null;
+    refreshHover();
+  }
+
+  // The hand over a mark is a paint on the document's element under the pointer (a
+  // shadow tree's host, whose cursor its tree inherits), which the margin's page
+  // observer does not hear (base/page-paint.js) and whose cursor reaches only what it holds.
+  // A class on `body` ran a margin pass at each change and restyled the whole body. It
+  // stands only where a press opens the thread: a control or editing region keeps its
+  // own press there (composing/surface.js, the page's click), and so its own cursor.
+  const paintHand = keepsOnOne(RUNTIME_PAINT_ATTRIBUTE.overMark);
+
+  // Hover reads the pointer, and the rows and margin entries it is on, inside the
+  // scheduled frame. Capturing a node at event time would leave reconciliation able to
+  // replace it before paint. The frame asks first where the marks stand, so a change to
+  // the page's words placement has yet to place, which may have made the page's only
+  // mark or taken it, is placed before the hover reads them, once a frame however many
+  // moves it holds.
+  function refreshHover() {
+    if (hoverFrame) return;
+    hoverFrame = nextRender(() => {
+      hoverFrame = 0;
+      settle();
+      // The user's aim is this frame's alone, whether or not anything is marked to read
+      // it: a mark that comes under the pointer later is under a still pointer.
+      const userAimed = aimed;
+      aimed = false;
+      if (!marked.size && !hovering && !hoveredRow && !pointed) return;
+      const at = pointer();
+      const under = elementFromPointAcross(at.x, at.y);
+      const hit = markHit(at.x, at.y, under);
+      const onMark = hit?.id ?? null;
+      if (userAimed) pointMark(hit, at);
+      const presses = onMark && !closestAcross(under, WORKS);
+      paintHand(presses ? document.elementFromPoint(at.x, at.y) : null);
+      const row = rowThread(under);
+      const id = row ?? onMark;
+      if (id !== hovering || Boolean(row) !== hoverFromRow)
+        paintHover(id, Boolean(row));
+      markRow(id ?? marginThread());
+    });
+  }
+
+  // Whether a thread's element marks are the elements this pass would mark.
+  const sameParts = (marks: readonly Mark[], parts: readonly Element[]) =>
+    marks.length === parts.length && marks.every((mark, at) => mark === parts[at]);
+
+  // A passage's marks are the live ranges anchor placement keeps of it, the one record
+  // of where it is (readings/resolved-target.js, `targetSegments`), which a reading that moves
+  // nothing keeps; an element's are its parts, kept while they are the same elements.
+  // So a presentation that changes no mark keeps its ranges, the index of them (`index`)
+  // and the highlight painting them as they stand, and the hover stays bound to them;
+  // only a pass that changes a mark, or the order of the threads marked, builds them
+  // again.
+  function paint({
+    readings,
+    draft,
+    action,
+  }: NonNullable<ReturnType<ReturnType<typeof createAnchorPlacement>["read"]>>) {
+    const before = outlined();
+    const last = new Map(marked);
+    const lastReacted = new Map(reacted);
+    marked.clear();
+    passages.clear();
+    reacted.clear();
+    unmarked.clear();
+    orderOf.clear();
+    pendingOutline = [];
+    actionOutline = [];
+    visualTargets.clear();
+
+    // In the page's reading order, as the margin lists its entries, which names the
+    // thread a press on overlapping passages opens and the order a mark's preview lists
+    // them in (readings/resolved-target.js, `readingOrder`).
+    const inOrder = [...readings].sort((left, right) =>
+      readingOrder(readingPlace(left.placement), readingPlace(right.placement)),
+    );
+    for (const { thread, placement: found } of inOrder) {
+      if (thread.resolved || thread.root.drawing) unmarked.add(thread.id);
+      if (found.status === "outdated" || thread.resolved) continue;
+
+      const ranges = found.kind === "passage" ? (found.ranges ?? []) : [];
+      if (bareReaction(thread)) {
+        reacted.set(thread.id, ranges);
+        continue;
+      }
+
+      const kept = last.get(thread.id);
+      orderOf.set(thread.id, orderOf.size);
+      if (targetElement(found)) {
+        rememberVisual(found);
+        if (!thread.root.drawing) {
+          const parts = targetParts(found);
+          marked.set(thread.id, kept && sameParts(kept, parts) ? kept : parts);
+        }
+      } else if (!thread.root.drawing && found.kind === "passage") {
+        const order = orderOf.get(thread.id) ?? 0;
+        passages.set(thread.id, { order, segments: targetSegments(found), ranges });
+        marked.set(
+          thread.id,
+          kept?.length === ranges.length &&
+            kept.every((mark, at) => mark === ranges[at])
+            ? kept
+            : [...ranges],
+        );
+      }
+    }
+    const order = [...last.keys()];
+    const remarked =
+      marked.size !== last.size ||
+      [...marked].some(([id, marks], at) => order[at] !== id || last.get(id) !== marks);
+    if (remarked) index();
+    const rereacted =
+      reacted.size !== lastReacted.size ||
+      [...reacted].some(([id, ranges]) => {
+        const was = lastReacted.get(id);
+        return (
+          !was || was.length !== ranges.length || ranges.some((r, at) => r !== was[at])
+        );
+      });
+    draftDraws = Boolean(draft.drawing);
+    paintPending(draft.resolved);
+    if (remarked || rereacted) holdOnlyWords();
+
+    actionOutline = targetElement(action) ? targetParts(action) : [];
+    if (action) rememberVisual(action);
+    paintOutlines(before);
+
+    if (remarked) paintDurable(MARK);
+    paintDurable(REACT);
+    paintCurrentLocation(false);
+    // A pass that made new marks rebinds the hover to them even when the semantic id
+    // did not change, then updates the shared visual projection once.
+    if (remarked && hovering) paintHover(hovering, hoverFromRow, false);
+    paintVisualStates();
+    refreshHover();
+  }
+
+  function mount() {
+    if (mounted) return;
+    mounted = true;
+    document.addEventListener("pointermove", pointerAimed);
+    document.addEventListener("pointerdown", pointerAimed);
+    releaseMarks = declareRanges(markBox);
+  }
+
+  function destroy() {
+    if (mounted) {
+      document.removeEventListener("pointermove", pointerAimed);
+      document.removeEventListener("pointerdown", pointerAimed);
+    }
+    releaseMarks?.();
+    releaseMarks = null;
+
+    mounted = false;
+    if (pointed) pointRange(null);
+    pointed = false;
+    standing = null;
+    told = null;
+    if (hoverFrame) cancelRender(hoverFrame);
+    hoverFrame = 0;
+    paintHand(null);
+    const before = outlined();
+    marked.clear();
+    passages.clear();
+    reacted.clear();
+    unmarked.clear();
+    index();
+    pendingOutline = [];
+    actionOutline = [];
+    paintOutlines(before);
+    for (const element of hereParts) element.classList.toggle(HERE, false);
+    for (const element of [...hoverParts, hoveredRow])
+      element?.classList.toggle(HOVER, false);
+    for (const name of [MARK, REACT, PENDING, HOVER, HERE]) CSS.highlights.delete(name);
+    holdOnlyWords();
+    targetPaint.setTargets([]);
+    visualTargets.clear();
+    hovering = null;
+    hoverFromRow = false;
+    hoverParts = [];
+    hoveredRow = null;
+    hereParts = [];
+  }
+
+  return {
+    mount,
+    destroy,
+    paint,
+    replace,
+    paintCurrentLocation,
+    refreshHover,
+    markAt,
+    marksFor,
+  };
+}

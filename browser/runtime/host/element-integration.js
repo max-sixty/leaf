@@ -1,3 +1,4 @@
+// Compiled from element-integration.ts by build/typescript.mjs; edit that file.
 /* Leaf's side of the protocol a widget has with its host. Every custom element whose
    tag declares `verbs` or `inputs` is driven the same way, from outside
    (`hostDeclaredElements`), whether its class is a plain `HTMLElement` or a
@@ -126,29 +127,22 @@ let regions = 0;
 const NO_VERBS = Object.freeze({});
 // A recorded property's value as the attribute its record names would read it
 // ("Recorded properties").
-/** @param {unknown} value */
 const text = (value) => (value == null ? "" : String(value));
 // The text of the value `reading` gives a verb whose record is a value.
-/** @param {import("./widget-controller.js").WidgetReading | null} reading
- * @param {string} verb */
 const valueOf = (reading, verb) => {
   const state = reading?.state[verb];
   return text(state && "value" in state ? state.value : null);
 };
 // An arrival offers an element again whenever its children change (dom/arrivals.js).
-/** @type {WeakSet<Element>} */
 const hosted = new WeakSet();
 // The elements that said `lf-connect`.
-/** @type {WeakSet<Element>} */
 const asked = new WeakSet();
 // The request that has each widget's `state` set again (`stateAgain`).
-/** @type {WeakMap<Element, () => void>} */
 const againBy = new WeakMap();
 
 // The `state`s a publication owes, each by its element. Every reading's own effect
 // claims its region and adds to them as the publication notifies it; writing `owed`
 // there queues the one effect below behind all of those, still inside the publication.
-/** @type {Map<Element, () => void>} */
 const owing = new Map();
 const owed = signal(0);
 effect(() => {
@@ -161,7 +155,6 @@ effect(() => {
   });
 });
 
-/** @param {Element} element */
 function host(element) {
   if (hosted.has(element)) return;
   hosted.add(element);
@@ -186,17 +179,13 @@ function host(element) {
   const name = descriptor
     ? `widget:${descriptor.id}:render`
     : `element:${element.localName}:${++regions}`;
-  /** @type {import("../base/presentation.js").PresentationHandle | null} */
   let region = null;
   // The open claim the next pass settles.
-  /** @type {import("../base/presentation.js").PresentationTicket | null} */
   let ticket = null;
-  /** @type {import("./widget-controller.js").WidgetReading | null} */
   let shown = null;
   let written = false;
   // Whether the element has had a pass of sets.
   let passed = false;
-  /** @type {HTMLElement | null} */
   let box = null;
   const claim = () => {
     ticket ??= region?.present((reason) => showFailure(element, reason)) ?? null;
@@ -219,10 +208,7 @@ function host(element) {
   element.addEventListener(PENDING_TASK, (event) => {
     if (event.composedPath()[0] !== element) return;
     takeDrawing(event);
-    announceDrawing(
-      element,
-      /** @type {import("../lib/pending-task.js").PendingTaskEvent} */ (event).complete,
-    );
+    announceDrawing(element, event.complete);
     // A draw the element started by itself claims its region, unless a claim already
     // stands open for a pass still to settle. Away, it waits for the return's pass.
     if (!passing && !ticket)
@@ -231,7 +217,6 @@ function host(element) {
         .resolve(Promise.all([drawingOf(element), ...holdsOn(element)]));
   });
   // One set the element is owed, made whether or not another threw.
-  /** @param {unknown[]} failures @param {() => void} owed */
   const attempt = (failures, owed) => {
     try {
       owed();
@@ -240,7 +225,6 @@ function host(element) {
     }
   };
   // The data body and each bound input, which the element's own effect follows.
-  /** @param {unknown[]} failures */
   const setInputs = (failures) => {
     // What a setter reads is the element's own to follow, never the pass's.
     if (!written)
@@ -268,13 +252,10 @@ function host(element) {
   // Whether a pass owes `state`: a reading that moved or is asked for again, or, on an
   // element with none that said `lf-connect`, the empty state that says its first
   // inputs are set.
-  /** @param {import("./widget-controller.js").WidgetReading | null} reading */
   const owesState = (reading) =>
     reading
       ? reading !== shown || asks !== answered
       : !passed && asked.has(element) && !records;
-  /** @param {import("./widget-controller.js").WidgetReading | null} reading
-   * @param {unknown[]} failures */
   const setState = (reading, failures) =>
     attempt(failures, () => {
       const state = reading ? widgetState(reading) : NO_VERBS;
@@ -295,7 +276,6 @@ function host(element) {
   // is its answer to that set. The element may dispatch no `change` for the set, so
   // Leaf tells the property's readers (data.js) as the set returns.
   let setting = false;
-  /** @param {string} property @param {string} value */
   const setProperty = (property, value) => {
     setting = true;
     try {
@@ -323,8 +303,6 @@ function host(element) {
     });
   // What a pass's sets came to, said to whoever hears it: the claim, the page's error
   // report, and the readers of a visual's layout.
-  /** @param {import("../base/presentation.js").PresentationTicket | null} drawing
-   * @param {unknown[]} failures @param {PromiseLike<unknown>[]} held */
   const settle = (drawing, failures, held) => {
     if (visual) layoutChanged(element);
     if (failures.length) {
@@ -368,7 +346,6 @@ function host(element) {
       take()?.resolve(Promise.all([drawingOf(element), ...held]));
       return;
     }
-    /** @type {unknown[]} */
     const failures = [];
     passing = true;
     setInputs(failures);
@@ -392,7 +369,6 @@ function host(element) {
     owing.set(element, finish);
     tick(owed);
   };
-  /** @type {(() => void) | null} */
   let leave = null;
   watchOwner(element, {
     // A paint that mounts the element connects it inside that paint, and what the
@@ -421,7 +397,6 @@ function host(element) {
 
 // An element that asks is driven before its `lf-connect` returns, and hears, by the
 // event's cancellation, that Leaf will set its `state`.
-/** @type {WeakSet<ShadowRoot>} */
 const dressed = new WeakSet();
 document.addEventListener(CONNECT, (event) => {
   const [element] = event.composedPath();
@@ -445,8 +420,7 @@ document.addEventListener(CONNECT, (event) => {
  * to draw again when something it draws beside its `state` has moved, as its reports
  * turning ready does (reports.js). Leaf makes the set before any microtask runs, in
  * its place among the sets a publication owes, and on an element that is away, as it
- * returns.
- * @param {Element} element */
+ * returns. */
 export const stateAgain = (element) => againBy.get(element);
 
 /** Drive each element whose tag declares `verbs` or `inputs` from outside while it

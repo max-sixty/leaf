@@ -1,3 +1,4 @@
+// Compiled from field-editor.ts by build/typescript.mjs; edit that file.
 /* A field's editor: CodeMirror under the runtime's text field (text-field.js), and the
  * Markdown preview that draws the field's source the way a sent message reads.
  *
@@ -26,30 +27,13 @@ import {
 } from "../../lib/markdown.js";
 import { isCanonicalMediaUrl, scopedMediaUrl } from "../../records/media.js";
 
-/** @typedef {import("@codemirror/state").EditorState} EditorState
- * @typedef {import("@codemirror/view").EditorView} EditorView
- * @typedef {import("@codemirror/view").Decoration} Decoration
- * @typedef {import("@codemirror/state").ChangeSet} Changes
- * @typedef {{state: EditorState, dispatch: (tr: import("@codemirror/state").Transaction) => void}} StateTarget
- * @typedef {ReturnType<typeof placedMarkdownTokens>} PlacedTokens
- * @typedef {{type: string, start: number, end: number, padStart: number, padEnd: number, inset: string, indent: string}} BlockFace
- * @typedef {{base: string, text: string, anchor: number, head: number, steps: readonly (readonly [() => void, () => void])[]}} FieldWords
- * @typedef {{typed: (native: boolean, insert: () => void) => void, returned: () => boolean,
- * oneLine: () => boolean, message: () => boolean, revealed: (view: EditorView, pos: number) => void,
- * focused: () => void, readOnly: boolean, attributes: Record<string, string>}} FieldConfiguration
- */
-
-/** @param {string} text */
 const indentation = (text) => text.length - text.replace(/^[ \t]*/, "").length;
-/** @param {string} text */
 const trailingIndentation = (text) => text.length - text.replace(/[ \t]*$/, "").length;
 // A fenced or an indented code block; only a file reads indentation as code.
-/** @param {import("markdown-it").Token} token */
 const isCode = (token) => token.type === "fence" || token.type === "code_block";
 
 // Whether the selection touches [from, to], ends included: the caret standing just
 // after a closing backtick still reveals it, so the user can delete what they see.
-/** @param {EditorState} state @param {number} from @param {number} to */
 const touches = (state, from, to) =>
   state.selection.ranges.some((range) => range.from <= to && range.to >= from);
 
@@ -64,10 +48,12 @@ const touches = (state, from, to) =>
 // the draft it would leave, to choose its edit, and the field reading the draft the key
 // leaves parse it once.
 const BARE = /^(?:[\s>]|(?:[-+*]|\d{1,9}[.)])[ \t](?:\[[ xX]\][ \t])?)*$/;
-/** @type {{source: string | null, message: boolean, placed: PlacedTokens}} */
-const lastRead = { source: null, message: false, placed: [] };
-/** @param {string} source @param {boolean} message the reading (lib/markdown.js,
- * `renderMarkdown`) */
+const lastRead = {
+  source: null,
+  message: false,
+  placed: [],
+};
+/** @param message the reading (lib/markdown.js, `renderMarkdown`) */
 const readSource = (source, message) => {
   if (lastRead.source === source && lastRead.message === message)
     return lastRead.placed;
@@ -79,16 +65,13 @@ const readSource = (source, message) => {
   if (placed.length) Object.assign(lastRead, { source, message, placed });
   return placed;
 };
-/** @param {EditorState} state @param {boolean} message */
 const read = (state, message) => readSource(state.doc.toString(), message);
 
 // The characters a draft shows, whitespace aside, each with how often, in the reading
 // `read` takes: a bare last line holds a word nothing shows yet. The last few drafts'
 // are kept, as a key weighs each of its candidate edits against the draft before it,
 // and the edit it makes is the draft the next key starts from.
-/** @type {{source: string, message: boolean, shown: Map<string, number>}[]} */
 const recentlyShown = [];
-/** @param {string} source @param {boolean} message */
 const shownCharacters = (source, message) => {
   const kept = recentlyShown.find((r) => r.source === source && r.message === message);
   if (kept) return kept.shown;
@@ -99,9 +82,7 @@ const shownCharacters = (source, message) => {
   return shown;
 };
 // The characters of `text`, whitespace aside, each with how often.
-/** @param {string} text */
 const counted = (text) => {
-  /** @type {Map<string, number>} */
   const counts = new Map();
   for (const ch of text.replace(/\s/g, "")) counts.set(ch, (counts.get(ch) ?? 0) + 1);
   return counts;
@@ -109,30 +90,20 @@ const counted = (text) => {
 
 // Columns of leading whitespace, a tab reaching the next multiple of four, as the
 // renderer counts them.
-/** @param {string} text */
 const columns = (text) => {
   let col = 0;
   for (const ch of text) col = ch === "\t" ? col + 4 - (col % 4) : col + 1;
   return col;
 };
-/** @typedef {import("../../lib/markdown.js").PlacedToken} Placement
- * @typedef {Placement & import("../../lib/markdown.js").BlockPlacement["list_item_open"] & {token: import("markdown-it").Token & {type: "list_item_open"}}} ItemPlacement
- * @typedef {Placement & import("../../lib/markdown.js").BlockPlacement["blockquote_open"] & {token: import("markdown-it").Token & {type: "blockquote_open"}}} QuotePlacement
- * @typedef {ItemPlacement | QuotePlacement} ContainerPlacement
- */
+
 const ITEM = "list_item_open";
 const LIST = /^(bullet|ordered)_list_open$/;
-/** @typedef {{placement: Placement, items: ListItem[], last: ItemPlacement, depth: number}} ListReading
- * @typedef {ItemPlacement & {source: ItemPlacement, list: ListReading, number: number | null}} ListItem */
+
 // The parser places a list before its items. Build the ownership from each list's
 // range and level once; consumers retain the containing list and its complete items.
-/** @param {PlacedTokens} placed */
 function readLists(placed) {
-  /** @type {{placement: Placement, reading: ListReading | null, next: number | null, depth: number}[]} */
   const open = [];
-  /** @type {ListReading[]} */
   const groups = [];
-  /** @type {ListItem[]} */
   const items = [];
   for (const placement of placed) {
     for (
@@ -181,7 +152,6 @@ function readLists(placed) {
 
 // A list item's reading takes in the blank lines after its blocks, but words typed on
 // one stand outside it: it ends with its last block, or its last item's marker line.
-/** @param {PlacedTokens} placed @param {Placement} item */
 const itemEnd = (placed, item) =>
   Math.max(
     ...placed
@@ -205,22 +175,17 @@ const itemEnd = (placed, item) =>
  * changes to `source`, none for an item with nowhere to go (the first in its list, or
  * one in no other item), or null where the selection is in no list item. Touch has
  * no Tab: typing the spaces nests an item there, as it does anywhere. */
-/** @param {string} source @param {PlacedTokens} placed @param {number} from @param {number} to @param {boolean} deeper */
 export function nestItems(source, placed, from, to, deeper) {
   const starts = [0];
   for (let at = source.indexOf("\n"); at !== -1; at = source.indexOf("\n", at + 1))
     starts.push(at + 1);
-  /** @param {number} pos */
   const lineStart = (pos) => source.slice(0, pos).lastIndexOf("\n") + 1;
-  /** @param {number} start */
   const lineEnd = (start) => {
     const at = source.indexOf("\n", start);
     return at === -1 ? source.length : at;
   };
   const { groups, items } = readLists(placed);
-  /** @param {Placement} item */
   const end = (item) => Math.min(source.length, itemEnd(placed, item));
-  /** @param {Placement} c @param {number} at */
   const within = (c, at) => c.from <= at && at < c.to;
   const first = lineStart(from);
   const last = to > from && lineStart(to) === to ? lineStart(to - 1) : lineStart(to);
@@ -230,9 +195,7 @@ export function nestItems(source, placed, from, to, deeper) {
   );
   if (!chosen.length) return null;
 
-  /** @param {ListItem} i */
   const above = (i) => i.list.items.findLast((s) => s.from < i.from);
-  /** @param {ListItem} i */
   const parent = (i) => {
     const list = i.list.placement;
     return items.findLast(
@@ -240,17 +203,14 @@ export function nestItems(source, placed, from, to, deeper) {
     );
   };
   // The marker of the item after `c` in its list.
-  /** @param {ItemPlacement} item */
   const next = ({ token }) => `${token.info && Number(token.info) + 1}${token.markup}`;
   // Where an item's line starts past the `>` of the quotes it stands in, the column
   // its marker stands at past that, its marker, and the columns from the marker to
   // its words, one for an item with none or more than four, as the renderer reads it.
-  /** @param {ItemPlacement} i */
   const quotes = (i) =>
     placed
       .filter((c) => isBlockPlacement(c, "blockquote_open"))
       .filter((c) => c.token.level < i.token.level && within(c, i.from));
-  /** @param {ItemPlacement} i @param {number} start */
   const base = (i, start) =>
     Math.max(
       start,
@@ -259,7 +219,6 @@ export function nestItems(source, placed, from, to, deeper) {
         .filter(([a]) => a >= start && a <= lineEnd(start))
         .map(([, b]) => b),
     );
-  /** @param {ItemPlacement} i */
   const shape = (i) => {
     const at = base(i, i.from);
     const [a, b] = i.markers[0];
@@ -277,9 +236,7 @@ export function nestItems(source, placed, from, to, deeper) {
     };
   };
 
-  /** @type {{from: number, to: number, insert: string}[]} */
   const changes = [];
-  /** @type {{item: ItemPlacement, shift: number}[]} */
   const moved = [];
   for (const item of chosen) {
     if (moved.some(({ item: m }) => m.from < item.from && item.from < end(m))) continue;
@@ -383,7 +340,6 @@ const FACE_ELEMENTS = {
 };
 // The gap two blocks' margins leave between them, collapsed as the platform collapses
 // adjoining margins, in px or as CSS over the two a gap line names (`standBlocks`).
-/** @param {number} a @param {number} b */
 const collapsed = (a, b) => Math.max(a, b, 0) + Math.min(a, b, 0);
 const GAP =
   "calc(max(var(--lf-gap-end), var(--lf-gap-start), 0px) + " +
@@ -394,7 +350,6 @@ const GAP =
 // element standing beside the field, in its place among its siblings, so the page's own
 // rules, which skip Leaf's interface, and its density reach the probe's blocks as they
 // reach the display's. A list's outer margins collapse with its first and last items'.
-/** @param {HTMLElement} field @param {HTMLElement} display */
 export function readFaces(field, display) {
   const probe = display.cloneNode(false);
   probe.removeAttribute("id");
@@ -406,7 +361,6 @@ export function readFaces(field, display) {
   const liNode = FACE_ELEMENTS.li();
   const ulNode = FACE_ELEMENTS.ul();
   ulNode.append(FACE_ELEMENTS.li(), liNode);
-  /** @type {[string, HTMLElement][]} */
   const nodes = [];
   probe.append(document.createElement("div"));
   for (const [tag, create] of Object.entries(FACE_ELEMENTS)) {
@@ -428,10 +382,8 @@ export function readFaces(field, display) {
   // Type the field already inherits stays inherited.
   const own = getComputedStyle(field);
   const TYPE = ["font-size", "line-height", "font-weight", "letter-spacing"];
-  /** @param {HTMLElement} node @returns {BlockFace} */
   const readFace = (node) => {
     const style = getComputedStyle(node);
-    /** @param {string} value */
     const px = (value) => Number.parseFloat(value) || 0;
     return {
       type: TYPE.filter(
@@ -450,7 +402,6 @@ export function readFaces(field, display) {
   const li = readFace(liNode),
     pre = readFace(preNode),
     quote = readFace(quoteNode);
-  /** @type {[string, BlockFace][]} */
   const faces = nodes.map(([tag, node]) => [
     tag,
     tag === "li"
@@ -489,7 +440,6 @@ export function readFaces(field, display) {
 // A code block's lines as its reading holds them, and the number of the source line
 // holding the first: the line after a fence's own, or the fence's own where words stand
 // on it (lib/markdown.js, `fence_words`).
-/** @param {EditorState} state @param {import("../../lib/markdown.js").PlacedToken} c */
 function codeRows(state, c) {
   const markers = c.markers ?? [];
   const opening = state.doc.lineAt(c.from);
@@ -505,8 +455,6 @@ function codeRows(state, c) {
 }
 
 // Calls `each` with every line of `doc` that holds a position from `from` up to `to`.
-/** @param {import("@codemirror/state").Text} doc @param {number} from @param {number} to
- * @param {(line: import("@codemirror/state").Line) => void} each */
 function eachLine(doc, from, to, each) {
   for (let at = from; at < to;) {
     const current = doc.lineAt(at);
@@ -518,8 +466,6 @@ function eachLine(doc, from, to, each) {
 // The one edit that turns `was` into `put`, starting at `at` in the document: the run
 // between their longest common prefix and the longest common suffix that doesn't
 // overlap it.
-/** @param {string} was @param {string} put @param {number} [at]
- * @returns {{from: number, to: number, insert: string}} */
 function differing(was, put, at = 0) {
   const most = Math.min(was.length, put.length);
   let head = 0;
@@ -544,7 +490,6 @@ function differing(was, put, at = 0) {
 // item after the first in a list stands its gap above it.
 // The display trims the outer margins of its first and last blocks, so the field
 // leaves none there, but a list's first and last items keep theirs.
-/** @param {import("markdown-it").Token} token */
 const blockTag = (token) => (isCode(token) ? "pre" : token.tag);
 const CONTAINER = /^(blockquote|bullet_list|ordered_list|list_item)_open$/;
 
@@ -552,11 +497,8 @@ const CONTAINER = /^(blockquote|bullet_list|ordered_list|list_item)_open$/;
 // tabs and the `>` of the quotes around it, no block opens on it, and no paragraph,
 // heading, table or code block covers it. So a blank line inside code is not blank, nor
 // a `>` that code shows, nor a link's definition, which the parser keeps for itself.
-/** @param {import("@codemirror/state").Text} doc @param {PlacedTokens} placed */
 function blankLines(doc, placed) {
-  /** @type {Set<number>} */
   const taken = new Set();
-  /** @type {Map<number, number>} */
   const quotes = new Map();
   for (const { token, from, to } of placed) {
     if (!token.block) continue;
@@ -568,7 +510,6 @@ function blankLines(doc, placed) {
     if (CONTAINER.test(token.type)) continue;
     for (let n = first + 1; n <= last; n++) taken.add(n);
   }
-  /** @param {number} n */
   return (n) => {
     if (taken.has(n)) return false;
     let text = doc.line(n).text;
@@ -577,9 +518,7 @@ function blankLines(doc, placed) {
     return /^[ \t]*$/.test(text);
   };
 }
-/** @param {EditorState} state @param {PlacedTokens} blocks @param {import("@codemirror/state").Range<Decoration>[]} out @param {(className: string) => Decoration} line */
 function standBlocks(state, blocks, out, line) {
-  /** @param {number} from @param {string} cls */
   const named = (from, cls) => out.push(line(cls).range(from));
   // One blank line stands as the gap. In a run of them, the first and last lines stand
   // as the gaps the prose leaves above and below a paragraph, and each line between as
@@ -587,7 +526,6 @@ function standBlocks(state, blocks, out, line) {
   // two gaps move nothing. In a longer run, the lines beside the new paragraph become its
   // gaps, so the words below it rise by a line less a gap. The display draws the run as
   // one gap, and saving writes it as one blank line (`oneLinePerGap`).
-  /** @param {number} from @param {number} to @param {string} prior @param {string} next */
   const gapLines = (from, to, prior, next) => {
     const first = state.doc.lineAt(from);
     const last = state.doc.lineAt(to - 1);
@@ -602,11 +540,8 @@ function standBlocks(state, blocks, out, line) {
   };
   // The block before the one being read in each container still open, by level: the
   // draft itself and each quote. A list's items stand apart by their own gap.
-  /** @type {({tag: string, to: number} | null)[]} */
   const before = [];
-  /** @type {{type: string, to: number, level: number}[]} */
   const open = [];
-  /** @type {{to: number} | null} */
   let item = null;
   const blank = blankLines(state.doc, blocks);
   for (const { token, from, to } of blocks) {
@@ -657,7 +592,6 @@ function standBlocks(state, blocks, out, line) {
   }
 }
 
-/** @type {Promise<ReturnType<typeof fieldEditor>> | null} */
 let loaded = null;
 /** The field's editor, CodeMirror loaded under it. The renderer loads beside it, so an
  * editor never stands without the reading its preview and Shift+Enter (`continueBlocks`)
@@ -668,7 +602,6 @@ export const loadFieldEditor = () =>
   ));
 
 /** What a field's editor needs CodeMirror for, built from the loaded module. */
-/** @param {typeof import("/vendor/codemirror.esm.js")} codemirror @param {ReturnType<typeof leafEditorView>} LeafEditorView */
 function fieldEditor(
   {
     EditorView,
@@ -696,7 +629,6 @@ function fieldEditor(
 ) {
   // A step an owner recorded in the words' history (`record`): `run` makes it happen when
   // the history reaches it, and `back` is the step the other way.
-  /** @type {import("@codemirror/state").StateEffectType<{run: () => void, back: () => void}>} */
   const ownerStep = StateEffect.define();
 
   const hide = Decoration.replace({});
@@ -709,7 +641,6 @@ function fieldEditor(
   // A container's marker in its source, a quote's `>` or an item's bullet or number,
   // unseen or shown, and the run of them that opens a line (`decorate`), which holds the
   // room kept at its end.
-  /** @param {"quote" | "item"} kind */
   const markerFace = (kind) => ({
     hidden: Decoration.mark({
       class: `lf-md-marker lf-md-${kind}-marker lf-md-unseen`,
@@ -728,12 +659,10 @@ function fieldEditor(
   // doesn't hold, as a quote's lazy line and an item's later line don't, so the markers
   // before it stand in their own containers' insets.
   class Inset extends WidgetType {
-    /** @param {"quote" | "item"} kind */
     constructor(kind) {
       super();
       this.kind = kind;
     }
-    /** @param {Inset} other */
     eq(other) {
       return other.kind === this.kind;
     }
@@ -748,7 +677,6 @@ function fieldEditor(
     quote: Decoration.widget({ widget: new Inset("quote"), side: -1 }),
     item: Decoration.widget({ widget: new Inset("item"), side: -1 }),
   };
-  /** @param {string} cls */
   const line = (cls) => Decoration.line({ class: cls });
   // A quote and a list item are each a box around their lines, as the message's
   // blockquote and li are, so a nested one stands inside its container with the
@@ -763,7 +691,6 @@ function fieldEditor(
   // block's frame replaced its quote's; and boxes for quotes alone, which put a quote's
   // rule outside the item holding it, and the item's bullet inside the quote.
   const BULLETS = ["lf-md-disc", "lf-md-circle", "lf-md-square"];
-  /** @param {number} from @param {number} to @param {number} level @param {Record<string, string>} attributes */
   const box = (from, to, level, attributes) =>
     BlockWrapper.create({
       tagName: "div",
@@ -773,7 +700,6 @@ function fieldEditor(
 
   // The inline constructs the preview draws, by the renderer's token type: each as the
   // element the renderer sends it as.
-  /** @type {Readonly<Partial<Record<string, Decoration>>>} */
   const INLINE = {
     code_inline: Decoration.mark({ tagName: "code" }),
     em_open: Decoration.mark({ tagName: "em" }),
@@ -786,17 +712,14 @@ function fieldEditor(
   // renderer gives page media (records/page-markdown.js, `pageLinks`). A press on it puts the
   // caret in its source.
   class Picture extends WidgetType {
-    /** @param {string} src @param {string} alt */
     constructor(src, alt) {
       super();
       this.src = isCanonicalMediaUrl(src) ? scopedMediaUrl(src) : src;
       this.alt = alt;
     }
-    /** @param {Picture} other */
     eq(other) {
       return other.src === this.src && other.alt === this.alt;
     }
-    /** @param {EditorView} view */
     toDOM(view) {
       const img = document.createElement("img");
       img.className = "lf-md-picture";
@@ -830,12 +753,10 @@ function fieldEditor(
   });
   // The character an entity names, where the message shows it.
   class Spelled extends WidgetType {
-    /** @param {string} shown */
     constructor(shown) {
       super();
       this.shown = shown;
     }
-    /** @param {Spelled} other */
     eq(other) {
       return other.shown === this.shown;
     }
@@ -851,12 +772,10 @@ function fieldEditor(
   // A task item's box, as the message draws it: disabled, so it shows the state the
   // source writes, which only the source changes.
   class TaskBox extends WidgetType {
-    /** @param {boolean} checked */
     constructor(checked) {
       super();
       this.checked = checked;
     }
-    /** @param {TaskBox} other */
     eq(other) {
       return other.checked === this.checked;
     }
@@ -874,37 +793,26 @@ function fieldEditor(
   }
 
   // The draft's decorations, and the boxes its quotes and list items stand in.
-  /** @param {EditorState} state @param {PlacedTokens} placed */
   function decorate(state, placed) {
-    /** @type {import("@codemirror/state").Range<Decoration>[]} */
     const out = [];
-    /** @type {import("@codemirror/state").Range<Decoration>[]} */
     const runs = [];
-    /** @type {import("@codemirror/state").Range<import("@codemirror/view").BlockWrapper>[]} */
     const boxes = [];
     // The lines whose leading
     // spaces the message drops, by the level of the block they lead, the blocks whose
     // lines draw their own leading spaces (code, by its reading, and a rule), the
     // containers' markers, and the containers.
-    /** @type {Map<Placement, ListItem>} */
     const items = new Map(readLists(placed).items.map((item) => [item.source, item]));
-    /** @type {[number, number][]} */
     const leads = [];
-    /** @type {[number, number][]} */
     const whole = [];
-    /** @type {{from: number, to: number, kind: "quote" | "item", level: number, line: number, shown?: boolean}[]} */
     const opening = [];
-    /** @type {{from: number, to: number, kind: "quote" | "item", level: number}[]} */
     const held = [];
     // Where the markers end that open the line starting at `line` for the containers
     // outside `level`: a block inside them starts on that line no earlier.
-    /** @param {number} line @param {number} level */
     const after = (line, level) =>
       Math.max(
         line,
         ...opening.filter((m) => m.line === line && m.level < level).map((m) => m.to),
       );
-    /** @param {number} from @param {number} to @param {Decoration} deco */
     const add = (from, to, deco) => {
       if (from >= to) return;
       // A hidden range may not hold a line break; such syntax stays drawn.
@@ -925,7 +833,6 @@ function fieldEditor(
         else if (touched) add(a, b, dim);
         else out.push(Decoration.replace({ widget: new Spelled(shown) }).range(a, b));
       }
-      /** @type {[number, number] | undefined} */
       const words =
         token.type === "code_inline"
           ? [from + token.markup.length, to - token.markup.length]
@@ -1117,8 +1024,7 @@ function fieldEditor(
     // a quote's lazy line and an item's later line do, keeps its inset after the markers
     // of the containers outside it.
     opening.sort((a, b) => a.from - b.from);
-    /** @typedef {typeof opening[number]} Marker */
-    /** @type {{first: Marker, last: Marker, markers: Marker[]}[]} */
+
     const groups = [];
     for (const marker of opening) {
       const prior = groups.at(-1);
@@ -1167,7 +1073,6 @@ function fieldEditor(
   // the goal column CodeMirror aimed for, found in its own map of line heights.
   // Without Shift, a selection collapses to its end that way, as CodeMirror's own step
   // does.
-  /** @param {boolean} forward @param {boolean} extend @returns {(view: EditorView) => boolean} */
   const lineStep = (forward, extend) => (view) => {
     const { selection, doc } = view.state;
     const moved = EditorSelection.create(
@@ -1178,7 +1083,6 @@ function fieldEditor(
         const here = view.lineBlockAt(range.head);
         const at = forward ? here.to + 1 : here.from - 1;
         const beside = at >= 0 && at <= doc.length ? view.lineBlockAt(at) : null;
-        /** @param {import("@codemirror/view").BlockInfo} block */
         const passed = (block) => step.head < block.from || step.head > block.to;
         if (beside && passed(here) && passed(beside) && step.goalColumn !== undefined) {
           const head = view.posAtCoords(
@@ -1234,7 +1138,6 @@ function fieldEditor(
   // reading. Taken again when the words change or the renderer arrives. The preview,
   // Shift+Enter and the joints below read it from the state, where CodeMirror takes a
   // replacement across a line break.
-  /** @param {EditorState} state */
   const readField = (state) => ({
     placed: read(state, state.facet(message)),
     judged: markdownReady(),
@@ -1245,28 +1148,22 @@ function fieldEditor(
       tr.docChanged || markdownReady() !== value.judged ? readField(tr.state) : value,
   });
 
-  /** @param {Placement} c @returns {c is ContainerPlacement} */
   const container = (c) =>
     isBlockPlacement(c, "blockquote_open") || isBlockPlacement(c, "list_item_open");
-  /** @param {Placement | undefined} c @returns {c is ItemPlacement} */
   const item = (c) => c !== undefined && isBlockPlacement(c, "list_item_open");
   // Whether a quote or list item, as the renderer reads it, holds a line (`itemEnd`).
   // An item ends at its parsed end or before, so one ending earlier needs no reading of
   // its end, which scans the draft.
-  /** @param {PlacedTokens} placed @param {import("@codemirror/state").Line} line */
-  const holding = (placed, line) => /** @param {Placement} c */ (c) =>
+  const holding = (placed, line) => (c) =>
     c.from <= line.from &&
     line.from < c.to &&
     (!item(c) || line.from < itemEnd(placed, c));
-  /** @param {ContainerPlacement} c @param {import("@codemirror/state").Line} l */
   const markerOn = (c, l) => c.markers.find(([a]) => a >= l.from && a <= l.to);
   // Where the markers that open a line end.
-  /** @param {import("@codemirror/state").Line} l @param {ContainerPlacement[]} among */
   const opened = (l, among) =>
     Math.max(l.from, ...among.map((c) => markerOn(c, l)?.[1] ?? l.from));
   // A line a container holds without its marker carries the quote's `>`, or the item's
   // indent.
-  /** @param {ContainerPlacement} c */
   const carried = (c) =>
     isBlockPlacement(c, "blockquote_open") ? "> " : " ".repeat(c.token.lfSource.indent);
 
@@ -1279,7 +1176,6 @@ function fieldEditor(
   // field as it does in the body. It is never revealed, since revealing it would rewrap
   // the paragraph under the caret.
   const joint = Decoration.replace({ widget: new Spelled(" ") });
-  /** @param {EditorState} state */
   const jointsOf = (state) => {
     if (state.facet(message)) return Decoration.none;
     const { placed } = state.field(reading);
@@ -1367,7 +1263,6 @@ function fieldEditor(
   // stood. So it does where the caret stands at the start or end of a construct's words
   // among others, as before a code span's first letter, and inside code or a picture,
   // which no break may enter, it acts at the nearer end.
-  /** @param {StateTarget} view @returns {boolean} */
   function newLine(view) {
     const { state } = view;
     if (state.readOnly) return false;
@@ -1375,7 +1270,6 @@ function fieldEditor(
     const { from, to } = state.selection.main;
     const { placed } = state.field(reading);
     // Return as though the caret stood at `at`.
-    /** @param {number} at @returns {boolean} */
     const actAt = (at) =>
       newLine({
         state: state.update({ selection: { anchor: at } }).state,
@@ -1528,7 +1422,6 @@ function fieldEditor(
     // On a blank line between blocks it leaves the caret on a blank line with a blank
     // line on each side, where the next words make a paragraph of their own: words on
     // a line beside a paragraph would join it.
-    /** @param {number} n */
     const blankLine = (n) => /^[ \t]*$/.test(state.doc.line(n).text);
     const inCode = placed.some(
       ({ token, from: a, to: b }) => isCode(token) && a <= line.from && line.from < b,
@@ -1623,12 +1516,10 @@ function fieldEditor(
       // inside goes with the range, and one where it ends stays, the new line after it.
       const breaks = placed
         .filter(({ token }) => token.type === "hardbreak")
-        .map(
-          /** @returns {[number, number]} */ ({ from: at, to: end }) => [
-            at - trailingIndentation(state.sliceDoc(state.doc.lineAt(at).from, at)),
-            end,
-          ],
-        );
+        .map(({ from: at, to: end }) => [
+          at - trailingIndentation(state.sliceDoc(state.doc.lineAt(at).from, at)),
+          end,
+        ]);
       a = breaks.find(([at, end]) => at < a && a < end)?.[0] ?? a;
       const hard = breaks.find(([at, end]) => at <= b && b <= end);
       // The break is the first of `BREAKS` the whole draft reads as one, and the draft
@@ -1637,7 +1528,6 @@ function fieldEditor(
       // reading as words, their first mark escaped. Where no break does, Return changes
       // nothing.
       const rest = hard ? hard[1] : b;
-      /** @param {string} mark */
       const broken = (mark) => {
         const insert = `${space}${mark}\n${prefix}`;
         return state.changes(
@@ -1672,7 +1562,6 @@ function fieldEditor(
   // has, the words stand plain, and its arrival draws every open field.
   const livePreview = ViewPlugin.fromClass(
     class {
-      /** @param {EditorView} view */
       constructor(view) {
         this.live = true;
         this.read = view.state.field(reading);
@@ -1686,7 +1575,6 @@ function fieldEditor(
       destroy() {
         this.live = false;
       }
-      /** @param {import("@codemirror/view").ViewUpdate} update */
       update(update) {
         const read = update.state.field(reading);
         if (read === this.read && !update.selectionSet) return;
@@ -1729,7 +1617,6 @@ function fieldEditor(
   // beside the renderer's, read the whole draft again on every key, ended a quote or
   // item at a fence inside it, and took three presses to leave a list.
   const CHECKBOX = "[ ] ";
-  /** @param {StateTarget} view @param {boolean} [nextItem] */
   function continueBlocks(view, nextItem = false) {
     const { state } = view;
     const { placed } = state.field(reading);
@@ -1742,30 +1629,24 @@ function fieldEditor(
     if (!inner) return false;
     const code = placed.some((c) => isCode(c.token) && holds(c));
     // A line holding nothing past its markers is bare.
-    /** @param {import("@codemirror/state").Line} l */
     const bare = (l) => {
       const rest = state.sliceDoc(opened(l, all), l.to).trim();
       return !rest || `${rest} ` === CHECKBOX;
     };
     if (from < opened(line, containers)) return false;
-    /** @param {ContainerPlacement} c */
     const task = ({ token }) =>
       String(token.attrGet("class")).split(" ").includes("task-list-item");
-    /** @param {ContainerPlacement} c */
     const next = (c) =>
       `${c.token.info && Number(c.token.info) + 1}${c.token.markup} ${task(c) ? CHECKBOX : ""}`;
     const outside = containers.slice(0, -1);
     let change;
-    /** @type {{from: number, insert: string} | null} */
     let before = null;
-    /** @type {{from: number, to: number} | null} */
     let cut = null;
     if (!code && to <= line.to && bare(line)) {
       const parent = outside.at(-1);
       const outdent = item(inner) && item(parent);
       const around = outdent ? outside.slice(0, -1) : outside;
       // What a line keeps of its markers for the containers it stays in.
-      /** @param {import("@codemirror/state").Line} l */
       const kept = (l) => {
         let text = "";
         for (const c of around) {
@@ -1844,7 +1725,6 @@ function fieldEditor(
   // What begins a line below the one holding `at` in the quotes and list items that
   // line stands in, as the preview reads the draft, or null where `at` stands before
   // their markers end.
-  /** @param {EditorState} state @param {number} at */
   function beginBelow(state, at) {
     const { placed } = state.field(reading);
     const line = state.doc.lineAt(at);
@@ -1856,7 +1736,6 @@ function fieldEditor(
   // The code block, fenced or indented, that the line holding `at` stands in, as the
   // preview reads the draft, and which of its fence's lines that line is, or null where
   // no code holds it.
-  /** @param {EditorState} state @param {number} at */
   function codeAt(state, at) {
     const { placed } = state.field(reading);
     const line = state.doc.lineAt(at);
@@ -1875,7 +1754,6 @@ function fieldEditor(
       open: markers.length < 2 && line.to + 1 >= fence.to,
       begin: beginBelow(state, line.to) ?? "\n",
       // The words on a line up to `to`, past its containers' markers.
-      /** @param {import("@codemirror/state").Line} l @param {number} [to] */
       words: (l, to = l.to) => state.sliceDoc(opened(l, containers), to).trim(),
     };
   }
@@ -1885,7 +1763,6 @@ function fieldEditor(
   // lacks, or after a blank line that ends an indented block's code, whose indent the
   // preview hides and Return carries outside a quote or list item. Nothing else reaches
   // a line below code the draft ends with. Rich editors leave a code block the same way.
-  /** @param {EditorView} view */
   function leaveCode(view) {
     const { state } = view;
     const { main } = state.selection;
@@ -1916,7 +1793,6 @@ function fieldEditor(
 
   // The source an inline token's words show from and to: a code span's between the
   // padding its reading strips, and a text's past the backslash of an escape opening it.
-  /** @param {EditorState} state @param {Placement} c @returns {[number, number]} */
   function shownSpan(state, c) {
     const { token } = c;
     if (token.type === "code_inline") {
@@ -1942,8 +1818,6 @@ function fieldEditor(
   // and end of the words it shows, and whether no line break may stand inside it: an
   // emphasis or a link, a code span or a picture, which may not, and each escape or
   // entity in a text, which shows one character for several, its first.
-  /** @param {EditorState} state @param {Placement} c
-   * @returns {[number, number, number, number, boolean][]} */
   function constructsOf(state, c) {
     if (c.token.nesting === 1) return [[c.from, c.to, ...shownSpan(state, c), false]];
     if (c.token.type === "code_inline" || c.token.type === "image")
@@ -1978,7 +1852,6 @@ function fieldEditor(
   // as holding (`read`), counts as the draft's end. Characters are counted, not matched
   // to their places in the source, so an edit that hides one `#` and shows another
   // passes, as Backspace at `# ▏# T` does.
-  /** @param {EditorState} state @param {Changes} changes @param {string} [typed] */
   function keeps(state, changes, typed = "") {
     const doc = changes.apply(state.doc);
     const source = doc.toString();
@@ -1995,15 +1868,10 @@ function fieldEditor(
     // Each block beside the lines from `from` to `to`, as its kind, depth and end, and
     // its start where it starts outside them: those ending above, those starting below,
     // and those starting among them or above and ending below.
-    /** @param {Placement[]} placed @param {import("@codemirror/state").Text} text
-     * @param {number} from @param {number} to @param {(at: number) => number} place */
     const beside = (placed, text, from, to, place) => {
       const [first, last] = [text.lineAt(from).from, text.lineAt(to).to];
-      /** @type {string[]} */
       const above = [];
-      /** @type {string[]} */
       const below = [];
-      /** @type {string[]} */
       const ends = [];
       for (const { token, from: a, to } of placed) {
         if (!(LEAF.test(token.type) || CONTAINER.test(token.type)) || a >= text.length)
@@ -2025,7 +1893,6 @@ function fieldEditor(
     );
     const is = beside(readSource(source, inMessage), doc, startB, endB, (at) => at);
     if (was.above !== is.above) return false;
-    /** @param {string[]} list @param {string} entry */
     const take = (list, entry) => {
       const at = list.indexOf(entry);
       return at >= 0 && list.splice(at, 1).length > 0;
@@ -2042,7 +1909,6 @@ function fieldEditor(
     const before = shownCharacters(state.doc.toString(), inMessage);
     const after = shownCharacters(source, inMessage);
     // The characters of source text and those it shows, as `©` for `&copy;`.
-    /** @param {string} text */
     const spelled = (text) => {
       const counts = counted(text);
       for (const [ch, n] of counted(markdownWords(text, inMessage)))
@@ -2070,11 +1936,7 @@ function fieldEditor(
   // goes in the changed draft; null where neither is. The backslash goes before the
   // mark of the block the words would open, as the `.` of `1.` or the `|` of a table's
   // row.
-  /** @param {EditorState} state @param {Changes} changes @param {number} start
-   * @param {string} [typed] @param {(placed: Placement[], changes: Changes) => boolean} [means]
-   * @returns {{changes: Changes, escape: number | null} | null} */
   function escapedWhere(state, changes, start, typed = "", means = () => true) {
-    /** @param {Changes} c */
     const holds = (c) =>
       means(readSource(c.apply(state.doc).toString(), state.facet(message)), c) &&
       keeps(state, c, typed);
@@ -2090,7 +1952,6 @@ function fieldEditor(
 
   // Where in `words` the first mark stands that could open a block, past a list's
   // number, or null.
-  /** @param {string} words */
   const firstMark = (words) => {
     const mark = /^[ \t]*\d*[!-/:-@[-`{-~]/.exec(words);
     return mark ? mark[0].length - 1 : null;
@@ -2101,7 +1962,6 @@ function fieldEditor(
   // escape the break's; and a space first, where a link's address would take both.
   const BREAKS = ["\\", "\\\\", " \\"];
   // Whether the reading `read` breaks the line at the line break at `at`.
-  /** @param {Placement[]} read @param {number} at */
   const breaksAt = (read, at) =>
     read.some(
       ({ token, from: a, to: b }) => token.type === "hardbreak" && a < at && at < b,
@@ -2138,16 +1998,12 @@ function fieldEditor(
   // an atomic range, so the caret could no longer reach an item's marker to change it.
   const LEAF =
     /^(?:paragraph_open|heading_open|fence|code_block|hr|table_open|html_block)$/;
-  /** @param {Placement} c */
   const whole = (c) =>
     c.token.type !== "paragraph_open" && c.token.type !== "heading_open";
-  /** @typedef {import("@codemirror/state").Line} Line
-   * @typedef {{from: number, to?: number, insert?: string}} Edit */
 
   // Where a code block's line shows its code from, past its containers' markers and the
   // indent the code's reading drops (`decorate`), and whether it is the code's first or
   // last line; null for a fence's own line.
-  /** @param {EditorState} state @param {Placement} c @param {Line} l @param {ContainerPlacement[]} containers */
   function codeLine(state, c, l, containers) {
     const markers = c.markers ?? [];
     const { body, opening, inline, first } = codeRows(state, c);
@@ -2170,7 +2026,6 @@ function fieldEditor(
   // on it, the innermost marker opening a block that starts on it, and where its shown
   // words start and end. A line holding only its block's marks, as a fence's does, is
   // marks, and a line in a container holding nothing past its markers is bare.
-  /** @param {EditorState} state @param {Line} line */
   function lineParts(state, line) {
     const { placed } = state.field(reading);
     const containers = placed.filter(container).filter(holding(placed, line));
@@ -2180,10 +2035,8 @@ function fieldEditor(
     const markers = opened(line, containers);
     const code =
       block && isCode(block.token) ? codeLine(state, block, line, containers) : null;
-    /** @param {Placement} c */
     const startsHere = (c) => state.doc.lineAt(c.from).number === line.number;
-    let own = /** @type {[number, number] | null} */ (null);
-    /** @param {[number, number] | undefined} range */
+    let own = null;
     const consider = (range) => {
       if (range && (!own || range[0] > own[0])) own = range;
     };
@@ -2238,11 +2091,9 @@ function fieldEditor(
       bare: containers.length > 0 && !state.sliceDoc(markers, line.to).trim(),
     };
   }
-  /** @typedef {ReturnType<typeof lineParts>} LineParts */
 
   // The hard break ending the line above `line`, from its backslash, or the spaces
   // that make one, into `line`.
-  /** @param {EditorState} state @param {Line} line */
   const hardBreakBefore = (state, line) =>
     state
       .field(reading)
@@ -2261,8 +2112,6 @@ function fieldEditor(
   // no break the whole draft reads as one fits, after a blank line. Where none of these
   // keeps the draft, as for an item's words that would read as a rule, the marker
   // stays.
-  /** @param {EditorState} state @param {LineParts & {own: [number, number]}} parts
-   * @returns {Edit[][]} */
   function unwrap(state, parts) {
     const { line, own, block, containers } = parts;
     const [from] = own;
@@ -2272,7 +2121,6 @@ function fieldEditor(
     }
     const heading = block && isBlockPlacement(block, "heading_open") ? block : null;
     const owner = containers.find((c) => markerOn(c, line)?.[0] === from);
-    /** @type {Edit[]} */
     const changes = [{ from, to: parts.words }];
     const close =
       heading && own === heading.markers[0] ? heading.markers[1] : undefined;
@@ -2318,7 +2166,6 @@ function fieldEditor(
   // Where taking `line` away starts: at the line break before it, and where that break
   // is a hard one, at its backslash, and at the breaks of the lines above it that hold
   // nothing else, since a hard break with no words after it shows as `\`.
-  /** @param {EditorState} state @param {Line} line */
   function brokenFrom(state, line) {
     let from = line.from - 1;
     for (let l = line, hard = hardBreakBefore(state, l); hard;) {
@@ -2335,9 +2182,8 @@ function fieldEditor(
 
   // The joint, in a file's reading, that stands for the line break before `line`
   // (`joints`), whose space a key takes whole; null in a message's.
-  /** @param {EditorState} state @param {Line} line */
   function jointBefore(state, line) {
-    let found = /** @type {{from: number, to: number} | null} */ (null);
+    let found = null;
     state.field(joints).between(line.from - 1, line.from, (from, to) => {
       if (from < line.from && to >= line.from) found = { from, to };
     });
@@ -2347,7 +2193,6 @@ function fieldEditor(
   // The lines next to `line`, upward or downward, past those the field shows blank: the
   // first that holds anything, null at the draft's end, and how many blank lines stand
   // between.
-  /** @param {EditorState} state @param {Line} line @param {boolean} forward */
   function nextHolding(state, line, forward) {
     const blank = blankLines(state.doc, state.field(reading).placed);
     const step = forward ? 1 : -1;
@@ -2360,13 +2205,11 @@ function fieldEditor(
   // How many blank lines between two blocks the field draws as the gap between them
   // rather than as lines: one in a file, where the gap stands for it, and none in a
   // message, which shows each.
-  /** @param {EditorState} state */
   const gapLines = (state) => (state.facet(message) ? 0 : 1);
 
   // What Backspace at `at` takes (above): the edits it would make, in the order tried,
   // of which the first the draft reads as before under is made (`keeps`), and none where
   // none is; true where it takes nothing, and false where CodeMirror's own deletion acts.
-  /** @param {EditorState} state @param {number} at @returns {Edit[][] | boolean} */
   function deletionBefore(state, at) {
     const line = state.doc.lineAt(at);
     const parts = lineParts(state, line);
@@ -2418,8 +2261,6 @@ function fieldEditor(
   // with the blank lines after it, and the words keep their own block. True where it is
   // a block never joined, one whose last line is its marks, as a setext heading's
   // underline, or source the field draws as typed, as a link's definition.
-  /** @param {EditorState} state @param {LineParts} prior @param {number} words
-   * @returns {Edit[][] | boolean} */
   function joined(state, prior, words) {
     if (prior.block)
       return (
@@ -2438,13 +2279,11 @@ function fieldEditor(
   // Takes a line holding nothing past its markers by `change`, which removes it whole,
   // or, where the blocks beside it would then read as one, as a paragraph and the `---`
   // under it would, leaves it blank (`keeps`).
-  /** @param {Line} line @param {Edit} change @returns {Edit[][]} */
   const lineGone = (line, change) => [[change], [{ from: line.from, to: line.to }]];
 
   // A heading holds one line, so words joining it from a line that ends in a hard break
   // leave that break, which would show as `\` at the heading's end, and the lines after
   // stand below it as a paragraph.
-  /** @param {EditorState} state @param {LineParts} prior @param {number} words */
   function intoHeading(state, prior, words) {
     if (!prior.block || !isBlockPlacement(prior.block, "heading_open")) return [];
     const line = state.doc.lineAt(words);
@@ -2459,14 +2298,12 @@ function fieldEditor(
 
   // The number of the last line a block holds: the draft's last where the block takes in
   // the word the field reads a bare last line as holding (`read`).
-  /** @param {EditorState} state @param {Placement} block */
   const lastLine = (state, block) =>
     block.to > state.doc.length
       ? state.doc.lines
       : state.doc.lineAt(Math.max(block.from, block.to - 1)).number;
 
   // What Delete at `at` takes, as `deletionBefore` says.
-  /** @param {EditorState} state @param {number} at @returns {Edit[][] | boolean} */
   function deletionAfter(state, at) {
     const line = state.doc.lineAt(at);
     const parts = lineParts(state, line);
@@ -2533,9 +2370,7 @@ function fieldEditor(
   // `changes` without the source each edit puts back as it was, so the field rewrites
   // only what the key changes: an edit spans the blocks it joins for `keeps` to check
   // them, as Backspace on a message's blank line runs from the end of the block above.
-  /** @param {EditorState} state @param {Changes} changes */
   function narrowed(state, changes) {
-    /** @type {Edit[]} */
     const edits = [];
     changes.iterChanges((from, to, _fromB, _toB, inserted) =>
       edits.push(differing(state.sliceDoc(from, to), inserted.toString(), from)),
@@ -2543,7 +2378,6 @@ function fieldEditor(
     return state.changes(edits);
   }
 
-  /** @param {boolean} forward @returns {(view: StateTarget) => boolean} */
   const deleteAtEdge = (forward) => (view) => {
     const { state } = view;
     const { main } = state.selection;
@@ -2569,7 +2403,6 @@ function fieldEditor(
 
   // Home stops at the first word a line shows, past its markers and a heading's `#`;
   // from there it goes to the line's start, where they show.
-  /** @param {boolean} extend @returns {(view: EditorView) => boolean} */
   const home = (extend) => (view) => {
     const { state } = view;
     const selection = EditorSelection.create(
@@ -2596,8 +2429,7 @@ function fieldEditor(
   // instead, with where in them a backslash goes to keep them in it, as Return keeps
   // words after its break. Null where they need none of these, or the field reads as a
   // message, whose lines stand alone.
-  /** @param {EditorState} state @param {number} at @param {string} put
-   * @param {import("@codemirror/state").Text} doc the words with them put */
+  /** @param doc the words with them put */
   function gapAround(state, at, put, doc) {
     if (state.facet(message)) return null;
     const line = state.doc.lineAt(at);
@@ -2634,7 +2466,6 @@ function fieldEditor(
     }
     if (holds || !/\S/.test(put)) return null;
     const { block } = lineParts(state, line);
-    /** @param {string} source */
     const leaves = (source) =>
       placedMarkdownTokens(source, false).filter(({ token }) => LEAF.test(token.type));
     const read = leaves(doc.toString());
@@ -2671,9 +2502,6 @@ function fieldEditor(
   // prose that opens an item opens the next of its list, so a pasted item stays the item
   // it was. Words put on a line that held none stand apart (`gapAround`), and marks put
   // at a fence's line stay marks (`fenceBreak`).
-  /** @param {EditorState} state @param {string} put @param {boolean} pasted
-   * @param {number} at @param {import("@codemirror/state").Text} doc
-   * @returns {import("@codemirror/state").ChangeSpec[]} */
   function settled(state, put, pasted, at, doc) {
     const { from: start, empty } = state.selection.main;
     const begin = beginBelow(state, start);
@@ -2717,7 +2545,6 @@ function fieldEditor(
   // leaves the next words in the code and misreads an agent's code whose line ends in
   // marks; and closing only as the caret leaves the line, which shows nothing at the
   // closing backtick.
-  /** @param {EditorState} state @param {string} put @param {boolean} pasted */
   function fenceBreak(state, put, pasted) {
     const { head: caret, empty } = state.selection.main;
     const at = empty ? codeAt(state, caret) : null;
@@ -2736,7 +2563,6 @@ function fieldEditor(
     return open && !pasted && closes && words(line, run) ? run : null;
   }
 
-  /** @param {boolean} deeper @returns {(view: EditorView) => boolean} */
   const nest = (deeper) => (view) => {
     const { state } = view;
     if (state.readOnly) return false;
@@ -2771,7 +2597,6 @@ function fieldEditor(
    * Markdown body in place, as a file, which joins a paragraph's lines (`joints`),
    * `field.revealed(view, pos)` shows the row holding `pos` in the field's
    * host, and `field.focused()` hears the editor take or lose focus. */
-  /** @param {FieldWords} words @param {FieldConfiguration} field */
   function fieldState(words, field) {
     // The run of words that differs between `base` and `text`: where the user typed.
     const { base, text } = words;
@@ -2883,7 +2708,6 @@ function fieldEditor(
         // platform, as Android's editing does, becomes a space.
         EditorState.transactionFilter.of((tr) => {
           if (!tr.docChanged || !field.oneLine()) return tr;
-          /** @type {import("@codemirror/state").ChangeSpec[]} */
           const breaks = [];
           tr.changes.iterChanges((_fromA, _toA, fromB, _toB, inserted) => {
             const text = inserted.toString();
@@ -2920,7 +2744,6 @@ function fieldEditor(
             }
           });
           if (!put) return tr;
-          /** @param {import("@codemirror/state").ChangeSpec[]} changes */
           const settle = (changes) =>
             changes.length
               ? [
@@ -3054,13 +2877,11 @@ function fieldEditor(
   // an empty item and two blank lines. Only the renderer knows each such rule, so saving
   // draws the words both ways and compares them, run by run where dropping every run at
   // once draws them otherwise.
-  /** @param {EditorState} state */
   const oneLinePerGap = (state) => {
     const { doc } = state;
     const reading = state.facet(message);
     const source = doc.toString();
     const blank = blankLines(doc, placedMarkdownTokens(source, reading));
-    /** @type {{from: number, to: number}[]} */
     const runs = [];
     let run = 0;
     for (let n = 1; n <= doc.lines; n++) {
@@ -3074,10 +2895,8 @@ function fieldEditor(
     }
     if (!runs.length) return source;
     const shown = renderMarkdown(source, {}, reading);
-    /** @param {{from: number, to: number}[]} dropped */
     const saved = (dropped) => state.changes(dropped).apply(doc).toString();
     if (renderMarkdown(saved(runs), {}, reading) === shown) return saved(runs);
-    /** @type {{from: number, to: number}[]} */
     const spare = [];
     for (const drop of runs)
       if (renderMarkdown(saved([...spare, drop]), {}, reading) === shown)
@@ -3085,17 +2904,14 @@ function fieldEditor(
     return saved(spare);
   };
 
-  /** @param {boolean} on */
   const readOnly = (on) => ({
     effects: editable.reconfigure(EditorState.readOnly.of(on)),
   });
-  /** @param {Record<string, string>} wanted */
   const contentAttributes = (wanted) => ({
     effects: attributes.reconfigure(EditorView.contentAttributes.of(wanted)),
   });
   // A step in the history that changes no words, standing alone: taking it back calls
   // `undo`, redoing it calls `redo`.
-  /** @param {() => void} undo @param {() => void} redo */
   const record = (undo, redo) => ({
     effects: ownerStep.of({ run: redo, back: undo }),
     annotations: isolateHistory.of("full"),
@@ -3106,7 +2922,6 @@ function fieldEditor(
   const startHistory = () => ({ effects: histories.reconfigure(history()) });
 
   /** Run the owner's steps an undo or redo reached. */
-  /** @param {readonly import("@codemirror/state").Transaction[]} transactions */
   function runOwnerSteps(transactions) {
     for (const tr of transactions)
       if (tr.isUserEvent("undo") || tr.isUserEvent("redo"))

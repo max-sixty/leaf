@@ -1,3 +1,4 @@
+// Compiled from dom-move.ts by build/typescript.mjs; edit that file.
 /* Place `node` under `parent` before `before` (`null` appends), keeping the user
  * in it. Every placement of a node that may already stand somewhere goes through here,
  * Lit's keyed and child-part insertions included; `architecture/moves` (eslint.config.mjs)
@@ -19,35 +20,26 @@
 import { isElement } from "../lib/shadow-tree.js";
 
 // Leaf installs its focus accounting; native placement also works without a runtime.
-/** @typedef {{hold: typeof import("./focus.js").holdFocus, watch: typeof import("./focus.js").watchCurrentLocationIn}} MoveFocus */
-/** @type {MoveFocus | null} */
 let focusOwner = null;
-/** @param {MoveFocus} owner */
 export const installMoveFocus = (owner) => {
   focusOwner = owner;
 };
 // Leaf installs its selection writer (native-selection.js) at boot (leaf.js); off
 // Leaf a move leaves a selection inside a moved node reset, as the browser does.
-/** @type {typeof import("./native-selection.js").holdSelection | null} */
 let selectionOwner = null;
-/** @param {typeof import("./native-selection.js").holdSelection} owner */
 export const installMoveSelection = (owner) => {
   selectionOwner = owner;
 };
 // The page selection where moving `placed` would reset it, and what puts it back.
-/** @param {Iterable<Node>} placed */
 export const holdSelection = (placed) => selectionOwner?.(placed) ?? null;
 // Leaf's keys mark what a renderer painted by its root and read the root's contents
 // at the frame (keyboard/scopes.js, `paintKeysWithin`); a placed node is shown to
 // them before it moves, so a control leaving a painted root keeps its mark.
-/** @type {((node: Node) => void) | null} */
 let keysOwner = null;
-/** @param {(node: Node) => void} owner */
 export const installMoveKeys = (owner) => {
   keysOwner = owner;
 };
 
-/** @template {Node} T @param {Node & ParentNode} parent @param {T} node @param {Node | null} [before] */
 export function move(parent, node, before = null) {
   if (node.parentNode === parent && (before === node || node.nextSibling === before))
     return node;

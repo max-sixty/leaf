@@ -1,28 +1,22 @@
-// @ts-check
+// Compiled from rect.ts by build/typescript.mjs; edit that file.
 /* The rectangle arithmetic placements share. It reads no document, so the pure placement
    folds (`margin-placement.js`, `comment-placement.js`, the hint seating in
    `readings/key-badges/hints.js`) take it as readily as the passes that measure. */
 
-/** @import { Box } from "../base/box.js" */
-
 // Whether two boxes share any pixel.
-/** @param {Box} a @param {Box} b */
 export const overlaps = (a, b) =>
   a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
 
 // Whether a box holds a point, its edges included.
-/** @param {Box} box @param {number} x @param {number} y */
 export const holds = (box, x, y) =>
   x >= box.left && x <= box.right && y >= box.top && y <= box.bottom;
 
 // Whether two boxes share any column: they would collide if they stood level.
-/** @param {Pick<Box, "left" | "right">} a @param {Pick<Box, "left" | "right">} b */
 export const overlapsAcross = (a, b) => a.left < b.right && b.left < a.right;
 
 // The part of `a` inside `b`, cut only on the axes given. Where the edges cross the result
 // has no area (`hasArea`); callers that need an empty box as nothing ask that.
 const BOTH = { x: true, y: true };
-/** @param {Box} a @param {Box} b @param {{x?: boolean, y?: boolean}} [axes] */
 export const intersect = (a, b, axes = BOTH) => ({
   left: axes.x ? Math.max(a.left, b.left) : a.left,
   top: axes.y ? Math.max(a.top, b.top) : a.top,
@@ -30,20 +24,16 @@ export const intersect = (a, b, axes = BOTH) => ({
   bottom: axes.y ? Math.min(a.bottom, b.bottom) : a.bottom,
 });
 // `box` moved by `dx` across and `dy` down.
-/** @param {Box} box @param {number} dx @param {number} dy */
 export const shifted = (box, dx, dy) => ({
   left: box.left + dx,
   top: box.top + dy,
   right: box.right + dx,
   bottom: box.bottom + dy,
 });
-/** @param {Box} box */
 export const hasArea = (box) => box.right > box.left && box.bottom > box.top;
 
 // The box that covers every one of some boxes, or null for none.
-/** @overload @param {readonly [Box, ...Box[]]} boxes @returns {Box & {width: number, height: number}} */
-/** @overload @param {readonly Box[]} boxes @returns {(Box & {width: number, height: number}) | null} */
-/** @param {readonly Box[]} boxes */
+
 export function union(boxes) {
   if (!boxes.length) return null;
   const left = Math.min(...boxes.map((box) => box.left));
@@ -54,12 +44,10 @@ export function union(boxes) {
 }
 
 // A value held between two bounds, the lower winning where they cross.
-/** @param {number} value @param {number} low @param {number} high */
 export const clamp = (value, low, high) => Math.max(low, Math.min(high, value));
 
 // Native nearest scroll alignment on either axis. A destination spanning both edges
 // stays; an oversized one partly in view lands its far edge, retaining the visible end.
-/** @param {number} start @param {number} end @param {number} low @param {number} high */
 export function nearestScrollBy(start, end, low, high) {
   if (start < low && end > high) return 0;
   const oversized = end - start > high - low;
@@ -75,7 +63,6 @@ export function nearestScrollBy(start, end, low, high) {
 // clipping rather than clipping every box. The function names nothing outside itself:
 // the shift watch carries its source into the page under test (`shift_watch_source` in
 // tests/render_harness.py).
-/** @param {Pick<CSSStyleDeclaration, "contain" | "contentVisibility" | "overflowX" | "overflowY">} style */
 export const clippingAxes = (style) => {
   const clips = /^(hidden|clip|scroll|auto)$/;
   const both =

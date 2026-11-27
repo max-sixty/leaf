@@ -78,7 +78,7 @@ const offlinePayload = offlineMarker
   : null;
 // This declaration participates in executable identity: changing it replaces this
 // document realm rather than switching initialized physical owners in place.
-export type Allocations = AuthoredAllocations;
+type Allocations = AuthoredAllocations;
 /** A page-wide allocation `body` states (`$authored`), or null where it states none. */
 const allocation = <A extends keyof Allocations>(name: A): Allocations[A] | null =>
   document.body.getAttribute(name) as any;

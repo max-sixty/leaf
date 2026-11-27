@@ -1,3 +1,4 @@
+// Compiled from target-paint-geometry.ts by build/typescript.mjs; edit that file.
 /* Where paint Leaf stands beside the page's targets stands: the design legend and its
  * label, key chips, margin bars, the search's mark, drawing ink, and the comparison's
  * bars and change card. Marks round a box are drawn by the box itself (surfaces.css).
@@ -32,27 +33,6 @@ import { move } from "../dom/dom-move.js";
 import { objectIds } from "../base/ids.js";
 import { keeps, layoutPx } from "../lib/keeps.js";
 
-/** @typedef {import("../base/box.js").Box} Box
- * @typedef {import("../dom/geometry.js").ClipCache} ClipCache
- * @typedef {import("../dom/css-anchors.js").Anchor} Anchor
- * @typedef {import("../dom/css-anchors.js").PaintBox} PaintBox
- * @typedef {{holder: Element | null, band: Box, axes: {x: boolean, y: boolean}}} Level
- * @typedef {ReturnType<typeof placement>} Placement
- * @typedef {({anchored: true, origin: null} | {anchored: false, origin: {x: number, y: number}}) & {visibility?: string}} Stood */
-/** @typedef {Element & ElementCSSInlineStyle} PaintNode
- * @typedef {{anchor: Anchor | null, at: Box | null, reading: import("../dom/css-anchors.js").AnchorReading | null}} AnchorLevel
- * @typedef {Level & AnchorLevel & {from: {left: number, top: number}}} PlacedLevel
- * @typedef {{surface: Element | null, levels: PlacedLevel[]}} SetPlacement
- * @typedef {{node: PaintNode, held?: boolean, anchor?: Anchor | null, plane?: string, cut?: boolean} &
- * ({target?: null, rect: PaintBox} | {target: Element, rect?: PaintBox | ((placed: Placement) => PaintBox)})} PaintItem
- * @typedef {PaintStand<null> & {members: PaintMember[]}} GroupStand
- * @typedef {{stand: GroupStand, stood: Stood, rect: PaintBox, anchor: Anchor | null, at: Box | null}} PaintEntry
- * @typedef {{node: PaintNode, target: Element | null, entry: PaintEntry}} PaintMember
- * @typedef {{node: PaintNode, target: Element | null} & ({placed: null} | {
- * placed: SetPlacement, rect: PaintBox, plane: string, framed: boolean, key: string, anchor: Anchor | null, at: Box | null})} ReadPaint */
-/** @template {(Element & ElementCSSInlineStyle) | null} B
- * @typedef {{root: HTMLDivElement, carrier: HTMLDivElement, box: B, anchored: boolean, frames: {level: import("../dom/css-anchors.js").CutLevel, frame: HTMLElement}[]}} PaintStand */
-
 // A stand holds paint boxes over their targets in the planes of what carries the
 // targets, through the anchored cut frames every box that follows scrolled content
 // stands in (dom/css-anchors.js). Each box that clips a target (`paintClips`) gets a frame
@@ -71,9 +51,7 @@ import { keeps, layoutPx } from "../lib/keeps.js";
 // stands where the window holds it as measured, and the pass a scroll brings places them
 // again. The stand, not the box, carries the paint's stacking (`data-lf-paint-plane`),
 // since the frames it holds stack what they hold.
-/** @overload @param {Element & ElementCSSInlineStyle} box @returns {PaintStand<Element & ElementCSSInlineStyle>} */
-/** @overload @param {null} [box] @returns {PaintStand<null>} */
-/** @param {(Element & ElementCSSInlineStyle) | null} [box] @returns {PaintStand<(Element & ElementCSSInlineStyle) | null>} */
+
 export function paintStand(box = null) {
   const root = document.createElement("div");
   root.className = "lf-ui lf-target-paint lf-paint-stand";
@@ -89,7 +67,6 @@ export function paintStand(box = null) {
 // (dom/css-anchors.js), where every scroll that moves `el` moves that box with it
 // (`scrollsWith`), or that box's own parts where `el` draws none. Null where the anchor
 // cannot position a box at `root` (`anchorReaches`).
-/** @param {Element} el @param {Element} root */
 function anchoredBy(el, root) {
   const anchor = anchorElement(el);
   if (!anchorReaches(anchor, root)) return null;
@@ -110,7 +87,7 @@ const makeFrame = () => {
 // `root` (`anchoredBy`), null where it has no holder or the anchor cannot carry it, where
 // that anchor stands (`at`, `anchorBox`) and its name (`reading`, `anchorReading`). Read
 // before any write, since each reads style or layout.
-/** @template {Level} L @param {L[]} levels @param {Element} root @param {Map<Element, AnchorLevel>} [anchors] holder → its reading, shared by a pass's levels @returns {(L & AnchorLevel)[]} */
+/** @param anchors holder → its reading, shared by a pass's levels */
 function anchorLevels(levels, root, anchors = new Map()) {
   return levels.map((level) => {
     const { holder } = level;
@@ -135,7 +112,6 @@ function anchorLevels(levels, root, anchors = new Map()) {
 // (`standBox`): anchored, or written from `origin`, the client point the carrier's
 // corner stands at. It reads neither style nor layout, so a pass can stand many stands
 // after its writes begin.
-/** @param {PaintStand<(Element & ElementCSSInlineStyle) | null>} stand @param {{levels: (Level & AnchorLevel)[]}} placed @param {boolean} anchored @returns {Stood} */
 function standIn(stand, placed, anchored) {
   const { levels } = placed;
   anchored &&= levels.every(({ holder, anchor }) => !holder || anchor !== null);
@@ -165,7 +141,6 @@ function standIn(stand, placed, anchored) {
 // `at` as `rect` was, or from `stood.origin`, the client point its containing frame's
 // corner stands at. Without a size, `rect` is a point, the box's corner, and the box
 // keeps its own size.
-/** @param {Pick<ElementCSSInlineStyle, "style">} box @param {PaintBox} rect @param {Stood} stood @param {Anchor | null} [anchor] @param {Box | null} [at] */
 export function standBox(
   box,
   rect,
@@ -195,7 +170,6 @@ export function standBox(
 // Stands `stand`'s frames over `placed`, anchored to its surface where the anchor
 // reaches, and answers how a box in it stands (`standBox`) with the anchor and where it
 // was read.
-/** @param {PaintStand<(Element & ElementCSSInlineStyle) | null>} stand @param {Placement} placed */
 export function standAt(stand, placed) {
   const anchor = anchoredBy(placed.surface, stand.root);
   const at = anchor && anchorBox(anchor);
@@ -226,24 +200,16 @@ export function standAt(stand, placed) {
 // anchor before it writes any, and the names those anchors need before it gives any,
 // since reading an author's name after a write forces the style that write
 // invalidated. It answers each box's placement, null where it stands nowhere.
-/** @param {Element} root @param {{onNear?: () => void}} [options] */
 export function paintSet(root, { onNear = () => {} } = {}) {
-  /** @type {Map<string, GroupStand>} */
   const stands = new Map(); // key → stand
-  /** @type {Map<PaintNode, PaintEntry | null>} */
   const entries = new Map(); // node → how it stands
   // Each target is watched through the box it anchors by, which a target with no box
   // of its own has in its first shown part (`anchorElement`).
-  /** @type {Set<Element>} */
   const near = new Set(); // targets
-  /** @type {Map<Element, Element>} */
   const watched = new Map(); // target → the box watched for it
-  /** @type {Map<Element, Set<Element>>} */
   const watching = new Map(); // box → the targets it is watched for
-  /** @param {Element | null} target */
   const nearBy = (target) => !target || near.has(target);
   const view = nearObserver((records) => {
-    /** @type {Set<Element | null>} */
     const moved = new Set();
     for (const { target: box, isIntersecting } of records)
       for (const target of watching.get(box) ?? []) {
@@ -259,7 +225,6 @@ export function paintSet(root, { onNear = () => {} } = {}) {
   // A stand's key: the frames that cut it, each band from its holder's corner, which no
   // scroll moves, whether they are anchored, and the plane it stands in.
   const idOf = objectIds();
-  /** @param {SetPlacement} placed @param {Anchor | null} anchor @param {string} plane @param {boolean} framed */
   const keyOf = ({ surface, levels }, anchor, plane, framed) =>
     !surface
       ? `${plane}|window`
@@ -275,7 +240,6 @@ export function paintSet(root, { onNear = () => {} } = {}) {
 
   // A stand's boxes in its carrier in order, those whose target is near, the rest out of
   // the document. Each box seated here, every near one for a pass, is written.
-  /** @param {GroupStand} stand @param {boolean} [all] */
   function seat(stand, all = false) {
     const { carrier, members } = stand;
     const seating = new Set(
@@ -303,101 +267,95 @@ export function paintSet(root, { onNear = () => {} } = {}) {
     }
   }
 
-  /** @param {readonly PaintItem[]} items @param {ClipCache} [clips] */
   function place(items, clips = new Map()) {
-    /** @type {Map<Element, DOMRect>} */
     const holders = new Map();
-    /** @type {Map<Element, AnchorLevel>} */
     const holderAnchors = new Map();
-    /** @type {Set<Element>} */
     const targets = new Set();
-    const read = items.map(
-      /** @returns {ReadPaint} */ (item) => {
-        const { node, held = false, anchor, plane = "page" } = item;
-        const { cut: framed = true } = item;
-        if (!item.target) {
-          const placed = { surface: null, levels: [] };
-          return {
-            node,
-            target: null,
-            placed,
-            rect: item.rect,
-            plane,
-            framed,
-            anchor: null,
-            at: null,
-            key: keyOf(placed, null, plane, framed),
-          };
-        }
-        const target = item.target;
-        const rect = item.rect;
-        targets.add(target);
-        // A target with no box of its own stands where its parts do (`shownBox`).
-        let placed = placement(target, false, clips, held);
-        const { left, top, right, bottom } = placed.rect;
-        if (!(right > left && bottom > top)) return { node, target, placed: null };
-        const box = typeof rect === "function" ? rect(placed) : (rect ?? placed.rect);
-        // Until the observer's first answer, near is read off the box itself, so a set's
-        // first paint draws what it shows.
-        if (!watched.has(target)) {
-          const box = anchorElement(target);
-          watched.set(target, box);
-          let observed = watching.get(box);
-          if (!observed) {
-            observed = new Set();
-            watching.set(box, observed);
-            view.observe(box);
-          }
-          observed.add(target);
-          if (nearWindow(target, clips)) near.add(target);
-        }
-        const carriedBy =
-          anchor === undefined
-            ? anchoredBy(target, root)
-            : anchor && anchorReaches(anchor, root)
-              ? anchor
-              : null;
-        // A box no scroller's edge cuts is carried by its anchor alone, under the frames
-        // its target's headers cut.
-        if (!framed)
-          placed = {
-            ...placed,
-            levels: headerCuts(target, clips).map(({ box, band }) => ({
-              holder: box === box.ownerDocument.scrollingElement ? null : box,
-              band: band ?? { left: 0, top: 0, right: 0, bottom: 0 },
-              axes: { x: false, y: true },
-            })),
-          };
-        // Capture each holder's reading, and the anchor carrying its frame, with the
-        // level it positions, each read once a pass.
-        const levels = anchorLevels(placed.levels, root, holderAnchors).map((level) => {
-          let at;
-          if (level.holder) {
-            at = holders.get(level.holder);
-            if (!at) {
-              at = level.holder.getBoundingClientRect();
-              holders.set(level.holder, at);
-            }
-          } else at = { left: 0, top: 0 };
-          return {
-            ...level,
-            from: { left: level.band.left - at.left, top: level.band.top - at.top },
-          };
-        });
-        const placedLevels = { ...placed, levels };
+    const read = items.map((item) => {
+      const { node, held = false, anchor, plane = "page" } = item;
+      const { cut: framed = true } = item;
+      if (!item.target) {
+        const placed = { surface: null, levels: [] };
         return {
           node,
-          target,
-          placed: placedLevels,
-          rect: box,
+          target: null,
+          placed,
+          rect: item.rect,
           plane,
           framed,
-          anchor: carriedBy,
-          at: carriedBy && anchorBox(carriedBy),
-          key: keyOf(placedLevels, carriedBy, plane, framed),
+          anchor: null,
+          at: null,
+          key: keyOf(placed, null, plane, framed),
         };
-      },
-    );
+      }
+      const target = item.target;
+      const rect = item.rect;
+      targets.add(target);
+      // A target with no box of its own stands where its parts do (`shownBox`).
+      let placed = placement(target, false, clips, held);
+      const { left, top, right, bottom } = placed.rect;
+      if (!(right > left && bottom > top)) return { node, target, placed: null };
+      const box = typeof rect === "function" ? rect(placed) : (rect ?? placed.rect);
+      // Until the observer's first answer, near is read off the box itself, so a set's
+      // first paint draws what it shows.
+      if (!watched.has(target)) {
+        const box = anchorElement(target);
+        watched.set(target, box);
+        let observed = watching.get(box);
+        if (!observed) {
+          observed = new Set();
+          watching.set(box, observed);
+          view.observe(box);
+        }
+        observed.add(target);
+        if (nearWindow(target, clips)) near.add(target);
+      }
+      const carriedBy =
+        anchor === undefined
+          ? anchoredBy(target, root)
+          : anchor && anchorReaches(anchor, root)
+            ? anchor
+            : null;
+      // A box no scroller's edge cuts is carried by its anchor alone, under the frames
+      // its target's headers cut.
+      if (!framed)
+        placed = {
+          ...placed,
+          levels: headerCuts(target, clips).map(({ box, band }) => ({
+            holder: box === box.ownerDocument.scrollingElement ? null : box,
+            band: band ?? { left: 0, top: 0, right: 0, bottom: 0 },
+            axes: { x: false, y: true },
+          })),
+        };
+      // Capture each holder's reading, and the anchor carrying its frame, with the
+      // level it positions, each read once a pass.
+      const levels = anchorLevels(placed.levels, root, holderAnchors).map((level) => {
+        let at;
+        if (level.holder) {
+          at = holders.get(level.holder);
+          if (!at) {
+            at = level.holder.getBoundingClientRect();
+            holders.set(level.holder, at);
+          }
+        } else at = { left: 0, top: 0 };
+        return {
+          ...level,
+          from: { left: level.band.left - at.left, top: level.band.top - at.top },
+        };
+      });
+      const placedLevels = { ...placed, levels };
+      return {
+        node,
+        target,
+        placed: placedLevels,
+        rect: box,
+        plane,
+        framed,
+        anchor: carriedBy,
+        at: carriedBy && anchorBox(carriedBy),
+        key: keyOf(placedLevels, carriedBy, plane, framed),
+      };
+    });
     for (const [target, box] of watched)
       if (!targets.has(target)) {
         watched.delete(target);
@@ -410,9 +368,7 @@ export function paintSet(root, { onNear = () => {} } = {}) {
       }
     // The writes: each stand's frames, in the order its first box comes, then each box
     // in its stand.
-    /** @type {Map<string, {stand: GroupStand, how: Stood}>} */
     const stood = new Map();
-    /** @type {GroupStand | null} */
     let previous = null;
     for (const item of read) {
       if (!item.placed) continue;
@@ -479,13 +435,12 @@ export function paintSet(root, { onNear = () => {} } = {}) {
     // Whether `target`'s boxes stand in the document, near enough to be shown.
     near: nearBy,
     // Whether `node` stands in the set, near or not.
-    stands: (/** @type {PaintNode} */ node) => Boolean(entries.get(node)?.stand),
+    stands: (node) => Boolean(entries.get(node)?.stand),
   };
 }
 
 // A stand whose box is put away keeps no frames, which would hold the scrollers they are
 // anchored to after a revision removed them.
-/** @param {PaintStand<(Element & ElementCSSInlineStyle) | null>} stand */
 function dropStand(stand) {
   stand.frames = cutFrames(
     [],
@@ -502,12 +457,10 @@ function dropStand(stand) {
 // is, none for the window's. `clips` is the clip walk's cache, shared by a pass that
 // places many. Paint over what `surface` holds (`held`), as words standing in it, is cut
 // by its own band as well.
-/** @param {Element} surface @param {boolean} aboveSurfaces @param {ClipCache} [clips] @param {boolean} [held] */
 export function placement(surface, aboveSurfaces, clips = new Map(), held = false) {
   const { left, top, right, bottom } = shownBox(surface);
   const rect = { left, top, right, bottom };
   const cuts = paintClips(surface, rect, clips, aboveSurfaces, held);
-  /** @type {Level[]} */
   const levels = [];
   if (cuts.window)
     levels.push({ band: cuts.window, axes: { x: true, y: true }, holder: null });

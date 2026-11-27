@@ -1,4 +1,4 @@
-// @ts-check
+// Compiled from workflow.ts by build/typescript.mjs; edit that file.
 /* Canonical browser reading of where work stands, in words.
 
    Python says where every obligation record and every update's delivery (its
@@ -21,16 +21,9 @@
    stays free of application state. */
 import { agentSays, leafSays } from "../../base/voice.js";
 
-/** @typedef {import("../../../types/domain.js").Workflow} Workflow */
-/** @typedef {import("../../state/semantic-application.js").ObligationRecord} ObligationRecord */
-/** @typedef {import("../../base/snapshot.js").Immutable<ReturnType<typeof import("../../state/thread/model.js").readThreadRecords>[number]>} ThreadRecord */
-/** @param {Workflow} workflow
- * @returns {workflow is Extract<Workflow, {subject: {kind: "widget"}}>} */
 const widgetWorkflow = (workflow) => workflow.subject.kind === "widget";
 
-/** The workflow's explicit line and the source position it was said at.
- * @param {Workflow} workflow
- * @returns {workflow is Extract<Workflow, {detail: string, detail_seq: number}>} */
+/** The workflow's explicit line and the source position it was said at. */
 export const hasWorkflowLine = (workflow) => workflow.detail !== null;
 
 // Each standing's word, said by whoever says it (glossary.md, "Reader-facing words";
@@ -51,7 +44,6 @@ export const hasWorkflowLine = (workflow) => workflow.detail !== null;
 // An update a harness queue holds for the agent's next turn reads Queued like any other
 // no turn has taken in: "Up next" would word a difference between two queues that asks
 // nothing different of the user.
-/** @type {Record<NonNullable<Workflow["reason"]>, string>} */
 const REASON_WORDS = Object.freeze({
   stopped: "Stopped",
   interrupted: "Interrupted",
@@ -71,7 +63,6 @@ export const RESOLVED = leafSays("Resolved");
 // `answered` asks for its word, as a title does. An update still waiting past the
 // pickup grace (`activity.PICKUP_GRACE`) says so, and one a harness gave up on says it
 // wasn't answered, where a send this tab had refused only failed.
-/** @param {Workflow | null | undefined} workflow @param {string} agent */
 export const workflowWord = (workflow, agent, { answered = false } = {}) => {
   if (!workflow) return null;
   const { state, reason } = workflow;
@@ -89,7 +80,6 @@ export const workflowWord = (workflow, agent, { answered = false } = {}) => {
     : leafSays(workflow.launching ? "Starting the agent" : `Queued for ${agent}`);
 };
 
-/** @param {Workflow | null | undefined} workflow @param {string} agent */
 export const workflowTitle = (workflow, agent) =>
   [workflowWord(workflow, agent, { answered: true })?.text, workflow?.detail]
     .filter(Boolean)
@@ -97,7 +87,6 @@ export const workflowTitle = (workflow, agent) =>
 
 // Whether the agent has a record or a workflow in hand: at work on it, or held from it
 // only by a dialog in its own window, which the user's answer there frees.
-/** @param {{readonly state: Workflow["state"], readonly reason: Workflow["reason"]}} standing */
 export const inHand = ({ state, reason }) =>
   state === "running" || reason === "terminal";
 
@@ -105,7 +94,6 @@ export const inHand = ({ state, reason }) =>
 // turn, or at work, which a reply still streaming is too. Its word stays the
 // workflow's own (`workflowWord`), so a reply streaming reads Replying under the
 // working face.
-/** @param {Workflow | null | undefined} workflow */
 export const progressFace = (workflow) =>
   !workflow
     ? null
@@ -115,19 +103,16 @@ export const progressFace = (workflow) =>
         ? "delivered"
         : null;
 
-/** @param {Workflow | null | undefined} workflow */
 export const isWorkflowProgress = (workflow) => progressFace(workflow) !== null;
 
 // What the agent's last step on a workflow says while it is at work on it: the line of
 // the start or progress reply that holds it (`detail`), which the page's status says of
 // the newest it holds. Before it says one, and once the work stalls, none.
-/** @param {Workflow | null | undefined} workflow */
 export const workflowStep = (workflow) =>
   progressFace(workflow) === "working" && workflow?.detail
     ? agentSays(workflow.detail)
     : null;
 
-/** @param {Workflow} workflow @param {number | null} revision */
 export const isPageWidgetWorkflow = (workflow, revision) =>
   widgetWorkflow(workflow) &&
   workflow.thread === null &&
@@ -135,20 +120,17 @@ export const isPageWidgetWorkflow = (workflow, revision) =>
 
 // Whether a workflow's update is back with the user to send again: a served one the
 // harness gave up on, or this tab's refused send.
-/** @param {Workflow} workflow */
 const handedBack = (workflow) =>
   workflow.state === "blocked" && workflow.reason === "failed";
 
 // A send this tab has not delivered is the only `local` workflow. It ranks below
 // every served workflow with the same next actor, and an update that is the user's to
 // make still ranks above every one that is the agent's.
-/** @param {Workflow} workflow */
 const tier = (workflow) =>
   (handedBack(workflow) ? 0 : 2) + Number(Boolean(workflow.local));
 
 // The first of the strongest tier. `workflows` keeps the published order, served
 // strongest first and this tab's sends after, so a caller selects by filtering it.
-/** @param {readonly Workflow[]} workflows */
 export function strongestWorkflow(workflows) {
   let strongest = null;
   for (const candidate of workflows)
@@ -161,7 +143,6 @@ export function strongestWorkflow(workflows) {
 // which the user chose over "To-do open": Waiting on what the agent named its work
 // waiting on (`waiting_on`), or Still to do. One whose start stopped or went quiet
 // says so in Leaf's voice, as an update's does.
-/** @param {{readonly state: Workflow["state"], readonly reason: Workflow["reason"], readonly waiting_on?: string | null}} todo */
 export const todoWord = (todo) =>
   todo.state === "blocked"
     ? leafSays(REASON_WORDS[todo.reason ?? "quiet"])
@@ -176,7 +157,6 @@ export const todoWord = (todo) =>
 // Whose turn a thread is while it isn't resolved, where it stands and its `word`: the
 // reading of the record that speaks for it (`attention`). `workflow` is the one an
 // update's record stands by.
-/** @param {ThreadRecord} thread @param {string} agent */
 export function threadAttention(thread, agent) {
   const record = thread.resolved ? null : thread.attention;
   if (!record) return null;
@@ -188,7 +168,7 @@ export function threadAttention(thread, agent) {
   // reached it is Leaf's to hand back, asking the user to send it again.
   if (record.next_actor === "user")
     return Object.freeze({
-      turn: /** @type {const} */ ("user"),
+      turn: "user",
       state: record.state,
       word:
         record.source.kind === "update"
@@ -199,7 +179,7 @@ export function threadAttention(thread, agent) {
       workflow,
     });
   return Object.freeze({
-    turn: /** @type {const} */ ("agent"),
+    turn: "agent",
     state: record.state,
     // A to-do the agent opened on the thread holds it after the update it answered
     // has settled: the agent's own commitment, in its voice.

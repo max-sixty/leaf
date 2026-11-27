@@ -536,13 +536,14 @@ advice rather than Leaf's, so it may name any widget.
 ### Keep the package interface small
 
 A package leans on Leaf only through the package interface: the keys of an element
-declaration, the widget protocol, Leaf's own elements, the functions `widget-api.js`
-exports and the styling names the references declare. Another author's package has
-nothing else, so Leaf's bundled widgets use nothing else. The interface sprawls
-through names that each look reasonable alone, and every later change keeps each
-name working, so Leaf keeps it small and coherent. A change meets a widget's need
-without a new name where it can, and `packages/AGENTS.md`, "A widget's need of
-Leaf", says how to choose where it can't.
+declaration, the widget protocol, Leaf's own elements, the data contracts Leaf's
+packages declare, the functions `widget-api.js` exports and the styling names the
+references declare. Another author's package has nothing else, so Leaf's bundled
+widgets use nothing else. The interface sprawls through names that each look
+reasonable alone, and every later change keeps each name working, so Leaf keeps it
+small and coherent. A change meets a widget's need without a new name where it can,
+and `packages/AGENTS.md`, "A widget's need of Leaf", says how to choose where it
+can't.
 
 A smaller interface is worth a small visible difference. Where a name's work is to
 keep a look, a first paint or a behaviour exactly as it was, the name goes, and the

@@ -344,6 +344,7 @@ def test_embedded_codex_delivery_keeps_the_pages_complete_batch_in_log_order(pag
             "widget": "plan-choice",
             "action": "answer",
             "detail": {},
+            "answered": True,
         },
     )
     settled = append_carried_log_record(

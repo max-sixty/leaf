@@ -71,11 +71,12 @@
  *
  * The question asks what the user sees rather than whether a landing would move,
  * because a landing keeps a box further in than the user needs to see it: below the
- * room it keeps under the headers, and above the floating panel's foot band in every
- * column. So a landing would move a box the user already sees there. Where the user
- * doesn't see a ring's room, the landing is asked whether it would move at all, so a
- * control whose room runs past such an edge moves into the band when it stands in the
- * room under the headers or in the panel's foot band. A landing also places room an
+ * room it keeps under the headers, and above the room it keeps over the floating
+ * panel's cover in every column (dom/geometry.js, `footCover`). So a landing would move
+ * a box the user already sees there. Where the user doesn't see a ring's room, the
+ * landing is asked whether it would move at all, so a control whose room runs past such
+ * an edge moves into the band when it stands in the room under the headers or over the
+ * panel's cover. A landing also places room an
  * inner box hides, so a row flush with a scrolling pane's end, at the band's edge,
  * moves the page by that room. These paths are rare, and on a rare path the page may
  * move (SOUL.md, "Keep Leaf's code plain"): asking the landing axis by axis kept the

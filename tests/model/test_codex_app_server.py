@@ -2152,6 +2152,7 @@ def test_a_turn_that_ended_unseen_is_recorded_without_reopening(page_dir):
             "widget": "plan-choice",
             "action": "answer",
             "detail": {},
+            "answered": True,
         },
     )
     prepared = codex_model.prepare_codex_delivery(
@@ -2942,6 +2943,7 @@ def test_one_subscription_recovers_delivery_without_a_second_start(
                 "widget": "plan-choice",
                 "action": "answer",
                 "detail": {},
+                "answered": True,
             },
         )
         prepared = codex_model.prepare_codex_delivery(
@@ -3164,6 +3166,7 @@ def test_an_uncertain_start_without_a_reply_reservation_survives_adapter_restart
             "widget": "plan-choice",
             "action": "answer",
             "detail": {},
+            "answered": True,
         },
     )
     prepared = codex_model.prepare_codex_delivery(

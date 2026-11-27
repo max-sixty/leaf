@@ -410,6 +410,7 @@ def test_a_widget_presents_its_authored_state_offline_and_the_log_on_recovery(
             "widget": "options",
             "action": "choose",
             "detail": {"value": ["two"]},
+            "answered": True,
         },
     )
     page = browser.new_page(viewport={"width": 1200, "height": 900})
@@ -445,6 +446,7 @@ def test_a_widget_draws_its_authored_state_while_its_first_read_waits(browser, s
             "widget": "options",
             "action": "choose",
             "detail": {"value": ["two"]},
+            "answered": True,
         },
     )
     page = browser.new_page(viewport={"width": 1200, "height": 900})
@@ -454,10 +456,10 @@ def test_a_widget_draws_its_authored_state_while_its_first_read_waits(browser, s
     holding(page, held, 1, "the first state read")
     waiting = page.evaluate(
         """async () => {
-          const {widgetController} = await window.__lfWidgetApi();
+          const {controllerOf} = await window.__lfCheckApi();
           const options = document.querySelector('#options');
           await options.updateComplete;
-          const {state} = widgetController(options).read();
+          const {state} = controllerOf(options).read();
           return {
             verbs: Object.keys(state).sort(),
             chosen: state.choose.value,

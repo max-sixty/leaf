@@ -205,6 +205,7 @@ def test_the_poll_leaves_the_panel_where_it_was(browser, serve):
                     "widget": widget,
                     "action": "decide",
                     "detail": {"outcome": "accept"},
+                    "answered": True,
                 },
             )
 

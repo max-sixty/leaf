@@ -5,7 +5,7 @@ import math
 import re
 
 import pytest
-from interact_support import append_carried_log_record
+from interact_support import append_carried_log_record, append_command
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
@@ -978,7 +978,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
 <lf-verdict id="shape" asks>Drop-in, and it needs no sealing.</lf-verdict></lf-group>
 <lf-group id="picked-decision" label="Should we keep it?"><h2 id="picked-decision-h">Should we keep it?</h2>
 <lf-options id="picked">
-  <lf-option id="pk-keep" label="Keep it" selected><strong>Keep it</strong> Settled by a pick.</lf-option>
+  <lf-option id="pk-keep" label="Keep it"><strong>Keep it</strong> Settled by a pick.</lf-option>
   <lf-option id="pk-drop" label="Drop it"><strong>Drop it</strong> The alternative.</lf-option>
 </lf-options></lf-group>
 <p id="p2">A passage carrying
@@ -992,6 +992,18 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
         layer_widgets=SEATED_OBLIGATION_WIDGETS,
     )
     d = serve.page_dir
+    append_command(
+        d,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "picked",
+            "action": "choose",
+            "detail": {"value": ["pk-keep"]},
+            "answered": True,
+        },
+    )
     append_carried_log_record(
         d,
         {
@@ -1005,7 +1017,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
 
     page = open_page(browser, url)
 
-    # The completion count includes every active obligation: the authored pick is complete;
+    # The completion count includes every active obligation: the logged pick is complete;
     # the seated obligation and suggestion are not.
     expect_obligations_answered(page, "1/3")
     # In On Me the seated obligation is the agent's: the comment in its seat is owed a reply,
@@ -1022,9 +1034,11 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     show_done(page)
     expect(card("picked")).to_have_attribute("data-lf-list", "done")
     page.locator(".lf-fp-filters button").nth(2).click()
+    # The agent owes the comment a reply, beside the update the logged pick hands it.
     agent_rows = page.locator('.lf-fp-on-item[data-lf-list="agent"]')
-    expect(agent_rows).to_have_count(1)
-    expect(agent_rows).to_contain_text("Steel, unless the sealing is quick?")
+    expect(
+        agent_rows.filter(has_text="Steel, unless the sealing is quick?")
+    ).to_have_count(1)
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
 

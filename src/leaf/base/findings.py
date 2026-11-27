@@ -303,7 +303,7 @@ _READ_AS_WRITTEN = "the user's recorded decisions are read as they were written"
 _SELECTED = "the page draws with the packages it selected"
 _RETRIED = "a retried write returns the event it first made, never a second"
 _OWED = "what an answer leaves owed stays on the user's or agent's list"
-_NEWER = "the user's newer message stays owed until the agent answers it"
+_SHOWN = "an answer settles only the input the agent was shown"
 _TITLED = "every thread the agent writes in has a title naming its subject"
 _REACHES = "the user can see and reach everything the page draws"
 _MARKS = "each comment marks and reaches the element or part it anchors to"
@@ -536,10 +536,6 @@ def _predicate(v: dict, says: str) -> str:
 
 def _created(v: dict, says: str) -> str:
     return f"verb `{v['verb']}` (`verbs`) creates <{v['child']}>, {says}"
-
-
-def _answering(v: dict, says: str) -> str:
-    return f"`awaits` answering verb `{v['verb']}` {says}"
 
 
 def _box(box: dict) -> str:
@@ -1668,17 +1664,6 @@ _TEXT = {
         )
     ),
     # Its interactions: its obligation, and the state its verbs write.
-    "answering-detail": _declared(
-        lambda v: _answering(
-            v, f"detail condition names an undeclared or invalid field `{v['field']}`"
-        )
-    ),
-    "awaits-verbs": _declared(
-        lambda v: (
-            f"`awaits` answers with verbs {json_value(v['verbs'])}, which are"
-            " not `verbs` the user writes"
-        )
-    ),
     "awaits-value": _declared(
         lambda v: "`awaits` value must name a user-written verb (`verbs`)"
     ),
@@ -1839,48 +1824,6 @@ _TEXT = {
         lambda v: (
             f"`retired-when` `{v['outcome']}` is invalid: <{v['owner']}>"
             " declares no deciding verb (`verbs`) with that outcome"
-        )
-    ),
-    "answering-part": _declared(
-        lambda v: _answering(
-            v,
-            "folds on a part rather than the widget, so `awaits.answered` gives"
-            " it a condition with `empty` or `every`",
-        )
-    ),
-    "answering-every": _declared(
-        lambda v: _answering(
-            v,
-            f"requires every <{v['member']}>, but `every` needs a verb kept per"
-            " member with no position record and no `empty` beside it, and a"
-            " member that lists this widget in `owners` and requires `id`",
-        )
-    ),
-    "answering-position": _declared(
-        lambda v: _answering(v, "tests an empty container but records no position")
-    ),
-    "answering-members": _declared(
-        lambda v: _answering(
-            v,
-            f"tests whether its container <{v['within']}> is empty, but that"
-            " container's content is not members",
-        )
-    ),
-    "answering-undeclared": _declared(
-        lambda v: _answering(
-            v, f"tests undeclared <{v['within']}> attribute `{v['attr']}`"
-        )
-    ),
-    "answering-mutable": _declared(
-        lambda v: _answering(
-            v, f"tests mutable <{v['within']}> attribute `{v['attr']}`"
-        )
-    ),
-    "answering-schema": _declared(
-        lambda v: _answering(
-            v,
-            f"tests <{v['within']}> `{v['attr']}` at {json_value(v['value'])}, which"
-            f" its schema does not admit: {v['reason']}",
         )
     ),
     # Capturing the page and the files it loads as an immutable revision: `file` is
@@ -2066,6 +2009,20 @@ _TEXT = {
         _LIVE,
         lambda at, v: (
             f"<{v['tag']}> {v['widget']!r} stands inside an exhibit (`exhibit`)"
+        ),
+    ),
+    "answered-missing": _refuses(
+        _DECIDES,
+        lambda at, v: (
+            f"<{v['tag']}> declares `awaits`, so each act and undo of it says whether"
+            " its question is answered; send `answered`"
+        ),
+    ),
+    "answered-unasked": _refuses(
+        _ADMITS,
+        lambda at, v: (
+            f"<{v['tag']}> declares no `awaits`, so its gestures say nothing of an"
+            " answer; send no `answered`"
         ),
     ),
     "created-exists": _refuses(
@@ -2489,21 +2446,15 @@ _TEXT = {
         f" {v['part']!r}"
     ),
     "superseded-reply": _refuses(
-        _NEWER,
+        _SHOWN,
         lambda at, v: (
-            f"event {v['event']!r} no longer requires a reply to {v['parent']!r}; "
-            + (v.get("held") or "read the current delivery or thread state")
+            f"the thread has changed since event {v['event']!r}; read it as it"
+            f" stands and write again: {v['held']}"
         ),
     ),
-    # What `thread.post_reply` notes beside a message that answers nothing: progress
-    # on an update no longer owed, which takes nothing in hand; an answer to an
-    # update whose earlier answer promised a to-do still open; and an answer the
-    # thread it joins still owes.
-    "superseded-progress": lambda at, v: (
-        f"event {v['event']!r} no longer requires a reply, so this progress takes"
-        " nothing in hand; "
-        + (v.get("held") or "read the current delivery or thread state")
-    ),
+    # What `thread.post_reply` notes beside a message that answers nothing: an
+    # answer at a reference whose earlier answer promised a to-do still open, and
+    # an answer the thread it joins still owes.
     "promised-todo": lambda at, v: (
         f"event {v['event']!r} was already answered by {v['todo']!r}, whose to-do"
         f" {v['title']!r} is still open, so this reply answers nothing new;"

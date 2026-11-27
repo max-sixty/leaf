@@ -10,13 +10,14 @@
    stands"), so a ring a carrier draws on its own box stands there without restating
    it. A box that says nothing keeps the property's initial 0.
    Every box also states where Leaf's marks on it (below) would stand, whether or not
-   one shows: their gap (`--lf-band-gap`), the box's `--lf-ring-at`, else a region's gap,
+   one shows: their gap (`--lf-band-gap`), inside where a clip would cut them
+   (`--lf-flush-at`, below), else the box's `--lf-ring-at`, else a region's gap,
    or a control's for a box that takes a press; and the room their band takes past the
    box's edge (`--lf-band-room`). So a surface that stands clear of the marks
    (dom/geometry.js, `markedBox`) clears them before they show. */
 :where(*) {
   outline-offset: var(--lf-ring-at, 0px);
-  --lf-band-gap: var(--lf-ring-at, var(--lf-focus-region-gap));
+  --lf-band-gap: var(--lf-flush-at, var(--lf-ring-at, var(--lf-focus-region-gap)));
   --lf-band-room: calc(var(--lf-band-gap) + var(--lf-band-w, var(--lf-focus-ring-w)));
 }
 :where(a[href]),
@@ -26,7 +27,7 @@
 :where(textarea),
 :where(summary),
 :where([role]) {
-  --lf-band-gap: var(--lf-ring-at, var(--lf-focus-ring-gap));
+  --lf-band-gap: var(--lf-flush-at, var(--lf-ring-at, var(--lf-focus-ring-gap)));
 }
 /* A drawing's marks follow the contour of each shape, or stand on the edge of a part
    that draws none (below), so the room they take past a part is the band at most. */
@@ -118,6 +119,23 @@
     1 / var(--lf-band-w, var(--lf-focus-ring-w)) / var(--lf-band-room)
     calc(var(--lf-band-room) + var(--lf-band-reach-right)) var(--lf-band-room)
     calc(var(--lf-band-room) + var(--lf-band-reach-left)) !important;
+}
+/* A box a clip round it would cut its marks on (`[data-lf-flush]`, dom/geometry.js,
+   `clipsMarks`), as a table filling a scroll area or a column at a board's edge, stands
+   them one band inside its edge, ahead of what its kind says (tokens.css, "Where it
+   stands"), and reaches over no list marker beside it, which the clip cuts too. Only
+   while a mark shows, so the box's own outline keeps its place and a stamp left on a
+   box no longer marked does nothing. */
+:where([data-lf-flush]):where(
+  [data-lf-aimed],
+  [data-lf-traced],
+  [data-lf-proxied],
+  [data-lf-mark],
+  [data-lf-projected-location]
+) {
+  --lf-flush-at: var(--lf-focus-ring-inset);
+  --lf-band-reach-left: 0px;
+  --lf-band-reach-right: 0px;
 }
 /* The margin trace takes its own ink, and an action's target alone a quieter line. */
 :where([data-lf-traced]) {

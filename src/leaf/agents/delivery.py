@@ -595,12 +595,13 @@ def batch_data(
     words and so can't tell which input ends one."""
     from leaf.agents.presence import read_work
     from leaf.base.leases import lane_up
+    from leaf.log.events import thread_structure
     from leaf.log.obligations import (
         settled_by_message,
         waiting_about,
         waiting_in_thread,
     )
-    from leaf.log.thread_context import batch_threads, thread_names, thread_structure
+    from leaf.log.thread_context import batch_threads, thread_names
     from leaf.records.event_facts import EventFacts
 
     events = transaction.events

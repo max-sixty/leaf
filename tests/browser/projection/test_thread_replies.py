@@ -203,6 +203,9 @@ customElements.define('lf-delayed-body', class extends LeafElement {
             "action": "edit",
             "detail": {"value": "User's exact words.\n"},
             "revision": 1,
+            # A draft asks, so its act says whether it answers; the asynchronous body
+            # asks nothing, and admission refuses the word there.
+            **({} if asynchronous else {"answered": True}),
         },
     )
     assert response.ok, response.text()
@@ -366,6 +369,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
             "widget": "rp-live",
             "action": "choose",
             "detail": {"value": ["rp-shim"]},
+            "answered": True,
         },
     )
     page = open_page(browser, live_url(url))

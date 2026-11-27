@@ -2,6 +2,7 @@
 switching a document between its rendered and source readings as its source changes."""
 
 import json
+import re
 
 import pytest
 from interact_support import append_carried_log_record
@@ -196,6 +197,43 @@ def test_a_written_markdown_source_keeps_its_box_until_shown_whole(browser, serv
         "aria-selected", "true"
     )
     assert page.evaluate(read) == first
+
+
+def test_a_written_markdown_preview_its_bound_cuts_shows_whole_on_a_press(
+    browser, serve
+):
+    """A written Markdown preview longer than its bound stops at the bound, as its
+    first paint does, and doesn't scroll inside it: a press shows the whole document,
+    in both tabs, and puts focus on the preview."""
+    text = "\n\n".join(f"Paragraph {n} of the quoted rules." for n in range(1, 41))
+    url = serve(
+        leaf_page(
+            "Long quote",
+            '<h1>Long quote</h1><lf-text-document id="rules" label="RULES.md" '
+            f'preview="markdown"><pre>\n{text}\n</pre></lf-text-document>'
+            '<p id="after">After the rules.</p>',
+        )
+    )
+    page = open_page(browser, url)
+    document = page.locator("#rules")
+    shown = document.locator("lf-tab:not([hidden])")
+    bound = shown.evaluate("tab => [tab.clientHeight, tab.scrollHeight]")
+    assert bound[0] < bound[1], bound
+    assert shown.evaluate("tab => getComputedStyle(tab).overflowY") == "hidden"
+    press = document.get_by_role("button", name="Show all 80 lines")
+    expect(press).to_be_visible()
+    press.click()
+    expect(press).to_be_hidden()
+    expect(shown).to_be_focused()
+    whole = shown.evaluate("tab => [tab.clientHeight, tab.scrollHeight]")
+    assert whole[0] == whole[1] == bound[1], (whole, bound)
+    document.get_by_role("tab", name="Source", exact=True).click()
+    expect(document.get_by_role("button", name=re.compile("^Show all"))).to_have_count(
+        0
+    )
+    source = document.locator("lf-tab:not([hidden])")
+    held = source.evaluate("tab => [tab.clientHeight, tab.scrollHeight]")
+    assert held[0] == held[1], held
 
 
 def test_a_widget_document_updates_both_readings_and_keeps_the_selected_view(

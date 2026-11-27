@@ -72,7 +72,7 @@
      the chrome draws nothing, and the room is the window's safe area, which the body
      keeps (base.css). At the foot the floating panel's row rests (floating-panel.css),
      with a gap below and above it. The page keeps no room for that band: the row stands
-     over the page, and Leaf's landings stop above it (`--lf-foot-band`, base.css). A page
+     over the page, and Leaf's landings stop above it (`--lf-landing-foot`, base.css). A page
      that is not live draws no chrome (below).
 
      The row is its one line (`--lf-line`) and the panel's padding around it
@@ -639,6 +639,13 @@
        less room round than a region's gap, as a full-height workspace's body
        (layouts.css), stands its marks at a control's gap: inside, they would run over
        its words and under what it holds.
+
+     The runtime stands the marks it draws one band inside a box whatever the box's kind
+     where a box clipping it would cut them outside, as round a table filling a scroll
+     area (`[data-lf-flush]`, element-marks.css), since that turns on what holds the box.
+     Those are the aim, the trace, a comment's mark, the location and proxy rings, and
+     focus on the page's own content; a ring a widget draws on its own control stands
+     where the control's kind says.
 
      The width is a token of its own because the ring is drawn outside the box it
      names, so a scroll region has to reserve room for it: a shorthand cannot be

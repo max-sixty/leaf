@@ -22,7 +22,7 @@ leave alone, such as which panel they opened. State a module keeps in `localStor
 IndexedDB or memory never reaches another device or the agent, and Undo can't take it
 back.
 
-## The widget controller
+## Reading and recording state
 
 A registry-declared widget draws its state from `state`, the property Leaf sets,
 records a gesture with an `lf-action` event and takes one back with `lf-undo`
@@ -37,31 +37,15 @@ none either; its parent draws it from its own state. Leaf itself draws what the
 declaration alone decides, such as hiding a suggestion's `lf-old` once it is accepted
 (`retired-when`).
 
-`widgetController(owner)` reads the rest of what Leaf holds for a widget, the module's
-own or another's, through `read` and `dispatch`. `read()` is a page
-reading (`module-reading.md`, "Page readings"), so a `LeafElement` whose `render()`
-calls it draws again when it changes. Another element's `state`
-property is not a page reading, and nothing tells a widget that read it when Leaf
-sets it again. If the widget's id has changed since upgrade, `read()` reports every
-action unavailable and `dispatch()` returns `null`. `read()` returns an immutable `{authored, state, memberships, thread,
-provenance, actions}`. `authored` is the state the page's markup sets, and `state` that with every
-recorded action applied, including the user's latest gestures before the server admits
-them. `memberships` maps each attribute an `attribute` record marks to the ids of the
-members the widget currently owns. `thread.heldBy` is the id of the open Thread whose
-opening message holds this widget, or `null`. Each entry in `actions` says whether the
-action is `available`, why not in `unavailable` (a phrase such as `no agent or server is
-available`, or `null`), and what Undo can take back; check it before changing anything
-for the action. Before the document has loaded, `authored` and `state` may be missing, and
-Leaf sets no `state` on the element until it holds every declared verb.
+A widget reads and records only its own state. Nothing tells it when Leaf sets
+another element's `state` again, so a widget that follows another reads that widget's
+output and asks it for a change with an invoker command
+([package-data.md, "Widgets working together"](package-data.md#widgets-working-together)).
 
-`says` names a gesture in the widget's words, such as `Chose “Fast”`. Leaf's
-acknowledgement shows it, and so does Undo in the tab that made the gesture, so post no
-notice of your own for it; another tab, or this one after a reload, names the gesture
-in Leaf's own words. `dispatch({kind: "action", verb, detail, attempt?, says?})` records
-as `lf-action` does, and `dispatch({kind: "undo", target})` undoes the `id` or `attempt`
-it names from the action's Undo candidates. `dispatch` returns `null` when the action
-isn't available, throws for a verb the widget doesn't declare, and otherwise returns
-`{reading, delivery}`; a refusal restores the server's state.
+`says`, in an `lf-action` event's `detail`, names the gesture in the widget's words,
+such as `Chose “Fast”`. Leaf's acknowledgement shows it, and so does Undo in the tab
+that made the gesture, so post no notice of your own for it; another tab, or this one
+after a reload, names the gesture in Leaf's own words.
 
 The user takes their latest gesture back with ⌘Z, Ctrl+Z off a Mac, or with the Undo
 row in the leaf's menu.
@@ -143,6 +127,30 @@ A widget that puts an obligation on On Me can give its class
 lists, which otherwise show none. `value` is the obligation's `answer.value`, and
 `element` gives the authored markup, such as option labels; read only that, not what
 the module draws.
+
+Such a widget says whether its question is answered with
+`static answered(state, element)`, returning `true` or `false`. Leaf calls it after
+each of the widget's actions and each undo of one, with the `state` it then sets on the
+element and the authored markup, wherever the widget stands, and sends the answer with
+the gesture: the obligation leaves On Me, or returns to it, as the user acts, and the
+log keeps the widget's word. `lf-options` answers once a pick is made, or Done is
+pressed where it takes several:
+
+```js
+static answered(state, group) {
+  return group.hasAttribute("multiple")
+    ? Boolean(state.answer?.action)
+    : Boolean(state.choose?.action) && state.choose.value.length > 0;
+}
+```
+
+A class without it is answered while the user's acts in force hold a state at the
+verb `awaits.value` names: an action there that records a non-empty value, or, for a
+verb with no record, any action there. Either way, `answered` reads only the user's
+acts, never a value the markup holds, as lf-options' reads `action` beside its
+`value`. Only the user's gestures carry the word, so a version that writes an answer into the markup
+answers nothing: one that settles a question retires it (`awaits.retired`), and one
+that asks a decided question again marks it `restated` (`authoring-revisions.md`).
 
 ## Bound data and projections
 
@@ -253,7 +261,10 @@ failed after writing; then the save may have reached the file. `watch(callback)`
 back whenever the file may have changed on disk or its label changed, the widget's own
 save included, so read it again then. `beside(path)` gives the address the page's own
 server answers a file at by its path from the bound file's folder, such as a picture
-a README names, `../` included, or `null` where the page isn't `writable`. `writable` is false in captured documents and exports. Editing the file
+a README names, `../` included, or `null` where the page isn't `writable`. The path
+can name any file the user can read outside Leaf's state, so on a page that binds a
+file, any code the page runs, its packages' and any it loads from another server
+included, can read the user's files and send them anywhere. `writable` is false in captured documents and exports. Editing the file
 records nothing in the page's log and takes no part in its Undo. The `file-editor`
 package's `lf-file-editor` provides this; use `lf-code` for a snapshot that should
 travel with the page. A widget that only shows the file binds it as a source by its

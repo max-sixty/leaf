@@ -18,6 +18,7 @@ from render_cases_interaction import (
     SUGGESTION_IN_CONTEXT_PAGE,
     answered_comment,
     live_url,
+    serve_obligations,
 )
 from render_cases_layout import SHOT_SRC, SHOTS
 from render_cases_navigation import BINDING_BADGE_PAGE, actions
@@ -456,16 +457,14 @@ def test_the_obligation_reading_counts_completed_obligations_against_the_active_
     suggestions, and silently nothing for every other thing a page waits on. What
     makes an instance an obligation is the entry's own attribute condition, and the entry
     explicitly names which state verbs answer it — so this page's five active obligations are
-    one authored answer, a live question, a change nobody has decided, and two explicit
-    questions nested in tasks.
+    one the user's logged pick answers, a live question, a change nobody has decided, and
+    two explicit questions nested in tasks.
 
     The rest of the page is every way of not being one, and each is a way of getting
-    it wrong: a group whose pick the version already carries (`selected`, with nothing in
-    the log — a fold-only reading counts it as open on every shipped example), one the
-    author has settled, one that takes no picks at all, an exhibited decision inside a
-    lf-sample, and a milestone at `blocked`, which is the same word on a widget whose
-    entry does not declare it."""
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    it wrong: a group the author has settled, one that takes no picks at all, an
+    exhibited decision inside a lf-sample, and a milestone at `blocked`, which is the same
+    word on a widget whose entry does not declare it."""
+    page = open_page(browser, serve_obligations(serve))
     expect_obligations_answered(page, "1/5")
     # The blanket answer counts the same list, narrowed to the one kind that declares
     # a verb for it, so the two numbers cannot describe different sets.
@@ -500,7 +499,7 @@ def test_a_key_walks_the_page_s_open_obligations(browser, serve, subtests):
     the control instead would put them on whatever the decision's context and evidence
     had pushed off the bottom of the screen. Its contributed actions are directly
     addressable there; the controls themselves remain the next Tab stops."""
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    page = open_page(browser, serve_obligations(serve))
     expect_obligations_answered(page, "1/5")
 
     with subtests.test("the obligation stood on survives the window losing focus"):
@@ -723,7 +722,7 @@ def test_the_obligation_itself_binds_each_contributed_action(browser, serve):
     the keyboard layer; a digit activates the original command without first moving
     focus into the widget.
     """
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    page = open_page(browser, serve_obligations(serve))
     resized(page, 900, 900)
 
     page.keyboard.press("m")
@@ -973,7 +972,7 @@ def test_obligation_action_binding_badges_use_the_available_card_action_seats(
     focus leaves the field, both actions are available and the route takes the inner
     seat. The field reserves both seats before either face appears.
     """
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    page = open_page(browser, serve_obligations(serve))
     resized(page, 900, 900)
 
     page.keyboard.press("m")
@@ -1426,7 +1425,7 @@ def test_the_obligation_walk_starts_from_where_the_user_is(browser, serve):
     steps on from the obligation they stood on rather than restarting. A selected
     passage enters its comment field immediately; while that field stands, letters
     are text rather than page-navigation keys."""
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    page = open_page(browser, serve_obligations(serve))
 
     # A window short enough that reading down the page leaves the top of it behind,
     # which is the whole of what the user has to do to be somewhere.
@@ -1463,7 +1462,7 @@ def test_the_ring_is_one_box_around_the_whole_change(browser, serve):
     two block slots, read as two boxes touching rather than as the one decision the user is
     located in. So what is asserted here is that the user is taken to the change, and
     that the wrapper alone wears the mark, in one box reaching round both slots."""
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    page = open_page(browser, serve_obligations(serve))
 
     # Short enough that reaching the change is travel rather than a press with the
     # change already on screen.

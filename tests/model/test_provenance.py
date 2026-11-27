@@ -183,7 +183,13 @@ def test_a_message_waited_where_its_thread_still_owed_it_at_any_of_the_versions_
     pages = {1: SETTLED, 2: SETTLED, 3: SETTLED}
     assert saved_after([ASKED, live(2)], 1, 2, pages) == [waited("e1")]
     assert saved_after([ASKED, PICKED, live(2)], 1, 2, pages) == []
-    overlapping = [ASKED, PICKED, CLOSED, {"kind": "undo", "undoes": "e2"}, live(2)]
+    overlapping = [
+        ASKED,
+        PICKED,
+        CLOSED,
+        {"kind": "undo", "undoes": "e2", "answered": False},
+        live(2),
+    ]
     assert saved_after(overlapping, 1, 2, pages) == [waited("e1")]
     reopened = [
         ASKED,
@@ -252,6 +258,7 @@ def test_a_version_is_read_under_its_own_document():
             "widget": "picks",
             "action": "choose",
             "detail": {"value": ["option-a"]},
+            "answered": True,
         },
         {
             "kind": "note",

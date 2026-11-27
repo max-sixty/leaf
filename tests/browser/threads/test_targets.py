@@ -891,6 +891,16 @@ def test_a_retained_reference_with_nothing_hidden_offers_no_disclosure(
     expect(card.locator(".lf-quote-label").get_by_role("button")).to_have_count(0)
 
 
+# How an opened quote shows its words: its sizes, whether they all fit, and whether
+# it scrolls to the rest.
+QUOTE_ROOM = """el => ({
+  height: el.clientHeight,
+  words: el.scrollHeight,
+  whole: el.scrollHeight <= el.clientHeight + 1,
+  scrolls: ['auto', 'scroll'].includes(getComputedStyle(el).overflowY),
+})"""
+
+
 def test_a_changed_datum_keeps_its_old_words_open_when_its_label_changes(
     browser, serve
 ):
@@ -978,10 +988,14 @@ customElements.define('lf-quote-subject', class extends LeafElement {
     # The relabel alone repaints the quote, by the time the page has drawn it: nothing
     # the press began is still painting, and no later paint is waited for.
     rendered(page)
+    opened = quote.evaluate(QUOTE_ROOM)
     page.evaluate(
         "window.quoteSubject.show('Current plan', 'The revised requirement uses automatic review.')"
     )
     rendered(page)
     assert "Current plan" in card.locator(".lf-quote-label").inner_text()
     expect(disclosure).to_have_attribute("aria-expanded", "true")
-    assert quote.evaluate("el => el.scrollHeight <= el.clientHeight + 1")
+    # The old words stay open as they were: whole where the card has room for them,
+    # else scrolling in the quote's own share of a slim card.
+    assert quote.evaluate(QUOTE_ROOM) == opened
+    assert opened["whole"] or opened["scrolls"], opened

@@ -1,3 +1,4 @@
+// Compiled from anchor-controls.ts by build/typescript.mjs; edit that file.
 /* Retained controls derived from the canonical current anchor reading.
  *
  * This view owns visual comment proxies, controls for reactions in force, and message
@@ -66,27 +67,7 @@ import { inChrome } from "../base/ui-marks.js";
 const shownDocument = readPart((root) => root.document);
 const MSG_REF = '.lf-msg-body a[href^="#"]';
 // Why a message's link to a section the shown version lacks goes nowhere.
-/** @param {string | null} id */
 const missingReference = (id) => `§ ${id} isn't in the version shown`;
-
-/** @typedef {import("../../types/domain.js").Anchor} Anchor */
-/** @typedef {import("../records/thread/thread-card.js").ThreadRecord["root"] & {emoji: string}} ReactionRoot */
-/** @typedef {{root: ReactionRoot, receipt: import("../../types/domain.js").Workflow | null}} ReactionMark */
-/** @typedef {{before: ReactionMark[], inside: ReactionMark[]}} ReactionGroup */
-/** @typedef {{anchor: Anchor, label: string, key: string}} VisualAction */
-/** @typedef {HTMLButtonElement & {lfAnchor: Anchor}} VisualActionControl */
-/** @typedef {NonNullable<ReturnType<ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>["read"]>>} AnchorReading */
-/** @typedef {AnchorReading["readings"][number]} ThreadReading */
-/** @typedef {{reaction: {at: Element, before: boolean} | null, notes: Element[]}} Seats */
-/** @param {{
- * commentOnTarget: ReturnType<typeof import("./composing/surface.js").createResponseSurface>["commentOnTarget"],
- * openThread: ReturnType<typeof import("../records/thread/destination.js").createThreadDestinations>["openPageThread"],
- * withdrawReaction: ReturnType<typeof import("../records/undo.js").createUndo>["withdraw"],
- * labelAnchor: typeof import("../records/thread/messages.js").anchorLabel,
- * invalidateThread: () => unknown, invalidatePageGeometry: () => unknown,
- * placement: Pick<ReturnType<typeof import("./anchor-placement.js").createAnchorPlacement>, "hearPlaced" | "placedAt">,
- * messageReferenceRoot: Element, draftQuote: Element, focused: typeof import("../dom/focus.js").focused,
- * paintKeys: typeof import("../dom/keyboard/scopes.js").paintKeys}} dependencies */
 
 export function createAnchorControls({
   commentOnTarget,
@@ -101,24 +82,16 @@ export function createAnchorControls({
   focused,
   paintKeys,
 }) {
-  /** @type {Map<Element, HTMLDivElement>} */
   const visualActionHolders = new Map();
-  /** @type {Map<Element, ReactionSeat>} */
   const reactionSeats = new Map();
   const anchorNotes = createAnchorNoteProjection({ openThread, labelAnchor });
-  /** @type {ReturnType<typeof onPressAway> | null} */
   let mounted = null;
-  /** @type {(() => void) | null} */
   let stopHearing = null;
   // Each thread the last render read, and where it seated the thread's controls.
-  /** @type {Map<string, {thread: ThreadReading["thread"], seats: Seats}>} */
   let seated = new Map();
   let invalidationQueued = false;
-  /** @type {Map<Element, VisualAction[]>} */
   let pendingVisualActions = new Map();
 
-  /** @param {ReactionSeat} record @param {string | null} eventId
-   * @param {{focus?: boolean, surface?: import("../features/contributions.js").ContributionSurface | null}} [options] */
   function setReactionRemoval(record, eventId, { focus = false, surface = null } = {}) {
     if (eventId)
       for (const other of reactionSeats.values())
@@ -139,9 +112,7 @@ export function createAnchorControls({
     );
   }
 
-  /** @param {Anchor | null | undefined} anchor */
   const visualActionAnchor = (anchor) => {
-    /** @type {VisualActionControl[]} */
     const controls = pageQueryAll(".lf-visual-action");
     return controls.find((control) => sameAnchor(control.lfAnchor, anchor)) ?? null;
   };
@@ -149,10 +120,8 @@ export function createAnchorControls({
   // A proxy group is named by the outer disclosure that controls its drawing's
   // visibility, so a screen reader meets it while the drawing is folded away. Shadow
   // renderers share their host so sibling groups do not reorder on each paint.
-  /** @param {Element} candidate */
   function visualActionSeat(candidate) {
     let seat = shadowHost(candidate.getRootNode()) ?? candidate;
-    /** @type {Node | null} */
     let current = seat;
     for (; current; current = upFrom(current))
       if (isElement(current) && current.matches("details")) seat = current;
@@ -160,14 +129,12 @@ export function createAnchorControls({
   }
 
   function visualActionPlan() {
-    /** @type {Map<Element, VisualAction[]>} */
     const groups = new Map();
     const claimed = new Set();
     for (const candidate of readingElements(visualTags())) {
       const found = visualAt(candidate);
       if (!found || found.element !== candidate) continue;
       const parts = visualParts(candidate);
-      /** @type {Omit<VisualAction, "key">[]} */
       const targets = [
         {
           anchor: { section: found.id },
@@ -198,23 +165,18 @@ export function createAnchorControls({
   }
 
   // What a proxy stands for: the part it responds to, or the picture.
-  /** @param {Element} node */
   function visualActionTarget(node) {
-    const control = /** @type {VisualActionControl | null} */ (
-      node.closest(".lf-visual-action")
-    );
+    const control = node.closest(".lf-visual-action");
     if (!control) return null;
     const current = resolveAnchor(control.lfAnchor);
     return targetParts(current)[0] ?? targetElement(current);
   }
 
-  /** @param {MouseEvent & {currentTarget: VisualActionControl}} event */
   function activateVisualAction(event) {
     const control = event.currentTarget;
     commentOnTarget({ anchor: control.lfAnchor });
   }
 
-  /** @param {VisualAction} target */
   const visualActionTemplate = ({ anchor, label }) => html`
     <button
       ${offeredAction("proxy", "lf-visual-action")}
@@ -225,7 +187,6 @@ export function createAnchorControls({
     ></button>
   `;
 
-  /** @param {Map<Element, VisualAction[]>} groups */
   function reconcileVisualActions(groups) {
     const kept = new Set();
     for (const [seat, targets] of groups) {
@@ -271,7 +232,6 @@ export function createAnchorControls({
   // (readings/passages.js, `readingElements`), so planning again after one part of the page
   // changed searches that part alone.
   const plan = kept(visualActionPlan);
-  /** @type {Map<Element, VisualAction[]> | null} */
   let planned = null;
   function prepareVisualActions() {
     const next = plan();
@@ -290,17 +250,11 @@ export function createAnchorControls({
   // Each target contributes its complete reading of its reactions in force. Only the selected
   // removal disclosure is local state; both rendered surfaces read the same entry keys.
   class ReactionSeat {
-    /** @type {readonly ReactionMark[]} */
     marks;
-    /** @type {string | null} */
     expanded = null;
-    /** @type {import("../features/contributions.js").ContributionSurface | null} */
     surface = null;
-    /** @type {ReturnType<typeof commandScope>} */
     scope;
-    /** @type {ReturnType<typeof registerContribution>} */
     margin;
-    /** @param {readonly ReactionMark[]} marks @param {Element} at */
     constructor(marks, at) {
       this.marks = marks;
       this.scope = commandScope(
@@ -314,7 +268,6 @@ export function createAnchorControls({
             run: () => {
               const eventId = this.expanded;
               const entryKey = `reaction:${eventId}:open`;
-              /** @type {readonly import("../features/contributions.js").ContributionSurface[]} */
               const surfaces = ["map", "margin", "inline"];
               const surface =
                 surfaces.find((candidate) =>
@@ -387,7 +340,6 @@ export function createAnchorControls({
     }
   }
 
-  /** @param {Map<Element, ReactionGroup>} seats */
   function seatReactions(seats) {
     const kept = new Set();
     for (const [at, held] of seats) {
@@ -432,7 +384,6 @@ export function createAnchorControls({
     }
   }
 
-  /** @param {AnchorReading["draft"]} draft */
   function paintDraft({ open, anchor, about, resolved }) {
     const label = open ? labelAnchor(anchor, about) : "";
     keepsText(draftQuote, label);
@@ -443,8 +394,6 @@ export function createAnchorControls({
   // Where a thread's controls stand, by its placement: a bare reaction's receipt at one
   // element, or a note at each block its passage spans. A resolved thread, and one the
   // shown version doesn't hold, stand nowhere.
-  /** @param {ThreadReading["thread"]} thread @param {ThreadReading["placement"] | undefined} found
-   * @returns {Seats} */
   function seatsOf(thread, found) {
     if (!found || found.status === "outdated" || thread.resolved)
       return { reaction: null, notes: [] };
@@ -468,20 +417,17 @@ export function createAnchorControls({
             ),
           ),
         ].filter(Boolean);
-    /** @type {Element[]} */
     const holders = [];
     for (const holder of blocks.length ? blocks : [sectionOf(thread.anchor)])
       if (holder && !inChrome(holder)) holders.push(holder);
     return { reaction: null, notes: holders };
   }
-  /** @param {Seats} a @param {Seats} b */
   const sameSeats = (a, b) =>
     a.reaction?.at === b.reaction?.at &&
     a.reaction?.before === b.reaction?.before &&
     a.notes.length === b.notes.length &&
     a.notes.every((holder, index) => holder === b.notes[index]);
 
-  /** @param {AnchorReading} reading */
   function render({ readings, draft }) {
     // These controls stand on elements of the shown document: a note's block, a
     // reaction's seat, the section a message's link names. Reading the document here
@@ -489,9 +435,7 @@ export function createAnchorControls({
     // `aria-details` on a commented block it keeps, which the note's relation must then
     // follow (features/details-shelf.js).
     shownDocument();
-    /** @type {Map<Element, [string, ...string[]]>} */
     const notes = new Map();
-    /** @type {Map<Element, ReactionGroup>} */
     const reactions = new Map();
     seated = new Map();
     for (const { thread, placement: found } of readings) {
@@ -528,7 +472,6 @@ export function createAnchorControls({
     });
   }
 
-  /** @param {Event} event */
   const onLayoutInvalidated = (event) => {
     const target = event.target;
     if (!(target instanceof Node)) return;
@@ -545,7 +488,6 @@ export function createAnchorControls({
 
   // A press on a link to a missing section is refused and says why, which its title
   // says only to a resting pointer.
-  /** @param {Event} event */
   const onMessageReference = (event) => {
     if (!isElement(event.target)) return;
     const href = event.target.closest(MSG_REF)?.getAttribute("href");
@@ -556,7 +498,6 @@ export function createAnchorControls({
 
   // A press away from a reaction whose removal stands offered takes the offer back
   // (dom/focus.js, `onPressAway`).
-  /** @param {readonly EventTarget[]} path */
   const offeredAway = (path) =>
     [...reactionSeats.values()].filter(
       (record) =>

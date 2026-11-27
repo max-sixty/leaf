@@ -1,3 +1,4 @@
+// Compiled from visual-mark-paint.ts by build/typescript.mjs; edit that file.
 /* Optional persistent element-target marks.
  *
  * The selected annotation renderer constructs this painter and supplies resolved
@@ -9,17 +10,14 @@
 import { keepsOnEach } from "../lib/keeps.js";
 import { markedParts, readMarkRoom } from "../dom/geometry.js";
 
-/** @typedef {{element: Element, surface: Element, states: ReadonlySet<string>}} VisualTarget */
 export function createVisualMarkPaint() {
   const paintMarks = keepsOnEach("data-lf-mark");
   const paintProjected = keepsOnEach("data-lf-projected-mark");
 
-  /** @param {Iterable<VisualTarget>} next */
   function setTargets(next) {
     const targets = [...next].filter((target) => target.states.size);
     // Two targets can stand on one box, as a part does on the frame its parent is drawn
     // in, and the box draws both their states.
-    /** @type {Map<Element, Set<string>>} */
     const marks = new Map();
     for (const { surface, states } of targets)
       for (const box of markedParts(surface))

@@ -1,3 +1,4 @@
+// Compiled from live-leaves.ts by build/typescript.mjs; edit that file.
 /* The pages served on this machine now, as the floating panel's All pages lists them
    (`leavesRows`), and its row among the page's controls (base/page-controls.js), offered
    while another page is served beside this one.
@@ -15,28 +16,22 @@ import { pagePresented } from "../base/page-paint.js";
 import { activityFacts, leafRow } from "../state/activity-words.js";
 import { PAGE_CONTROL_RANK, registerPageControl } from "../base/page-controls.js";
 
-/** @typedef {import("../../types/contract.js").ServedLivePage} LivePage */
-
-/** @type {readonly LivePage[]} */
 const NONE = Object.freeze([]);
 // The live neighbours, in title order; a closed one is not among them (presence.py).
 const neighbours = signal(NONE);
 // The list's reading it was last asked for, null for none live, or undefined before
 // the first look, after a look that heard nothing and after a read that failed, so the
 // next look asks again.
-/** @type {string | null | undefined} */
 let asked;
 // The read of `/api/pages` still out, if one is.
-/** @type {AbortController | null} */
 let reading = null;
 
 /** Take in what a news look heard of the list: the reading it names, null for none
-    live, or undefined for a look that heard nothing. Another reading than the one last
-    asked for ends the read still out, whose answer could only be older, and none live
-    empties the list without a read; a new reading is read at once. A look that heard
-    nothing ends the read too, as the feed ends its state reads then (state-feed.js,
-    `abandonReads`), and leaves the list as it stands for the next look to name.
- * @param {string | null | undefined} heard */
+ *     live, or undefined for a look that heard nothing. Another reading than the one last
+ *     asked for ends the read still out, whose answer could only be older, and none live
+ *     empties the list without a read; a new reading is read at once. A look that heard
+ *     nothing ends the read too, as the feed ends its state reads then (state-feed.js,
+ *     `abandonReads`), and leaves the list as it stands for the next look to name. */
 export function hearPages(heard) {
   if (heard === asked) return;
   asked = heard;
@@ -52,7 +47,6 @@ async function readPages() {
   try {
     const response = await fetch(pageUrl("api/pages"), { signal: read.signal });
     if (!response.ok) throw new Error(`pages returned HTTP ${response.status}`);
-    /** @type {import("../../types/contract.js").ServedPagesAnswer} */
     const pages = await response.json();
     if (reading === read) neighbours.value = Object.freeze(pages);
   } catch {
@@ -83,14 +77,12 @@ export const leavesOffered = () => pagePresented() && neighbours.value.length > 
 // overlap, so a title left on the line would answer the hover most likely to be asking
 // this question — a user pointing at the words that ran out of room — with the one
 // part of the account they can already read.
-/** @param {readonly (string | null)[]} facts */
 const onLines = (facts) => facts.filter(Boolean).join("\n");
 
 // The pages the list holds: this page's own, by its own state reading, then each live
 // neighbour. A neighbour's row is its page, keyed by `page_key`, and its link is wherever
 // that page is served now. A server restarted on another port keeps the row, and the
 // focus on it, where they were; only the destination changes.
-/** @param {import("../../types/contract.js").ServedState | null} state */
 const listedPages = (state) =>
   state === null
     ? []
@@ -106,7 +98,6 @@ const listedPages = (state) =>
 
 // Each page the list holds, as a row says it: its tone and line in the shape of the
 // page's own status, and the whole account its hover gives.
-/** @param {import("../../types/contract.js").ServedState | null} state */
 export const leavesRows = (state) =>
   Object.freeze(
     listedPages(state).map(({ key, href, title, entry }) => {

@@ -1,3 +1,4 @@
+// Compiled from role-button-press.ts by build/typescript.mjs; edit that file.
 /* A button's keys for an element Leaf offers as a button without being one: a span
  * with `role="button"` and `data-lf-offer="button"`, such as a selectable offer
  * (controls.js), whose words must stay selectable, or a margin reading entry
@@ -27,7 +28,6 @@
 
 export const ROLE_BUTTON_OFFER = '[role="button"][data-lf-offer="button"]:not(button)';
 
-/** @param {KeyboardEvent} ev */
 const offerPressed = (ev) => {
   const target = ev.composedPath()[0];
   return target instanceof HTMLElement &&
@@ -37,7 +37,6 @@ const offerPressed = (ev) => {
     ? target
     : null;
 };
-/** @type {HTMLElement | null} */
 let spaceOn = null;
 addEventListener("keydown", (ev) => {
   const offer = offerPressed(ev);

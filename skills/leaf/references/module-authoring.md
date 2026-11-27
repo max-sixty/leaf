@@ -144,7 +144,8 @@ library module keeps none of the page's state and calls nothing of Leaf's. A wid
 imports a module by its path, as it imports Lit, and the module works off Leaf too.
 Like `widget-api.js`, the library can change in any update.
 [The directory](../../../browser/runtime/lib/) lists the modules, and each module's
-header and comments say what it exports.
+header and comments say what it exports. A module Leaf writes in TypeScript keeps its
+types in the `.ts` beside the `.js` a widget imports.
 
 ### A widget that also runs off Leaf
 

@@ -522,7 +522,7 @@ Leaf", says.
 - A prepared installation compiles the whole library into the chunk every page loads
   (`portableHomes` in `../build/runtime-bundle.mjs`). So a library module imports
   lazily any `/vendor/` bundle the page's boot doesn't already load.
-- A module's header and JSDoc are its whole documentation. The package references say
+- A module's header and doc comments are its whole documentation. The package references say
   where the library is and describe none of its functions.
 
 ### What a style rule costs

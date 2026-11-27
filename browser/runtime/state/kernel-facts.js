@@ -1,3 +1,4 @@
+// Compiled from kernel-facts.ts by build/typescript.mjs; edit that file.
 /* The kernel registry's facts, as the browser reads them.
 
    The kernel registry beside this module holds the facts no layer changes. Python
@@ -41,8 +42,7 @@ export const WIDGET_NAME = new RegExp(`^${kernel.$names.widget}$`);
 // The declared marks and the attribute each is painted as, which the runtime paints on
 // a message it renders and reads by name.
 const { description: _description, ...declaredMarks } = kernel.$marks;
-/** @typedef {{attribute: string, message: boolean, authored?: string, authored_on?: string, presence?: boolean}} Mark */
-/** @type {Record<keyof typeof declaredMarks, Mark> & Record<string, Mark>} */
+
 export const marks = declaredMarks;
 
 const kinds = Object.entries(kernel.$events.kinds);

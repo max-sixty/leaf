@@ -1,3 +1,4 @@
+// Compiled from chip-seats.ts by build/typescript.mjs; edit that file.
 /* Where key chips stand. Each chip stands in a seat, a box anchored to the target the
    chip names (readings/target-paint-geometry.js, `paintSet`, with nothing cutting it), so the
    browser carries the chip with every scroll that moves its target, and no scroll
@@ -15,7 +16,6 @@ import { paintSet } from "../target-paint-geometry.js";
 import { CHROME_LEVEL, stackLevel } from "../../dom/geometry.js";
 
 let chipLevel = 0;
-/** @param {Element | null} target */
 const plane = (target) => {
   chipLevel ||=
     CHROME_LEVEL +
@@ -25,16 +25,13 @@ const plane = (target) => {
   return !target || stackLevel(target) >= chipLevel ? "chrome" : "page";
 };
 
-/** @param {HTMLElement} root */
 export function chipSeats(root) {
   const set = paintSet(root);
-  /** @type {Map<unknown, HTMLSpanElement>} */
   const seats = new Map(); // key → seat
 
   return {
     // The seat for `key`, made where there is none, in the document so the chip it is
     // given can be read before it is seated.
-    /** @param {unknown} key */
     seat(key) {
       let seat = seats.get(key);
       if (!seat) {
@@ -46,7 +43,6 @@ export function chipSeats(root) {
       return seat;
     },
     // The seat for `key`, if one is seated.
-    /** @param {unknown} key */
     seated(key) {
       const seat = seats.get(key);
       return seat?.isConnected ? seat : null;
@@ -55,7 +51,6 @@ export function chipSeats(root) {
     // what they say changes: a typed letter leaves chips that no longer match, and a
     // command can leave reach. Hidden, a seat keeps its box, so the pass that seats it
     // again once the scroll settles reads its chip where it stands.
-    /** @param {ReadonlySet<unknown>} keys */
     keepOnly(keys) {
       for (const [key, seat] of seats) {
         const visibility = keys.has(key) ? "" : "hidden";
@@ -63,7 +58,6 @@ export function chipSeats(root) {
       }
     },
     // The box `seat`'s chip takes with the seat at `at`, read off where both stand.
-    /** @param {HTMLElement} seat @param {{left: number, top: number}} at */
     measure(seat, at) {
       const element = seat.firstElementChild;
       if (!(element instanceof HTMLElement))
@@ -81,7 +75,6 @@ export function chipSeats(root) {
     // Stands each seat over `target` so its chip takes `box`, read as `start` with the
     // seat at `at`, or where the window holds it where it is `held` by the window's edge
     // or the chrome, and puts away every seat not among them.
-    /** @param {readonly {seat: HTMLElement, target: Element | null, at: {left: number, top: number}, start: import("../../base/box.js").Box, box: import("../../base/box.js").Box, held?: boolean}[]} seated */
     place(seated) {
       set.place(
         seated.map(({ seat, target, at, start, box, held = false }) => ({

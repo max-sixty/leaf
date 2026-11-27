@@ -1,3 +1,4 @@
+// Compiled from sample-child.ts by build/typescript.mjs; edit that file.
 /* The isolated child's explicit interface to its containing page. Values cross the
  * port; documents, DOM nodes, functions and browser owners remain in this realm.
  * `ready` announces the usable, upgraded interface, independently of saved state.
@@ -12,32 +13,23 @@ import { exceptionRecord } from "../lib/exception.js";
 import { pagePresented, pageUpgraded } from "../base/page-paint.js";
 import { startNearWork, whenArrived } from "../readings/presentation.js";
 import { sizeObserver } from "../lib/frame-pass.js";
+
 const child = document.documentElement.lfSample;
-/** @typedef {import("../base/sample-protocol.js").SampleCommands} SampleCommands
- * @typedef {import("../base/sample-protocol.js").SampleMethod} SampleMethod
- * @typedef {import("../base/sample-protocol.js").SampleHandlers} SampleHandlers
- */
-/** @type {SampleHandlers} */
 const commands = {};
-/** @type {Set<() => unknown>} */
 const observers = new Set();
-/** @param {"cancel-view"} _type @param {() => unknown} callback */
 export function onSampleNotice(_type, callback) {
   observers.add(callback);
   return () => observers.delete(callback);
 }
-/** @template {SampleMethod} K @param {K} name @param {NonNullable<SampleHandlers[K]>} callback */
 export function registerSampleCommand(name, callback) {
   commands[name] = callback;
   return () => {
     delete commands[name];
   };
 }
-/** @param {import("../base/sample-protocol.js").SampleNotice | import("../base/sample-protocol.js").ChildStatus} notice */
 export function sampleNotice(notice) {
   child?.send(notice);
 }
-/** @template {SampleMethod} K @param {{method: K, detail: SampleCommands[K]["detail"]}} request */
 async function execute({ method, detail }) {
   const command = commands[method];
   if (!command) throw new Error(`Unknown sample command: ${method}`);
@@ -62,7 +54,6 @@ if (child) {
   let arriving = false;
   // A parent cannot inspect focus in this opaque document. Report whether a
   // control holds it, and retain its node while a parent control borrows focus.
-  /** @type {Element | null} */
   let currentLocation = null;
   onCurrentLocation((node) => {
     if (node && node !== document.body) currentLocation = node;
@@ -76,7 +67,6 @@ if (child) {
   // (sample.js, `claim`). The inputs are the document's one reading of them
   // (dom/focus.js, `onUserInput`). A click is input of its own, since by pointer or by
   // Enter or Space it lands after the press that began it.
-  /** @param {Event} event */
   const input = (event) => {
     if (!event.isTrusted || event.type === "blur") return;
     sampleNotice({ type: "input", detail: { type: event.type } });

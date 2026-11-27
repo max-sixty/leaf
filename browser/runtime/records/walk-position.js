@@ -1,3 +1,4 @@
+// Compiled from walk-position.ts by build/typescript.mjs; edit that file.
 /* Where a keyboard walk stands, what Leaf's panel says of it, and the walk over a flat
    list of focusable rows (`rowWalk`). Walk owners keep their list and motion. Native
    focus traversal and gestures that rearrange state are not walks through a named list.
@@ -57,27 +58,16 @@ import {
 import { renderedUnder } from "../lib/shadow-tree.js";
 import { WALK } from "../lib/widget-events.js";
 
-/** @typedef {{target: unknown, position: number, total: number, qualifier: string}} WalkPosition
- * @typedef {readonly (Element | null | undefined)[]} WalkEnds
- * @typedef {{list?: (() => WalkEnds) | null, about?: string | null}} WalkFacts
- * @typedef {{key: string, noun: string | null, read: () => WalkPosition | null,
- *   target: unknown, about: string | null}} Walking
- * @typedef {{noun: string, position: number, total: number, list?: WalkEnds}} SaidPlace */
-/** @type {Walking | null} */
 let walking = null;
 
 // "Thread 2 of 5"; for a walk over several kinds, which names its list in the
 // qualifier, "2 of 5 waiting on me".
-/** @param {string | null} noun @param {number} position @param {number} total @param {string} [qualifier] */
 export function walkPositionLabel(noun, position, total, qualifier = "") {
   return [noun, `${position} of ${total}`, qualifier].filter(Boolean).join(" ");
 }
 
 // The common reading for a DOM or model list. `identity` is the owner's stable key;
 // the current item may be a fresh projection of the same destination on a later paint.
-/** @template T @param {readonly T[]} items @param {T | null | undefined} current
- * @param {{identity?: (item: T) => unknown, qualifier?: string}} [options]
- * @returns {WalkPosition | null} */
 export function listWalkPosition(
   items,
   current,
@@ -116,7 +106,6 @@ export function walkPosition() {
 // The place a widget's latest step said (the `WALK` listener), while it stands: the
 // stop it was said on, whether the user's focus has been on that stop or inside it
 // since, and what stops the watch on the stop.
-/** @type {{walk: Walking, stop: Element, held: boolean, unwatch: () => void} | null} */
 let said = null;
 function endSaid() {
   const ended = said;
@@ -138,7 +127,6 @@ function endSaid() {
 // at the step, before a landing that scrolls, so a list running past the window's edge
 // says its place even where the landing brings the rest into view, and by each end's
 // own box, since whether the user sees it doesn't hang on the room its ring would take.
-/** @param {Walking} walk @param {WalkEnds | null | undefined} ends */
 function stepTo(walk, ends) {
   endSaid();
   if (ends?.length && ends.every((end) => end && alreadyShown(end, { ringed: false })))
@@ -160,8 +148,6 @@ function stepTo(walk, ends) {
 // whose stops all stand in view whenever it can be walked, as Go-to's hints do,
 // declares no walk. `about` names the fact where the user stands whose list the walk
 // is over (panel/floating-panel.js, `standing`), as "comparison" does for its changes.
-/** @param {string} key @param {string | null} noun @param {() => WalkPosition | null} read
- * @param {WalkFacts} [facts] */
 export function beginWalk(key, noun, read, { list = null, about = null } = {}) {
   const position = read();
   if (!position) {
@@ -214,8 +200,6 @@ effect(() => {
 // is about (`says`), as the page field's "5 changes since v2 · 1 of 5" does, and else
 // the whole position, "Thread 2 of 5", "Tab 2 of 14", since the panel stands apart from
 // the list it counts.
-/** @param {NonNullable<ReturnType<typeof walkPosition>>} walk
- * @param {ReadonlySet<string>} says */
 export const walkWords = (walk, says) =>
   walk.about !== null && says.has(walk.about) ? walk.place : walk.text;
 
@@ -240,18 +224,7 @@ export const walkWords = (walk, says) =>
 // visible markers, where scrolling to the landed row would change the list the walk
 // is over. A walk that comes round at its ends steps with `cycledRow`
 // (dom/keyboard/bindings.js); the page's queue walk steps by document position.
-/** @type {readonly [string, string, string, string]} */
 const STEPS = Object.freeze(["previous", "next", "first", "last"]);
-/** @param {{
- *   id: string,
- *   noun: string,
- *   plural: string,
- *   rows: () => HTMLElement[],
- *   position?: () => ReturnType<typeof listWalkPosition>,
- *   steps?: readonly [string, string, string, string],
- *   landed?: (row: HTMLElement) => void,
- *   scroll?: boolean,
- * }} walk */
 export function rowWalk({
   id,
   noun,
@@ -267,13 +240,11 @@ export function rowWalk({
     const all = rows();
     return [all[0], all.at(-1)];
   };
-  /** @param {string} binding @param {string} step */
   const route = (binding, step) => ({
     id: `${id}.${step}`,
     binding,
     title: `${capitalized(step)} ${noun.toLowerCase()}`,
   });
-  /** @param {(rows: HTMLElement[]) => HTMLElement | undefined} pick */
   const land = (pick) => {
     const was = focused();
     const row = pick(rows());
@@ -293,7 +264,7 @@ export function rowWalk({
       title: `walk the ${plural}`,
       repeat: true,
       travels: scroll,
-      runKey: /** @param {string} binding */ (binding) =>
+      runKey: (binding) =>
         land((list) =>
           clampedRow(list, focused(), binding === "ArrowDown" ? 1 : -1, 0),
         ),
@@ -304,8 +275,7 @@ export function rowWalk({
       routes: [route("Home", home), route("End", end)],
       title: `${home} / ${end}`,
       travels: scroll,
-      runKey: /** @param {string} binding */ (binding) =>
-        land((list) => (binding === "Home" ? list[0] : list.at(-1))),
+      runKey: (binding) => land((list) => (binding === "Home" ? list[0] : list.at(-1))),
     },
   ];
 }

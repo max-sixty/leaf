@@ -1,3 +1,4 @@
+// Compiled from tab-title.ts by build/typescript.mjs; edit that file.
 /* The tab's title: the page's authored title, with what waits on the user counted in
    front of it while it is above zero ("(2) Finish the ship review").
 
@@ -22,14 +23,12 @@
 const TAB = document.createElement("title");
 TAB.dataset.lfRuntime = "";
 
-/** @param {string} text */
 const squash = (text) => text.replace(/\s+/g, " ").trim();
 
 export const authoredTitle = (page = document) =>
   squash(page.head.querySelector("title:not([data-lf-runtime])")?.textContent ?? "");
 
 let counted = 0;
-/** @type {MutationObserver | null} */
 let watch = null;
 
 function draw() {
@@ -42,8 +41,7 @@ function draw() {
   if (document.head.firstChild !== TAB) document.head.prepend(TAB);
 }
 
-/** Show `count` in the tab's title; a repeated reading writes nothing.
-    @param {number} count */
+/** Show `count` in the tab's title; a repeated reading writes nothing. */
 export function paintTabTitle(count) {
   counted = count;
   if (!watch) {

@@ -1,3 +1,4 @@
+// Compiled from chrome.ts by build/typescript.mjs; edit that file.
 /* The shared chrome homes. leaf.js owns assembly and cross-owner wiring at boot.
  * Document-attached annotations are inserted before the permanent foreground:
  * a CSS anchor can position only a box laid out after the target it names. Keeping

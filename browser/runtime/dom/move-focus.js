@@ -1,3 +1,4 @@
+// Compiled from move-focus.ts by build/typescript.mjs; edit that file.
 /* Leaf's focus accounting around the portable DOM mover. Install before any runtime
    render; off Leaf the browser owns focus and native state-preserving moves. */
 import { installMoveFocus } from "./dom-move.js";

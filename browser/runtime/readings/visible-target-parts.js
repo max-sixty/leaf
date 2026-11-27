@@ -1,3 +1,4 @@
+// Compiled from visible-target-parts.ts by build/typescript.mjs; edit that file.
 /* One reading of the drawn parts behind a semantic target.
 
    A target with its own box is drawn even when one dimension is zero, as an SVG line is.
@@ -11,7 +12,6 @@ import { drawn } from "../dom/focus.js";
 import { shownParts } from "../dom/geometry.js";
 import { skipped } from "../lib/shadow-tree.js";
 
-/** @param {Element} target */
 export function visibleTargetParts(target) {
   if (skipped(target)) return [];
   const parts = shownParts(target, { leaveSkipped: true }).filter(drawn);

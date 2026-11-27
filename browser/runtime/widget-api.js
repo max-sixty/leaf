@@ -1,3 +1,4 @@
+// Compiled from widget-api.ts by build/typescript.mjs; edit that file.
 /* The one helper surface behavior modules import. Capabilities come from their
    domain owners; optional hosts load when requested. Owners import one another,
    and leaf.js only boots.
@@ -115,11 +116,7 @@ export { leafEditorView } from "./annotations/editor-view.js";
 // (lib/pending-task.js), read here in the caller's stack: the page's presentation
 // waits for it, or the gesture whose rendering showed the frame owns its fit. The host
 // says when that drawing is in (host/sample.js, `landed`).
-/** @param {Parameters<typeof import("./host/sample.js").mountSample>[0]} frame
- * @param {Parameters<typeof import("./host/sample.js").mountSample>[1]} options
- * @returns {Promise<ReturnType<typeof import("./host/sample.js").mountSample>>} */
 export async function mountSample(frame, options) {
-  /** @type {PromiseWithResolvers<void> | null} */
   const landing =
     !options.window && growthIsSeen(frame) ? Promise.withResolvers() : null;
   if (landing) frame.dispatchEvent(new PendingTaskEvent(landing.promise));

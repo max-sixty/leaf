@@ -171,9 +171,13 @@ const bundles = {
 
   // Effect and Effect UI, the component model widgets and Leaf's own chrome draw
   // with (runtime/effect-widget.js). One module, so a page runs one Effect runtime.
+  // The `production` condition picks Effect UI's builds without its development
+  // checks and hot reload, which read session storage and scan every root at each
+  // mount.
   "effect-ui": () => ({
     out: `${assets}/vendor/effect-ui.js`,
     entryPoints: [input("entries/effect-ui/entry.mjs")],
+    conditions: ["production"],
     banner: {
       js: `/*! effect ${version("effect")} and @effect/ui ${version("@effect/ui")} — MIT — https://github.com/Effect-TS/ui */`,
     },
@@ -648,15 +652,15 @@ const bundles = {
         // lines and point at nothing, so the pair stays two plain rows. The cutoff is
         // delta's `--max-line-distance` default: the share of both lines' characters
         // the word diff removed or added.
-        file: /@pierre\/diffs\/dist\/utils\/renderDiffWithHighlighter\.js$/,
+        file: /@pierre\/diffs\/dist\/utils\/computeLineDiffRanges\.js$/,
         edit: (source) =>
           seam(
             source,
-            '\tif (lineDiffType === "word-line") {',
+            '\tif (lineDiffType === "word-line") return',
             "\tlet leafChanged = 0;\n" +
               "\tfor (const item of lineDiff) if (item.added || item.removed) leafChanged += item.value.length;\n" +
-              "\tif (leafChanged > 0.6 * (deletionLine.length + additionLine.length)) return;\n" +
-              '\tif (lineDiffType === "word-line") {',
+              "\tif (leafChanged > 0.6 * (deletionLine.length + additionLine.length)) return NO_RANGES;\n" +
+              '\tif (lineDiffType === "word-line") return',
             "Pierre changed-word distance",
           ),
       },

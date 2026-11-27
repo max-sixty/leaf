@@ -1,3 +1,4 @@
+// Compiled from errors.ts by build/typescript.mjs; edit that file.
 /* Errors the user should know about: one call raises each, whatever failed, and the
    chrome decides where it shows, so no producer chooses a seat or a flag.
 
@@ -48,32 +49,15 @@ import { runtime } from "../state/context.js";
 import { recordInteraction } from "./interaction-log.js";
 import { announce, gesture } from "./notifications.js";
 
-/**
- * @typedef {Readonly<{
- *   id: number,
- *   message: string,
- *   subject: Element | null,
- *   press: import("./notifications.js").NoticePress | null,
- *   at: number,
- *   revision: number | null,
- *   stack: string,
- *   passed: boolean,
- *   seen: boolean,
- * }>} RaisedError
- */
-
 // The list keeps the latest errors only; older ones have long stopped mattering.
 const KEPT = 20;
 
 let raised = 0;
 // Errors raised in one task are announced together: the live region keeps only the
 // last of several words written to it at once (notifications.js, `announce`).
-/** @type {string[]} */
 let unsaid = [];
-/** @type {import("@preact/signals-core").Signal<readonly RaisedError[]>} */
 const errors = signal(Object.freeze([]));
 
-/** @param {readonly RaisedError[]} next */
 const publish = (next) => {
   errors.value = Object.freeze(next.slice(0, KEPT));
 };
@@ -82,19 +66,13 @@ const publish = (next) => {
 export const errorsReading = () => errors.value;
 
 /** The newest error about a text field the user has not come back to, which covers its
- * words.
- * @param {Element | null | undefined} subject */
+ * words. */
 export const errorOver = (subject) =>
   errorsReading().find((error) => error.subject === subject && !error.passed) ?? null;
 
-/**
- * Tell the user something failed. `subject` is the text field it concerns, if any;
+/** Tell the user something failed. `subject` is the text field it concerns, if any;
  * `announce: false` leaves the words to a producer that already says them aloud;
- * `press` is the press that recovers from an error about no field.
- * @param {string} message
- * @param {{ subject?: Element | null, announce?: boolean,
- *   press?: import("./notifications.js").NoticePress | null }} [options]
- */
+ * `press` is the press that recovers from an error about no field. */
 export function raiseError(
   message,
   { subject = null, announce: speak = true, press = null } = {},
@@ -104,8 +82,6 @@ export function raiseError(
 
 // Raise an error, taking the one `replaced` names down in the same reading, so the
 // chrome never draws the moment between them.
-/** @param {string} message @param {Element | null} subject @param {boolean} speak @param {number | null} replaced
- * @param {import("./notifications.js").NoticePress | null} [press] */
 function raise(message, subject, speak, replaced, press = null) {
   const id = ++raised;
   if (speak && !unsaid.length)
@@ -148,7 +124,6 @@ addEventListener("lf-error", (event) => {
 });
 
 /** The user edited past these errors where the field said them. */
-/** @param {readonly number[]} ids */
 export function passErrors(ids) {
   if (errors.peek().some((entry) => ids.includes(entry.id) && !entry.passed))
     publish(
@@ -163,7 +138,6 @@ export function passErrors(ids) {
 }
 
 /** The user came back to the words in `subject`, so every error about it is passed. */
-/** @param {Element | null} subject */
 export function passErrorsAt(subject) {
   passErrors(
     errors
@@ -183,7 +157,6 @@ export function seeErrors() {
     );
 }
 
-/** @param {number} id */
 export function dismissError(id) {
   if (errors.peek().some((entry) => entry.id === id))
     publish(errors.peek().filter((entry) => entry.id !== id));
@@ -195,11 +168,9 @@ export function dismissError(id) {
  * with null clears it.
  */
 export function holdingError({ announce: speak = true } = {}) {
-  /** @type {ReturnType<typeof raise> | null} */
   let held = null;
-  /** @type {string | null} */
   let said = null;
-  return (/** @type {string | null} */ message) => {
+  return (message) => {
     if (message === said) return;
     if (message) held = raise(message, null, speak, held?.id ?? null);
     else {

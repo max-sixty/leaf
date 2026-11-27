@@ -1,3 +1,4 @@
+// Compiled from media.ts by build/typescript.mjs; edit that file.
 /* User-supplied media from draft to full-image inspection.
 
    The draft and event log keep one representation: ordinary Markdown naming immutable
@@ -65,14 +66,11 @@ const MEDIA_SUFFIX = new RegExp(
   `(?:^|\\n\\n)${ATTACHED_IMAGE}(?:\\n\\n${ATTACHED_IMAGE})*(?![\\s\\S])`,
 );
 
-/** @param {string} href */
 export const isCanonicalMediaUrl = (href) => href.startsWith(CANONICAL_MEDIA_ROOT);
 
-/** @param {string} href */
 export const scopedMediaUrl = (href) =>
   offlineInteractive ? runtimeResource(href) : new URL(pageUrl(href.slice(1))).pathname;
 
-/** @param {string} value */
 export function readAttachedMedia(value) {
   const suffix = MEDIA_SUFFIX.exec(value);
   if (!suffix) return { text: value, paths: [] };
@@ -82,7 +80,6 @@ export function readAttachedMedia(value) {
   };
 }
 
-/** @param {string} text @param {readonly string[]} paths */
 export function writeAttachedMedia(text, paths) {
   if (!paths.length) return text;
   const images = paths.map((path) => `![Attached image](${path})`).join("\n\n");
@@ -100,12 +97,9 @@ const caption = document.createElement("p");
 caption.className = "lf-media-viewer-caption";
 caption.toggleAttribute("data-lf-scroll", true);
 
-/** @type {import("photoswipe").default | null} */
 let inspector = null;
-/** @type {Promise<typeof import("/vendor/photoswipe.esm.js").default> | null} */
 let loading = null;
 let opening = 0;
-/** @type {string | null} */
 let canvasUrl = null;
 
 function imageTools() {
@@ -125,7 +119,6 @@ function imageTools() {
   return loading;
 }
 
-/** @param {{url: string, alt: string} | null} model */
 function presentViewer(model) {
   render(
     html`
@@ -208,7 +201,7 @@ keys(
 // under it, a two-row header names a cell twice, outer first, and a header row written
 // without `<thead>` still counts. Each head reads as what it says, which leaves out a
 // comment's mark the paint pass wrote into it.
-const cellHeads = (/** @type {Element} */ from) => {
+const cellHeads = (from) => {
   const cell = from.closest("td");
   if (!cell) return "";
   const table = cell.closest("table");
@@ -239,7 +232,6 @@ const cellHeads = (/** @type {Element} */ from) => {
 // Opening settles once PhotoSwipe draws the image or the viewer says it is
 // unavailable. An opening that a newer one or the viewer's close supersedes still
 // waits for its own image to be prepared before it settles, and then draws nothing.
-/** @param {string | HTMLCanvasElement} source @param {string} alt @param {Element} from */
 const open = async (source, alt, from) => {
   const attempt = ++opening;
   inspector?.destroy();
@@ -260,14 +252,12 @@ const open = async (source, alt, from) => {
   keepsText(viewerZoom, "100%");
   if (!mediaViewer.open) showNativeLayer(mediaViewer, { source: from });
   focusDestination(viewerClose, "move");
-  /** @type {string} */
   let url;
   if (canvas) {
     // Native encoding snapshots the pixels at this press. A late completion cannot
     // reopen a closed viewer or replace an image the reader opened since.
     let blob;
     try {
-      /** @type {Promise<Blob | null>} */
       const encoded = new Promise((resolve) => source.toBlob(resolve));
       blob = await encoded;
       if (!blob) throw new Error("the drawing could not be encoded");
@@ -401,7 +391,7 @@ document.addEventListener("click", (event) => {
   // `matches` puts an object at `window.matches`, so only elements are asked.
   const path = event.composedPath();
   const trigger = path.find(
-    /** @returns {node is Element} */ (node) =>
+    (node) =>
       node instanceof Element &&
       node.matches(
         ".lf-media-open[data-lf-media-url], .lf-media-open[data-lf-media-canvas]",

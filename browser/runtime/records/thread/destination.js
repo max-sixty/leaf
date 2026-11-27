@@ -1,3 +1,4 @@
+// Compiled from destination.ts by build/typescript.mjs; edit that file.
 /* Core Thread destinations and held identity.
 
    Where a thread about a passage opens is the user's choice (threads-in-panel.js):
@@ -133,40 +134,16 @@ import { drawnThreadId, THREAD } from "./selectors.js";
 import { threadPlace as placementOf } from "./placement.js";
 import { awaitsDrawing } from "../../readings/anchor-resolution.js";
 
-/** @typedef {NonNullable<ReturnType<typeof threadNamed>>} ThreadRecord */
-/** @typedef {"thread" | "reply" | "message" | null} ThreadPart */
-/** @import { NavigationStep } from "../../dom/arrival-plan.js" */
 /** Where the comment box stood as Send was pressed, which the card Send opens grows from
  * (annotations/annotation-overlay/composing/floating-response.js, `frame`): its box, its
  * placement as the comment box's placement captured it, which the card's adopts
  * (annotations/annotation-overlay/comment-placement.js, `capture`, `adopt`), the width the
  * card starts at, the field it grows out of, and how far the words stood above their end.
- * A route carries it from the composer to the card.
- * @typedef {{side: import("@floating-ui/dom").Side | null,
- * boundary: readonly [number, number, number, number] | null, moved: boolean,
- * holds: "left" | "right" | null}} CapturedPlacement
- * @typedef {{box: DOMRect, placement: CapturedPlacement, width: number, field: DOMRect,
- * fromEnd: number}} SendFrame */
+ * A route carries it from the composer to the card. */
+
 /** The margin's thread card, where the overlay draws one
- * (annotations/annotation-overlay/margin-projection.js, `threadPreview`).
- * @typedef {{accompanied: () => Element | null,
- * focusTarget: (id: string, options: {part: ThreadPart}) => ReturnType<typeof surfaceFocusTarget>,
- * close: () => unknown, control: (id: string) => Element | null,
- * open: (id: string, options: {origin: SendFrame | null, card: boolean}) => {presented: PromiseLike<unknown>} | null | undefined | false}} ThreadPreview */
-/** @import { UserIntent } from "../../dom/user-intent.js" */
-/** @typedef {{part: ThreadPart, message: string | null, focus: boolean,
- * last: boolean, page: boolean, signal: AbortSignal, current: () => boolean}} PrimaryRequest */
-/** @typedef {(key: string, request: PrimaryRequest) => boolean | void | PromiseLike<boolean | void>} OpenPrimary */
-/** @typedef {{owner: Element, open: OpenPrimary,
- * reader: ReturnType<typeof import("./primary-reader.js").createPrimaryReader>}} Presentation */
-/** @param {{placedAt: import("./placement.js").ThreadPlacements["placedAt"],
- * threadIdsAt: (node: Element) => readonly string[],
- * scrollToThread: (id: string, options: {part?: ThreadPart, focus?: boolean, presented?: PromiseLike<unknown> | null,
- * intent?: UserIntent | undefined, departure: NavigationStep | null, block?: "center" | "nearest", drawn?: boolean}) => Promise<boolean>,
- * revealThread: (id: string, intent: UserIntent | undefined) => Promise<boolean>,
- * arrive: import("../../dom/arrival-plan.js").Arrive,
- * prepareNavigationStep: () => NavigationStep,
- * preview?: ThreadPreview | null}} dependencies */
+ * (annotations/annotation-overlay/margin-projection.js, `threadPreview`). */
+
 export function createThreadDestinations({
   placedAt,
   threadIdsAt,
@@ -176,16 +153,11 @@ export function createThreadDestinations({
   prepareNavigationStep,
   preview = null,
 }) {
-  /** @type {Presentation | null} */
   let presentation = null;
-  /** @type {AbortController | null} */
   let opening = null;
   // The keys of the threads the primary was handed as the last resort (`request.last`),
   // which nothing on the page drew when they were asked for.
-  /** @type {Set<string>} */
   const lastResort = new Set();
-  /** @param {Element} owner @param {OpenPrimary} open
-   * @param {Presentation["reader"]} reader */
   function register(owner, open, reader) {
     if (presentation) throw new Error("The page already has a Thread presentation");
     const registration = { owner, open, reader };
@@ -197,17 +169,14 @@ export function createThreadDestinations({
       }
     };
   }
-  /** @param {string} id */
   const threadTarget = (id) => placedAt(id)?.place ?? null;
   // Whether the page draws the place a thread is about.
-  /** @param {string} id */
   const placeDrawn = (id) => {
     const place = threadTarget(id);
     return place !== null && visibleTargetParts(place).length > 0;
   };
   // Where the thread stands in the page's order, as the walks sort it: its target, or
   // the section its anchor names where the passage no longer resolves.
-  /** @param {string} id */
   const threadPlace = (id) => {
     const thread = threadNamed(id);
     return thread ? placementOf(thread, placedAt) : null;
@@ -237,7 +206,6 @@ export function createThreadDestinations({
   // Discussion identity precedes the view that realizes it: where no thread is shown,
   // the thread at the place the user was last in, else the first there, so a walk back
   // to a place they let go of returns to the thread they left.
-  /** @type {string | null} */
   let lastIn = null;
   onCurrentLocation((node) => {
     lastIn = drawnThreadId(threadIn(node)) ?? lastIn;
@@ -248,7 +216,6 @@ export function createThreadDestinations({
     const ids = active ? threadIdsAt(active) : [];
     return (ids.some((id) => id === lastIn) ? lastIn : ids[0]) ?? null;
   };
-  /** @param {ThreadRecord} thread @param {string} id @param {ThreadPart} part */
   const addressedPart = (thread, id, part) => ({
     part,
     message:
@@ -263,7 +230,6 @@ export function createThreadDestinations({
   // primary declined the thread or is about to put its view away, and its view can
   // still draw the message, as On Me's card does, closing as the user arrives, which
   // would leave them on nothing.
-  /** @param {string} id @param {{part?: ThreadPart, page?: boolean}} [options] */
   const threadFocusTarget = (id, { part = null, page = false } = {}) => {
     const thread = threadNamed(id);
     const primary =
@@ -284,11 +250,6 @@ export function createThreadDestinations({
   const DECLINED = Symbol("declined");
   const UNDRAWN = Symbol("undrawn");
 
-  /** @typedef {{part?: "thread" | "reply" | "message" | null,
-   * focus?: boolean, travel?: boolean, history?: boolean, scroll?: boolean,
-   * intent?: ReturnType<typeof retainUserIntent>, origin?: SendFrame | null,
-   * reader?: "page" | "primary" | "card" | "standing" | null}} OpenThreadOptions */
-  /** @param {string} id @param {OpenThreadOptions} [options] */
   async function openPageThread(
     id,
     {
@@ -343,13 +304,11 @@ export function createThreadDestinations({
     // The registered primary reader, asked to show the thread: `last` says nothing on the
     // page will show it if the reader declines, and `resort` that the page could not,
     // so the thread goes back to the page once it can (`returnToPage`).
-    /** @param {NonNullable<typeof primary>} primary @param {boolean} last */
     function inPrimary({ selected, thread }, last, resort = last) {
       opening?.abort();
       const abort = new AbortController();
       opening = abort;
       const cancelled = aborted(abort.signal);
-      /** @template T @param {T | PromiseLike<T>} work */
       const whileCurrent = (work) => Promise.race([work, cancelled]);
       const request = {
         ...addressedPart(thread, id, part),
@@ -400,7 +359,6 @@ export function createThreadDestinations({
         void revealThread(id, intent);
       return taken(result);
       // The reader takes the thread: its layout, then its drawing of it.
-      /** @param {ReturnType<OpenPrimary>} result */
       async function taken(result) {
         const selectedLayout =
           result instanceof Promise ? await whileCurrent(result) : result;
@@ -529,7 +487,6 @@ export function createThreadDestinations({
         await reveal(place, intent).ready;
         if (!mayPresent()) return null;
       }
-      /** @type {{opened: ReturnType<NonNullable<Parameters<typeof createThreadDestinations>[0]["preview"]>["open"]>}} */
       const invocation = { opened: null };
       if (preview && (!place || placeDrawn(id)))
         intent.handoff(() => {
@@ -673,7 +630,6 @@ export function createThreadDestinations({
   // thread opens there without moving focus, as a thread ask's does (records/obligations/view.js), and
   // the user lands on the element in it. A thread whose subject stands on the page goes
   // there by opening itself, beside its words.
-  /** @param {string} id @param {{intent?: ReturnType<typeof retainUserIntent>}} [options] */
   async function openThreadSubject(id, { intent = retainUserIntent() } = {}) {
     const held = placedAt(id)?.messageTarget;
     if (!held) return null;
@@ -704,8 +660,6 @@ export function createThreadDestinations({
   // message where a message part lands (`message-edit.js`).
   // Landed on the thread instead, a long one's landing on its latest turn took the view
   // away from a rewrite it had just opened higher up.
-  /** @param {string} context @param {ReturnType<typeof retainUserIntent>} intent
-   * @param {{travel?: boolean}} [options] */
   async function openThreadDraft(context, intent, { travel = true } = {}) {
     const route = threadDraft(context);
     if (!route) return null;
@@ -732,7 +686,6 @@ export function createThreadDestinations({
   // the one holding the message a rewrite is of; none once it has left the log's
   // reading, and none for a rewrite of a message the user may no longer rewrite, as one
   // taken back while an answer stands on it, which opens no editor.
-  /** @param {string} context */
   function threadHolding(context) {
     const route = threadDraft(context);
     const thread = route ? threadNamed(route.name) : null;
@@ -751,15 +704,14 @@ export function createThreadDestinations({
     // to the page alone has somewhere to go: false for a thread whose passage no longer
     // resolves, and for one the primary holds as the last resort while the page draws
     // its place nowhere.
-    showsOnPage: (/** @type {string} */ key) => {
+    showsOnPage: (key) => {
       const thread = threadNamed(key);
       if (!thread) return true;
       return lastResort.has(key)
         ? placeDrawn(thread.id)
         : threadTarget(thread.id) !== null;
     },
-    holdsThreadDraft: (/** @type {string} */ context) =>
-      Boolean(threadHolding(context)),
+    holdsThreadDraft: (context) => Boolean(threadHolding(context)),
     threadFocusTarget,
     threadHere,
     threadAtCurrentLocation,

@@ -1,3 +1,4 @@
+// Compiled from drawing-record.ts by build/typescript.mjs; edit that file.
 /* The drawing payload shared by composers and the drawing controller.
  *
  * `strokes` are coordinates in one local frame and may run past its edges. HTML uses
@@ -21,11 +22,6 @@
  */
 import { drawingSchema } from "../../state/kernel-facts.js";
 
-/** @typedef {NonNullable<import("../../../types/contract.js").EventMap["comment"]["drawing"]>} Drawing
- * @typedef {Pick<Drawing, "strokes" | "frame">} DrawingInk
- */
-/** @import { DraftDrawing } from "../../../types/domain.js" */
-
 // Every bound is read from the schema admission holds a comment's drawing to, in the
 // kernel registry, each field from its own declaration, so a bound changes there
 // alone.
@@ -39,7 +35,6 @@ export const DRAWING_COORDINATE_LIMIT = Math.min(
 export const MAX_DRAWING_SAYS_LENGTH = FIELDS.says.maxLength; // code points
 
 // The drawing as a comment carries it.
-/** @param {DraftDrawing} drawing */
 export function sentDrawing(drawing) {
   const { at, ...sent } = drawing;
   return sent;

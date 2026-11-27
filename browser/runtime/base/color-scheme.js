@@ -1,3 +1,4 @@
+// Compiled from color-scheme.ts by build/typescript.mjs; edit that file.
 /* The color scheme the page is drawn in, as the user sees it now.
  *
  * A page that declares both schemes on its root (`color-scheme: light dark`, as the

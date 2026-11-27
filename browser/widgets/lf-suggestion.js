@@ -360,7 +360,8 @@ customElements.define(
           when: () =>
             this.#offered().includes(key) &&
             (key === "undo" || Boolean(this.state?.decide?.available)),
-          run: () => (key === "undo" ? this.#undoOutcome() : this.#decide(key)),
+          run: () =>
+            key === "undo" ? this.#undoOutcome() : this.#decide(key, { pressed: true }),
         })),
       };
       this.lfCommands = this.#commands;
@@ -397,8 +398,8 @@ customElements.define(
     // A press makes the reversible decision locally and the outbox carries that exact
     // projection until the log accounts for it. A refusal removes the local winner, and
     // the reading returns the pending suggestion with Accept and Reject.
-    /** @param {Outcome} outcome */
-    #decide(outcome) {
+    /** @param {Outcome} outcome @param {{pressed?: boolean}} [options] */
+    #decide(outcome, { pressed = false } = {}) {
       if (this.#outcome()) return;
       if (!this.state?.decide?.available) return;
       // Read before deciding: deciding retires a slot, a retired slot leaves the page's
@@ -410,9 +411,11 @@ customElements.define(
       // pointer, Enter, Space, or an address route; otherwise later reconciliation can
       // reconstruct the relocated range and raise its Comment field again.
       getSelection()?.removeAllRanges();
-      // Undo takes the decision's seat: a user on Accept or Reject, or on the suggestion
-      // as its key decides it, goes on to Undo.
-      const here = this.#margin?.hasCurrentLocation() || currentLocationIn(this);
+      // Undo takes the pressed control's seat: a user on Accept or Reject, or on the
+      // suggestion as its key decides it, goes on to Undo. The page's blanket answer
+      // moves nobody.
+      const here =
+        pressed && (this.#margin?.hasCurrentLocation() || currentLocationIn(this));
       const dispatched = this.record(
         "decide",
         { outcome },

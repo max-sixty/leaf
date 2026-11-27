@@ -135,14 +135,21 @@ export function defineWidget(tag, component, { shadow = false, inputs } = {}) {
         if (this.#hosted && this.#state === undefined) return;
         if (inputs) {
           // The first run reads the inputs the mount draws from; later runs are the
-          // signals they read moving.
+          // signals they read moving. A throw stays on this widget, as
+          // `LeafElement`'s does, rather than aborting the update that moved them.
           let first = true;
           this.#unwatch = watch(() => {
-            const next = inputs(this);
-            if (first) {
-              first = false;
-              this.#inputs = next;
-            } else
+            const seeding = first;
+            first = false;
+            let next;
+            try {
+              next = inputs(this);
+            } catch (error) {
+              untracked(() => failSoft(this, error));
+              return;
+            }
+            if (seeding) this.#inputs = next;
+            else
               untracked(() => {
                 this.#inputs = next;
                 this.#update();

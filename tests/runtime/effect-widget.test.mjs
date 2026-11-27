@@ -114,3 +114,23 @@ test("what its inputs read gives it new props when a signal they read moves", as
   assert.equal(text(), "second");
   el.remove();
 });
+
+test("inputs that throw when a signal moves fail the widget, not the code that moved it", () => {
+  const note = signal("first");
+  const el = widget({
+    inputs: () => {
+      if (note.value === "bad") throw new Error("cannot read");
+      return { note: note.value };
+    },
+  });
+  document.body.append(el);
+  /** @type {unknown[]} */
+  const errors = [];
+  el.addEventListener("error", (event) =>
+    errors.push(/** @type {ErrorEvent} */ (event).error),
+  );
+  note.value = "bad";
+  assert.equal(errors.length, 1);
+  assert.match(String(errors[0]), /cannot read/);
+  el.remove();
+});

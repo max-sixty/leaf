@@ -425,7 +425,10 @@ def test_a_text_document_keeps_comments_on_their_lines_across_updates(
     page.wait_for_function(ROW_COMMENT, arg=310 + offset)
     page.locator(LOG_ROWS).first.evaluate(SHOW_ROW)
     rendered(page)
-    assert page.evaluate(ENTRY_TOPS) == [], "a margin entry stands at the top"
+    # Every margin entry left stands beside the line the other comment is on.
+    tops = page.evaluate(ENTRY_TOPS)
+    kept = page.locator(LOG_ROWS).nth(309 + offset).bounding_box()
+    assert all(abs(top - kept["y"]) < kept["height"] for top in tops), (tops, kept)
 
 
 def test_a_comment_follows_an_unversioned_derived_datum_by_its_stable_key(

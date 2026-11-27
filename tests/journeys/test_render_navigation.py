@@ -15,11 +15,11 @@ from browser.threads import open_panel_thread
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    OBLIGATIONS_PAGE,
     WORKSHOP_THREAD_EVENTS,
     WORKSHOP_THREADS_PAGE,
     answered_comment,
     live_url,
+    serve_obligations,
 )
 from render_cases_layout import page_at_rest, token_colour
 from render_cases_navigation import (
@@ -260,7 +260,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     panel declines a thread about a passage. Escape closes that card beside its
     target in one press, and only the next press puts Threads away."""
     # A page obligation stood on while On Me, which the keyboard opened, stands over the page.
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    page = open_page(browser, serve_obligations(serve))
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")

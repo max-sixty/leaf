@@ -645,7 +645,6 @@
       if (!restValues.includes(value) || rest === value) return;
       rest = value;
       userStore.set(restKey, value);
-      document.dispatchEvent(new CustomEvent("lf-chrome-preference"));
     },
   };
 

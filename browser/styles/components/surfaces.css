@@ -300,7 +300,9 @@ a[data-lf-external]::after,
    flow, or state their own height.
 
    Declared pressables join by their offer, rather than by adding their class here.
-   A proxy takes no pointer and shows nothing, so it takes no aim size (controls.css).
+   A proxy takes no pointer and shows nothing, so it takes no aim size (controls.css),
+   and a vendor control's host, Copy, leaves both floors to the reach of the button
+   part its press lands on (below).
    Native and selectable choice marks keep their enclosing labelled target; a button's
    face takes its reach (below) and version rows the padding floor described above. Inline offered words
    remain inline: like links in prose, their words determine their target.
@@ -318,7 +320,8 @@ a[data-lf-external]::after,
     [data-lf-offer=""],
     [data-lf-offer="checkbox"],
     [data-lf-offer="radio"],
-    .lf-proxy
+    .lf-proxy,
+    :is(.lf-icon-action, .lf-mark-action).lf-ui:not(button)
   )
 ),
 .lf-btn,
@@ -714,8 +717,13 @@ summary {
    million times the next one's, so a part gives up all its room before the next gives
    up any visible width. The metadata shrinks as one part at its time's weight, which
    keeps its annotations and time together in the order. A primary reader's notice of
-   news (below) gives way with the metadata, each in proportion to its width. A long
-   name is cut at its cap (below) however much room is left. */
+   news (below) gives way with the metadata, each in proportion to its width. A card's
+   notice, on the line of its actions beside the first head, keeps its whole count
+   (annotation-chrome.css), so that head gives up its parts beside it. A long name is
+   cut at its cap (below) however much room is left. Shown, the controls stand over the
+   words' end (controls.css), so they cover the parts in this order too, and where they
+   are wider than the room the head leaves beside its name, as a message's three are on
+   a card's least-width line beside Previous and Next, they cover the name as well. */
 .lf-msg-head,
 .lf-thread-working-head {
   & > .lf-msg-control-room {

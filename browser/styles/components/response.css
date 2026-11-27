@@ -581,6 +581,27 @@ leaf-composition-field {
   margin-block: calc(
     var(--lf-thread-text-pad-block, 0px) - var(--lf-compose-pad-block) - 1px
   );
+  /* The frame's room is padding, and the frame a shadow inside it, which the focus
+     ring replaces, as a thread's frame is (surfaces.css). A browser snaps a border to
+     whole device pixels and leaves the margins cancelling it as they are, so wherever
+     a pixel of the page is not a whole number of the screen's, as at Firefox's 110%
+     zoom or under a page's `zoom`, a bordered field would move the words a fraction of
+     a pixel as the rewrite opened. */
+  border-width: 0;
+  padding: 1px;
+}
+.lf-msg-editor
+  > leaf-composition-field
+  > .lf-compose-field:not([data-lf-control-focus-visible]) {
+  box-shadow: inset 0 0 0 1px var(--lf-border);
+}
+/* A forced palette drops shadows, so there the frame is an outline on the field's edge. */
+@media (forced-colors: active) {
+  .lf-msg-editor
+    > leaf-composition-field
+    > .lf-compose-field:not([data-lf-control-focus-visible]) {
+    outline: 1px solid;
+  }
 }
 .lf-msg-editor > leaf-composition-field > .lf-compose-field > leaf-text {
   min-height: 0;

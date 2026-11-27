@@ -18,7 +18,7 @@ import { cancelRender, nextRender } from "../lib/frame-pass.js";
 import { watchScrolls } from "./arrivals.js";
 import { reachable } from "./scrolling.js";
 import { holdingElement, isHTML, isElement, isSVG } from "../lib/shadow-tree.js";
-import { elementBox } from "../lib/shown-box.js";
+import { contentsRects, draws, elementBox } from "../lib/shown-box.js";
 import {
   carriedBox,
   elementAxes,
@@ -1477,6 +1477,32 @@ export const startsAt = (item, clips) => {
     .map((box) => clippedRect(box, item, clips))
     .find(Boolean);
 };
+// What `item` draws inside `within`, one of its own boxes: the box round its words
+// (`drawsText`) and the drawings among its contents (`draws`), or null where it draws
+// neither there, as a control its stylesheet alone draws. A control's box can begin in
+// padding the user can't see, as a tab's or an icon button's does, so a chip hung on
+// that corner stands as near a neighbour's label as its own; hung on what the control
+// draws, it stands on its label or glyph.
+/** @param {Element} item @param {Box} within */
+export function drawnBox(item, within) {
+  /** @type {Box[]} */
+  const drawn = [];
+  /** @param {Node} node */
+  const visit = (node) => {
+    for (const child of node.childNodes)
+      if (child.nodeType === Node.TEXT_NODE) {
+        if (drawsText(child.parentElement)) drawn.push(...contentsRects(child));
+      } else if (child instanceof Element) {
+        if (!draws(child)) visit(child);
+        else if (
+          child.checkVisibility({ opacityProperty: true, visibilityProperty: true })
+        )
+          drawn.push(child.getBoundingClientRect());
+      }
+  };
+  visit(item);
+  return union(drawn.map((box) => intersect(box, within)).filter(hasArea));
+}
 // The clips standing over a box, applied to it. Taken apart from shownRect because the two
 // readings above and a painted Range want the same walk over different boxes.
 // `stop` reads only native ancestor bands before that boundary. The viewport and sticky
@@ -1743,7 +1769,7 @@ export const clippedPlace = (where, clips, box = placeBox(where), stop = undefin
 // positioned ancestor that sets one, and above all of them in the top layer. Both are
 // read up the tree as rendered, where a slotted box stacks inside its slot's ancestors.
 // The chrome's root follows `body` at the largest z-index and wins every tie by tree
-// order (base.css, `:root > .lf-chrome`), so a chrome box reads its own rung above every
+// order (elements.css, `:root > .lf-chrome`), so a chrome box reads its own rung above every
 // level a page box can read, whatever z-index the page sets.
 export const CHROME_LEVEL = 2 ** 31;
 /** @param {Element} node */

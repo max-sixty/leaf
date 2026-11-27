@@ -155,6 +155,9 @@ for (const [name, read] of Object.entries({
 window.visualViewport ??= viewport;
 // Nor does it run animations, so none is under way.
 document.getAnimations ??= () => [];
+// Nor does it load fonts, so its document has no font set to hear one load from.
+if (!("fonts" in document))
+  Object.defineProperty(document, "fonts", { value: new window.EventTarget() });
 // happy-dom's computed style is the declared style: no initial values, and no
 // shorthand expanded. The runtime names the values it acts on, so a property left
 // unset reads as its initial value, but it reads overflow per axis, which a test may

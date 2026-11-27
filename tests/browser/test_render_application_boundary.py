@@ -650,15 +650,14 @@ def test_versions_wait_for_a_reading_of_the_log(browser, serve):
     expect(versions).to_be_disabled()
 
 
-def test_admission_keeps_the_obligation_open_until_the_answer_is_in_the_log(
-    browser, serve
-):
-    """An answer the log has not taken in leaves its obligation open.
+def test_a_press_answers_its_obligation_before_the_log_admits_it(browser, serve):
+    """A widget's own word on its question shows in the press's task.
 
-    The pick is the user's at once — that is their own gesture drawn on their own
-    widget. Which obligations still stand is the server's fold, so the count
-    moves when the state this POST returns is adopted, and not before."""
+    The pick and the answer it gives are both the user's gesture drawn on their own
+    widget, so the count moves while the POST is still held, and the server's reading,
+    once adopted, agrees."""
     page = open_page(browser, serve(OBLIGATION_PAGE))
+    expect_obligations_answered(page, "0/1")
 
     held = []
     page.route("**/api/event", lambda route: held.append(route))
@@ -668,7 +667,7 @@ def test_admission_keeps_the_obligation_open_until_the_answer_is_in_the_log(
     expect(page.locator("#release-ship .lf-pick")).to_have_attribute(
         "aria-checked", "true"
     )
-    expect_obligations_answered(page, "0/1")
+    expect_obligations_answered(page, "1/1")
     held[0].continue_()
     page.unroute("**/api/event")
     round_trip(page)

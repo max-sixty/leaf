@@ -23,11 +23,7 @@ import {
 } from "../state/semantic-state.js";
 import { rememberAuthoredParents, stageAuthoredStates } from "./projection/authored.js";
 import { bindWidgetDescriptors, stageWidgetDescriptors } from "./widget-descriptors.js";
-import {
-  fencePassageParts,
-  verbatimBoundaryIdentity,
-  verbatimOwnerIdentity,
-} from "../readings/passages.js";
+import { fencePassageParts } from "../readings/passages.js";
 import {
   offlineInteractive,
   runtimeModule,
@@ -58,10 +54,8 @@ import { widgetImports } from "../state/widget-imports.js";
 
    Required widget imports reject through the startup or activation boundary; a missing
    module cannot count as a completed upgrade. */
-// An opaque widget and its original direct children fence passage capture. A
-// preserving widget owns prose around ordered upgraded-child boundaries instead. Its
-// pre-upgrade source and occurrence pair the rendered owner with the file even when it
-// has no authored id. Record these readings before upgrades move or replace nodes.
+// An opaque widget and its original direct children fence passage capture. Record them
+// before upgrades move or replace nodes.
 const rememberedPassageRoots = new WeakSet();
 
 // Root-inclusive, like every reading of arriving markup: when a live revision brings a
@@ -73,13 +67,8 @@ const within = (scope, selector) => [
   ...scope.querySelectorAll(selector),
 ];
 
-/** @param {Document | Element | DocumentFragment} [scope] @param {[string, string | null]} [source]
- * @param {(node: Element) => Element} [original] */
-export function rememberPassageParts(
-  scope = document,
-  source = ["page", null],
-  original = (node) => node,
-) {
+/** @param {Scope} [scope] @param {(node: Element) => Element} [original] */
+export function rememberPassageParts(scope = document, original = (node) => node) {
   for (const tag of tagsDeclaring((entry, tag) => upgrades(tag) && !entry.verbatim))
     for (const root of within(scope, tag)) {
       const live = original(root);
@@ -87,46 +76,6 @@ export function rememberPassageParts(
       rememberedPassageRoots.add(live);
       fencePassageParts(live, [...root.children].map(original));
     }
-  for (const [ownerIndex, root] of preservingOwners(scope).entries()) {
-    const live = original(root);
-    if (rememberedPassageRoots.has(live)) continue;
-    rememberedPassageRoots.add(live);
-    identifyPreserving(root, [...source, ownerIndex], original);
-  }
-}
-
-/** @param {Scope} scope */
-const preservingOwners = (scope) =>
-  within(scope, "*").filter((root) => registry[root.localName]?.verbatim);
-
-/** @param {Element} root @param {[string, string | null, number]} owner @param {(node: Element) => Element} original */
-function identifyPreserving(root, owner, original = (node) => node) {
-  verbatimOwnerIdentity.set(original(root), owner);
-  let boundaryIndex = 0;
-  /** @param {Element} parent */
-  const visit = (parent) => {
-    for (const child of parent.children) {
-      if (upgrades(child.localName))
-        verbatimBoundaryIdentity.set(original(child), {
-          owner,
-          index: boundaryIndex++,
-        });
-      else visit(child);
-    }
-  };
-  visit(root);
-}
-
-// A preserving owner with no id is identified by where it stands among the document's
-// other preserving owners, which is a fact about all of them rather than about any one.
-// A live revision that inserts or drops one therefore renumbers the rest, and leaving
-// the existing owners on the numbers they arrived with would have two of them answering
-// to the same name. Read from the document rather than from what the patch brought in,
-// for the same reason: the order is the whole document's.
-/** @param {Document | Element | DocumentFragment} [scope] @param {[string, string | null]} [source] */
-export function reindexPassageOwners(scope = document, source = ["page", null]) {
-  for (const [ownerIndex, root] of preservingOwners(scope).entries())
-    identifyPreserving(root, [...source, ownerIndex]);
 }
 
 // The one import-on-demand door: a page loads the modules its own markup uses and no
@@ -262,7 +211,7 @@ export async function prepareDocument(captured) {
   if (!scope) throw new Error("The initial document has no authored root");
   /** @param {Element} node */
   const original = (node) => captured.pairs.require(node);
-  rememberPassageParts(scope, ["page", null], original);
+  rememberPassageParts(scope, original);
   rememberAuthoredParents(scope, null, original);
   const descriptors = stageWidgetDescriptors(scope);
   const authored = stageAuthoredStates(scope);

@@ -26,20 +26,30 @@
    An exact control's older entry carries no such reading, so its undo names only the
    widget. The age is the gesture's own `ts`, worded by the page's one clock (`ago`).
 
-   ⌘Z takes the gesture back in the press, as an editor's undo does, and then leaves
-   the user at its place: the thread a settlement or reaction is in, the message a
-   rewrite changed or a reply the user sent, the message holding a widget an agent sent,
-   the element changed, or the passage a comment was on, since taking a comment back
-   may remove its thread. Where the place was out of view when the user pressed, the page
-   shows it once it presents the withdrawal, the way an `lf-activity` row's link does,
-   a thread opening and an element travelled to as its fragment, so Back returns to
-   where the user pressed. Its notice says what was taken and how long ago. Visibility
-   decides only whether the press travels, never whether it takes, so a reading of it
-   that misses costs a scroll and never a press. It is read where each cover and each
-   scroll Leaf runs comes to rest, so a press as a panel closes reads the page the
-   closing leaves, and a press during the scroll a walk starts reads the page that
-   scroll leaves. An exact control, such as a widget's Undo or a reaction chip, is
-   pressed where its gesture is drawn, so its withdrawal moves nobody.
+   ⌘Z takes the gesture back in the press, as an editor's undo does, and then leaves the
+   user at its place: the thread a settlement or reaction is in, the message a rewrite
+   changed or a reply the user sent, the message holding a widget an agent sent, the
+   element changed, or the passage a comment was on, since taking a comment back may
+   remove its thread. Where the place was out of view when the user pressed, the page
+   shows it once it presents the withdrawal. A thread opens where every route opens it.
+   An element is revealed where it stands, opening what hides it, such as the deck card
+   an answer moved on from, and the user is put on it; the page scrolls it to its start
+   only where it isn't shown there already, as a widget's datum is landed
+   (features/anchor-travel.js, `navigateToDatum`). Neither adds a Back step. Rejected:
+   travelling to the element as a link to its fragment does, with a Back step. That
+   landing puts the element's start at the window's top even where it already shows, so
+   undoing an answer in a deck scrolled the card coming back where it stood up by most
+   of a window. ⌘Z's notice says what was taken and how long ago. Visibility decides
+   only whether the press travels, never whether it takes, so a reading of it that
+   misses costs a scroll and never a press. It is read where each cover and each scroll
+   Leaf runs comes to rest, so a press as a panel closes reads the page the closing
+   leaves, and a press during the scroll a walk starts reads the page that scroll
+   leaves. An exact control, such as a widget's Undo or a reaction chip, is pressed
+   where its gesture is drawn, so its withdrawal moves nobody. Should this reading of
+   visibility keep needing fixes, a simpler design is open: ⌘Z returns the user to where
+   they stood when they made the gesture in this tab (records/history.js, `readPlace`),
+   and otherwise moves nobody. That drops travel to a gesture made far from where the
+   user stands, which the notice still names.
 
    Taking at once is the user's decision. Rejected: showing an out-of-view gesture with
    the first press and taking it with a second, so that a press never took what the user
@@ -136,6 +146,7 @@ import { addressableWord } from "../lib/element-word.js";
 import { elementById } from "../readings/passages.js";
 import { placeBox, placeHolder } from "../dom/geometry.js";
 import { seenLanded } from "../readings/scroll-containers.js";
+import { alreadyShown } from "../readings/landing-scroll.js";
 import {
   anchorLabel,
   messageHolding,
@@ -332,6 +343,7 @@ const UNDO_KEYS = ["Mod+z"];
  * stateApplying: () => boolean, unaccountedGesture: () => boolean,
  * openThread: ReturnType<typeof import("./thread/destination.js").createThreadDestinations>["openPageThread"],
  * threadPlace: (id: string) => Element | Range | null,
+ * arrive: import("../dom/arrival-plan.js").Arrive,
  * resumeDraft: (context: string, route?: import("./drafts.js").DraftRoute) => Promise<void>}} dependencies */
 export function createUndo({
   post,
@@ -339,6 +351,7 @@ export function createUndo({
   unaccountedGesture,
   openThread,
   threadPlace,
+  arrive,
   resumeDraft,
 }) {
   // The edit this page last discarded, while it can be taken back (`keepDiscard`).
@@ -517,18 +530,17 @@ export function createUndo({
   // Put the user on a thread, under the intent of the gesture that asked for it, where a
   // route to it opens it (records/thread/destination.js), which reads the user's choice of
   // where threads open. Where the user sees the thread drawn on the page, as in a
-  // widget's seat, the route doesn't travel. `travel` and `history` are the route's
-  // too: a return no gesture of the user's began, as after the log refuses a
-  // settlement, adds no Back step (records/history.js).
-  /** @param {string} id @param {UserIntent} intent
-   * @param {{travel?: boolean, history?: boolean}} [route] */
-  function returnToThread(id, intent, { travel = true, history = true } = {}) {
+  // widget's seat, the route doesn't travel, and `travel` is the route's too. A return
+  // adds no Back step (records/history.js), whether an undo or the log refusing a
+  // settlement asked for it.
+  /** @param {string} id @param {UserIntent} intent @param {{travel?: boolean}} [route] */
+  function returnToThread(id, intent, { travel = true } = {}) {
     const drawn = drawingsOf(id).some((node) => node && !inChrome(node) && seen(node));
     return openThread(id, {
       part: "thread",
       intent,
       travel: travel && !drawn,
-      history,
+      history: false,
     });
   }
 
@@ -538,19 +550,40 @@ export function createUndo({
     Boolean(event.attempt && gestures.get(event.attempt)?.settled);
 
   // Go to what the gesture changed, under the intent of the press that asked for it,
-  // travelling there where `travel` says the place stood out of view.
+  // travelling there where `travel` says the place stood out of view. Neither route
+  // adds a Back step, and an element is arrived at where it stands (the header).
   /** @param {UndoEvent} event @param {UserIntent} intent @param {boolean} [travel] */
   function show(event, intent, travel = true) {
     const place = placeOf(event);
     if (place?.message)
-      return openThread(place.message, { part: "message", intent, travel });
+      return openThread(place.message, {
+        part: "message",
+        intent,
+        travel,
+        history: false,
+      });
     if (place?.thread) return returnToThread(place.thread, intent, { travel });
-    if (place?.fragment === undefined || !intent()) return;
-    // A fragment link's own navigation step (features/anchor-travel.js, `followFragment`), so
-    // Back returns to where the user was reading.
-    const url = new URL(window.location.href);
-    url.hash = place.fragment;
-    return window.navigation.navigate(url.href).finished.catch(() => {});
+    const id = place?.fragment;
+    if (id === undefined) return;
+    return arrive(
+      () => {
+        const where = elementById(id);
+        return (
+          where && {
+            where,
+            focus: where,
+            scroll: [
+              {
+                at: where,
+                block: "start",
+                when: () => !alreadyShown(where, { block: "start" }),
+              },
+            ],
+          }
+        );
+      },
+      { intent },
+    );
   }
 
   // Tint what taking `event` back changed, as the page draws it now (the header): the
@@ -579,9 +612,8 @@ export function createUndo({
   // Take back `event`, then leave the user at its place: for a settlement this page
   // made, its thread, else the place where it stood out of view when they pressed. Both
   // are read before the withdrawal, which takes the settlement's mark with it. What it
-  // changed is tinted once the user is there. Only a place out of view is travel there,
-  // a Back step by travel's rule (features/anchor-travel.js, `prepareNavigationStep`); a thread
-  // in view opens where the user stands. Undo keeps no history of its own.
+  // changed is tinted once the user is there. Only a place out of view is travelled to;
+  // a thread in view opens where the user stands.
   /** @param {UndoEvent} event */
   function walkTo(event) {
     const settled = settledHere(event);

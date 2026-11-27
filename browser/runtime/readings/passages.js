@@ -182,8 +182,6 @@ import { union } from "../dom/rect.js";
 
 // Opaque widgets and their original direct children: each is a passage cell of its own.
 const passageFences = new WeakSet();
-export const verbatimOwnerIdentity = new WeakMap();
-export const verbatimBoundaryIdentity = new WeakMap();
 
 // ---------- passages ----------
 // A passage is a list of {node, start, end} segments, and everything that reads the page's
@@ -349,8 +347,7 @@ export const leafSurface = (node) =>
 // drag across a question an agent asked in a reply would read as a passage of the page,
 // raising the page's 💬 and writing an anchor onto a thread's own id, into an
 // append-only log, naming a section no version holds. `leaf thread create --section`
-// refuses exactly that from the file side, and file capture is the reading that is
-// supposed to promise less.
+// refuses exactly that from the file side.
 /** @param {Node | null} node */
 export const pageWords = (node) => inPage(node) && !inUi(node);
 // The two readings, each one predicate over a text node and named for the question it
@@ -546,15 +543,17 @@ const chromeMark = (el) => (el.matches(UI_MARKS) ? !el.matches(SAID) : null);
 const SILENT_TAGS = new Set(["script", "style", "textarea", "noscript"]);
 /** @param {Element} el */
 const silences = (el) => SILENT_TAGS.has(el.localName) || retiredSlot(el);
-// Automatic control capture uses authored words, which the file reads too, never
-// generated words or the mutable value of a native editing host. A user's actual Range
+// Whether a passage holds words of a native editing host's value, which the user may
+// change, so automatic control capture never quotes them. A user's actual Range there
 // remains readable.
 /** @param {readonly Segment[]} segments */
-export const fileModelsPassage = (segments) =>
-  segments.every(({ node, gen }) => !isEditing(elementOver(node)) && !gen);
+export const holdsEditedValue = (segments) =>
+  segments.some(({ node }) => isEditing(elementOver(node)));
 // A cell candidate: an opaque widget or one of its original direct children, which
-// always fence, or a generated element, whose words the file cannot read, which fences
-// once a word of the page's reading is its own (`indexed`).
+// always fence, or a generated element, which fences once a word of the page's reading
+// is its own (`indexed`). A module may rearrange its children and rewrite the words it
+// generates, so a cell keeps a selection's quote and context off what the module
+// draws next to it.
 /** @param {Element} el */
 const opaque = (el) => passageFences.has(el);
 // Editing values and readonly islands inside them are separate passage cells.
@@ -813,9 +812,10 @@ const BREAKS_KEPT = ["preserve", "break-spaces", "preserve-breaks"];
 // typographic text block and generated element (`gen`, the nearest `[data-lf-gen]`
 // in their tree).
 // `boundary(element, segmentsSoFar)` answering true leaves that element's words out of
-// the walk, for a reader that stands something else in their place (render-checks,
-// `shownVerbatim`). The lines format also carries computed block boundaries and
-// whitespace; ordinary passage readings never ask the browser for these styles.
+// the walk, for a reader that reads that element apart, as a version comparison leaves
+// an opaque child's rendered data to the child's own key (features/version.js). The
+// lines format also carries computed block boundaries and whitespace; ordinary passage
+// readings never ask the browser for these styles.
 // `drawn` keeps only the words the page draws now (`drawsWithin`), asked of each word and
 // break as the walk meets it, so a break before a word left out still stands before the
 // next; `until` ends the reading where that element starts. A reader that shows no more
@@ -1608,7 +1608,8 @@ function spanOf(reading, lo, hi) {
 // rewrites the sentence beside the anchored copy can leave an untouched copy elsewhere
 // matching better, and the comment would follow it there. Demanding the whole stored
 // context prevents that: without one exact contextual match, only a quote with a sole
-// candidate resolves; repeated candidates detach rather than inheriting document order.
+// candidate resolves, and repeated candidates resolve to no passage rather than
+// inheriting document order (`resolveAnchor` stands them on their section).
 //
 // Rare, not impossible. The bar is however much was stored, and the capture reads the
 // neighbours out of the reading the search uses: the whole document, where a section is a
@@ -1710,13 +1711,8 @@ function fenceEdge({ fences, raw }, at, before) {
 // indented line inside a <pre> — and the right occurrence then confirms none of its own
 // neighbours.
 //
-// Counted in code points, which is the unit both captures write in: `cut` slices the
-// window this returns by code point, and passages.py's reading of the same passage slices
-// a Python string, which has no other unit. Counting code units here stopped the growth
-// early on any neighbourhood holding an emoji — the window reached 24 of them while
-// holding 23 characters — so the browser stored a prefix a character short of the one the
-// file's reading stores for that same passage, and the two captures wrote different
-// anchors for one passage.
+// Counted in code points, the unit `cut` slices the window this returns by, so a
+// neighbourhood holding an emoji holds as many characters as it was asked for.
 /** @param {PageReading} reading @param {number} at @param {number} want @param {boolean} before */
 export function neighbourhood(reading, at, want, before) {
   const edge = fenceEdge(reading, at, before);
@@ -2334,10 +2330,10 @@ export const readingHolding = (node) =>
 // same value, read as one passage cell: a passage across a widget's data, as a drag
 // across lines of a diff holds, is captured and found again in these words
 // (anchor-resolution.js, `anchorForPassage`). The page's reading fences every datum as
-// a cell of its own, since the file can't read generated words beside its prose, and
-// fences fields and generated words inside a datum the same way. This reading has no
-// fence at all: no file reads a datum's words, and the passage found in it is one a
-// selection over the same words made. It reads the parts it covers and the frame's words
+// a cell of its own, since each is a fact its widget may redraw or reorder, and fences
+// fields and generated words inside a datum the same way. This reading has no fence at
+// all: the run is read only to find again a passage a selection over the same words
+// made. It reads the parts it covers and the frame's words
 // between them (`segmentsIn`), and is read afresh each time it is asked.
 /** @param {Element} first @param {Element} last @returns {PageReading} */
 export function runReading(first, last) {
@@ -2369,7 +2365,9 @@ export function messageReading(body) {
 // The words on each side of the passage `segments` that tell it apart in `reading`:
 // the context a short unique quote keeps, widened until `find`, given it, finds this
 // very passage, or until the reading's edges are reached, where the passage is
-// `detached`. The quote discards boundary whitespace, so the passage found is this one
+// `detached`. Both sides are written, an empty one where the passage meets a fence,
+// since an absent side says nothing of the neighbours (`findQuote`). The quote
+// discards boundary whitespace, so the passage found is this one
 // where its first character is the passage's first (`units`, `readingFrom`) and its
 // last the passage's last, whatever cosmetic spaces the selection held. Anchor capture
 // asks it of the page's reading (anchor-resolution.js, `anchorForPassage`), and a
@@ -2377,7 +2375,7 @@ export function messageReading(body) {
 /** @param {PageReading} reading @param {readonly Segment[]} segments
  * @param {readonly TextUnit[]} units
  * @param {(context: {prefix?: string, suffix?: string}) => readonly Segment[]} find
- * @returns {{prefix?: string, suffix?: string, detached?: true}} */
+ * @returns {{prefix: string, suffix: string, detached?: true}} */
 export function passageContext(reading, segments, units, find) {
   const [start, stop] = spanIn(reading, segments);
   const from = units[0]?.start;
@@ -2385,7 +2383,7 @@ export function passageContext(reading, segments, units, find) {
   for (let width = CONTEXT; ; width *= 2) {
     const prefix = cut(neighbourhood(reading, start, width, true), -width, Infinity);
     const suffix = cut(neighbourhood(reading, stop, width, false), 0, width);
-    const context = { ...(prefix && { prefix }), ...(suffix && { suffix }) };
+    const context = { prefix, suffix };
     const found = find(context);
     const first = found[0];
     const last = found.at(-1);
@@ -2557,7 +2555,7 @@ const frameCollected = () => (framePiece().collected ??= collect(pageDocument(),
  * @param {readonly PartMark[]} [marks] @returns {PageReading} */
 function indexed(segments, chains, marks = []) {
   // Generated page-words are their own passage cells: the generated element a word of
-  // the reading stands in, since the file cannot read them.
+  // the reading stands in, since its module may rewrite them (`opaque`).
   const dynamicWords = new Set();
   for (const { gen } of segments) if (gen) dynamicWords.add(gen);
   // A segment's cell is the nearest candidate over it that fences. The chain crosses
@@ -2951,8 +2949,7 @@ const withinCell = (text, from, to) => fenceEdge(text, from + 1, false) >= to;
 // quote stands wherever the page spells it and parts its letters as the quote does: a
 // space or an edge where the quote has a space, and nothing or an edge where it has
 // none. An edge is where two inline elements meet, and only the page's CSS says whether
-// a word ends there, so it reads either way, as `occurrences` (anchor_capture.py)
-// reads one too. The places are found in the reading's own letters (`spell`), and each
+// a word ends there, so it reads either way. The places are found in the reading's own letters (`spell`), and each
 // is held to its quote's spaces there (`copyAt`).
 //
 // What a code unit is to a quote: 0 a letter, 1 an edge, 2 whitespace by the rule a
@@ -3491,11 +3488,40 @@ function copiesOf(text, quote) {
   asked.set(quote, entry);
   return entry;
 }
+// The copies of a quote the reading holds under `within`, or anywhere without one, that
+// a stored quote may name: each one past the last, and none a fence parts
+// (`findQuote`). Every copy in the words of an element under `within` stands under it,
+// unless a slot of the element's own tree shows it words from outside it.
+/** @param {PageReading} text @param {QuoteEntry} entry @param {Element | null | undefined} within */
+function candidatesOf(text, entry, within) {
+  const key = readingPieces.get(text);
+  const all = !within || (key !== undefined && under(key, within) && !holdsSlot(key));
+  /** @type {Copy[]} */
+  const candidates = [];
+  let end = -1;
+  for (const copy of entry.copies) {
+    const inside =
+      all ||
+      (under(pointAt(text, copy.from)?.node, within) &&
+        under(pointAt(text, copy.to - 1)?.node, within));
+    if (!inside || copy.from < end) continue;
+    end = copy.to;
+    if (!copy.fenced) candidates.push(copy);
+  }
+  return candidates;
+}
+// How many copies of a quote the reading shows under `within`, as `findQuote` counts
+// the ones it chooses among.
+/** @param {PageReading} text @param {string} quote @param {Element | null} [within] */
+export function quoteCopies(text, quote, within) {
+  const entry = copiesOf(text, quote);
+  return entry ? candidatesOf(text, entry, within).length : 0;
+}
 /** @type {WeakMap<PageReading, Map<string, Map<Element | null, Copy | null>>>} */
 const chosen = new WeakMap();
 /** @param {PageReading} text @param {string} quote @param {{prefix?: string, suffix?: string}} anchor @param {Element | null} [within] */
 export function findQuote(text, quote, anchor, within) {
-  const [pre, post] = [anchor.prefix ?? "", anchor.suffix ?? ""];
+  const [pre, post] = [anchor.prefix, anchor.suffix];
   // The copies first, every time: asking them is what brings a quote the index has
   // come to keep into it (`copiesOf`), so a change to it is heard.
   const entry = copiesOf(text, quote);
@@ -3503,7 +3529,7 @@ export function findQuote(text, quote, anchor, within) {
   // reading: a selection's anchor is asked by everything that shows or acts on it.
   let asked = chosen.get(text);
   if (!asked) chosen.set(text, (asked = new Map()));
-  const question = `${quote}\u0000${pre}\u0000${post}`;
+  const question = JSON.stringify([quote, pre ?? null, post ?? null]);
   let answers = asked.get(question);
   if (!answers) asked.set(question, (answers = new Map()));
   const known = answers.get(within ?? null);
@@ -3519,34 +3545,24 @@ export function findQuote(text, quote, anchor, within) {
   // section, each one past the last, so copies that overlap are one, the first: that is
   // the quote repeating itself, as "aa" does in "aaa", not the page saying it twice. A
   // copy a fence parts takes its place in that order and is no candidate, so the copy
-  // after it is the one past it, as the file's reading takes them
-  // (anchor_capture.py, `occurrences`; tests/quote_cases.json holds both to one set of
-  // cases). Context is read only to tell copies apart: a sole candidate is the answer
+  // after it is the one past it (tests/quote_cases.json holds the cases). Context is
+  // read only to tell copies apart: a sole candidate is the answer
   // whatever its neighbours say, and a second exact one settles that none is unique.
-  // Every copy in the words of an element under `within` stands under it, unless a slot
-  // of the element's own tree shows it words from outside it.
-  const key = readingPieces.get(text);
-  const all = !within || (key !== undefined && under(key, within) && !holdsSlot(key));
-  /** @type {Copy[]} */
-  const candidates = [];
-  let end = -1;
-  for (const copy of entry.copies) {
-    const inside =
-      all ||
-      (under(pointAt(text, copy.from)?.node, within) &&
-        under(pointAt(text, copy.to - 1)?.node, within));
-    if (!inside || copy.from < end) continue;
-    end = copy.to;
-    if (!copy.fenced) candidates.push(copy);
-  }
+  // An empty side says the copy's cell holds nothing there, and an absent side says
+  // nothing at all, as an agent's quote leaves both where the page's files don't hold
+  // its words once (anchor_capture.py): it names words, not one copy of them, so only a
+  // sole copy answers it.
+  const candidates = candidatesOf(text, entry, within);
   const exact = [];
   const [preLetters, postLetters] = [pre, post].map((side) =>
-    side.replace(COLLAPSE, ""),
+    side?.replace(COLLAPSE, ""),
   );
   for (const hit of candidates.length > 1 ? candidates : []) {
     if (
-      !holds(text, hit.from, pre, /** @type {string} */ (preLetters), true, hit) ||
-      !holds(text, hit.to, post, /** @type {string} */ (postLetters), false, hit)
+      (pre !== undefined &&
+        !holds(text, hit.from, pre, /** @type {string} */ (preLetters), true, hit)) ||
+      (post !== undefined &&
+        !holds(text, hit.to, post, /** @type {string} */ (postLetters), false, hit))
     )
       continue;
     exact.push(hit);
@@ -3765,11 +3781,4 @@ export function contextAround(
     return (backwards ? context.slice(outer) : context.slice(0, outer)).trim();
   }
   return { before: side(start, before, true), after: side(end, after, false) };
-}
-
-/** @template {Element} [E=Element] @param {string} sel @returns {E[]} */
-export function pageParts(sel) {
-  /** @type {E[]} */
-  const elements = pageQueryAll(sel);
-  return elements.filter(inPage);
 }

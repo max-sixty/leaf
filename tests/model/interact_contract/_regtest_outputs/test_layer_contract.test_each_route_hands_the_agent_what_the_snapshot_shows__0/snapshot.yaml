@@ -170,7 +170,7 @@ leaf wait:
 
 Claude Code hook:
   watch notification: /path/to/page has new input; Leaf's prompt hook puts it in
-    your context with this notification
+    your context with this notification. The user wrote “why here?”
   UserPromptSubmit additionalContext:
     instruction: >-
       Leaf has new input for your turn. Read this complete delivery before answering.

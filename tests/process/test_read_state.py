@@ -156,8 +156,8 @@ def test_read_does_not_nudge_a_closed_agent_turn(page_dir, monkeypatch):
     )
     nudges = []
 
-    def nudge(self, page):
-        nudges.append(page)
+    def nudge(self, page, quoted):
+        nudges.append((page, quoted()))
         return True
 
     harness = harness_model.HARNESSES["claude-code"]
@@ -178,4 +178,5 @@ def test_read_does_not_nudge_a_closed_agent_turn(page_dir, monkeypatch):
         {"kind": "comment", "revision": 1, "text": "Please continue."},
     )
     assert status == 200, body
-    assert nudges == [page_dir.resolve()]
+    # The nudge quotes what the user wrote.
+    assert nudges == [(page_dir.resolve(), "The user wrote “Please continue.”")]

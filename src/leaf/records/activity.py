@@ -549,7 +549,7 @@ def takes_input(present: dict, turn: Turn) -> bool:
 
 def nudge_due(present: dict, turn: Turn) -> bool:
     """Whether input arriving now is put in front of the claimant
-    (`presence.nudge_unwatched`): nothing takes it, and its turn was seen to end.
+    (`delivery.nudge_unwatched`): nothing takes it, and its turn was seen to end.
     A turn Leaf only stopped believing in may still be running a long step, whose
     Stop hook refuses to end with the input unpicked."""
     return turn.ended is not None and not takes_input(present, turn)

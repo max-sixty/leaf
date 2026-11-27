@@ -99,6 +99,17 @@ export function playMotion(
   return played;
 }
 
+// A part a motion holds unseen in its `delay` shows once the motion plays, so a reader
+// that counts only what shows, as Go-to's map does, waits for it: this settles once
+// every motion now in its delay has played, and is null where none is.
+export function heldUnseen() {
+  const held = [...active].filter((played) => {
+    const timing = played.effect?.getComputedTiming();
+    return Number(timing?.localTime ?? Infinity) < (timing?.delay ?? 0);
+  });
+  return held.length ? Promise.allSettled(held.map((played) => played.finished)) : null;
+}
+
 // A cue supplies only its starting tint. Its target's live CSS owns the endpoint,
 // so hover, theme changes and transparent surfaces never snap back when it ends. A box
 // drawn inside the element that paints a background of its own, such as an option's

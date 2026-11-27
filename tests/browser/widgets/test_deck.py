@@ -11,6 +11,7 @@ from render_harness import (
     leaf_page,
     open_page,
     round_trip,
+    undo,
     wait_for_check_api,
 )
 
@@ -91,6 +92,42 @@ def test_a_pass_moves_on_by_answers_keeps_later_and_reviews_every_card(browser, 
     open_card(page, "beta-ask")
     forward(page, "Next")
     open_card(page, "notes-ask")
+
+
+# A deck at the page's top with more page below it than the window shows, so a landing
+# that put a card's options at the window's top would scroll the page.
+DECK_ABOVE_MORE_PAGE = leaf_page(
+    "Deck above more",
+    "<h1>Before the release</h1>"
+    '<lf-deck id="deck">'
+    + card("store", "Keep Redis?")
+    + card("beta", "Ship the beta?")
+    + "</lf-deck>"
+    + "".join(
+        f"<p>Paragraph {i}. " + "Words to read. " * 30 + "</p>" for i in range(30)
+    ),
+)
+
+# The page's offset and the top of the options of the card `arg` names.
+PLACE = """(name) => [Math.round(scrollY),
+  Math.round(document.getElementById(name).getBoundingClientRect().top)]"""
+
+
+def test_undo_brings_back_the_card_an_answer_moved_on_from_where_it_stood(
+    browser, serve
+):
+    """Taking back the answer that moved the deck on opens its card again where it
+    stood, with the user on its question, and the page doesn't scroll."""
+    page = open_page(browser, serve(DECK_ABOVE_MORE_PAGE))
+    open_card(page, "store-ask")
+    before = page.evaluate(PLACE, "store-choice")
+    answer(page, "store-yes")
+    open_card(page, "beta-ask")
+    page.wait_for_function(LANDED)
+    undo(page)
+    open_card(page, "store-ask")
+    expect(page.locator("#store-choice")).to_be_focused()
+    assert page.evaluate(PLACE, "store-choice") == before
 
 
 def test_the_end_of_the_pass_lists_each_answer_and_a_row_opens_its_card(browser, serve):

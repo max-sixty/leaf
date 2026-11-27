@@ -149,16 +149,15 @@ const anchorAt = (reference) => ({
 });
 
 // The edges that hold the box where the answer stands it, one per axis, with the box's
-// size and its containing block's, which an inset on a right or bottom edge is measured
-// from. It runs after the surface's middleware, so it reads the box as sized and shifted.
+// size. It runs after the surface's middleware, so it reads the box as sized and shifted.
 // A surface middleware named `hold` names the block edge to stand the box by as `edge`,
 // and one that carries an inline offset its inline edge as `inline`; an edge the
 // boundary shifted the box against outranks either.
 /** @type {import("@floating-ui/dom").Middleware} */
 const held = {
   name: "held",
-  async fn(state) {
-    const { placement, rects, middlewareData, elements, platform } = state;
+  fn(state) {
+    const { placement, rects, middlewareData } = state;
     const [side, alignment] = placement.split("-");
     /** @template {string} T @param {T} start @param {T} end */
     const aligned = (start, end) => (alignment === "end" ? end : start);
@@ -173,27 +172,18 @@ const held = {
     const shiftY = middlewareData.shift?.y ?? 0;
     if (Math.abs(shiftX) >= 0.5) edges.x = shiftX < 0 ? "right" : "left";
     if (Math.abs(shiftY) >= 0.5) edges.y = shiftY < 0 ? "bottom" : "top";
-    const parent = await platform.getOffsetParent(elements.floating);
-    const block = parent instanceof Element ? parent : document.documentElement;
-    // Client dimensions belong to the block's CSS pixels, except the standards-mode
-    // root's viewport pixels. Cross through the platform's viewport conversion so
-    // a surface zoomed relative to an element block keeps the same positioning units.
-    const scale = await positioningScale(state);
-    const blockScale =
-      parent === window ? { x: 1, y: 1 } : await platform.getScale(parent);
     return {
-      data: {
-        edges,
-        width: rects.floating.width,
-        height: rects.floating.height,
-        block: {
-          width: (block.clientWidth * blockScale.x) / scale.x,
-          height: (block.clientHeight * blockScale.y) / scale.y,
-        },
-      },
+      data: { edges, width: rects.floating.width, height: rects.floating.height },
     };
   },
 };
+
+// An inset on a right or bottom edge that stands that edge `end` positioning pixels from
+// the containing block's start. It is measured by the block's own size (`100%`), which
+// layout holds to its fraction where a script reads it only to a whole pixel
+// (`clientWidth`), as a window at a zoom such as 110% leaves it.
+/** @param {number} end */
+const fromFar = (end) => `calc(100% - ${px(end)})`;
 
 /** @type {readonly Side[]} */
 const INSETS = ["left", "right", "top", "bottom"];
@@ -253,11 +243,11 @@ export function floatingPlacement({ floating, update }) {
   /** @param {Position} answer */
   const placedAt = ({ x, y, middlewareData }) => {
     lastAnchorStand = null;
-    const { edges, width, height, block } = middlewareData.held;
+    const { edges, width, height } = middlewareData.held;
     floating.style.removeProperty("position-anchor");
     inset({
-      [edges.x]: px(edges.x === "left" ? x : block.width - x - width),
-      [edges.y]: px(edges.y === "top" ? y : block.height - y - height),
+      [edges.x]: edges.x === "left" ? px(x) : fromFar(x + width),
+      [edges.y]: edges.y === "top" ? px(y) : fromFar(y + height),
     });
   };
   // Each held edge's inset from the anchor's start edge on its axis, which `anchor()`
@@ -270,7 +260,7 @@ export function floatingPlacement({ floating, update }) {
     (anchor, at) =>
     /** @param {Position} answer */
     ({ x, y, middlewareData }) => {
-      const { edges, width, height, block } = middlewareData.held;
+      const { edges, width, height } = middlewareData.held;
       const lengthX = atLayoutPrecision(
         edges.x === "left" ? x - at.x : at.x - x - width,
       );
@@ -288,17 +278,13 @@ export function floatingPlacement({ floating, update }) {
         lastAnchorStand.lengthY === lengthY
       )
         return;
-      /** @param {"left" | "top"} side @param {number} length @param {number} fallback */
+      /** @param {"left" | "top"} side @param {number} length @param {string} fallback */
       const from = (side, length, fallback) =>
-        `calc(anchor(${side}, ${px(fallback)}) + ${px(length)})`;
+        `calc(anchor(${side}, ${fallback}) + ${px(length)})`;
       floating.style.positionAnchor = anchorName(anchor);
       inset({
-        [edges.x]: from(
-          "left",
-          lengthX,
-          edges.x === "left" ? at.x : block.width - at.x,
-        ),
-        [edges.y]: from("top", lengthY, edges.y === "top" ? at.y : block.height - at.y),
+        [edges.x]: from("left", lengthX, edges.x === "left" ? px(at.x) : fromFar(at.x)),
+        [edges.y]: from("top", lengthY, edges.y === "top" ? px(at.y) : fromFar(at.y)),
       });
       lastAnchorStand = {
         anchor,
@@ -538,7 +524,7 @@ export function floatingPlacement({ floating, update }) {
               }
             : null,
       };
-      const { edges, width, height, block } = answer.middlewareData.held;
+      const { edges, width, height } = answer.middlewareData.held;
       holding = { ...edges };
       stoodSize = { width, height };
       if (!placementProof) {
@@ -549,22 +535,20 @@ export function floatingPlacement({ floating, update }) {
       const { offset, scale } = answer.middlewareData.anchorAt;
       const { subject, anchor, frame: frameAnchor, plane, at } = placementProof;
       /** @param {"x" | "y"} coordinate @param {"left" | "top"} start
-       * @param {number} length @param {number} extent */
-      const axisPoint = (coordinate, start, length, extent) => {
+       * @param {number} length */
+      const axisPoint = (coordinate, start, length) => {
         const fromStart = edges[coordinate] === start;
         const spot = answer[coordinate];
         const point = frameAnchor
           ? fromStart
             ? atLayoutPrecision(spot - at[coordinate])
             : -atLayoutPrecision(at[coordinate] - spot - length)
-          : fromStart
-            ? atLayoutPrecision(spot)
-            : extent - atLayoutPrecision(extent - spot - length);
+          : atLayoutPrecision(fromStart ? spot : spot + length);
         return (point - (frameAnchor ? 0 : offset[coordinate])) * scale[coordinate];
       };
       const point = {
-        left: axisPoint("x", "left", width, block.width),
-        top: axisPoint("y", "top", height, block.height),
+        left: axisPoint("x", "left", width),
+        top: axisPoint("y", "top", height),
       };
       stood.set(
         floating,

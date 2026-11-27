@@ -188,8 +188,8 @@ KEY_SECTIONS = {
     ),
     "verbatim": (
         "Words",
-        "How the element's words read to the passage reader, the render check and a "
-        "browser that hasn't run its module.",
+        "How the element's words read to the passage reader, a version comparison and "
+        "a browser that hasn't run its module.",
     ),
     "views": (
         "Paint",

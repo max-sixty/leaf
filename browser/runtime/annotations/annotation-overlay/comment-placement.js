@@ -15,19 +15,20 @@
    last: a passage's first line for both, else `extent`'s top and foot. Both come from
    the unclipped box: the top of a clipped box is the window's edge, and a card level
    with it in the page's plane would be carried by each scroll frame and placed back.
-   `column` is the passage's inline start when it quotes words;
+   `column` is where a passage's quoted words start: the left edge of their first line,
+   or its right edge where their text's `direction` is right-to-left (`direction`);
    without one, the card's width ends at `clear`'s right edge. Under or over, a card's
    place keeps room for the measure (`--lf-thread-card`), or the boundary's width where
-   that is narrower, so where it would carry the card past the boundary's right edge it
-   starts further left rather than narrowing (`place-under-or-over`). A slim box or card
-   stands at the end of that place nearer the quoted words' first character, or nearer
-   the element's right edge on a whole element, and widens toward the other end, so the
-   comment box stands where its card will. `margin` is where
-   across the page the margin row for it stands,
-   or would stand in the rail once its thread is sent (margin-layout.js, `marginSpot`),
-   or nothing where no row stands and its rows would be pins. A caller requesting
-   window placement without a visible attachment supplies `clear: null` and stands
-   at its upper inline edge through the same sizing and placement machinery.
+   that is narrower, running from `column` the way the words read, so where it would
+   carry the card past the boundary's edge it stands further in rather than narrowing
+   (`place-under-or-over`). A slim box or card stands at the end of that place nearer
+   the quoted words' first character, or nearer the element's right edge on a whole
+   element, and widens toward the other end, so the comment box stands where its card
+   will. `margin` is where across the page the margin row for it stands, or would stand
+   in the rail once its thread is sent (margin-layout.js, `marginSpot`), or nothing
+   where no row stands and its rows would be pins. A caller requesting window placement
+   without a visible attachment supplies `clear: null` and stands at its upper inline
+   edge through the same sizing and placement machinery.
    A target that is not drawn has no attachment: seated surfaces withhold their native
    editing state until it returns. An explicit open can request the unanchored window
    posture while retaining the hidden subject as its semantic anchor. A drawn target's
@@ -201,9 +202,9 @@ import { floatingGeometry, positioningScale } from "./floating.js";
 /** @import { CapturedPlacement } from "../../records/thread/destination.js" */
 /** @typedef {{box: Extent, placement: CapturedPlacement}} AdoptedFrame */
 /** @typedef {{top: number, height: number, under: number}} HeldBox */
-/** @typedef {{clear: Extent | null, room?: MarkRoom, row: number, lastRow?: number,
- * column?: number | null, margin?: Columns | null, boundary: Boundary,
- * fit: (room: {side: Side, width: number, height: number, room: DOMRectReadOnly,
+/** @typedef {{clear: Extent | null, extent?: Extent | null, room?: MarkRoom, row: number,
+ * lastRow?: number, column?: number | null, direction?: Direction, margin?: Columns | null,
+ * boundary: Boundary, fit: (room: {side: Side, width: number, height: number, room: DOMRectReadOnly,
  * stood: number, stationary: boolean,
  * scale: {x: number, y: number}}) => void,
  * keeps?: "top" | "foot" | "line", under?: (() => number) | null,
@@ -216,8 +217,9 @@ import { floatingGeometry, positioningScale } from "./floating.js";
 /** @typedef {{element: Element, clear: Extent, extent: Extent, room: MarkRoom}} Clearance */
 /** @typedef {{element: Element, contextNode: Node,
  * geometry: ReturnType<typeof floatingGeometry>, clear: Extent | null, extent: Extent, room: MarkRoom,
- * row: number, lastRow: number, column: number | null,
+ * row: number, lastRow: number, column: number | null, direction: Direction,
  * margin: ReturnType<typeof marginSpot>, scroller: Element}} Attachment */
+/** @typedef {"ltr" | "rtl"} Direction */
 /** @typedef {{target: Element | null, point?: Element | null,
  * passage?: {range?: Range, contextNode?: Node | null, attachment?: Extent | null} | null,
  * boundary?: ReturnType<typeof commentBoundary> | null}} AttachmentRequest */
@@ -267,6 +269,7 @@ export function commentAttachment({
       row: extent.top,
       lastRow: extent.top,
       column: null,
+      direction: "ltr",
       margin: null,
       scroller: pageScroller,
     };
@@ -279,13 +282,24 @@ export function commentAttachment({
   if (!near) return null;
   const { element, extent } = near;
   const context = point ?? passage?.contextNode ?? target;
+  // Quoted words read the way their text's element declares, which sets the edge of
+  // their first line they start at.
+  const words = passage?.contextNode;
+  const holder = words?.nodeType === Node.TEXT_NODE ? words.parentElement : words;
+  /** @type {Direction} */
+  const direction =
+    holder instanceof Element && getComputedStyle(holder).direction === "rtl"
+      ? "rtl"
+      : "ltr";
+  const first = passage?.attachment;
   return {
     ...near,
     contextNode: context,
     geometry: floatingGeometry([element, context]),
-    row: (passage?.attachment ?? extent).top,
-    lastRow: passage?.attachment ? passage.attachment.top : extent.bottom,
-    column: passage?.attachment?.left ?? null,
+    row: (first ?? extent).top,
+    lastRow: first ? first.top : extent.bottom,
+    column: first ? (direction === "rtl" ? first.right : first.left) : null,
+    direction,
     margin: marginSpot(target, point, passage?.range),
     scroller: scrollerFor(element),
   };
@@ -320,7 +334,7 @@ const AXES = ["x", "y"];
 // shown bounds of the region whose flow holds the surfaces' row (`flowOf` the box that
 // scrolls the row, `scroller`), where those hold the card's minimum width and the least
 // height, else within the page shell, whose right edge stops short of the root
-// scrollport's gutter and, for the comment box, an open panel's left edge (`right`). A
+// scrollport's gutter (`right`). A
 // pane a resize narrowed, or a short strip of one a scroll left, so yields to the window,
 // which carries the surface rather than withdrawing a draft the user is writing. The
 // boundary names the box that scrolls that room (`scroller`), which makes room for a
@@ -493,6 +507,15 @@ export function makeRoom(side, read, height, boundary, scroller) {
   return scroller.scrollTop !== before;
 }
 
+// Whether the room beside `clear` on `side` holds `width`, clear of its marks.
+/** @param {"left" | "right"} side
+ * @param {{clear: Extent, room: MarkRoom, boundary: Boundary, width: number}} request */
+const besideFits = (side, { clear, room, boundary, width }) =>
+  Math.ceil(
+    (side === "right" ? boundary.right - clear.right : clear.left - boundary.left) -
+      subjectGap(room, side),
+  ) >= Math.ceil(width);
+
 // The side a comment's surface takes, as a Floating UI side.
 /** @param {{clear: Extent, extent: Extent, room: MarkRoom, boundary: Boundary, width: number, scroller: Element, element: Element, coarse: boolean}} reading @returns {Side} */
 export function commentSide({
@@ -505,10 +528,8 @@ export function commentSide({
   element,
   coarse,
 }) {
-  /** @param {number} space */
-  const fits = (space) => Math.ceil(space) >= Math.ceil(width);
-  if (fits(boundary.right - clear.right - subjectGap(room, "right"))) return "right";
-  if (fits(clear.left - boundary.left - subjectGap(room, "left"))) return "left";
+  if (besideFits("right", { clear, room, boundary, width })) return "right";
+  if (besideFits("left", { clear, room, boundary, width })) return "left";
   const below = reachableRoom("bottom", extent, room, boundary, scroller, element);
   const above = reachableRoom("top", extent, room, boundary, scroller, element);
   // Prefer a side that already shows the compact surface. Reachable room breaks
@@ -568,35 +589,41 @@ export const attachedEdge = (side) => (side === "top" ? "foot" : "top");
 
 /* One surface's placement: the side it holds and its inline attachment.
 
-   `choose` holds a side, choosing one where none is held or the boundary or `extent`'s
-   width has changed, and says whether it chose afresh, and whether the surface is
-   opening (`opening`). `options` then gives
+   `choose` holds a side, choosing one where none is held, the boundary or `extent`'s
+   width has changed, or the room beside its subject on the side it holds no longer
+   holds the least width, as when a transform carries the words toward that edge.
+   Motion the words share with their room, such as a sideways scroll of a box around
+   them, keeps the side while it still has room. It says whether it chose afresh, and
+   whether the surface is opening (`opening`). `options` then gives
    `computePosition` the reference to stand by, its placement and its middleware.
-   `landed` takes the answer's inline start and where the rule stood the surface's top
-   and foot before the boundary shifted it in, from the rule's line. `options` keeps
-   the requested line of that rectangle (`keeps`); `landed` returns the surface's `scale`. `plane` names
-   the constraint that bound the answer (floating.js): `"page"` where the rule's line
-   holds the surface, and where the boundary shifted it in, the edge it stands against
-   and that edge's client line.
+   `landed` takes where the answer stands the edge it holds, and where the rule stood
+   the surface's top and foot before the boundary shifted it in, from the rule's line.
+   `options` keeps the requested line of that rectangle (`keeps`); `landed` returns the
+   surface's `scale`. `plane` names the constraint that bound the answer (floating.js):
+   `"page"` where the rule's line holds the surface, and where the boundary shifted it
+   in, the edge it stands against and that edge's client line.
    `forget` drops the side so the next placement chooses again, and `scrolled` keeps it
    across the scroll the surface itself asked for (`makeRoom`).
 
    `capture` is an opaque reading carried inside the editor's frame, whose `box` is a
    client rectangle. `adopt(frame)` queues that handoff for the next `choose`, which
-   reports `adopted` until `landed` confirms a position.
-   A superseded computation retains that hold. The placement owns its carried inline
-   offset, of the edge it holds from the passage's column, else `clear`'s left edge. That column moves with
-   quoted words even when their scrollport stays still. A normal beside landing owns
-   the same offset, so renewing placement follows the attachment native motion carries.
-   `keeps` supplied to `options` names the line the surface keeps still, relative to
-   the passage's line when quoted, else the initial side's clearance edge. Without
-   one, the landed seat keeps its growing surface's foot above and top elsewhere, so
-   an editor needs no transcript reading to keep its attachment while typing; before
-   that landing, an adopted frame's offsets are the ones held. `under` reads, at each
-   placement and landing, how far above its foot the surface's own line stands, in
-   client pixels, whichever line it keeps, so the line it keeps next is known from
-   its last landing. `rises` offers a surface
-   keeping its top the boundary's whole height for `fit`, rather than the room below.
+   reports `adopted` until `landed` confirms a position. A superseded computation
+   retains that hold. The placement owns its carried inline offset, of the edge it holds
+   from the passage's column, else `extent`'s left edge, which a scroll that clips
+   `clear` still carries with its content. That column moves with quoted
+   words even when their scrollport stays still. Every landing owns the same offset, on
+   every side, so renewing placement follows the attachment native motion carries: a
+   surface under words near a line's end, whose place the boundary held short of them,
+   crosses a log scrolled sideways with them as one beside them does. `keeps` supplied
+   to `options` names the line the surface keeps still, relative to the passage's line
+   when quoted, else the initial side's clearance edge. Without one, the landed seat
+   keeps its growing surface's foot above and top elsewhere, so an editor needs no
+   transcript reading to keep its attachment while typing; before that landing, an
+   adopted frame's offsets are the ones held. `under` reads, at each placement and
+   landing, how far above its foot the surface's own line stands, in client pixels,
+   whichever line it keeps, so the line it keeps next is known from its last landing.
+   `rises` offers a surface keeping its top the boundary's whole height for `fit`,
+   rather than the room below.
 
    `fit({ side, width, height, room, stood, scale, stationary })` sizes the surface for the room its
    side gives, in its positioning space; `room` is the client rectangle that room stands
@@ -612,9 +639,11 @@ export const attachedEdge = (side) => (side === "top" ? "foot" : "top");
    that reserves the measure's width (`place-under-or-over`); carried, its left edge
    where the user dropped it; with nothing to stand by, the room's left edge. So a
    change of its room moves its far edge and never carries it across the words it
-   comments on. Held by the edge its words end at, its words move as it widens: its
-   right edge in a left-to-right page, as left of its subject, and its left edge in a
-   right-to-left one, as right of its subject, under quoted words or carried. A first
+   comments on. Held by the edge its words end at, its words move as it widens. In a
+   left-to-right page that is its right edge: left of its subject, on a whole element,
+   or under words whose place the room holds short of them. In a right-to-left page it
+   is its left edge: right of its subject, carried, or under words whose place the room
+   holds short of them. A first
    line typed into the box then slides the words before the caret toward its start,
    and a card's one widening moves its words where elsewhere it moves its far
    controls.
@@ -629,9 +658,7 @@ export const attachedEdge = (side) => (side === "top" ? "foot" : "top");
 export function commentPlacement() {
   /** @type {Side | null} */
   let side = null;
-  /** @type {number | null} */
-  let inline = null;
-  /** @type {{unanchored: boolean, boundary: BoundaryKey, left: number, right: number} | null} */
+  /** @type {{unanchored: boolean, boundary: BoundaryKey, width: number} | null} */
   let input = null;
   /** @type {AdoptedFrame | null} */
   let pending = null;
@@ -668,7 +695,6 @@ export function commentPlacement() {
   const forget = () => {
     side = null;
     holds = null;
-    inline = null;
     input = null;
     opened = null;
     reopened = false;
@@ -687,10 +713,12 @@ export function commentPlacement() {
     ui,
     {
       clear,
+      extent = clear,
       room = NO_ROOM,
       row,
       lastRow = row,
       column = null,
+      direction = "ltr",
       margin = null,
       boundary,
       fit,
@@ -709,6 +737,9 @@ export function commentPlacement() {
     // Floating UI reads a window attachment point for the unanchored posture,
     // sharing the same sizing, shift and coordinate conversion as an anchored box.
     clear ??= new DOMRect(boundary.left, boundary.top, minimumWidth, 0);
+    // What the carried inline offset is measured from: the quoted words' column, else
+    // the whole box's left edge, which moves with its content where a scroll clips it.
+    const from = column ?? (extent ?? clear).left;
     // Beside on the right, keep the margin row usable when the room past it
     // holds the whole message measure; otherwise give that space to the message.
     /** @param {{x: number}} scale */
@@ -735,7 +766,11 @@ export function commentPlacement() {
       unanchored
         ? boundary.left
         : clamp(
-            column ?? box.right - span(scale),
+            column === null
+              ? box.right - span(scale)
+              : direction === "rtl"
+                ? column - span(scale)
+                : column,
             boundary.left,
             boundary.right - span(scale),
           );
@@ -782,8 +817,7 @@ export function commentPlacement() {
             end:
               rects.reference.x +
               (inlineStart(scale) + span(scale) - box.left) / scale.x,
-            attachmentInline:
-              rects.reference.x + ((column ?? clear.left) - box.left) / scale.x,
+            attachmentInline: rects.reference.x + (from - box.left) / scale.x,
             line:
               column !== null
                 ? rects.reference.y + (row - box.top) / scale.y
@@ -816,15 +850,12 @@ export function commentPlacement() {
         boundary.width,
         carriedInline !== null
           ? holds === "right"
-            ? (column ?? clear.left) + carriedInline - boundary.left
-            : boundary.right - (column ?? clear.left) - carriedInline
+            ? from + carriedInline - boundary.left
+            : boundary.right - from - carriedInline
           : across
             ? holdsLeft(scale)
-              ? boundary.right - (inlineStart(scale) + (inline ?? 0) * scale.x)
-              : inlineStart(scale) +
-                span(scale) +
-                (inline ?? 0) * scale.x -
-                boundary.left
+              ? boundary.right - inlineStart(scale)
+              : inlineStart(scale) + span(scale) - boundary.left
             : side === "right"
               ? boundary.right - box.right - gap
               : clear.left - boundary.left - gap,
@@ -902,8 +933,8 @@ export function commentPlacement() {
         if (carriedInline !== null)
           position.x =
             attachmentInline + carriedInline / scale.x - (edge === "right" ? width : 0);
-        else if (edge === "left") position.x = column + (inline ?? 0);
-        else if (edge === "right") position.x = end + (inline ?? 0) - width;
+        else if (edge === "left") position.x = column;
+        else if (edge === "right") position.x = end - width;
         if (spot && !across) position.y = line + heldTop(state, spot);
         // Where the rule stands it before the boundary shifts it in, which a carried
         // surface's attachment limit takes in.
@@ -933,16 +964,14 @@ export function commentPlacement() {
           ? Math.min(tall.over + (under?.() ?? 0), Math.max(tall.whole, shown.height)) /
             scale.y
           : 0;
-        // Under or over, Floating UI's available width runs from the start its placement
-        // names, while the surface may be held by its other edge, so the lane, measured
-        // from the held edge, gives the width.
+        // Floating UI's available width runs from the edge its placement names, while a
+        // surface under or over, or carried, may be held by its other edge, so the lane,
+        // measured from the held edge, gives the width.
         fit({
           side,
           width: Math.max(
             Math.min(minimumWidth, boundary.width) / scale.x,
-            across
-              ? lane(scale) / scale.x
-              : Math.min(state.availableWidth, lane(scale) / scale.x),
+            lane(scale) / scale.x,
           ),
           height: rises ? shown.height / scale.y : state.availableHeight,
           room: shown,
@@ -1091,8 +1120,7 @@ export function commentPlacement() {
       const key = {
         unanchored,
         boundary: boundary.key,
-        left: extent.left,
-        right: extent.right,
+        width: extent.right - extent.left,
       };
       const frame = pending;
       pending = null;
@@ -1108,7 +1136,7 @@ export function commentPlacement() {
         if (moved) holds = "left";
         carriedInline =
           (holds === "right" ? frame.box.right : frame.box.left) -
-          (column ?? clear?.left ?? boundary.left);
+          (column ?? (clear ? extent.left : boundary.left));
         const line =
           column !== null
             ? row
@@ -1123,8 +1151,10 @@ export function commentPlacement() {
         input &&
         (key.unanchored !== input.unanchored ||
           !sameBoundary(key.boundary, input.boundary) ||
-          Math.abs(key.left - input.left) > 0.5 ||
-          Math.abs(key.right - input.right) > 0.5)
+          Math.abs(key.width - input.width) > 0.5 ||
+          ((side === "left" || side === "right") &&
+            clear &&
+            !besideFits(side, { clear, room, boundary, width: cardMinimum() })))
       ) {
         forget();
       } else if (!input && opened) {
@@ -1175,13 +1205,13 @@ export function commentPlacement() {
     landed({ x, y, middlewareData }) {
       initialHold = null;
       reopened = false;
-      const { scale, column, end, attachmentInline, line } = middlewareData.scaled;
+      const { scale, attachmentInline, line } = middlewareData.scaled;
       const { width } = middlewareData.held;
-      // A surface keeps the edge it is held by where it landed. One held by its right
-      // edge beside the target keeps that edge there, so a change of its room moves its
-      // left edge, never the edge by the words.
-      if (vertical(side)) inline ??= holds === "right" ? x + width - end : x - column;
-      else if (holds === "left") carriedInline ??= (x - attachmentInline) * scale.x;
+      // A surface keeps the edge it is held by as far from its words as it landed, on
+      // every side, so a sideways scroll carries it with them and a change of its room
+      // moves its other edge, never the one it is held by.
+      carriedInline ??=
+        ((holds === "right" ? x + width : x) - attachmentInline) * scale.x;
       const top = (y - (middlewareData.shift?.y ?? 0) - line) * scale.y;
       const height = middlewareData.held.height * scale.y;
       const under = underLine?.() ?? 0;

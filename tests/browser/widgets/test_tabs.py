@@ -5,6 +5,7 @@ import re
 from datetime import UTC, datetime, timedelta
 
 import pytest
+from interact_support import append_command
 from playwright.sync_api import expect
 from render_cases_interaction import live_url, panel_comment
 from render_cases_layout import SHOT_SRC, SHOTS
@@ -846,6 +847,8 @@ def test_a_queue_entry_shows_the_face_its_item_opens_with(browser, serve):
     page = open_page(browser, live_url(serve(queue(120))))
     tabs = page.locator("#queue").get_by_role("tab")
     expect(tabs.nth(1)).to_have_accessible_name("README.md")
+    # Its label leaves out what it shows, so the description still says the summary.
+    expect(tabs.nth(1)).to_have_accessible_description("+120 −45 lines")
     expect(tabs.nth(1).locator("code")).to_have_text("README.md")
     expect(tabs.nth(1).locator(".added")).to_have_text("+120")
     expect(tabs.nth(1).locator(".lf-tab-summary")).to_have_count(0)
@@ -869,11 +872,24 @@ def test_side_tabs_distinguish_withdrawn_obligations_from_answers(browser, serve
         '<lf-tab id="only" label="Only withdrawn">'
         '<lf-group id="only-options-q" label="Keep it?"><lf-options id="only-options"><lf-option id="only-pick">Only</lf-option></lf-options></lf-group>'
         '</lf-tab><lf-tab id="mixed" label="Answer and withdrawal">'
-        '<lf-group id="answered-options-q" label="Keep it?"><lf-options id="answered-options"><lf-option id="answered-pick" selected>Keep</lf-option></lf-options></lf-group>'
+        '<lf-group id="answered-options-q" label="Keep it?"><lf-options id="answered-options"><lf-option id="answered-pick">Keep</lf-option></lf-options></lf-group>'
         '<lf-group id="withdrawn-options-q" label="Retire it?"><lf-options id="withdrawn-options"><lf-option id="withdrawn-pick">Retire</lf-option></lf-options></lf-group>'
         "</lf-tab></lf-tabs>",
     )
-    page = open_page(browser, live_url(serve(source)))
+    url = serve(source)
+    append_command(
+        serve.page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "answered-options",
+            "action": "choose",
+            "detail": {"value": ["answered-pick"]},
+            "answered": True,
+        },
+    )
+    page = open_page(browser, live_url(url))
     marks = page.locator("#queue .lf-tab-answer")
     on_me = page.locator("#queue .lf-tab-btn .lf-tab-on-me")
     # The user's turn ends each row's name in On Me's symbol and leaves the answer line
@@ -1080,8 +1096,11 @@ def test_a_queue_stands_its_items_under_their_groups(browser, serve):
 
     tabs = page.locator("#queue").get_by_role("tab")
     expect(tabs).to_have_count(6)
-    expect(tabs.nth(2)).to_have_accessible_description("Close group. c summary")
-    expect(tabs.nth(3)).to_have_accessible_description("d summary")
+    # A row's summary shows under its name, so the name says it and the description
+    # says only the group the row stands under.
+    expect(tabs.nth(2)).to_have_accessible_name(re.compile(r" c summary$"))
+    expect(tabs.nth(2)).to_have_accessible_description("Close group")
+    expect(tabs.nth(3)).to_have_accessible_description("")
     tabs.nth(1).focus()
     page.keyboard.press("ArrowDown")
     expect(tabs.nth(2)).to_have_attribute("aria-selected", "true")
@@ -1092,7 +1111,7 @@ def test_a_queue_stands_its_items_under_their_groups(browser, serve):
     expect(page.locator("#queue > .lf-tabstrip .lf-tab-group")).to_have_text(
         ["Merge", "FYI"]
     )
-    expect(tabs.nth(2)).to_have_accessible_description("Merge group. c summary")
+    expect(tabs.nth(2)).to_have_accessible_description("Merge group")
 
     # On a phone, loaded there so the row has its presses from the start. A run's
     # first tab comes into the row with its label, clear of the presses: at rest, and
@@ -1631,7 +1650,10 @@ def test_each_part_s_row_says_where_its_question_stands(browser, serve):
     resized(page, 1280, 800)
 
     def row(key):
-        return page.locator("#parts").get_by_role("tab", name=key.title(), exact=True)
+        # A row's name is the words it shows, its answer line's included.
+        return page.locator("#parts").get_by_role(
+            "tab", name=re.compile(f"^{key.title()}( |$)")
+        )
 
     def mark(key):
         return row(key).locator(".lf-tab-answer")
@@ -1660,7 +1682,9 @@ def test_each_part_s_row_says_where_its_question_stands(browser, serve):
     expect(mark("answered")).to_have_attribute("data-lf-obligations", "answered")
     expect(mark("answered")).to_have_text("Alpha")
     expect(on_me("answered")).to_be_hidden()
-    expect(row("answered")).to_have_accessible_description("Answered: Alpha")
+    # The answer line is in the name, so the description adds only that it's answered.
+    expect(row("answered")).to_have_accessible_name("Answered Alpha")
+    expect(row("answered")).to_have_accessible_description("Answered")
     name = row("answered").locator(".lf-tab-name").bounding_box()
     assert mark("answered").bounding_box()["y"] >= name["y"] + name["height"] - 0.5
     assert row("answered").bounding_box()["height"] == height
@@ -1670,7 +1694,8 @@ def test_each_part_s_row_says_where_its_question_stands(browser, serve):
     expect(mark("sent")).to_have_text("On Claude")
     expect(mark("sent")).to_have_attribute("data-lf-obligations", "open")
     expect(on_me("sent")).to_be_hidden()
-    expect(row("sent")).to_have_accessible_description("On Claude")
+    expect(row("sent")).to_have_accessible_name("Sent On Claude")
+    expect(row("sent")).to_have_accessible_description("")
 
     row("reopened").click()
     with sending(page, "the reopened part's pick"):

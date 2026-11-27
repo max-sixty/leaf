@@ -42,6 +42,7 @@ from interact_support import wait_for
 from model_folds import leaf_page
 from PIL import Image, ImageDraw
 from playwright.sync_api import expect
+from render_cases_interaction import HELD_EDGE
 from render_harness import (
     FOLLOWER_MARK,
     SUBJECT_MARK,
@@ -243,13 +244,6 @@ RECT = """(selector) => {
     .getBoundingClientRect();
   return {left, top, right, bottom};
 }"""
-
-
-# The inline edge the comment box stands by (floating.js, `held`), which the card Send
-# opens keeps.
-HELD_EDGE = """() => document.querySelector("script[data-lf-entry]")
-  .lfFloatingSelections()
-  .find((selection) => selection.floating.matches(".lf-fab-bar")).edges.left"""
 
 
 def stands(side, rect, words, block):
@@ -2624,6 +2618,105 @@ def test_a_multiline_passage_attaches_to_its_first_words_through_focus_reflow_an
     attached(".lf-margin-preview")
 
 
+def test_a_box_under_right_to_left_words_stands_at_their_first_word(browser, serve):
+    """Right-to-left words start at their first line's right edge, so a box under a
+    passage that wraps from mid-line stands its right edge there, as a box under
+    left-to-right words stands its left edge at their first word, rather than at the
+    far end of the passage's first line."""
+    prose = (
+        "يبدأ النص من اليمين ويمتد إلى اليسار، وتقرأ الكلمات بهذا الاتجاه في كل سطر من"
+        " أسطر الفقرة الطويلة التي تملأ عرض العمود بأكمله قبل أن تلتف إلى السطر التالي."
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page("نص", f'<p id="prose">{prose}</p><p>فقرة بعد النص.</p>').replace(
+                '<html lang="en">', '<html lang="ar" dir="rtl">'
+            )
+        ),
+    )
+    resized(page, 900, 600)
+    fragments = page.evaluate(
+        """words => {
+          const text = document.querySelector('#prose').firstChild;
+          const start = text.data.indexOf(words);
+          const range = document.createRange();
+          range.setStart(text, start);
+          range.setEnd(text, text.data.length - 1);
+          return [...range.getClientRects()].filter(r => r.width && r.height)
+            .map(r => r.toJSON());
+        }""",
+        "من اليمين",
+    )
+    first, last = fragments[0], fragments[-1]
+    # The passage wraps, and its first line runs far past the box's width from its
+    # first word, which stands far enough from the room's left edge for the box's whole
+    # place, so the two ends of that line are told apart.
+    assert len(fragments) > 1 and first["right"] - first["left"] > 400, fragments
+    select(
+        page,
+        (first["right"] - 2, first["top"] + first["height"] / 2),
+        (last["left"] + 2, last["top"] + last["height"] / 2),
+    )
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    rendered(page)
+    selected = page.evaluate(
+        """() => [...getSelection().getRangeAt(0).getClientRects()]
+          .find(r => r.width && r.height).toJSON()"""
+    )
+    assert selected["right"] - selected["left"] > 400, selected
+    box = page.evaluate(RECT, ".lf-fab-bar")
+    prose_box = page.evaluate(RECT, "#prose")
+    assert box["top"] >= prose_box["bottom"], (box, prose_box)
+    assert box["right"] == pytest.approx(selected["right"], abs=1), (box, selected)
+
+
+def test_a_box_beside_words_that_start_in_a_padded_element_stands_at_their_line(
+    browser, serve
+):
+    """A selection that starts across a whole padded element attaches to its first
+    word's line, not to the element's padding above it, so a box beside it stands level
+    with the words."""
+    rest = "and the rest of the paragraph runs on past the chip. " * 6
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Chip",
+                '<p id="prose"><span style="display:inline-block;padding:36px 48px">'
+                f"First words</span> {rest}</p>",
+            )
+        ),
+    )
+    resized(page, 1700, 800)
+    words = page.evaluate(
+        """() => {
+          const prose = document.querySelector('#prose');
+          const chip = prose.firstElementChild.firstChild;
+          const range = document.createRange();
+          range.setStart(prose, 0);
+          range.setEnd(prose.lastChild, 30);
+          getSelection().removeAllRanges();
+          getSelection().addRange(range);
+          const first = document.createRange();
+          first.setStart(chip, 0);
+          first.setEnd(chip, 1);
+          return first.getBoundingClientRect().toJSON();
+        }"""
+    )
+    page.keyboard.press("c")
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    rendered(page)
+    box = page.locator(".lf-fab-bar")
+    rect = page.evaluate(RECT, ".lf-fab-bar")
+    side = SIDES[box.get_attribute("data-lf-placement")]
+    assert side == "right", side
+    assert (
+        stands(side, rect, words, page.evaluate(RECT, "#prose"))
+        == "level with the words"
+    ), (rect, words)
+
+
 def test_a_comment_keeps_its_measure_when_its_passage_scrolls_away(browser, serve):
     page = open_page(
         browser,
@@ -2659,6 +2752,43 @@ def test_a_comment_keeps_its_measure_when_its_passage_scrolls_away(browser, serv
     scroll_settled(page)
     expect(bar).to_have_attribute("data-lf-plane", "page")
     assert abs(bar.bounding_box()["width"] - width) <= 1
+
+
+@pytest.mark.parametrize("scaled_firefox", ["1.1"], indirect=True)
+def test_a_box_the_window_takes_in_keeps_its_far_edge_at_a_fractional_zoom(
+    scaled_firefox, serve
+):
+    """At a zoom that leaves the window a fraction of a pixel wide, as Firefox's 110%
+    does, a comment box that stands by its right edge left of its words keeps that edge
+    still as a scroll carries the words' first line past the window's top and the
+    window takes the box in. Firefox lays out in sixtieths of a pixel, so the edge may
+    land one of them off."""
+    page = open_page(
+        scaled_firefox,
+        serve(
+            leaf_page(
+                "Beside the words",
+                '<p id="subject" style="position: absolute; top: 400px;'
+                ' right: 24px; width: 360px">'
+                + "A paragraph at the window's edge, with room to comment"
+                " only left of it. " * 8 + '</p><div style="height: 3000px"></div>',
+            )
+        ),
+        context=scaled_firefox.new_context(viewport={"width": 1280, "height": 800}),
+    )
+    assert page.evaluate("visualViewport.width % 1") > 0.1
+    page.locator("#subject").click(modifiers=["Alt"])
+    bar = page.locator(".lf-fab-bar")
+    expect(bar).to_have_attribute("data-lf-placement", re.compile("^left"))
+    expect(bar).to_have_attribute("data-lf-plane", "page")
+    rendered(page)
+    beside = page.evaluate(RECT, ".lf-fab-bar")
+    page.mouse.wheel(0, 500)
+    scroll_settled(page)
+    expect(bar).to_have_attribute("data-lf-plane", "window")
+    rendered(page)
+    taken = page.evaluate(RECT, ".lf-fab-bar")
+    assert taken["right"] == pytest.approx(beside["right"], abs=1 / 60), (beside, taken)
 
 
 def test_a_send_in_the_task_that_scrolls_the_page_opens_the_card_where_the_box_stood(

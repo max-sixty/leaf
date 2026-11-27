@@ -9,6 +9,10 @@ Choose events for the steps the explanation needs. Every start is a step, so an
 event the reader should stop at, such as a write landing or a lock being released,
 is an instant of its own rather than the end of a span. Times are milliseconds from
 the start of the sequence; illustrative times are fine when the prose says so.
+Where the reader knows the sequence by clock time, such as an incident or an agent
+session, give `start` the clock time of `at="0"` as an ISO date-time, and the
+widget shows times of day rather than time elapsed; don't write the clock time into
+each event's label.
 
 For a comparison, such as the run before a fix and the run after it, put each run in
 an `lf-run` of one `lf-timeline`, with the same lanes in the same order. The runs

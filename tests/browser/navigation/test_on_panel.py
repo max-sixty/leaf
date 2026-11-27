@@ -783,7 +783,8 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
           };
         }"""
     )
-    assert pending == {"value": ["first"], "state": "waiting", "unanswered": True}
+    # The press answers the question in its own task, before the server's reading.
+    assert pending == {"value": ["first"], "state": "done", "unanswered": False}
     page.unroute("**/api/event")
     for route in held:
         route.continue_()

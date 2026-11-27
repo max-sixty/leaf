@@ -165,7 +165,7 @@ class Samples:
                 f"unknown sample template {template_id!r}"
                 + (f" in message {message!r}" if message is not None else "")
             )
-        seeded = initial_sample_events(
+        seeded, _notes = initial_sample_events(
             parent,
             document,
             events,

@@ -643,10 +643,10 @@ def isolated_session(tmp_path_factory, monkeypatch):
     Keep the developer's session and machine state out of every fixture. A page
     tagged with the session running the tests is otherwise reported as unattended
     by the loop guard. Isolate XDG_STATE_HOME, where Leaf stores claims and installed
-    packages, and CODEX_HOME, where Codex reads its configuration and sessions,
-    while retaining HOME so subprocesses share the host's uv cache. Clear the
-    developer's App Server endpoint and host launcher override so a fake task cannot
-    use them.
+    packages, XDG_CONFIG_HOME, where it reads the developer's settings, and
+    CODEX_HOME, where Codex reads its configuration and sessions, while retaining
+    HOME so subprocesses share the host's uv cache. Clear the developer's App Server
+    endpoint and host launcher override so a fake task cannot use them.
 
     The session the tests run as is this worker: a synthetic id, so nothing of
     the developer's answers for it, and the worker's own pid. Every page a test
@@ -988,6 +988,28 @@ def firefox_browser(_playwright, request):
     from render_harness import WatchedBrowser, clean_browser
 
     firefox = _playwright.firefox.launch(firefox_user_prefs=FIREFOX_PREFS)
+    try:
+        with clean_browser(request.node):
+            yield WatchedBrowser(firefox)
+    finally:
+        firefox.close()
+
+
+@pytest.fixture
+def scaled_firefox(_playwright, request):
+    """Desktop Firefox laying out at `request.param` device pixels to the CSS pixel, as
+    it does at a zoom such as 110% or on a screen of two device pixels to one. A
+    context's `device_scale_factor` doesn't move where Firefox's layout snaps a length
+    to the device's pixels, so a test of that takes this fixture, parametrized
+    `indirect`."""
+    from render_harness import WatchedBrowser, clean_browser
+
+    firefox = _playwright.firefox.launch(
+        firefox_user_prefs={
+            **FIREFOX_PREFS,
+            "layout.css.devPixelsPerPx": str(request.param),
+        }
+    )
     try:
         with clean_browser(request.node):
             yield WatchedBrowser(firefox)

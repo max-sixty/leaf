@@ -47,14 +47,12 @@ export default {
     "hooks/*.ts",
     "worker/{src/index,test/**/*}.ts",
     ".config/dependency-cruiser.mjs",
+    // A TypeScript module, whose imports name the JavaScript compiled beside it
+    // (build/typescript.mjs): knip follows those to read what each export serves, and
+    // the module itself to read which types it uses.
+    ...(await typescriptModules()),
   ],
-  // Knip reads the JavaScript compiled from a TypeScript module (build/typescript.mjs),
-  // the file an import names, in the module's place.
-  project: [
-    "**/*.{js,mjs,cjs,ts}",
-    "!**/vendor/**",
-    ...(await typescriptModules()).map((name) => `!${name}`),
-  ],
+  project: ["**/*.{js,mjs,cjs,ts}", "!**/vendor/**"],
   // Declarations generated per schema definition or bundle export, whichever a reader
   // selects.
   ignore: ["browser/types/{contract,lit,signals-core}.d.ts"],

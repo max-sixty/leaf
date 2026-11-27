@@ -1,3 +1,4 @@
+// Compiled from text-alignment.ts by build/typescript.mjs; edit that file.
 /* Lossless, language-aware alignment of whole-text states, which a block's inline
  * version comparison and any widget explaining how a text came to say what it says
  * share. Each caller renders the runs in its own surface. */
@@ -28,8 +29,6 @@ export const sentenceUnits = new Intl.Segmenter(undefined, {
 // widget that walks whole lines with jsdiff passes the same cap.
 export const MAX_EDIT_LENGTH = 1_000;
 
-/** @typedef {{kind: "same" | "delete" | "insert", text: string}} TextRun */
-/** @param {string} before @param {string} after @param {Intl.Segmenter} [units] @param {number} [maxEditLength] @returns {TextRun[]} */
 export function alignText(
   before,
   after,
@@ -40,7 +39,6 @@ export function alignText(
   const right = [...units.segment(after)].map((part) => part.segment);
   const changes = diffArrays(left, right, { maxEditLength });
   if (!changes) {
-    /** @type {TextRun[]} */
     const replaced = [
       { kind: "delete", text: before },
       { kind: "insert", text: after },
@@ -48,12 +46,10 @@ export function alignText(
     return replaced.filter((run) => run.text);
   }
   return changes
-    .map(
-      /** @returns {TextRun} */ (change) => ({
-        kind: change.added ? "insert" : change.removed ? "delete" : "same",
-        text: change.value.join(""),
-      }),
-    )
+    .map((change) => ({
+      kind: change.added ? "insert" : change.removed ? "delete" : "same",
+      text: change.value.join(""),
+    }))
     .filter((run) => run.text);
 }
 
@@ -61,12 +57,10 @@ export function alignText(
 // then refines a replaced sentence only where most of the old sentence survives. That
 // makes a local clause or word edit genuinely inline without letting incidental words
 // such as "the" shred two different sentences into alternating fragments.
-/** @param {string} before @param {string} after */
 export function alignInlineText(before, after) {
   const coarse = alignText(before, after, sentenceUnits)[Symbol.iterator]();
-  /** @type {TextRun[]} */
   const runs = [];
-  const push = (/** @type {TextRun} */ run) => {
+  const push = (run) => {
     const last = runs.at(-1);
     if (last?.kind === run.kind) last.text += run.text;
     else runs.push({ ...run });

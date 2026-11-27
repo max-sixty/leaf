@@ -1,3 +1,4 @@
+// Compiled from icon-paths.ts by build/typescript.mjs; edit that file.
 /* Leaf's icons: one table of 16px strokes (`ICONS`, keyed by icon name), the actions
    that show them (`ACTIONS`, keyed by action name, each with its symbol and the words
    its press says), and a plain DOM drawing of one. It imports nothing, so a pure model
@@ -12,7 +13,6 @@
 // weight and baseline stable across systems.
 const SEND = '<path d="M8 13V3M4 7l4-4 4 4"/>';
 
-/** @type {Record<string, string>} */
 const ICONS = {
   activity: '<circle cx="8" cy="8" r="3" fill="currentColor" stroke="none"/>',
   add: '<path d="M8 3v10M3 8h10"/>',
@@ -82,7 +82,6 @@ const ICONS = {
 
 const SVG = "http://www.w3.org/2000/svg";
 
-/** @param {string} icon */
 export const iconMarkup = (icon) => {
   const markup = ICONS[icon];
   if (!markup)
@@ -92,7 +91,6 @@ export const iconMarkup = (icon) => {
   return markup;
 };
 
-/** @param {string} icon @param {string} [className] */
 export function iconElement(icon, className = "lf-margin-entry-icon") {
   const svg = document.createElementNS(SVG, "svg");
   svg.setAttribute("viewBox", "0 0 16 16");
@@ -115,7 +113,6 @@ export function iconElement(icon, className = "lf-margin-entry-icon") {
 // Close's ✕, which keeps them: closing a card leaves an open rewrite's words in its
 // draft, and a draft's other ways out save. A reaction's removal took undo over ✕ for
 // the same reading (the user's choice, annotations/anchor-controls.js).
-/** @type {Record<string, {name: string, icon: string}>} */
 export const ACTIONS = {
   accept: { name: "Accept", icon: "check" },
   add: { name: "Add", icon: "add" },
@@ -181,7 +178,6 @@ export const ACTIONS = {
   "zoom-out": { name: "Zoom out", icon: "subtract" },
 };
 
-/** @param {string} action */
 const namedAction = (action) => {
   const named = ACTIONS[action];
   if (!named)
@@ -190,21 +186,18 @@ const namedAction = (action) => {
     );
   return named;
 };
-/** The symbol `action` shows. @param {string} action */
+/** The symbol `action` shows. */
 export const actionIcon = (action) => namedAction(action).icon;
-/** The name `action` says as its press's tooltip and accessible name. @param {string} action */
+/** The name `action` says as its press's tooltip and accessible name. */
 export const actionName = (action) => namedAction(action).name;
 
-/** The element that draws `action`'s symbol. @param {string} action @param {string} [className] */
+/** The element that draws `action`'s symbol. */
 export const actionElement = (action, className) =>
   iconElement(actionIcon(action), className);
 
-/**
- * Draws `action`'s symbol as `control`'s first child, and leaves one that already
+/** Draws `action`'s symbol as `control`'s first child, and leaves one that already
  * shows it, so a template's later renders write nothing and a control whose action
- * follows its state, as Expand all turns to Collapse all, swaps only the symbol.
- * @param {Element} control @param {string} action @param {string} [className]
- */
+ * follows its state, as Expand all turns to Collapse all, swaps only the symbol. */
 export function showAction(control, action, className = "lf-action-icon") {
   const icon = actionIcon(action);
   const drawn = control.querySelector(":scope > svg[data-lf-icon]");

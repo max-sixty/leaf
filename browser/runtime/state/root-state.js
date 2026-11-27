@@ -1,3 +1,4 @@
+// Compiled from root-state.ts by build/typescript.mjs; edit that file.
 /* Runtime ownership for attributes and inline styles on the document roots.
 
    Authored revisions may replace html and body attributes in place while the live
@@ -15,17 +16,13 @@
 
 // Bootstrap dresses sample roots before the module graph. Share those writers and
 // ownership registries with later runtime changes.
-/** @type {LeafRootState["setRuntimeRootAttribute"]} */
 export const setRuntimeRootAttribute = (...args) =>
   window.lfRootState.setRuntimeRootAttribute(...args);
-/** @type {LeafRootState["setRuntimeRootStyle"]} */
 export const setRuntimeRootStyle = (...args) =>
   window.lfRootState.setRuntimeRootStyle(...args);
-/** @type {LeafRootState["removeRuntimeRootStyle"]} */
 export const removeRuntimeRootStyle = (...args) =>
   window.lfRootState.removeRuntimeRootStyle(...args);
 
-/** @param {HTMLElement} root */
 export const runtimeRootState = (root) => ({
   attributes: window.lfRootState.attributes(root),
   styles: window.lfRootState.styles(root),

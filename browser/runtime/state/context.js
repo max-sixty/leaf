@@ -1,3 +1,4 @@
+// Compiled from context.ts by build/typescript.mjs; edit that file.
 /* Shared mechanical runtime context: which address this document is and how a server
    delivered it, the interactive export's payload, and read-only views of the semantic
    root. Accepted facts are never installed here independently of application
@@ -18,9 +19,7 @@ export const LIVE_ROOT = PAGE_PATH.endsWith("/");
 // address alike, and every page operation resolves against it. An interactive export
 // has no server and no link, so no root: the file is the page.
 export const PAGE_ROOT =
-  /** @type {HTMLLinkElement | null} */ (
-    document.querySelector('link[rel="canonical"][data-lf-runtime]')
-  )?.href ?? null;
+  document.querySelector('link[rel="canonical"][data-lf-runtime]')?.href ?? null;
 // How a server delivered this document: the runtime script it adds to every document it
 // serves (http.py) names the layer and release the document belongs to, the runtime it
 // runs where no release names one (`runtime_selection.py`), the probe its source
@@ -28,13 +27,9 @@ export const PAGE_ROOT =
 // no such script. Its own marker (`offlineMarker` below) shares `data-lf-entry`, the
 // seam a harness finds either delivery by, and `data-lf-layer`, the generation it was
 // captured at.
-const served = /** @type {HTMLScriptElement | null} */ (
-  document.querySelector("script[data-lf-runtime][data-lf-server]")
-);
-const offlineMarker = /** @type {HTMLScriptElement | null} */ (
-  document.querySelector(
-    'script[type="application/json"][data-lf-runtime][data-lf-offline]',
-  )
+const served = document.querySelector("script[data-lf-runtime][data-lf-server]");
+const offlineMarker = document.querySelector(
+  'script[type="application/json"][data-lf-runtime][data-lf-offline]',
 );
 export const DELIVERY = Object.freeze({
   layer: (served ?? offlineMarker)?.dataset.lfLayer,
@@ -49,9 +44,7 @@ export const WEBSITE_DELIVERY = DELIVERY.release !== undefined;
 // revisions that differ only in their document; the registry probe may instead name
 // the mutable page root so startup can detect a newer layer. Empty where nothing
 // declared an entry.
-/** @param {Document | DocumentFragment | Element} doc */
 export const layerRoot = (doc) => {
-  /** @type {HTMLScriptElement | null} */
   const entry = doc.querySelector("script[data-lf-runtime][data-lf-entry]");
   return entry?.dataset.lfEntry?.replace(/leaf\.js$/, "") ?? "";
 };
@@ -59,7 +52,6 @@ export const layerRoot = (doc) => {
 // Samples and the public website have no share address. Preserve the current
 // version path, query and passage while taking access from the transport's URL.
 export const SHARE_ROOT = served?.dataset.lfShareUrl;
-/** @param {string} root */
 export function shareUrl(root) {
   const url = new URL(root);
   url.pathname = location.pathname;
@@ -73,7 +65,6 @@ export function shareUrl(root) {
 // Code may be shared by several documents, including a sample and its parent.
 // Page operations belong to the document's declared root, never to the module's asset
 // URL.
-/** @param {string} path */
 export const pageUrl = (path) => new URL(path, PAGE_ROOT ?? undefined).href;
 
 const offlinePayload = offlineMarker
@@ -81,11 +72,9 @@ const offlinePayload = offlineMarker
   : null;
 // This declaration participates in executable identity: changing it replaces this
 // document realm rather than switching initialized physical owners in place.
-/** @typedef {import("../../types/contract.js").AuthoredAllocations} Allocations */
-/** A page-wide allocation `body` states (`$authored`), or null where it states none.
- * @template {keyof Allocations} A @param {A} name @returns {Allocations[A] | null} */
-const allocation = (name) => /** @type {any} */ (document.body.getAttribute(name));
-/** @type {Allocations["data-annotations"]} */
+
+/** A page-wide allocation `body` states (`$authored`), or null where it states none. */
+const allocation = (name) => document.body.getAttribute(name);
 export const annotationMode = allocation("data-annotations") ?? "overlay";
 
 export const offlineInteractive = offlinePayload !== null;
@@ -99,22 +88,18 @@ export const offlineState = async () => {
   const state = structuredClone(offlinePayload.state);
   const { body } = await fetch(offlinePayload.data);
   const values = await new Response(
-    /** @type {ReadableStream<BufferSource>} */ (body).pipeThrough(
-      new globalThis.DecompressionStream("gzip"),
-    ),
+    body.pipeThrough(new globalThis.DecompressionStream("gzip")),
   ).json();
   for (const [source, value] of Object.entries(values))
     state.data.sources[source].value = value;
   return state;
 };
-/** @param {string} path */
 export const runtimeModule = (path) =>
   offlineInteractive ? `leaf:${path.startsWith("/") ? path : `/${path}`}` : path;
 // A layer file by its rooted path in the page directory (`/icon.svg`,
 // `/widgets/lf-tabs.js`), at the address this document's layer is served from
 // (`layerRoot`); a document nothing declared one for takes the layer at its own root.
 const servedLayerRoot = layerRoot(document);
-/** @param {string} path */
 export const runtimeResource = (path) => {
   if (!offlineInteractive)
     return servedLayerRoot
@@ -194,7 +179,6 @@ export const runtime = {
   get reading() {
     return part.reading();
   },
-  /** @type {string | null} */
   sessionReference: null,
   // Whether the server's latest answer refused this tab's key (`transport/layer-client.js`).
   keyRefused: false,
@@ -202,8 +186,7 @@ export const runtime = {
     return part.state();
   },
   // The layer's `registry.json`, which fills this once it loads (registry.js).
-  registry:
-    /** @type {import("./semantic-application.js").SemanticDocument["registry"] & Record<string, any>} */ ({}),
+  registry: {},
   get statePhase() {
     return part.phase();
   },
@@ -232,5 +215,4 @@ export const runtime = {
   },
 };
 
-/** @param {number} revision */
 export const revisionLabel = (revision) => part.revisionLabels()?.[revision];

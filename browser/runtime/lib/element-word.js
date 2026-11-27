@@ -1,8 +1,8 @@
+// Compiled from element-word.ts by build/typescript.mjs; edit that file.
 /* The word for an element's kind, as a reader would call it: a paragraph, a table, a
    figure, or the word a widget gives its own kind. It reads the element alone, so
    every surface that names a kind of element says the same word for it. */
 
-/** @type {Record<string, string>} */
 const HTML_WORDS = {
   input: "control",
   select: "control",
@@ -38,8 +38,7 @@ const SVG = "http://www.w3.org/2000/svg";
 
 /** The word for `addressable`'s kind: a widget's own word (`widgetWord`), else the
  * word for its HTML element, a `<pre>` holding a `<code>` being code, else its tag;
- * "" for no element.
- * @param {Element | null | undefined} addressable */
+ * "" for no element. */
 export function addressableWord(addressable) {
   if (!addressable) return "";
   if (addressable.namespaceURI === SVG) return "figure";
@@ -55,7 +54,6 @@ export function addressableWord(addressable) {
 // its author writes in markup or the widget that owns it writes as it builds, as a
 // playground does on each preset; else what its module answers from `lfWord()` where
 // `element` is drawn and has the method; else its tag without the `lf-` prefix.
-/** @param {string} tag @param {Element | null} [element] */
 export function widgetWord(tag, element = null) {
   return (
     element?.getAttribute("aria-roledescription")?.trim() ||

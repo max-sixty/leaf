@@ -201,6 +201,13 @@ test("checking stale output refuses it without changing any bytes", async (conte
   );
   await assert.rejects(checkOutputs(outputs, scratch), new RegExp(compiled));
   await rm(path.join(scratch, compiled));
+  // A compiled module edited apart from its TypeScript asks for the edit in the .ts.
+  const edited = "browser/runtime/state/tab-store.js";
+  await writeFile(path.join(scratch, edited), `${outputs.get(edited)}// edited\n`);
+  await assert.rejects(
+    checkOutputs(outputs, scratch),
+    /Move any change made in the \.js.*\n.*state\/tab-store\.js/s,
+  );
 });
 
 test("an upstream adaptation fails the build once its seam or its module moves", async () => {

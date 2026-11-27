@@ -1,3 +1,4 @@
+// Compiled from storage.ts by build/typescript.mjs; edit that file.
 /* Browser state has one backing policy, selected by prepaint and shared
  * by bootstrap and the runtime. Isolated samples keep stores inside their disposable realm; ordinary
  * documents use native scoped storage, whose refusal never prevents reading. */
@@ -55,9 +56,7 @@ export const userStore = window.lfStorage.userStore;
 // `values`, else null, as a store that refuses reads, so the caller's default stands.
 // Another tab may change it, so its version catches up by reading the store again, and
 // a reading kept from it (kept.js) is made again when the choice changes.
-/** @template {string} T @param {string} key @param {readonly T[]} values */
 export const userChoice = (key, values) => {
-  /** @type {T | null} */
   let chosen = null;
   const catchUp = () => {
     const value = userStore.get(key);
@@ -73,6 +72,6 @@ export const userChoice = (key, values) => {
       choice.read();
       return chosen;
     },
-    write: (/** @type {T | null} */ value) => userStore.set(key, value),
+    write: (value) => userStore.set(key, value),
   });
 };

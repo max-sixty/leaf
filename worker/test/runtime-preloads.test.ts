@@ -15,7 +15,8 @@ import {
 it("an arriving widget scope requires its own upgrade while template contents stay inert", async () => {
   const window = new Window();
   try {
-    const scope = window.document.createElement("lf-arrival");
+    // happy-dom's element, which the runtime reads as the DOM's.
+    const scope = window.document.createElement("lf-arrival") as unknown as Element;
     scope.innerHTML =
       "<p>Prose</p><table></table><lf-unregistered></lf-unregistered><template><lf-unused></lf-unused></template>";
     const registry = {

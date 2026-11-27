@@ -103,6 +103,11 @@ export async function typescriptOutputs(directory = root) {
   return outputs;
 }
 
+/** Whether `code`, the module `name`, is one this build compiled: its first line names
+ * the TypeScript beside it. */
+export const compiledModule = (name, code) =>
+  String(code).startsWith(banner(name.replace(/\.js$/, ".ts")));
+
 /** Every compiled module in `directory` that `outputs` doesn't hold: each `.js` whose
  * first line names the TypeScript it was compiled from, once that source is gone. */
 export async function staleCompiledModules(outputs, directory = root) {
@@ -110,9 +115,7 @@ export async function staleCompiledModules(outputs, directory = root) {
   for (const name of await modulesEndingWith(".js", directory))
     if (
       !outputs.has(name) &&
-      (await readFile(path.join(directory, name), "utf8")).startsWith(
-        banner(name.replace(/\.js$/, ".ts")),
-      )
+      compiledModule(name, await readFile(path.join(directory, name), "utf8"))
     )
       stale.push(name);
   return stale;

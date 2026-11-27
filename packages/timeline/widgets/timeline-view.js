@@ -112,6 +112,7 @@ export function timelineModel(host) {
     events,
     steps,
     problems,
+    start: host.getAttribute("start"),
     duration: Math.max(1, ...events.map((event) => event.end ?? event.at)),
   };
 }
@@ -146,7 +147,13 @@ export function timelineLayout(model, width, font) {
       placed.set(label.id, { place: label.place, row: rowOf.get(label.id) });
     return 1 + Math.max(0, ...rowOf.values());
   });
-  const axis = timeAxis(0, model.duration, model.duration, span / model.duration);
+  const axis = timeAxis(
+    0,
+    model.duration,
+    model.duration,
+    span / model.duration,
+    model.start,
+  );
   return { rows, placed, axis };
 }
 
@@ -226,7 +233,7 @@ export function render(host, current, model, layout) {
   /** @type {(TimelineRun | null)[]} */
   const columns = model.runs.length ? model.runs : [null];
   const position = model.steps.length
-    ? `Step ${current + 1} of ${model.steps.length} · ${elapsed(now)}`
+    ? `Step ${current + 1} of ${model.steps.length} · ${elapsed(now, model.start)}`
     : "No events";
   return html`<div class="lf-timeline-view" data-lf-gen="1">
     <div
@@ -342,7 +349,7 @@ export function render(host, current, model, layout) {
               .lfPreview=${stepPreview(step)}
             >
               <span class="lf-timeline-step-time lf-row-lead"
-                >${elapsed(step.time)}</span
+                >${elapsed(step.time, model.start)}</span
               >
               ${columns.map((run, column) => {
                 const events = step.events.filter((event) => event.lane.run === run);

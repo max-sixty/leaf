@@ -6,6 +6,10 @@
         "aria-label": {
           "type": "string",
           "minLength": 1
+        },
+        "start": {
+          "type": "string",
+          "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}(:[0-9]{2}(\\.[0-9]+)?)?(Z|[+-][0-9]{2}:[0-9]{2})?$"
         }
       },
       "required": ["id", "aria-label"]
@@ -14,7 +18,7 @@
     "visual": {
       "prefixes": ["event:"]
     },
-    "instructions": "Write one `lf-lane` per actor, in the order the reader should scan them, and in each an `lf-event` per thing that happened to it. `at` is the event's time in milliseconds from the sequence's start; add `end` for an event with duration, such as work in progress, and leave it out for an instant. Previous and Next visit events in start order: events with the same `at` share one step, and a span's end is not a step, so model a moment the reader must stop at, such as a write landing, as its own instant. A lane or run may give a short form of its `label` in `abbr`, such as `abbr=\"L\"` for a lane labelled \"Line fork\": the step list under the chart shows the short form and previews the label to a reader pointing at it, while the chart and listeners keep the label. Keep each event's `label` to a short clause, since the prose around the widget carries the explanation; the widget lays labels out so that none overlaps a bar, another label or the playhead. Give every event a page-unique `id`: it is the event's comment target.",
+    "instructions": "Write one `lf-lane` per actor, in the order the reader should scan them, and in each an `lf-event` per thing that happened to it. `at` is the event's time in milliseconds from the sequence's start; add `end` for an event with duration, such as work in progress, and leave it out for an instant. Times read as elapsed from the start, such as \"1 h 30 min\"; for a sequence the reader knows by clock time, such as an incident or an afternoon's session, give the clock time of `at=\"0\"` as an ISO date-time in `start`, such as `start=\"2026-11-25T12:56\"`, and the axis, the step list and the position line read as times of day, such as \"15:46\", on the clock `start` is written in. Previous and Next visit events in start order: events with the same `at` share one step, and a span's end is not a step, so model a moment the reader must stop at, such as a write landing, as its own instant. A lane or run may give a short form of its `label` in `abbr`, such as `abbr=\"L\"` for a lane labelled \"Line fork\": the step list under the chart shows the short form and previews the label to a reader pointing at it, while the chart and listeners keep the label. Keep each event's `label` to a short clause, since the prose around the widget carries the explanation; the widget lays labels out so that none overlaps a bar, another label or the playhead. Give every event a page-unique `id`: it is the event's comment target.",
     "example": "<lf-timeline id=\"deploy-order\" aria-label=\"Deploy order\"><lf-lane label=\"Build\"><lf-event id=\"deploy-compile\" at=\"0\" end=\"4000\" label=\"Compile\"></lf-event><lf-event id=\"deploy-artifact\" at=\"4000\" label=\"Artifact ready\"></lf-event></lf-lane><lf-lane label=\"Release\"><lf-event id=\"deploy-rollout\" at=\"4500\" end=\"9000\" label=\"Roll out\"></lf-event></lf-lane></lf-timeline>"
   },
   "lf-lane": {

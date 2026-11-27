@@ -23,7 +23,8 @@ services (`/runtime/widget-services.js`). Leaf is moving its own widgets to Effe
 components.
 
 Whatever a package leans on Leaf for is one of these kinds, and each kind has its own
-form, or one for each way of writing the widget. Find a need's kind, then read the section that describes its form:
+form, or one for each way of writing the widget. Find a need's kind, then read the
+section that describes its form:
 
 | A package leans on Leaf for                    | The form it takes                                     | Described in                                 |
 | ---------------------------------------------- | ----------------------------------------------------- | -------------------------------------------- |

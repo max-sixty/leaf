@@ -438,6 +438,47 @@ def test_a_header_above_a_contents_map_keeps_the_map_below_it(
     assert gap >= 0, gap
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_contents_map_stays_fixed_beside_what_extensions_append(
+    request, serve, engine
+):
+    """After `main`, only a footer unpins the contents map's fixed track. An element a
+    browser extension appends to the body, as password managers do, leaves the track
+    fixed, so the rubber band past either end still slides the page under the map."""
+    regions = (
+        '<aside><div class="layout-track" id="track"><lf-toc id="contents"></lf-toc>'
+        '</div></aside><div class="layout-column">'
+        + "".join(
+            f'<h2 id="part-{n}">Part {n}</h2>'
+            + "".join(f"<p>Paragraph {k} of part {n}.</p>" for k in range(20))
+            for n in range(3)
+        )
+        + "</div>"
+    )
+    source = leaf_page("map beside appended elements", regions, layout="sidebar")
+    page = open_page(request.getfixturevalue(engine), serve(source))
+    resized(page, 1400, 900)
+    positions = page.evaluate("""async () => {
+      const track = document.getElementById('track');
+      const beside = async (node) => {
+        if (node) document.body.append(node);
+        await new Promise(requestAnimationFrame);
+        const position = getComputedStyle(track).position;
+        node?.remove();
+        return position;
+      };
+      const extension = document.createElement('div');
+      extension.setAttribute('aria-live', 'polite');
+      return {alone: await beside(null), extension: await beside(extension),
+              footer: await beside(document.createElement('footer'))};
+    }""")
+    assert positions == {
+        "alone": "fixed",
+        "extension": "fixed",
+        "footer": "sticky",
+    }, positions
+
+
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
 def test_annotations_read_the_native_prose_track_with_authored_geometry(
     browser, serve, direction

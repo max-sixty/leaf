@@ -147,7 +147,7 @@ let seq = 0;
 customElements.define(
   "lf-diagram",
   class extends HTMLElement {
-    /** @type {Map<string, {element: Element, label: string, surface: Element | null}>} */
+    /** @type {Map<string, {element: Element, label: string}>} */
     visualParts = new Map();
     lfParts = {
       read: () => [...this.visualParts].map(([id, part]) => ({ id, ...part })),
@@ -262,18 +262,13 @@ customElements.define(
       nameWithoutTooltip(this.querySelector(":scope > svg"));
       this.style.setProperty("--lf-diagram-height", `${height}px`);
       this.style.setProperty("--lf-diagram-padding", `${drawingPadding}px`);
-      // A class or an entity says its members too, so its name is its label. A box
-      // Pele draws other named boxes inside, as a kanban column holds its cards, is
-      // marked on its own frame, the shape it draws first, and the boxes keep theirs.
+      // A class or an entity says its members too, so its name is its label.
       const named = ["class", "er"].includes(model.type);
       const visualParts = new Map();
       for (const [key, element] of namedParts(model, this)) {
         const id = element.getAttribute("data-id") ?? "";
         const label = (!named && wordsOf(element)) || id;
-        const surface = element.querySelector(NAMED)
-          ? element.querySelector(":scope > :is(rect, path, polygon, circle, ellipse)")
-          : null;
-        visualParts.set(key, { element, label, surface });
+        visualParts.set(key, { element, label });
       }
       this.visualParts = visualParts;
       this.classList.toggle("lf-rendered", true);

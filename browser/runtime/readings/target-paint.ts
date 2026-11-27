@@ -13,7 +13,13 @@
 import { nextRender } from "../lib/frame-pass.js";
 import { move } from "../dom/dom-move.js";
 import { keeps, keepsOnEach } from "../lib/keeps.js";
-import { inkedBox, markedBox, readMarkRoom, shownParts } from "../dom/geometry.js";
+import {
+  inkedBox,
+  markedBox,
+  markedParts,
+  readMarkRoom,
+  shownParts,
+} from "../dom/geometry.js";
 import { renderedUnder } from "../lib/shadow-tree.js";
 import { RUNTIME_PAINT_ATTRIBUTE } from "../base/page-paint.js";
 import { paintStand, placement, standAt, standBox } from "./target-paint-geometry.js";
@@ -22,13 +28,13 @@ import type { Placement } from "./target-paint-geometry.js";
 import type { Box } from "../base/box.js";
 
 // One mark: an attribute on what it marks at a time (base/page-paint.js), which is each box
-// the element shows through (`shownParts`), or the boxes `boxesOf` names, so an
+// the element's marks stand on (`markedParts`), or the boxes `boxesOf` names, so an
 // element with no box of its own, such as a section styled `display: contents`, is
 // marked on the boxes it shows. A layout change can replace those boxes, so `refresh`
 // reads them again.
 function markOne(
   attribute: string,
-  boxesOf: (element: Element) => Element[] = shownParts,
+  boxesOf: (element: Element) => Element[] = markedParts,
 ) {
   let target: Element | null = null;
   const paint = keepsOnEach(attribute);

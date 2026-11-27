@@ -301,7 +301,8 @@
 }
 /* A drawing's part, a shape or a group of them, takes the mark whole along the
    contour of each shape it draws, as that shape's stroke, so a diamond's mark follows
-   its sides: no outline, brackets, veil or gap. The stroke is important, as the
+   its sides: no outline, brackets, veil or gap. A part drawn in a frame takes it on
+   the frame alone (dom/geometry.js, `drawnFrame`). The stroke is important, as the
    outline is, so a drawing's own stroke rules leave the mark standing while it shows;
    its words keep their own.
    `svg` stands as an ancestor of its own, by which Chromium passes over these rules
@@ -318,7 +319,7 @@
   --lf-shape-ink: var(--lf-band-ink, var(--lf-ok));
   --lf-shape-w: var(--lf-band-w, var(--lf-focus-ring-w));
   outline-style: none !important;
-  clip-path: none;
+  clip-path: revert-layer;
   box-shadow: none;
 }
 :where(svg)

@@ -17,6 +17,7 @@
      `obligationActions.next` does. */
 import { Command, Effect, Layer, Schema } from "/vendor/effect-ui.js";
 import { obligationActions } from "./host/application.js";
+import { sendGesture } from "./lib/widget-events.js";
 
 /** What became of a recorded gesture. */
 const Delivery = Schema.Literals(["admitted", "refused", "unrecorded"]);
@@ -35,17 +36,13 @@ export class NextOnMe extends Command.Service()("leaf/NextOnMe", {
   args: { within: Schema.Unknown },
 }) {}
 
-/** Dispatch a protocol event on `element` and wait for what became of it.
- * @param {Element} element @param {"lf-action"} type
- * @param {Record<string, unknown>} detail */
-const send = (element, type, detail) =>
+/** Record a gesture on `element` and wait for what became of it.
+ * @param {Element} element @param {Record<string, unknown>} detail */
+const send = (element, detail) =>
   Effect.promise(async () => {
-    const event = /** @type {CustomEvent & {delivery?: Promise<unknown>}} */ (
-      new CustomEvent(type, { detail })
-    );
-    element.dispatchEvent(event);
-    if (!event.delivery) return /** @type {const} */ ("unrecorded");
-    return (await event.delivery) ? "admitted" : "refused";
+    const delivery = sendGesture(element, "lf-action", detail);
+    if (!delivery) return /** @type {const} */ ("unrecorded");
+    return (await delivery) ? "admitted" : "refused";
   });
 
 /** Leaf's services for the widget `element`.
@@ -53,7 +50,7 @@ const send = (element, type, detail) =>
 export const leafServices = (element) =>
   Layer.mergeAll(
     RecordAction.toLayer((/** @type {any} */ args) =>
-      send(element, "lf-action", stripUndefined(args)),
+      send(element, stripUndefined(args)),
     ),
     NextOnMe.toLayer((/** @type {any} */ { within }) =>
       Effect.sync(() => obligationActions.next({ within })),

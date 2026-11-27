@@ -156,6 +156,13 @@
   .lf-fab-bar[data-lf-margin-raised] {
     display: none;
   }
+  /* The comment box stands just under the card Send turns it into, over the margin rows
+     it covers (comment-placement.js, `place-beside`), the one raised at the user's
+     location included. A box on a target inside the chrome stands above the chrome, as
+     that target's paint does (chrome.css). */
+  .lf-fab-bar:not([data-lf-paint-plane="chrome"]) {
+    z-index: calc(var(--lf-z-margin-preview) - 1);
+  }
   /* A floating surface anchored in the page's plane (floating.js) shows wherever its
      placement puts it, its anchor scrolled away or not. */
   :is(.lf-fab-bar, .lf-margin-preview) {

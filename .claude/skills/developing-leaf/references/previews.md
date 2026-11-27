@@ -12,7 +12,8 @@ URL and comments. A plain preview starts fresh on restart.
 
 Drive only plain previews, since every click this session drives on a `--user`
 preview arrives as an unanswered update, and start a `--user` preview only from the
-session the user talks to. Don't close a preview to quiet the loop; `page close` ends
+session the user talks to, linked from the page you talk to them on (`SKILL.md`, "Run
+`leaf`"). Don't close a preview to quiet the loop; `page close` ends
 the agent's side of the page, which the panel shows as Page closed.
 
 For finite checks, prefer `leaf-dev probe` or `stills`, which close their servers when

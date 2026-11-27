@@ -28,6 +28,12 @@ A command goes to the Leaf that owns what it acts on (`src/leaf/session-lifetime
   session, as a dev server of any project would: it serves a page unclaimed,
   `leaf-dev preview --user` included, and `<root>/bin/leaf wait PAGE` hears it.
 
+So serve the user the page you talk to them on as a session in any other project
+would, through the session's own `leaf`, even when its subject is a change to Leaf.
+A checkout preview reaches the user as a link from that page, for trying a runtime
+change, as a dev server's URL would. Only the session's own pages reach its hooks,
+such as Leaf's line above Claude Code's prompt.
+
 ## Read the owning contract
 
 A contract shared across modules or runtimes lives in a reference beside the Python

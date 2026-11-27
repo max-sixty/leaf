@@ -660,12 +660,12 @@ test("a surface with no subject keeps the room's gap, not a mark's", async () =>
   assert.equal(answer.y, boundary.top + 8);
 });
 
-test("a surface widens with its words right of its subject, or under words that leave it its width", async () => {
+test("a surface stands by the edge facing its subject, or the end of its place nearer it", async () => {
   const ui = await import("/vendor/floating-ui.esm.js");
   const platform = windowPlatform(() => ({ width: 320, height: 120 }));
-  // The side a surface on `clear` takes, quoting words that start at `column`, and
-  // whether its fit is told it may widen with its words there.
-  const starts = async (clear, column = null) => {
+  // The side a surface on `clear` takes, quoting words that start at `column`, the
+  // inline edge it is held by and widens away from, and where its left edge lands.
+  const stands = async (clear, column = null) => {
     const surface = commentPlacement();
     const seat = surface.choose({
       clear,
@@ -676,37 +676,131 @@ test("a surface widens with its words right of its subject, or under words that 
       scroller: scroller(100),
       coarse: false,
     });
-    let widens = null;
     const { reference, placement, middleware } = seat.options(ui, {
       clear,
       room: paragraph,
       row: clear?.top ?? boundary.top,
       column,
       boundary,
-      fit(room) {
-        ({ widens } = room);
-      },
+      fit() {},
     });
-    await ui.computePosition(
+    const answer = await ui.computePosition(
       { getBoundingClientRect: () => reference },
       document.body,
       { placement, middleware, platform, strategy: "fixed" },
     );
-    return [seat.side, widens];
+    return [seat.side, surface.capture().holds, Math.round(answer.x)];
   };
-  assert.deepEqual(await starts(block(300, 656, 300, 500)), ["right", true]);
-  // Left of its words it holds the edge beside them, and starts at its far end.
-  assert.deepEqual(await starts(block(400, 880, 300, 500)), ["left", false]);
+  assert.deepEqual((await stands(block(300, 656, 300, 500))).slice(0, 2), [
+    "right",
+    "left",
+  ]);
+  // Left of its words it holds the edge beside them.
+  assert.deepEqual((await stands(block(400, 880, 300, 500))).slice(0, 2), [
+    "left",
+    "right",
+  ]);
+  // Under or over, its place is the measure's 592px from the quoted words, or from
+  // 700, where the measure meets the room's right edge at 1292.
   const wide = block(40, 1240, 500, 700);
-  // Words 100px in leave the measure its 592px, so the surface starts at them.
-  assert.deepEqual(await starts(wide, 100), ["bottom", true]);
-  // Words 900px in would carry the measure past the room's edge, so it starts left of
-  // them.
-  assert.deepEqual(await starts(wide, 900), ["bottom", false]);
+  assert.deepEqual(await stands(wide, 100), ["bottom", "left", 100]);
+  // Words 200px into that place are nearer its start, so it stands there and still
+  // reaches them.
+  assert.deepEqual(await stands(wide, 900), ["bottom", "left", 700]);
+  // Words 400px in are nearer its end: it stands against the room's edge.
+  assert.deepEqual(await stands(wide, 1100), ["bottom", "right", 972]);
   // On the whole paragraph it ends at the paragraph's right edge.
-  assert.deepEqual(await starts(wide), ["bottom", false]);
+  assert.deepEqual(await stands(wide), ["bottom", "right", 960]);
   // With nothing to stand by, it starts at the room's edge.
-  assert.deepEqual(await starts(null), ["bottom", true]);
+  assert.deepEqual(await stands(null), ["bottom", "left", 8]);
+});
+
+test("the card Send opens holds the edge its comment box held", async () => {
+  const ui = await import("/vendor/floating-ui.esm.js");
+  const platform = windowPlatform(() => ({ width: 320, height: 120 }));
+  const wide = block(40, 1240, 500, 700);
+  // The box stood by its right edge, 1092px in, with its quoted words 200px further
+  // left than where it was placed. The same task's sideways scroll carried the words to
+  // 900px, nearer their place's start, where a fresh choice would hold the left edge
+  // at 700px, and the place's right end stands at the room's edge, 1292px.
+  const card = commentPlacement();
+  card.adopt({
+    box: new DOMRect(772, 716, 320, 120),
+    placement: { side: "bottom", boundary: boundary.key, moved: false, holds: "right" },
+  });
+  const seat = card.choose({
+    clear: wide,
+    room: paragraph,
+    column: 900,
+    boundary,
+    element: subject,
+    scroller: scroller(100),
+    coarse: false,
+  });
+  const { reference, placement, middleware } = seat.options(ui, {
+    clear: wide,
+    room: paragraph,
+    row: wide.top,
+    column: 900,
+    boundary,
+    fit() {},
+  });
+  const answer = await ui.computePosition(
+    { getBoundingClientRect: () => reference },
+    document.body,
+    { placement, middleware, platform, strategy: "fixed" },
+  );
+  assert.equal(card.capture().holds, "right");
+  assert.equal(Math.round(answer.x), 772);
+});
+
+test("a carried surface whose words scrolled past the room is no wider than the room", async () => {
+  const ui = await import("/vendor/floating-ui.esm.js");
+  const platform = windowPlatform(() => ({ width: 320, height: 120 }));
+  const wide = block(40, 1240, 500, 700);
+  // Dropped 400px left of words 900px in, which a sideways scroll then carried 1200px
+  // further left, past the room's left edge.
+  const surface = commentPlacement();
+  surface.adopt({
+    box: new DOMRect(500, 716, 320, 120),
+    placement: { side: "bottom", boundary: boundary.key, moved: true, holds: "left" },
+  });
+  surface.choose({
+    clear: wide,
+    room: paragraph,
+    column: 900,
+    boundary,
+    element: subject,
+    scroller: scroller(100),
+    coarse: false,
+  });
+  const seat = surface.choose({
+    clear: wide,
+    room: paragraph,
+    column: -300,
+    boundary,
+    element: subject,
+    scroller: scroller(100),
+    coarse: false,
+  });
+  let width = null;
+  const { reference, placement, middleware } = seat.options(ui, {
+    clear: wide,
+    room: paragraph,
+    row: wide.top,
+    column: -300,
+    boundary,
+    fit(room) {
+      ({ width } = room);
+    },
+  });
+  await ui.computePosition({ getBoundingClientRect: () => reference }, document.body, {
+    placement,
+    middleware,
+    platform,
+    strategy: "fixed",
+  });
+  assert.ok(width !== null && width <= boundary.width, String(width));
 });
 
 test("chrome beside a card's columns leaves it the window's height", async () => {

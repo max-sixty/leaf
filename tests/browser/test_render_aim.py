@@ -1648,10 +1648,10 @@ def test_a_comment_rechooses_after_target_width_reflow(browser, serve):
 
 
 def test_a_draft_below_its_passage_keeps_its_lane_whatever_it_holds(browser, serve):
-    """Above or below a passage the field starts where the compact control would, ended
-    on the passage's right edge. The bar's first measured width is the draft's, so a
-    start taken from it put a restored draft further left, in a wider lane, than the
-    same draft typed into an empty field."""
+    """Above or below a passage the field stands by the passage's right edge, where
+    the compact control ends. The bar's first measured width is the draft's, so a place
+    taken from it put a restored draft further left, in a wider lane, than the same
+    draft typed into an empty field."""
     page = open_page(
         browser,
         serve(named_source("release-notes")),
@@ -1665,10 +1665,10 @@ def test_a_draft_below_its_passage_keeps_its_lane_whatever_it_holds(browser, ser
     rendered(page)
     placement = bar.get_attribute("data-lf-placement")
     assert placement in {"top-start", "bottom-start"}, placement
-    empty = bar.bounding_box()
     draft = "A draft long enough that its own width would widen the bar it opens in."
     write(field, draft)
     rendered(page)
+    typed = bar.bounding_box()
 
     page.reload()
     wait_until_ready(page)
@@ -1676,7 +1676,8 @@ def test_a_draft_below_its_passage_keeps_its_lane_whatever_it_holds(browser, ser
     assert bar.get_attribute("data-lf-placement") in {"top-start", "bottom-start"}
     rendered(page)
     restored = bar.bounding_box()
-    assert abs(restored["x"] - empty["x"]) <= 1, (empty, restored)
+    assert restored["x"] == pytest.approx(typed["x"], abs=1), (typed, restored)
+    assert restored["width"] == pytest.approx(typed["width"], abs=1), (typed, restored)
 
 
 # A transform on the target itself and one on a box around it; how a transform reaches

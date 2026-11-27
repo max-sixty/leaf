@@ -323,10 +323,15 @@ lf-text-document iframe.lf-text-document-preview {
       &:not([data-lf-all]) > lf-tabs > lf-tab:has(> .lf-text-document-listing) {
         block-size: min(var(--lf-preview-block), var(--lf-bound, 28rem));
       }
-      &[data-lf-all] > lf-tabs > lf-tab,
-      &[data-lf-all] > .lf-text-document-listing > pre {
+      &[data-lf-all] > lf-tabs > lf-tab {
         max-block-size: none;
         overflow: visible;
+      }
+      /* A whole listing scrolls only sideways, as a code block does (reading.css,
+         `pre`), which keeps the room under its last line inside its box. */
+      &[data-lf-all] > .lf-text-document-listing > pre {
+        max-block-size: none;
+        overflow-y: hidden;
       }
       & > .lf-text-document-foot:not([hidden]) {
         display: block;

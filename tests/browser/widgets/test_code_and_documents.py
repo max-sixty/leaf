@@ -251,8 +251,8 @@ def test_a_document_longer_than_its_bound_scrolls_and_shows_whole_on_a_press(
 
 
 def test_a_short_document_takes_its_text_s_height(browser, serve):
-    """A document shorter than its bound takes its text's height, with no room under
-    its last line and no press."""
+    """A document shorter than its bound takes its text's height, with no press: under
+    its last line stands only the room every code block keeps for a scrollbar."""
     url = serve(
         leaf_page(
             "Short file",
@@ -265,9 +265,10 @@ def test_a_short_document_takes_its_text_s_height(browser, serve):
     listing = page.locator("#config .lf-text-document-listing > pre")
     rows = listing.evaluate(
         "pre => [pre.getBoundingClientRect().height, "
-        "pre.querySelector('code').getBoundingClientRect().height]"
+        "pre.querySelector('code').getBoundingClientRect().height, "
+        "parseFloat(getComputedStyle(pre).getPropertyValue('--lf-text-scroll-clearance'))]"
     )
-    assert rows[0] == pytest.approx(rows[1], abs=1), rows
+    assert rows[0] == pytest.approx(rows[1] + rows[2], abs=1), rows
     expect(page.get_by_role("button", name=re.compile("^Show all"))).to_have_count(0)
 
 
@@ -490,6 +491,8 @@ def test_document_readings_share_one_height_keep_their_scroll_and_fit_their_text
     else:
         expect(frame.get_by_role("heading", name="Short document")).to_be_visible()
         assert page.evaluate(geometry) == before
+    # The press goes once the preview it measures has drawn at its new height.
+    rendered(page)
     after = page.evaluate(geometry)
     source_tab.click()
     expect(source_panel).to_be_visible()

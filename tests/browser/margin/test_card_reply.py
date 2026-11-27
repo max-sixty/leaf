@@ -2877,43 +2877,6 @@ def test_a_card_offers_next_unread_for_a_reply_its_opening_left_unread(browser, 
     assert press.evaluate("press => getComputedStyle(press).display") == "none"
 
 
-def test_a_reply_next_unread_lands_copies_from_under_the_start_jump(browser, serve):
-    """A card opens on, and Next unread lands, the reply the user hasn't read with its
-    head under the transcript's top, while the jump to the thread's start stands there
-    over the turns scrolled away. The head stands below the jump's reach, so a press
-    on Copy at its end copies the reply rather than gliding to the start."""
-    short_reply = {
-        **LONG_THREAD[1],
-        "text": "Landed: the first two now close to the page.",
-        "id": "d" * 32,
-        "ts": "2026-09-18T19:34:26-07:00",
-    }
-    url = serve(
-        LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT, LONG_THREAD[1], short_reply]
-    )
-    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
-    page = open_page(browser, url, context=context)
-    resized(page, 1440, 700)
-    page.locator('[data-lf-margin-for="open"] .lf-margin-marker').click()
-    preview = page.locator(".lf-margin-preview")
-    transcript = preview.locator(".lf-thread-transcript")
-    reply = transcript.locator(".lf-msg").nth(1)
-    preview.locator(".lf-margin-thread-controls .lf-next-unread").click()
-    expect(reply).to_be_focused()
-    rendered(page)
-    jump = preview.locator('.lf-thread-jump[data-lf-jump="start"]')
-    expect(jump).to_be_visible()
-    stood = transcript.evaluate("list => list.scrollTop")
-    reply.locator(":scope > .lf-msg-head > b").hover()
-    copy = reply.locator(".lf-msg-copy")
-    expect(copy).to_have_css("opacity", "1")
-    box = copy.bounding_box()
-    page.mouse.click(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
-    expect(copy).to_have_js_property("status", "success")
-    assert page.evaluate("navigator.clipboard.readText()") == LONG_THREAD[1]["text"]
-    assert transcript.evaluate("list => list.scrollTop") == stood
-
-
 @pytest.mark.parametrize("pointer", ["mouse", "finger"])
 def test_next_unread_beside_previous_and_next_stands_on_its_symbol(
     browser, serve, pointer

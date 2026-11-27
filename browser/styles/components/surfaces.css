@@ -567,15 +567,6 @@ summary {
   /* The widest a news notice beside a message head's words stands, a primary
      reader's, in a message head or a part, so the head keeps its author and time. */
   --lf-news-width: 5rem;
-  /* How far below the top of a box scrolling a thread the jump to the thread's start
-     reaches (`.lf-thread-jump`, below): its inset, its face, and its reach past the
-     face. The box lands a turn below it (its `scroll-padding`), so the jump covers no
-     control at the end of the turn's head (records/thread/reply-landing.js,
-     `headLine`). */
-  --lf-thread-jump-room: calc(
-    var(--lf-sp-2) +
-      (var(--lf-mark-size) + max(var(--lf-mark-size), var(--lf-aim-floor))) / 2
-  );
 }
 .lf-thread-transcript {
   min-width: 0;

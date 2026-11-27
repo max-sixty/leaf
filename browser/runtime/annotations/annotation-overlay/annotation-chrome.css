@@ -621,7 +621,7 @@
   .lf-margin-thread .lf-thread-transcript {
     min-height: 1lh;
     overflow-y: auto;
-    scroll-padding-block: var(--lf-thread-jump-room) var(--lf-focus-ring-room);
+    scroll-padding-block: var(--lf-focus-ring-room);
     /* The turns fade out over 12px where they run on past the transcript's top, under
        the head line, as the floating panel's view fades a thread at its edges
        (floating-panel.css), and past its foot as every reading region does

@@ -1285,17 +1285,11 @@
      which fades what passes under it. */
   .lf-fp-view[data-lf-route="thread"] {
     --lf-fp-fade-end: 12px;
-    --lf-fp-view-pad-start: 10px;
     --lf-fp-view-pad-end: 10px;
     /* The room under the thread's last message, which with the view's padding makes
        a message's gap (surfaces.css) over the field, as over a next message. */
     --lf-fp-transcript-end: calc(var(--lf-msg-gap) - var(--lf-fp-view-pad-end));
-    padding-block: var(--lf-fp-view-pad-start) var(--lf-fp-view-pad-end);
-    /* A landing stands a turn's head clear of the start jump, which sticks inside the
-       padding (surfaces.css, `--lf-thread-jump-room`). */
-    scroll-padding-block-start: calc(
-      var(--lf-fp-view-pad-start) + var(--lf-thread-jump-room)
-    );
+    padding-block: 10px var(--lf-fp-view-pad-end);
     mask-image: linear-gradient(
       to bottom,
       transparent 0,

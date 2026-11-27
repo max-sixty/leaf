@@ -14,9 +14,6 @@
 
    - `state`, the reading Leaf sets on a widget whose tag declares `verbs`, as the
      `state` property every widget gets.
-   - Each property `options.properties` names, such as the `value` a registry input
-     names as its `property`, under its own name: a host sets it as it sets any
-     element's property, and each set gives the component new props.
    - What `options.inputs(element)` returns, called inside a signal effect, so a
      signal-backed reader it calls, such as `readObligations`, gives the component
      new props when it moves. The function reads the element's attributes too, and
@@ -43,7 +40,18 @@
    may have replaced the members they read, as `LeafElement` draws again then.
    `lfPatch` is the class's static `lfPatch` (module-authoring.md, "Revisions"). Moving
    the element keeps its root (`connectedMoveCallback`), and leaving the document
-   closes it a microtask later, as `defineElement`'s elements do. */
+   closes it a microtask later, as `defineElement`'s elements do.
+
+   A widget whose page module talks to the element itself names those properties:
+
+   - `options.properties` are props too, as `BrowserHost.defineElement`'s are: the
+     element keeps what the page sets, and a set gives the component new props. A
+     value the page set before the tag was defined counts, so either module may load
+     first.
+   - `options.members` read and write the component's Model: reading one gives what
+     its `get` reads off the Model, and setting one sends the root the message its
+     `set` returns. Out of the document a member reads the Model the closed root
+     ended with. */
 import {
   BrowserHost,
   Cause,
@@ -66,42 +74,61 @@ export const widgetProps = { state: Schema.optional(Schema.Unknown) };
 
 let mounts = 0;
 
+/** @typedef {{get?: (model: any) => unknown, set?: (value: any) => unknown}} Member */
+
 /**
  * Define `tag` as a widget that draws `component`.
  * @param {string} tag
- * @param {any} component an Effect UI HTML component whose props hold `state` and
- *   what `inputs` returns
- * @param {{shadow?: boolean, lfPatch?: "members", properties?: readonly string[], inputs?: (element: HTMLElement, reread: () => void) => Record<string, unknown>}} [options]
+ * @param {any} component an Effect UI HTML component whose props hold `state`, what
+ *   `inputs` returns and the `properties`
+ * @param {{shadow?: boolean, lfPatch?: "members",
+ *   inputs?: (element: HTMLElement, reread: () => void) => Record<string, unknown>,
+ *   properties?: readonly string[], members?: Record<string, Member>}} [options]
  */
 export function defineWidget(
   tag,
   component,
-  { shadow = false, lfPatch, properties = [], inputs } = {},
+  { shadow = false, lfPatch, inputs, properties = [], members = {} } = {},
 ) {
   const Widget = class extends HTMLElement {
-    /** @type {unknown} */
-    #state = undefined;
-    /** @type {Record<string, unknown>} */
-    #set = {};
-
     static {
       for (const name of properties)
         Object.defineProperty(this.prototype, name, {
-          configurable: true,
+          /** @this {InstanceType<typeof Widget>} */
           get() {
-            return this.#set[name];
+            return this.#properties[name];
           },
+          /** @this {InstanceType<typeof Widget>} @param {unknown} value */
           set(value) {
-            this.#set[name] = value;
+            this.#properties = { ...this.#properties, [name]: value };
             if (this.#root) this.#update();
             else this.#mount();
           },
         });
+      for (const [name, { get, set }] of Object.entries(members))
+        Object.defineProperty(this.prototype, name, {
+          /** @this {InstanceType<typeof Widget>} */
+          get() {
+            const model = this.#root?.model() ?? this.#ended;
+            return get && model !== undefined ? get(model) : undefined;
+          },
+          /** @this {InstanceType<typeof Widget>} @param {unknown} value */
+          set(value) {
+            if (set) this.#root?.send(set(value));
+          },
+        });
     }
+    /** @type {unknown} */
+    #state = undefined;
     /** @type {Record<string, unknown>} */
     #inputs = {};
-    /** @type {{setProps: (props: any) => void} | undefined} */
+    /** @type {Record<string, unknown>} */
+    #properties = {};
+    /** @type {{setProps: (props: any) => void, model: () => unknown, send: (message: any) => void} | undefined} */
     #root = undefined;
+    // The Model the last root ended with, which `members` read while none stands.
+    /** @type {unknown} */
+    #ended = undefined;
     /** @type {Scope.Closeable | undefined} */
     #scope = undefined;
     /** @type {HTMLElement | undefined} */
@@ -118,15 +145,20 @@ export function defineWidget(
 
     constructor() {
       super();
-      // A value set before the element upgraded shadows the accessor; it passes
-      // through it instead.
+      if (shadow) this.attachShadow({ mode: "open" });
+      // A page may set a property before this module defines the tag, which leaves an
+      // own property hiding the accessor. Its value moves into the props here, without
+      // the accessor's mount: an element upgraded in the document mounts from
+      // `connectedCallback`, once Leaf has answered `lf-connect`.
+      const own = /** @type {Record<string, unknown>} */ (
+        /** @type {unknown} */ (this)
+      );
       for (const name of properties)
         if (Object.hasOwn(this, name)) {
-          const value = /** @type {Record<string, unknown>} */ (this)[name];
-          delete (/** @type {Record<string, unknown>} */ (this)[name]);
-          this.#set[name] = value;
+          const value = own[name];
+          delete own[name];
+          this.#properties = { ...this.#properties, [name]: value };
         }
-      if (shadow) this.attachShadow({ mode: "open" });
       // A listener on a shadow host sees itself as the target of an event from inside
       // its root, so the element that connected is read off the path.
       this.addEventListener(CONNECT, (event) => {
@@ -166,6 +198,7 @@ export function defineWidget(
       queueMicrotask(() => {
         if (this.isConnected || !this.#scope) return;
         const scope = this.#scope;
+        this.#ended = this.#root?.model();
         this.#unwatch?.();
         this.#box?.remove();
         this.#root = this.#scope = this.#unwatch = this.#box = undefined;
@@ -192,7 +225,7 @@ export function defineWidget(
     }
 
     #props() {
-      return { ...this.#inputs, ...this.#set, state: this.#state };
+      return { ...this.#inputs, ...this.#properties, state: this.#state };
     }
 
     #mount() {

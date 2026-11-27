@@ -137,3 +137,17 @@ test("inputs that throw when a signal moves fail the widget, not the code that m
   assert.match(String(errors[0]), /cannot read/);
   el.remove();
 });
+
+test("a property the page set before the tag was defined is a prop once it upgrades", () => {
+  const tag = `lf-effect-${++tags}`;
+  const el = /** @type {HTMLElement & {note?: string}} */ (document.createElement(tag));
+  el.note = "early";
+  document.body.append(el);
+  defineWidget(tag, Verdict, { properties: ["note"] });
+  try {
+    assert.equal(el.querySelector(".note")?.textContent, "early");
+    assert.equal(Object.hasOwn(el, "note"), false);
+  } finally {
+    el.remove();
+  }
+});

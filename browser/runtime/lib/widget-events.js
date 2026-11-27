@@ -96,3 +96,18 @@ export const ANNOUNCE = "lf-announce";
 // stepping, as a chart's pointer takes its reader to another point, and Leaf's panel
 // stops saying the place.
 export const WALK = "lf-walk";
+
+// A gesture an element records (`lf-action`) or takes back (`lf-undo`): dispatched on
+// the element, it returns the `delivery` a Leaf page sets on the event, a promise of the
+// event the server admitted or of `null` where the server refused it, and `null` where
+// nothing recorded it (module-plain-elements.md, "`lf-action`").
+/** @param {Element} element @param {"lf-action" | "lf-undo"} type
+ *  @param {Record<string, unknown>} detail
+ *  @returns {Promise<unknown> | null} */
+export function sendGesture(element, type, detail) {
+  const event = /** @type {CustomEvent & {delivery?: Promise<unknown>}} */ (
+    new CustomEvent(type, { detail })
+  );
+  element.dispatchEvent(event);
+  return event.delivery ?? null;
+}

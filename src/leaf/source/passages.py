@@ -1,4 +1,4 @@
-"""Text-passage readings of authored HTML: the words an anchor points at
+"""Text-passage readings of authored HTML: the page's words as a reader reads them
 (`page_passages`), and the words that name an element (`element_name`)."""
 
 import re
@@ -19,27 +19,28 @@ from leaf.source.registry.contract import (
 from leaf.source.registry.kernel import kernel_passages
 from leaf.source.structure import VOID_TAGS, SourceDocument, pre_body
 
-# ---------- passages: the text an anchor points at ----------
-# The runtime resolves an anchor against the DOM; `leaf thread create` writes one down
-# against the file. The two have to read the same page or the anchor lands somewhere it
-# was never made, so this mirrors the runtime's capture (readings/passages.js) rather than
-# approximating it: the same skip list, the same block-boundary space, the same collapse,
-# the same caps.
+# ---------- passages: the page's words as a reader reads them ----------
+# The browser alone finds an anchor's words, in the page it draws. This reading of the
+# files gives the rest of Leaf the page's words: what an element says (`spoken`), the
+# page's text the turn-end fork reads, the words a gesture names, word counts, and the
+# advice `leaf thread create` gives on a quote (`anchor_capture`). It reads by the
+# runtime's rules for words (readings/passages.js): the same skip list, the same space
+# between blocks and between elements' words, the same collapse, so the words read as
+# the page shows them. Nothing holds the two readings to each other: where they differ,
+# the agent reads words a little apart from what the page draws, and `anchor_capture`
+# says what its advice then gets wrong.
 #
 # What the file cannot know is what a widget's module will write, and the registry is
-# where that is declared rather than guessed at per widget. These facts carry what can
-# be declared, and a fence carries the rest:
+# where that is declared rather than guessed at per widget:
 #
-#   `verbatim`  an upgraded element that preserves its own words around nested
-#               upgraded widget boundaries. The source and document-order occurrence
-#               identify every owner, including one with no authored id. Those
-#               descendants keep their own declarations; without this key the whole
-#               upgraded element is opaque, as a diagram's notation is once its module
-#               has drawn a picture.
+#   `verbatim`  an upgraded element that keeps its own words. Without this key the
+#               upgraded element is opaque, since its module may insert or replace
+#               words, and a data body it holds is withheld, as a diagram's notation
+#               is once its module has drawn a picture.
 #   `retired-when`  the outcome under which this element leaves the page: a
 #               decided suggestion's losing slot. The browser builds its anchor pass's
-#               skip list from this key too (`quotable` in readings/passages.js), so a reading
-#               given the log's outcomes drops here exactly what drops there — and a
+#               skip list from this key too (`quotable` in readings/passages.js), so a
+#               reading given the log's outcomes drops here what drops there — and a
 #               widget whose decision leaves nothing showing goes with its slots
 #               (settledAway there, `gone` here). Its values are also the vocabulary's
 #               decision verbs, which is where `obligations` reads them from.
@@ -55,18 +56,13 @@ from leaf.source.structure import VOID_TAGS, SourceDocument, pre_body
 #
 # A module writes between the children of the element it upgrades — a column's heading, a
 # milestone's chips, a diff's gutters — so an opaque element and each of its children is
-# fenced. A quote never spans a fence, which turns "the page has words here that the file
-# doesn't" from an anchor that silently detaches in the user's browser into a refusal
-# at the moment it is written, addressed to the one party who can still fix it.
-# Native editing values and readonly islands within them are independent passage
-# cells too. Context outside a field never borrows its mutable value; a selected
-# passage inside it remains readable. Browser and file resolution share those fences.
-# A textarea's child text initializes its native value, rather than supplying visible
-# document words. Neither reading uses that default as a passage or surrounding context.
+# fenced, as the browser fences them (`fencePassageParts`). A copy across a fence is no
+# copy (`anchor_capture.occurrences`), since the page has words there the file doesn't,
+# so a quote across one draws the note that the file doesn't find it. A native editing
+# value is fenced too, since the user may change it.
 #
-# Retirement drops and rewriting substitutes rather than fencing, because that is what
-# each leaves on the screen. A fence says the reading doesn't know what stands there, and
-# in both of these it knows exactly.
+# A textarea's child text initializes its native value rather than showing as the
+# page's words, so the reading skips it.
 
 # The characters a whitespace run is made of, as the browser's reading collapses them
 # (registry.json's `$passages.collapse` says why the set is spelled out).
@@ -268,59 +264,21 @@ def collapse(text: str) -> str:
     return COLLAPSE.sub(" ", text).strip(" ")
 
 
-class _OwnedWords:
-    """One verbatim owner's words with upgraded descendants reduced to boundaries."""
-
-    def __init__(self, owner: tuple[str, str | None, int]):
-        self.owner = owner
-        self.runs = []  # appended to, since `str +=` on an attribute copies it whole
-        self.boundaries = 0
-        self.parts = []
-
-    def write(self, run: str) -> None:
-        """Words as the page's reading wrote them (`_PassageParser._write`), each space
-        where that reading put one, so the two read every gap alike."""
-        self.runs.append(run)
-
-    def boundary(self, tag: str, element_id: str | None) -> None:
-        self.flush()
-        self.parts.append(
-            {
-                "boundary": [
-                    list(self.owner),
-                    self.boundaries,
-                    tag,
-                    element_id or None,
-                ]
-            }
-        )
-        self.boundaries += 1
-
-    def flush(self) -> None:
-        if words := "".join(self.runs).strip(" "):
-            self.parts.append({"text": words})
-        self.runs = []
-
-    def reading(self) -> list:
-        self.flush()
-        return self.parts
-
-
 # The elements a line of words runs through (`$passages.phrasing`), as the runtime's
 # `enter` reads it. Every other element, a text block among them, and a widget unless it
 # is declared `inline`, reads its words apart from those around it: one space goes
-# between two runs of words read in different elements. Between two runs read in one
-# goes an edge (`edges`), a place a word may end, since only the page's CSS says whether
-# `<strong>Status</strong><span>Ready</span>` shows one word or two.
+# between two runs of words read in different elements. Two runs read in one meet with
+# nothing between them, or with a space by the rule below, since only the page's CSS
+# says whether `<strong>Status</strong><span>Ready</span>` shows one word or two.
 JOINS_WORDS_TAGS = frozenset(kernel_passages()["phrasing"])
-# The tags whose words are prose: inside one, an edge between two runs of words shows as
-# nothing, as `set<em>up</em>` reads "setup"; outside any, where two elements meet it
-# shows as a space, as a chip beside its title does, unless a closing mark follows it or
-# an opening one precedes it (`CLOSING`, `OPENING`; `_write`, the runtime's
-# `shownApart`). A quote of either spelling resolves the same.
+# The tags whose words are prose: inside one, two runs of words that meet show nothing
+# between them, as `set<em>up</em>` reads "setup"; outside any, where two elements meet
+# they show a space, as a chip beside its title does, unless a closing mark follows it
+# or an opening one precedes it (`CLOSING`, `OPENING`; `_write`, the runtime's
+# `shownApart`).
 TEXT_BLOCK_TAGS = frozenset(kernel_passages()["blocks"])
-# The marks no shown space stands before (`CLOSING`) or after (`OPENING`) at an edge
-# (`$passages.why-closing-and-opening`).
+# The marks no shown space stands before (`CLOSING`) or after (`OPENING`) where two
+# elements' words meet (`$passages.why-closing-and-opening`).
 CLOSING = frozenset(kernel_passages()["closing"])
 OPENING = frozenset(kernel_passages()["opening"])
 # Text no anchor can reach: executable/style content, native field defaults, and the
@@ -355,7 +313,6 @@ class _PassageParser:
         decided=None,
         rewrites=None,
         additions=None,
-        source: tuple[str, str | None] = ("page", None),
     ):
         self.registry = registry or {}
         self.decided = decided or {}
@@ -367,10 +324,6 @@ class _PassageParser:
         self.owner = []  # per character: the tuple of enclosing ids
         self.spans = {}  # id → [first, end): the characters it holds
         self.fences = set()  # indices a quote may not span
-        self.edges = (
-            set()
-        )  # indices where one run of words meets the next with no space
-        self.soft = set()  # indices of the spaces an edge shows as (`_write`)
         self.breaks = set()  # indices of the spaces that end one block's words
         self.retired = {}  # id under a retired slot → the suggestion whose decision did it
         self.gone = {}  # decided id whose decision left it empty → the outcome that did it
@@ -380,13 +333,10 @@ class _PassageParser:
         # `spoken`). Written for every id the markup carries, since a widget's
         # detail may name one the page holds outside the vocabulary.
         self.enclosing = {}
-        self.verbatim = {}
-        self.verbatim_source = source
-        self.verbatim_owners = 0
         self.bearing = (
             set()
         )  # ids still showing something: text under them, or a surviving child
-        self.stack = []  # [{"tag", "key", "id", "ids", "skip", "sub", "opaque", "editable", "fenced", "retired_by", "block", "tb"}]
+        self.stack = []  # [{"tag", "key", "id", "added", "ids", "skip", "withheld", "silenced", "sub", "retired_by", "opaque", "editable", "fenced", "tb", "block"}]
         self._uid = 0
         self._block = None  # the block the last character came from
         self._space = False  # a separator waiting for a character to follow it
@@ -405,12 +355,12 @@ class _PassageParser:
         holder: int | None = None,
         prose: bool = False,
     ) -> None:
-        """Text into the collapsed run, one space per whitespace run and none leading,
-        and an edge where it runs on from the last text in its block with none. The edge
-        shows as a space, a soft one, where `holder`, the key of the element or said
-        value's span holding the text, is not the one that held the last text, neither
-        stands in prose (a text block), and no closing mark follows the edge or opening
-        one precedes it: the runtime's `shownApart`."""
+        """Text into the collapsed run, one space per whitespace run and none leading.
+        Where the text runs on from the last text in its block with no whitespace
+        between, a space goes between them where `holder`, the key of the element or
+        said value's span holding the text, is not the one that held the last text,
+        neither stands in prose (a text block), and no closing mark follows or opening
+        one precedes the meeting: the runtime's `shownApart`."""
         if data.strip():
             self.bearing.update(ids)
         edge = bool(self.chars) and block == self._block
@@ -437,11 +387,8 @@ class _PassageParser:
                 and ch not in CLOSING
                 and self.chars[-1] not in OPENING
             ):
-                self.soft.add(len(self.chars))
                 self.chars.append(" ")
                 self.owner.append(ids)
-            elif edge:
-                self.edges.add(len(self.chars))
             if first:
                 self._holder = holder
                 first = False
@@ -451,12 +398,6 @@ class _PassageParser:
         if (end := len(self.chars)) > start:
             for wid in ids:
                 self.spans.setdefault(wid, [start, end])[1] = end
-            for frame in reversed(self.stack):
-                if frame["verbatim"]:
-                    self.verbatim[frame["verbatim"]].write("".join(self.chars[start:]))
-                    break
-                if frame["upgrade"]:
-                    break
 
     def _fence(self) -> None:
         """Words may stand here that this reading knows nothing about. Recorded as a
@@ -509,21 +450,9 @@ class _PassageParser:
         entry = self.registry.get(tag) or {}
         joins = tag in JOINS_WORDS_TAGS or bool(entry.get("inline"))
         block = parent["block"] if parent and joins else self._fresh()
-        upgrade = upgraded(self.registry, tag)
-        if upgrade:
-            for ancestor in reversed(self.stack):
-                if ancestor["verbatim"]:
-                    self.verbatim[ancestor["verbatim"]].boundary(tag, attrs_d.get("id"))
-                    break
-                if ancestor["upgrade"]:
-                    break
-        provenance: tuple[str, str | None, int] | None = None
-        if entry.get("verbatim"):
-            provenance = (*self.verbatim_source, self.verbatim_owners)
-            self.verbatim_owners += 1
-        # An upgrade is opaque unless it preserves its own words and ordered nested
-        # upgraded boundaries. Descendants keep their own contracts.
-        opaque = upgrade and not entry.get("verbatim")
+        # An upgrade is opaque unless it keeps its own words (`verbatim`). Descendants
+        # keep their own contracts.
+        opaque = upgraded(self.registry, tag) and not entry.get("verbatim")
         editable = bool(parent and parent["editable"])
         if "contenteditable" in attrs_d:
             value = (attrs_d["contenteditable"] or "").lower()
@@ -600,8 +529,6 @@ class _PassageParser:
             "retired_by": retired_by,
             "opaque": opaque,
             "editable": editable,
-            "upgrade": upgrade,
-            "verbatim": provenance,
             "fenced": opaque or bool(parent and parent["opaque"]) or editing_boundary,
             # Whether its words are prose: it or an element around it is a text block.
             "tb": tag in TEXT_BLOCK_TAGS or bool(parent and parent["tb"]),
@@ -613,16 +540,14 @@ class _PassageParser:
             # apart from the words beside it.
             "block": block,
         }
-        if frame["verbatim"]:
-            self.verbatim[frame["verbatim"]] = _OwnedWords(frame["verbatim"])
         if frame["fenced"]:
             self._fence()
         if retired_by and frame["id"]:
             self.retired[frame["id"]] = retired_by
         self.stack.append(frame)
         if sub is not None:
-            # The body's own write path, so a quote across the element's edge sees
-            # the same adjacency the screen shows — no fence, nothing withheld.
+            # The body's own write path, so the words beside the element's edge meet
+            # as the screen shows them — no fence, nothing withheld.
             _verb, their_text = sub
             if entry.get("content") == "markdown":
                 frame["skip"] = False
@@ -660,14 +585,7 @@ class Passages(NamedTuple):
     retired: dict  # id under a retired slot → the suggestion whose decision did it
     gone: dict  # decided id whose decision left it empty → the outcome that did it
     enclosing: dict  # id → the ids enclosing it, outermost first, itself last
-    verbatim: dict  # source provenance → compositional words with upgraded descendants as boundaries
     breaks: set  # indices of the spaces that end one block's words and start the next's
-    # Indices where one run of words meets the next with no space between: where two
-    # inline elements meet, a place a word may end (`anchor_capture.occurrences`).
-    edges: frozenset
-    # Indices of the spaces such a meeting shows as, outside prose (`_write`), which a
-    # quote reads as the edge they stand for.
-    soft: frozenset
     # id → the half-open range of characters inside it, for each id with text in it.
     # An element is contiguous in document order, so its characters are too, which
     # is what lets a search be scoped by slicing.
@@ -705,9 +623,8 @@ def page_passages(
     decided=None,
     rewrites=None,
     additions=None,
-    source=("page", None),
 ) -> Passages:
-    parser = _PassageParser(registry, decided, rewrites, additions, source)
+    parser = _PassageParser(registry, decided, rewrites, additions)
     for child in document.tree.children:
         _walk(parser, child)
     return Passages(
@@ -717,10 +634,7 @@ def page_passages(
         parser.retired,
         parser.gone,
         parser.enclosing,
-        {wid: reading.reading() for wid, reading in parser.verbatim.items()},
         parser.breaks,
-        frozenset(parser.edges),
-        frozenset(parser.soft),
         {wid: (lo, hi) for wid, (lo, hi) in parser.spans.items()},
     )
 

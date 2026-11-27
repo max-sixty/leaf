@@ -268,6 +268,7 @@ function createApplication(dependencies) {
     unaccountedGesture: engagement.unaccountedGesture,
     openThread: openPageThread,
     threadPlace: (id) => dependencies.anchorTravel.threadDestination(id),
+    arrive: dependencies.anchorTravel.arrive,
     resumeDraft: (context, route) =>
       dependencies.annotationCommands.resumeDraft(context, route),
   });

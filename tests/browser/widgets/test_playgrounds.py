@@ -1878,9 +1878,11 @@ def test_a_choice_made_while_the_settings_hold_a_retired_field_reads_as_chosen(
             "widget": "notification-playground",
             "action": "tune",
             "detail": {"values": {**values, "retired": "kept"}},
+            # A tune answers nothing until the choice that follows it.
+            "answered": False,
         },
     )
-    assert response.ok
+    assert response.ok, response.text()
     wait_for(
         lambda: playground.evaluate(
             "root => root.state?.tune?.detail?.values?.retired"

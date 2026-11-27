@@ -122,7 +122,7 @@ def test_a_thread_message_reaches_the_session_at_once_and_its_line_goes_in_besid
     monkeypatch.setattr(
         harness_model.ClaudeCodeHarness,
         "nudge",
-        lambda harness, page: nudged.append(page) or True,
+        lambda harness, page, quoted: nudged.append(page) or True,
     )
     monkeypatch.setattr(endpoint_model, "claim_harness", lambda _claim: _Untitled())
     state_model.close_session_turn("s1")

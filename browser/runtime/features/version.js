@@ -143,7 +143,6 @@ import { restrictUserIntent, retainUserIntent } from "../dom/user-intent.js";
 import { focusPlace } from "../readings/user-place.js";
 import { SourcePairs, patchTree, patchRetains } from "../dom/dom-children.js";
 import { handingBackPlace, savedReadingSettled } from "../dom/keyboard/bindings.js";
-import { commandSteps } from "../dom/keyboard/control-keys.js";
 import { paintKeys, pruneScopedElements } from "../dom/keyboard/scopes.js";
 import { repaint } from "../dom/repaint.js";
 import { gesture, notice } from "../transport/notifications.js";
@@ -240,7 +239,6 @@ import { latestVersionLabel, versionPicker } from "./version-picker.js";
 import {
   preloadWidgets,
   patchDocument,
-  reindexPassageOwners,
   rememberPassageParts,
 } from "../records/widget-loader.js";
 import { byRenderedOrder, under } from "../lib/shadow-tree.js";
@@ -696,7 +694,7 @@ registerPageControl({
   rank: PAGE_CONTROL_RANK.versions,
   label: "Versions",
   value: () => versionsReading().picker.token,
-  shortcut: () => commandSteps("version.open"),
+  command: "version.open",
   disabled: () => !versionsReading().picker.offered,
   group: "page",
 });
@@ -2299,10 +2297,6 @@ export function createVersionController({
         carry.held,
         currentIntent.handoff,
       );
-      // After the patch, over the document the patch left: an owner's number is its
-      // place among the document's preserving owners, and an insertion moves the ones
-      // after it.
-      reindexPassageOwners(live);
       pruneScopedElements();
       // The roots the install dresses, and the widgets among the arrivals whose
       // rendering and preparation it waits for: what this patch brought, and only that.

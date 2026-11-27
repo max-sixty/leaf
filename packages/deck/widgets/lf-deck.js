@@ -30,8 +30,8 @@
  * `hidden="until-found"`, so find-in-page, a fragment and the On walk (`m`,
  * `obligationActions.next`) open the card holding what they reach (`beforematch`); `m`
  * is therefore the keyboard's Later, and a card the walk leaves behind stays waiting
- * for the end of the pass. Leaf's Undo travels to the answer it takes back before
- * taking it, which opens its card the same way, so the deck has no Undo of its own.
+ * for the end of the pass. Leaf's Undo opens the card holding the answer it takes back
+ * the same way, where the card stood, so the deck has no Undo of its own.
  *
  * The bar above the cards holds Back, the tally's count of the deck's obligations
  * (`tallyWords`) with a mark per card, and one forward control: Later on a waiting card, Next on any other, then Go through the cards left,

@@ -724,7 +724,7 @@ def test_a_background_job_no_worker_hosts_is_resumed_with_its_input(
     cleanup_model.write_json(
         record, {"pid": dead_pid, "sessionId": "s9", "messagingSocketPath": "/gone"}
     )
-    assert job.nudge(page)
+    assert job.nudge(page, lambda: "The user chose “Merge the pull request”")
     wait_for(argv.exists, bool, failure="the job was never resumed")
     wait_for(
         lambda: len(argv.read_text().splitlines()),
@@ -735,7 +735,8 @@ def test_a_background_job_no_worker_hosts_is_resumed_with_its_input(
         "--bg",
         "--resume",
         "s9",
-        f"leaf: {page} has new input, which arrives with this message.",
+        f"leaf: {page} has new input, which arrives with this message. "
+        "The user chose “Merge the pull request”",
     ]
 
     # A job whose worker still runs is not resumed, socket or none.
@@ -743,9 +744,11 @@ def test_a_background_job_no_worker_hosts_is_resumed_with_its_input(
     cleanup_model.write_json(
         record, {"pid": os.getpid(), "sessionId": "s9", "messagingSocketPath": "/gone"}
     )
-    assert not job.nudge(page)
+    assert not job.nudge(page, lambda: "")
     record.unlink()
-    assert not harness_model.ClaudeCodeHarness(session="s9", agent="Claude").nudge(page)
+    assert not harness_model.ClaudeCodeHarness(session="s9", agent="Claude").nudge(
+        page, lambda: ""
+    )
     assert not argv.exists()
 
 

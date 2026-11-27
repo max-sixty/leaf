@@ -467,9 +467,15 @@ HOLD_MOTION = """
     return motion;
   };
 """
+# The inline edge the comment box stands by (floating.js, `held`): its words widen it
+# away from that edge, and the card Send opens keeps it.
+HELD_EDGE = """() => document.querySelector("script[data-lf-entry]")
+  .lfFloatingSelections()
+  .find((selection) => selection.floating.matches(".lf-fab-bar")).edges.left"""
 # Every shape the decision predicate has to tell apart, on one page: four things the page is
-# waiting on the user for, and, beneath them, one of each way of not being one. The
-# four are in document order, because that is the order the walk below must take them in.
+# waiting on the user for, one the user has answered (`serve_obligations` logs the pick,
+# since markup alone answers nothing), and, beneath them, one of each way of not being one.
+# The four are in document order, because that is the order the walk below must take them in.
 OBLIGATIONS_PAGE = leaf_page(
     "obligations",
     """
@@ -505,7 +511,7 @@ OBLIGATIONS_PAGE = leaf_page(
 </lf-test-tasks>
 <lf-group id="honored-decision" label="Which gate design?"><h2 id="honored-decision-h">Which gate design?</h2>
 <lf-options id="honored">
-  <lf-option id="hon-tiers" label="Two-tier gates" selected><strong>Two-tier gates</strong></lf-option>
+  <lf-option id="hon-tiers" label="Two-tier gates"><strong>Two-tier gates</strong></lf-option>
   <lf-option id="hon-one" label="One gate"><strong>One gate</strong></lf-option>
 </lf-options></lf-group>
 <section id="retired-decision"><h2>Which cookie policy?</h2>
@@ -531,6 +537,23 @@ OBLIGATIONS_IN_ORDER = [
     "t-bath-decision",
 ]
 ALL_OBLIGATIONS_IN_ORDER = [*OBLIGATIONS_IN_ORDER, "honored-decision"]
+# The user's pick that answers `honored-decision`.
+HONORED_PICK = {
+    "kind": "action",
+    "author": "user",
+    "revision": 1,
+    "widget": "honored",
+    "action": "choose",
+    "detail": {"value": ["hon-tiers"]},
+    "answered": True,
+}
+
+
+def serve_obligations(serve, **kwargs):
+    """Serve OBLIGATIONS_PAGE with the user's answer to `honored-decision` in its log."""
+    url = serve(OBLIGATIONS_PAGE, **kwargs)
+    append_command(serve.page_dir, HONORED_PICK)
+    return url
 
 
 OBLIGATION_WITH_CONTEXT_PAGE = leaf_page(

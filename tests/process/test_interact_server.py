@@ -77,6 +77,7 @@ from leaf.agents import thread_titles as thread_titles_model
 from leaf.base import detached as detached_model
 from leaf.base import files as files_model
 from leaf.base import leases as leases_model
+from leaf.base import machine as machine_model
 from leaf.base import rows as rows_model
 from leaf.base import schema as schema_model
 from leaf.base import server as server_model
@@ -4185,6 +4186,40 @@ def test_a_local_session_is_served_on_loopback(page_dir, monkeypatch):
     monkeypatch.delenv("SSH_CONNECTION", raising=False)
     access = server_model.page_access(page_dir)
     assert (access["host"], access["bind"]) == ("127.0.0.1", "127.0.0.1")
+
+
+def test_a_default_host_serves_a_new_page_as_a_stated_one(page_dir, monkeypatch):
+    """The `host` setting names the host a user reaches every page by, so a page
+    with no record takes it as `--host` would give it, over what SSH_CONNECTION
+    derives. A record keeps its own address, since an open tab polls it. A
+    setting that is no hostname, or a key Leaf doesn't read, refuses naming the
+    file, rather than leaving pages on the address it was meant to replace."""
+    monkeypatch.setenv("SSH_CONNECTION", "10.1.1.9 51234 10.20.30.40 22")
+    config = machine_model.settings_path()
+    config.parent.mkdir(parents=True)
+    config.write_text('hots = "box.tailnet.example"\n')
+    with pytest.raises(Refused, match=r"config\.toml: Leaf reads no 'hots'"):
+        server_model.page_access(page_dir)
+    config.write_text('host = "box:8443"\n')
+    with pytest.raises(Refused, match=r"config\.toml: host box:8443: not a hostname"):
+        server_model.page_access(page_dir)
+
+    config.write_text('host = "box.tailnet.example"\n')
+    access = server_model.page_access(page_dir)
+    assert (access["host"], access["bind"]) == ("box.tailnet.example", "::")
+
+    recorded = {
+        "host": "127.0.0.1",
+        "bind": "127.0.0.1",
+        "port": 41234,
+        "enabled": False,
+        "lifetime": "session",
+    }
+    write_record(page_dir / "service.json", recorded)
+    assert server_model.page_access(page_dir).items() >= recorded.items()
+    stated = server_model.page_access(page_dir, host="devbox.corp.example")
+    restated = {**recorded, "host": "devbox.corp.example", "bind": "::"}
+    assert stated.items() >= restated.items()
 
 
 def test_an_unidentified_old_service_is_not_mislabeled_as_the_calling_leaf(page_dir):

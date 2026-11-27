@@ -861,7 +861,9 @@ def test_the_on_view_is_titled_by_its_tab_with_that_list_s_done_under_it(
 def test_on_shows_an_obligation_as_its_message_and_reply_comes_back(browser, serve):
     """A question the agent asked in a thread reads in the On view as its message, drawn
     whole as the thread draws it, so what it introduces after a colon is there with it.
-    Reply opens its thread with On behind it, where the back link returns."""
+    Reply opens its thread with On behind it, where the back link returns to the card
+    in its seat, answered in the thread though it is; left for Threads and opened
+    again, On Me seats only what still waits, so a question answered meanwhile is gone."""
     url = serve(LONG_PAGE)
     panel_comment(
         serve.page_dir,
@@ -869,6 +871,9 @@ def test_on_shows_an_obligation_as_its_message_and_reply_comes_back(browser, ser
         "- #4812 manual",
         author="agent",
         obligation=True,
+    )
+    day = panel_comment(
+        serve.page_dir, "Which day suits the launch?", author="agent", obligation=True
     )
     page = floating(browser, url)
     page.locator(".lf-fp-leaf").click()
@@ -879,10 +884,32 @@ def test_on_shows_an_obligation_as_its_message_and_reply_comes_back(browser, ser
 
     card.locator(".lf-fp-answers button", has_text="Reply").click()
     expect(page.locator(panel_view("thread"))).to_be_visible()
+    write(field(page), "Ship #4812.")
+    with sending(page, "the answer"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    round_trip(page)
     back = page.locator(".lf-fp-back")
     expect(back).to_have_attribute("aria-label", "Back to On Me")
     back.click()
     expect(page.locator(panel_view("queue"))).to_be_visible()
+    expect(card).to_contain_text("Which build should ship?")
+    panel_tab(page, "Threads").click()
+    panel_settled(page, view="threads")
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": day,
+            "responds": day,
+            "revision": 1,
+            "text": "Thursday.",
+        },
+    )
+    told(page)
+    panel_tab(page, "On Me").click()
+    panel_settled(page, view="queue")
+    expect(page.locator(".lf-fp-on-item")).to_have_count(0)
 
 
 def test_clicking_into_the_field_moves_none_of_an_open_view_s_controls(browser, serve):
@@ -1626,6 +1653,65 @@ def test_threads_grow_in_place_and_hold_news_until_asked(browser, serve):
     expect(reader.locator(".lf-msg")).to_have_count(2)
     held.click()
     expect(reader.locator(".lf-msg")).to_have_count(3)
+
+
+def test_threads_fades_out_where_it_stood(browser, serve):
+    """A press on a row opens its thread while Threads fades out where it stood, with
+    the rows it drew: the box takes the thread's height and loses the list's foot, a
+    thread the list held behind its notice stays out, and a reply that would move a
+    row up the list moves none while the fade lasts. Back from the thread takes its
+    view away at once as Threads arrives, since the thread reader takes the thread's
+    messages from it then, so it never fades out empty."""
+    url = serve(LONG_PAGE, comments=3)
+    panel_comment(serve.page_dir, "Is the window long enough?")
+    page = floating(browser, url)
+    open_threads(page)
+    rows = page.locator(panel_view("threads")).locator(".lf-fp-thread")
+    expect(rows).to_have_count(4)
+    panel_comment(serve.page_dir, "Who watches the weekend?")
+    told(page)
+    expect_preview_words(page.locator(".lf-fp-joined .lf-thread-news"), "1 new thread")
+    settled(page)
+    places = """rows => rows.map(row =>
+        [row.dataset.lfKey, Math.round(row.getBoundingClientRect().top)])"""
+    drawn = rows.evaluate_all(places)
+    hold_motion(page)
+    rows.filter(has_text="Is the window long enough?").click()
+    # The box's motion sets out in the press's first update, as the box's size is
+    # delivered (dom/box-motion.js), and stands there while the motion is held.
+    one_frame(page)
+    leaving = page.locator(".lf-fp-view[data-lf-leaving]")
+    expect(leaving).to_have_css("opacity", "1")
+    fading = leaving.locator(".lf-fp-thread")
+    assert fading.evaluate_all(places) == drawn
+    oldest = next(
+        e["id"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "comment"
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": oldest,
+            "revision": 1,
+            "text": "The first comment still stands.",
+        },
+    )
+    told(page)
+    assert fading.evaluate_all(places) == drawn
+    finish_held(page)
+    expect(leaving).to_have_count(0)
+    expect(page.locator(panel_view("thread"))).to_be_visible()
+
+    hold_motion(page)
+    page.locator(".lf-fp-head .lf-fp-back").click()
+    one_frame(page)
+    expect(page.locator(panel_view("threads"))).to_be_attached()
+    expect(leaving).to_have_count(0)
+    finish_held(page)
 
 
 # Whether the preview stands open clear of Threads' notice.
@@ -4752,8 +4838,9 @@ def test_a_list_the_menu_leads_to_opens_over_it_and_goes_back(browser, serve):
     """A menu row that opens a list opens it as a view over the menu, with its way back
     to Menu, a ‹ before its name, where every view's way back stands; it
     returns to the menu. Opened by a key, the list stands the user on its first row;
-    Escape steps back to the menu, onto the row that opened the list, and from the
-    menu back to the leaf, putting the view away. A row's press takes its row away with
+    Escape steps back to the menu, onto the row that opened the list, in view in a
+    window too short to show the whole menu, and from the menu back to the leaf,
+    putting the view away. A row's press takes its row away with
     the menu, so the user is located on the leaf that opened it: a row in a list the
     menu turned to does too, and folding stands on the folded leaf."""
     page = floating(browser, serve(LONG_PAGE, comments=1))
@@ -4770,6 +4857,7 @@ def test_a_list_the_menu_leads_to_opens_over_it_and_goes_back(browser, serve):
     panel_settled(page, view="menu")
     expect(annotations).to_be_visible()
 
+    page.set_viewport_size({"width": 800, "height": 400})
     annotations.focus()
     page.keyboard.press("Enter")
     panel_settled(page, view="group")
@@ -4777,6 +4865,8 @@ def test_a_list_the_menu_leads_to_opens_over_it_and_goes_back(browser, serve):
     page.keyboard.press("Escape")
     panel_settled(page, view="menu")
     expect(annotations).to_be_focused()
+    expect(annotations).to_be_in_viewport(ratio=1)
+    page.set_viewport_size({"width": 1200, "height": 900})
     page.keyboard.press("Escape")
     panel_settled(page, open=False)
     leaf = page.locator(".lf-fp-leaf")
@@ -4993,11 +5083,9 @@ def test_each_view_s_list_is_one_tab_stop_its_keys_walk(browser, serve):
     on_mark.click()
     queue = page.locator(panel_view("queue"))
     expect(queue).to_be_focused()
-    # Each tab is named for its list and described by its count.
-    on_me = page.get_by_role("button", name="On Me", exact=True)
-    expect(on_me).to_have_accessible_description("2")
-    threads = page.get_by_role("button", name="Threads", exact=True)
-    expect(threads).to_have_accessible_description("2")
+    # Each tab is named by the words it shows: its list and its count.
+    expect(page.get_by_role("button", name="On Me 2", exact=True)).to_be_visible()
+    threads = page.get_by_role("button", name="Threads 2", exact=True)
     expect(threads.locator(".lf-fp-count")).to_have_text("2")
     cards = queue.locator(".lf-fp-on-item")
     expect(cards).to_have_count(2)
@@ -5267,13 +5355,12 @@ def test_a_wheel_as_the_thread_gives_up_room_moves_it_as_far_as_without(
 
 
 @pytest.mark.parametrize("touch", [False, True])
-def test_the_panel_s_band_at_the_foot_is_as_tall_as_the_row_stands_up(
-    browser, serve, touch
-):
-    """The band the panel's row takes at the window's foot, which a landing stops
-    above, is the row with the gap it stands above the window's edge again above it,
-    and no more. A band stated as a number of its own can stand taller than the row,
-    under a mouse and under a finger alike."""
+def test_the_panel_s_foot_room_is_as_tall_as_the_row_stands_up(browser, serve, touch):
+    """The room the panel's row takes at the window's foot (`--lf-foot-room`), which
+    caps how tall a view opens and pads a block sample below its last block, is the
+    row with the gap it stands above the window's edge again above it, and no more. A
+    room stated as a number of its own can stand taller than the row, under a mouse and
+    under a finger alike."""
     context = browser.new_context(
         viewport={"width": 1280, "height": 800}, has_touch=touch
     )

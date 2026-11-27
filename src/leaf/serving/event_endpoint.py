@@ -8,8 +8,8 @@ this endpoint shares with every other writer.
 
 from pathlib import Path
 
+from leaf.agents.delivery import nudge_unwatched
 from leaf.agents.inference import harness_generator
-from leaf.agents.presence import nudge_unwatched
 from leaf.agents.thread_titles import name_admitted_thread, title_generator
 from leaf.base.findings import Finding
 from leaf.base.harness import claim_harness

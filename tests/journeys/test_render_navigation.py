@@ -15,11 +15,11 @@ from browser.threads import open_panel_thread
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    OBLIGATIONS_PAGE,
     WORKSHOP_THREAD_EVENTS,
     WORKSHOP_THREADS_PAGE,
     answered_comment,
     live_url,
+    serve_obligations,
 )
 from render_cases_layout import page_at_rest, token_colour
 from render_cases_navigation import (
@@ -260,7 +260,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     panel declines a thread about a passage. Escape closes that card beside its
     target in one press, and only the next press puts Threads away."""
     # A page obligation stood on while On Me, which the keyboard opened, stands over the page.
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    page = open_page(browser, serve_obligations(serve))
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
@@ -1803,11 +1803,13 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
              const c = document.querySelector(
                '.lf-go-to-hints .lf-go-to-hint[data-lf-go-to-target="dsc-head"]')
                         .getBoundingClientRect();
-             const first = document.getElementById('dsc-head').getClientRects()[0];
+             const words = document.createRange();
+             words.selectNodeContents(document.getElementById('dsc-head'));
+             const first = words.getClientRects()[0];
              return Math.abs(c.left + c.width / 2 - first.left) < 2
                  && Math.abs(c.top + c.height / 2 - first.top) < 2;
            }"""
-    ), "the chip is not on the corner the summary starts at"
+    ), "the chip is not on the corner the summary's words start at"
     expect(page.locator("#dsc")).not_to_have_attribute("open", "")
     page.keyboard.type(fold_code)
     expect(page.locator("#dsc-head")).to_be_focused()

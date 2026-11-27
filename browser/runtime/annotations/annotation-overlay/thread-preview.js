@@ -852,6 +852,7 @@ export function createThreadPreview({
           row: extent.top,
           lastRow: extent.top,
           column: null,
+          direction: /** @type {const} */ ("ltr"),
           margin: null,
           scroller: scrollerFor(cluster),
         },
@@ -967,10 +968,12 @@ export function createThreadPreview({
         keeps(preview, "data-lf-rises", line !== "top" || rises ? "" : null);
         const { reference, placement, middleware, plane } = seat.options(ui, {
           clear: place.clear,
+          extent: place.extent,
           room: place.room,
           row: place.row,
           lastRow: place.lastRow,
           column: place.column,
+          direction: place.direction,
           margin: place.margin,
           boundary,
           fit({ width, height, stood, scale, stationary }) {

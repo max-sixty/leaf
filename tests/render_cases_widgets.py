@@ -94,10 +94,10 @@ PAGE_DECLARATION = {
 
 
 def written_anchors(page_dir, html, limit=40):
-    """Anchors `leaf thread create` would write for windows over a page's own prose. A
-    window the page says twice, or one crossing a fence, is refused on purpose —
-    skipping those here is that refusal, and what survives is exactly what the command
-    promises to place."""
+    """Anchors `leaf thread create` would write for windows over a page's own prose,
+    less those it notes the file's reading doesn't find once, as a window the page says
+    twice or one crossing a fence: what survives is what the command expects the page
+    to place."""
     registry = vocabulary_model.load_registry(page_dir)
     text = passages_model.page_passages(SourceDocument(html), registry).text
     words = text.split(" ")
@@ -106,17 +106,12 @@ def written_anchors(page_dir, html, limit=40):
         quote = " ".join(words[start : start + 8])
         if len(quote) < 20:
             continue
-        try:
-            anchors.append(
-                (
-                    quote,
-                    anchor_capture_model.capture_anchor(
-                        SourceDocument(html), registry, quote, None
-                    ),
-                )
-            )
-        except ValueError:
+        anchor, noted = anchor_capture_model.capture_anchor(
+            SourceDocument(html), registry, quote, None
+        )
+        if noted is not None:
             continue
+        anchors.append((quote, anchor))
         if len(anchors) == limit:
             break
     return anchors

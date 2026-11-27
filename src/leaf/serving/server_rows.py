@@ -30,11 +30,10 @@ import time
 from datetime import datetime
 from pathlib import Path
 
-from leaf.agents.delivery import deliverable, wake_inputs
+from leaf.agents.delivery import deliverable, nudge_unwatched, wake_inputs
 from leaf.agents.presence import (
     PRESENCE_CACHE_S,
     live_facts,
-    nudge_unwatched,
     read_work,
 )
 from leaf.base.page_memory import memory_of
@@ -121,7 +120,7 @@ class RowPublisher:
 
 def nudge_interrupted(page_dir: Path) -> None:
     """Message the claimant whose turn was interrupted, as Escape ends one, for the
-    input that turn left on the page (`presence.nudge_unwatched`): what arrived while
+    input that turn left on the page (`delivery.nudge_unwatched`): what arrived while
     it ran and its tool boundaries had not yet taken, and what its hooks handed over
     that its harness's record does not show reached the model
     (`delivery.deliverable`), as when Escape landed while another prompt hook still

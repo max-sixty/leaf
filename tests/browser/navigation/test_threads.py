@@ -737,7 +737,7 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
     )
     page = open_page(
         browser,
-        serve(source, anchored=[("far", "Far-side passage")]),
+        serve(source, anchored=[("local", "Far-side passage")]),
     )
     page.evaluate(
         """() => {
@@ -779,7 +779,7 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
     assert immediate["localXFits"], (
         f"the vertical scrollport also overflowed sideways: {immediate}"
     )
-    # The panel's band at the window's foot, which it states to Leaf's landings.
+    # The root's landing band at the window's foot, over the floating panel's cover.
     foot = page.evaluate(
         "async () => (await window.__lfWidgetApi()).landingInsets("
         "document.scrollingElement).bottom"

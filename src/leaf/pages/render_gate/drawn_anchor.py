@@ -1,29 +1,15 @@
-"""What the drawn page says of a thread's target where the page's files can't say it.
+"""What the drawn page says of a visual's part where the page's files can't say it.
 
-`leaf thread create` reads its target from files: a quote from the file's reading of
-the version (`anchor_capture`), which holds the words the page's markup and log give
-it, and a visual's part from the page's render reading (`render_reading`), which holds
-what each visual drew when a render check last read the page. Either can miss. A page's
-script can draw words of its own, such as a custom element that fills itself in, and
-the user can comment on them, since the browser captures a selection against the page
-it draws. And no render check may have read the version the page shows, as right after
-a save.
-
-Where the files miss, the command serves the version, opens it in the host's browser
-and reads the target there. For a quote, it captures the anchor as the user's selection
-of those words would be captured (`render-checks/quote.js`), so the anchor is one the
-drawn page resolves, as Leaf requires of every passage (root `AGENTS.md`, "Validate
-once and share readings"). For a part, it reads what each visual draws, as the render
-check does (`drawnVisuals` in `render-checks/widgets.js`), which
-`anchor_capture.drawn_part` checks the part against. The browser runs before the
-command takes the page's lease to write, as a message's check does
-(`messages.message_check`), since it takes a second or more and the user's gestures wait
-on that lease.
-
-A host with no browser, a page that doesn't start, or words the drawn page doesn't
-show once each leave the file's refusal of a quote standing, which says what to quote
-instead. Where no browser reads the page, a part goes unchecked, and the command says
-so."""
+`leaf thread create --part` checks the part against the page's render reading
+(`render_reading`), which holds what each visual drew when a render check last read
+the page. No render check may have read the version the page shows, as right after a
+save. Then the command serves the version, opens it in the host's browser and reads
+what each visual draws there, as the render check does (`drawnVisuals` in
+`render-checks/widgets.js`), which `anchor_capture.drawn_part` checks the part
+against. The browser runs before the command takes the page's lease to write, as a
+message's check does (`messages.message_check`), since it takes a second or more and
+the user's gestures wait on that lease. Where no browser reads the page, the part
+goes unchecked, and the command says so."""
 
 from pathlib import Path
 
@@ -51,19 +37,6 @@ from leaf.source.revision_artifact import read_revision
 
 # How a message names the drawing `drawn_visuals` makes (`anchor_capture.Drawing`).
 DRAWN_NOW = "when Leaf drew the page just now"
-
-
-def drawn_anchor(
-    page_dir: Path, revision: int, quote: str, section: str
-) -> dict | None:
-    """The anchor of `quote`, in `section` where it names one, as the browser captures
-    it on `revision` as drawn, or None where the drawn page doesn't show it once or
-    no browser could read the page."""
-    return _drawn(
-        page_dir,
-        revision,
-        lambda page, _url: evaluate_probe(page, "drawnAnchor", quote, section or None),
-    )
 
 
 def drawn_visuals(page_dir: Path, revision: int) -> Drawing:

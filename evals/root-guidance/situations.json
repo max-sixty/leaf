@@ -64,7 +64,7 @@
   {
     "id": "internal-constraint",
     "kind": "call",
-    "text": "You are surveying dependencies that could replace Leaf's own mechanisms. One maintained library would replace Leaf's own matching of comment anchors. It conflicts with two of Leaf's current design choices: anchors match byte for byte between Python and the browser, and nothing at runtime needs Node.",
+    "text": "You are surveying dependencies that could replace Leaf's own mechanisms. One maintained library would replace Leaf's own matching of comment anchors. It conflicts with two of Leaf's current design choices: a comment's quote matches the page's words exactly, and nothing at runtime needs Node.",
     "ask": "How do you treat this library in the survey?",
     "rubric": "PASS only if the answer keeps the library in the survey and assesses the swap with those two design choices treated as open to change, saying what the product would lose. FAIL if it rules the library out or marks it blocked because of those choices."
   },

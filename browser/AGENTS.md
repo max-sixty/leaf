@@ -814,7 +814,7 @@ only for what Leaf alone holds (`../packages/AGENTS.md`, "A widget's need of Lea
 | What a target draws, its list marker included, and where the marks round it stand                     | `dom/geometry.js` `inkedBox`, `markedBox`                                              |
 | The room the marks round a target take beside it, a named box's round it included                     | `readings/mark-room.js` `markRoom`                                                     |
 | Which box supplies each edge of what the page shows of an element: its own, a clip's, or the window's | `dom/geometry.js` `shownRectHeld`                                                      |
-| What a node's contents are drawn in; a Range made for it slows every DOM write until it is collected  | `lib/shown-box.js` `contentsRects`, `contentsBox`                                      |
+| What a node's contents are drawn in; a Range made for it slows every DOM write until it is collected  | `lib/shown-box.js` `contentsRects`                                                     |
 | How an element's layout pixels map to the viewport, through every transform, and a box carried by it  | `dom/element-axes.js` `elementMatrix`, `elementBorderFrame`, `carriedBox`              |
 | The size a style writes to hold an element as it stands: its own layout pixels, fraction included     | `dom/element-axes.js` `elementBorderFrame`                                             |
 | Whether a box is stuck, and the band sticky headers cover                                             | `dom/geometry.js` `stuckBox`, `visibleBand`                                            |
@@ -960,11 +960,12 @@ from `page check --render`, and in a thread message only after the user opens th
 thread. Keep a rule static where a breach would otherwise reach the log or a stored
 decision (root `AGENTS.md`, "Leaf's role").
 
-Python models only the text changes the registry declares. A module that changes text
-in a way the file can't reproduce is fenced, and words a module generates are a passage
-cell of their own, so browser capture stops at the fence and a selection across it
-never becomes a quote the file can't confirm. Words Python should model belong in the
-markup, where the file reads them (`content`).
+Python reads only the text changes the registry declares. A widget whose module may
+change its words is opaque unless it declares `verbatim`: it and each of its authored
+children are a passage cell, as words a module generates are (`data-lf-gen`). A
+selection's context stops at a cell's edge and no quote runs across one, so a module
+that rewrites or rearranges what it draws leaves the comments beside it on their words.
+Words Python should read belong in the markup, where the file reads them (`content`).
 
 ## Render gates
 

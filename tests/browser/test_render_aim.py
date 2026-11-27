@@ -18,6 +18,7 @@ from interact_support import (
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import (
+    HELD_EDGE,
     HOLD_MOTION,
     OBLIGATION_PAGE,
     OBLIGATIONS_PAGE,
@@ -97,9 +98,6 @@ from leaf.log import event_log as events_model
 from leaf.pages.render_gate.scheme import collect_page_exceptions
 from leaf.records import page_data as page_data_model
 from leaf.serving.served_state import context as served_context
-from leaf.source import anchor_capture as anchor_capture_model
-from leaf.source import passages as passages_model
-from leaf.source import structure as structure_model
 from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD, text_field
 from leaf_dev.example_data import named_source
@@ -169,6 +167,12 @@ def open_compact_comment(page, text=None):
 # The top of the window the page shows (dom/geometry.js, `shownWindow`): what a float the
 # page places stands below.
 SHOWN_TOP = """async () => (await window.__lfWidgetApi()).shownWindow().top"""
+
+
+def held_x(page, box):
+    """Where the comment box's held inline edge stands, from its bounding box."""
+    edge = page.evaluate(HELD_EDGE)
+    return box["x"] if edge == "left" else box["x"] + box["width"]
 
 
 def test_a_compact_comment_carries_its_box_into_the_inline_thread(browser, serve):
@@ -565,7 +569,7 @@ def test_a_growing_comment_is_independent_of_page_controls(browser, serve):
     grown = bar.bounding_box()
     grown_scroll = page.evaluate("scrollY")
     assert bar.get_attribute("data-lf-placement") == placement
-    assert abs(grown["x"] - compact["x"]) <= 1, (compact, grown)
+    assert abs(held_x(page, grown) - held_x(page, compact)) <= 1, (compact, grown)
     ceiling = page.evaluate(SHOWN_TOP)
     assert grown["y"] >= ceiling and grown["y"] + grown["height"] <= 378, grown
 
@@ -1003,7 +1007,7 @@ def test_a_comment_near_the_bottom_grows_up_before_it_scrolls(browser, serve):
     box = bar.bounding_box()
     assert box["y"] >= ceiling and box["y"] + box["height"] <= 352, box
     assert box["y"] < compact["y"] - 20, (compact, box)
-    assert abs(box["x"] - compact["x"]) <= 1, (compact, box)
+    assert abs(held_x(page, box) - held_x(page, compact)) <= 1, (compact, box)
     assert bar.get_attribute("data-lf-placement") == placement
     assert field.evaluate("node => node.scrollHeight > node.clientHeight")
     write(field, "Short again")
@@ -2678,8 +2682,9 @@ CONTROL_SHAPES = {
         "#spoken input, #spoken button",
         [("Search flags", None), ("Close dialog", "×")],
     ),
-    # The page's file doesn't hold a tab's generated summary, so the anchor names the tab
-    # and quotes nothing.
+    # A tab's face reads its name and its summary as one run across the two passage
+    # cells its module writes them in (`data-lf-gen`), which no quote spans, so the
+    # anchor names the tab and quotes nothing.
     "queue": (
         '<lf-tabs id="queue" list="side"><lf-tab id="first" label="Primary" summary="pages"><p>Primary evidence.</p></lf-tab><lf-tab id="second" label="Backup" summary="pages"><p>Backup evidence.</p></lf-tab></lf-tabs>',
         "#queue [role=tab] .lf-tab-summary",
@@ -2856,7 +2861,6 @@ def test_design_mode_reads_each_shape_of_control_into_the_anchor_its_routes_carr
     reads = page.evaluate(
         READ_CONTROL_SHAPES, {shape: row[1] for shape, row in CONTROL_SHAPES.items()}
     )
-    passages = passages_model.page_passages(structure_model.SourceDocument(markup))
 
     for shape, (_, _, wants) in CONTROL_SHAPES.items():
         with subtests.test(shape=shape):
@@ -2893,10 +2897,6 @@ def test_design_mode_reads_each_shape_of_control_into_the_anchor_its_routes_carr
                     assert (target["exact"], target["status"]) == (True, "exact"), (
                         target
                     )
-                    # What the browser calls exact, the page's file can read too.
-                    assert (
-                        anchor_capture_model.resolve_quote(passages, anchor) is not None
-                    ), target
             quoted = [
                 json.dumps(target["anchor"], sort_keys=True)
                 for target in got
@@ -2926,15 +2926,6 @@ def test_design_mode_reads_each_shape_of_control_into_the_anchor_its_routes_carr
                                       {design: true})).anchor;
         }""")
         assert by_input == reads["label-input"][0]["anchor"], by_input
-
-    with subtests.test(reading="generated words stay out of the anchor"):
-        anchor = reads["queue"][1]["anchor"]
-        assert (
-            anchor_capture_model.resolve_quote(
-                passages, {**anchor, "quote": "Backup pages"}
-            )
-            is None
-        )
 
     with subtests.test(reading="a range holding no words captures its element"):
         captured = page.evaluate("""async () => {
@@ -4915,9 +4906,6 @@ def test_selected_words_grow_context_until_the_exact_span_resolves(browser, serv
     }""")
     assert captured["wanted"] == captured["found"]
     assert len(captured["anchor"]["prefix"]) > 96
-    passages = passages_model.page_passages(structure_model.SourceDocument(markup))
-    offset = anchor_capture_model.resolve_quote(passages, captured["anchor"])
-    assert offset == [m.start() for m in re.finditer("passed", passages.text)][1]
 
 
 @pytest.mark.parametrize("change", [None, "text", "replacement", "revision"])
@@ -5162,8 +5150,6 @@ def test_a_unique_anonymous_control_captures_its_visible_face(browser, serve, ro
     )
     assert event["anchor"] == target["anchor"]
     source = (serve.page_dir / "index.html").read_text()
-    passages = passages_model.page_passages(structure_model.SourceDocument(source))
-    assert anchor_capture_model.resolve_quote(passages, event["anchor"]) is not None
     page.keyboard.press("Escape")
     page.keyboard.press("Escape")
     stamp = stamp_page(
@@ -5213,15 +5199,9 @@ def test_automatic_design_capture_never_borrows_mutable_editor_context(browser, 
         return {anchor:t.anchor,exact:A.resolveAnchor(t.anchor).exact};
       });
     }""")
-    passages = passages_model.page_passages(structure_model.SourceDocument(markup))
     for target in (reading[0], reading[2]):
         assert "my notes" not in json.dumps(target["anchor"])
-        if target["exact"]:
-            assert (
-                anchor_capture_model.resolve_quote(passages, target["anchor"])
-                is not None
-            )
-        else:
+        if not target["exact"]:
             assert target["anchor"] == {"section": "controls", "part": "Save"}
     assert reading[1]["anchor"] == reading[3]["anchor"] == {"section": "controls"}
     assert (
@@ -5252,7 +5232,7 @@ def test_automatic_design_capture_never_borrows_mutable_editor_context(browser, 
     assert event["text"] == "Keep this manually selected text."
 
 
-def test_native_editing_cells_share_file_and_browser_passage_fences(browser, serve):
+def test_native_editing_cells_are_passage_fences(browser, serve):
     markup = leaf_page(
         "Reading cells",
         '<h1>Review</h1><p id="cells">Before '
@@ -5281,19 +5261,18 @@ def test_native_editing_cells_share_file_and_browser_passage_fences(browser, ser
     }""",
         quotes,
     )
-    passages = passages_model.page_passages(structure_model.SourceDocument(markup))
-    file_found = [
-        anchor_capture_model.resolve_quote(
-            passages, {"section": "cells", "quote": quote}
-        )
-        is not None
-        for quote in quotes
+    assert browser_found == [
+        False,
+        True,
+        False,
+        True,
+        False,
+        True,
+        False,
+        False,
+        False,
+        True,
     ]
-    assert (
-        browser_found
-        == file_found
-        == [False, True, False, True, False, True, False, False, False, True]
-    )
     # The editable attribute changes the indexed reading even without a text change.
     page.locator("#cells > span").evaluate(
         "el=>el.setAttribute('contenteditable','false')"
@@ -5339,8 +5318,6 @@ def test_a_native_cross_cell_selection_sends_its_quote_without_claiming_location
     )
     assert event["anchor"] == observed
     assert event["text"] == "Keep this entire selection in the comment."
-    passages = passages_model.page_passages(structure_model.SourceDocument(markup))
-    assert anchor_capture_model.resolve_quote(passages, event["anchor"]) is None
     assert page.evaluate(
         """async anchor=>{
       const A=await window.__lfCheckApi();
@@ -5483,22 +5460,6 @@ def test_native_textarea_defaults_never_supply_design_passage_context(browser, s
     ):
         assert words not in after["words"]
         assert all(words not in field["label"] for field in after["fields"])
-    passages = passages_model.page_passages(structure_model.SourceDocument(markup))
-    for quote in ("Original draft words.", "Other draft words."):
-        assert (
-            anchor_capture_model.resolve_quote(
-                passages, {"section": "fields", "quote": quote}
-            )
-            is None
-        )
-    assert anchor_capture_model.resolve_quote(passages, after["button"]) is not None
-    assert (
-        anchor_capture_model.resolve_quote(
-            passages,
-            {"section": "guidance", "quote": "Stable surrounding field guidance."},
-        )
-        is not None
-    )
     page.locator("h1").click()
     page.keyboard.press("l")
     fields.nth(0).click()

@@ -143,7 +143,6 @@ const searchCount = (position, total) => `${position} of ${total}`;
  * @typedef {import("../../readings/anchor-resolution.js").AimTarget} PickerTarget
  * @typedef {Object} TargetPickerOptions
  * @property {ReturnType<typeof import("../../features/anchor-travel.js").createAnchorTravel>["scrollToPassage"]} scrollToPassage
- * @property {{barriers: () => import("../../base/box.js").Box[]}} hintChrome
  * @property {(target: PickerTarget) => unknown} commentOnTarget
  * @property {() => unknown} updateFab
  * @property {() => boolean} pointerModeActive
@@ -160,7 +159,6 @@ const sentence = (words) => (/[.!?…]$/u.test(words) ? words : `${words}.`);
 /** @param {TargetPickerOptions} options */
 export function createTargetPicker({
   scrollToPassage,
-  hintChrome,
   commentOnTarget,
   updateFab,
   pointerModeActive,
@@ -788,7 +786,6 @@ export function createTargetPicker({
       describe: (target) => captured(target).label,
       all: "All target hints.",
     },
-    chrome: hintChrome,
   };
   const hints = createHintSession(hintOptions);
 

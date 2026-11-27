@@ -233,9 +233,9 @@ def build_layout_shifts(run: Run, page: Path) -> None:
 
 
 def anchor(html: str, element: str, quote: str) -> dict:
-    """A comment anchor on `quote` inside the element with id `element`, with the
-    context Leaf captures for a selection (`anchor_capture.capture_anchor`)."""
-    return capture_anchor(SourceDocument(html), None, quote, element)
+    """A comment anchor on `quote` inside the element with id `element`, as Leaf
+    captures an agent's (`anchor_capture.capture_anchor`)."""
+    return capture_anchor(SourceDocument(html), None, quote, element)[0]
 
 
 def build_resume(run: Run, page: Path) -> None:

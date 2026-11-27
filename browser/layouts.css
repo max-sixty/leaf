@@ -819,12 +819,15 @@
    * does the element take its resting form (toc.css). The track doesn't clip, the aside
    * paints over the body, and the body is one stacking context, so nothing it holds
    * paints over what the element reveals, whatever its z-index. The spine is a scale
-   * of the whole document, so its track hangs through the sidebar's start padding
-   * (`--lf-track-start-room`, below) and stands at its sticking line from the page's
-   * top, unless a header stands above the aside. Every other sidebar
-   * keeps a column's room: a track holding anything else, an aside after the body,
-   * every track under touch, where nothing reaches in by pointing, and paper, where
-   * nothing reaches in at all.
+   * of the whole document, so where the sidebar spans the page
+   * (`--lf-sidebar-spans-page`, below), its track stands fixed in the window at its
+   * sticking line, from the page's top to its end and through the rubber band past
+   * either, which moves a stuck sticky box with the page in Firefox and Chrome
+   * (notes/browser-support.md). Elsewhere it sticks, below a header above the aside and
+   * clear of a footer after it, and wrapped above the body it keeps its place in flow.
+   * Every other sidebar keeps a column's room: a track holding anything else, an aside
+   * after the body, every track under touch, where nothing reaches in by pointing, and
+   * paper, where nothing reaches in at all.
    * Rejected: narrowing every document sidebar. It broke a
    * paragraph in one into a few letters a line, and the render check passed it.
    * TODO: `spine` and the names it brings (`data-lf-spine`, `--lf-sidebar-spine`,
@@ -845,9 +848,15 @@
       & > aside > .layout-track {
         overflow: visible;
         --lf-track-spine: 1;
-      }
-      &:not(:has(> header)) > aside > .layout-track {
-        --lf-track-start-room: var(--lf-page-pad-start);
+        /* Beside the body, where the map takes its spine form (toc.css), and where the
+         * window scrolls the page rather than a scroller round the sidebar. */
+        @media (min-height: 480px) {
+          @container (width < 8rem) and style(--lf-sidebar-spans-page: 1) and (not style(--lf-track-scroll-behavior: flow)) {
+            position: fixed;
+            inline-size: 100cqi;
+            margin-block: 0;
+          }
+        }
       }
       & > .layout-column {
         isolation: isolate;
@@ -935,10 +944,15 @@
      * site footer (page-layout.md), leaves only the sidebar's padding. Only a footer
      * counts, since browser extensions append elements of their own to `body`; other
      * content after `main`, which page-layout.md keeps inside it, would stand under the
-     * track at the page's end. The first rule has no specificity, so each condition
-     * overrides it. */
+     * track at the page's end. A sidebar that is the page's `main`, with no header in
+     * it or before it and no footer in it or after it, spans the page
+     * (`--lf-sidebar-spans-page: 1`), where the contents map's track stands fixed
+     * (above). A sidebar inside `main` or a part may have blocks beside it, which a
+     * fixed track would stand over. The first rule has no specificity, so each
+     * condition overrides it. */
     :where(.layout-sidebar) {
       --lf-track-end-room: var(--lf-page-pad-end);
+      --lf-sidebar-spans-page: 0;
     }
     :where(
       body > main,
@@ -947,12 +961,21 @@
     ).layout-sidebar {
       --lf-track-end-room: calc(var(--lf-page-pad-end) + var(--lf-end-room, 0px));
     }
+    :where(body > main).layout-sidebar {
+      --lf-sidebar-spans-page: 1;
+    }
     .layout-sidebar:has(~ footer),
     :where(main:where(body > *):has(~ footer)) > .layout-sidebar {
       --lf-track-end-room: var(--lf-page-pad-end);
+      --lf-sidebar-spans-page: 0;
     }
     .layout-sidebar:has(> footer) {
       --lf-track-end-room: 0px;
+      --lf-sidebar-spans-page: 0;
+    }
+    .layout-sidebar:has(> header),
+    :where(body > header ~ main).layout-sidebar {
+      --lf-sidebar-spans-page: 0;
     }
     @container not style(--lf-track-scroll-behavior: flow) {
       .layout-track,
@@ -978,21 +1001,14 @@
         box-sizing: border-box;
         padding: var(--lf-focus-region-room);
         /* Sticking keeps the track's margin box inside its aside, and the track's
-         * focus room hangs past the aside's edges. Beside the body, each end hangs as
-         * far as the room past the aside there (`--lf-track-start-room`, the contents
-         * map's alone, and `--lf-track-end-room`) where that is more, so the track
-         * stands where it sticks rather than the padding or the end room carrying it.
-         * Each hang comes off the height the aside asks of the row, so a track taller
-         * than the body stretches the row less, and hangs into that same room. Stacked
-         * above the body, the track keeps its whole box in the aside, which the body
-         * follows. */
-        margin-block: calc(
-            -1 *
-              max(
-                var(--lf-focus-region-room),
-                var(--lf-track-start-room, 0px) * var(--lf-track-beside)
-              )
-          )
+         * focus room hangs past the aside's edges. Beside the body, its end hangs as
+         * far as the room past the aside there (`--lf-track-end-room`) where that is
+         * more, so the track stands where it sticks rather than the padding or the end
+         * room carrying it. The hang comes off the height the aside asks of the row, so
+         * a track taller than the body stretches the row less, and hangs into that same
+         * room. Stacked above the body, the track keeps its whole box in the aside,
+         * which the body follows. */
+        margin-block: calc(-1 * var(--lf-focus-region-room))
           calc(
             -1 *
               max(

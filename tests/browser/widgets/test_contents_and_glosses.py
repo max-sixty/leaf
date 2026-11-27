@@ -1138,6 +1138,37 @@ def test_the_current_entry_follows_the_document_from_a_sticking_track(
         expect(current).to_have_text(name)
 
 
+def test_the_current_section_is_the_one_that_fills_the_window(browser, serve):
+    """A heading risen into the window's top half makes its section current, and one
+    lower leaves the section above it current, whose words fill the window. A short
+    section reached by its link is current though the next heading stands in the top
+    half too."""
+    sections = "".join(
+        f'<section><h2 id="{name.lower()}">{name}</h2>'
+        f'<div style="height: {height}px"></div></section>'
+        for name, height in (("Prepare", 1400), ("Move", 120), ("Verify", 1400))
+    )
+    source = contents_page("current section", f"<h1>A migration</h1>{sections}")
+    page = open_page(browser, serve(source))
+    resized(page, 1728, 999)
+    current = page.locator("#contents a[aria-current='location']")
+    move = page.locator("#move")
+    for top, name in ((147, "Move"), (700, "Prepare")):
+        move.evaluate(
+            "(node, top) => scrollTo({behavior: 'instant', "
+            "top: node.getBoundingClientRect().top + scrollY - top})",
+            top,
+        )
+        expect(current).to_have_text(name)
+
+    page.locator("#contents a[href='#move']").evaluate("node => node.click()")
+    expect(page).to_have_url(re.compile(r"#move$"))
+    expect(current).to_have_text("Move")
+    assert page.locator("#verify").evaluate(
+        "node => node.getBoundingClientRect().top < innerHeight / 2"
+    )
+
+
 def test_a_route_too_long_for_its_labels_leaves_its_deepest_level_off_the_map(
     browser, serve
 ):

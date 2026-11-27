@@ -411,7 +411,7 @@ def test_advice_wakes_nobody_once_what_came_with_it_is_answered(
     monkeypatch.setattr(
         harness_model.ClaudeCodeHarness,
         "nudge",
-        lambda harness, page: nudged.append(page) or True,
+        lambda harness, page, quoted: nudged.append(page) or True,
     )
 
     # A Stop hook closed the turn; its watch makes one pass, its harness process then

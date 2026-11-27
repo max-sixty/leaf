@@ -783,7 +783,8 @@ def test_a_completed_obligation_stays_reachable_through_on_me(browser, serve, wi
           };
         }"""
     )
-    assert pending == {"value": ["first"], "state": "waiting", "unanswered": True}
+    # The press answers the question in its own task, before the server's reading.
+    assert pending == {"value": ["first"], "state": "done", "unanswered": False}
     page.unroute("**/api/event")
     for route in held:
         route.continue_()
@@ -1035,7 +1036,7 @@ def test_the_leaf_answers_each_moment_with_its_gesture(browser, serve):
 def test_m_lands_what_it_reaches_above_the_open_on_me_view(browser, serve):
     """With On Me open, `m` lands a suggestion the view would cover above the view,
     since every landing clears the panel's whole box rather than its row alone
-    (panel/floating-panel.js, `followBox`). The suggestion ends a paragraph whose start the
+    (dom/geometry.js, `footCover`). The suggestion ends a paragraph whose start the
     arrival aligns, as the feature gallery's "A pencil is useful too." does; the asks
     after it fill the list, so the view stands most of the window tall. Opened by a
     key, On Me stands on its first row, the suggestion, so `m` steps on to the first

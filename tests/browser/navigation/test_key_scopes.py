@@ -4,7 +4,7 @@ user."""
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
-from render_cases_interaction import OBLIGATIONS_PAGE, panel_comment
+from render_cases_interaction import panel_comment, serve_obligations
 from render_cases_layout import (
     SHOT_SRC,
     SHOTS,
@@ -1668,7 +1668,7 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     dispatched the same way and answered, is what says so rather than leaving the held
     press to pass for want of reaching anything."""
     live_leaf("second", "A second leaf")
-    page = open_page(browser, serve(OBLIGATIONS_PAGE, comments=3))
+    page = open_page(browser, serve_obligations(serve, comments=3))
     press = """([key, repeat, shiftKey = false]) =>
       (document.activeElement ?? document.body).dispatchEvent(
         new KeyboardEvent('keydown',

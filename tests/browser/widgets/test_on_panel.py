@@ -10,8 +10,8 @@ from render_cases_interaction import (
     ALL_OBLIGATIONS_IN_ORDER,
     CHANGE_SHAPES_PAGE,
     OBLIGATION_WITH_CONTEXT_PAGE,
-    OBLIGATIONS_PAGE,
     ON_ITEM_SAYS,
+    serve_obligations,
 )
 from render_cases_navigation import source_revision
 from render_harness import (
@@ -71,7 +71,7 @@ def test_on_me_lists_open_and_answered_obligations(browser, serve):
     count is the closed view's, and a hidden list of buttons is a set of controls no
     user can press — which the press sweep sees as the page's control set changing
     under it."""
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    page = open_page(browser, serve_obligations(serve))
     resized(page, 1920, 900)
     assert page.evaluate(ON_ITEM_SAYS) == [], "a closed view holds no cards"
 
@@ -241,7 +241,7 @@ def test_obligation_cards_keep_identity_and_walk_order_when_the_live_dom_moves(
     after those still on it, as the walk takes it last. That item leaves its place's
     group for the whole page's, so its card is drawn afresh in that group's box and
     keeps focus; every other card keeps its node."""
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    page = open_page(browser, serve_obligations(serve))
     open_on_me(page)
     show_done(page)
     cards = page.locator(f"{ON_ME} .lf-fp-on-item")
@@ -389,7 +389,7 @@ def test_on_me_s_tabs_stand_where_a_view_names_itself(browser, serve):
     the presses at their end; no name bar stands over the view, the heading naming it to
     assistive tech alone. The strip holding the tabs reaches past them for their focus
     ring, so the tab is read."""
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    page = open_page(browser, serve_obligations(serve))
     resized(page, 1440, 900)
     open_on_me(page)
     start, words, frame, field = page.locator(".lf-floating-panel").evaluate(
@@ -414,7 +414,7 @@ def test_an_on_list_the_page_cannot_read_counts_nothing(browser, serve):
     page = browser.new_page(viewport={"width": 1440, "height": 900})
     watched(page)
     page.route("**/api/state*", refuse)
-    page.goto(serve(OBLIGATIONS_PAGE), wait_until="load")
+    page.goto(serve_obligations(serve), wait_until="load")
     expect(page.locator("body")).to_have_attribute("data-lf-presented", "1")
     on_me = open_on_me(page)
     expect(on_me.locator(".lf-rows-empty")).to_have_text(
@@ -1164,10 +1164,9 @@ def test_an_answer_about_a_decision_rides_on_the_decisions_card(browser, serve):
 def test_a_decision_answered_on_the_page_keeps_the_answer_it_carries_listed(
     browser, serve
 ):
-    """Answered on the page, a decision keeps its row, and the agent's answer it
-    carries, until the server's reading of the choice moves them: the browser keeps a
-    widget record's status as the server last read it, so nothing it carried drops off
-    On Me in between."""
+    """Answered on the page, a decision moves off On Me in the press's own task, and its
+    row keeps the agent's answer it carries until the server's reading of the choice
+    moves that answer, so nothing it carried drops out of the queues in between."""
     url = serve(TWO_DECISIONS_PAGE)
     _, reply = thread_about_the_timeline(serve.page_dir)
     page = open_page(browser, url)
@@ -1176,13 +1175,15 @@ def test_a_decision_answered_on_the_page_keeps_the_answer_it_carries_listed(
     page.route("**/api/event", lambda route: held.append(route))
     page.locator("#tl-land").click()
     holding(page, held, 1, "the held choice")
-    on_me = """async () => (await window.__lfWidgetApi()).readQueues().on_user
-      .map((row) => [row.id, row.also])"""
-    assert sorted(page.evaluate(on_me)) == [
-        ["widget:ship", []],
-        ["widget:timeline", [f"message:{reply}"]],
-    ]
-    expect(page.locator(".lf-fp-leaf .lf-fp-badge")).to_have_text("2")
+    queues = """async () => {
+      const queues = (await window.__lfWidgetApi()).readQueues();
+      const rows = (list) => list.map((row) => [row.id, row.also]);
+      return {on_user: rows(queues.on_user), done: rows(queues.done)};
+    }"""
+    held_queues = page.evaluate(queues)
+    assert held_queues["on_user"] == [["widget:ship", []]]
+    assert ["widget:timeline", [f"message:{reply}"]] in held_queues["done"]
+    expect(page.locator(".lf-fp-leaf .lf-fp-badge")).to_have_text("1")
     held[0].continue_()
     page.unroute("**/api/event")
 

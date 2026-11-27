@@ -92,7 +92,10 @@ html[data-lf-interactive] lf-dial:not(:defined)::before {
   display: flex;
   flex-direction: column;
   align-items: center;
-  font: var(--lf-font-choice-stacked);
+  font: var(--lf-font-choice);
+  /* Set solid, so the word and the fact under it in the fine face fit a one-line
+     control. */
+  line-height: 1;
 }
 .lf-dial-time {
   display: block;

@@ -10,7 +10,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND
+from conftest import LEAF_COMMAND, hooks_run_this_tree
 from interact_support import (
     COMMAND_HUB_PACKAGE,
     PAGE,
@@ -25,19 +25,17 @@ from interact_support import (
 )
 from model.test_interact_layer import PLAIN_PAGE, layer_files, layer_files_of_revision
 
-from leaf import cli as cli_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import files as interact_files
-from leaf import layer as layer_model
-from leaf import packages as packages_model
-from leaf.registry.contract import stamp_grammars
-from leaf.registry.storage import (
-    layer_record,
-    load_registry,
-    selected,
-)
-from leaf.revisioning import activate_source
+from leaf.agents import delivery as delivery_model
+from leaf.base import files as interact_files
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.pages import packages as packages_model
+from leaf.records.revisioning import activate_source
+from leaf.source import layer as layer_model
+from leaf.source.layer import selected_layer
+from leaf.source.registry.contract import stamp_grammars
+from leaf.source.registry.storage import layer_record
+from leaf.source.vocabulary import load_registry
 
 
 def test_an_installed_payload_is_complete_and_launches_outside_the_checkout(
@@ -187,7 +185,7 @@ def test_page_packages_are_explicit_and_survive_reinitialization(tmp_path, monke
     def composed(page):
         layer_2 = layer_record(page)
         assert layer_2 is not None
-        return selected(layer_2, page)
+        return selected_layer(layer_2, page)
 
     assert composed(page) == composed(baseline)
     assert load_registry(page)["$layer"]["packages"] == []
@@ -375,7 +373,7 @@ def test_package_install_replaces_a_name_without_changing_held_readers(
     assert load_registry(page)["lf-installed"]["description"] == "Replacement snapshot."
     layer_3 = layer_record(page)
     assert layer_3 is not None
-    theme = selected(layer_3, page).top_files["theme.css"].decode()
+    theme = selected_layer(layer_3, page).top_files["theme.css"].decode()
     assert "lf-installed { color: purple; }" in theme
     (source / "overrides.css").write_text(".bad { color red; }\n")
     refused = runner.invoke(cli_model.cli, ["package", "install", str(source)])
@@ -416,7 +414,8 @@ def test_package_writers_only_wait_for_contract_destinations_they_share(
 import contextlib
 import fcntl
 import sys
-from leaf import cli, locations
+from leaf.commands import cli
+from leaf.base import locations
 real_lock = locations.flocked
 @contextlib.contextmanager
 def observed(path):
@@ -533,7 +532,7 @@ def test_package_is_the_unit_that_init_creates_checks_and_vendors(
     assert initialized.exit_code == 0, initialized.output
     layer_5 = layer_record(page)
     assert layer_5 is not None
-    layer = selected(layer_5, page)
+    layer = selected_layer(layer_5, page)
     # The package's widget rule reaches the page among its defaults, unscoped.
     theme = layer.top_files["theme.css"].decode()
     assert "lf-callout {\n  display: block;" in theme
@@ -588,7 +587,17 @@ def _replying_after(page, server, edit):
     # A process of its own, as the agent's next command is, so it reads the page as
     # edited rather than as this one remembers it (`page_memory`).
     return subprocess.run(
-        [*LEAF_COMMAND, "thread", "reply", reference, "--ephemeral", "--text", "Hi"],
+        [
+            *LEAF_COMMAND,
+            "thread",
+            "reply",
+            reference,
+            "--ephemeral",
+            "--title",
+            "Greeting",
+            "--text",
+            "Hi",
+        ],
         capture_output=True,
         text=True,
         timeout=STATED_TIMEOUT,
@@ -600,12 +609,14 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
     claimed, server, tmp_path
 ):
     """A reply through a reference names no page, so it is refused on a page an older
-    Leaf vendored, naming the re-vendor. The session's next write naming the page
-    makes that re-vendor itself (`vendoring.renew_layer`), restarting the server at
-    its address, and the reply then goes."""
+    Leaf vendored, naming the re-vendor. Reads leave the layer as it was, `page
+    state` refusing the page as at another page protocol. The session's next write
+    naming the page makes that re-vendor itself (`vendoring.renew_layer`), restarting
+    the server at its address, and the reply then goes."""
     replied = _replying_after(claimed, server, vendored_at_another_protocol)
     assert replied.returncode != 0, replied.stdout
     assert f"leaf page init {claimed}" in json.loads(replied.stdout)["error"]
+    recorded = (claimed / schema_model.LAYER_FILE).read_bytes()
     read = subprocess.run(
         [*LEAF_COMMAND, "page", "state", str(claimed)],
         capture_output=True,
@@ -613,11 +624,8 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
         timeout=STATED_TIMEOUT,
         check=False,
     )
-    assert read.returncode == 0, read.stderr
-    assert "page protocol" in json.loads(read.stdout)["source"]["error"]
-    layer_10 = layer_record(claimed)
-    assert layer_10 is not None
-    before = layer_10["generation"]
+    assert read.returncode != 0, read.stdout
+    assert "page protocol" in read.stdout + read.stderr
     subprocess.run(
         [
             *LEAF_COMMAND,
@@ -633,9 +641,7 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
         timeout=STATED_TIMEOUT,
         check=False,
     )
-    layer_11 = layer_record(claimed)
-    assert layer_11 is not None
-    assert layer_11["generation"] == before
+    assert (claimed / schema_model.LAYER_FILE).read_bytes() == recorded
     for command in (["page", "claim", str(claimed)], replied.args[len(LEAF_COMMAND) :]):
         ran = subprocess.run(
             [*LEAF_COMMAND, *command],
@@ -653,32 +659,20 @@ def test_a_command_re_vendors_its_sessions_page_an_older_leaf_vendored(
 import gc
 import weakref
 
-from leaf import page_memory
-from leaf import schema as schema_model
-from leaf import state as cleanup_model
-from leaf import vendoring as vendoring_model
-from leaf.registry import storage as registry_storage
+from leaf.base import page_memory
+from leaf.base import schema as schema_model
+from leaf.pages import vendoring as vendoring_model
+from leaf.source import vocabulary as vocabulary_model
+from leaf.source.registry import storage as registry_storage
 
 
-@pytest.mark.parametrize("unreadable", ["claim", "lifecycle"])
-def test_read_commands_leave_an_older_page_and_its_server_alone(
-    claimed, server, unreadable
-):
+def test_read_commands_leave_an_older_page_and_its_server_alone(claimed, server):
     """A read by another session cannot take a held page across a protocol bump."""
-    from leaf.service import claim_path
-
     publish(claimed)
     vendored_at_another_protocol(claimed)
-    record = (
-        claim_path(claimed)
-        if unreadable == "claim"
-        else cleanup_model.session_file("s1", cleanup_model.SESSION_SUFFIX)
-    )
-    stored = interact_files.read_json(record)
-    stored["format"] = "leaf-" + unreadable + "/999"
-    cleanup_model.write_json(record, stored)
     revisions = interact_files.list_revisions(claimed)
     recorded = (claimed / schema_model.LAYER_FILE).read_bytes()
+    hooks_run_this_tree("s2")
     for command in (
         ["page", "state", str(claimed)],
         ["page", "events", str(claimed)],
@@ -697,7 +691,7 @@ def test_read_commands_leave_an_older_page_and_its_server_alone(
         assert same_record, command
         assert interact_files.list_revisions(claimed) == revisions
         assert fetch(f"{server}/api/state")[0] == 200
-    assert vendoring_model.renew_layer(claimed, None, command=True) is None
+    assert vendoring_model.renew_layer(claimed, None) is None
     assert (claimed / schema_model.LAYER_FILE).read_bytes() == recorded
 
 
@@ -762,7 +756,7 @@ def test_package_install_makes_a_source_selectable_by_name(tmp_path, monkeypatch
     )
 
     assert vendored.exit_code == 0, vendored.output
-    registry = registry_storage.load_registry(page)
+    registry = vocabulary_model.load_registry(page)
     assert registry["$layer"]["packages"] == ["callout"]
     assert "lf-callout" in registry
     assert "/widgets/lf-callout.js" in layer_files(page)
@@ -807,8 +801,8 @@ def test_a_revision_reads_its_package_copy_after_the_selection_moves_on(
     from the selection leaves its copy for the revisions that name it, and an edit to
     the package reaches them at a new address, never under one a browser cached, and
     as a new generation, which an open document reloads on."""
-    from leaf.revision_artifact import read_artifact
-    from leaf.runtime_selection import execution_identity
+    from leaf.source.revision_artifact import read_artifact
+    from leaf.source.runtime_selection import execution_identity
 
     monkeypatch.chdir(tmp_path)
     custom = tmp_path / "custom"
@@ -842,8 +836,8 @@ def test_a_revision_reads_its_package_copy_after_the_selection_moves_on(
 def test_package_instructions_do_not_change_a_revisions_browser_address(
     tmp_path, monkeypatch
 ):
-    from leaf.revision_artifact import read_artifact
-    from leaf.runtime_selection import executing
+    from leaf.source.revision_artifact import read_artifact
+    from leaf.source.runtime_selection import executing
 
     monkeypatch.chdir(tmp_path)
     custom = tmp_path / "custom"
@@ -856,12 +850,12 @@ def test_package_instructions_do_not_change_a_revisions_browser_address(
     assert activate_source(page).error is None
     artifact = read_artifact(page, 1)
     record = json.loads(artifact.manifest)["layer"]
-    first_layer = registry_storage.selected(record, page)
+    first_layer = layer_model.selected_layer(record, page)
     first = executing(artifact)
 
     (custom / "instructions" / "author.md").write_text("Revised instructions.\n")
     assert CliRunner().invoke(cli_model.cli, init).exit_code == 0
-    second_layer = registry_storage.selected(record, page)
+    second_layer = layer_model.selected_layer(record, page)
     second = executing(artifact)
 
     assert second_layer.fingerprint != first_layer.fingerprint
@@ -893,7 +887,7 @@ def test_a_layer_that_reads_a_pages_copy_lasts_as_long_as_the_pages_memory(
         assert made.exit_code == 0, made.output
         record = registry_storage.layer_record(page)
         assert record is not None
-        layer = registry_storage.selected(record, page)
+        layer = layer_model.selected_layer(record, page)
         assert sheet in layer.files["/theme.css"].decode()
         kept.add(layer)
     del layer
@@ -904,7 +898,7 @@ def test_a_layer_that_reads_a_pages_copy_lasts_as_long_as_the_pages_memory(
     # (`layer.forget_layers`), composes the page's layer again.
     [before] = kept
     layer_model.forget_layers()
-    after = registry_storage.selected(record, page)
+    after = layer_model.selected_layer(record, page)
     assert after is not before
     kept.add(after)
     del before, after

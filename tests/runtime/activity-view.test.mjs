@@ -1,7 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { render } from "/vendor/lit.js";
-import { tabStore } from "/runtime/tab-store.js";
+// A page's boot installs the mover's focus accounting before anything renders
+// (leaf.js), which keeps focus on a row the reorder moves.
+import "/runtime/dom/move-focus.js";
+import { tabStore } from "/runtime/state/tab-store.js";
 import {
   ACTIVITY_VIEW,
   createActivity,
@@ -44,7 +47,6 @@ test("Activity's retained rows keep their nodes, focus and live targets through 
   const opened = [];
   const live = {
     names: (fragment) => document.getElementById(fragment.slice(1)),
-    age: () => "just now",
     openThread: (id) => opened.push(id),
   };
   try {
@@ -54,7 +56,10 @@ test("Activity's retained rows keep their nodes, focus and live targets through 
     assert.deepEqual([...drawing.list.children], items);
     assert.equal(items[0].querySelector("a"), link);
     assert.equal(items[1].querySelector("button"), button);
-    assert.equal(items[0].querySelector("time").textContent, "just now");
+    assert.equal(
+      items[0].querySelector("lf-age").getAttribute("datetime"),
+      "2026-10-21T00:00:00Z",
+    );
     assert.equal(link.getAttribute("href"), "#activity-destination");
     link.focus();
     const reordered = reading([thread, { ...widget, label: "Renamed", undone: true }]);

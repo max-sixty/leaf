@@ -1,0 +1,76 @@
+# A page whose whole work is a pile of decisions taken one card at a time was written as a
+# column page ending in the deck. A column page can't scroll past its end, so a shorter
+# card coming up pulled the page down and moved the deck's bar. As a workspace's body the
+# deck fills the window, and its bar sticks while a tall card scrolls under it. The
+# `among` variant is the control: a report that carries a deck among its findings stays
+# a column page, since a workspace has no room for the report around it.
+description: deck-page-takes-the-window
+metadata:
+  purpose: A page whose whole work is a deck makes the deck its workspace's body, and a deck among a report's material stays in the column.
+  page: [deck]
+  tags:
+    - layout
+vars:
+  prompt: |
+    Six pull requests from outside contributors are waiting on the user's review
+    decision, and nothing else is. Write the Leaf page where they take them one at a
+    time, like Slack's Catch up: answer one and the next comes up, or leave it for later.
+    Each needs a sentence on what it changes, its CI state and size, and a choice of
+    merge, request changes or close, with your recommendation marked.
+
+    - #812 Rename `--out` to `--output` with an alias; CI green; +40 −12. Recommend merge.
+    - #815 Add a Windows path test that fails on main; CI red on Windows only; +18. Recommend request changes: the fix is missing.
+    - #817 Vendor a 2 MB copy of a JSON parser; CI green; +41,000. Recommend close.
+    - #818 Fix a typo in the README; CI green; +1 −1. Recommend merge.
+    - #820 Parallelize the test runner; CI flaky, two of five runs failed; +300 −80. Recommend request changes.
+    - #821 Document the config file's search order; CI green; +60. Recommend merge.
+
+    They will go through all six in one sitting on a laptop, in a window about 1280 by
+    720. The page directory is not reachable from here, so reply with the complete
+    `index.html`, rather than writing a file.
+assert:
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Read the HTML. Pass only if the six pull requests are cards of one deck (each a
+      direct child of an `lf-deck`, holding its decision), and that deck is the working
+      region of a workspace Leaf applies: `layout-workspace` stands on the page's
+      `main`, on a direct child of `main`, or on the child of a part
+      (`page-layout.md`), with nothing before `main` such as a site header; and the
+      deck is that workspace's body, or stands in the question group that is its body.
+      Fail if the page is a column or sidebar page with the deck in its flow, if
+      `layout-workspace` stands deeper than those places, if a plain wrapper such as a
+      `div` or `section` stands between the workspace and the deck, or if the six pull
+      requests are not taken one at a time.
+variants:
+  among:
+    metadata:
+      purpose: A deck among a report's findings stays in the column page with the report.
+    vars:
+      prompt: |
+        Write the Leaf page reporting last night's checkout outage to the user. It
+        holds the timeline (failures began at 02:10 when a cache node was replaced, the
+        on-call engineer rolled the config back at 02:55, checkout recovered at 03:04),
+        the root cause in a paragraph (the new node came up without the TLS bundle, so
+        every checkout call to it failed its handshake and retried), the fix that
+        shipped (the node image now carries the bundle, and the deploy checks a
+        handshake before taking traffic), and three follow-ups the user must decide,
+        which they asked to take one at a time like Slack's Catch up, after reading the
+        report:
+
+        - Page the on-call engineer on the first failed handshake rather than after five minutes? Recommend yes.
+        - Add the handshake check to the other four services' deploys this week? Recommend yes.
+        - Publish the post-mortem to customers? Recommend publish a short summary.
+
+        They read it on a laptop. The page directory is not reachable from here, so
+        reply with the complete `index.html`, rather than writing a file.
+    assert:
+      - type: llm-rubric
+        metric: judgment
+        value: |
+          Read the HTML. Pass only if the timeline, root cause and fix read as a
+          report in the page's flow, on a column or sidebar page, with the three
+          follow-ups as cards of one `lf-deck` among that material. Fail if the page's
+          `main` (or a part holding the report) is a `layout-workspace` whose body is
+          the deck, with the report squeezed into its header or footer, or if the
+          report is dropped or the follow-ups are not taken one at a time.

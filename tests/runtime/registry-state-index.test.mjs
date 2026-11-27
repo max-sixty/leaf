@@ -14,12 +14,11 @@ import test from "node:test";
 import {
   adoptRegistry,
   elementDeclarations,
-  layerFact,
   recordedWidgetSelector,
   registry,
   sameRecord,
   stateSpecs,
-} from "/runtime/registry.js";
+} from "/runtime/state/registry.js";
 
 const load = (generation, declarations) => {
   for (const tag of Object.keys(registry)) delete registry[tag];
@@ -130,12 +129,10 @@ test("records that differ only in how the element keeps the value are one record
   assert.ok(!sameRecord(phase, undefined));
 });
 
-test("a layer fact is the registry's own value, which a module cannot change", () => {
+test("a layer-wide declaration is frozen as the registry adopts it", () => {
   load("frozen", { $work: { widgets: { "lf-task": { role: "goal" } } } });
-  const work = layerFact("$work");
-  assert.equal(layerFact("$work"), work);
   assert.throws(() => {
-    work.widgets["lf-task"].role = "worker";
+    registry.$work.widgets["lf-task"].role = "worker";
   }, TypeError);
   assert.equal(registry.$work.widgets["lf-task"].role, "goal");
 });

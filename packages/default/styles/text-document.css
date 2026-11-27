@@ -285,12 +285,21 @@ lf-text-document[preview]
   background: var(--lf-pre-bg);
 }
 /* The rendered Markdown is Leaf's reading of the file, so it wears markup's reading face
-   (`reading.css`) whatever theme the page takes, as `.lf-markdown-body` does. */
+   (`reading.css`) whatever theme the page takes, as `.lf-markdown-body` does, and breaks
+   words as the page does: only code breaks anywhere. Breaking every word anywhere let a
+   table squeeze a column of short names, splitting "symbol" across two lines. */
 lf-text-document div.lf-text-document-preview {
   --lf-reading-face: 1;
   --lf-block-frame: 1;
   padding: var(--lf-sp-4);
-  overflow-wrap: anywhere;
+}
+/* A file's pictures stand bare, as on GitHub, without the frame the reading face draws
+   round a picture (`reading.css`): a README draws its logos and badges to stand on the
+   page itself. */
+lf-text-document div.lf-text-document-preview img {
+  border-radius: 0;
+  box-shadow: none;
+  outline: none;
 }
 lf-text-document iframe.lf-text-document-preview {
   display: block;
@@ -306,23 +315,31 @@ lf-text-document iframe.lf-text-document-preview {
   }
   /* A written Markdown preview sets the height both tabs take, its rendering's up to
      the bound, which the module gives the Source tab (lf-text-document.js,
-     `holdSource`). A source that height cuts ends in a fade and a press showing the
-     rest (`cut`), after which the Source takes its own height in the page. */
+     `holdSource`). A tab that height cuts ends in a fade and a press showing the whole
+     document (`cuts`), after which each tab takes its own height in the page. Told it
+     has a definite height to fill (below), it fills that height instead. */
+  @container not style(--lf-full-height: 1) {
+    lf-text-document[preview="markdown"]:not([source], [for])
+      .lf-text-document-view
+      > lf-tabs {
+      & > lf-tab:not([hidden]) {
+        block-size: auto;
+        max-block-size: var(--lf-bound, 28rem);
+      }
+      & > lf-tab:not([data-lf-all]) {
+        overflow: hidden;
+      }
+      & > lf-tab:has(> .lf-text-document-listing):not([data-lf-all]) {
+        block-size: min(var(--lf-preview-block), var(--lf-bound, 28rem));
+      }
+    }
+  }
   lf-text-document[preview="markdown"]:not([source], [for])
     .lf-text-document-view
-    > lf-tabs {
-    & > lf-tab:not([hidden]) {
-      block-size: auto;
-      max-block-size: var(--lf-bound, 28rem);
-    }
-    & > lf-tab:has(> .lf-text-document-listing):not([data-lf-all]) {
-      block-size: min(var(--lf-preview-block), var(--lf-bound, 28rem));
-      overflow: hidden;
-    }
-    & > lf-tab[data-lf-all] {
-      max-block-size: none;
-      overflow: visible;
-    }
+    > lf-tabs
+    > lf-tab[data-lf-all] {
+    max-block-size: none;
+    overflow: visible;
   }
   lf-text-document .lf-text-document-cut {
     position: absolute;
@@ -331,7 +348,65 @@ lf-text-document iframe.lf-text-document-preview {
     background: linear-gradient(transparent, var(--lf-pre-bg) 70%);
     text-align: center;
   }
+  lf-text-document lf-tab:has(> .lf-text-document-preview) > .lf-text-document-cut {
+    background: linear-gradient(transparent, var(--lf-paper) 70%);
+  }
   lf-text-document iframe.lf-text-document-preview {
     block-size: 100%;
+  }
+}
+/* As a pane's body, the document wears the pane's frame rather than a second one inside
+   it, with no inset or margin of its own, as a file editor there does. */
+[data-lf-reading-role="pane"] > lf-text-document {
+  margin: 0;
+  padding: 0;
+  --lf-pane-top: 0px;
+  & > .lf-text-document-view {
+    border: 0;
+    border-radius: 0;
+  }
+}
+/* Told it has a definite height to fill (`--lf-full-height`, layouts.css), as a
+   workspace pane's body is, a document fills it: the tab shown, or a plain listing,
+   takes what the caption and strip leave, in place of the bound, and scrolls inside
+   it. A written Markdown preview fills it too, rather than stopping at the bound with
+   the pane empty below. Each box passes the height on to the next, since the property
+   doesn't inherit. */
+@media screen {
+  @container style(--lf-full-height: 1) {
+    lf-text-document[data-lf-bound],
+    lf-text-document > .lf-text-document-view,
+    lf-text-document > .lf-text-document-view > .lf-text-document-listing,
+    lf-text-document[preview] > .lf-text-document-view > lf-tabs {
+      --lf-full-height: inherit;
+      display: flex;
+      flex-direction: column;
+      block-size: 100%;
+      min-block-size: 0;
+      margin-block: 0;
+    }
+    lf-text-document > .lf-text-document-view > lf-tabs,
+    lf-text-document > .lf-text-document-view > .lf-text-document-listing,
+    lf-text-document > .lf-text-document-view > .lf-text-document-listing > pre,
+    lf-text-document[preview]
+      > .lf-text-document-view
+      > lf-tabs
+      > lf-tab:not([hidden]) {
+      flex: 1 1 0;
+      min-block-size: 0;
+    }
+    lf-text-document[preview] > .lf-text-document-view > lf-tabs > lf-tab:not([hidden]),
+    lf-text-document:not([preview])[data-lf-bound] pre,
+    lf-text-document iframe.lf-text-document-preview {
+      block-size: 100%;
+      max-block-size: none;
+    }
+    /* A Source tab shown whole scrolls inside the pane it fills. */
+    lf-text-document[preview="markdown"]:not([source], [for])
+      .lf-text-document-view
+      > lf-tabs
+      > lf-tab[data-lf-all] {
+      overflow: auto;
+    }
   }
 }

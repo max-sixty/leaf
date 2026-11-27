@@ -10,6 +10,7 @@ import sys
 import threading
 from pathlib import Path
 
+from conftest import hooks_run_this_tree
 from interact_support import (
     STATED_TIMEOUT,
     Prose,
@@ -21,15 +22,15 @@ from interact_support import (
     yaml_document,
 )
 
-from leaf import codex as codex_model
-from leaf import completions, inference, thread_titles
-from leaf import event_endpoint as endpoint_model
-from leaf import event_log as events_model
-from leaf import harness as harness_model
-from leaf import interaction_log as interaction_model
-from leaf import state as cleanup_model
-from leaf.json_block import json_block
-from leaf.thread import fit_title
+from leaf.agents import codex as codex_model
+from leaf.agents import completions, inference, thread_titles
+from leaf.agents.thread import fit_title
+from leaf.base import harness as harness_model
+from leaf.base import state as cleanup_model
+from leaf.base.json_block import json_block
+from leaf.log import event_log as events_model
+from leaf.log import interaction_log as interaction_model
+from leaf.serving import event_endpoint as endpoint_model
 from leaf_dev.claude_code_module import claude_code_module
 
 # What Codex's turn reports when the account cannot use the model it asks for.
@@ -477,7 +478,7 @@ def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
         finally:
             stopped.append(executable)
 
-    monkeypatch.setattr(inference, "private_app_server", title_server)
+    monkeypatch.setattr(codex_model, "private_app_server", title_server)
     monkeypatch.setenv("CODEX_THREAD_ID", "codex-thread")
     status, body = endpoint_model.accept_event(
         page_dir,
@@ -512,7 +513,7 @@ def test_a_comment_on_a_codex_page_is_named_as_it_arrives(
 
     # A reaction opens a thread with no words; the reply that gives it some names it.
     reaction = append_carried_log_record(
-        page_dir, {"kind": "comment", "author": "user", "token": "mark"}
+        page_dir, {"kind": "comment", "author": "user", "emoji": "👍"}
     )
     status, body = endpoint_model.accept_event(
         page_dir,
@@ -608,6 +609,7 @@ def test_a_comment_on_a_pi_page_is_named_as_it_arrives(page_dir, tmp_path, monke
     monkeypatch.setenv("TITLING_RECORD", str(record))
     monkeypatch.setenv("PATH", f"{programs}{os.pathsep}{os.environ['PATH']}")
     monkeypatch.setenv("PI_SESSION_ID", "pi-session")
+    hooks_run_this_tree("pi-session")
     monkeypatch.setenv("LEAF_PI_PID", str(os.getpid()))
     # Only the answer, never Pi's exit, can end the request within the wait below.
     monkeypatch.setattr(inference, "TIMEOUT", 3600)

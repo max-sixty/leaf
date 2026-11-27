@@ -24,8 +24,8 @@ from render_harness import (
     write,
 )
 
-from leaf import event_log as events_model
-from leaf.render_checks import wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import wait_until_ready
 
 EARLY_PAGE = leaf_page(
     "Early comments",
@@ -335,6 +335,7 @@ def test_history_dependent_keys_keep_their_place_until_the_first_reading(
                 "widget": "cold-choice",
                 "action": "choose",
                 "detail": {"value": ["cold-b"]},
+                "answered": True,
             },
         )
     page, release_state = _cold_page(browser, url, clock=True)

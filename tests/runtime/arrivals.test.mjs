@@ -29,8 +29,8 @@ const {
   stopWhereItStands,
   watchScrollEnds,
   watchScrolls,
-} = await import("/runtime/arrivals.js");
-const { clockValue, tickClock } = await import("/runtime/presence.js");
+} = await import("/runtime/dom/arrivals.js");
+const { clockValue, tickClock } = await import("/runtime/state/presence.js");
 const { observeQueuedWork } = await import("/runtime/lib/queued-work.js");
 
 // A second observer acknowledges delivery of the same mutation batch as arrivals, in
@@ -294,7 +294,7 @@ test("departure cancels queued rendering and reconnection accepts fresh work", a
   const owner = document.createElement("section");
   document.body.append(owner);
   // Only this frame's own job: the runtime queues other work on any mutation, such as
-  // focus.js refreshing its paint.
+  // dom/focus.js refreshing its paint.
   const phases = [];
   const own = new Set();
   let scheduling = false;
@@ -346,10 +346,11 @@ test("a frame refuses to paint after removal even before departure delivery", as
 });
 
 test("a clock render reports its failure once and recovers on the next reading", async () => {
-  const { reportCarried } = await import("/runtime/layer-client.js");
+  const { reportCarried } = await import("/runtime/transport/layer-client.js");
   const { LeafElement } = await import("/runtime/lib/leaf-element.js");
   const { html } = await import("/vendor/lit.js");
-  const { setPresentationFailureReporter } = await import("/runtime/semantic-state.js");
+  const { setPresentationFailureReporter } =
+    await import("/runtime/state/semantic-state.js");
   setPresentationFailureReporter(reportCarried);
   let clock = 0;
   customElements.define(

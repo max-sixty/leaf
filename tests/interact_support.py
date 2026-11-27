@@ -37,7 +37,12 @@ import psutil
 import pytest
 import yaml
 from click.testing import CliRunner
-from conftest import CLAUDE_IDENTITY, LEAF_COMMAND, collect_app_server_error
+from conftest import (
+    CLAUDE_IDENTITY,
+    LEAF_COMMAND,
+    collect_app_server_error,
+    hooks_run_this_tree,
+)
 from packaging.requirements import Requirement
 from packaging.utils import canonicalize_name
 from pytest_regtest.snapshot_handler import (
@@ -47,45 +52,49 @@ from pytest_regtest.snapshot_handler import (
 from websockets.sync.server import serve as serve_websocket
 from websockets.sync.server import unix_serve as serve_unix_websocket
 
-from leaf import cli as cli_model
-from leaf import codex as codex_model
-from leaf import codex_adapter as codex_adapter_model
-from leaf import codex_state as codex_state_model
-from leaf import completions as completions_model
-from leaf import data as data_model
-from leaf import delivery as delivery_model
-from leaf import event_contracts as event_contracts_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import harness as harness_model
-from leaf import hook_transport as hook_transport_model
-from leaf import hosting as hosting_model
-from leaf import layer as layer_model
-from leaf import leases as leases_model
-from leaf import page_memory as page_memory_model
-from leaf import passages as passages_model
-from leaf import revisioning as revisioning_model
-from leaf import rows as rows_model
-from leaf import schema as schema_model
-from leaf import server as server_model
-from leaf import server_rows as server_rows_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as cleanup_model
-from leaf import structure as structure_model
-from leaf import thread_context as thread_context_model
-from leaf import vendoring as vendoring_model
-from leaf.findings import Finding
-from leaf.http import assets_path
-from leaf.obligations import collection
-from leaf.refusals import Refused
-from leaf.registry.contract import RegistryError
-from leaf.registry.storage import load_registry, read_page_registry
-from leaf.revision_artifact import active_enclosing, read_artifact
-from leaf.runtime_selection import execution_identity
-from leaf.served_state import page as served_page
-from leaf.validation import composition as composition_model
-from leaf.validation import instances as validation_model
+from leaf.agents import codex as codex_model
+from leaf.agents import codex_adapter as codex_adapter_model
+from leaf.agents import codex_state as codex_state_model
+from leaf.agents import completions as completions_model
+from leaf.agents import delivery as delivery_model
+from leaf.base import files as files_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import page_memory as page_memory_model
+from leaf.base import rows as rows_model
+from leaf.base import schema as schema_model
+from leaf.base import server as server_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.base.findings import Finding
+from leaf.base.refusals import Refused
+from leaf.commands import cli as cli_model
+from leaf.commands import delivery_ack as delivery_ack_model
+from leaf.commands import hook_transport as hook_transport_model
+from leaf.commands import session as session_model
+from leaf.commands.session import set_status
+from leaf.log import event_log as events_model
+from leaf.log import thread_context as thread_context_model
+from leaf.log.obligations import collection
+from leaf.pages import hosting as hosting_model
+from leaf.pages import vendoring as vendoring_model
+from leaf.records import event_contracts as event_contracts_model
+from leaf.records import revisioning as revisioning_model
+from leaf.records import transaction as transaction_model
+from leaf.records.markup_checks import instances as instances_model
+from leaf.serving import server_rows as server_rows_model
+from leaf.serving.http import assets_path
+from leaf.serving.served_state import page as served_page
+from leaf.source import data as data_model
+from leaf.source import layer as layer_model
+from leaf.source import passages as passages_model
+from leaf.source import reading as reading_model
+from leaf.source import structure as structure_model
+from leaf.source.registry.contract import RegistryError
+from leaf.source.registry.validation import incoming_registry
+from leaf.source.revision_artifact import active_enclosing, read_artifact
+from leaf.source.runtime_selection import execution_identity
+from leaf.source.vocabulary import load_registry, read_page_registry
 
 ROOT = Path(__file__).parent.parent
 # The checkout and the payload a harness installs are one tree; PLUGIN_ROOT still
@@ -122,7 +131,7 @@ import os
 from pathlib import Path
 import sys
 
-from leaf import cli as cli_model
+from leaf.commands import cli as cli_model
 """
 
 
@@ -132,16 +141,16 @@ def append_command(page_dir, command):
     A test of raw storage or retired vocabulary passes an explicitly admitted
     event, including meaning and attention, to event_log.append_event instead.
     """
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         return event_contracts_model.append_admitted(page, command)[0]
 
 
 def response_reference(page_dir, event):
     """Read the exact address emitted by the real delivery producer for an input."""
-    from leaf.delivery import batch_data, freeze_delivery
+    from leaf.agents.delivery import batch_data, freeze_delivery
 
     event_id = event["id"] if isinstance(event, dict) else event
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         captured = next(item for item in page.events if item["id"] == event_id)
         batch = batch_data(page_dir, page, [captured])
     return freeze_delivery([batch])["batches"][0]["events"][0]["answer"]["ref"]
@@ -157,7 +166,7 @@ def append_carried_log_record(page_dir, event):
     A raw fixture can explicitly declare `attention=False` for quiet input. A kind
     whose record requires the `revision` it was made on is placed on the first.
     """
-    from leaf.registry.kernel import kernel_event_kinds
+    from leaf.source.registry.kernel import kernel_event_kinds
 
     contract = kernel_event_kinds().get(event["kind"], {})
     attention = event_contracts_model.settled_attention(event, contract)
@@ -178,9 +187,9 @@ def write_revision(page_dir: Path, revision: int, data: bytes) -> Path:
 
     A shortcut past `page stamp` for a test that stages history directly: it
     runs no gate and no activation, and refuses a revision number already taken."""
-    from leaf.passages import SourceReading
-    from leaf.revision_artifact import capture_artifact, write_artifact
-    from leaf.structure import SourceDocument
+    from leaf.source.reading import SourceReading
+    from leaf.source.revision_artifact import capture_artifact, write_artifact
+    from leaf.source.structure import SourceDocument
 
     candidate = read_page_registry(page_dir)
     reading = SourceReading(SourceDocument(data.decode("utf-8")), candidate.registry)
@@ -203,22 +212,14 @@ def model_layer(*packages: str) -> dict:
     cached per selection, because every stated page asking for the same packages
     is asking for the same registry. Nothing may mutate what this returns.
     """
-    return composition_model.incoming_registry(
-        layer_model.layer_inputs(packages, base=ROOT)
-    )
+    return incoming_registry(layer_model.layer_inputs(packages, base=ROOT))
 
 
 def queue_board_registry(registry: dict) -> dict:
-    """A page-owned queue stays an obligation until all cards leave its Queued column.
-
-    Extend the board's position verb with a completion condition to exercise
-    answers spanning units without a presentation-specific package.
-    """
+    """A page-owned queue that asks the user to move its cards, an obligation over
+    a position verb whose units are the cards it holds."""
     registry = deepcopy(registry)
-    registry["lf-board"]["awaits"] = {
-        "value": "move",
-        "answered": {"move": {"empty": {"when": {"label": ["Queued"]}}}},
-    }
+    registry["lf-board"]["awaits"] = {"value": "move"}
     return registry
 
 
@@ -263,7 +264,7 @@ class ModelPage:
         return self.documents[revision]
 
     def reading(self, revision: int, registry: dict):
-        return passages_model.SourceReading(self.documents[revision], registry)
+        return reading_model.SourceReading(self.documents[revision], registry)
 
     def registry(self, revision: int | None) -> dict:
         """One layer for every revision: a stated page never re-vendors, so no
@@ -280,12 +281,6 @@ class ModelPage:
     @property
     def within(self) -> dict:
         return passages_model.enclosing_ids(self.documents[max(self.documents)])
-
-    def responses(self, events: list) -> dict:
-        raise NotImplementedError(
-            "what a page still owes is read from its claims and its deliveries, "
-            "which a stated page has none of: put that refusal on `page_dir`"
-        )
 
     @property
     def claims(self) -> list:
@@ -401,7 +396,7 @@ def lock_contention(
 def take_stream_activity(monkeypatch, updates: list, clears: list) -> None:
     """Collect every activity reading a turn writes, instead of a page taking it.
 
-    Every App Server client and harness calls the writers through `leaf.codex`, so that one binding
+    Every App Server client and harness calls the writers through `leaf.agents.codex`, so that one binding
     takes them all. Pass empty lists for a test that wants them to touch nothing.
     """
     monkeypatch.setattr(
@@ -526,7 +521,7 @@ def vendored_at_another_protocol(page_dir: Path, *, newer: bool = False) -> int:
     Leaf wrote a higher one. The file is replaced rather than written through,
     as every file a lent page may share with its template has to be.
     """
-    from leaf.registry.storage import LAYER, layer_record
+    from leaf.source.registry.storage import LAYER, layer_record
 
     path = page_dir / schema_model.LAYER_FILE
     record = layer_record(page_dir)
@@ -548,7 +543,7 @@ def declare_on_page(page_dir: Path, mutate) -> None:
     declarations the page already makes."""
     from copy import deepcopy
 
-    from leaf.registry.layer import merge_layer_declarations
+    from leaf.source.registry.layer import merge_layer_declarations
 
     path = page_dir / "page" / "registry.json"
     declarations = json.loads(path.read_text()) if path.is_file() else {}
@@ -618,7 +613,8 @@ PAGE = f"""<!doctype html>
 </html>
 """
 # PAGE's Plan section stands in a named group, so a widget a test writes there asks a
-# question (`obligations.widget_groups`); a test opening the section matches this.
+# question (`obligation_sources.widget_groups`); a test opening the section matches
+# this.
 PLAN_OPENING = '<section id="plan">'
 # PAGE places no widget whose module only a browser can judge, so `page check` on it
 # and on the versions built from it never starts one (`needs_browser`). A test about a
@@ -632,6 +628,15 @@ graph LR
   </pre></lf-diagram>
 </section>""",
 )
+
+
+def bound_twice(source: str) -> str:
+    """Markup binding the data source `source` under two contracts, which no document
+    may do (`contract-conflict`)."""
+    return (
+        f'<p><lf-num source="{source}" run="r1">3</lf-num></p>'
+        f'<lf-text-document id="{source}-text" source="{source}"></lf-text-document>'
+    )
 
 
 def package_path(path: Path) -> str:
@@ -733,7 +738,7 @@ def command_notes(*args) -> list[Finding]:
 
 def read_page_data(page_dir) -> dict:
     """Every source the page records, judged against the vocabulary a write to it
-    takes: the page's layer with its own declarations (`data._write_source`)."""
+    takes: the page's layer with its own declarations (`page_data._write_source`)."""
     return data_model.read_data(page_dir, read_page_registry(page_dir).registry)
 
 
@@ -788,7 +793,7 @@ def publish(d, text="published"):
     The stamped version is the user-seen baseline: `page check` compares against
     the last one, and an action can only ever be made against one the server
     exposed. Returns the stamp's note."""
-    from leaf.publishing import cmd_stamp
+    from leaf.records.publishing import cmd_stamp
 
     return cmd_stamp(d, text)
 
@@ -844,7 +849,7 @@ def _served_state_validator(against: tuple[str, ...]):
     """`served_state/state.schema.json`, with the `leaf:` schemas it refers to
     (`registry.schema.leaf_resources`), taking any of `against`: `answer`, a
     complete `/api/state` answer, `null`, or one of its definitions by name."""
-    from leaf.registry.schema import json_validator, with_leaf_resources
+    from leaf.source.registry.schema import json_validator, with_leaf_resources
 
     schema = with_leaf_resources(
         json.loads(
@@ -966,7 +971,7 @@ def open_todos(state: dict) -> list[dict]:
 @pytest.fixture
 def native_codex_chat(tmp_path):
     """Publish a native chat's validated source through its ordinary prompt hook."""
-    from leaf.hooks import cmd_hook
+    from leaf.commands.hooks import cmd_hook
 
     def create(session_id):
         source = tmp_path / "sessions" / f"{session_id}.jsonl"
@@ -990,26 +995,40 @@ def native_codex_chat(tmp_path):
     return create
 
 
-def _page_record(path):
-    """The `state.Record` a page file's name declares."""
-    from leaf.user_views import USER_VIEWS
+def _page_records() -> dict:
+    """The `state.Record` each page record's file name declares."""
+    from leaf.serving.drafts import DRAFTS
+    from leaf.serving.user_views import USER_VIEWS
 
     return {
         schema_model.STREAM_FILE: service_model.STREAM,
         schema_model.SERVICE_FILE: server_model.SERVICE,
-        schema_model.PREVIEW_FILE: server_model.PREVIEW,
+        schema_model.PREVIEW_FILE: service_model.PREVIEW,
         schema_model.USER_VIEWS_FILE: USER_VIEWS,
-    }[path.name]
+        schema_model.DRAFTS_FILE: DRAFTS,
+    }
+
+
+def _page_record(path):
+    """The `state.Record` a page file's name declares."""
+    return _page_records()[path.name]
+
+
+def stored_file(path):
+    """The file holding what the page file `path` names: a page record's own
+    (`state.Record.file`), or `path` itself for a file that is no record."""
+    record = _page_records().get(path.name)
+    return path if record is None else record.file(path)
 
 
 def acknowledged_through(page_dir):
-    """The page's acknowledgement cursor (`service.acknowledged`), read off its log."""
-    return service_model.acknowledged(events_model.read_events(page_dir))
+    """The page's acknowledgement cursor (`transaction.acknowledged`), read off its log."""
+    return transaction_model.acknowledged(events_model.read_events(page_dir))
 
 
 def acknowledge_through(page_dir, seq):
     """Confirm receipt of the page's input through `seq`, as a receipt does."""
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         delivery_model.record_receipt(page, seq)
 
 
@@ -1138,7 +1157,7 @@ def live_versions(d):
 
 def markup_findings(html, registry):
     parser = structure_model.SourceDocument(html)
-    return validation_model.markup_findings(parser, registry)
+    return instances_model.markup_findings(parser, registry)
 
 
 SUGGESTION = """<lf-suggestion id="sug-refill">
@@ -1170,6 +1189,8 @@ def decide(page_dir, outcome, widget="sug-refill"):
             "widget": widget,
             "action": "decide",
             "detail": {"outcome": outcome},
+            # A suggestion with a decision in force says its question is answered.
+            "answered": True,
         },
     )
 
@@ -1193,6 +1214,7 @@ def _decided(page_dir, words):
             "widget": "d1",
             "action": "edit",
             "detail": {"value": "Cut the flag; backfill first."},
+            "answered": True,
         },
     )
     return lambda words, attrs="": (page_dir / "index.html").write_text(
@@ -1313,7 +1335,7 @@ def activity_reading(page_dir, now: str | None = None) -> dict:
     owed answer (`obligations`) whole: the workflow of its update with the record's id
     and the answer, where the served state lists the record ids alone and `page state`
     prints each id beside its answer."""
-    from leaf.served_state.context import read_page
+    from leaf.serving.served_state.context import read_page
 
     events = events_model.read_events(page_dir)
     return read_page(page_dir, events, now=now).work.activity
@@ -1323,9 +1345,9 @@ def owed_answers(page_dir):
     """The answers the page's agent owes (`activity.obligations`), as the hooks and
     `leaf page close` read them: each the workflow of the input its record names, with
     the record's id as `obligation` and the owed `answer`."""
-    from leaf.served_state.context import read_page
+    from leaf.agents.presence import read_work
 
-    return read_page(page_dir, events_model.read_events(page_dir)).work.obligations
+    return read_work(page_dir, events_model.read_events(page_dir)).obligations
 
 
 # A question and the accept that answers it, written as a stored log holds them:
@@ -1342,6 +1364,7 @@ ACCEPT = {
     "widget": "sug-a",
     "action": "decide",
     "detail": {"outcome": "accept"},
+    "answered": True,
     "meaning": {
         "scope": "page",
         "unit": "sug-a",
@@ -1359,7 +1382,7 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
     joining either worker, including when an assertion fails."""
     entering = threading.Event()
     resume = threading.Event()
-    original_append_record = service_model.PageTransaction._append_record
+    original_append_record = transaction_model.PageTransaction._append_record
 
     def held_append_record(page, event):
         if event.get("kind") == kind:
@@ -1377,7 +1400,7 @@ def assert_revendor_serializes_writer(page_dir, monkeypatch, kind, write):
         return None
 
     monkeypatch.setattr(
-        service_model.PageTransaction, "_append_record", held_append_record
+        transaction_model.PageTransaction, "_append_record", held_append_record
     )
     # The held writer keeps whichever page locks it took until it resumes, so a
     # re-vendor found waiting on one of them is waiting on the writer.
@@ -1714,7 +1737,7 @@ _HELD_SELECTION = """
 import sys
 from pathlib import Path
 
-from leaf import session
+from leaf.commands import session
 from leaf.__main__ import main
 
 transaction = session.PageTransaction
@@ -1789,8 +1812,10 @@ def _each_test_composes_its_own_layers(monkeypatch):
 
 def retire_bridge(lock):
     """End the bridge holding `lock` once it has published its address."""
+    from leaf.base.bridge import ADDRESS
+
     record = wait_for(
-        lambda: files_model.read_json(lock.with_suffix(".json")),
+        lambda: files_model.read_json(ADDRESS.file(lock.with_suffix(".json"))),
         bool,
         failure="a started bridge never published its address",
     )
@@ -1814,11 +1839,10 @@ def retire_test_services(tmp_path, isolated_session):
         leases_model.release_lease(HELD_LEASES.pop())
     sessions = [
         record["id"]
-        for path in (isolated_session / "sessions").glob(
-            f"*.{cleanup_model.SESSION_SUFFIX}"
+        for path in cleanup_model.SESSION.glob(
+            isolated_session / "sessions", f"*.{cleanup_model.SESSION_SUFFIX}"
         )
-        if isinstance(record := files_model.read_json(path), dict)
-        and isinstance(record.get("id"), str)
+        if (record := cleanup_model.SESSION.read(path)) is not None
     ]
 
     def answer_completions():
@@ -1913,13 +1937,13 @@ def neighbour_page(directory, title=None, dead=False, published=True, port=59999
 def declare_idle(page_dir):
     """Write the page's `idle` declaration directly, past `leaf page close`'s refusal
     over unanswered moves, for a test whose subject is what an idle page does."""
-    with service_model.PageTransaction(page_dir) as page:
-        return page.set_status("idle")
+    with transaction_model.PageTransaction(page_dir) as page:
+        return set_status(page, "idle")
 
 
 def declared(page_dir):
     """The agent's declaration as the page's log holds it (`activity.declaration`)."""
-    from leaf.activity import declaration
+    from leaf.records.activity import declaration
 
     return declaration(events_model.read_events(page_dir))
 
@@ -1953,7 +1977,7 @@ def declare_work(page_dir, line, *, item=None, ts=None, **voice):
     the page has none, dated `ts` (now by default) and spoken in `voice` (`agent`,
     `session`, `turn`). Raw, so a test can date it in the past; `working` is the
     command an agent runs."""
-    from leaf.todos import TodoReading
+    from leaf.records.todos import TodoReading
 
     if item is None:
         item = (
@@ -1992,7 +2016,7 @@ def declare_work(page_dir, line, *, item=None, ts=None, **voice):
 def end_work(page_dir):
     """End every open task on the page as a whole, `declare_work`'s and `working`'s,
     so nothing the agent opened for itself is in hand any more."""
-    from leaf.todos import TodoReading
+    from leaf.records.todos import TodoReading
 
     for task in TodoReading(events_model.read_events(page_dir)).owed:
         if task["source"]["subject"] == {"kind": "page"}:
@@ -2009,8 +2033,8 @@ def end_work(page_dir):
 
 def end_work_on(page_dir, subject):
     """End the open tasks on the thread or widget `subject` names, done."""
-    from leaf.todos import TodoReading
-    from leaf.work import page_subject
+    from leaf.records.todos import TodoReading
+    from leaf.records.work import page_subject
 
     named = page_subject(page_dir, events_model.read_events(page_dir), subject)
     for task in TodoReading(events_model.read_events(page_dir)).owed:
@@ -2044,9 +2068,9 @@ def working(page_dir, line, subject="page"):
     thread or widget is named) and start it with `line`, as an agent does. Reuses the
     page's open task on that subject, so a test can say what it does next. Returns the
     start's record."""
-    from leaf import event_log as log_model
-    from leaf.todos import TodoReading
-    from leaf.work import page_subject
+    from leaf.log import event_log as log_model
+    from leaf.records.todos import TodoReading
+    from leaf.records.work import page_subject
 
     named = (
         {"kind": "page"}
@@ -2110,6 +2134,13 @@ def comment_once_served():
         thread.join(timeout=STATED_TIMEOUT)
 
 
+def entered_contexts(event_ids) -> list[str]:
+    """What a harness's record shows entered the model's context where the inputs
+    `event_ids` did (`Harness.entered_context`): one inline handover of them."""
+    events = [{"id": event_id} for event_id in sorted(event_ids)]
+    return [delivery_model.inline_context({"batches": [{"events": events}]})]
+
+
 class ContextRecord:
     """Claude Code's transcript, as tests stand it in (`Harness.entered_context`,
     `Harness.prompt_dropped`): every prompt and every inline handover a hook printed
@@ -2120,12 +2151,12 @@ class ContextRecord:
         self.dropped: set[str] = set()
 
     def entered(self, harness) -> set[str]:
-        from leaf.delivery import pickup_receipts
-        from leaf.event_log import read_events
+        from leaf.agents.delivery import pickup_receipts
+        from leaf.log.event_log import read_events
 
         return {
             event_id
-            for page in service_model.owned_pages(harness.session)
+            for page in transaction_model.owned_pages(harness.session)
             for pickup in pickup_receipts(read_events(page), phase="opened")
             if pickup["session"] == harness.session
             for event_id in pickup["events"]
@@ -2139,7 +2170,7 @@ def context_record(monkeypatch):
     monkeypatch.setattr(
         harness_model.ClaudeCodeHarness,
         "entered_context",
-        lambda harness, payload: record.entered(harness),
+        lambda harness, payload, marker: entered_contexts(record.entered(harness)),
     )
     monkeypatch.setattr(
         harness_model.ClaudeCodeHarness,
@@ -2155,7 +2186,7 @@ def claimed(page_dir, monkeypatch, context_record):
     it puts the session id and its pid into every Bash tool call."""
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s1")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     return page_dir
 
 
@@ -2223,7 +2254,7 @@ def codex_queue(tmp_path):
 import os
 import sys
 from pathlib import Path
-from leaf.state import write_json
+from leaf.base.state import write_json
 
 # The queue command is all this models; the App Server a page server starts to
 # name a thread is not here.
@@ -2273,6 +2304,10 @@ def under_codex(spawn, codex_program):
         # the argv — so it is the one factor this varies. The runner reads the
         # last word either way, which is what keeps that the only difference.
         hosting = ["app-server"] if app_server else []
+        # The task's hooks run this tree, as a Codex task's first hook records.
+        for variable in harness_model.CodexHarness.session_variables:
+            if env.get(variable):
+                hooks_run_this_tree(env[variable])
         shell_command = f"{command}; exit"
         if finished is not None:
             # Create `finished` once the command has, and keep the fake harness
@@ -2320,9 +2355,9 @@ def codex_claimed_page(tmp_path, under_codex, codex_env):
     program = """
 import json, sys
 from pathlib import Path
-from leaf.harness import session_harness
-from leaf.hosting import start_server
-from leaf.service import claim_page
+from leaf.base.harness import session_harness
+from leaf.pages.hosting import start_server
+from leaf.records.transaction import claim_page
 page = Path(sys.argv[1])
 claim_page(page)
 started = start_server(page, harness=session_harness())
@@ -2365,6 +2400,7 @@ def managed_server(spawn):
     nothing to the watcher that reads the claim."""
 
     def start(page_dir, session_id, session_pid):
+        hooks_run_this_tree(session_id)
         record_claim(page_dir, id=session_id, pid=session_pid)
         process = spawn(
             [
@@ -2391,7 +2427,9 @@ def managed_server(spawn):
 
 
 def start_server_command(page_dir, *flags, session_id="starter"):
-    """Run `server start` from a harness session and wait for the command to return."""
+    """Run `server start` from a harness session whose hooks run this tree, and wait
+    for the command to return."""
+    hooks_run_this_tree(session_id)
     return subprocess.run(
         [
             *LEAF_COMMAND,
@@ -2449,8 +2487,12 @@ def published(page_dir):
 
 
 def comment(page_dir, *args):
-    """Open a thread, with the posted event on stdout for the caller to read."""
-    return CliRunner().invoke(cli_model.cli, ["thread", "create", str(page_dir), *args])
+    """Open a thread, titled "Agent thread" unless `args` give a title, with the
+    posted event on stdout for the caller to read."""
+    titled = () if "--title" in args else ("--title", "Agent thread")
+    return CliRunner().invoke(
+        cli_model.cli, ["thread", "create", str(page_dir), *args, *titled]
+    )
 
 
 DRAFTED = PAGE.replace(
@@ -2479,6 +2521,8 @@ def edit(page_dir, text, widget="note", version=1):
             "widget": widget,
             "action": "edit",
             "detail": {"value": text},
+            # A draft says it holds an answer while the user's words stand in it.
+            "answered": bool(text),
         },
     )
 
@@ -2730,7 +2774,9 @@ SnapshotHandlerRegistry.add_handler(
 def consume_pending_input(session_id):
     """Hand the session its pending input as a hook does inline: one complete
     envelope, confirmed as it is handed over."""
-    from leaf import delivery, hook_transport, state
+    from leaf.agents import delivery
+    from leaf.base import state
+    from leaf.commands import hook_transport
 
     batches = [
         plan.batch
@@ -2757,7 +2803,7 @@ def claim_and_wait_command(page: Path) -> str:
 
 def last_deliverable_seq(page_dir: Path) -> int:
     """The last event a wait can print, excluding page-owned pickup records."""
-    return service_model.unacknowledged(events_model.read_events(page_dir), 0)[-1][
+    return transaction_model.unacknowledged(events_model.read_events(page_dir), 0)[-1][
         "seq"
     ]
 
@@ -2815,8 +2861,8 @@ def continued(output: str | dict) -> str:
 
 def inlined(context: str) -> dict:
     """The delivery a hook's `context` handed over inline, as Leaf reads it back
-    (`hook_transport.inline_delivery`)."""
-    inline = hook_transport_model.inline_delivery(context)
+    (`delivery.inline_delivery`)."""
+    inline = delivery_model.inline_delivery(context)
     assert inline is not None, context
     return inline[0]
 
@@ -2848,7 +2894,7 @@ def codex_loop(monkeypatch):
 
 def freeze_events(page_dir: Path, events: list[dict]) -> dict:
     """Freeze selected page events through the harness-neutral delivery boundary."""
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         stored = {event["id"]: event for event in transaction.events}
         batch = delivery_model.batch_data(
             page_dir,
@@ -2862,7 +2908,7 @@ def freeze_events(page_dir: Path, events: list[dict]) -> dict:
 
 def delivery_through(page_dir: Path, seq: int) -> str:
     """Freeze the complete deliverable prefix used to arrange a received fixture."""
-    events = service_model.unacknowledged(events_model.read_events(page_dir), 0)
+    events = transaction_model.unacknowledged(events_model.read_events(page_dir), 0)
     return freeze_events(
         page_dir, [event for event in events if event["seq"] <= int(seq)]
     )["id"]
@@ -2870,11 +2916,11 @@ def delivery_through(page_dir: Path, seq: int) -> str:
 
 def receive_through(page_dir: Path, seq: int) -> None:
     harness = session_model.session_harness()
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         held = harness is not None and page.claim_of(harness.session) is not None
     if not held:
-        service_model.claim_page(page_dir)
-    delivery_model.receive_delivery(delivery_through(page_dir, seq))
+        transaction_model.claim_page(page_dir)
+    delivery_ack_model.receive_delivery(delivery_through(page_dir, seq))
 
 
 def delivered_ref(page_dir: Path, input_id: str) -> str:
@@ -2960,9 +3006,12 @@ def app_server_fixture(app_server_messages):
 
 
 def codex_records(session_id: str) -> list[tuple[Path, dict]]:
+    """Each of the task's live delivery records, by the path its readers name it
+    (`codex.RECORD`), whose stem is its delivery id."""
     directory = codex_state_model.delivery_dir(session_id)
     return [
-        (path, files_model.read_json(path)) for path in sorted(directory.glob("*.json"))
+        (path, files_model.read_json(codex_model.RECORD.file(path)))
+        for path in sorted(codex_model.RECORD.glob(directory))
     ]
 
 
@@ -3026,6 +3075,7 @@ SETTLING_ACCEPT = {
     "widget": "sug-refill",
     "action": "decide",
     "detail": {"outcome": "accept"},
+    "answered": True,
 }
 
 
@@ -3095,11 +3145,11 @@ def _watched(page_dir):
 def adapter_lease(session_id, app_server):
     """Hold `session_id`'s adapter lease as a running adapter does, naming the App
     Server it starts turns over, or None for one that queues them
-    (`codex_adapter.run_adapter`)."""
-    lease = leases_model.take_lease(leases_model.adapter_lease_path(session_id))
+    (`codex_run.run_adapter`)."""
+    path = leases_model.adapter_lease_path(session_id)
+    lease = leases_model.take_lease(path)
     assert lease
-    lease.write(codex_adapter_model.ADAPTER.encode({"app_server": app_server}))
-    lease.flush()
+    codex_adapter_model.ADAPTER.write(path, {"app_server": app_server})
     return lease
 
 

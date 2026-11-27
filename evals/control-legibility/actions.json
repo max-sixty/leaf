@@ -47,7 +47,6 @@
   "next-on-me": "Go to the next item waiting on you, offered at the panel field's end while anything waits on you",
   "next-thread": "Go to the next open thread, offered after you resolve one",
   "resume-writing": "Return to the words you were writing, kept as a draft when their box closed",
-  "restore-edit": "Bring back the rewrite of a message you just discarded",
   "show-annotations": "Show the page's comments and marks again after hiding them",
   "show-changes": "Show what changed since the version you last read"
 }

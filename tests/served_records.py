@@ -28,17 +28,17 @@ from model_folds import (
     served_reading,
 )
 
-from leaf.event_log import EventRefused
-from leaf.passages import SourceReading
-from leaf.projection import (
+from leaf.log.event_log import EventRefused
+from leaf.log.projection import (
     AuthoredOrders,
     StateProjection,
     attribute_marks,
     authored_rank,
     obligation_value,
 )
-from leaf.registry.contract import state_definition
-from leaf.structure import SourceDocument
+from leaf.source.reading import SourceReading
+from leaf.source.registry.contract import state_definition
+from leaf.source.structure import SourceDocument
 
 PAGE = leaf_page("Served records", '<h1 id="h">Steps</h1><p id="p">Two steps.</p>')
 
@@ -106,6 +106,7 @@ BOTH_SIDES = (
         "widget": "ship",
         "action": "choose",
         "detail": {"value": ["ship-now"]},
+        "answered": True,
     },
     {
         "kind": "pickup",
@@ -154,9 +155,10 @@ REWRITTEN_TWICE = (
     {"kind": "edit", "message": "e1", "text": "Chart 2026."},
 )
 
-# A reaction the agent answered, and the user's own reaction on that answer.
+# A reaction the agent answered, the user's own reaction on that answer, and the
+# agent's answer to it.
 ANSWERED_REACTION = (
-    {"kind": "comment", "token": "change"},
+    {"kind": "comment", "emoji": "❌"},
     {
         "kind": "reply",
         "author": "agent",
@@ -164,7 +166,14 @@ ANSWERED_REACTION = (
         "parent": "e1",
         "text": "Which part?",
     },
-    {"kind": "reply", "parent": "e2", "token": "keep"},
+    {"kind": "reply", "parent": "e2", "emoji": "👍"},
+    {
+        "kind": "reply",
+        "author": "agent",
+        "agent": "Agent",
+        "parent": "e3",
+        "text": "Keeping it.",
+    },
 )
 
 # A reply the user sent in a thread, and the agent's answer to it.
@@ -290,7 +299,7 @@ def build() -> dict:
             **{
                 name: _served(
                     (
-                        {"kind": "comment", "token": "change"},
+                        {"kind": "comment", "emoji": "❌"},
                         {
                             "kind": "todo",
                             "author": "agent",
@@ -314,8 +323,8 @@ def build() -> dict:
             **{
                 name: _served(
                     (
-                        {"kind": "comment", "token": "change"},
-                        {"kind": "reply", "parent": "e1", "token": "keep"},
+                        {"kind": "comment", "emoji": "❌"},
+                        {"kind": "reply", "parent": "e1", "emoji": "👍"},
                         {"kind": "undo", "undoes": "e1"},
                         *tail,
                     )
@@ -330,6 +339,10 @@ def build() -> dict:
             },
             # The agent asked the user a question, the only thing On Me holds.
             "question": served_answer(PAGE, (QUESTION,)),
+            # The user's reaction on the page, which the agent owes an answer.
+            "a reaction waiting": served_answer(
+                PAGE, ({"kind": "comment", "emoji": "✂️"},)
+            ),
             "queues on both sides": served_reading(
                 OBLIGATION_PAGE,
                 BOTH_SIDES,
@@ -382,6 +395,7 @@ def build() -> dict:
                         "widget": "sug-refill",
                         "action": "decide",
                         "detail": {"outcome": "accept"},
+                        "answered": True,
                     },
                 ),
             ),
@@ -395,6 +409,7 @@ def build() -> dict:
                         "widget": "ship",
                         "action": "choose",
                         "detail": {"value": ["ship-now"]},
+                        "answered": True,
                     },
                     {"kind": "comment", "text": "Rebuild the chart."},
                     {
@@ -637,11 +652,18 @@ def gesture_sequence() -> dict:
             "widget": "draft-ops",
             "action": "edit",
             "detail": {"value": value},
+            "answered": True,
             "attempt": f"sequence-edit-{index:03}",
         }
         for index, value in enumerate(edits, 1)
     ]
-    withdrawal = {"kind": "undo", "undoes": "e3", "attempt": "sequence-undo-003"}
+    # The earlier edits still stand, so the draft still holds words.
+    withdrawal = {
+        "kind": "undo",
+        "undoes": "e3",
+        "answered": True,
+        "attempt": "sequence-undo-003",
+    }
     commands.append(withdrawal)
     commands.extend(
         {
@@ -708,6 +730,7 @@ TAIL_LOG = (
         "action": "choose",
         "detail": {"value": ["red"]},
         "attempt": "tail-attempt-0001",
+        "answered": False,
     },
     {
         "kind": "action",
@@ -715,6 +738,7 @@ TAIL_LOG = (
         "action": "choose",
         "detail": {"value": ["red", "blue"]},
         "attempt": "tail-attempt-0002",
+        "answered": False,
     },
     {"kind": "comment", "text": "Why both?", "attempt": "tail-attempt-0003"},
     {
@@ -723,8 +747,14 @@ TAIL_LOG = (
         "action": "choose",
         "detail": {"value": ["now"]},
         "attempt": "tail-attempt-0004",
+        "answered": True,
     },
-    {"kind": "undo", "undoes": "e2", "attempt": "tail-attempt-0005"},
+    {
+        "kind": "undo",
+        "undoes": "e2",
+        "answered": False,
+        "attempt": "tail-attempt-0005",
+    },
     {
         "kind": "pickup",
         "author": "page",
@@ -747,6 +777,7 @@ TAIL_LOG = (
         "widget": "kinds",
         "action": "answer",
         "detail": {},
+        "answered": True,
         "attempt": "tail-attempt-0008",
     },
 )
@@ -817,7 +848,6 @@ def tail_cases() -> list[dict]:
             "awaits": {
                 "when": {"active": [True]},
                 "value": "set",
-                "answered": {"set": {}},
             },
             "verbs": {
                 "set": {
@@ -839,6 +869,7 @@ def tail_cases() -> list[dict]:
                 "widget": "typed",
                 "action": "set",
                 "detail": {"value": value},
+                "answered": True,
             }
             for value in values
         ]

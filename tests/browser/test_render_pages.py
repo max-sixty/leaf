@@ -7,6 +7,7 @@ import re
 
 import pytest
 from click.testing import CliRunner
+from conftest import hooks_run_this_tree
 from interact_support import (
     append_carried_log_record,
     declare_on_page,
@@ -22,12 +23,7 @@ from render_cases_interaction import (
     live_url,
     open_seat_box,
 )
-from render_cases_layout import (
-    MARK,
-    SHOT_SRC,
-    SHOTS,
-    current_location_ring,
-)
+from render_cases_layout import MARK, SHOT_SRC, SHOTS
 from render_cases_navigation import (
     composer_quote,
 )
@@ -85,13 +81,14 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import schema as schema_model
-from leaf.registry.storage import load_registry
-from leaf.render_checks import asked_again, rendered, wait_until_ready
-from leaf.render_gate.scheme import console_finding
+from leaf.base import schema as schema_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.pages.render_gate.scheme import console_finding
+from leaf.source.render_checks import asked_again, rendered, wait_until_ready
+from leaf.source.vocabulary import load_registry
 from leaf_dev.example_data import named_source
+from leaf_dev.rings import current_location_ring
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -158,13 +155,17 @@ def test_sort_source_lights_the_line_each_step_runs_and_holds_under_the_reader(
     browser, serve
 ):
     """The film's playhead output lights the slice.rs line a step runs in the one
-    excerpt quoting it, and the source pane brings that line to its middle without
-    moving the page. Once the reader scrolls the pane, a new line out of view leaves it
-    where they put it, until they act on the film again; the last step lights nothing."""
+    excerpt quoting it, and the source pane brings that line into view with room round
+    it, without moving the page. Once the reader scrolls the pane, before the film has
+    run a line there or after, a new line out of view leaves it where they put it,
+    until they act on the film again; the last step lights nothing, and a line lit in
+    an excerpt the page doesn't draw moves nothing. The first line a block is handed
+    only marks, as an arrival moves nothing."""
     context = browser.new_context(
         reduced_motion="reduce", viewport={"width": 1440, "height": 900}
     )
-    page = open_page(browser, serve(named_source("rust-sort")), context=context)
+    url = serve(named_source("rust-sort"))
+    page = open_page(browser, url, context=context)
     # The end of the first step that runs insert_head's first test, of the first that
     # chooses a merge's direction, and of the last step.
     times = page.evaluate(
@@ -192,6 +193,22 @@ def test_sort_source_lights_the_line_each_step_runs_and_holds_under_the_reader(
             time,
         )
 
+    # The reader's hand in the pane holds it before the film has run a line there too.
+    # A key on the film is their hand on it, and starts the following.
+    box = pane.bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    page.mouse.wheel(0, 200)
+    page.wait_for_function("document.getElementById('sort-source').scrollTop > 0")
+    scroll_settled(page, "#sort-source")
+    read = pane.evaluate("element => element.scrollTop")
+    seek(times["merge"])
+    expect(page.locator("#code-merge [data-lf-at]")).to_have_attribute(
+        "data-lf-line", "1414"
+    )
+    rendered(page)
+    assert pane.evaluate("element => element.scrollTop") == read
+    scrub.press("Shift")
+
     seek(times["insert"])
     expect(marked).to_have_count(1)
     expect(page.locator("#code-insert-head [data-lf-at]")).to_have_attribute(
@@ -199,7 +216,7 @@ def test_sort_source_lights_the_line_each_step_runs_and_holds_under_the_reader(
     )
     expect(marked).to_be_in_viewport(ratio=1)
     scroll_settled(page, "#sort-source")
-    # Brought to the middle, with room for the lines before it and after.
+    # Brought in with room for the lines before it and after.
     room = page.evaluate(
         """() => {
           const pane = document.getElementById('sort-source').getBoundingClientRect();
@@ -231,6 +248,55 @@ def test_sort_source_lights_the_line_each_step_runs_and_holds_under_the_reader(
 
     seek(times["last"])
     expect(marked).to_have_count(0)
+
+    # The pane follows to the film's first line, well above the last excerpt. That
+    # excerpt then leaves the drawing, as a closed disclosure's contents do, and a line
+    # lit in it leaves the pane where it stood.
+    seek(0)
+    expect(page.locator("#code-merge-sort [data-lf-at]")).to_have_attribute(
+        "data-lf-line", "1550"
+    )
+    expect(marked).to_be_in_viewport(ratio=1)
+    scroll_settled(page, "#sort-source")
+    held = pane.evaluate(
+        "element => { document.getElementById('code-merge').style.display = 'none'; return element.scrollTop; }"
+    )
+    seek(times["merge"])
+    expect(page.locator("#code-merge [data-lf-at]")).to_have_attribute(
+        "data-lf-line", "1414"
+    )
+    rendered(page)
+    assert 0 < held == pane.evaluate("element => element.scrollTop")
+
+    # An arrival moves nothing. On the page as it opens, with no hand yet in the pane,
+    # a block drawn below the pane's view is handed its first line, as a plain host
+    # hands it: it marks the line and leaves the pane where it stood, and follows from
+    # the next.
+    page = open_page(browser, url, context=context)
+    pane = page.locator("#sort-source")
+    held = pane.evaluate(
+        """pane => {
+          const block = document.createElement('lf-code');
+          block.id = 'code-arrival';
+          block.append(Object.assign(document.createElement('pre'), {textContent: 'one\\ntwo\\nthree\\n'}));
+          pane.append(block);
+          return pane.scrollTop;
+        }"""
+    )
+    arrival = page.locator("#code-arrival")
+    expect(arrival).to_have_class(re.compile(r"\blf-rendered\b"))
+    arrival.evaluate("block => { block.playhead = '2'; }")
+    expect(arrival.locator("[data-lf-at]")).to_have_attribute("data-lf-line", "2")
+    rendered(page)
+    assert pane.evaluate(
+        """pane => ({
+          below: pane.querySelector('#code-arrival [data-lf-at]').getBoundingClientRect().top >= pane.getBoundingClientRect().bottom,
+          top: pane.scrollTop,
+        })"""
+    ) == {"below": True, "top": held}
+    arrival.evaluate("block => { block.playhead = '3'; }")
+    expect(arrival.locator("[data-lf-at]")).to_have_attribute("data-lf-line", "3")
+    expect(arrival.locator("[data-lf-at]")).to_be_in_viewport(ratio=1)
 
 
 def test_sort_film_fits_its_pane_where_the_panes_stand_side_by_side(browser, serve):
@@ -365,6 +431,11 @@ def test_a_written_anchor_keeps_its_copy_when_the_page_grows_another(browser, se
             "thread",
             "create",
             str(d),
+            "--title",
+            "Version stamp",
+            # Both copies stand in this section, so only the neighbours tell them apart.
+            "--section",
+            "twin",
             "--quote",
             "The version stamp never lands",
             "--text",
@@ -406,6 +477,7 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
     url = serve(TWIN_V1)
     d = serve.page_dir
     monkeypatch.setenv("LEAF_SESSION_ID", "codex")
+    hooks_run_this_tree("codex")
     monkeypatch.setenv("LEAF_AGENT", "Codex")
     assert (
         CliRunner()
@@ -415,6 +487,8 @@ def test_a_written_comment_keeps_its_originating_agent(browser, serve, monkeypat
                 "thread",
                 "create",
                 str(d),
+                "--title",
+                "Retry cap",
                 "--quote",
                 "Retries are capped at three",
                 "--text",
@@ -2172,6 +2246,76 @@ def test_a_column_stated_in_font_units_gives_every_breakout_the_same_room(
     assert root_overflow(page) == 0
 
 
+@pytest.mark.parametrize(
+    ("engine", "layout", "direction", "measure"),
+    [
+        (engine, layout, "ltr", None)
+        for engine in ("browser", "firefox_browser", "webkit_browser")
+        for layout in ("column", "sidebar")
+    ]
+    + [("browser", "sidebar", "rtl", None), ("browser", "sidebar", "ltr", "40em")],
+)
+def test_a_figure_that_takes_the_room_keeps_its_caption_under_the_prose(
+    request, serve, engine, layout, direction, measure
+):
+    """A figure given `data-width="available"` takes the room on both sides of the
+    prose, and its caption, being words, stays on the column: it starts where the
+    prose starts and keeps the measure. Beside a sidebar the room before the prose is
+    narrower than the room after, so a caption centred in the figure would stand off
+    the prose's edge. A caption or a figure written in the other direction from the
+    page stands there too. A measure stated in `em` keeps the prose's start edge,
+    though the caption's smaller face sets it narrower than the prose."""
+    browser = request.getfixturevalue(engine)
+    other = "rtl" if direction == "ltr" else "ltr"
+    body = (
+        '<p id="prose">A paragraph at the measure, long enough to fill the column it '
+        "stands in from one edge to the other.</p>"
+        '<figure id="figure" data-width="available"><div id="exhibit">Exhibit</div>'
+        '<figcaption id="caption">A caption long enough to fill the measure it '
+        "keeps, so its width shows where it stands.</figcaption></figure>"
+        '<figure data-width="available"><div>Exhibit</div>'
+        f'<figcaption id="turned" dir="{other}">A caption written the other way.'
+        "</figcaption></figure>"
+        f'<figure dir="{other}" data-width="available"><div>Exhibit</div>'
+        '<figcaption id="reversed">A caption in a figure written the other way.'
+        "</figcaption></figure>"
+    )
+    if layout == "sidebar":
+        body = (
+            "<aside><div class='layout-track'><p>Summary.</p></div></aside>"
+            f"<div class='layout-column'>{body}</div>"
+        )
+    head = f"<style>:root {{ --lf-col: {measure}; }}</style>" if measure else ""
+    source = leaf_page("Figure caption", body, head=head, layout=layout).replace(
+        '<html lang="en">', f'<html lang="en" dir="{direction}">', 1
+    )
+    page = open_page(browser, serve(source))
+    resized(page, 1600, 900)
+    captions = ("caption", "turned", "reversed")
+    at = page.evaluate(
+        """(ids) => Object.fromEntries(ids.map((id) => {
+          const box = document.getElementById(id).getBoundingClientRect();
+          return [id, {left: box.left, right: box.right}];
+        }))""",
+        ["prose", "figure", *captions],
+    )
+    prose, figure = at["prose"], at["figure"]
+    assert figure["left"] < prose["left"] - 1 and figure["right"] > prose["right"] + 1
+    if layout == "sidebar":
+        before = prose["left"] - figure["left"]
+        after = figure["right"] - prose["right"]
+        assert abs(before - after) > 16, at
+    start, end = ("left", "right") if direction == "ltr" else ("right", "left")
+    for caption in captions:
+        assert at[caption][start] == pytest.approx(prose[start], abs=1), at
+        if measure:
+            width = at[caption]["right"] - at[caption]["left"]
+            assert width < prose["right"] - prose["left"], at
+        else:
+            assert at[caption][end] == pytest.approx(prose[end], abs=1), at
+    assert root_overflow(page) == 0
+
+
 def test_a_breakout_a_revision_inserts_deeper_lands_before_it_paints(browser, serve):
     """A revision's replacement can put a breakout in a list deeper than the one it
     replaced. The breakout keeps to its list item from the first paint that shows it,
@@ -2380,8 +2524,9 @@ def test_a_widget_that_declares_width_takes_the_room_on_screen_and_not_on_paper(
 
 def test_the_document_holds_no_room_for_the_chrome_on_screen_or_paper(browser, serve):
     """The floating panel stands over the foot of the document, which keeps no room
-    for it, so the document ends where its own content does, under a mouse, under a
-    finger and on paper, which prints no chrome."""
+    for it, so the document ends where its own content and the room for its last line
+    to rise (layouts.css) do, under a mouse, under a finger and on paper, which prints
+    no chrome."""
     page = open_page(browser, serve(LONG_PAGE))
     for width in (1440, 390):
         resized(page, width, 844)

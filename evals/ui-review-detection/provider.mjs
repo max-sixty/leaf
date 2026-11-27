@@ -74,11 +74,11 @@ function sanitized(value, secrets = []) {
 export const ORIGIN = "https://candidate.test";
 
 // The bound on each Playwright wait that names none, as Leaf's Python tools take it
-// (`leaf.render_checks.SERVED_TIMEOUT_MS`): a hang bound, so a reviewer's step on a
+// (`leaf.source.render_checks.SERVED_TIMEOUT_MS`): a hang bound, so a reviewer's step on a
 // host busy with other sessions' suites fails only where the page has stopped.
 const SERVED_TIMEOUT_MS = python(
   "-c",
-  "from leaf.render_checks import SERVED_TIMEOUT_MS; print(SERVED_TIMEOUT_MS)",
+  "from leaf.source.render_checks import SERVED_TIMEOUT_MS; print(SERVED_TIMEOUT_MS)",
 );
 
 /**

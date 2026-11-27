@@ -2,7 +2,7 @@ $ leaf thread reply --text Answer
 exit: 2
 {"error": "Missing argument 'REFERENCE_OR_PAGE'.", "findings": [], "usage": "leaf thread reply [OPTIONS] REFERENCE_OR_PAGE [MESSAGE]"}
 
-$ leaf thread reply /page user-1 --text Answer
+$ leaf thread reply /page user-1 --text Answer --title Thread title
 exit: 0
 {"kind": "reply", "parent": "user-1", "notes": ["thread 'user-1' still owes the user an answer, which this message doesn't give; `leaf thread reply <answer.ref>` with the `answer.ref` that `leaf wait /page` delivers for user-1 answers it"]}
 

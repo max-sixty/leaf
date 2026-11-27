@@ -4,14 +4,8 @@ user."""
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
-from render_cases_interaction import OBLIGATIONS_PAGE, panel_comment
-from render_cases_layout import (
-    SHOT_SRC,
-    SHOTS,
-    current_location_ring,
-    ring_faults,
-    rings_drawn,
-)
+from render_cases_interaction import panel_comment, serve_obligations
+from render_cases_layout import SHOT_SRC, SHOTS
 from render_cases_navigation import (
     ADDRESSED_PAGE,
     BINDING_BADGE_PAGE,
@@ -56,9 +50,10 @@ from render_harness import (
 from browser.navigation import offered_routes
 from browser.threads import open_panel_thread
 from browser.threads.test_rewrites import _rewrite_surface
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import PANEL_THREAD, open_on_me
+from leaf_dev.rings import current_location_ring, ring_faults, rings_drawn
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -201,7 +196,7 @@ def test_the_thread_walk_goes_on_from_the_place_the_panel_holds(browser, serve):
 
 def test_the_thread_walk_goes_on_from_a_card_still_carried_in(browser, serve):
     """A walk that changes the card's thread carries the card's list from where the last
-    thread's card stood to the new one's place (box-motion.js), drawn above the window
+    thread's card stood to the new one's place (dom/box-motion.js), drawn above the window
     while the page has scrolled down to it. A key pressed meanwhile is meant for the card
     the walk reached, so `T` steps back from it rather than letting go of it and opening
     it again. The card's tween is held long, so the key lands once the glide has ended
@@ -1668,7 +1663,7 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
     dispatched the same way and answered, is what says so rather than leaving the held
     press to pass for want of reaching anything."""
     live_leaf("second", "A second leaf")
-    page = open_page(browser, serve(OBLIGATIONS_PAGE, comments=3))
+    page = open_page(browser, serve_obligations(serve, comments=3))
     press = """([key, repeat, shiftKey = false]) =>
       (document.activeElement ?? document.body).dispatchEvent(
         new KeyboardEvent('keydown',
@@ -1699,7 +1694,7 @@ def test_holding_a_key_repeats_only_where_the_press_is_a_walk(
 def test_a_walk_with_nothing_to_step_through_says_so(browser, serve):
     """Each page walk's letter is live on every page: on a page with no open thread,
     nothing on the user, no comparison and no search, a press says so in the panel
-    rather than doing nothing (keyboard/AGENTS.md, "Page grammar"), and Shift's
+    rather than doing nothing (dom/keyboard/AGENTS.md, "Page grammar"), and Shift's
     reverse says the same."""
     page = open_page(
         browser, serve(leaf_page("Quiet", "<h1>Quiet</h1><p>Nothing to answer.</p>"))

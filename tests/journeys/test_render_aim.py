@@ -18,7 +18,6 @@ from render_cases_layout import (
     AIMED,
     DRAFT_MARK,
     FOCUS_IN_PAGE,
-    NAMED,
     PAGE_MARKUP,
     aim_targets,
 )
@@ -39,8 +38,9 @@ from render_harness import (
     write,
 )
 
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered, wait_until_ready
+from leaf_dev.rings import NAMED
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -396,7 +396,7 @@ def test_design_mode_comments_on_a_margin_action_without_performing_it(browser, 
 def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
     browser, serve
 ):
-    """`parts` follows the ids the renderer carries, not one diagram type.
+    """A diagram's parts follow the ids the renderer carries, not one diagram type.
 
     State names, sequence participants, class names, and ER entities are written in the
     source the way a flowchart node is, so each addresses a box across a re-render. A
@@ -413,8 +413,9 @@ def test_a_declared_box_takes_its_comment_on_every_type_that_carries_an_id(
         "path": {"A", "B"},
         "exchange": {"User", "Server"},
         "model": {"Job", "Runner"},
+        "trend": set(),
     }
-    assert page.locator("lf-diagram[parts]").evaluate_all("""diagrams =>
+    assert page.locator("lf-diagram").evaluate_all("""diagrams =>
       Object.fromEntries(diagrams.map(diagram => [diagram.id,
         [...diagram.visualParts.keys()].sort()]))
     """) == {
@@ -545,9 +546,7 @@ def test_open_draft_retains_words_when_responsive_layout_hides_its_target(
                 # panel, whether or not the page draws its target, and the user goes
                 # on there in the editor they typed in.
                 panel_field = page.locator(".lf-fp-field leaf-text")
-                expect(
-                    page.locator(".lf-fp-view:not([data-lf-leaving])")
-                ).to_have_count(1)
+                expect(page.locator(".lf-fp-view")).to_have_count(1)
                 assert panel_field.evaluate("el => el === window.lfTypedIn")
                 assert _draft_in_view(page, words, panel_field)
                 continue
@@ -567,9 +566,7 @@ def test_open_draft_retains_words_when_responsive_layout_hides_its_target(
                     # The thread shows once: the floating panel, which took it on the
                     # narrow window, gives it back to the card, and the user goes on in
                     # the editor they typed in, with its caret and undo history.
-                    expect(
-                        page.locator(".lf-fp-view:not([data-lf-leaving])")
-                    ).to_have_count(0)
+                    expect(page.locator(".lf-fp-view")).to_have_count(0)
                     assert field.evaluate("el => el === window.lfTypedIn")
                 assert _draft_in_view(page, words, field)
 

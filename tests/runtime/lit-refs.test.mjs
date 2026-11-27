@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createRef, html, ref, render, repeat } from "/runtime/framework.js";
+import { createRef, html, ref, render, repeat } from "/vendor/lit.js";
 
 test("an optional template ref survives disconnection and reconnecting", () => {
   const host = document.createElement("div");

@@ -1,7 +1,7 @@
 /** Derive structural TypeScript records from the kernel's admission schema for each
  * event record (`$events.kinds` in browser/runtime/kernel-registry.json), which the page
  * protocol holds, and the state the server serves the runtime
- * (src/leaf/served_state/state.schema.json), which it doesn't; and the values of
+ * (src/leaf/serving/served_state/state.schema.json), which it doesn't; and the values of
  * each page-wide declaration an author writes (`$authored`), and package data
  * contracts (each package's `registry.json`, `$data.contracts`). Value constraints
  * (patterns, ranges, and conditional clauses) stay with the schemas' readers. Widget
@@ -169,7 +169,7 @@ function eventTypes(registry) {
       ].filter((key) => !owned.has(key));
       return `${JSON.stringify(kind)}: ${typeOf({ ...record, properties, required })};`;
     });
-  // The kinds each `$events.kinds` classification names (`runtime/kernel-facts.js`
+  // The kinds each `$events.kinds` classification names (`runtime/state/kernel-facts.js`
   // carries the same classifications as values).
   const classified = Object.entries({
     MessageKind: "message",
@@ -213,8 +213,8 @@ function servedTypes(schema, verb) {
 function pythonSchemas(root) {
   const program = `
 import json
-from leaf.registry.schema import leaf_resources
-from leaf.schema import DECLARATION_SCHEMA
+from leaf.source.registry.schema import leaf_resources
+from leaf.base.schema import DECLARATION_SCHEMA
 from leaf_dev import declared_records
 records = {
     kind: {"since": record.since, "schema": record.schema}
@@ -240,7 +240,7 @@ export async function protocolSchemas(root) {
   return {
     protocol: $events.protocol,
     events: { ownership: $events.ownership, kinds: $events.kinds },
-    served: await read("src/leaf/served_state/state.schema.json"),
+    served: await read("src/leaf/serving/served_state/state.schema.json"),
     verb: references["leaf:verb"],
     widget,
     // The composer's draft (`$events.draft`) beside the `state.Record`s.

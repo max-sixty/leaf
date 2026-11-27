@@ -3,13 +3,14 @@
 # retired a question; all five answered groups stayed open. Agents can do the step
 # the pick's delivery names ("write the answer into the markup") and stop there. The
 # main prompt replays the minute #4542 merged with that page's revision and the
-# pick's real delivery; the variant replays a pick that keeps today's behavior. The
-# delivery asks for the record once the work is done, since one naming only writing
-# in can leave the question open. For the earlier picks, delivered before that
-# wording, SKILL.md states the goal (bring the whole page up to date; decisions you
-# have acted on become settled records), since a one-line pointer to "Keep the
-# current page current" can leave them open. The `open-question` metric holds the
-# open `keys` question open.
+# pick's real delivery; the variant replays a pick that keeps today's behavior. Both
+# deliveries carry the handling the kernel registry gives at 43fed2e7e172, where the
+# main prompt passed 3 of 3 on Claude Code. The delivery asks for the record once the
+# work is done, since one naming only writing in can leave the question open. For the
+# earlier picks, delivered before that wording, SKILL.md states the goal (bring the
+# whole page up to date; decisions you have acted on become settled records), since a
+# one-line pointer to "Keep the current page current" can leave them open. The
+# `open-question` metric holds the open `keys` question open.
 description: decision-record-after-its-work
 metadata:
   purpose:
@@ -32,7 +33,7 @@ vars:
 
     ```json
     {
-     "format": "leaf-delivery/52",
+     "format": "leaf-delivery/59",
      "id": "483d8a07",
      "created_at": 1793155375.4377432,
      "acknowledge": null,
@@ -45,7 +46,7 @@ vars:
        "handling": {
         "h1": "The user already sees the action applied.",
         "h2": "If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note.",
-        "h3": "It answers the page's obligation, which waits on you until the markup records the answer. Before starting the work it selects or unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it and write the answer into the markup. Once the work is done, make the question a record of the decision (`references/authoring-revisions.md`, \"Keep the current page current\"), such as a choice group marked `settled` with what came of it beside it, and stamp a version. An option the user added needs no writing in; the page keeps it where the user put it."
+        "h3": "It answers the page's obligation, which waits on you until the markup records the answer. Before starting the work it selects or unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it and write the answer into the markup. Once the work is done, make the question a record of the decision (`references/authoring-revisions.md`, \"Keep the current page current\"), such as an `lf-options` marked `settled` with what came of it beside it, and stamp a version. An option the user added needs no writing in; the page keeps it where the user put it."
        },
        "events": [
         {
@@ -577,7 +578,7 @@ variants:
 
         ```json
         {
-         "format": "leaf-delivery/52",
+         "format": "leaf-delivery/59",
          "id": "7b924a8e",
          "created_at": 1793137004.122991,
          "acknowledge": null,
@@ -590,7 +591,7 @@ variants:
            "handling": {
             "h1": "The user already sees the action applied.",
             "h2": "If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note.",
-            "h3": "It answers the page's obligation, which waits on you until the markup records the answer. Before starting the work it selects or unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it and write the answer into the markup. Once the work is done, make the question a record of the decision (`references/authoring-revisions.md`, \"Keep the current page current\"), such as a choice group marked `settled` with what came of it beside it, and stamp a version. An option the user added needs no writing in; the page keeps it where the user put it."
+            "h3": "It answers the page's obligation, which waits on you until the markup records the answer. Before starting the work it selects or unblocks, name it with `leaf task start <page> <event-id> --text \"<the work, in a line>\"`; then do it and write the answer into the markup. Once the work is done, make the question a record of the decision (`references/authoring-revisions.md`, \"Keep the current page current\"), such as an `lf-options` marked `settled` with what came of it beside it, and stamp a version. An option the user added needs no writing in; the page keeps it where the user put it."
            },
            "events": [
             {

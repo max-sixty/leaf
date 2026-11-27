@@ -48,24 +48,20 @@
  * (`data-lf-at`). Several excerpts of one file can follow one widget, since a number
  * outside an excerpt marks nothing there.
  *
- * So that a reader watching that widget sees the marked line beside it, the block glides
- * the line to the middle of the box that scrolls it when the line leaves view
- * (`scrollIntoView` bounded `within` that box). Where that box is the page, it moves
- * nothing. Three rules keep the box from moving at every line:
+ * So that a reader watching that widget sees the marked line beside it, the block keeps
+ * the first marked line in the box that scrolls it. When the line stands outside a band
+ * of that box, from 15% of its height to 70%, the block sets the box's scroll at once
+ * so the line stands a third of the way down, with the lines that run next below it.
+ * Where that box is the page, or the page doesn't render the line, as in a closed
+ * disclosure, it moves nothing. The first value a block is handed only marks its line,
+ * as an arrival moves nothing, and the block follows from the next.
  *
- * - The middle leaves room for the lines that run next, so a loop runs in view rather
- *   than moving the box each time a line crosses its edge.
- * - A line the playhead leaves at the next value, such as a call's one line between
- *   visits to the function it calls, moves nothing. The box moves once the playhead is
- *   out of view in this block again within two values, as it is going round a loop
- *   whose second line is out of view, or has stood on the line for `REST`. A playhead
- *   that had stood still that long before, as it does when the reader steps it, is
- *   followed at once.
- * - The reader's hand inside the box, a press, wheel, touch or key there, stops the
- *   following, so the box holds still while they read or scroll it, and their hand
- *   on the widget `for` names starts it again. Rejected: following again once a marked
- *   line came into the reader's view, which took the pane from a reader who had scrolled
- *   up to read the lede as soon as the film lit a line beside it.
+ * The reader's hand inside the box, a press, wheel, touch or key there, stops the
+ * following, so the box holds still while they read or scroll it, and their hand on
+ * the widget `for` names starts it again for the blocks that name it. Rejected:
+ * following again once a marked line came into the reader's view, which took the pane
+ * from a reader who had scrolled up to read the lede as soon as the film lit a line
+ * beside it.
  *
  * It is a `LeafElement` only to be handed `playhead`; it draws no Lit template, and its
  * source draw is the update's completion, so Leaf's first anchor pass waits for the
@@ -77,13 +73,7 @@
  * the wrap and notes keys as the element's `lfCommands`, the Copy control from the
  * block's `data-lf-copy`, standing in the block's toolbar (`lfBar`) where it has one,
  * and the word a listener hears on a highlighted line from its `data-lf-quiet`. */
-import {
-  alreadyShown,
-  onUserInput,
-  scrollersOf,
-  scrollIntoView,
-  tabStore,
-} from "/runtime/portable-api.js";
+import { onUserInput, scrollersOf, tabStore } from "/runtime/portable-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { bodyText } from "/runtime/lib/data-body.js";
 import { failSoft } from "/runtime/lib/failure.js";
@@ -95,35 +85,24 @@ import {
   tokenLines,
 } from "/runtime/lib/syntax-tokens.js";
 import { keeps } from "/runtime/lib/keeps.js";
+import { scrollMoves } from "/runtime/lib/scroll-range.js";
 
-// How long a playhead stands on a line before the block counts it as resting there
-// (see the header): longer than a playing animation's one-step visits, shorter than a
-// reader's pause between steps.
-const REST = 500;
-
-// Whether the blocks in each box still follow there, and the boxes each followed widget
-// keeps following. A box is shared, as one pane holds several excerpts, so the reader's
-// hand inside it stops every block there, and their hand on a widget the blocks follow
-// starts them again (see the header). The hand is read from the document's one reading
-// of the reader's inputs (`onUserInput`), which binds no key, and is one of its
-// gestures: an `input` follows a gesture already counted, and a script that moves the
-// followed widget dispatches one with no reader behind it.
-/** @typedef {{follows: boolean}} Following */
-/** @type {WeakMap<Element, Following>} */
-const boxes = new WeakMap();
-/** @type {WeakMap<Element, Set<Following>>} */
-const resumes = new WeakMap();
+// Which of the reader's gestures last had their hand on or inside each element, counted
+// from the first. A block follows in its box unless their hand was in the box after it
+// was last on the widget the block follows (see the header), so a hand in the box holds
+// it from the page's load, before any block there has followed a line. The hand is read
+// from the document's one reading of the reader's inputs (`onUserInput`), which binds
+// no key, and is one of its gestures: an `input` follows a gesture already counted, and
+// a script that moves the followed widget dispatches one with no reader behind it.
+/** @type {WeakMap<Element, number>} */
+const hands = new WeakMap();
+let gestures = 0;
 const HAND = new Set(["pointerdown", "wheel", "touchstart", "keydown"]);
 onUserInput((event) => {
   if (!HAND.has(event.type)) return;
-  const path = event.composedPath();
-  for (const node of path) {
-    const box = node instanceof Element ? boxes.get(node) : undefined;
-    if (box) box.follows = false;
-  }
-  for (const node of path)
-    for (const box of (node instanceof Element && resumes.get(node)) || [])
-      box.follows = true;
+  gestures += 1;
+  for (const node of event.composedPath())
+    if (node instanceof Element) hands.set(node, gestures);
 });
 
 // "3-5,8" → [[3, 5], [8, 8]].
@@ -202,15 +181,9 @@ customElements.define(
     // The rows the playhead marks.
     /** @type {HTMLSpanElement[]} */
     #at = [];
-    // When the playhead last moved, null before the first value, which only marks, as an
-    // arrival moves nothing; how many values ago it last left a line out of view in this
-    // block unfollowed, while it stayed in the block; and the wait for it to rest there
-    // (see the header).
-    /** @type {number | null} */
-    #moved = null;
-    #unfollowed = Infinity;
-    /** @type {ReturnType<typeof setTimeout> | undefined} */
-    #rest;
+    // Whether the playhead has had a value. The first only marks, as an arrival moves
+    // nothing (see the header).
+    #arrived = false;
 
     // The rendered lines a range addresses, none before the lines are in.
     /** @param {string | null} key */
@@ -238,11 +211,6 @@ customElements.define(
       if (changed.has("playhead")) this.#follow();
     }
 
-    disconnectedCallback() {
-      super.disconnectedCallback();
-      clearTimeout(this.#rest);
-    }
-
     #mark() {
       const at = this.lfElementsFor(this.playhead);
       for (const row of this.#at) if (!at.includes(row)) keeps(row, "data-lf-at", null);
@@ -253,43 +221,30 @@ customElements.define(
     // Mark the new lines, and keep the first in sight as the header says.
     #follow() {
       this.#mark();
-      const now = performance.now();
-      const moved = this.#moved;
-      const returned = ++this.#unfollowed <= 2;
-      clearTimeout(this.#rest);
-      if (moved === null && this.playhead === null) return;
-      this.#moved = now;
+      const arrived = this.#arrived;
+      this.#arrived ||= this.playhead !== null;
       const [row] = this.#at;
-      if (!row) this.#unfollowed = Infinity;
-      if (moved === null || !row) return;
+      // A row the page doesn't render, as in a closed disclosure, has no place to bring
+      // into view.
+      if (!arrived || !row?.checkVisibility()) return;
       const [scroller] = scrollersOf(row);
       if (!scroller || scroller === document.scrollingElement) return;
-      let box = boxes.get(scroller);
-      if (!box) boxes.set(scroller, (box = { follows: true }));
       const id = this.getAttribute("for");
       const followed =
         id &&
         /** @type {Document | ShadowRoot} */ (this.getRootNode()).getElementById(id);
-      if (followed) {
-        let followers = resumes.get(followed);
-        if (!followers) resumes.set(followed, (followers = new Set()));
-        followers.add(box);
-      }
-      if (!box.follows || alreadyShown(row)) return;
-      const bring = () => {
-        this.#unfollowed = Infinity;
-        scrollIntoView(row, {
-          block: "center",
-          within: scroller,
-          behavior: "smooth",
-          sideways: false,
-        });
-      };
-      if (now - moved >= REST || returned) return bring();
-      this.#unfollowed = 0;
-      this.#rest = setTimeout(() => {
-        if (this.#at[0] === row && box.follows && !alreadyShown(row)) bring();
-      }, REST);
+      const resumed = (followed && hands.get(followed)) || 0;
+      if ((hands.get(scroller) ?? 0) > resumed) return;
+      const frame = scroller.getBoundingClientRect();
+      const { top, bottom } = row.getBoundingClientRect();
+      if (
+        top >= frame.top + frame.height * 0.15 &&
+        bottom <= frame.top + frame.height * 0.7
+      )
+        return;
+      const to = scroller.scrollTop + top - frame.top - frame.height / 3;
+      if (scrollMoves(scroller, { top: to }))
+        scroller.scrollTo({ top: to, behavior: "instant" });
     }
 
     async #draw() {

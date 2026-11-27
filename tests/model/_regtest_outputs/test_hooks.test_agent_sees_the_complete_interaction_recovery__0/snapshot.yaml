@@ -11,13 +11,14 @@ idle before pickup:
     findings: []
 
 the watch wakes the session: >-
-  <page> has new input; Leaf's prompt hook puts it in your context with this notification
+  <page> has new input; Leaf's prompt hook puts it in your context with this notification.
+  The user wrote “Add the camera first.”
 
 delivered at prompt:
   instruction: >-
     Leaf has new input for your turn. Read this complete delivery before answering.
   delivery:
-    format: leaf-delivery/52
+    format: leaf-delivery/59
     id: <delivery>
     created_at: <time>
     acknowledge: null
@@ -63,8 +64,9 @@ delivered at prompt:
             as `<lf-options id="…">` holding an `<lf-option id="…">` for each answer:
             the user answers with a press, and the choice waits on them by itself
             (`references/threads.md`, "Ask for a pick"). `--todo "<what you owe>"`
-            when it is yours, promising work beyond this turn. `--done` when it
-            leaves nobody a move.
+            when it is yours, promising work beyond this turn, with `--waiting-on
+            "<what>"` where it can't start until something you don't control happens.
+            `--done` when it leaves nobody a move.
           h3: >-
             Your reply renders as Markdown in a narrow card or panel. The thread
             already reaches the passage or section it is on, as a card beside it
@@ -138,6 +140,8 @@ answer:
   responds: event-3
   turn: <turn>
   attempt: <attempt>
+  title: >-
+    Thread title
   revision: 1
   id: event-7
   attention: false

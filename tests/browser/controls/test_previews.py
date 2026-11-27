@@ -1,6 +1,6 @@
 """Pointing reads; pressing acts: what a control, a mark or a value says before a press
 acts on it, to a resting pointer, to the keyboard and to a held finger
-(runtime/preview.js). The margin entry's preview, its label, is held in
+(runtime/annotations/preview.js). The margin entry's preview, its label, is held in
 `browser/margin/test_entries.py`."""
 
 import hashlib
@@ -17,7 +17,7 @@ from render_cases_interaction import (
     panel_comment,
 )
 from render_cases_layout import solid_png
-from render_cases_navigation import _publish
+from render_cases_navigation import CHIPS, _publish
 from render_harness import (
     EXAMPLES,
     RELEASE_FOCUS,
@@ -38,7 +38,8 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread, thread_row
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
+from leaf_dev.browser import text_field
 
 PREVIEW = "#lf-preview"
 # Every box the thread draws, and the preview's own, where the page stands them.
@@ -68,9 +69,7 @@ def test_a_control_previews_its_word_and_every_key_that_presses_it(
     page = open_page(clocked(request.getfixturevalue(engine)), url)
     view = open_panel_thread(page, thread)
     resolve = page.locator(".lf-fp-thread-controls .lf-resolve")
-    reply = page.get_by_role(
-        "textbox", name="Reply to Could the mobile cohort wait a week?"
-    )
+    reply = text_field(page, name="Reply to Could the mobile cohort wait a week?")
     preview = page.locator(PREVIEW)
     expect(resolve).to_be_visible()
     # Off Leaf its word is the browser's tooltip; on Leaf it writes no title, so the
@@ -338,6 +337,33 @@ def test_a_preview_leaves_out_what_its_control_already_shows(engine, request, se
     expect(preview.locator("kbd.lf-key-badge")).to_have_count(0)
 
 
+# Presses that draw only an emoji: one named by it, one whose markup names it by the same
+# emoji over a face hidden from a listener, as Leaf's reactions are, and one whose
+# markup names it in words.
+EMOJI_PRESSES = """<p id="presses">
+<button id="said" type="button">👍</button>
+<button id="marked" type="button" aria-label="👍"><span aria-hidden="true">👍</span></button>
+<button id="worded" type="button" aria-label="Thumbs up">👍</button>
+</p>"""
+
+
+def test_a_press_named_by_the_emoji_it_draws_previews_nothing(browser, serve):
+    """A reaction is its emoji: a press whose name is the emoji it draws shows its whole
+    name, so a resting pointer reads nothing more, whether the name comes from its
+    content or its markup. One whose markup names the emoji in words previews them."""
+    page = open_page(clocked(browser), serve(leaf_page("Emoji", EMOJI_PRESSES)))
+    preview = page.locator(PREVIEW)
+    for press in ["#said", "#marked"]:
+        page.mouse.move(2, 2)
+        page.locator(press).hover()
+        dwelt(page)
+        assert not preview.is_visible(), (press, preview.inner_text())
+    page.mouse.move(2, 2)
+    page.locator("#worded").hover()
+    dwelt(page)
+    expect(preview.locator(".lf-preview-word")).to_have_text("Thumbs up")
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_a_preview_inside_a_modal_takes_escape_before_the_modal(engine, request, serve):
     """The image viewer is a modal dialog, and its Close previews inside it. While the
@@ -373,7 +399,7 @@ def test_a_back_gesture_after_a_preview_put_away_closes_the_popover_under_it(
     """A Tab into an open popover shows its control's preview, and Escape puts it away.
     A back gesture then takes the next step, closing the popover, as a second Escape
     would: the page holds no close watcher of its own once no step of Leaf's stands
-    (keyboard/close-requests.js). Chromium alone, as the other back gestures are."""
+    (dom/keyboard/close-requests.js). Chromium alone, as the other back gestures are."""
     page = open_page(
         browser,
         serve(
@@ -480,7 +506,7 @@ def test_a_mark_s_preview_stands_clear_of_the_mark_on_the_next_line(
     """A passage mark's preview keeps clear of another thread's mark as of any control,
     though the mark is a range of words in the same paragraph, so the pointer going on
     to that mark finds it and its press opens that thread, rather than landing on the
-    preview and only putting it away (preview.js, `declareRanges`)."""
+    preview and only putting it away (annotations/preview.js, `declareRanges`)."""
     url = serve(
         STACKED,
         events=[
@@ -528,7 +554,7 @@ def test_a_mark_s_preview_stands_by_its_words_on_loosely_leaded_type(
     """Where a paragraph's leading is deeper than the gap a preview keeps from its line,
     the preview's rows of hit tests land in its own line's leading, which reads as that
     line's mark. That line is the preview's own, so the preview still stands below the
-    words it is about, at their start (preview.js, `clearRoom`)."""
+    words it is about, at their start (annotations/preview.js, `clearRoom`)."""
     words = "the thread's words"
     url = serve(
         LOOSE,
@@ -569,7 +595,7 @@ def test_a_mark_s_preview_keeps_clear_of_a_control_in_its_line_s_leading(
 ):
     """The preview's own line goes untested only for marks: a control standing in that
     line's deep leading, just below the words, is still one the preview keeps clear of
-    (preview.js, `clearRoom`)."""
+    (annotations/preview.js, `clearRoom`)."""
     words = "the thread's words"
     url = serve(
         DEEP,
@@ -684,7 +710,7 @@ def test_a_thread_previews_where_it_stands_from_its_words_and_its_entry(
     rests on and keeps it as it moves onto it, as it would an element's (WCAG 1.4.13),
     the keyboard on the entry reads it at once, which a screen reader hears as
     the entry's description, less the thread's word its name already says, and a press
-    on the words still opens the card (thread/messages.js, `threadPreview`)."""
+    on the words still opens the card (records/thread/messages.js, `threadPreview`)."""
     page = open_page(
         clocked(request.getfixturevalue(engine)), _thread_on_a_passage(serve)
     )
@@ -819,7 +845,7 @@ def test_a_finger_holding_a_thread_s_words_reads_it_above_them(browser, serve):
     preview a pointer would, above the line, which the finger doesn't cover. Its
     release presses nothing, as any hold's, so the preview stands and the thread stays
     shut until a tap on the words opens it, as a tap there always does
-    (preview.js, `pointRange`)."""
+    (annotations/preview.js, `pointRange`)."""
     url = _thread_on_a_passage(serve)
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, has_touch=True
@@ -893,8 +919,9 @@ def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, se
     a message's age to a resting pointer, and the message a walk landed the keyboard
     on to `K`, in its head where its age stands, or would where the message above has
     the same one, which a screen reader hears as the message's description; the
-    message's words say no time to a pointer. The panel's ages are times too. No title
-    stands beside any of them."""
+    message's words say no time to a pointer. The panel's ages are times too, and a
+    resolved thread's row says when it was resolved to the keyboard. No title stands
+    beside any of them."""
     url = serve(PANEL_PAGE)
     d = serve.page_dir
     listed = append_carried_log_record(
@@ -976,10 +1003,166 @@ def test_an_age_previews_its_clock_time_in_the_reader_s_zone(engine, request, se
     page.mouse.move(0, 0)
     expect(preview).to_be_hidden()
 
-    resolved = thread_row(page, settled).locator("time")
+    row = thread_row(page, settled)
+    resolved = row.locator("time")
     expect(resolved).to_have_attribute("datetime", "2026-08-16T01:30:00Z")
     expect(resolved).not_to_have_attribute("title", re.compile(".*"))
     assert " ".join(preview_text(resolved).split()) == "Sat, Aug 15, 2026, 6:30 PM PT"
+    # The row, which the keyboard reaches and the age in it doesn't, says it too.
+    said = preview_parts(row, route="focus")[-1]
+    assert " ".join(said.split()) == "Resolved Sat, Aug 15, 2026, 6:30 PM PT"
+
+
+AGE_IN_PROSE = leaf_page(
+    "Ages",
+    '<p id="ran">The import last ran <lf-age datetime="2026-11-20T02:10:00Z">'
+    "20 Nov, 02:10 UTC</lf-age>, and nothing has failed since. "
+    '<a id="notes-link" href="#notes">The <em>notes</em></a> say why.</p>'
+    '<h2 id="notes">Notes</h2><p>Nothing has failed.</p>',
+)
+# Whether the caret stands in the age's drawn words, as the platform says when handed
+# the age's shadow root.
+CARET_IN = """(age) => {
+  const [range] = getSelection().getComposedRanges({ shadowRoots: [age.shadowRoot] });
+  return range.startContainer.getRootNode() === age.shadowRoot;
+}"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_an_age_reads_its_time_to_the_keyboard_with_no_caret(engine, request, serve):
+    """Without a caret, as in Safari, an age an author wrote in the page takes a Go-to
+    hint, which lands on it and shows its clock time at once. An activity row's age
+    takes none: the row's target previews when the row happened, as the age does to a
+    pointer, so a list of rows adds no hints."""
+    url = serve(
+        leaf_page(
+            "Ages",
+            '<p id="ran">The import last ran <lf-age datetime="2026-11-20T02:10:00Z">'
+            "20 Nov, 02:10 UTC</lf-age>.</p>"
+            '<section id="recent"><h2>Recent</h2>'
+            '<lf-activity id="feed"></lf-activity></section>',
+        )
+    )
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "comment",
+            "author": "user",
+            "revision": 1,
+            "ts": "2026-11-21T17:05:00Z",
+            "text": "What failed last week?",
+            "anchor": {"section": "ran"},
+        },
+    )
+    browser = request.getfixturevalue(engine)
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900},
+        timezone_id="America/Los_Angeles",
+        locale="en-US",
+    )
+    page = open_page(browser, url, context=context)
+    preview = page.locator(PREVIEW)
+    page.locator("#feed .lf-activity-news").click()
+    target = page.locator("#feed .lf-activity-target").first
+    expect(target).to_be_visible()
+    page.mouse.move(2, 2)
+    page.locator("body").focus()
+
+    page.keyboard.press("g")
+    ages = page.locator(f'{CHIPS}[data-lf-go-to-kind="Time"]')
+    expect(ages).to_have_count(1)
+    page.keyboard.type(ages.get_attribute("data-lf-hint-code"))
+    expect(page.locator("#ran lf-age")).to_be_focused()
+    expect(preview).to_be_visible()
+    expect(preview).to_have_text("Thu, Nov 19, 2026, 6:10 PM PT")
+    page.keyboard.press("Escape")
+
+    assert preview_parts(target, route="focus")[-1] == "Sat, Nov 21, 2026, 9:05 AM PT"
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_k_reads_the_caret_where_no_tab_reaches(engine, request, serve):
+    """An age takes no Tab stop, and `K` reads its clock time where the caret stands on
+    it, beside it: caret browsing walks the caret into the age's words, as the
+    engine's own caret movement does here (`Selection.modify`), which Chromium names at
+    the age's edge and Firefox inside its shadow tree. The next key, which walks the
+    caret on, puts that reading away. Where focus is on something the caret isn't in,
+    `K` reads what focus is on, and a caret in the focused element's own words reads
+    that element as focus would."""
+    browser = request.getfixturevalue(engine)
+    context = browser.new_context(
+        viewport={"width": 1200, "height": 900},
+        timezone_id="America/Los_Angeles",
+        locale="en-US",
+    )
+    page = open_page(browser, serve(AGE_IN_PROSE), context=context)
+    preview = page.locator(PREVIEW)
+    age = page.locator("#ran lf-age")
+    page.evaluate(
+        """() => {
+          const words = document.getElementById('ran').firstChild;
+          getSelection().collapse(words, words.length);
+          for (let step = 0; step < 2; step++)
+            getSelection().modify('move', 'forward', 'character');
+        }"""
+    )
+    assert age.evaluate(CARET_IN)
+    page.keyboard.press("Shift+K")
+    expect(preview).to_have_text("Thu, Nov 19, 2026, 6:10 PM PT")
+    tip = preview.bounding_box()
+    box = age.bounding_box()
+    assert tip["y"] <= box["y"] + box["height"] + 24, (tip, box)
+    assert tip["y"] + tip["height"] >= box["y"] - 24, (tip, box)
+    page.keyboard.press("ArrowRight")
+    expect(preview).to_be_hidden()
+    # A caret before the character that leads the age's words, which draws nothing,
+    # stands before the age's first figure, which the user sees.
+    age.evaluate("(age) => getSelection().collapse(age.shadowRoot.firstChild, 0)")
+    page.keyboard.press("Shift+K")
+    # A preview put away keeps its words, so only its showing says it was read again.
+    expect(preview).to_be_visible()
+    expect(preview).to_have_text("Thu, Nov 19, 2026, 6:10 PM PT")
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    # A selection drawn from inside the age to the link's words reads the end it moves,
+    # though Chromium reports its anchor in the link's words too.
+    age.evaluate(
+        """(age) => getSelection().setBaseAndExtent(
+          age.shadowRoot.lastChild, 1,
+          document.querySelector('#notes-link em').firstChild, 2)"""
+    )
+    page.keyboard.press("Shift+K")
+    expect(preview.locator(".lf-preview-word")).to_have_text("Notes")
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+
+    page.evaluate(
+        """async () => {
+          const api = await window.__lfWidgetApi();
+          api.focusDestination(document.getElementById('notes-link'), 'move');
+        }"""
+    )
+    link = page.locator("#notes-link")
+    expect(link).to_be_focused()
+    assert age.evaluate(CARET_IN)
+    rendered(page)
+    expect(preview).to_be_hidden()
+    page.keyboard.press("Shift+K")
+    expect(preview.locator(".lf-preview-word")).to_have_text("Notes")
+
+    # A caret in the focused link's words reads the link, as focus does, though it
+    # stands in an element inside the link: a screen reader hears it as the link's
+    # description, and the next key leaves it standing.
+    page.keyboard.press("Escape")
+    expect(preview).to_be_hidden()
+    link.locator("em").evaluate("(em) => getSelection().collapse(em.firstChild, 2)")
+    page.keyboard.press("Shift+K")
+    expect(preview).to_be_visible()
+    expect(preview.locator(".lf-preview-word")).to_have_text("Notes")
+    assert "lf-preview" in link.evaluate(DESCRIBED)
+    page.keyboard.press("ArrowRight")
+    rendered(page)
+    expect(preview).to_be_visible()
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
@@ -1211,7 +1394,7 @@ def test_a_message_s_parts_follow_an_edit_the_card_held_as_news(browser, serve):
     card = page.locator(".lf-margin-preview")
     expect(card.locator(".lf-msg-body")).to_contain_text("Original paragraph.")
     part = """async (words) => {
-      const {partOver} = await import('/runtime/thread/placement.js');
+      const {partOver} = await import('/runtime/records/thread/placement.js');
       const said = [...document.querySelectorAll('.lf-margin-preview .lf-msg-body p')]
         .find((p) => p.textContent.includes(words));
       const over = partOver(said);
@@ -1238,7 +1421,7 @@ def test_a_message_s_parts_follow_an_edit_the_card_held_as_news(browser, serve):
     # A place in the message's text is named as the message reads: by its heading.
     named = page.evaluate(
         """async () => {
-          const {placePreview} = await import('/runtime/place-preview.js');
+          const {placePreview} = await import('/runtime/annotations/place-preview.js');
           const said = [...document.querySelectorAll('.lf-margin-preview .lf-msg-body p')]
             .find((p) => p.textContent.includes('Changed paragraph.'));
           return placePreview(said)?.name ?? null;
@@ -1349,7 +1532,8 @@ def test_a_threads_row_previews_its_thread(engine, request, serve):
     keyboard moving onto it, which hears the word the row's state already says once,
     and to a pointer resting on it."""
     url = serve(PANEL_PAGE)
-    for n in ("one", "two"):
+    # Started last, question one leads Threads, which lists the newest first.
+    for n in ("two", "one"):
         panel_comment(serve.page_dir, f"Question {n} on the lede?", {"section": "lede"})
     page = open_page(request.getfixturevalue(engine), url)
     tip = page.locator(PREVIEW)
@@ -1420,7 +1604,8 @@ def test_the_row_back_from_a_thread_returns_focus_to_previews_nothing(
     previews nothing until they step onto it again. Threads about the whole page open
     in the panel whatever the user chose for threads."""
     url = serve(PANEL_PAGE)
-    for n in ("one", "two"):
+    # Started last, question one leads Threads, which lists the newest first.
+    for n in ("two", "one"):
         panel_comment(serve.page_dir, f"Question {n} on the lede?")
     page = open_page(request.getfixturevalue(engine), url)
     tip = page.locator(PREVIEW)
@@ -1451,7 +1636,8 @@ def test_a_tap_after_a_finger_read_a_threads_row_opens_its_thread(browser, serve
     The hold's release presses nothing, but Chromium counts it into a run of clicks
     with the tap, a run begun on the row the tap presses."""
     url = serve(PANEL_PAGE)
-    for n in ("one", "two"):
+    # Started last, question one leads Threads, which lists the newest first.
+    for n in ("two", "one"):
         panel_comment(serve.page_dir, f"Question {n} on the lede?", {"section": "lede"})
     context = browser.new_context(
         viewport={"width": 390, "height": 844}, has_touch=True, is_mobile=True
@@ -1520,7 +1706,7 @@ def test_a_standing_preview_redraws_in_place_when_its_element_says_it_changed(
     """An element whose aim moves inside it, as a chart's point does, says its preview
     changed (`lf-preview`): the preview standing for it reads the element again and
     draws the new words where it stands, still open, for a resting pointer and for the
-    keyboard's focus."""
+    keyboard's focus, and a pointer's still goes once the pointer has left."""
     page = open_page(
         request.getfixturevalue(engine),
         serve(
@@ -1553,17 +1739,83 @@ def test_a_standing_preview_redraws_in_place_when_its_element_says_it_changed(
     rendered(page)
     expect(tip).to_be_visible()
 
+    # Redrawn as the pointer leaves for nothing, it still goes once the pointer has.
     page.mouse.move(2, 2)
+    page.evaluate(moved)
     expect(tip).to_be_hidden()
     page.keyboard.press("Shift")
     value.focus()
     page.keyboard.press("Tab")
     page.keyboard.press("Shift+Tab")
-    expect(tip.locator(".lf-preview-word")).to_have_text("Point 2")
-    page.evaluate(moved)
     expect(tip.locator(".lf-preview-word")).to_have_text("Point 3")
+    page.evaluate(moved)
+    expect(tip.locator(".lf-preview-word")).to_have_text("Point 4")
     rendered(page)
     expect(tip).to_be_visible()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_news_from_what_the_pointer_rests_on_keeps_its_dwell_s_deadline(
+    engine, request, serve
+):
+    """An element saying its preview changed (`lf-preview`) more often than the dwell
+    lasts still previews to a pointer resting on it once the dwell its rest began
+    ends, and says its latest words."""
+    page = open_page(
+        request.getfixturevalue(engine),
+        serve(leaf_page("Live", '<p><span id="value" tabindex="0">A value</span></p>')),
+    )
+    page.evaluate(
+        """() => {
+          const value = document.getElementById('value');
+          window.lfTick = 0;
+          value.lfPreview = () => ({name: `Tick ${window.lfTick}`});
+          setInterval(() => {
+            window.lfTick += 1;
+            value.dispatchEvent(new CustomEvent('lf-preview', {bubbles: true, composed: true}));
+          }, 150);
+        }"""
+    )
+    page.mouse.move(2, 2)
+    page.locator("#value").hover()
+    expect(page.locator(PREVIEW)).to_be_visible()
+    expect(page.locator(f"{PREVIEW} .lf-preview-word")).to_have_text(
+        re.compile(r"^Tick \d+$")
+    )
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_preview_that_found_no_place_to_stand_warms_no_next_one(
+    engine, request, serve
+):
+    """A reading whose place lies out of the window shows nothing, so the next target
+    the pointer reaches waits its own dwell and fades in, as with no preview before it
+    (annotations/preview.js, `WARM`)."""
+    page = open_page(
+        clocked(request.getfixturevalue(engine)),
+        serve(
+            leaf_page(
+                "Out of sight",
+                '<p><span id="gone">Gone</span> and <span id="next">next</span></p>',
+            )
+        ),
+    )
+    page.evaluate(
+        """() => {
+          document.getElementById('gone').lfPreview = () =>
+            ({name: 'Out of the window', at: {left: -80, top: -80, right: -60, bottom: -60}});
+          document.getElementById('next').lfPreview = () => ({name: 'The one after'});
+        }"""
+    )
+    tip = page.locator(PREVIEW)
+    page.mouse.move(2, 2)
+    page.locator("#gone").hover()
+    dwelt(page)
+    assert not tip.is_visible(), "a reading out of the window showed"
+    page.locator("#next").hover()
+    dwelt(page)
+    expect(tip.locator(".lf-preview-word")).to_have_text("The one after")
+    expect(tip).to_have_attribute("data-lf-fade", "")
 
 
 def test_a_standing_preview_reads_its_element_again_as_the_page_presents_news(
@@ -2216,7 +2468,7 @@ def test_a_preview_put_away_stays_away_until_the_user_aims_again(
     expect(tip).to_be_hidden()
     page.evaluate(
         """async () => {
-          const {focusDestination} = await import('/runtime/focus.js');
+          const {focusDestination} = await import('/runtime/dom/focus.js');
           document.getElementById('before').focus();
           queueMicrotask(() =>
             focusDestination(document.getElementById('chart'), 'step'));
@@ -2468,7 +2720,7 @@ def test_a_preview_stands_where_it_covers_no_small_target_and_fits_any_window(
 
 
 # A widget that draws its own content (`content: empty`), as `lf-toc` does, which so
-# takes the pointer (widget-elements.js, `aimableAt`) though no press acts on it: a
+# takes the pointer (dom/widget-elements.js, `aimableAt`) though no press acts on it: a
 # column of links across the page's column, the middle one previewing a line of detail
 # under its name, as a contents row with marks does.
 ROUTE = {
@@ -2536,7 +2788,7 @@ def test_a_preview_stands_by_a_target_a_transform_moved(engine, request, serve):
     """A control in a box a transform moves, as a table granted room is translated into
     place (layouts.css), previews beside itself in each engine. Firefox leaves an
     anchor's transforms out of `anchor()`, so the preview's edges are measured from the
-    box Firefox reads (css-anchors.js, `anchorBox`); measured from the box a script
+    box Firefox reads (dom/css-anchors.js, `anchorBox`); measured from the box a script
     reads, the preview stood the translation away from its control."""
     page = open_page(
         request.getfixturevalue(engine),
@@ -3133,7 +3385,8 @@ def test_readings_that_stand_by_one_element_redraw_in_place_as_the_pointer_cross
     the preview where it stands without closing it, on the side it stood, even where
     the next reading is longer than that side's room; the control it left hears its
     reading end after the next was read. Crossing to a control whose preview stands by
-    itself closes the preview and shows the next."""
+    itself closes the preview and shows the next at once, with none of the fade the
+    first preview came in with, so a pointer reading along a row moves one preview."""
     page = open_page(request.getfixturevalue(engine), serve(SHARED_ROW))
     page.evaluate(SHARED_ROW_LOG)
     tip = page.locator(PREVIEW)
@@ -3142,6 +3395,7 @@ def test_readings_that_stand_by_one_element_redraw_in_place_as_the_pointer_cross
     page.locator("#one").hover()
     expect(word).to_have_text("Reads one")
     expect(tip).to_have_attribute("data-lf-y", "below")
+    expect(tip).to_have_attribute("data-lf-fade", "")
     _crossed(page)
 
     two = page.locator("#two").bounding_box()
@@ -3157,6 +3411,7 @@ def test_readings_that_stand_by_one_element_redraw_in_place_as_the_pointer_cross
     )
     expect(word).to_have_text("Reads three")
     assert "closed" in _crossed(page)
+    expect(tip).not_to_have_attribute("data-lf-fade", "")
 
 
 def test_a_finger_sliding_between_readings_that_stand_by_one_element_redraws_in_place(
@@ -3270,7 +3525,7 @@ def test_a_window_resize_decides_once_where_a_preview_stands(
     page.evaluate(
         """() => {
           document.getElementById('aim').lfPreview = () => ({name: 'A value says'});
-          // Each decision (preview.js, `stand`) measures the preview's width once; the
+          // Each decision (annotations/preview.js, `stand`) measures the preview's width once; the
           // page's watches measure it too.
           const tip = document.getElementById('lf-preview');
           const measure = tip.getBoundingClientRect;
@@ -3593,7 +3848,7 @@ def test_a_count_on_a_control_s_face_names_nothing(engine, request, serve):
 
 # Whatever fills the window around a small control, so its preview has no side clear of
 # it and stands over it, letting the pointer through: a field and a titled link, each a
-# target the user aims at though neither previews (widget-elements.js, `aimableAt`).
+# target the user aims at though neither previews (dom/widget-elements.js, `aimableAt`).
 BENEATH = {
     "field": '<textarea id="under" aria-label="Draft" style="{}">A draft to edit.</textarea>',
     "titled link": '<a id="under" href="#elsewhere" title="Where it goes" style="display:'
@@ -4150,7 +4405,7 @@ def test_a_preview_leaves_a_region_the_user_works_in_reachable(
     """A preview stands clear of a region the user must keep reaching, though nothing
     in it previews and the gestures Leaf routes leave it alone: code that scrolls, a
     tab panel, a frame. A press there reaches it. A press on a tab panel's contents
-    lands where it would without the panel's tab stop (focus.js), so the panel shows
+    lands where it would without the panel's tab stop (dom/focus.js), so the panel shows
     the press reached it by receiving it rather than by taking focus."""
     page = open_page(
         request.getfixturevalue(engine),

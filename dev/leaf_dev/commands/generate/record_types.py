@@ -1,9 +1,10 @@
 """Generate Python record types from their canonical storage schemas.
 
-The trial covers the access and service records. Their generated stub is checked
-with ty but never imported while Leaf runs, including state.py's dependency-free
-system-Python entry. Schema constraints stay with the existing schema readers;
-this output describes dictionary fields, requiredness and primitive value types.
+The trial covers the access and service records. Their generated module is checked
+with ty, and its readers import it only for the type checker, so it is never imported
+while Leaf runs, including state.py's dependency-free system-Python entry. Schema
+constraints stay with the existing schema readers; this output describes dictionary
+fields, requiredness and primitive value types.
 """
 
 import subprocess
@@ -16,14 +17,14 @@ from datamodel_code_generator import (
     generate,
 )
 
-from leaf.server import ACCESS, SERVICE
+from leaf.base.server import ACCESS, SERVICE
 from leaf_dev import ROOT
 
-OUTPUT = ROOT / "src/leaf/record_types.pyi"
+OUTPUT = ROOT / "src/leaf/base/record_types.py"
 
 
 def generated_types() -> str:
-    """The selected schemas as one type-only module, formatted by project Ruff."""
+    """The selected schemas as one module of types, formatted by project Ruff."""
     source = {**ACCESS.schema, "$defs": {"ServiceRecord": SERVICE.schema}}
     result = generate(
         source,
@@ -36,8 +37,7 @@ def generated_types() -> str:
         formatters=[],
     )
     assert isinstance(result, str)
-    # The generator's Ruff integration formats stdin as .py; Ruff gives stubs
-    # different import/spacing rules, so pass the actual .pyi destination.
+    # Ruff reads stdin by the destination's name, so pass the actual destination.
     for arguments in (("check", "--fix"), ("format",)):
         result = subprocess.run(
             [
@@ -59,7 +59,7 @@ def generated_types() -> str:
 
 @click.command()
 @click.option(
-    "--check", is_flag=True, help="Check the committed stub without writing it."
+    "--check", is_flag=True, help="Check the committed module without writing it."
 )
 def record_types(check: bool) -> None:
     """Generate the selected Python record types, or check that they are current."""

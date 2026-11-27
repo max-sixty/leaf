@@ -3,7 +3,7 @@ import { createActivity } from "./activity-view.js";
 /* lf-activity: the page's history as a feed, newest first.
  *
  * The server's history reading is the only semantic input: every
- * reading of `readHistory` restates the whole feed. A row says who acted (You for the
+ * reading of `readHistory` restates the whole feed. A row says who acted (Me for the
  * user, Page for what the page did by itself, and otherwise the name the server serves
  * the row under), what they did, the thing they did it to, and how long ago.
  *
@@ -38,10 +38,8 @@ import { createActivity } from "./activity-view.js";
 import {
   HeldReading,
   tabStore,
-  ago,
   anchorLabel,
   elementById,
-  layerFact,
   nameOf,
   threadActions,
   readThreads,
@@ -75,9 +73,6 @@ function placeName(anchor, about) {
     return excerptWords(anchorLabel(anchor, about), NAME);
   return nameById(anchor?.section ?? null);
 }
-
-/** @param {string} token */
-const reaction = (token) => layerFact("$reactions")?.tokens?.[token]?.glyph ?? token;
 
 /** @param {import("../../../browser/types/contract.js").ServedHistoryRow} row */
 const actorOf = (row) =>
@@ -131,9 +126,9 @@ function describe(row) {
   });
   switch (row.kind) {
     case "comment":
-      if (row.token)
+      if (row.emoji)
         return {
-          what: `reacted ${reaction(row.token)} on`,
+          what: `reacted ${row.emoji} on`,
           widget: row.anchor?.section ?? null,
           label: placeName(row.anchor, row.about),
         };
@@ -143,7 +138,7 @@ function describe(row) {
         placeName(row.anchor, row.about),
       );
     case "reply":
-      return thread(row.token ? `reacted ${reaction(row.token)} in` : "replied in");
+      return thread(row.emoji ? `reacted ${row.emoji} in` : "replied in");
     case "edit":
       return thread("edited a message in");
     case "resolve":
@@ -175,7 +170,6 @@ customElements.define(
       return this.#drawing.render(reading, {
         printing: this.#printing,
         names: elementById,
-        age: ago,
         openThread: (id) => {
           const thread = readThreads().threads.find((thread) => thread.id === id);
           if (thread) void threadActions.open(thread.key, { part: "thread" });

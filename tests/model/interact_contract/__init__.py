@@ -5,7 +5,7 @@ from copy import deepcopy
 
 from interact_support import declare_on_page, element_declaration
 
-from leaf.registry.storage import read_page_registry
+from leaf.source.vocabulary import read_page_registry
 
 
 def vocabulary(page_dir) -> dict:

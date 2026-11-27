@@ -4,6 +4,13 @@ Read with [module-authoring.md](module-authoring.md).
 
 ## Scrolling
 
+A widget whose box keeps a height of its own and scrolls what it holds, as a log or a
+feed does, declares `bound` in its tag's declaration rather than scrolling a box
+itself. Leaf then keeps the reader's place in the box, and an `end` bound follows the
+newest entry while the reader is at the end (`page-layout.md`, "Bounds and widths").
+To bound a box inside the widget instead, as under a caption, see `package-themes.md`,
+"A theme change".
+
 ### Reading regions
 
 A pane widget declares `reading-role: pane` and `content: markup`, and holds one
@@ -127,16 +134,16 @@ it fits, and as much of it as the window holds where it is longer, which
 `alreadyShown(target)` answers for a widget deciding whether to land something else.
 Pass `sideways: false` to align what the user is reading and keep their place across
 its lines. To bring an item into its own strip or list and leave the page where
-it is, pass that box as `within`: the box places the item at `block` with `behavior`,
-as a reading region does, and the boxes inside it reveal it nearest at once. Unlike
-native `Element.scrollIntoView`, it stays inside a live sample. Use it only for a
-deliberate move; focusing a visible control or redrawing keeps the scroll.
+it is, pass that box as `within`: the item comes in at the nearest edge of each box,
+at once, whatever `block` and `behavior` say. Unlike native `Element.scrollIntoView`,
+it stays inside a live sample. Use it only for a deliberate move; focusing a visible
+control or redrawing keeps the scroll.
 
 `scrollersOf(node)` yields every box whose scroll moves a node, innermost first, out
 to the page's `document.scrollingElement`. A widget that keeps something in view as
-another widget moves, as `lf-code` keeps the line a film runs, passes the first as
-`within` unless it is the page, so the page stays where the reader left it. It,
-`alreadyShown` and `onUserInput` ([module-input.md](module-input.md)), which says when
+another widget moves, as `lf-code` keeps the line a film runs, sets the scroll of the
+first (`scrollTo`, below) unless it is the page, so the page stays where the reader
+left it. It and `onUserInput` ([module-input.md](module-input.md)), which says when
 the reader's hand is in that box, are also available from `portable-api.js`.
 
 A landing keeps the target's `scroll-margin` clear on every side, so a focused
@@ -282,9 +289,16 @@ of a smooth `scrollTo`, it reads the `prefers-reduced-motion` media query.
 Animate only to help the eye follow a box from where it was to where it is, and draw a
 result the module already has during the gesture, not after a delay.
 
-A widget removing an item takes the time of its fold from `--lf-motion-fold` rather
-than choosing a number, and a retained frame returning from an editor to its reading
-takes the shorter `--lf-motion-return` (`package-themes.md`, "Theme tokens"). The
+A package's stylesheet animates with a `transition` or an `animation`. Leaf turns the
+sheet's transitions off until the page is presented (`module-authoring.md`, "Startup
+and presentation"), though an `animation` plays as soon as its rule matches. For a
+user who asked for less motion, Leaf turns the transitions off and ends the
+animations at once. `element.animate` has neither guard, so it plays before the page
+is presented and for that user.
+
+A widget removing an item, or returning a retained frame from an editor to its
+reading, takes the time of its fold from `--lf-motion-fold` rather than choosing a
+number (`package-themes.md`, "Theme tokens"). The
 library's [`motion-timing.js`](../../../browser/runtime/lib/motion-timing.js) reads a
 token's time in milliseconds.
 

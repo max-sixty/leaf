@@ -50,14 +50,14 @@ from playwright.sync_api import (
 )
 from playwright.sync_api import Error as PlaywrightError
 
-from leaf.findings import Finding
-from leaf.render_checks import (
+from leaf.base.findings import Finding
+from leaf.pages.render_gate.scheme import collect_page_errors
+from leaf.source.render_checks import (
     PageNotReady,
     open_render_context,
     open_render_page,
     wait_until_ready,
 )
-from leaf.render_gate.scheme import collect_page_errors
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     codex_home,
@@ -582,6 +582,15 @@ def docker_command(*arguments: str, input: str | None = None, timeout: int = 30)
     return result.stdout
 
 
+def container_filter(name: str) -> str:
+    """The `docker ps` filter for the containers a local Worker named `name` runs.
+
+    Miniflare gives each `wrangler dev` session a hex id, and workerd names each
+    container `workerd-<session>-<actor key>`, whose key begins with the Worker's name.
+    """
+    return f"name=^workerd-[0-9a-f]+-{name}-"
+
+
 @dataclass(frozen=True)
 class LocalWorker:
     """One local Worker and only the Docker containers its private name owns."""
@@ -596,7 +605,7 @@ class LocalWorker:
             "ps",
             *(["--all"] if include_stopped else []),
             "--filter",
-            f"name=^workerd-{self.name}-",
+            container_filter(self.name),
             "--format",
             "{{json .}}",
         )
@@ -676,7 +685,10 @@ def local_worker() -> Generator[LocalWorker]:
     Build the image before timing HTTP readiness: a cold dependency download is not
     a Worker startup failure. Wrangler leaves each container's
     `proxy-everything` sidecar running when it exits, so the run serves under a Worker
-    name of its own and removes the containers carrying it on the way out.
+    name of its own and removes the containers carrying it on the way out. Wrangler
+    removes some of them itself as it exits, and may still be removing one when the
+    run lists them. So a container already gone or still being removed is no
+    failure, and the run removes its image by force, since such a container holds it.
     """
     out = run_directory(ROOT / ".tmp" / "site-verify")
     # Temporary directory suffixes may begin with `_`, which cannot follow a
@@ -707,7 +719,7 @@ def local_worker() -> Generator[LocalWorker]:
                 ],
                 context,
             )
-            from leaf.state import flocked
+            from leaf.base.state import flocked
 
             with flocked(site_lock(SITE)):
                 shutil.copytree(SITE, context / ".tmp" / "site")
@@ -789,7 +801,7 @@ def local_worker() -> Generator[LocalWorker]:
                     raise
     finally:
         listed = subprocess.run(
-            ["docker", "ps", "--all", "--quiet", "--filter", f"name=^workerd-{name}-"],
+            ["docker", "ps", "--all", "--quiet", "--filter", container_filter(name)],
             capture_output=True,
             text=True,
             check=True,
@@ -798,11 +810,11 @@ def local_worker() -> Generator[LocalWorker]:
             subprocess.run(
                 ["docker", "rm", "--force", *started],
                 stdout=subprocess.DEVNULL,
-                check=True,
+                check=False,
             )
         if image is not None:
             subprocess.run(
-                ["docker", "image", "rm", image],
+                ["docker", "image", "rm", "--force", image],
                 stdout=subprocess.DEVNULL,
                 check=True,
             )

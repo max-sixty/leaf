@@ -1,7 +1,7 @@
 /** Names hand-written code spells out stay the ones the other runtime spells.
  *
  * Runtime modules read what they can from the kernel registry itself
- * (`runtime/kernel-facts.js`), but a stylesheet's selector, the inline prepaint, a
+ * (`runtime/state/kernel-facts.js`), but a stylesheet's selector, the inline prepaint, a
  * package's own module (`references/package-themes.md`), a render check's probe and
  * the markup Python writes can only spell a name out. Each test here holds those spellings to their other
  * side:
@@ -105,12 +105,12 @@ test("the browser spells each `data-lf-` attribute Python spells", async () => {
 });
 
 test("a suggestion slot's phrasing content is the kernel's", async () => {
-  const sheet = await readFile(`${root}browser/base.css`, "utf8");
+  const sheet = await readFile(`${root}browser/elements.css`, "utf8");
   const [, spelled] =
     sheet.match(
       /> :is\(lf-old, lf-new\)\s*> :not\(([^)]*?):where\(\[data-lf-inline\]\)/,
     ) ?? [];
-  assert.ok(spelled, "base.css no longer asks whether a slot holds block content");
+  assert.ok(spelled, "elements.css no longer asks whether a slot holds block content");
   assert.deepEqual(
     spelled
       .split(",")

@@ -18,19 +18,19 @@ from interact_support import (
     state_json,
 )
 
-from leaf import activity as activity_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import service as service_model
-from leaf import standing as standing_model
-from leaf import thread as thread_model
-from leaf.served_state.context import read_page
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.agents.presence import read_work
+from leaf.base import standing as standing_model
+from leaf.log import event_log as events_model
+from leaf.records import activity as activity_model
+from leaf.records import transaction as transaction_model
 
 
 def _owed_answers(page_dir, reading):
     """The answers `reading` (`blocking_obligations` or `turn_obligations`) holds the
     agent to, by input and operation, with the delivery's reference left off."""
-    work = read_page(page_dir, events_model.read_events(page_dir)).work
+    work = read_work(page_dir, events_model.read_events(page_dir))
     state = {**work.presence, "activity": work.activity}
     return [
         (
@@ -166,9 +166,9 @@ def test_a_widget_the_user_discusses_is_listed_once_through_the_comment():
 
 def test_stop_and_idle_hold_the_agent_to_the_answers_it_owed_before(claimed):
     """The answers that hold the turn and refuse idling are the ones the page owed
-    before updates published records: the newest of two messages in a row, each card
-    of a finished queue sent in a thread, a pick on a page obligation, and nothing for
-    a draft edit or a message a harness handed back."""
+    before updates published records: the newest of two messages in a row, the newest
+    card of a finished queue sent in a thread, a pick on a page obligation, and nothing
+    for a draft edit or a message a harness handed back."""
     declare_on_page(
         claimed, lambda registry: registry.update(queue_board_registry(registry))
     )
@@ -220,9 +220,11 @@ def test_stop_and_idle_hold_the_agent_to_the_answers_it_owed_before(claimed):
                 "widget": "triage",
                 "action": "move",
                 "detail": {"unit": card, "value": "keep", "rank": rank},
+                # The queue says it is answered once its Queued column is empty.
+                "answered": emptied,
             },
         )
-        for card, rank in (("card-a", "i"), ("card-b", "r"))
+        for card, rank, emptied in (("card-a", "i", False), ("card-b", "r", True))
     ]
     append_command(
         claimed,
@@ -233,6 +235,8 @@ def test_stop_and_idle_hold_the_agent_to_the_answers_it_owed_before(claimed):
             "widget": "note",
             "action": "edit",
             "detail": {"value": "Green room."},
+            # A draft says words stand in it, whether or not it asks the user.
+            "answered": True,
         },
     )
     picked = append_command(
@@ -244,6 +248,7 @@ def test_stop_and_idle_hold_the_agent_to_the_answers_it_owed_before(claimed):
             "widget": "choice",
             "action": "choose",
             "detail": {"value": ["backfill-first"]},
+            "answered": True,
         },
     )
     receive_through(claimed, last_deliverable_seq(claimed))
@@ -253,12 +258,9 @@ def test_stop_and_idle_hold_the_agent_to_the_answers_it_owed_before(claimed):
             second["id"],
             {"kind": "reply", "parent": second["id"], "responds": second["id"]},
         ),
-        *(
-            (
-                move["id"],
-                {"kind": "reply", "parent": board["id"], "responds": move["id"]},
-            )
-            for move in moves
+        (
+            moves[-1]["id"],
+            {"kind": "reply", "parent": board["id"], "responds": moves[-1]["id"]},
         ),
         (picked["id"], {"kind": "markup", "action": picked["id"]}),
     ]
@@ -276,7 +278,7 @@ def test_a_queued_update_holds_the_agent_once_it_starts_it(claimed):
         )
         for text in ("Tighten the lede.", "And the title?")
     )
-    with service_model.PageTransaction(claimed) as transaction:
+    with transaction_model.PageTransaction(claimed) as transaction:
         delivery_model.record_pickup(transaction, [started, waiting], phase="queued")
     acknowledge_through(claimed, waiting["seq"])
     assert _owed_answers(claimed, activity_model.blocking_obligations) == []

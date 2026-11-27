@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import { setImmediate } from "node:timers/promises";
 import test from "node:test";
-import { applicationState } from "/runtime/semantic-state.js";
+import { applicationState } from "/runtime/state/semantic-state.js";
 import { servedState } from "../served.mjs";
 
 const canonical = document.createElement("link");
@@ -14,10 +14,10 @@ canonical.rel = "canonical";
 canonical.dataset.lfRuntime = "";
 canonical.href = "https://leaf.test/";
 document.head.append(canonical);
-const { beginRead, createStateFeed } = await import("/runtime/state-feed.js");
+const { beginRead, createStateFeed } = await import("/runtime/host/state-feed.js");
 const { readingIsContinuous, readingReturn, completeReadingReturn } =
-  await import("/runtime/reading-continuity.js");
-const { runtime } = await import("/runtime/context.js");
+  await import("/runtime/base/reading-continuity.js");
+const { runtime } = await import("/runtime/state/context.js");
 // The feed's answers are adopted into one identified document.
 applicationState.identify(1);
 applicationState.captureDocument({
@@ -206,7 +206,7 @@ test("the page asks for no reading it already has in hand", async (t) => {
       (call) => new URL(call.arguments[0]).pathname === "/api/state",
     ).length;
   // An answer is prepared before the page adopts it, which is when `runtime.reading`
-  // names it; until then the answer is in hand, as `state-application.js` keeps it.
+  // names it; until then the answer is in hand, as `host/state-application.js` keeps it.
   const preparing = new Map();
   let inHand = null;
   const receiveState = async (answer) => {
@@ -385,7 +385,7 @@ test("another page's change reads the list of pages, never this page's state", a
   });
   t.mock.method(globalThis, "clearTimeout", () => {});
   t.mock.method(globalThis, "setInterval", () => 1);
-  const { leavesRows } = await import("/runtime/live-leaves.js");
+  const { leavesRows } = await import("/runtime/host/live-leaves.js");
   const neighbour = (title) => ({
     page_key: "other",
     url: "http://127.0.0.1:9/",
@@ -465,7 +465,7 @@ test("a read of the list still out ends when the news names another or hears not
   });
   t.mock.method(globalThis, "clearTimeout", () => {});
   t.mock.method(globalThis, "setInterval", () => 1);
-  const { leavesRows } = await import("/runtime/live-leaves.js");
+  const { leavesRows } = await import("/runtime/host/live-leaves.js");
   const neighbour = (title) => ({
     page_key: "other",
     url: "http://127.0.0.1:9/",
@@ -556,7 +556,7 @@ test("a matching response completes from its held data after a newer admission",
     version: "new",
     sources: { builds: { contract: "c", value: "new" } },
   };
-  const { acceptData } = await import("/runtime/data.js");
+  const { acceptData } = await import("/runtime/host/data.js");
   applicationState.acceptData(held, ++taken);
   t.mock.method(globalThis.AbortSignal, "timeout", () => new AbortController().signal);
   const response = Promise.withResolvers();

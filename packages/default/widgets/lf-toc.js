@@ -261,7 +261,7 @@ customElements.define(
     #scheduleMeasure = frameFor(this, () => this.#measure());
 
     #measure() {
-      if (!this.#main || !this.#scroller || !this.#rows) return;
+      if (!this.#main || !this.#scroller) return;
       const { disclosure, summary } = this.#drawing;
       // CSS already owns posture. A hidden summary means these links are an
       // always-exposed outline, which requires native open state in every engine.
@@ -554,7 +554,7 @@ customElements.define(
     #schedulePaint = frameFor(this, () => this.#paint());
 
     #paint() {
-      if (!this.#rows || !this.#scroller) return;
+      if (!this.#scroller) return;
       let current = this.#measured.find((measured) => measured.shown);
       if (!current) {
         this.#currentLink?.removeAttribute("aria-current");
@@ -575,14 +575,30 @@ customElements.define(
         this.#scroller.scrollTop + this.#scroller.clientHeight - clear.bottom;
       this.#standLens(clear, this.#scroller);
 
-      const threshold = visibleStart + Math.min(32, (visibleEnd - visibleStart) * 0.08);
-      // At the scroller's end the last section shown is current, though its heading
-      // stands below the threshold. Fractional layout and scaled displays can leave a
-      // scroll a pixel or so short of the end, so within two pixels counts as there.
+      // The current section is the one whose words fill most of the band. The first
+      // heading at or below the band's top makes its section current once it stands in
+      // the band's top half; until then the section above it is current. A section
+      // reached by its link lands at the band's top, so it is current however short it
+      // is. Of headings at one position the last is current, and at the scroller's end
+      // the last one shown is. A section off the map counts as the nearest one above it
+      // on the map (`#fitLabels`). Within two pixels of the band's top or the
+      // scroller's end counts as there, since fractional layout and scaled displays can
+      // stop a scroll that far short. The user chose this rule, Docusaurus's, over a
+      // line 32px below the band's top, which kept the section above current while the
+      // new one filled the window.
+      const bandTop = visibleStart - 2;
+      const half = (visibleStart + visibleEnd) / 2;
       const { scrollHeight, clientHeight, scrollTop } = this.#scroller;
       const end = scrollHeight - clientHeight - scrollTop <= 2;
+      const next = this.#measured.find(({ position }) => position >= bandTop);
       for (const measured of this.#measured)
-        if (measured.shown && (end || measured.position <= threshold))
+        if (
+          measured.shown &&
+          (end ||
+            !next ||
+            measured.position < bandTop ||
+            (measured.position <= next.position && next.position < half))
+        )
           current = measured;
       // A revision can give the current section a new link and keep its marker, which
       // the markers' positional rendering reuses (toc-view.js).

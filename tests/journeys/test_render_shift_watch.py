@@ -33,7 +33,7 @@ from render_harness import (
     ticked,
 )
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 
 
 def test_native_clipping_preserves_only_painted_carry(browser, serve):
@@ -181,7 +181,7 @@ def test_message_age_may_shift_metadata_but_leaves_the_thread_in_place(
     expect(receipt).to_have_text(re.compile(r"^Queued for "))
     expect(timestamp).to_have_text(re.compile(r"^(just now|\d+m ago)$"))
     # The time of day the head says once the message is a day old, as the browser
-    # writes it (presence.js, `timeOfDay`).
+    # writes it (state/presence.js, `timeOfDay`).
     clock = timestamp.evaluate(
         "node => new Date(node.dateTime)"
         ".toLocaleTimeString(undefined, {timeStyle: 'short'})"

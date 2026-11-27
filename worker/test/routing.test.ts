@@ -43,6 +43,7 @@ const frame_ancestors = "frame-ancestors 'self'";
 const manifest = {
   release: "a".repeat(64),
   protocol: 60,
+  drafts_format: "leaf-drafts/51",
   frame_ancestors,
   routes,
   pages,
@@ -67,7 +68,7 @@ describe("website page routing", () => {
     expect(isPageApiRequest(route("/examples/api/state"))).toBe(true);
     expect(isPageApiRequest(route("/examples/triage-board/api/state"))).toBe(true);
     expect(
-      isPageApiRequest(route("/examples/triage-board/runtime/state-feed.js")),
+      isPageApiRequest(route("/examples/triage-board/runtime/host/state-feed.js")),
     ).toBe(false);
     expect(isPageSessionFileRequest(route("/media/upload.png"), manifest)).toBe(true);
     expect(

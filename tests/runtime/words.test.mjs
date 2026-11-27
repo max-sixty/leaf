@@ -6,7 +6,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { COLLAPSE } from "/runtime/kernel-facts.js";
+import { COLLAPSE } from "/runtime/state/kernel-facts.js";
 import { excerptWords, labelWords } from "/runtime/lib/words.js";
 
 test("an excerpt of a long value says what one of all of it would", () => {

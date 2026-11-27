@@ -7,11 +7,11 @@ fetches it (`read_state.seen_revision`, `PageRead.descriptor`)."""
 import pytest
 from interact_support import append_command, served_state_error, state_json
 
-from leaf import event_log as events_model
-from leaf import revisioning as revisioning_model
-from leaf.event_log import EventRefused
-from leaf.served_state.context import read_page
-from leaf.served_state.page import full_state, read_served_page
+from leaf.log import event_log as events_model
+from leaf.log.event_log import EventRefused
+from leaf.records import revisioning as revisioning_model
+from leaf.serving.served_state.context import read_page
+from leaf.serving.served_state.page import full_state, read_served_page
 
 
 def served(page_dir):

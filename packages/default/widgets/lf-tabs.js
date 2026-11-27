@@ -15,8 +15,8 @@
  * that page, whatever else main holds, and says so on itself (`data-lf-page-views`).
  * Leaf then names the open panel in the address by its id, adds a history entry for
  * each switch the user makes, and shows an entry's panel again on Back and Forward
- * (the runtime's views.js). A link inside a panel is still fragment travel
- * (history.js).
+ * (the runtime's records/views.js). A link inside a panel is still fragment travel
+ * (records/history.js).
  *
  * The authored `flow="page"` puts the set in the document's flow (`flow`), and
  * the package styles its unframed face, separately from the address above. In
@@ -62,7 +62,14 @@
  * once; keyboard and vertical navigation stay immediate. A reversed choice continues
  * from the line's painted place, and scrolling or resizing the strip ends the cue at
  * its selected tab.
- * Every tab's accessible name is its label; what else the tab shows describes it. A
+ * A tab's accessible name is the words it shows, in the order it shows them, so a
+ * user who speaks what they see reaches it (WCAG 2.5.3, Label in Name): its label, a
+ * side list's summary and answer line, and its change count. A tab that shows its
+ * panel's face (`face`) is named by its `label`, since the face is markup the agent
+ * writes for the eye and Leaf derives no name from it (the maintainer's choice). What
+ * a tab shows only as a mark, its group, and the state its name leaves out describe
+ * it, so a row whose answer line reads "Alpha" is described "Answered", and one whose
+ * line reads the turn says no turn again. A
  * side list stands each run of neighbouring panels that share a `group` under a label
  * of that group, which each of their tabs' descriptions names. A side list's row adds
  * the panel's `summary` under the name, then its obligations' state on a reserved line. Counted
@@ -170,7 +177,7 @@ export class TabSet extends LeafElement {
   #revealMotion = null;
 
   createRenderRoot() {
-    return this.#strip ?? this;
+    return this.#strip;
   }
 
   setup() {
@@ -242,10 +249,10 @@ export class TabSet extends LeafElement {
       // Native focus scrolling would carry a stuck tab back to its place in flow and
       // move the view being left before the switch records it. So the tab comes into
       // the window after the switch (`#showTab`), once the focus paint marks its ring,
-      // as every walk's landing does (walk-position.js, `rowWalk`). The move queues that
+      // as every walk's landing does (records/walk-position.js, `rowWalk`). The move queues that
       // paint for the end of this script, so a microtask queued after the move runs
       // behind it. Left out of sight, the tab would lose focus to the next key
-      // (keyboard/controller.js).
+      // (panel/page-keys/controller.js).
       focusDestination(next, "move");
       next.click();
       queueMicrotask(() => this.#showTab(next, null));
@@ -368,8 +375,8 @@ export class TabSet extends LeafElement {
     keeps(this.#strip, "data-lf-scroll", holds ? "list" : "");
   }
 
-  // What each panel holds, said with its summary as the tab's description: the
-  // version diff's marked passages, and in a list down beside the panels its obligations'
+  // What each panel holds, said in the tab's description with its summary where the
+  // tab doesn't show that: the version diff's marked passages, and in a list down beside the panels its obligations'
   // state, with the answer once they are all answered.
   render() {
     if (!this.#panels.length) return nothing;
@@ -433,18 +440,27 @@ export class TabSet extends LeafElement {
         ? turn
         : "";
     const group = this.#side && panel.getAttribute("group");
+    const summarized = this.#down && !face(panel) && panel.hasAttribute("summary");
+    // The answer line's words are in the name unless a face's label names the tab, so
+    // the description then adds only the state they leave out.
+    const said = !face(panel) && Boolean(answer);
+    const counted = `${total - open} of ${total} answered`;
     const description = [
       group && `${group} group`,
-      panel.getAttribute("summary"),
+      summarized ? "" : panel.getAttribute("summary"),
       changed === 1 ? "1 change" : changed ? `${changed} changes` : "",
       !total
         ? ""
         : !answered
           ? only
-            ? turn
-            : `${turn}, ${total - open} of ${total} answered`
+            ? said
+              ? ""
+              : turn
+            : said
+              ? counted
+              : `${turn}, ${counted}`
           : only
-            ? answer
+            ? answer && !said
               ? `Answered: ${answer}`
               : "Answered"
             : `All ${total} answered`,
@@ -458,7 +474,7 @@ export class TabSet extends LeafElement {
         if (button instanceof HTMLElement) this.#buttons.set(panel, button);
       })}
       aria-controls=${panel.id}
-      aria-label=${panel.getAttribute("label")}
+      aria-label=${face(panel) ? panel.getAttribute("label") : nothing}
       aria-selected=${panel === this.#active}
       aria-description=${description || nothing}
       tabindex=${panel === this.#active ? 0 : -1}
@@ -467,7 +483,7 @@ export class TabSet extends LeafElement {
       ><span class="lf-tab-name" data-lf-gen="1" data-lf-said
         >${face(panel) ?? panel.getAttribute("label")}${this.#down ? nothing : mark}</span
       >${
-        this.#down && !face(panel) && panel.hasAttribute("summary")
+        summarized
           ? html`<span class="lf-tab-summary" data-lf-gen="1" data-lf-said
               >${panel.getAttribute("summary")}</span
             >`
@@ -476,12 +492,11 @@ export class TabSet extends LeafElement {
         hasAnswer
           ? html`<span
               class="lf-tab-answer"
-              aria-hidden="true"
               data-lf-obligations=${answered ? "answered" : answer ? "open" : nothing}
               ><span class="lf-tab-answer-words">${answer}</span></span
             >`
           : nothing
-      }<span class="lf-tabdiff lf-chip lf-change-count" aria-hidden="true"
+      }<span class="lf-tabdiff lf-chip lf-change-count"
         >${changed ? `Δ${changed}` : ""}</span
       >${
         hasAnswer
@@ -625,7 +640,7 @@ export class TabSet extends LeafElement {
   // again.
   #declareHeader() {
     const over = !this.#parts || Boolean(this.#active && this.#listOver(this.#active));
-    const header = this.#pageFlow && over && Boolean(this.#strip?.isConnected);
+    const header = this.#pageFlow && over && this.#strip.isConnected;
     this.#strip.toggleAttribute("data-lf-root-header", header);
   }
 
@@ -698,7 +713,7 @@ export class TabSet extends LeafElement {
       return;
     }
     const range = label && document.createRange();
-    if (range && label) {
+    if (range) {
       range.setStartBefore(label);
       range.setEndAfter(btn);
     }

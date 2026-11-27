@@ -405,11 +405,11 @@ lf-shot[data-lf-shot-mode="pair"][data-lf-shot-layout="stack"]
   user-select: text;
 }
 .lf-shotcap[data-lf-state="before"] {
-  background: var(--lf-del-tint);
+  background: var(--lf-danger-tint);
   color: var(--lf-danger-ink);
 }
 .lf-shotcap[data-lf-state="after"] {
-  background: var(--lf-add-tint);
+  background: var(--lf-ok-tint);
   color: var(--lf-ok-ink);
 }
 .lf-shotcap[data-lf-shot-hidden] {
@@ -462,8 +462,8 @@ lf-shot:not([data-lf-shot-mode="pair"]) .lf-shotcanvas {
 .lf-shotcomparison {
   display: block;
   grid-area: 1 / 1;
-  inline-size: calc(var(--lf-shot-frame-width) + 2px);
-  block-size: calc(var(--lf-shot-frame-height) + 2px);
+  inline-size: var(--lf-shot-frame-width);
+  block-size: var(--lf-shot-frame-height);
   --divider-width: 2px;
   --handle-size: 30px;
   --wa-color-surface-default: var(--lf-card);
@@ -476,6 +476,21 @@ lf-shot:not([data-lf-shot-mode="pair"]) .lf-shotcanvas {
 }
 .lf-shotcomparison .lf-shotviewport {
   box-shadow: none;
+}
+/* The slider and the pixel view each wear the media frame's ring round the whole
+   picture, so each is the picture's size and stands in the room the canvas keeps round
+   it for that ring (`+ 2px`, above). The captures fill the slider: a window wears no
+   ring of its own there, and its frame keeps no room for one, since room inside the
+   ring would stand a strip of the slider's ground between the ring and the picture. */
+@media screen {
+  .lf-shotcomparison,
+  .lf-shotpixels {
+    margin: 1px;
+  }
+  .lf-shotcomparison .lf-shotframe {
+    inline-size: var(--lf-shot-frame-width);
+    border: 0;
+  }
 }
 .lf-shotcomparison::part(handle) {
   border: 1px solid var(--lf-ink-2);
@@ -539,9 +554,6 @@ lf-shot[data-lf-shot-focus="true"][data-lf-shot-crop="false"]
 .lf-shotpixels {
   display: none;
   grid-area: 1 / 1;
-  inline-size: calc(var(--lf-shot-frame-width) + 2px);
-  block-size: calc(var(--lf-shot-frame-height) + 2px);
-  border: 1px solid transparent;
 }
 @media screen {
   lf-shot[data-lf-shot-mode="pixels"] .lf-shotpixels {

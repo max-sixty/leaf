@@ -5,7 +5,7 @@ from pathlib import Path
 from playwright.sync_api import expect
 from render_harness import open_page, round_trip
 
-from leaf.event_log import read_events
+from leaf.log.event_log import read_events
 
 FIXTURES = Path(__file__).parents[1] / "fixtures"
 

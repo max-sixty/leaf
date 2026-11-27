@@ -22,7 +22,7 @@ change what is under test: Claude Code then holds admission's nudge, which reach
 the session as a message from another session (`crossSessionInbound`), unread.
 
 As in every Claude Code session, Leaf hands each comment to the session as it does
-any input, while a line fork posts the agent's working line on it (`leaf.forks`),
+any input, while a line fork posts the agent's working line on it (`leaf.agents.forks`),
 and the session decides who does its work: itself, or a subagent that would answer
 in its place. So each delivery step's comment asks for a change to the page, which
 the session makes itself, and the step tests the session's own delivery from then
@@ -32,8 +32,8 @@ call, and it does a one-step lookup itself, so both fork steps send their messag
 while the session runs the user's own turn, and the first asks for the work beside
 it; `evals/beside-work-goes-to-a-fork` scores the instruction itself.
 
-The steps, in order; `setup`, `release`, `mid-turn`, `escape` and `quit` are those
-more than one harness takes, as `_journey.Terminal` has them:
+The steps, in order; `setup`, `release`, `answered-twice`, `mid-turn`, `escape` and
+`quit` are those more than one harness takes, as `_journey.Terminal` has them:
 
 - `setup`;
 - `release`, which asks for work, and the session answers it; the step prints what
@@ -54,6 +54,9 @@ line fork's own time and tokens from its record in the page's diagnostics
 - `fork-follow-up`: once that subagent has answered, the user's further message in
   its thread, sent during another turn of the user's, which the session gives to a
   subagent again, the same one with SendMessage or a new one, which answers it.
+
+Then `answered-twice`: the user answers the agent's question in words, then picks the
+same choice once the session has taken the words in, and the thread gets one answer.
 
 Then the delivery steps:
 
@@ -129,18 +132,23 @@ from pathlib import Path
 import click
 import psutil
 
-from leaf.delivery import DELIVERY, delivery_pointer_prompt
-from leaf.event_log import read_events
-from leaf.harness import (
+from leaf.agents.delivery import (
+    DELIVERY,
+    INLINE_OPENING,
+    delivery_pointer_prompt,
+    inline_delivery,
+)
+from leaf.base.harness import (
     NUDGE_WORDS,
     ClaudeCodeHarness,
     claude_code_live_turn,
     claude_code_registry,
 )
-from leaf.hook_transport import ATTENTION_OPENING, INLINE_OPENING, inline_delivery
-from leaf.server import running_server
-from leaf.service import page_claim
-from leaf.state import turn_open
+from leaf.base.server import running_server
+from leaf.base.service import page_claim
+from leaf.base.state import turn_open
+from leaf.commands.hook_transport import ATTENTION_OPENING
+from leaf.log.event_log import read_events
 from leaf_dev import ROOT
 from leaf_dev.arms import MODELS, PageClient, claude_environment, claude_home
 from leaf_dev.commands.journey._journey import (
@@ -969,6 +977,11 @@ def steps(cc: ClaudeCode, user: User, place: Isolation) -> None:
     fork = require(user.fork("release"), "release: no line fork ran on the ask")
     step("release", started, "release", detail=f"`release`: {fork_summary(fork)}")
     forked()
+
+    started = time.monotonic()
+    detail = cc.answered_twice(user, page)
+    step("answered-twice", started, detail=detail)
+
     delivered()
 
     started = time.monotonic()

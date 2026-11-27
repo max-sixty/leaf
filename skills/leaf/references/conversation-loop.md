@@ -164,26 +164,29 @@ nothing holds it, Leaf names it in your next turn: answer it or start it again.
 
 For work that outlasts the turn, such as a worker's build, a wait on CI, or a change
 you promise for the next version, answer the thread with a to-do, and while its work
-runs, say on the same reference what is running:
+runs, say on the to-do what is running:
 
 ```bash
 leaf thread reply <answer.ref> --todo "<what you owe>" --text "<your answer>"
-leaf thread reply <answer.ref> --ephemeral --text "<what is running>"
+leaf thread reply <page> <todo> --ephemeral --text "<what is running>"
 ```
 
-The reply answers the message and opens a to-do on the thread, under the reply's id.
+The reply answers the message and opens a to-do on the thread under the reply's id,
+the `<todo>` above.
 The to-do keeps the thread on your list until you end it,
 even after the user resolves the thread or your session ends. A turn's own message cannot
 open one. Handing the work to another session, a background job, or a later turn is
 such a promise too; a `--done` reply would tell the user nothing more is coming. So is
 holding a decision the user put off until other work lands: while the to-do stays open,
 the decision their thread is about stays off On Me, and ending the to-do puts it back.
+Name what such a to-do waits on with `--waiting-on` (`threads.md`).
 
 The progress line starts the to-do, so the user sees it under your reply and in On
 <your name> while the work runs, rather than a promise that reads the same whether or
 not anything is moving. Post it again as the work moves to its next step. When a worker
-does the work, put the page and the reference in its brief, and have it post its line
-there as it starts each step.
+does the work, put the page and the to-do in its brief, and have it post its line
+there as it starts each step: a line on the to-do goes in whatever the user has
+added to the thread since.
 
 Whoever finishes the work ends the to-do: `leaf task end <page> <todo> done --text "<where>"`,
 or `failed`/`dropped` with the reason. If another session will finish it, put the page
@@ -210,12 +213,12 @@ no control of its own, such as a Done, to answer an item: on the page, the user 
 through the widget's own actions or a reply in the thread, and you end a question
 they answer elsewhere, such as in chat, by resolving its thread (below).
 
-| Request                                                                          | Register it                                                                                                                                   | What answers it                                                                                                                                 |
-| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- |
-| A decision or input recorded by a widget                                         | Author a widget that records it, on the page or in a thread message (`authoring-on-me.md`)                                                    | The widget's declared answer; a multiple-choice widget also needs the user's Done                                                               |
-| A question answered in words                                                     | `--obligation` on `thread create` or `thread reply` (`threads.md`)                                                                            | The user's next message there or a settling reaction                                                                                            |
-| Permission for an action you take, such as merging a pull request                | Options to take the action or keep things as they are (`authoring-on-me.md`, "Permission")                                                    | The user's pick and its row in On Me                                                                                                            |
-| An action only the user can take, such as trying a build or connecting a browser | A message saying what to do, asking for the user's answer with options or `--obligation` (below), in a thread on what it concerns or the page | Your resolve of its thread once you see its effect, which you check yourself wherever you can; or the user's pick, reply or a settling reaction |
+| Request                                                                          | Register it                                                                                                                                   | What answers it                                                                                                            |
+| -------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| A decision or input recorded by a widget                                         | Author a widget that records it, on the page or in a thread message (`authoring-on-me.md`)                                                    | The widget's declared answer; a multiple-choice widget also needs the user's Done                                          |
+| A question answered in words                                                     | `--obligation` on `thread create` or `thread reply` (`threads.md`)                                                                            | The user's next message there                                                                                              |
+| Permission for an action you take, such as merging a pull request                | Options to take the action or keep things as they are (`authoring-on-me.md`, "Permission")                                                    | The user's pick and its row in On Me                                                                                       |
+| An action only the user can take, such as trying a build or connecting a browser | A message saying what to do, asking for the user's answer with options or `--obligation` (below), in a thread on what it concerns or the page | Your resolve of its thread once you see its effect, which you check yourself wherever you can; or the user's pick or reply |
 
 For an action you take once the user agrees, such as merging a ready pull request,
 ask their permission, even where they could start it themselves with a command they

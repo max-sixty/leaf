@@ -12,8 +12,9 @@
  * source focus to that same file; supplied thread/composer outlets keep core focus
  * ownership across replacement. Unchanged parsed files keep their rendering; changed files
  * reconcile unchanged lines by their datum coordinate, retaining selection and line threads.
- * Every source form, an inline or bound patch text or a file manifest, becomes one list
- * of per-file records and renders through one path (`sourceRecords`), so a closed file
+ * Every source form, an inline or bound patch text, a file manifest or a file's two
+ * texts (`before` and `after`), which the widget turns into their patch, becomes one
+ * list of per-file records and renders through one path (`sourceRecords`), so a closed file
  * renders only when it opens, whichever form supplied it; the alternative, a second
  * pipeline for patch text that rendered every file eagerly, drifted from the manifest's
  * on every fix. A source's evidence commits together after open files load. Lazy
@@ -75,6 +76,10 @@ import { pierre, markSyntax } from "/widgets/pierre.js";
 /** @typedef {{path: string, previousPath?: string, operation: "copy" | "rename" | "add" | "delete" | "modify", hunkCount: number, binary: boolean, oldMode?: string, newMode?: string, additions: number, deletions: number}} FileRecord */
 /** @typedef {NativeFile & {record: FileRecord}} ParsedFile */
 /** @typedef {{path: string} & ({file: ParsedFile} | {error: unknown})} SourceRecord */
+/** @typedef {import("../../../browser/types/contract.js").DataTextDocument} TextDocument */
+/** Two texts of one file, `before` and `after` as bound, which the widget compares.
+ * @typedef {{before: TextDocument, after: TextDocument}} Comparison */
+/** @typedef {import("../../../browser/types/contract.js").DataUnifiedDiff | Comparison} DiffSource */
 /** @typedef {{path: string, hunk: number} & ({side: "both", oldLine: number, newLine: number} | {side: "old", oldLine: number, newLine?: never} | {side: "new", newLine: number, oldLine?: never})} SourceLine */
 /** @typedef {SourceLine & {node: HTMLElement, row: HTMLDivElement, content: string}} RenderedLine */
 /** @typedef {Pick<FileRecord, "path"> & Partial<Omit<FileRecord, "path">>} FileSummary */
@@ -105,9 +110,11 @@ const OPTIONS = Object.freeze({
 // draw refuses only its own file; `applyEntry` reports it to the agent that stored
 // it, since the manifest's producer leaves judging a patch to this widget. The path
 // keys a record in either form; the contract refuses a manifest that repeats one, and
-// `parsedFiles` refuses a patch text that does.
-/** @param {import("../../../browser/types/contract.js").DataUnifiedDiff} source @returns {Promise<readonly SourceRecord[]>} */
+// `parsedFiles` refuses a patch text that does. Two compared texts read as the patch
+// of them (`comparedRecords`).
+/** @param {DiffSource} source @returns {Promise<readonly SourceRecord[]>} */
 async function sourceRecords(source) {
+  if (typeof source === "object" && "after" in source) return comparedRecords(source);
   if (typeof source === "string")
     return (await parsedFiles(source)).map((file) => ({ path: file.name, file }));
   return Promise.all(
@@ -129,6 +136,37 @@ async function recordFile(patch, path) {
   if (!file || extra || file.name !== path)
     throw new Error(`the patch for ${path} does not contain that one file`);
   return file;
+}
+
+// Two texts of one file read as the Git patch of them, with Git's three lines of
+// context, and as no file where they are the same. The file takes the name the current
+// text gives it, or else the earlier text's, or else `UNNAMED`, since two plain strings
+// still compare. A patch holds only its hunks, so the comparison draws as any patch
+// does. Handing Pierre both whole texts instead (`parseDiffFromFile`) makes the diff
+// expandable: Pierre then draws an unchanged run of one line beside a hunk as a row of
+// its own, which the hunks (`sourceLines`) don't hold, and puts expand controls in its
+// separators, which nothing here answers.
+/** @param {Comparison} comparison @returns {Promise<readonly SourceRecord[]>} */
+async function comparedRecords({ before, after }) {
+  const text = (/** @type {TextDocument} */ side) =>
+    typeof side === "string" ? side : side.text;
+  if (text(before) === text(after)) return [];
+  const name =
+    [after, before].find((side) => typeof side === "object")?.name ?? UNNAMED;
+  const { structuredPatch, formatPatch } = await parse();
+  const patch = formatPatch({
+    ...structuredPatch(
+      `a/${name}`,
+      `b/${name}`,
+      text(before),
+      text(after),
+      undefined,
+      undefined,
+      { context: 3 },
+    ),
+    isGit: true,
+  });
+  return sourceRecords(patch);
 }
 
 // Each record carries the index of the hunk it came out of. A hunk is the unit a
@@ -175,17 +213,27 @@ const hunkHeads = (entry) =>
 const nodeOf = ({ node }) => node;
 
 const LINE_KEY = "data-lf-line";
+// What a file with no name is called.
+const UNNAMED = "(unnamed file)";
 
 /** @param {import("./diff-coordinates.js").DiffCoordinate} coordinate */
 const lineLabel = ({ path, side, oldLine, newLine }) => {
-  const file = path || "(unnamed file)";
+  const file = path || UNNAMED;
   if (side === "old") return `${file} · old line ${oldLine}`;
   if (side === "new") return `${file} · new line ${newLine}`;
   return `${file} · old line ${oldLine} · new line ${newLine}`;
 };
 
+// A line number's name holds the numbers its gutter shows in the order it shows them,
+// so a user who speaks what they see reaches it (WCAG 2.5.3, Label in Name).
+/** @param {import("./diff-coordinates.js").DiffCoordinate} coordinate */
+const gutterLabel = (coordinate) =>
+  coordinate.side === "both"
+    ? `${coordinate.path || UNNAMED} · old and new line ${coordinate.oldLine} ${coordinate.newLine}`
+    : lineLabel(coordinate);
+
 /** @param {{path: string}} record */
-const fileLabel = ({ path }) => `${path || "(unnamed file)"} · file`;
+const fileLabel = ({ path }) => `${path || UNNAMED} · file`;
 // Only the header represents the file datum. The body contains independently
 // addressed lines and authored prose, whose comments must not inherit its identity.
 /** @param {FileEntry} entry */
@@ -224,22 +272,24 @@ function lineNumber(line, canComment) {
   if (number instanceof HTMLButtonElement) {
     number.type = "button";
     number.tabIndex = -1;
-    number.setAttribute("aria-label", `Comment on ${lineLabel(line)}`);
+    number.setAttribute("aria-label", `Comment on ${gutterLabel(line)}`);
     number.setAttribute(LINE_KEY, diffDatumKey(line));
   }
   // Two cells, the old file's number and the new file's, as a unified diff reads: one
   // column holding whichever number a row has would mix the two files' counts, which
-  // drift apart once a hunk adds or removes lines.
+  // drift apart once a hunk adds or removes lines. A space stands between the cells,
+  // where the gutter's grid draws nothing, so the numbers read as two words.
   number.toggleAttribute("data-lf-echo", true);
+  /** @param {number | string} value */
+  const cell = (value) => {
+    const span = document.createElement("span");
+    span.textContent = String(value);
+    return span;
+  };
   number.replaceChildren(
-    ...[
-      line.side === "new" ? "" : line.oldLine,
-      line.side === "old" ? "" : line.newLine,
-    ].map((value) => {
-      const cell = document.createElement("span");
-      cell.textContent = String(value);
-      return cell;
-    }),
+    cell(line.side === "new" ? "" : line.oldLine),
+    " ",
+    cell(line.side === "old" ? "" : line.newLine),
   );
   return number;
 }
@@ -369,7 +419,7 @@ const pathSizes = sizeObserver((entries) => {
     };
   });
   for (const { path, header, cut, folders } of readings) {
-    if (cut) cutPaths.set(header, path.textContent ?? "");
+    if (cut) cutPaths.set(header, path.textContent);
     else cutPaths.delete(header);
     for (const { part, hidden } of folders)
       part.toggleAttribute("data-lf-folder-hidden", hidden);
@@ -383,7 +433,7 @@ function unwatchPathCut(view) {
 
 /** @param {FileSummary} record */
 function filePathTemplate({ path, previousPath }) {
-  const name = path || "(unnamed file)";
+  const name = path || UNNAMED;
   return html`<span class="lf-diff-path"
     >${
       previousPath
@@ -919,7 +969,7 @@ async function parsedFiles(source) {
 // rows, line numbers and comment coordinates are the same either way.
 /** @template {NativeFile} T @param {T} file @returns {T} */
 function joinChangeRuns(file) {
-  for (const hunk of file.hunks ?? []) {
+  for (const hunk of file.hunks) {
     /** @type {NativeFile["hunks"][number]["hunkContent"]} */
     const content = [];
     for (const part of hunk.hunkContent) {
@@ -965,13 +1015,17 @@ customElements.define(
       return this;
     }
 
-    // The source the last render read, a bound value or an inline patch, and the one
-    // whose rendering last started; a departure that cuts a rendering short forgets
-    // it, so the return draws it again.
-    /** @type {import("../../../browser/types/contract.js").DataUnifiedDiff | null | undefined} */
+    // The source the last render read, a bound value, an inline patch or two compared
+    // texts, and the one whose rendering last started; a departure that cuts a
+    // rendering short forgets it, so the return draws it again.
+    /** @type {DiffSource | null | undefined} */
     #delivered;
-    /** @type {import("../../../browser/types/contract.js").DataUnifiedDiff | null | undefined} */
+    /** @type {DiffSource | null | undefined} */
     #shown;
+    // The comparison of the texts `beforeText` and `afterText` held when it was made, kept
+    // while both stand, so an update that leaves them draws nothing again.
+    /** @type {Comparison | null} */
+    #comparison = null;
     #showing = false;
     // The rendering the update under way started, which its `updateComplete` waits for.
     /** @type {Promise<void> | undefined} */
@@ -980,7 +1034,7 @@ customElements.define(
     /** @type {Set<Element>} */
     #marked = new Set();
 
-    /** @type {{source: import("../../../browser/types/contract.js").DataUnifiedDiff, entries: FileEntry[]} | null} */
+    /** @type {{source: DiffSource, entries: FileEntry[]} | null} */
     committed = null;
     get fileEntries() {
       return this.committed?.entries ?? null;
@@ -1007,20 +1061,44 @@ customElements.define(
     /** @type {Element[]} */
     authorNotes = [];
     rendering = 0;
-    inlineSource = "";
     unplacedNotes = document.createElement("div");
     // The patch text or file manifest, set by whoever hosts the widget: Leaf from the
     // bound source (the registry's `inputs.document.property`), or from the
-    // written `<pre>`; null while a bound source has none.
-    static properties = { value: { attribute: false } };
+    // written `<pre>`; null while a bound source has none. In its place, a file's two
+    // texts, `beforeText` and `afterText`, each set from its own input, which the
+    // widget compares while it holds both. Neither is named `before` or `after`, which
+    // every element already answers as a method.
+    static properties = {
+      value: { attribute: false },
+      beforeText: { attribute: false },
+      afterText: { attribute: false },
+    };
 
     constructor() {
       super();
       /** @type {import("../../../browser/types/contract.js").DataUnifiedDiff | null} */
       this.value = null;
+      /** @type {TextDocument | null} */
+      this.beforeText = null;
+      /** @type {TextDocument | null} */
+      this.afterText = null;
+    }
+
+    /** @returns {DiffSource | null} */
+    #source() {
+      const { beforeText: before, afterText: after } = this;
+      if (before == null || after == null) return this.value;
+      if (this.#comparison?.before !== before || this.#comparison.after !== after)
+        this.#comparison = { before, after };
+      return this.#comparison;
     }
 
     setup() {
+      // A diff comparing two texts draws no patch, and `page check` can't tell its
+      // `<pre>` from one that an input beside it leaves in place, so the diff refuses
+      // to draw rather than show a patch it was never meant to.
+      if (this.hasAttribute("before") && this.querySelector(":scope > pre"))
+        throw new Error("a diff comparing two texts holds no patch <pre>");
       this.singleFile = this.getAttribute("view") === "file";
       this.lfCommands = {
         title: "In a diff review",
@@ -1128,21 +1206,19 @@ customElements.define(
         // the module answers it once from the chrome's own mark and paints the answer.
         this.toggleAttribute("data-lf-diff-pinned", !closestAcross(this, ".lf-chrome"));
         return () => {
-          this.rendering = (this.rendering ?? 0) + 1;
+          this.rendering = this.rendering + 1;
           if (this.#showing) this.#shown = undefined;
           // Leaf retires this surface when it leaves, after this cleanup, and puts
           // core's views back, so every outlet goes.
-          if (this.threadSeats) {
-            for (const record of this.threadSeats.values()) record.active = false;
-            this.retireThreadOutlets();
-          }
+          for (const record of this.threadSeats.values()) record.active = false;
+          this.retireThreadOutlets();
           this.threadSeats.clear();
         };
       });
     }
 
     render() {
-      this.#delivered = this.value;
+      this.#delivered = this.#source();
       // Drawn files offer Comment while a surface is registered; reading the opener
       // here draws again when it changes, and `updated` reconciles the controls.
       void threadSurface(this).open;
@@ -1178,11 +1254,11 @@ customElements.define(
       return result;
     }
 
-    // `source` is a patch text or a file manifest, or null when a bound source has
-    // none.
-    /** @param {import("../../../browser/types/contract.js").DataUnifiedDiff | null | undefined} source */
+    // `source` is a patch text, a file manifest or two compared texts, or null when a
+    // bound source has none.
+    /** @param {DiffSource | null | undefined} source */
     async show(source) {
-      const rendering = (this.rendering ?? 0) + 1;
+      const rendering = this.rendering + 1;
       this.rendering = rendering;
       try {
         if (source == null) {
@@ -1311,10 +1387,17 @@ customElements.define(
                 if (entry.node.contains(note)) move(this.unplacedNotes, note, null);
               threadSurface(this).release(entry.node);
             }
-          setChildren(this.filesBody, [
-            ...(this.diffTools ? [this.diffTools.search] : []),
-            ...entries.map(({ node }) => node),
-          ]);
+          // Two compared texts that are the same have no files, and say so where the
+          // files would stand.
+          setChildren(
+            this.filesBody,
+            entries.length
+              ? [
+                  ...(this.diffTools ? [this.diffTools.search] : []),
+                  ...entries.map(({ node }) => node),
+                ]
+              : [offer("p", "lf-rows-empty", "No changes.")],
+          );
           this.markRuns();
           this.stageFiles();
           this.markFiles(source);
@@ -1332,10 +1415,11 @@ customElements.define(
         this.diffTools = null;
         this.filesBody = null;
         this.classList.toggle("lf-rendered", false);
-        // The failure box quotes a patch text; a manifest has none to quote. It takes
-        // the place of every outlet, which core's composer leaves first. It stands as
-        // the shadow stage, as files do, so it lasts until the next `show` stages
-        // another rendering; an update that leaves the source unchanged keeps it.
+        // The failure box quotes a patch text; a manifest or two compared texts have
+        // none to quote. It takes the place of every outlet, which core's composer
+        // leaves first. It stands as the shadow stage, as files do, so it lasts until
+        // the next `show` stages another rendering; an update that leaves the source
+        // unchanged keeps it.
         threadSurface(this).release(this);
         shadowStage(this, []);
         failSoft(this, err, typeof source === "string" ? source : undefined);
@@ -1435,10 +1519,16 @@ customElements.define(
     // Marks each drawn file row, and each line of a loaded file, as data drawn from
     // `source`, and reports it. A manifest names the field each datum came from; a
     // patch text's datums take the whole delivery's origin, and an inline patch has no
-    // delivery.
-    /** @param {import("../../../browser/types/contract.js").DataUnifiedDiff | null | undefined} source */
+    // delivery. Two compared texts report the `afterText` they drew, since a widget's
+    // marks carry one input's origin: the current text is the one each save moves, so a
+    // comment on a row records the save it saw. A deleted row's words are the earlier
+    // text's, which that origin leaves unnamed.
+    /** @param {DiffSource | null | undefined} source */
     markFiles(source) {
-      const manifest = source !== null && typeof source === "object";
+      const compared =
+        typeof source === "object" && source !== null && "after" in source;
+      const manifest =
+        typeof source === "object" && source !== null && "files" in source;
       /** @type {Set<Element>} */
       const marked = new Set();
       for (const [index, entry] of (this.fileEntries ?? []).entries()) {
@@ -1453,12 +1543,16 @@ customElements.define(
       }
       for (const node of this.#marked) if (!marked.has(node)) unmark(node);
       this.#marked = marked;
-      this.dispatchEvent(new CustomEvent("drawn", { detail: { value: source } }));
+      this.dispatchEvent(
+        new CustomEvent("drawn", {
+          detail: compared ? { afterText: source.after } : { value: source },
+        }),
+      );
     }
 
     // The widget's thread surface: Leaf asks for one outlet, or null, per target it hands over, and
     // the outlets this placement no longer uses come down once it commits.
-    /** @param {readonly import("/runtime/thread/surfaces.js").OutletTarget[]} targets @param {import("/runtime/thread/surfaces.js").OutletContext} context */
+    /** @param {readonly import("/runtime/records/thread/surfaces.js").OutletTarget[]} targets @param {import("/runtime/records/thread/surfaces.js").OutletContext} context */
     threadOutlets(targets, { onCommit }) {
       this.beginThreadSurface();
       const outlets = targets.map((target) => this.threadOutletFor(target));
@@ -1475,7 +1569,7 @@ customElements.define(
       for (const record of this.threadSeats.values()) record.active = false;
     }
 
-    /** @param {import("/runtime/thread/surfaces.js").OutletTarget} target */
+    /** @param {import("/runtime/records/thread/surfaces.js").OutletTarget} target */
     threadOutletFor({ anchor, placement }) {
       // A thread about the diff as a whole names no datum, and stays in the margin.
       if (!anchor.datum) return null;

@@ -3,10 +3,10 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 
-import { watchArrivalsIn } from "/runtime/arrivals.js";
-import { watchCodeBlocks } from "/runtime/code-copy.js";
-import { reachScrollers } from "/runtime/reach.js";
-import { registry } from "/runtime/registry.js";
+import { watchArrivalsIn } from "/runtime/dom/arrivals.js";
+import { watchCodeBlocks } from "/runtime/records/code-copy.js";
+import { reachScrollers } from "/runtime/dom/reach.js";
+import { registry } from "/runtime/state/registry.js";
 
 test("a sweep reaches a scroll surface in a nested declared shadow stage", () => {
   const tag = "x-reach-nested-stage";

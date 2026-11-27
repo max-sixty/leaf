@@ -11,7 +11,7 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND
+from conftest import hooks_run_leaf
 from interact_support import (
     COMPOSITE_TIMEOUT,
     STATED_TIMEOUT,
@@ -32,18 +32,19 @@ from render_harness import (
     sending,
 )
 
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import harness as harness_model
-from leaf import hooks as hooks_model
-from leaf import leases as leases_model
-from leaf import server as server_model
-from leaf import service as service_model
-from leaf import state as cleanup_model
-from leaf.findings import Finding
-from leaf.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
-from leaf.structure import SourceDocument
+from leaf.base import files as files_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import server as server_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.base.findings import Finding
+from leaf.commands import cli as cli_model
+from leaf.commands import hooks as hooks_model
+from leaf.log import event_log as events_model
+from leaf.records import transaction as transaction_model
+from leaf.source.render_checks import HANDOVER_DEADLINE_MS, wait_until_ready
+from leaf.source.structure import SourceDocument
 from leaf_dev import ROOT, arms
 from leaf_dev.commands import preview as preview_model
 from leaf_dev.example_data import named_source
@@ -144,6 +145,9 @@ def watching(tmp_path, preview_slot, spawn, user: bool, *, env=None):
     )
     slot, directory = preview_slot
     log = tmp_path / "preview.log"
+    if user:
+        # The session's hooks run the preview's runtime, so it claims for the session.
+        hooks_run_leaf(os.environ["CLAUDE_CODE_SESSION_ID"], runtime)
     process, url = start_preview(
         spawn,
         [
@@ -338,7 +342,7 @@ def test_terminating_a_preview_while_its_service_starts_leaves_none(
     process.wait(timeout=STATED_TIMEOUT)
     wait_for(serving_child, lambda pids: not pids, failure="the service outlived it")
     assert server_model.running_server(page) is None
-    service = files_model.read_json(page / "service.json")
+    service = files_model.read_json(server_model.SERVICE.file(page / "service.json"))
     assert service is None or not service["enabled"], service
 
 
@@ -467,8 +471,8 @@ def test_a_preview_records_real_gestures_outside_the_task(
     ]
     assert preview_model.WATCHER_NOTE in driven_log.read_text()
     assert service_model.page_claim(page_dir) is None
-    assert not (page_dir / "service.json").exists()
-    assert page_dir not in service_model.owned_pages(
+    assert not server_model.SERVICE.file(page_dir / "service.json").exists()
+    assert page_dir not in transaction_model.owned_pages(
         os.environ["CLAUDE_CODE_SESSION_ID"]
     )
     driven = open_page(browser, driven_url)
@@ -498,12 +502,14 @@ def test_a_preview_records_real_gestures_outside_the_task(
     assert (page_dir / "events.jsonl").read_bytes().startswith(feedback)
     assert (page_dir / "events.jsonl").stat().st_ino == inode
     assert service_model.page_claim(page_dir) is None
-    assert not (page_dir / "service.json").exists()
+    assert not server_model.SERVICE.file(page_dir / "service.json").exists()
     driven.close()
     end_preview(driven_process)
 
     user_slot = f"{slot}-user"
     user_dir = page_dir.with_name(user_slot)
+    # The session's hooks run the preview's runtime, so the `--user` one claims for it.
+    hooks_run_leaf(os.environ["CLAUDE_CODE_SESSION_ID"], runtime)
     user_command = [
         *driven_command[:-1],
         user_slot,
@@ -523,7 +529,7 @@ def test_a_preview_records_real_gestures_outside_the_task(
         if event["kind"] == "action" and event["author"] == "user"
     ]
     assert user_event["id"] != automated_event["id"]
-    assert user_event in service_model.unacknowledged(
+    assert user_event in transaction_model.unacknowledged(
         events_model.read_events(user_dir), 0
     )
     user_feedback = (user_dir / "events.jsonl").read_bytes()
@@ -584,7 +590,7 @@ def test_an_unclaimed_preview_keeps_its_gestures_out_of_the_stop_hook(
 
     session = os.environ["CLAUDE_CODE_SESSION_ID"]
     assert service_model.page_claim(page_dir) is None
-    assert page_dir not in service_model.owned_pages(session)
+    assert page_dir not in transaction_model.owned_pages(session)
     append_carried_log_record(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "probe"},
@@ -607,6 +613,8 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
     theme = runtime / "browser" / "base.css"
     slot, directory = preview_slot
     log = tmp_path / "preview.log"
+    # The task's hooks run the preview's runtime, so the preview acts for the task.
+    hooks_run_leaf("preview-codex", runtime)
     # The Codex task runs the preview as its own long-running command.
     owner = spawn(
         [
@@ -657,7 +665,7 @@ def test_a_user_preview_restarts_under_its_original_codex_claim(
     # Ownership can end while a runtime edit waits for the page transaction.
     # page init needs that transaction before it can stop the service, so do not
     # wait for its stop while holding the transaction ourselves.
-    with service_model.PageTransaction(directory):
+    with transaction_model.PageTransaction(directory):
         with theme.open("a", encoding="utf-8") as stream:
             stream.write("\nh1 { color: teal; }\n")
         assert claim is not None
@@ -744,13 +752,14 @@ def test_a_user_preview_update_keeps_the_sessions_wait_watching(
 
     A source edit leaves the server up, and a runtime edit's re-vendor restarts it,
     which a wait watches through as it watches any stopped server. The comment after the
-    update is the proof: only a wait still watching delivers it.
+    update is the proof: only a wait still watching delivers it. The wait is the
+    runtime's, the Leaf the session's hooks run.
     """
     source, runtime, directory, _, _, log = served_preview
     waited = tmp_path / "wait.log"
     with waited.open("w", encoding="utf-8") as output:
         waiter = spawn(
-            [*LEAF_COMMAND, "wait"],
+            [runtime / "bin" / "leaf", "wait"],
             stdout=output,
             stderr=subprocess.STDOUT,
             text=True,
@@ -830,7 +839,9 @@ def test_a_user_preview_brings_back_a_service_that_is_down_but_wanted(
             failure="the preview did not prepare a replacement server",
         )
         assert server_model.running_server(directory) is None
-        assert files_model.read_json(directory / "service.json")["enabled"]
+        assert files_model.read_json(
+            server_model.SERVICE.file(directory / "service.json")
+        )["enabled"]
 
     restored = wait_for(
         lambda: server_model.running_server(directory),
@@ -859,7 +870,7 @@ def test_a_preview_relinquishes_a_service_another_session_claims(
         # cleanup boundary directly; the subprocess owns the serving resource.
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
         cleanup = preview_model.PreviewService(directory, user=True)
-    with service_model.PageTransaction(directory) as transaction:
+    with transaction_model.PageTransaction(directory) as transaction:
         transaction.take_claim(harness_model.ClaudeCodeHarness("successor", "Claude"))
     if unclaimed:
         assert cleanup.ended
@@ -975,7 +986,7 @@ def test_preview_resumes_loaded_code_changes_without_losing_feedback(
     assert status == 200, body
     old_grace = json.loads(body)["working_grace_ms"]
 
-    edited = runtime / "src/leaf/served_state/page.py"
+    edited = runtime / "src/leaf/serving/served_state/page.py"
     original = edited.read_text()
     updated = original.replace("WORKING_GRACE // timedelta(milliseconds=1)", "12345")
     assert updated != original

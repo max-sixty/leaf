@@ -63,8 +63,6 @@ customElements.define(
       if (!this.#state?.decide.available) return;
       this.dispatchEvent(
         new CustomEvent("lf-action", {
-          bubbles: true,
-          composed: true,
           detail: { verb: "decide", detail: { value }, says: `Chose “${label}”` },
         }),
       );

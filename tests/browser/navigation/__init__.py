@@ -3,7 +3,7 @@ page constants and helpers their modules share."""
 
 from render_harness import leaf_page, regions_side_by_side
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 
 READING_REGIONS_PAGE = leaf_page(
     "reading region navigation",
@@ -56,7 +56,7 @@ def color_cue_markup():
 
 
 # The keyboard walk's position, the reading the panel says in its field's place
-# (walk-position.js, `walkPosition`): `{text, kind, target}`, or null with no walk
+# (records/walk-position.js, `walkPosition`): `{text, kind, target}`, or null with no walk
 # under way. Evaluating it leaves a synchronous reader for `wait_for_function`.
 WALK_POSITION = """async () => {
   const {walkPosition} = await window.__lfCheckApi();

@@ -42,9 +42,9 @@ import { ShotView } from "./shot-view.js";
  * the comparison already running.
  *
  * A pair opens in the view its `view` attribute names, Slider by default, and the
- * reader chooses from there. The maintainer chose to let the author name it, because
- * Slider's even split shows only one version of a change that sits in one half of the
- * frame. The divider and the view radios are Web Awesome's, and this module loads
+ * reader chooses from there. The maintainer chose to make it the author's setting,
+ * since each view shows a different kind of change best and Slider's even split shows
+ * only one version of a change that sits in one half of the frame. The divider and the view radios are Web Awesome's, and this module loads
  * those three controls with itself (`webawesome-views`), so every view takes the first
  * press the reader makes once the page shows. That puts them on the startup path;
  * loading them after presentation kept them off, but left the radios inert until they
@@ -382,14 +382,17 @@ export class Shot extends HTMLElement {
         comparison.append(frame);
       }
       let dragged = false;
-      /** @param {Event} event */
-      const handleOf = (event) =>
+      /**
+       * @param {Event} event
+       * @param {string} part
+       */
+      const partOf = (event, part) =>
         event
           .composedPath()
           .find(
             (node) =>
               node instanceof Element &&
-              node.getAttribute("part")?.split(/\s+/).includes("handle"),
+              node.getAttribute("part")?.split(/\s+/).includes(part),
           );
       comparison.addEventListener("change", () => {
         dragged = true;
@@ -399,13 +402,15 @@ export class Shot extends HTMLElement {
       comparison.addEventListener("pointerdown", (event) => {
         if (!event.isPrimary || event.button !== 0) return;
         dragged = false;
-        const handle = handleOf(event);
+        const handle = partOf(event, "handle");
         if (handle instanceof HTMLElement || handle instanceof SVGElement)
           focusDestination(handle, "press");
       });
       comparison.addEventListener("click", (event) => {
-        // A modified click keeps its usual meaning.
-        if (dragged || handleOf(event) || !plainPress(event)) return;
+        // A modified click keeps its usual meaning. A press on the divider drags it,
+        // and Web Awesome captures that pointer on the divider, so the click that
+        // ends a press on the handle targets the divider rather than the handle.
+        if (dragged || partOf(event, "divider") || !plainPress(event)) return;
         event.preventDefault();
         comparison.position = comparison.position > 50 ? 0 : 100;
       });

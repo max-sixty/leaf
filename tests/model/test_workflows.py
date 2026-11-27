@@ -30,26 +30,28 @@ from interact_support import (
     state_json,
 )
 
-from leaf import activity as activity_model
-from leaf import delivery as delivery_model
-from leaf import event_contracts as event_contracts_model
-from leaf import event_log as events_model
-from leaf import events as event_folds_model
-from leaf import hooks as hooks_model
-from leaf import leases as leases_model
-from leaf import obligations as obligations_model
-from leaf import projection as projection_model
-from leaf import revisioning as revisioning_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import standing as standing_model
-from leaf import state as cleanup_model
-from leaf import thread as thread_model
-from leaf.event_meaning import AdmissionReadings
-from leaf.registry import storage as registry_storage
-from leaf.served_state import work as work_served_model
-from leaf.thread_context import ThreadStructure
-from leaf.workflows import attention_reading
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.base import standing as standing_model
+from leaf.base import state as cleanup_model
+from leaf.base.findings import Rejected
+from leaf.commands import hooks as hooks_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.log import events as event_folds_model
+from leaf.log import obligations as obligations_model
+from leaf.log import projection as projection_model
+from leaf.log.events import ThreadStructure
+from leaf.records import activity as activity_model
+from leaf.records import event_contracts as event_contracts_model
+from leaf.records import revisioning as revisioning_model
+from leaf.records import transaction as transaction_model
+from leaf.records import work_state as work_state_model
+from leaf.records.event_meaning import AdmissionReadings
+from leaf.records.workflows import attention_reading
+from leaf.source import vocabulary as vocabulary_model
 
 
 @pytest.mark.parametrize(
@@ -396,7 +398,9 @@ def test_a_request_outlives_the_users_resolve_and_not_the_agents(page_dir):
     assert reading() == ("user", [], [])
 
 
-def test_settling_reaction_closes_an_agent_root_obligation(page_dir):
+def test_a_reaction_on_a_question_answers_it_and_hands_the_thread_over(page_dir):
+    """The user's reaction on the agent's question answers it as their words would,
+    and the thread waits on the agent's answer to the reaction."""
     publish(page_dir)
     question = thread_model.cmd_comment(page_dir, "", "", "", "Forty?", obligation=True)
     browser = page_state(page_dir)["browser"]
@@ -405,20 +409,20 @@ def test_settling_reaction_closes_an_agent_root_obligation(page_dir):
     assert owed["message"] == question["id"]
     assert before["attention"] == owed["id"]
 
-    append_carried_log_record(
+    reaction = append_carried_log_record(
         page_dir,
         {
             "kind": "reply",
             "author": "user",
             "parent": question["id"],
-            "token": "keep",
+            "emoji": "👍",
         },
     )
 
     browser = page_state(page_dir)["browser"]
     [after] = served_thread(browser)["threads"]
     assert served_obligations(browser)["user"] == []
-    assert after["attention"] is None
+    assert after["attention"] == f"update:{reaction['id']}"
 
 
 def test_thread_widget_workflow_contributes_to_its_thread_attention(page_dir):
@@ -445,6 +449,7 @@ def test_thread_widget_workflow_contributes_to_its_thread_attention(page_dir):
             "widget": "thread-region",
             "action": "choose",
             "detail": {"value": ["thread-east"]},
+            "answered": True,
         },
     )
     answered = append_command(
@@ -456,6 +461,7 @@ def test_thread_widget_workflow_contributes_to_its_thread_attention(page_dir):
             "widget": "thread-region",
             "action": "answer",
             "detail": {},
+            "answered": True,
         },
     )
     # The move owes a reply in its thread, and the agent starts the move itself.
@@ -543,6 +549,7 @@ def test_an_owed_pick_in_a_thread_outlives_the_users_resolve(page_dir):
             "widget": "thread-region",
             "action": "choose",
             "detail": {"value": ["thread-east"]},
+            "answered": True,
         },
     )
     append_carried_log_record(
@@ -563,7 +570,7 @@ def test_a_thread_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothi
     thread the agent's, and the agent's next turn in the thread takes it in."""
     activated = revisioning_model.activate_source(page_dir)
     assert activated.error is None and activated.revision == 1
-    registry = registry_storage.active_registry(page_dir)
+    registry = vocabulary_model.active_registry(page_dir)
     asked = append_carried_log_record(
         page_dir,
         {
@@ -645,21 +652,10 @@ def test_a_thread_move_that_answers_no_obligation_keeps_a_receipt_and_owes_nothi
         (moved["id"], "running")
     ]
 
-    # A mark is no turn; the agent's next spoken turn takes the move in.
+    # The agent's next turn in the thread takes the move in, an emoji as words would.
     append_carried_log_record(
         page_dir,
-        {"kind": "reply", "author": "agent", "parent": asked["id"], "token": "keep"},
-    )
-    state, attention = reading()
-    assert [item["input"] for item in state["workflows"]] == [moved["id"]]
-    append_carried_log_record(
-        page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "parent": asked["id"],
-            "text": "Baffle is in progress now.",
-        },
+        {"kind": "reply", "author": "agent", "parent": asked["id"], "emoji": "👍"},
     )
     state, attention = reading()
     assert state["workflows"] == []
@@ -724,13 +720,20 @@ def test_settings_the_user_has_not_sent_ask_nothing_of_the_agent():
 
     action = {"kind": "action", "author": "user", "revision": 1}
     action |= {"widget": "tone-playground"}
-    tune = {**action, "action": "tune", "detail": {"values": {"tone": "urgent"}}}
+    # A playground is answered once its settings are submitted, not by a tune.
+    tune = {
+        **action,
+        "action": "tune",
+        "detail": {"values": {"tone": "urgent"}},
+        "answered": False,
+    }
     assert admit(tune)["attention"] is False
     chosen = admit(
         {
             **action,
             "action": "choose",
             "detail": {"values": {"tone": "urgent"}, "instruction": "Build it."},
+            "answered": True,
         }
     )
     assert chosen["attention"] is True
@@ -739,7 +742,9 @@ def test_settings_the_user_has_not_sent_ask_nothing_of_the_agent():
     working = attention_reading(AdmissionReadings(page, log, page.registry(1)))
     assert working["work"] == [{"id": chosen["id"], "inputs": [chosen["id"]]}]
 
-    assert admit({**tune, "detail": {"values": {"tone": "calm"}}})["attention"] is False
+    # The submitted settings still stand, so a tune after them leaves it answered.
+    calmer = {**tune, "detail": {"values": {"tone": "calm"}}, "answered": True}
+    assert admit(calmer)["attention"] is False
     assert attention_reading(AdmissionReadings(page, log, page.registry(1))) == working
 
 
@@ -868,7 +873,7 @@ def test_served_workflows_list_the_strongest_first():
     )
     records = obligations_model.collection([handed_back])
     for workflows, expected in cases:
-        served = work_served_model.served_workflows(workflows, thread_reading, records)
+        served = work_state_model.served_workflows(workflows, thread_reading, records)
         assert [item["id"] for item in served] == expected
 
 
@@ -878,7 +883,7 @@ def test_a_weaker_old_receipt_does_not_duplicate_a_thread_claim(page_dir):
         {"kind": "comment", "id": "c1", "author": "user", "text": "why?"},
     )
     assert _start(page_dir, "c1", "reading the traces").exit_code == 0
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         delivery_model.record_pickup(transaction, [comment])
     append_carried_log_record(
         page_dir,
@@ -994,7 +999,7 @@ def test_pickup_from_an_older_turn_reads_blocked_quiet(claimed, capsys):
     assert old is not None
     cleanup_model.close_session_turn(old["id"])
     cleanup_model.prompt_turn("s1")
-    assert service_model.claim_page(claimed)
+    assert transaction_model.claim_page(claimed)
     claim_record = service_model.page_claim(claimed)
     assert claim_record is not None
     assert claim_record["turn"] != old["turn"]
@@ -1031,6 +1036,7 @@ def test_a_widget_reply_does_not_settle_newer_thread_input(page_dir):
             "widget": "region",
             "action": "choose",
             "detail": {"value": ["east"]},
+            "answered": True,
         },
     )
     newer = append_carried_log_record(
@@ -1042,20 +1048,238 @@ def test_a_widget_reply_does_not_settle_newer_thread_input(page_dir):
             "text": "Wait, do not deploy yet.",
         },
     )
-    before = [item["input"] for item in owed(state_json(page_dir))]
-    assert before == [chose["id"], newer["id"]]
-
-    replied = thread_model.post_reply(
-        page_dir, {"parent": asked["id"], "responds": chose["id"]}, "East noted."
+    [answer] = owed(state_json(page_dir))
+    assert (answer["input"], answer["answer"]) == (
+        newer["id"],
+        {"kind": "reply", "parent": newer["id"], "responds": newer["id"]},
     )
-    assert replied["responds"] == chose["id"]
-    after = state_json(page_dir)
-    assert [item["input"] for item in owed(after)] == [newer["id"]]
-    assert owed(after)[0]["answer"] == {
-        "kind": "reply",
-        "parent": newer["id"],
-        "responds": newer["id"],
+
+    # The thread's one answer is the newer message's, so a reply to the pick alone,
+    # which may not have read that message, is refused and leaves it owed.
+    with pytest.raises(Rejected) as refused:
+        thread_model.post_reply(
+            page_dir, {"parent": asked["id"], "responds": chose["id"]}, "East noted."
+        )
+    assert refused.value.findings[0].code == "superseded-reply"
+    assert [item["input"] for item in owed(state_json(page_dir))] == [newer["id"]]
+
+
+def offer_choice(page_dir) -> dict:
+    """The agent's comment opening a thread with a choice for the user to pick."""
+    activated = revisioning_model.activate_source(page_dir)
+    assert activated.error is None and activated.revision == 1
+    return append_carried_log_record(
+        page_dir,
+        {
+            "kind": "comment",
+            "author": "agent",
+            "revision": 1,
+            "text": "File the issue?\n\n" + '<lf-options id="file-issue">'
+            '<lf-option id="file" label="File it"><strong>File it</strong></lf-option>'
+            '<lf-option id="skip" label="Leave it"><strong>Leave it</strong></lf-option>'
+            "</lf-options>",
+        },
+    )
+
+
+def choose(page_dir, option: str) -> dict:
+    """The user's pick of `option` on the choice `offer_choice` sent."""
+    return append_command(
+        page_dir,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "file-issue",
+            "action": "choose",
+            "detail": {"value": [option]},
+            "answered": True,
+        },
+    )
+
+
+def say(page_dir, asked: dict, text: str) -> dict:
+    """The user's reply in the thread `asked` opened."""
+    return append_carried_log_record(
+        page_dir,
+        {"kind": "reply", "author": "user", "parent": asked["id"], "text": text},
+    )
+
+
+@pytest.mark.parametrize(
+    "pick_first", [False, True], ids=["reply-then-pick", "pick-then-reply"]
+)
+def test_a_reply_and_a_pick_in_one_thread_owe_one_answer(page_dir, pick_first):
+    """The user's message and their pick on a widget sent in the same thread are one
+    batch, like two messages in a row: the delivery asks for one answer, to the newer,
+    and that answer settles both, so the agent has no second reply to write."""
+    asked = offer_choice(page_dir)
+    if pick_first:
+        older = choose(page_dir, "file")
+        newer = say(page_dir, asked, "ok, can we file an issue requesting this?")
+    else:
+        older = say(page_dir, asked, "ok, can we file an issue requesting this?")
+        newer = choose(page_dir, "file")
+    state = state_json(page_dir)
+    [answer] = owed(state)
+    assert answer["input"] == newer["id"]
+    assert {item["input"]: item["obligation"] for item in state["workflows"]} == {
+        older["id"]: f"update:{newer['id']}",
+        newer["id"]: f"update:{newer['id']}",
     }
+    envelope = freeze_events(page_dir, [older, newer])
+    assert [
+        (event["id"], "answer" in event) for event in envelope["batches"][0]["events"]
+    ] == [(older["id"], False), (newer["id"], True)]
+
+    thread_model.post_reply(page_dir, answer["answer"], "Filed it.")
+    after = state_json(page_dir)
+    assert owed(after) == []
+    assert after["workflows"] == []
+
+    # A turn that reserved the older input's address before the newer arrived
+    # commits its final message there; the answer settled that input too, so the
+    # final yields rather than answering twice.
+    stale = {
+        "parent": asked["id"] if pick_first else older["id"],
+        "responds": older["id"],
+    }
+    assert (
+        thread_model.post_reply(
+            page_dir,
+            stale,
+            "Filing it.",
+            settlement=thread_model.ProviderFinal("older-turn"),
+        )
+        is None
+    )
+    assert events_model.read_events(page_dir)[-1]["text"] == "Filed it."
+
+
+@pytest.mark.parametrize("resolved", [False, True], ids=["open", "agent-resolved"])
+def test_a_pick_an_undo_brings_back_is_the_threads_newest_input(page_dir, resolved):
+    """The user changes their pick, sends a message, and takes the change back, which
+    brings the first pick back after the message, even once the agent has resolved
+    the thread. The thread's one answer goes to that pick, and a reply at the
+    message, written before the pick came back, is refused."""
+    asked = offer_choice(page_dir)
+    first = choose(page_dir, "file")
+    changed = choose(page_dir, "skip")
+    message = say(page_dir, asked, "File it only after I approve the draft.")
+    [before] = owed(state_json(page_dir))
+    assert before["input"] == message["id"]
+    if resolved:
+        thread_model.cmd_resolve(page_dir, asked["id"])
+        assert owed(state_json(page_dir)) == []
+    append_carried_log_record(
+        page_dir,
+        {"kind": "undo", "author": "user", "undoes": changed["id"], "answered": True},
+    )
+    [answer] = owed(state_json(page_dir))
+    assert answer["input"] == first["id"]
+    with pytest.raises(Rejected) as refused:
+        thread_model.post_reply(page_dir, before["answer"], "Waiting for approval.")
+    assert refused.value.findings[0].code == "superseded-reply"
+    thread_model.post_reply(page_dir, answer["answer"], "Filing it once you approve.")
+    assert owed(state_json(page_dir)) == []
+
+
+def test_undoing_an_answered_pick_owes_an_answer_to_the_pick_it_brings_back(
+    page_dir,
+):
+    """The user changes their pick, the agent answers the new one, and the user takes
+    it back: the pick it replaced is the user's decision again, which the agent has
+    not answered."""
+    asked = offer_choice(page_dir)
+    first = choose(page_dir, "file")
+    second = choose(page_dir, "skip")
+    [answer] = owed(state_json(page_dir))
+    assert answer["input"] == second["id"]
+    thread_model.post_reply(page_dir, answer["answer"], "Leaving it.")
+    assert owed(state_json(page_dir)) == []
+
+    append_carried_log_record(
+        page_dir,
+        {"kind": "undo", "author": "user", "undoes": second["id"], "answered": True},
+    )
+    [answer] = owed(state_json(page_dir))
+    assert answer["input"] == first["id"]
+    assert answer["answer"]["parent"] == asked["id"]
+
+
+@pytest.mark.parametrize("changed", [True, False], ids=["changed-pick", "only-pick"])
+def test_a_reply_at_a_pick_the_user_took_back_is_refused(page_dir, changed):
+    """The user takes back the pick the agent holds a reference to before it
+    answers: a change of pick, which brings the first pick back, or their only
+    pick. The reference names a pick that no longer stands, so a reply there is
+    refused and what stands stays owed. A turn's final there goes in, answering the
+    pick it was written for, which leaves what stands owed all the same."""
+    offer_choice(page_dir)
+    first = choose(page_dir, "file")
+    taken = choose(page_dir, "skip") if changed else first
+    [answer] = owed(state_json(page_dir))
+    assert answer["input"] == taken["id"]
+    append_carried_log_record(
+        page_dir,
+        {"kind": "undo", "author": "user", "undoes": taken["id"], "answered": changed},
+    )
+    with pytest.raises(Rejected) as refused:
+        thread_model.post_reply(page_dir, answer["answer"], "Leaving it.")
+    assert refused.value.findings[0].code == "superseded-reply"
+    late = thread_model.post_reply(
+        page_dir,
+        answer["answer"],
+        "Leaving it.",
+        settlement=thread_model.ProviderFinal("turn"),
+    )
+    assert late is not None and late["responds"] == taken["id"]
+    assert [item["input"] for item in owed(state_json(page_dir))] == (
+        [first["id"]] if changed else []
+    )
+
+
+@pytest.mark.parametrize("again", ["message", "pick"])
+def test_a_failed_answer_hands_the_threads_batch_back_once(claimed, again):
+    """A harness that gives up on a delivery holding the user's pick and their
+    message after it writes one failure, at the thread's one answer, and hands both
+    back on that record, leaving nothing on the agent. The user's next input there, a
+    message or another pick, is a new request, which the agent owes, and the failure
+    stops waiting on the user."""
+    asked = offer_choice(claimed)
+    picked = choose(claimed, "file")
+    message = say(claimed, asked, "ok, can we file an issue requesting this?")
+    for event in (picked, message):
+        thread_model.fail_answer(
+            claimed,
+            event["id"],
+            "delivery_unconfirmed",
+            "Send it again if I still need an answer.",
+            attempt=f"unconfirmed-{event['id']}",
+            identity={"session": "s1"},
+            only_if_unclaimed=False,
+            claimed_session="s1",
+        )
+    failed = state_json(claimed)
+    assert owed(failed) == []
+    assert {
+        record["id"]: record["next_actor"]
+        for record in failed["obligations"]
+        if record["id"].startswith("update:")
+    } == {f"update:{message['id']}": "user"}
+    assert {
+        item["input"]: (item["obligation"], item["reason"])
+        for item in failed["workflows"]
+    } == {
+        picked["id"]: (f"update:{message['id']}", "failed"),
+        message["id"]: (f"update:{message['id']}", "failed"),
+    }
+
+    retry = (
+        say(claimed, asked, "retry") if again == "message" else choose(claimed, "skip")
+    )
+    again = state_json(claimed)
+    assert [item["input"] for item in owed(again)] == [retry["id"]]
+    assert [item["input"] for item in again["workflows"]] == [retry["id"]]
 
 
 def test_settling_a_thread_widget_move_does_not_revive_its_superseded_move(
@@ -1092,13 +1316,14 @@ def test_settling_a_thread_widget_move_does_not_revive_its_superseded_move(
             "widget": "regions",
             "action": "choose",
             "detail": {"value": ["east"]},
+            "answered": False,
         },
     )
     selecting = state_json(page_dir)
     assert [item["widget"] for item in obligations_on_user(selecting)] == ["regions"]
     assert owed(selecting) == []
     assert selecting["workflows"] == []
-    assert service_model.unacknowledged(events_model.read_events(page_dir), 0) == []
+    assert transaction_model.unacknowledged(events_model.read_events(page_dir), 0) == []
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
@@ -1111,6 +1336,7 @@ def test_settling_a_thread_widget_move_does_not_revive_its_superseded_move(
             "widget": "regions",
             "action": "answer",
             "detail": {},
+            "answered": True,
         },
     )
     completed = state_json(page_dir)
@@ -1140,6 +1366,7 @@ def test_settling_a_thread_widget_move_does_not_revive_its_superseded_move(
             "widget": "regions",
             "action": "answer",
             "detail": {},
+            "answered": True,
         },
     )
     assert [item["input"] for item in owed(state_json(page_dir))] == [answered["id"]]

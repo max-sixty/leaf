@@ -1,4 +1,4 @@
-"""The user's drafts on the page's server (`leaf.drafts`): a write takes only the
+"""The user's drafts on the page's server (`leaf.serving.drafts`): a write takes only the
 generation it names, admitting a send settles the generation it carries, the store
 names itself, and tabs hear drafts through their own news, which moves no reading of
 the page and reaches no part of what the agent reads."""
@@ -8,10 +8,10 @@ import json
 from click.testing import CliRunner
 from interact_support import fetch, publish, server  # noqa: F401 (fixture)
 
-from leaf import cli as cli_model
-from leaf import drafts as drafts_model
-from leaf import page_memory as page_memory_model
-from leaf.event_log import append_event, start_log
+from leaf.base import page_memory as page_memory_model
+from leaf.commands import cli as cli_model
+from leaf.log.event_log import append_event, start_log
+from leaf.serving import drafts as drafts_model
 
 
 def _write(page_dir, expect, attempt, text="Words", **record):
@@ -64,7 +64,7 @@ def test_a_store_keeps_its_identity_until_its_file_is_replaced(tmp_path):
     assert first["version"] == 0
     assert _write(tmp_path, [], "a1")["store"] == first["store"]
     assert drafts_model.read_drafts(tmp_path)["store"] == first["store"]
-    (tmp_path / "drafts.json").unlink()
+    drafts_model.DRAFTS.remove(tmp_path / "drafts.json")
     replaced = drafts_model.read_drafts(tmp_path)
     assert replaced["store"] != first["store"]
     assert replaced["drafts"] == {}

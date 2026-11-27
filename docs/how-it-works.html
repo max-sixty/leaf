@@ -8,7 +8,7 @@
     <title>How Leaf works</title>
     <meta
       name="description"
-      content="Leaf's mechanism: how pages, packages, the event log, revisions, threads, progress and status, keys, agent sessions, the forks that take up thread messages in Claude Code and the browser runtime work together."
+      content="Leaf's mechanism: how pages, packages, the event log, revisions, threads, progress and status, keys, agent sessions, the forks that take up thread messages in Claude Code, the browser runtime and the package interface work together."
     />
     <link rel="icon" href="/icon.svg" type="image/svg+xml" />
     <style>
@@ -153,6 +153,17 @@
         fill: var(--lf-rule);
         stroke: none;
       }
+
+      /* The package interface's drawing is drawn at a phone's width, so its words keep
+         their size there, and a wider window shows it no larger than this. */
+      #interface-drawing svg {
+        max-width: 30rem;
+        margin-inline: auto;
+      }
+      /* Each kind of need is named in a phrase, so its column keeps room for one. */
+      #interface-forms-table :is(th, td):first-child {
+        width: 36%;
+      }
     </style>
   </head>
   <body class="site-page">
@@ -182,6 +193,7 @@
               <ul>
                 <li><a href="#architecture">Pages, core, and packages</a></li>
                 <li><a href="#architecture-parts">Responsibilities and state</a></li>
+                <li><a href="#browser-and-server">Browser and server</a></li>
                 <li><a href="#exchange">The exchange</a></li>
                 <li><a href="#specification-map">Find the right guide</a></li>
               </ul>
@@ -203,7 +215,7 @@
               the page’s <strong>layer</strong>.
             </p>
             <figure id="arch" class="diagram-figure">
-              <lf-diagram id="agent-browser-architecture" data-height="410" parts="all">
+              <lf-diagram id="agent-browser-architecture" data-height="410">
                 <pre>
 flowchart TD
   accTitle: How Leaf composes a page
@@ -223,6 +235,16 @@ flowchart TD
               Python, and the browser a shared description of its elements and
               capabilities. It declares valid markup and the meaning of widget actions;
               widget modules implement their behavior and presentation.
+              <a href="#package-interface">Package interface</a> draws everything a
+              package leans on Leaf for and walks through a whole widget.
+            </p>
+            <p id="architecture-styles">
+              The layer's styles reach the page as one stylesheet, which Leaf links
+              first in the page's head. The page's own CSS follows it and outranks it,
+              apart from rules in the page's <code>base</code> and <code>reset</code>
+              layers, which Leaf ranks among its own.
+              <a href="/extending/#styles-tiers">The tiers</a> draws where each rule
+              goes.
             </p>
           </section>
           <section id="architecture-parts">
@@ -286,6 +308,56 @@ flowchart TD
               runtime and composes its layer from the recorded selection. Historical
               revisions keep authored content and recorded decisions, while the serving
               Leaf supplies the code that draws them.
+            </p>
+          </section>
+          <section id="browser-and-server">
+            <h2>Browser and server</h2>
+            <p id="browser-and-server-lede">
+              A page runs as two programs that share no memory: Leaf's
+              <a href="#browser-state">browser runtime</a>, in each tab that shows the
+              page, and the page's server, a Python process. The server learns what the
+              user did only from what a browser sends it. A widget deals only with the
+              runtime: the runtime sets the element's <code>state</code> property, and
+              the element dispatches <code>lf-action</code>, or <code>lf-undo</code>, to
+              say what the user did (<a href="#widgets">Widgets</a>).
+            </p>
+            <figure id="browser-and-server-figure" class="diagram-figure">
+              <lf-diagram id="browser-and-server-sequence" data-height="424">
+                <pre>
+sequenceDiagram
+  accTitle: One pick, from the widget to the log and back
+  accDescr: The widget dispatches lf-action. Leaf's runtime sets the widget's state at once, so the pick shows, and posts the action to the page's server. The server validates it against the registry, appends it to events.jsonl and reads the markup and the log again. It answers with the recorded event and its new reading, and the runtime sets each widget's state from that reading.
+  participant W as Widget
+  participant R as Leaf's runtime
+  participant S as Page's server
+  participant L as events.jsonl
+  W-&gt;&gt;R: lf-action {verb, detail}
+  R--&gt;&gt;W: sets state: the pick shows
+  R-&gt;&gt;S: POST /api/event
+  Note over S: validates against the registry
+  S-&gt;&gt;L: appends the action
+  Note over S: reads markup and log again
+  S-&gt;&gt;R: the event and the new reading
+  R--&gt;&gt;W: sets state from the reading
+</pre>
+              </lf-diagram>
+              <figcaption id="browser-and-server-caption">
+                <strong>One pick, from the widget to the log and back.</strong> The
+                runtime
+                <a href="#browser-updates">draws the pick before the request leaves</a>,
+                and a refusal returns the widget to the server's state. Other tabs hear
+                of the change through their
+                <a href="#browser-freshness">freshness checks</a> and read
+                <code>GET /api/state</code>.
+              </figcaption>
+            </figure>
+            <p id="browser-and-server-reading">
+              Facts that depend on the whole log, such as which questions still wait on
+              the user, arrive with the server's reading rather than with the gesture.
+              The server computes every reading from the authored markup and the log,
+              without running any widget's module, so the agent's deliveries, its
+              turn-end check and <code>leaf page state</code> see the same state with no
+              tab open.
             </p>
           </section>
           <section id="exchange">
@@ -367,15 +439,17 @@ flowchart TD
                     <a href="#revisions">revisions</a>,
                     <a href="#progress">progress and status</a>,
                     <a href="#threads">threads</a>, the <a href="#forks">forks</a> that
-                    take them up in Claude Code, <a href="#keys">keys</a>, and
-                    <a href="#runtime">the browser runtime</a>.
+                    take them up in Claude Code, <a href="#keys">keys</a>,
+                    <a href="#runtime">the browser runtime</a>, and the
+                    <a href="#package-interface">package interface</a> between a widget
+                    and Leaf.
                   </td>
                 </tr>
                 <tr>
                   <th scope="row"><a href="/extending/">Extending</a></th>
                   <td>
                     Whoever builds on Leaf: a page's contents, themes and layouts, then
-                    who owns what, the package interfaces, a worked package, CSS
+                    who owns what, how packages share data, a worked package, CSS
                     contracts, the bundled packages and the registry keys.
                   </td>
                 </tr>
@@ -441,7 +515,7 @@ flowchart TD
 # Write ./review/index.html with the harness's file tools.
 leaf page check ./review --render
 leaf page stamp ./review --text "Queue policy ready for review"
-leaf thread create ./review --obligation --text "Which queue policy fits the importer?"
+leaf thread create ./review --title "Importer queue policy" --obligation --text "Which queue policy fits the importer?"
 leaf server start ./review</code></pre>
               <p id="handoff-checkpoint">
                 This example is a record meant to be revisited, so the agent reviews and
@@ -525,7 +599,7 @@ leaf page state ./review
 leaf page state ./review &lt;thread-id&gt;
 # Revise ./review/index.html.
 leaf thread reply &lt;answer.ref&gt; --done --text "The importer policy is updated."
-leaf thread create ./review --obligation --text "Does the revised policy match the workload?"</code></pre>
+leaf thread create ./review --title "Revised policy" --obligation --text "Does the revised policy match the workload?"</code></pre>
               <p id="answers-kinds">
                 A comment needs a thread reply. A widget that asks, any widget whose
                 registry entry declares <code>awaits</code>, creates an
@@ -789,7 +863,7 @@ leaf task end ./review &lt;todo-id&gt; done --text "The load check is recorded o
                   needing no answer waits for the next turn.
                 </p>
                 <figure id="turn-end-check" class="diagram-figure">
-                  <lf-diagram id="turn-end-decision" data-height="663" parts="all">
+                  <lf-diagram id="turn-end-decision" data-height="663">
                     <pre>
 flowchart TD
   accTitle: Checks before a turn ends
@@ -1272,7 +1346,7 @@ flowchart TD
                 </li>
               </ul>
               <figure id="turn-end-figure" class="diagram-figure">
-                <lf-diagram id="turn-end-sequence" data-height="522" parts="all">
+                <lf-diagram id="turn-end-sequence" data-height="514">
                   <pre>
 sequenceDiagram
   accTitle: The turn-end check, from the turn's end to the main thread
@@ -1320,7 +1394,7 @@ sequenceDiagram
                 </p>
                 <lf-text-document
                   id="prompt-turn-end-check"
-                  label="fork_prompt, src/leaf/clerk.py"
+                  label="fork_prompt, src/leaf/agents/clerk.py"
                   preview="markdown"
                   data-prompt="turn-end"
                 ></lf-text-document>
@@ -1344,12 +1418,12 @@ sequenceDiagram
               <p id="fork-writes">
                 Leaf posts each remaining ask as the agent's message, as the agent's
                 <code>leaf thread</code> command would. The user's pick answers a
-                choice, and any other ask carries an obligation, which their reply or a
-                settling reaction answers. A question asked again goes in its thread,
-                and reopens the thread if the user closed it. Any other opens a thread
-                of its own, on that passage, or on the page as a whole where the fork
-                named none or the page doesn't show its words once. Nothing on the page
-                marks where an ask came from.
+                choice, and any other ask carries an obligation, which their reply
+                answers. A question asked again goes in its thread, and reopens the
+                thread if the user closed it. Any other opens a thread of its own, on
+                that passage, or on the page as a whole where the fork named none or the
+                page doesn't show its words once. Nothing on the page marks where an ask
+                came from.
               </p>
               <p id="fork-fixes">
                 Where a few of a page's words have gone stale, the fork can give the
@@ -1499,9 +1573,9 @@ sequenceDiagram
               says how the records Leaf keeps carry the number.
             </p>
             <p id="leaf-copy-outlast">
-              Three things outlive the process, so a session can find one that another
-              copy of Leaf wrote. Leaf compares each one's record with the session's
-              copy, and brings it to that copy:
+              A session's pages and their servers outlive the process, so a session can
+              find one that another copy of Leaf wrote. Leaf compares each one's record
+              with the session's copy, and brings it to that copy:
             </p>
             <table id="leaf-copy-pieces">
               <thead>
@@ -1540,28 +1614,27 @@ sequenceDiagram
                     address. Open tabs reload where the browser runtime changed.
                   </td>
                 </tr>
-                <tr id="leaf-copy-skill">
-                  <th scope="row">The skill text the agent read</th>
-                  <td>
-                    The copy the session's last hook ran and a digest of the skill it
-                    ships, kept while the session lives or holds a page
-                  </td>
-                  <td>
-                    The first hook from another copy, or from an installed copy its
-                    harness updated, whose skill differs tells the agent to read
-                    <code>SKILL.md</code> again.
-                  </td>
-                </tr>
               </tbody>
             </table>
+            <p id="leaf-copy-skill">
+              The skill text the agent read outlives the process too, in its
+              conversation, and Leaf leaves it to the harness. After an update or a
+              merge changes the skill, Leaf tells the agent nothing; Claude Code's
+              <code>/reload-skills</code> picks up a skill changed on disk.
+            </p>
             <p id="leaf-copy-checkout">
-              A session working on Leaf itself can select a checkout instead. A preview
-              of the checkout, or a command from it that claims or initializes a page
-              the session holds, hands the session's hooks, the following of its pages
-              and its bare <code>leaf</code> to that checkout, until the session ends,
-              it selects another checkout or the checkout's launcher is gone. Only a
-              server from an installed copy moves, and only to an installed copy, so a
-              checkout's servers stay as they are, and no server moves onto a checkout.
+              Developing Leaf works as developing any project does. A checkout of Leaf,
+              run through its own <code>bin/leaf</code> from inside a session, acts for
+              no session unless the session's hooks run that checkout, as from a bare
+              shell: it claims nothing and writes none of the session's records, so its
+              version, page protocol included, never reaches the session. It serves a
+              page without claiming it, and its own <code>leaf wait</code> hears it. The
+              session's hooks, the following of its pages, its bare
+              <code>leaf</code> and a Codex task's delivery adapter stay on the copy the
+              session loaded, and only that copy serves a page the session holds or
+              changes its layer. Only a server from an installed copy moves, and only to
+              an installed copy, so a checkout's servers stay as they are, and no server
+              moves onto a checkout.
             </p>
             <p id="leaf-copy-contract">
               <a
@@ -1756,7 +1829,7 @@ sequenceDiagram
               completion.
             </p>
             <figure id="ontology-graph" class="diagram-figure">
-              <lf-diagram id="ontology-records-diagram" data-height="596" parts="all">
+              <lf-diagram id="ontology-records-diagram" data-height="596">
                 <pre>
 flowchart TD
   accTitle: Work records determine attention
@@ -1787,7 +1860,7 @@ flowchart TD
               until something it read changes.
             </p>
             <figure id="derived-data-figure" class="diagram-figure">
-              <lf-diagram id="derived-data-diagram" data-height="560" parts="all">
+              <lf-diagram id="derived-data-diagram" data-height="560">
                 <pre>
 flowchart LR
   accTitle: Sources, kept readings and views
@@ -1862,12 +1935,12 @@ flowchart LR
               selection, revisions, event log, media, and external data. Packages
               selected by a local path are copied into it; the serving Leaf supplies
               bundled packages and the runtime. Copying the directory preserves the
-              authored content and recorded decisions. Session ownership and browser
-              drafts live elsewhere. The diagram shows the durable inputs to current
-              state.
+              authored content and recorded decisions. Session ownership lives in the
+              machine’s state home instead. The diagram shows the durable inputs to
+              current state.
             </p>
             <figure id="data-flow" class="diagram-figure">
-              <lf-diagram id="page-stores-diagram" data-height="646" parts="all">
+              <lf-diagram id="page-stores-diagram" data-height="646">
                 <pre>
 flowchart TD
   accTitle: Durable inputs become current state
@@ -2057,7 +2130,7 @@ flowchart TD
               their own verbs; Leaf processes those declarations without
               package-specific code.
             </p>
-            <lf-diagram id="layers-flow" data-height="515" parts="all">
+            <lf-diagram id="layers-flow" data-height="515">
               <pre>
 flowchart TD
   accTitle: Widget actions update widget state
@@ -2066,7 +2139,7 @@ flowchart TD
   Door -- "record" --&gt; Log[("events.jsonl")]
   Log -- "derive state" --&gt; Fold["State"]
   Initial["Authored initial values"] --&gt; Fold
-  Fold -- "render()" --&gt; Widget
+  Fold -- "state" --&gt; Widget
 </pre>
             </lf-diagram>
             <table id="layers-table">
@@ -2148,13 +2221,12 @@ flowchart TD
             <h2>Verb declarations</h2>
             <p id="verbs-lede">
               This is everything <code>lf-options</code> tells Leaf about its three
-              verbs and when its obligation counts as answered.
+              verbs and the question it asks.
             </p>
             <lf-code id="options-verbs" data-width="wide">
               <pre><code class="language-json">
 "verbs": {
   "choose": {
-    "unit": "widget",
     "record": {"kind": "attribute", "attr": "selected"}
   },
   "add": {
@@ -2165,60 +2237,57 @@ flowchart TD
     "unit": "option",
     "creates": {"child": "lf-option", "words": "text"}
   },
-  "answer": {"detail": {}, "unit": "widget"}
+  "answer": {"detail": {}}
 },
 "awaits": {
-  "value": "choose",
-  "answered": {
-    "choose": {"when": {"multiple": [false]}},
-    "answer": {"when": {"multiple": [true]}}
-  }
+  "value": "choose"
 }
 </code></pre>
               <lf-note at="2"
                 >The verb's name, which the widget sends as the event's
-                <code>action</code>.</lf-note
+                <code>action</code>. The verb names no <code>unit</code>, so its unit is
+                the whole <code>lf-options</code>: every pick uses the same coordinate
+                and a later pick replaces an earlier one.</lf-note
               >
               <lf-note at="3"
-                >One unit for the whole <code>lf-options</code>, so every pick uses the
-                same coordinate and a later pick replaces an earlier one.</lf-note
-              >
-              <lf-note at="4"
                 >How the current selection appears in markup: <code>selected</code> on
                 each picked option. This effect also determines the payload:
                 <code>detail.value</code>
                 must be an array of owned option ids. The agent writes the pick into the
                 next version.</lf-note
               >
-              <lf-note at="11"
+              <lf-note at="10"
                 >The unit is the value of <code>detail.option</code>, so each added
                 option has a coordinate of its own.</lf-note
               >
-              <lf-note at="12"
+              <lf-note at="11"
                 >The action adds an <code>lf-option</code> to the options, with
                 <code>detail.text</code> as its text.</lf-note
               >
-              <lf-note at="14"
+              <lf-note at="13"
                 ><code>answer</code> is the Done press that closes a
                 <code>multiple</code> choice.</lf-note
               >
-              <lf-note at="17"
+              <lf-note at="15"
+                >Whether the question is answered is the widget's own word: after each
+                pick, Done or undo, Leaf asks the module's static <code>answered</code>,
+                which says a single choice is answered once an option is selected and a
+                multiple choice once the user presses Done, and sends the word with the
+                gesture.</lf-note
+              >
+              <lf-note at="16"
                 >The obligation's typed answer comes from the current
                 <code>choose</code> value.</lf-note
-              >
-              <lf-note at="18"
-                >A single choice is answered when an option is selected. A multiple
-                choice is answered when the user presses Done. Undo can make the
-                obligation unanswered again.</lf-note
               >
             </lf-code>
             <p id="coordinate">
               An action's <strong>coordinate</strong> is its widget, its unit, and its
-              verb. <code>unit: "widget"</code> means the widget itself; any other value
-              names the detail field that holds the unit. A pick therefore uses
-              <code>[ship, ship, choose]</code>, and adding an option uses
-              <code>[ship, &lt;new option id&gt;, add]</code>. Two actions compete only
-              when their coordinates are equal, so a pick never displaces an added
+              verb. A verb that names no <code>unit</code> has the widget itself as its
+              unit, unless it records positions, when its unit is the member it moves;
+              one that names a detail field has the value of that field. A pick
+              therefore uses <code>[ship, ship, choose]</code>, and adding an option
+              uses <code>[ship, &lt;new option id&gt;, add]</code>. Two actions compete
+              only when their coordinates are equal, so a pick never displaces an added
               option.
             </p>
             <details id="all-verbs-list">
@@ -2300,7 +2369,7 @@ flowchart TD
 {"kind": "action", "revision": 1, "widget": "ship", "action": "add",
  "detail": {"option": "ship-option-1f82bf7ba6828718a418aa6076e29c63",
    "text": "After the canary is healthy"},
- "attempt": "1f82bf7ba6828718a418aa6076e29c63", "author": "user",
+ "answered": false, "attempt": "1f82bf7ba6828718a418aa6076e29c63", "author": "user",
  "id": "f541943a",
  "meaning": {"scope": "page",
    "unit": "ship-option-1f82bf7ba6828718a418aa6076e29c63",
@@ -2319,7 +2388,7 @@ flowchart TD
  "attention": false, "ts": "2026-09-23T22:09:53-07:00", "seq": 2}
 {"kind": "action", "revision": 1, "widget": "ship", "action": "choose",
  "detail": {"value": ["ship-option-1f82bf7ba6828718a418aa6076e29c63"]},
- "attempt": "d10bc95f51e47796494c2aa01b7c872f", "author": "user",
+ "answered": true, "attempt": "d10bc95f51e47796494c2aa01b7c872f", "author": "user",
  "id": "c47d1659",
  "meaning": {"scope": "page",
    "unit": "ship",
@@ -2339,7 +2408,7 @@ flowchart TD
  "attention": true, "ts": "2026-09-23T22:09:53-07:00", "seq": 3}
 {"kind": "action", "revision": 1, "widget": "ship", "action": "choose",
  "detail": {"value": ["ship-later"]},
- "attempt": "26e7a30143df35cda03ec8b7b164f2b6", "author": "user",
+ "answered": true, "attempt": "26e7a30143df35cda03ec8b7b164f2b6", "author": "user",
  "id": "0450d79c",
  "meaning": {"scope": "page",
    "unit": "ship",
@@ -2357,19 +2426,20 @@ flowchart TD
        "additionalProperties": false}},
    "answer": null},
  "attention": true, "ts": "2026-09-23T22:09:54-07:00", "seq": 4}
-{"kind": "undo", "attempt": "abec07d894a0444733756c659d4edafe", "undoes": "0450d79c", "author": "user",
+{"kind": "undo", "attempt": "abec07d894a0444733756c659d4edafe", "undoes": "0450d79c", "answered": true, "author": "user",
  "id": "6d9e1f06", "attention": true, "ts": "2026-09-23T22:09:54-07:00", "seq": 5}
-{"kind": "undo", "attempt": "5a3b1fb07f32ba1933b472b288a03e36", "undoes": "c47d1659", "author": "user",
+{"kind": "undo", "attempt": "5a3b1fb07f32ba1933b472b288a03e36", "undoes": "c47d1659", "answered": false, "author": "user",
  "id": "935db19d", "attention": true, "ts": "2026-09-23T22:09:55-07:00", "seq": 6}
-{"kind": "undo", "attempt": "7d324c8ea06016e59db0ca09ea0303e4", "undoes": "f541943a", "author": "user",
+{"kind": "undo", "attempt": "7d324c8ea06016e59db0ca09ea0303e4", "undoes": "f541943a", "answered": false, "author": "user",
  "id": "b0f9f750", "attention": false, "ts": "2026-09-23T22:09:55-07:00", "seq": 7}
 </code></pre>
               <lf-note at="1"
                 >The browser sent <code>kind</code>, <code>revision</code>,
-                <code>widget</code>, <code>action</code>, <code>detail</code>, and
-                <code>attempt</code>, its retry key. Leaf added the remaining fields.
-                <code>attention</code> records whether the action changes work the agent
-                owes.</lf-note
+                <code>widget</code>, <code>action</code>, <code>detail</code>,
+                <code>answered</code>, the widget's word on whether its question is
+                answered, and <code>attempt</code>, its retry key. Leaf added the
+                remaining fields. <code>attention</code> records whether the action
+                changes work the agent owes.</lf-note
               >
               <lf-note at="6"
                 >Leaf derives <code>meaning</code> and refuses a sender that supplies
@@ -2386,10 +2456,9 @@ flowchart TD
                 record's line in the log.</lf-note
               >
               <lf-note at="39"
-                >This pick makes the obligation's answered condition hold, so it
-                completes the obligation. <code>null</code> means it closes no thread; a
-                widget with a <code>resolves</code> attribute would name one
-                here.</lf-note
+                >The widget said this pick answers its question, so it completes the
+                obligation. <code>null</code> means it closes no thread; a widget with a
+                <code>resolves</code> attribute would name one here.</lf-note
               >
               <lf-note at="61"
                 >An undo names the gesture to withdraw. Leaf excludes that gesture when
@@ -2471,9 +2540,8 @@ flowchart TD
                 <a
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/package-data.md#user-state"
                   >User state</a
-                >: how a package declares <code>verbs</code>,
-                <code>awaits.answered</code>, <code>creates</code>, and agent-written
-                verbs.
+                >: how a package declares <code>verbs</code>, <code>awaits</code>,
+                <code>creates</code>, and agent-written verbs.
               </li>
               <li>
                 <a href="/extending/#verbs">Registry keys</a>: the exact definition of
@@ -2658,13 +2726,13 @@ flowchart TD
             <p id="undo">
               Outside a text box, <kbd>⌘Z</kbd> (<kbd>Ctrl+Z</kbd> off a Mac) withdraws
               the user's latest action at once, then leaves the user at what it took
-              back: where that was out of view, the page goes there, and Back returns to
-              where they pressed. A tint marks what changed for about a second, and a
-              notice names the action and how long ago it was made until the user's next
-              key, press or scroll. Undoing a resolve opens the thread again where they
-              had it open. Undoing a message or a rewrite puts its words back in the box
-              they were written in, as a draft to edit or send again. Each undo appends
-              an event naming its target, so the recomputed result survives reloads.
+              back: where that was out of view, the page goes there. A tint marks what
+              changed for about a second, and a notice names the action and how long ago
+              it was made until the user's next key, press or scroll. Undoing a resolve
+              opens the thread again where they had it open. Undoing a message or a
+              rewrite puts its words back in the box they were written in, as a draft to
+              edit or send again. Each undo appends an event naming its target, so the
+              recomputed result survives reloads.
             </p>
           </section></lf-tab
         ><lf-tab id="progress" label="Progress"
@@ -2893,7 +2961,7 @@ flowchart TD
               </li>
             </ul>
             <figure id="updates-decision" class="diagram-figure">
-              <lf-diagram id="updates-decision-diagram" data-height="914" parts="all">
+              <lf-diagram id="updates-decision-diagram" data-height="914">
                 <pre>
 flowchart TD
   accTitle: Activity status by first matching condition
@@ -3049,10 +3117,10 @@ flowchart TD
             <p id="progress-lists-answer">
               On the page, an item On Me is answered only in the widget or thread that
               asks it, and Leaf adds no control of its own to end one. A widget’s
-              obligation is answered by the actions its
-              <code>awaits</code> declaration names, such as a pick, or the Done a
+              obligation is answered when the widget says the user's gesture on it
+              answered it (<code>awaits</code>), as a pick does, or the Done a
               multi-select choice offers as its own control. A question in a thread is
-              answered by the user’s reply there or a settling reaction, such as 👍. The
+              answered by the user’s reply there, in words or a reaction such as 👍. The
               agent ends its to-dos with <code>leaf task end</code>, and ends a thread
               question the user answered elsewhere, such as in chat, by resolving its
               thread. Done history records the outcome, including withdrawn obligations
@@ -3124,7 +3192,7 @@ flowchart TD
               <li id="updates-written-question">
                 <strong><code>leaf thread reply … --obligation</code></strong>
                 Opens a question on On Me and makes the thread read
-                <em>Your turn</em>. A reply or settling reaction answers it at once, so
+                <em>Your turn</em>. A reply, words or a reaction, answers it at once, so
                 On Me clears without waiting for the agent. A step the user is to take,
                 such as trying a build, is asked this way where only words can give its
                 answer, such as what an error said; where its outcomes can be listed,
@@ -3287,7 +3355,7 @@ EOF</code></pre>
                 </tr>
                 <tr id="anchor-visual">
                   <td>Part of a picture</td>
-                  <td>⌥-click a box that a diagram declares commentable</td>
+                  <td>⌥-click a named box in a diagram or a point in a chart</td>
                   <td><code>section</code> and <code>visual</code>, the part's name</td>
                 </tr>
                 <tr id="anchor-datum">
@@ -3349,21 +3417,20 @@ EOF</code></pre>
               <code>wrote</code>, so words a widget draws do not appear as edits.
             </p>
             <p id="passage-sides">
-              The browser makes an anchor from a selection.
-              <code>leaf thread create</code>
-              makes one in Python, from the HTML file. Both apply the same rules: the
-              same whitespace characters collapse to one space, the same elements count
-              as separate blocks, the context is the same 24 characters, and the search
-              is the same.
+              The browser makes an anchor from a selection, with the words on each side
+              that tell the selected copy apart from others.
+              <code>leaf thread create</code> stores the words the agent quotes and the
+              section it names. Where the page's file holds the words once, it also
+              stores the words on each side, as a selection does, and the section around
+              them if the agent named none. Where the page shows the words twice and the
+              stored words tell neither copy apart, or doesn't show them at all, the
+              thread stands on its section, or in Threads when it has none.
             </p>
             <p id="passage-refusals">
-              The file holds the author's HTML, not the words a widget's script draws
-              between its parts, such as a board column's heading or a diagram drawn
-              from its source. A quote may not cross such words on either side.
-              <code>leaf thread create</code> refuses a quote that crosses them, that
-              occurs more than once in the section, or that sits in content the user's
-              decision removed, and says what to quote instead. An agent's anchor is
-              therefore one the user's page can find.
+              The browser is the only reader of an anchor's words, since the file holds
+              the author's HTML, not the words a widget's script draws. Python reads the
+              file only as advice: where it finds the quote zero or several times,
+              <code>leaf thread create</code> says where the page will show the thread.
             </p>
           </section>
           <section id="anchors-revisions">
@@ -3505,8 +3572,8 @@ EOF</code></pre>
                   <text x="154" y="121">No longer here</text>
                 </svg>
                 <figcaption id="cap-anchor-detached">
-                  <strong>Element removed</strong> The agent moves the thread or
-                  detaches it in a reply. A detached thread stays open in Threads.
+                  <strong>Element removed</strong> Leaf detaches the thread, which stays
+                  open in Threads until the agent moves it in a reply.
                 </figcaption>
               </figure>
             </div>
@@ -3514,18 +3581,19 @@ EOF</code></pre>
               When the quoted words change but their element survives, Leaf moves the
               thread to the element its anchor names in <code>section</code> and records
               the move in the log as a <code>reanchor</code> event, without adding a
-              message. Clicking the quote scrolls to the element. The same happens when
-              a revision repeats the words without context that tells the copies apart.
+              message. Clicking the quote scrolls to the element. Where a revision
+              repeats the words and the words stored beside them tell neither copy
+              apart, the page shows the thread on that element too, and the log records
+              no move.
             </p>
             <p id="revisions-refused">
-              When the element is gone too, Leaf refuses the revision and names the
-              thread. The agent keeps the element, moves the thread with a reply that
-              names a new passage, or detaches it with a reply passing
-              <code>--detach</code>, which says the subject has left the page. Leaf
-              refuses a revision that removes the element an open element-anchored
-              thread is on in the same way. Only the agent chooses a new passage for a
-              thread, in a reply that says why; Leaf's own move goes only to the element
-              the anchor already named.
+              When the element is gone too, Leaf detaches the thread, records that in
+              the log as a <code>reanchor</code> event without adding a message, and
+              names the thread to the agent in <code>page check</code> and beside its
+              next reply. The agent can move the thread with a reply that names a new
+              passage, or detach it itself with a reply passing <code>--detach</code>,
+              which says the subject has left the page. Only the agent chooses a new
+              passage for a thread, in a reply that says why.
             </p>
             <p id="revisions-detached">
               A detached thread stays open in Threads, and its first comment keeps its
@@ -3586,7 +3654,9 @@ EOF</code></pre>
             <p id="titles-agent">
               A title names a thread in Threads, in a few words of plain text. The agent
               sets one with <code>--title</code> on the command that first handles the
-              thread, and can rename it later with
+              thread: <code>leaf thread create</code> requires it, and
+              <code>leaf thread reply</code> refuses to post into an untitled thread
+              without one. The agent can rename a thread later with
               <code>leaf thread edit --title</code>.
             </p>
             <p id="titles-model">
@@ -3611,12 +3681,12 @@ EOF</code></pre>
               </p>
               <lf-text-document
                 id="prompt-title-system"
-                label="system prompt, src/leaf/thread_titles.py and src/leaf/inference.py"
+                label="system prompt, src/leaf/agents/thread_titles.py and src/leaf/agents/inference.py"
                 data-prompt="title-system"
               ></lf-text-document>
               <lf-text-document
                 id="prompt-title-request"
-                label="request: title_text, src/leaf/thread_titles.py"
+                label="request: title_text, src/leaf/agents/thread_titles.py"
                 data-prompt="title-request"
               ></lf-text-document>
             </details>
@@ -3682,7 +3752,7 @@ EOF</code></pre>
             Workflow tab.
           </p>
           <figure id="forks-map" class="diagram-figure">
-            <lf-diagram id="forks-map-diagram" data-height="866" parts="all">
+            <lf-diagram id="forks-map-diagram" data-height="866">
               <pre>
 flowchart TD
   accTitle: Leaf's forks in Claude Code and what each does
@@ -3717,16 +3787,16 @@ flowchart TD
             Claude Code loads from Leaf's plugin, makes each with Claude Code's
             <code>$.model.fork</code> and hands back what came of it. It adds only what
             it alone sees, such as the tool calls the main thread is running and the end
-            of a main thread's turn. Claude Code keeps the module it loaded until
-            <code>/reload-plugins</code>, while a session whose hooks run a Leaf
-            checkout runs each hook from that checkout as it stands, so the session's
-            module can be older than its Python. That is why the module only carries out
-            Python's instructions: a change to what Leaf forks for, what it asks a fork
-            or what it does with the answer changes only the Python, and an older module
-            carries it out as it does any instruction. The module changes only for a
-            Claude Code call or event Leaf starts to use. The fork subagent is no
-            instruction of Leaf's: the main thread spawns it with Claude Code's Agent
-            tool, and the module leaves a subagent's calls and turns alone.
+            of a main thread's turn. Claude Code keeps the module it loaded until it
+            loads another copy or the module's own code changes, while a session whose
+            hooks run a Leaf checkout runs each hook from that checkout as it stands, so
+            the session's module can be older than its Python. That is why the module
+            only carries out Python's instructions: a change to what Leaf forks for,
+            what it asks a fork or what it does with the answer changes only the Python,
+            and an older module carries it out as it does any instruction. The module
+            changes only for a Claude Code call or event Leaf starts to use. The fork
+            subagent is no instruction of Leaf's: the main thread spawns it with Claude
+            Code's Agent tool, and the module leaves a subagent's calls and turns alone.
           </p>
 
           <section id="path">
@@ -3772,7 +3842,7 @@ flowchart TD
               and that line goes in nowhere.
             </p>
             <figure id="states-figure" class="diagram-figure">
-              <lf-diagram id="states-diagram" data-height="350" parts="all">
+              <lf-diagram id="states-diagram" data-height="350">
                 <pre>
 flowchart TD
   accTitle: What a waiting thread message reads until it is answered
@@ -3817,7 +3887,7 @@ flowchart TD
               </p>
               <lf-text-document
                 id="prompt-summary-fork"
-                label="prompt, src/leaf/summary_fork.py"
+                label="prompt, src/leaf/agents/summary_fork.py"
                 data-prompt="summary"
               ></lf-text-document>
             </details>
@@ -3883,7 +3953,7 @@ flowchart TD
                 >, tells the main thread when to do this.
               </p>
               <figure id="take-figure" class="diagram-figure">
-                <lf-diagram id="take-sequence" data-height="1198" parts="all">
+                <lf-diagram id="take-sequence" data-height="1152">
                   <pre>
 sequenceDiagram
   accTitle: The main thread gives a message to a fork, which answers it
@@ -3989,7 +4059,7 @@ sequenceDiagram
               side.
             </p>
             <figure id="follow-ups-figure" class="diagram-figure">
-              <lf-diagram id="follow-up-flow" data-height="369" parts="all">
+              <lf-diagram id="follow-up-flow" data-height="369">
                 <pre>
 flowchart TD
   accTitle: Where a further message in a thread goes
@@ -4257,7 +4327,7 @@ flowchart TD
                 </p>
                 <lf-text-document
                   id="prompt-line-fork"
-                  label="line_prompt, src/leaf/forks.py"
+                  label="line_prompt, src/leaf/agents/forks.py"
                   data-prompt="line"
                 ></lf-text-document>
               </details>
@@ -4295,7 +4365,7 @@ flowchart TD
                 </p>
                 <lf-text-document
                   id="prompt-delivery"
-                  label="inline_context, src/leaf/hook_transport.py"
+                  label="inline_context, src/leaf/agents/delivery.py"
                   data-prompt="delivery"
                 ></lf-text-document>
               </details>
@@ -4462,8 +4532,9 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
             <h2>Where each rule is written</h2>
             <ul id="forks-sources-list">
               <li id="source-forks">
-                <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/forks.py"
-                  ><code>src/leaf/forks.py</code></a
+                <a
+                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/agents/forks.py"
+                  ><code>src/leaf/agents/forks.py</code></a
                 >: its header holds when a thread awaits a line and when the line goes
                 in, the decisions behind the line fork, and the user's choices that the
                 main thread judge every message and spawn the fork that does its work,
@@ -4480,14 +4551,14 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
               </li>
               <li id="source-summary-fork">
                 <a
-                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/summary_fork.py"
-                  ><code>src/leaf/summary_fork.py</code></a
+                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/agents/summary_fork.py"
+                  ><code>src/leaf/agents/summary_fork.py</code></a
                 >: the fork beside the line fork that summarizes a long thread.
               </li>
               <li id="source-work">
                 <a
-                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/served_state/work.py"
-                  ><code>src/leaf/served_state/work.py</code></a
+                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/records/work_state.py"
+                  ><code>src/leaf/records/work_state.py</code></a
                 >: the waiting messages a progress message of the agent's, such as the
                 working line, came after, which read On it (<code>lined</code>).
               </li>
@@ -4500,26 +4571,33 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
                 contract other modules rely on.
               </li>
               <li id="source-state">
-                <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/state.py"
-                  ><code>src/leaf/state.py</code></a
+                <a
+                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/base/state.py"
+                  ><code>src/leaf/base/state.py</code></a
                 >: the turn a <code>leaf</code> command acts in, the session's whoever
                 ran it, a fork subagent included (<code>acting_turn</code>), and the
                 subagent's tool boundary Leaf's hooks skip
                 (<code>worker_tool_batch</code>).
               </li>
               <li id="source-clerk">
-                <a href="https://github.com/max-sixty/leaf/blob/main/src/leaf/clerk.py"
-                  ><code>src/leaf/clerk.py</code></a
+                <a
+                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/agents/clerk.py"
+                  ><code>src/leaf/agents/clerk.py</code></a
                 >: Leaf's clerk, which queues lines for the main thread, such as the
                 summary fork's news, and decides which queued lines wake an idle
                 session.
               </li>
               <li id="source-carrier">
                 <a
-                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/carrier.py"
-                  ><code>src/leaf/carrier.py</code></a
-                >: the instructions Leaf's Python gives the hooks module, what the
-                module reports back for each, and the step that takes each report.
+                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/agents/carrier.py"
+                  ><code>src/leaf/agents/carrier.py</code></a
+                >: the instructions Leaf's Python gives the hooks module and what the
+                module reports back for each, which <code>cmd_fork</code> in
+                <a
+                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/commands/hooks.py"
+                  ><code>src/leaf/commands/hooks.py</code></a
+                >
+                hands to the step that takes it.
               </li>
               <li id="source-module">
                 <a
@@ -4528,8 +4606,8 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
                 >
                 and
                 <a
-                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/hook_transport.py"
-                  ><code>src/leaf/hook_transport.py</code></a
+                  href="https://github.com/max-sixty/leaf/blob/main/src/leaf/commands/hook_transport.py"
+                  ><code>src/leaf/commands/hook_transport.py</code></a
                 >: the module that makes the forks and leaves a subagent's calls alone,
                 and the hooks that hand the main thread its input with the queued lines.
               </li>
@@ -4666,7 +4744,8 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
                     <td>
                       Activate the labelled margin entry, tab, control or link, or open
                       a disclosure at its summary. A hint letter lasts only for the
-                      current view.
+                      current view. A control that one of the keys above already opens
+                      wears that key instead, as On Me's tab wears M.
                     </td>
                   </tr>
                 </tbody>
@@ -4841,12 +4920,12 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
           <section id="navigation-resolution">
             <h2>Resolving and replying</h2>
             <p id="navigation-resolve-rule">
-              <kbd>r</kbd> resolves the focused open thread. A thread open in the panel
-              moves on to the next open thread in page order, or the previous at the
-              end, which opens where every thread opens; with none left, it returns to
-              the list. A margin card moves on to the next thread at its passage, or the
-              one before, and closes onto its passage with none left. An embedded thread
-              folds in place.
+              <kbd>r</kbd> resolves the focused open thread. A thread opened from
+              Threads moves on to the open thread listed after it, or the one before at
+              the end, which opens where every thread opens; with none left, it returns
+              to the list. A margin card moves on to the next thread at its passage, or
+              the one before, and closes onto its passage with none left. An embedded
+              thread folds in place.
             </p>
             <details id="navigation-resolution-cases">
               <summary>Search, replies, and undo</summary>
@@ -4871,7 +4950,7 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
                     <td>
                       The search can show both open and resolved threads. Resolving a
                       thread opened from that list still advances through open threads
-                      in page order.
+                      in the order Threads lists them.
                     </td>
                   </tr>
                   <tr>
@@ -5062,7 +5141,7 @@ It loses no data, costs no money, affects no partner, and nothing else depends o
               one read-only state.
             </p>
             <figure id="browser-flow" class="diagram-figure">
-              <lf-diagram id="browser-flow-diagram" data-height="369" parts="all">
+              <lf-diagram id="browser-flow-diagram" data-height="369">
                 <pre>
 flowchart TD
   accTitle: One state feeds every renderer
@@ -5094,11 +5173,7 @@ flowchart TD
               from the arrival of saved state.
             </p>
             <figure id="runtime-start-sequence" class="diagram-figure">
-              <lf-diagram
-                id="runtime-start-sequence-diagram"
-                data-height="440"
-                parts="all"
-              >
+              <lf-diagram id="runtime-start-sequence-diagram" data-height="440">
                 <pre>
 flowchart TD
   accTitle: Prepare the page before controls arrive
@@ -5131,11 +5206,7 @@ flowchart TD
                 received or started work.
               </p>
               <figure id="loading-stage-table" class="diagram-figure">
-                <lf-diagram
-                  id="loading-stage-table-diagram"
-                  data-height="419"
-                  parts="all"
-                >
+                <lf-diagram id="loading-stage-table-diagram" data-height="419">
                   <pre>
 flowchart TD
   accTitle: The interface and saved state load together
@@ -5188,11 +5259,7 @@ flowchart TD
               accepted.
             </p>
             <figure id="runtime-delivery-flow" class="diagram-figure">
-              <lf-diagram
-                id="runtime-delivery-flow-diagram"
-                data-height="512"
-                parts="all"
-              >
+              <lf-diagram id="runtime-delivery-flow-diagram" data-height="512">
                 <pre>
 flowchart TD
   accTitle: A gesture reaches the shared record
@@ -5251,11 +5318,7 @@ flowchart TD
           <section id="browser-freshness">
             <h2>Freshness checks and state reads</h2>
             <figure id="runtime-freshness-flow" class="diagram-figure">
-              <lf-diagram
-                id="runtime-freshness-flow-diagram"
-                data-height="234"
-                parts="all"
-              >
+              <lf-diagram id="runtime-freshness-flow-diagram" data-height="234">
                 <pre>
 flowchart TD
   accTitle: Each changed freshness token triggers a read of what it names
@@ -5322,11 +5385,7 @@ flowchart TD
               the facts.
             </p>
             <figure id="browser-drawing-order" class="diagram-figure">
-              <lf-diagram
-                id="browser-drawing-order-diagram"
-                data-height="326"
-                parts="all"
-              >
+              <lf-diagram id="browser-drawing-order-diagram" data-height="326">
                 <pre>
 flowchart TD
   accTitle: Presentation follows the DOM it needs
@@ -5422,11 +5481,7 @@ flowchart TD
                 its corresponding state.
               </p>
               <figure id="runtime-install-paths" class="diagram-figure">
-                <lf-diagram
-                  id="runtime-install-paths-diagram"
-                  data-height="204"
-                  parts="all"
-                >
+                <lf-diagram id="runtime-install-paths-diagram" data-height="204">
                   <pre>
 flowchart LR
   accTitle: Executable identity chooses the revision path
@@ -5482,8 +5537,10 @@ flowchart LR
             <h2>Page addresses</h2>
             <p id="local-address">
               A page's server binds the address its session arrived through: the SSH
-              destination for an SSH session, otherwise loopback. The page keeps its
-              host and port in
+              destination for an SSH session, otherwise loopback. Where the user sets
+              <code>host</code> in Leaf's config file to a hostname, such as the
+              machine's name on a tailnet, a new page binds every interface and carries
+              that name in its URL instead. The page keeps its host and port in
               <code>service.json</code>, so serving it again, changing its packages or
               reviving it keeps the same URL, and a watcher restarts a server whose
               process dies at that URL.
@@ -5530,6 +5587,680 @@ flowchart LR
               on a live server. Either way the file holds none of the conversation with
               the agent, on screen or in its source: no threads or their attachments,
               to-dos, plan or changelogs. Pages containing live samples cannot export.
+            </p>
+          </section></lf-tab
+        ><lf-tab id="package-interface" label="Package interface"
+          ><details class="topic-outline" id="package-interface-outline">
+            <summary>In this topic</summary>
+            <nav aria-label="Package interface sections">
+              <ul>
+                <li><a href="#widgets">Widgets</a></li>
+                <li><a href="#example-widget">Example widget</a></li>
+                <li><a href="#interface-forms">Needs and their forms</a></li>
+                <li><a href="#interface-principles">Design principles</a></li>
+                <li><a href="#interface-growth">Adding a name</a></li>
+              </ul>
+            </nav>
+          </details>
+          <p id="package-interface-lede">
+            A package adds widgets to Leaf. The <strong>package interface</strong> is
+            every name of Leaf’s that a package uses: each declaration key, property,
+            event, element, function, custom property and class that Leaf defines. It is
+            what a package’s author learns beyond HTML, CSS and JavaScript.
+          </p>
+          <section id="widgets">
+            <h2>Widgets</h2>
+            <p id="widget-definition">
+              A widget is a <strong>custom element</strong>: a tag the package names,
+              such as <code>&lt;lf-verdict&gt;</code>, with a JavaScript class that the
+              browser runs for each occurrence of the tag on a page. Every widget’s tag
+              starts with <code>lf-</code>. Leaf drives that element from outside, as a
+              script drives any element on a web page. It sets
+              <strong>properties</strong> on the element, which are values assigned to
+              the element object, as in <code>element.state = …</code>. It hears the
+              <strong>events</strong> the element dispatches, which are named messages
+              that reach whoever listens on the element. The element draws itself and
+              says what the user did, and needs no base class and no function of Leaf’s
+              to do either.
+            </p>
+            <figure id="interface-drawing">
+              <svg
+                class="lf-drawing"
+                viewBox="0 0 360 412"
+                role="img"
+                aria-label="The widget's element stands in the middle. Above it, Leaf's runtime sets properties on the element, and the element dispatches events to the runtime. Below it are the package's three files: the declaration describes the element, the module defines it and the stylesheet styles it. Leaf's server reads the declaration and runs no module. The module may use Leaf's functions and Leaf's elements, and the stylesheet uses Leaf's custom properties and classes."
+              >
+                <defs>
+                  <marker
+                    id="interface-tip"
+                    viewBox="0 0 8 8"
+                    refX="7"
+                    refY="4"
+                    markerWidth="7"
+                    markerHeight="7"
+                    orient="auto"
+                  >
+                    <path class="tip" d="M0 0 8 4 0 8z" />
+                  </marker>
+                </defs>
+                <g id="drawing-runtime">
+                  <rect class="box" x="8" y="8" width="344" height="40" rx="4" />
+                  <text class="strong" x="180" y="25" text-anchor="middle">
+                    Leaf’s runtime, in the browser
+                  </text>
+                  <text x="180" y="40" text-anchor="middle">
+                    drives every widget the same way
+                  </text>
+                </g>
+                <g id="drawing-sets">
+                  <path class="arrow" d="M30 48V126" marker-end="url(#interface-tip)" />
+                  <text class="strong" x="40" y="78">sets properties</text>
+                  <text class="mono" x="40" y="93">state</text>
+                  <text x="40" y="108">what to draw</text>
+                </g>
+                <g id="drawing-hears">
+                  <path
+                    class="arrow"
+                    d="M196 128V50"
+                    marker-end="url(#interface-tip)"
+                  />
+                  <text class="strong" x="206" y="78">dispatches events</text>
+                  <text class="mono" x="206" y="93">lf-action</text>
+                  <text x="206" y="108">what the user did</text>
+                </g>
+                <g id="drawing-element">
+                  <rect class="box hot" x="8" y="128" width="344" height="42" rx="4" />
+                  <text class="strong" x="180" y="146" text-anchor="middle">
+                    The widget’s element
+                  </text>
+                  <text x="180" y="161" text-anchor="middle">
+                    a custom element, such as &lt;lf-verdict&gt;
+                  </text>
+                </g>
+                <g id="drawing-declaration">
+                  <path
+                    class="arrow"
+                    d="M42 220V172"
+                    marker-end="url(#interface-tip)"
+                  />
+                  <text x="50" y="200">describes</text>
+                  <rect class="box" x="8" y="220" width="108" height="42" rx="4" />
+                  <text class="strong" x="62" y="238" text-anchor="middle">
+                    Declaration
+                  </text>
+                  <text class="mono" x="62" y="253" text-anchor="middle">
+                    registry.json
+                  </text>
+                </g>
+                <g id="drawing-module">
+                  <path
+                    class="arrow"
+                    d="M160 220V172"
+                    marker-end="url(#interface-tip)"
+                  />
+                  <text x="168" y="200">defines</text>
+                  <rect class="box" x="126" y="220" width="108" height="42" rx="4" />
+                  <text class="strong" x="180" y="238" text-anchor="middle">
+                    Module
+                  </text>
+                  <text class="mono" x="180" y="253" text-anchor="middle">
+                    lf-verdict.js
+                  </text>
+                </g>
+                <g id="drawing-stylesheet">
+                  <path
+                    class="arrow"
+                    d="M278 220V172"
+                    marker-end="url(#interface-tip)"
+                  />
+                  <text x="286" y="200">styles</text>
+                  <rect class="box" x="244" y="220" width="108" height="42" rx="4" />
+                  <text class="strong" x="298" y="238" text-anchor="middle">
+                    Stylesheet
+                  </text>
+                  <text class="mono" x="298" y="253" text-anchor="middle">
+                    defaults.css
+                  </text>
+                </g>
+                <g id="drawing-server">
+                  <path
+                    class="arrow"
+                    d="M42 314V264"
+                    marker-end="url(#interface-tip)"
+                  />
+                  <text x="50" y="293">reads</text>
+                  <rect class="box" x="8" y="314" width="108" height="90" rx="4" />
+                  <text class="strong" x="62" y="332" text-anchor="middle">
+                    Leaf’s server
+                  </text>
+                  <text x="62" y="349" text-anchor="middle">checks pages,</text>
+                  <text x="62" y="363" text-anchor="middle">records actions,</text>
+                  <text x="62" y="377" text-anchor="middle">lists questions,</text>
+                  <text x="62" y="391" text-anchor="middle">runs no module</text>
+                </g>
+                <g id="drawing-functions">
+                  <path
+                    class="arrow"
+                    d="M160 262V312"
+                    marker-end="url(#interface-tip)"
+                  />
+                  <text x="168" y="293">may use</text>
+                  <rect class="box" x="126" y="314" width="108" height="42" rx="4" />
+                  <text class="strong" x="180" y="332" text-anchor="middle">
+                    Functions
+                  </text>
+                  <text class="mono" x="180" y="347" text-anchor="middle">
+                    readObligations
+                  </text>
+                </g>
+                <g id="drawing-elements">
+                  <rect class="box" x="126" y="362" width="108" height="42" rx="4" />
+                  <text class="strong" x="180" y="380" text-anchor="middle">
+                    Leaf’s elements
+                  </text>
+                  <text class="mono" x="180" y="395" text-anchor="middle">
+                    &lt;lf-age&gt;
+                  </text>
+                </g>
+                <g id="drawing-styling">
+                  <path
+                    class="arrow"
+                    d="M278 262V312"
+                    marker-end="url(#interface-tip)"
+                  />
+                  <text x="286" y="293">uses</text>
+                  <rect class="box" x="244" y="314" width="108" height="90" rx="4" />
+                  <text class="strong" x="298" y="332" text-anchor="middle">
+                    Styling names
+                  </text>
+                  <text x="298" y="349" text-anchor="middle">custom properties</text>
+                  <text x="298" y="363" text-anchor="middle">and classes</text>
+                  <text class="mono" x="298" y="379" text-anchor="middle">
+                    --lf-accent
+                  </text>
+                  <text class="mono" x="298" y="393" text-anchor="middle">
+                    .lf-rows
+                  </text>
+                </g>
+              </svg>
+              <figcaption id="interface-drawing-caption">
+                The element and the three files under it are the package’s. The top box
+                and the bottom row are Leaf’s. Each arrow starts at whoever acts, so
+                Leaf’s server reads the declaration. A module calls a function, or
+                writes one of Leaf’s elements in what it draws, only where it needs one,
+                and <code>lf-verdict</code>, below, needs neither.
+              </figcaption>
+            </figure>
+          </section>
+          <section id="example-widget">
+            <h2>Example widget</h2>
+            <p id="verdict-lede">
+              <code>lf-verdict</code> asks whether to ship a release and records the
+              answer.
+              <a href="https://github.com/max-sixty/leaf/tree/main/docs/verdict"
+                >Its package</a
+              >
+              is a directory of three files:
+            </p>
+            <pre id="verdict-files">
+verdict/
+  registry.json
+  defaults.css
+  widgets/lf-verdict.js
+</pre>
+            <p id="verdict-use">
+              Leaf finds each file by its name, and loads the module on a page that uses
+              the tag. <code>leaf package init DIR --widget lf-verdict</code>
+              writes a starter of this shape, and
+              <code>leaf page init --package DIR PAGE</code> adds the package to a page
+              (<a href="/extending/#start">Build a package</a>). The agent that writes
+              the page puts the tag inside an <code>lf-group</code>, Leaf’s element for
+              a named part of a page, whose label asks the question:
+            </p>
+            <pre
+              id="verdict-markup"
+            ><code class="language-html">&lt;lf-group id="release" label="Ship 4.2 today?"&gt;
+  &lt;lf-verdict id="verdict"&gt;&lt;/lf-verdict&gt;
+&lt;/lf-group&gt;</code></pre>
+            <h3 id="verdict-declaration-heading">Declaration</h3>
+            <p id="verdict-declaration-lede">
+              <code>registry.json</code> declares the tag. Leaf’s server reads this file
+              and never runs the module, so the file states everything the server acts
+              on.
+            </p>
+            <lf-code id="verdict-declaration">
+              <pre><code class="language-json">
+{
+  "lf-verdict": {
+    "description": "A ship-or-hold decision. Put it in an `lf-group` whose label asks the question.",
+    "attributes": {
+      "properties": { "verdict": { "enum": ["ship", "hold"] } },
+      "required": ["id"]
+    },
+    "content": "empty",
+    "verbs": {
+      "decide": { "record": { "attr": "verdict" } }
+    },
+    "awaits": { "value": "decide" },
+    "example": "&lt;lf-group id=\"release\" label=\"Ship 4.2 today?\"&gt;&lt;lf-verdict id=\"verdict\"&gt;&lt;/lf-verdict&gt;&lt;/lf-group&gt;"
+  }
+}
+</code></pre>
+              <lf-note at="3"
+                >The agent that writes a page reads <code>description</code> and
+                <code>example</code> to choose the tag and write it.</lf-note
+              >
+              <lf-note at="7"
+                >The attributes the tag may carry in a page’s markup, as a JSON Schema.
+                An attribute is a <code>name="value"</code> pair in a tag, and
+                <code>leaf page check</code> refuses one this schema doesn’t name.
+                <code>enum</code> lists the answers the server accepts, each a string
+                because an attribute’s value is text, and the module offers them as
+                buttons. Any tag may carry an <code>id</code>, and
+                <code>required</code> makes this one carry it, because Leaf keeps a
+                widget’s answer under its <code>id</code>.</lf-note
+              >
+              <lf-note at="8"
+                >The tag holds nothing the page’s author writes: the module draws all of
+                it. A tag that leaves <code>content</code> out holds its author’s
+                markup.</lf-note
+              >
+              <lf-note at="11"
+                >A verb is one kind of action the user takes on the widget, under a name
+                the package chooses, and the server refuses an action whose verb the
+                declaration lacks. A verb keeps one answer for the whole widget unless
+                its declaration says otherwise, so a later press replaces an earlier
+                one. <code>record</code> names the attribute that holds the answer: the
+                server checks an action’s value against the
+                <code>verdict</code> attribute’s schema before it appends the action to
+                the <a href="#event-log">event log</a>. Leaf’s instructions have the
+                agent write the answer into that attribute when it next revises the
+                page, so the markup shows the decision. A verb that keeps an answer for
+                each part of a widget, or records something other than one attribute,
+                says so with keys this widget leaves out (<a href="/extending/#keys"
+                  >Registry keys</a
+                >).</lf-note
+              >
+              <lf-note at="12"
+                >The widget asks the user something, where one that only records would
+                leave <code>awaits</code> out. The question is the label of the group
+                around the widget, and it stays on On Me, the user’s list of everything
+                waiting on them, until it is answered. <code>value</code> names the verb
+                whose value is the answer, so the question is answered once
+                <code>decide</code> has one. Leaf then delivers that answer to the
+                agent.</lf-note
+              >
+            </lf-code>
+            <h3 id="verdict-module-heading">Module</h3>
+            <p id="verdict-module-lede">
+              <code>widgets/lf-verdict.js</code> defines the element, with one property
+              for Leaf to set and one event for Leaf to hear.
+            </p>
+            <lf-code id="verdict-module">
+              <pre><code class="language-js">
+import { html, render } from "/vendor/lit.js";
+
+const LABELS = { ship: "Ship", hold: "Hold" };
+
+customElements.define(
+  "lf-verdict",
+  class extends HTMLElement {
+    set state({ decide }) {
+      const button = ([value, label]) =&gt;
+        html`&lt;button
+          type="button"
+          aria-pressed=${decide.value === value}
+          aria-disabled=${!decide.available}
+          @click=${() =&gt; this.press(value)}
+        &gt;
+          ${label}
+        &lt;/button&gt;`;
+      render(Object.entries(LABELS).map(button), this);
+    }
+
+    press(value) {
+      const action = { verb: "decide", detail: { value } };
+      this.dispatchEvent(new CustomEvent("lf-action", { detail: action }));
+    }
+  },
+);
+</code></pre>
+              <lf-note at="1"
+                >Lit, a third-party templating library, draws the buttons. Leaf serves a
+                copy at this path, and the module imports no code of Leaf’s
+                own.</lf-note
+              >
+              <lf-note at="3"
+                >A label for each answer the declaration’s <code>enum</code> lists. The
+                server reads only the declaration, so the module names the answers
+                again.</lf-note
+              >
+              <lf-note at="8"
+                >Leaf sets <code>state</code> once the module has defined the element,
+                and again each time the state changes, whether this tab, another tab,
+                Undo or a new version of the page changed it. It holds each declared
+                verb’s state by name, here <code>decide</code>, and the setter draws all
+                of it each time.</lf-note
+              >
+              <lf-note at="13"
+                ><code>decide.value</code> is the answer, or <code>null</code> before
+                there is one, and <code>aria-pressed</code> marks its button. The page’s
+                theme (the package that gives the page its look) draws a plain
+                <code>&lt;button&gt;</code> and its pressed state, and a screen reader
+                says which is pressed. <code>decide.available</code> is false while the
+                user may not press, as when the page has no server to record the action.
+                <code>aria-disabled</code> shows that and, unlike <code>disabled</code>,
+                leaves the button in the keyboard’s reach. Leaf records nothing for a
+                press while it is false, so the module needs no check of its own.
+                <a
+                  href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/module-plain-elements.md"
+                  >The widget protocol</a
+                >
+                lists what else a verb’s state holds.</lf-note
+              >
+              <lf-note at="22"
+                >An action names its verb and carries its own <code>detail</code>. For a
+                verb with a <code>record</code>, the detail is the value to record,
+                under the key <code>value</code>, which Leaf then sets as
+                <code>decide.value</code>.</lf-note
+              >
+              <lf-note at="23"
+                >The element dispatches the action on itself in an
+                <code>lf-action</code> event. A custom event carries its payload as its
+                <code>detail</code>, so the action’s own <code>detail</code> sits one
+                level inside the event’s. Leaf listens on the element it sets
+                <code>state</code> on, so the event needs no other option. Leaf has set
+                the new <code>state</code> by the time
+                <code>dispatchEvent</code> returns, so the press shows at once. If the
+                server then refuses the action, Leaf sets <code>state</code> back to
+                what the server holds.</lf-note
+              >
+            </lf-code>
+            <h3 id="verdict-stylesheet-heading">Stylesheet</h3>
+            <p id="verdict-stylesheet-lede">
+              <code>defaults.css</code> gives the tag its box, the rectangle the browser
+              lays it out in. It reads choices the page’s theme makes, such as its
+              spacing, as <strong>custom properties</strong>: named values that CSS
+              passes down the page and a rule reads with <code>var()</code>.
+            </p>
+            <lf-code id="verdict-stylesheet">
+              <pre><code class="language-css">
+lf-verdict {
+  display: flex;
+  gap: var(--lf-sp-2);
+  min-block-size: var(--lf-line);
+}
+</code></pre>
+              <lf-note at="3"
+                ><code>--lf-sp-2</code> is one of the theme’s spacing steps, so the gap
+                follows the theme the page selects.</lf-note
+              >
+              <lf-note at="4"
+                ><code>--lf-line</code> is the height of a one-line control. Reserving
+                it keeps the page still when the module loads and draws the
+                buttons.</lf-note
+              >
+            </lf-code>
+            <h3 id="verdict-live-heading">Live widget</h3>
+            <p id="verdict-live-steps">
+              Press <strong>Ship</strong>. Then open <strong>Show activity</strong>, the
+              page’s feed of recorded actions, to read the action Leaf recorded. Take it
+              back with <strong>Undo</strong> in the leaf’s menu, or with
+              <kbd>⌘Z</kbd> (<kbd>Ctrl+Z</kbd> off a Mac): Leaf sets
+              <code>state</code> again, so neither button is pressed, and pressing
+              <strong>Activity changed</strong> in the feed shows the action marked
+              undone. Each Undo takes back the latest press, so an earlier answer stands
+              again. A widget offers the same from a control of its own by dispatching
+              an <code>lf-undo</code> event whose <code>detail</code> is
+              <code>{ verb: "decide" }</code>. Here the widget stands in a sample, which
+              only demonstrates, so its question stays off On Me.
+            </p>
+            <lf-sample id="verdict-sample" label="Example: ship or hold" interactive>
+              <lf-group id="release" label="Ship 4.2 today?">
+                <h4 id="release-question">Ship 4.2 today?</h4>
+                <lf-verdict id="verdict"></lf-verdict>
+              </lf-group>
+              <lf-activity id="verdict-activity"></lf-activity>
+            </lf-sample>
+          </section>
+          <section id="interface-forms">
+            <h2>Needs and their forms</h2>
+            <p id="interface-forms-lede">
+              Whatever a package needs of Leaf is one of the kinds below, and each kind
+              has its own form. <code>lf-verdict</code> needs three of them: the first
+              two, and a theme’s choice.
+            </p>
+            <table id="interface-forms-table">
+              <thead>
+                <tr>
+                  <th scope="col">A package leans on Leaf for</th>
+                  <th scope="col">The form it takes</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr id="form-declaration">
+                  <th scope="row">What Leaf must know before any module runs</th>
+                  <td>
+                    A key in the widget’s declaration, such as
+                    <code class="nowrap">awaits</code>.
+                  </td>
+                </tr>
+                <tr id="form-protocol">
+                  <th scope="row">What changes while the page runs</th>
+                  <td>
+                    The widget protocol, which has three parts: properties Leaf sets on
+                    the element, such as <code class="nowrap">state</code>; events the
+                    element dispatches, such as <code class="nowrap">lf-action</code>;
+                    and attributes, properties and methods of the element that Leaf
+                    reads, such as <code class="nowrap">data-lf-part</code>, which marks
+                    a part of the widget that a user can comment on.
+                  </td>
+                </tr>
+                <tr id="form-element">
+                  <th scope="row">What a widget and a page’s author both need</th>
+                  <td>
+                    An element that Leaf defines on every page. A widget’s template
+                    writes it as a page’s markup does.
+                    <code class="nowrap">&lt;lf-age&gt;</code> is one: it shows how long
+                    ago a moment was and keeps that current.
+                  </td>
+                </tr>
+                <tr id="form-function">
+                  <th scope="row">What only Leaf can do or know</th>
+                  <td>
+                    A function the module imports, such as
+                    <code class="nowrap">readObligations()</code>, which reads what
+                    waits on the user or the agent.
+                  </td>
+                </tr>
+                <tr id="form-theme">
+                  <th scope="row">A theme’s choice</th>
+                  <td>
+                    A custom property the stylesheet reads, such as
+                    <code class="nowrap">var(--lf-accent)</code>, the theme’s accent
+                    colour.
+                  </td>
+                </tr>
+                <tr id="form-fact">
+                  <th scope="row">A fact about where the widget’s box stands</th>
+                  <td>
+                    A custom property that Leaf or the page’s layout sets and the
+                    stylesheet reads, such as
+                    <code class="nowrap">--lf-full-height</code>, which a layout filling
+                    the window sets on the boxes that must fill their share of it.
+                  </td>
+                </tr>
+                <tr id="form-box-declaration">
+                  <th scope="row">What the widget’s box tells Leaf</th>
+                  <td>
+                    A custom property the stylesheet sets, such as
+                    <code class="nowrap">--lf-ring-at</code>, which says where the box’s
+                    focus ring belongs.
+                  </td>
+                </tr>
+                <tr id="form-look">
+                  <th scope="row">Leaf’s look for a part the widget draws</th>
+                  <td>
+                    A class the module writes on the part, such as
+                    <code class="nowrap">.lf-rows</code> for a list whose rows share
+                    their columns. A control needs none: a native one, such as a
+                    <code class="nowrap">&lt;button&gt;</code>, takes the theme’s look,
+                    and a function in Leaf’s library builds one that looks like Leaf’s
+                    own controls.
+                  </td>
+                </tr>
+                <tr id="form-part">
+                  <th scope="row">
+                    A part of an element Leaf builds inside the widget
+                  </th>
+                  <td>
+                    A class on that part, which the stylesheet selects, such as
+                    <code class="nowrap">.lf-compose-field</code>, the frame of a
+                    comment box that one of Leaf’s functions builds.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+            <p id="interface-forms-outside">
+              A widget uses HTML, CSS and the browser’s own APIs as any web page does,
+              and none of that is Leaf’s. Leaf also ships a library of shared web code,
+              such as the functions that build its controls and the ticks of a time
+              axis. That code keeps none of the page’s state, a module imports it as it
+              imports any library, and it is outside the interface too.
+            </p>
+            <p id="interface-forms-reference">
+              The author’s reference
+              <a
+                href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/module-authoring.md#the-interface"
+                >maps each form to the section that lists its names</a
+              >, and <a href="/extending/#keys">Registry keys</a> defines every
+              declaration key.
+            </p>
+          </section>
+          <section id="interface-principles">
+            <h2>Design principles</h2>
+            <table id="interface-principles-table">
+              <thead>
+                <tr>
+                  <th scope="col">Principle</th>
+                  <th scope="col">What it buys</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr id="principle-outside">
+                  <th scope="row">
+                    Leaf drives a widget from outside. It sets properties, hears events,
+                    and reads the element’s attributes and the custom properties its
+                    stylesheet sets, as it could for any custom element.
+                  </th>
+                  <td>
+                    A widget need not import any code of Leaf’s, so one can be written
+                    to run on a page without Leaf too. A component from another UI
+                    library becomes a widget with a declaration and a wrapper of a few
+                    lines: the declaration’s <code>record</code> gains a
+                    <code>property</code> key that names the component’s property
+                    holding its value, and Leaf sets and reads that property (<a
+                      href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/module-plain-elements.md"
+                      >the widget protocol</a
+                    >, “A third-party component”).
+                  </td>
+                </tr>
+                <tr id="principle-server">
+                  <th scope="row">
+                    Leaf’s server runs no module. The declaration holds what the server
+                    must know, and nothing a module can answer for itself.
+                  </th>
+                  <td>
+                    Leaf checks a page’s markup, checks an action and lists a question
+                    on On Me from the declaration alone. So an edit of a page with a
+                    mistake in its markup
+                    <a href="#gate">never goes live</a>, an action enters the log only
+                    after the server has checked it, and the agent that writes a page
+                    learns a widget by reading its declaration.
+                  </td>
+                </tr>
+                <tr id="principle-platform">
+                  <th scope="row">
+                    A function exists only for what Leaf alone can do or know. What
+                    HTML, CSS or the browser already does is written as that, and what a
+                    page’s author needs too is an element.
+                  </th>
+                  <td>
+                    People and agents already write HTML and CSS well, and the browser
+                    keeps a native control’s focus, activation and accessibility. A
+                    function of Leaf’s wrapping HTML or a native control would only add
+                    a name to learn. An age that stays current is the element
+                    <code>&lt;lf-age&gt;</code>: a page’s author writes it too, and a
+                    widget’s template needs no import for it.
+                  </td>
+                </tr>
+                <tr id="principle-form">
+                  <th scope="row">Each kind of need has its own form.</th>
+                  <td>
+                    A package’s author knows where to look for a name, and a new need
+                    takes the form its kind already has.
+                  </td>
+                </tr>
+                <tr id="principle-same">
+                  <th scope="row">
+                    The widgets Leaf ships use the same interface, with no private route
+                    into Leaf.
+                  </th>
+                  <td>
+                    Another author’s package can do whatever one of Leaf’s widgets does,
+                    and each of Leaf’s widgets is a worked example of the names it uses.
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </section>
+          <section id="interface-growth">
+            <h2>Adding a name</h2>
+            <p id="interface-growth-cost">
+              Each name in the interface is one more thing every author has to learn,
+              and one more thing every later change to Leaf has to keep working. Leaf’s
+              own widgets are written beside its runtime, where exporting one more
+              function is the quickest way to finish a change. So whoever changes Leaf
+              and finds a widget needing something of it asks these questions before
+              adding a name:
+            </p>
+            <ol id="interface-growth-questions">
+              <li id="growth-need">
+                <strong>Does the widget need Leaf for this?</strong> HTML, CSS, the
+                browser’s APIs and Leaf’s library add nothing to the interface.
+              </li>
+              <li id="growth-outside">
+                <strong>Can Leaf do it from outside?</strong> What Leaf does by setting
+                a property, hearing an event or reading an attribute also works for a
+                widget that imports nothing.
+              </li>
+              <li id="growth-kind">
+                <strong>Which kind of need is it?</strong> It takes that kind’s form. A
+                need that fits no kind is a gap in the design, which the maintainer
+                settles first.
+              </li>
+              <li id="growth-users">
+                <strong>Who else would use it?</strong> A name that only one of Leaf’s
+                widgets would use usually shouldn’t exist: either Leaf does the work for
+                every element, or that widget does it alone. Where a page’s author, who
+                writes no module, has the same need, the answer is an element that both
+                can write.
+              </li>
+            </ol>
+            <p id="interface-growth-instructions">
+              Leaf’s developer instructions put these questions to every change to a
+              widget (<a
+                href="https://github.com/max-sixty/leaf/blob/main/packages/AGENTS.md#a-widgets-need-of-leaf"
+                ><code>packages/AGENTS.md</code></a
+              >, “A widget’s need of Leaf”), and name the package interface among the
+              invariants every change keeps (<a
+                href="https://github.com/max-sixty/leaf/blob/main/AGENTS.md#keep-the-package-interface-small"
+                ><code>AGENTS.md</code></a
+              >, “Keep the package interface small”). Regular maintenance also looks for
+              names the interface can lose, such as a function that only one example
+              calls. The author of a package outside Leaf asks the first question the
+              same way, and reports a need that only a new name would meet as an
+              <a href="https://github.com/max-sixty/leaf/issues">issue</a>.
             </p>
           </section></lf-tab
         ></lf-tabs

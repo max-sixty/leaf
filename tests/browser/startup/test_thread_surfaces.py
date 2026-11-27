@@ -21,9 +21,10 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import event_log as events_model
-from leaf.findings import Finding
-from leaf.render_checks import rendered
+from leaf.base.findings import Finding
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
+from leaf_dev.browser import text_field
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -280,7 +281,7 @@ customElements.define('lf-test-surface', class extends LeafElement {
     assert not [
         event
         for event in events_model.read_events(serve.page_dir)
-        if event.get("token")
+        if event.get("emoji")
     ]
     page.keyboard.press("Escape")  # out of the panel's field
     expect(panel_field(page)).not_to_be_focused()
@@ -446,7 +447,7 @@ def test_page_thread_surface_owns_exact_source_elsewhere_in_main(browser, serve)
       const {claimed} = await __lfCheckApi();
       return claimed(document.querySelector('#review .lf-page-thread').dataset.lfThread);
     }""")
-    reply = thread.get_by_role("textbox", name="Reply", exact=True)
+    reply = text_field(thread, name="Reply", exact=True)
     write(reply, "Can the archive keep that naming?")
     reply.press("Enter")
     expect(thread).to_contain_text("Can the archive keep that naming?")
@@ -596,8 +597,8 @@ customElements.define('lf-test-seat', class extends LeafElement {
     expect(page.locator("#review .lf-page-thread")).to_have_count(1)
     expect(page.locator("#review")).to_contain_text("Passage conversation")
     # An actual page-presented reply stands at its source, not its authored rail.
-    reply = page.locator("#review .lf-page-thread").get_by_role(
-        "textbox", name="Reply", exact=True
+    reply = text_field(
+        page.locator("#review .lf-page-thread"), name="Reply", exact=True
     )
     reply.click()
     assert (

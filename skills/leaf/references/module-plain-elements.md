@@ -36,13 +36,8 @@ customElements.define(
     }
 
     choose(value, label) {
-      this.dispatchEvent(
-        new CustomEvent("lf-action", {
-          bubbles: true,
-          composed: true,
-          detail: { verb: "decide", detail: { value }, says: `Chose “${label}”` },
-        }),
-      );
+      const action = { verb: "decide", detail: { value }, says: `Chose “${label}”` };
+      this.dispatchEvent(new CustomEvent("lf-action", { detail: action }));
     }
   },
 );
@@ -57,14 +52,14 @@ question on On Me and admits the ids its buttons mark:
 "lf-verdict": {
   "description": "A ship-or-hold decision. Put it in an `lf-group` whose label asks the question.",
   "attributes": {
-    "properties": { "verdict": { "type": "string", "enum": ["ship", "hold"] } },
+    "properties": { "verdict": { "enum": ["ship", "hold"] } },
     "required": ["id"]
   },
   "content": "empty",
   "verbs": {
-    "decide": { "unit": "widget", "record": { "kind": "value", "attr": "verdict" } }
+    "decide": { "record": { "attr": "verdict" } }
   },
-  "awaits": { "value": "decide", "answered": { "decide": {} } },
+  "awaits": { "value": "decide" },
   "visual": { "prefixes": ["choice:"] },
   "example": "<lf-group id=\"release\" label=\"Ship 4.2 today?\"><lf-verdict id=\"verdict\"></lf-verdict></lf-group>"
 }
@@ -75,9 +70,26 @@ question on On Me and admits the ids its buttons mark:
 records with `lf-action` as this one does, under names of its own, and puts no question
 on On Me and marks no comment target.
 
-Each `lf-` event the element dispatches, and `pending-task` and `error`, bubbles and is
-composed, so Leaf hears it from inside any shadow tree. Where an entry says an event
-carries a promise, the promise is the event's `complete` property:
+`lf-action` and `lf-undo` record the widget's own actions and take them back, so Leaf
+listens for them on the widget's element: dispatch them on it; they need no option but
+`detail`. Every other `lf-` event below that is dispatched on an element, and
+`pending-task` and `error`, tells the page something about that element. Leaf listens
+for it at the document, and an ancestor element may listen too, so dispatch it on the
+element with `bubbles: true` and `composed: true`, in addition to any option its entry
+names. `lf-announce` and `lf-error` are about no element, and are dispatched on the
+window, where they need neither option.
+
+Leaf notices one of these `lf-` events that its listeners will not hear: one that does
+not bubble, or, inside a shadow root, one that is not composed. It reports that as a
+failure of the element that dispatched the event, as it reports an `error` (below),
+and the event has no other effect. It does not notice a `pending-task` or an `error`
+dispatched without `bubbles` and `composed`. Nor does it notice anything inside a
+shadow root other than one `shadowStage` builds or the open root of an element that
+dispatches `lf-connect` (`module-authoring.md`, "Shadow stages and styles"): there, an
+event that is not composed goes unheard and unreported.
+
+Where an entry says an event carries a promise, the promise is the event's `complete`
+property:
 
 ```js
 const hold = new Event("lf-hold", { bubbles: true, composed: true });
@@ -100,11 +112,17 @@ this.dispatchEvent(hold);
   describes. Leaf sets no property, `state` included, until the widget's state and the
   data a bound source names have both arrived. A data body the markup binds to nothing
   arrives with those first sets, so the element leaves its `<pre>` in place until then.
-- **`lf-action`.** The element, or a node inside it, records a gesture by dispatching
-  a `CustomEvent`. Its `detail` holds the `verb`, `detail`, `says`
-  and `attempt` that `dispatch` takes (`module-state.md`, "The widget controller");
+- **`lf-action`.** The element records a gesture by dispatching a `CustomEvent` on
+  itself. Its `detail` is `{verb, detail, says?, attempt?}`, where `verb` names the
+  verb it records and `says` names the gesture in the widget's words
+  (`module-state.md`, "Reading and recording state"). The inner `detail` is the
+  action's own, in the shape the verb declares: `{value}` for a verb with a `record`,
+  and for any other the fields its `detail` schema names.
+  Those fields are the package's to name, so they stay under `detail`, where none can
+  take the name of Leaf's `verb`, `says` or `attempt`.
   `attempt` is the id a draft's `send` hands its `deliver` (`module-input.md`, "Text
-  entry and drafts"), so a refusal returns the words to their draft. Leaf has
+  entry and drafts"), so a refusal returns the words to their draft. An event that
+  bubbles to the element from a node inside it is recorded the same way. Leaf has
   set the resulting `state` by the time `dispatchEvent` returns. On an event it sends,
   Leaf sets the event's `delivery` property, a promise of the event the server
   admitted, or of `null` where the server refuses it and Leaf sets the server's state
@@ -117,7 +135,7 @@ this.dispatchEvent(hold);
   event when the user changes it, as a form control does, records with no
   `lf-action`, so a component written without Leaf can be a widget. The verb's
   `record` names the property, as
-  `{ "kind": "value", "attr": "value", "property": "value" }` does, and the `event`
+  `{ "attr": "value", "property": "value" }` does, and the `event`
   that reports the user's change, where that event is not `change`. Leaf sets the
   property to the recorded value, which is a string, or to the empty string while
   there is none, so the property must take both. When Leaf hears the event on the
@@ -132,7 +150,9 @@ this.dispatchEvent(hold);
   own. The `state` Leaf sets is how the element learns the user may not act: Leaf
   neither disables it nor makes it inert, so an element that doesn't read the verb's
   `available` shows the user's change until Leaf sets the property back. Undo names
-  the action in Leaf's own words (`module-state.md`, "The widget controller").
+  the action in Leaf's own words (`module-state.md`, "Reading and recording state"). The
+  tag may also declare the property an output for other widgets to read, and the
+  element needs no code for that either (`package-data.md`, "Widget outputs").
 - **A third-party component.** A component from a third-party library keeps its own
   tag, since the library's styles and the component's own children find it by that
   tag. The page writes it inside the element the registry declares, as in
@@ -217,8 +237,12 @@ this.dispatchEvent(hold);
   to draw the same state again, and reports a draw that changes the page.
 - **Building.** The element builds once, behind a first-connection guard
   (`module-authoring.md`, "Upgrade").
-- **On Me and comment targets.** The class's `static answerWords` words its answer
-  (`module-state.md`, "Declared widget state"), and `data-lf-part` marks each comment
+- **Startup.** `lf-presentation` and `lf-page-interface` on `document`
+  (`module-authoring.md`, "Startup and presentation").
+- **A stroke drawn on it.** `lf-inspect` (`module-input.md`, "Pointer presses").
+- **On Me and comment targets.** The class's `static answered` says whether its
+  question is answered and `static answerWords` words the answer (`module-state.md`,
+  "Declared widget state"), and `data-lf-part` marks each comment
   target, or the element's `lfParts` states them (`module-annotations.md`, "Visual
   parts").
 - **A box it scrolls.** `data-lf-scroll` marks a box the element makes scroll, and
@@ -234,12 +258,14 @@ this.dispatchEvent(hold);
   inside the member, and arriving at an address with no fragment renames its entry too.
   Back or Forward to an entry whose fragment names a place inside another member
   reveals that member, and returns the user to where they were on the entry.
-- **Previews, spoken words and a Copy control.** `lfPreview()` (`module-previews.md`),
-  `lf-announce` and `data-lf-quiet` (`module-scroll-and-motion.md`, "Notices and spoken
-  words"), and `data-lf-copy` (`module-reading.md`, "Code").
+- **Previews, spoken words and a Copy control.** `lfPreview()`, `lf-preview` and
+  `lf-preview-ended` (`module-previews.md`), `lf-announce` and `data-lf-quiet`
+  (`module-scroll-and-motion.md`, "Notices and spoken words"), and `data-lf-copy`,
+  `lfCopy()` and `lfBar` (`module-reading.md`, "Code").
 - **Its name, the parts a link reaches, its threads and its revisions.** `lfWord()` and
-  `lfSays()` (`module-reading.md`, "Naming"), `lfRevealDatum()` (`module-reading.md`,
-  "Following a reference"), `threadOutlets()` (`module-annotations.md`, "Widget-local
+  `lfSays()` (`module-reading.md`, "Naming"), `lfRevealDatum()`, `lfElementsFor()`,
+  `lfDataDatum()` and `lfDatumLabel()` (`module-reading.md`, "Following a reference"),
+  `threadOutlets()` and an outlet's `lfHold` (`module-annotations.md`, "Widget-local
   Thread placement") and `static lfPatch` (`module-authoring.md`, "Revisions").
 - **Words it writes.** Words the element writes into the page are the page's: the user
   can comment on them, and a version comparison, which reads each version's source,
@@ -269,7 +295,8 @@ itself, so a widget that holds authored children returns from `createRenderRoot(
 part it generated beside them, or says `static shadow = true` and slots them. The
 module's header is the class's whole contract.
 
-Only the class follows a page reading, so a widget that draws from one must extend it.
+Only the class follows a page reading, so a widget that draws from one extends it or
+is an Effect UI component that `defineWidget` defines (`module-authoring.md`).
 A plain element can still draw its own reports in its `state` setter, since Leaf sets
 `state` again as they turn ready (`module-reading.md`, "Page history and reports").
 A widget that draws with Lit's standalone `render`, as the opening example does, that

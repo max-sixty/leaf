@@ -43,9 +43,9 @@ from browser.margin import (
     COMMENT_ON_OBLIGATION,
     DENSE_SUGGESTIONS_PAGE,
 )
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -125,7 +125,7 @@ def test_page_map_qualifies_only_duplicate_subjects_with_their_reading_region(
     expect(dialog).to_be_hidden()
     # A phone has no room for the rail, so the thread opens in the floating panel, the
     # user in its reply as in any thread the panel opens for a route naming no part.
-    view = page.locator(".lf-fp-view:not([data-lf-leaving])")
+    view = page.locator(".lf-fp-view")
     expect(
         view.locator('.lf-page-thread[data-lf-thread="comment-proposed-deployment"]')
     ).to_contain_text("Check this subject.")

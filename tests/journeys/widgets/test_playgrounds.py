@@ -23,8 +23,8 @@ from render_harness import (
 )
 
 from browser.widgets import PLAYGROUND_PAGE
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -79,6 +79,7 @@ def test_a_playground_records_an_edit_made_while_loading_or_as_the_page_leaves(
             "widget": "card-playground",
             "action": "tune",
             "detail": {"values": values},
+            "answered": False,
         },
     )
     assert response.ok
@@ -144,9 +145,23 @@ def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
     expect(field).to_have_value("eu-west-1")
     field.fill("chosen-region")
     # Programmatic activation leaves focus in the field: input alone has committed it.
+    # Hold the choice itself. The tune that records the field goes through, whether
+    # the click commits it or the playground's pause commits it before the click.
     held = []
-    page.route("**/api/event", lambda route: held.append(route))
-    with page.expect_request("**/api/event"):
+
+    def hold_choice(route):
+        if route.request.post_data_json.get("action") == "choose":
+            held.append(route)
+        else:
+            route.continue_()
+
+    page.route("**/api/event", hold_choice)
+    with page.expect_request(
+        lambda request: (
+            "api/event" in request.url
+            and request.post_data_json.get("action") == "choose"
+        )
+    ):
         playground.get_by_role("button", name="Use these settings").evaluate(
             "button => button.click()"
         )
@@ -211,6 +226,8 @@ def test_playground_keeps_contributor_drafts_until_reset_or_a_new_choice(
                 "widget": "query-config",
                 "action": verb,
                 "detail": detail,
+                # The choice in force answers it, the tune and the choice after it alike.
+                "answered": True,
             },
         )
         assert response.ok

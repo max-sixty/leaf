@@ -81,7 +81,7 @@ export async function compilerPaths(directory = root) {
       ]),
     ),
     "/runtime/*": [path.posix.relative(typeRoot, `${assets}/runtime/*`)],
-    "/checks/*": ["../../src/leaf/render-checks/*"],
+    "/checks/*": ["../../src/leaf/source/render-checks/*"],
   };
   return Buffer.from(`${JSON.stringify({ compilerOptions: { paths } }, null, 2)}\n`);
 }
@@ -98,7 +98,7 @@ async function litTypes() {
  *
  * Backport lit/lit#5218 while 3.3.0 avoids the repeat marker leak (#5298). Route
  * keyed and child-part insertions through the mover a Leaf page installs on its root
- * (`lfMove`, installed by `runtime/dom-move.js`, which keeps
+ * (`lfMove`, installed by `runtime/dom/dom-move.js`, which keeps
  * the user's place and native state across the move). A document Leaf did not compose
  * has no mover, and Lit inserts as it always does, so this Lit loads in any document.
  *

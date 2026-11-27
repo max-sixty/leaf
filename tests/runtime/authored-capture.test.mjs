@@ -5,19 +5,18 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { render } from "/vendor/lit.js";
 import { drawToc } from "../../packages/default/widgets/toc-view.js";
-import { render as worktree } from "../../packages/diff/widgets/worktree-view.js";
-import { render as worktrees } from "../../packages/diff/widgets/worktree-diffs-view.js";
-import { adoptShadowStage } from "/runtime/shadow-stage.js";
-import { adoptRegistry } from "/runtime/registry.js";
+import "../../packages/diff/widgets/lf-worktree.js";
+import "../../packages/diff/widgets/lf-worktree-diffs.js";
+import { adoptRegistry } from "/runtime/state/registry.js";
 import {
   rememberAuthoredParents,
   stageAuthoredStates,
-} from "/runtime/projection/authored.js";
+} from "/runtime/records/projection/authored.js";
 import {
   stageWidgetDescriptors,
   bindWidgetDescriptors,
   widgetDescriptor,
-} from "/runtime/widget-descriptors.js";
+} from "/runtime/records/widget-descriptors.js";
 
 test("capture keeps authored values and parentage when rendering moves members", () => {
   document.body.innerHTML =
@@ -205,15 +204,14 @@ test("the contents drawing keeps its native state and keyed rows through revisio
   assert.equal(live.sections()[1].link, links[2]);
 });
 
-test("worktree presentation keeps native disclosure and authored evidence while totals change", () => {
-  document.body.innerHTML =
-    '<main><lf-worktree-diffs id="set"><lf-worktree id="tree"><p id="evidence">Kept evidence</p></lf-worktree></lf-worktree-diffs></main>';
-  const collection = document.getElementById("set");
-  const host = document.getElementById("tree");
-  const evidence = document.getElementById("evidence");
-  const root = adoptShadowStage(host.attachShadow({ mode: "open" }));
-  const overview = adoptShadowStage(collection.attachShadow({ mode: "open" }));
+test("worktree presentation keeps native disclosure and authored evidence while totals change", async () => {
+  document.body.innerHTML = "<main></main>";
+  const collection = document.createElement("lf-worktree-diffs");
+  const host = document.createElement("lf-worktree");
+  const evidence = document.createElement("p");
+  evidence.textContent = "Kept evidence";
   const attributes = {
+    id: "tree",
     label: "Changes",
     path: "/repo",
     status: "changed",
@@ -223,19 +221,25 @@ test("worktree presentation keeps native disclosure and authored evidence while 
   };
   for (const [name, value] of Object.entries(attributes))
     host.setAttribute(name, value);
-  const draw = () => {
-    render(worktree(host), root);
-    render(worktrees(collection), overview);
-  };
-  draw();
+  host.append(evidence);
+  collection.append(host);
+  document.querySelector("main").append(collection);
+  const root = /** @type {ShadowRoot} */ (host.shadowRoot);
+  const overview = /** @type {ShadowRoot} */ (collection.shadowRoot);
   const disclosure = root.querySelector("details");
   const summary = root.querySelector("summary");
   disclosure.open = true;
   summary.focus();
+  /** @type {PromiseLike<unknown>[]} */
+  const pending = [];
+  document.addEventListener("pending-task", (event) =>
+    pending.push(/** @type {any} */ (event).complete),
+  );
   host.setAttribute("files", "2");
   host.setAttribute("additions", "7");
-  draw();
-  adoptShadowStage(root);
+  // A descendant connecting is what redraws a kept widget in place.
+  evidence.dispatchEvent(new Event("lf-connect", { bubbles: true, composed: true }));
+  await Promise.all(pending);
   assert.equal(root.querySelector("details"), disclosure);
   assert.equal(disclosure.open, true);
   assert.equal(root.activeElement, summary);
@@ -243,5 +247,4 @@ test("worktree presentation keeps native disclosure and authored evidence while 
   assert.equal(root.querySelector("slot").assignedNodes()[0], evidence);
   assert.match(root.querySelector(".lf-worktree-stats").textContent, /2 files/);
   assert.match(overview.querySelector(".lf-worktree-stats").textContent, /\+7/);
-  assert.equal(root.querySelectorAll("style").length, 1);
 });

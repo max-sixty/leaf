@@ -33,9 +33,9 @@ from render_harness import (
 
 from browser.startup.test_readiness import answer_as_another_runtime
 from browser.test_render_drawing import draw_over
-from browser.threads import choose_threads_in_panel, open_panel_thread
-from leaf.render_checks import wait_until_ready
-from leaf_dev.browser import PANEL_THREAD, on_tab
+from browser.threads import open_panel_thread
+from leaf.source.render_checks import wait_until_ready
+from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel, on_tab
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -95,7 +95,7 @@ def test_a_reload_keeps_a_thread_in_the_reader_it_showed(request, serve, engine)
     there again after a reload, rather than in a card beside a passage the window
     doesn't show, though threads open beside their passages by then: the entry's record
     holds the view the user stood in, which the choice of where threads open doesn't
-    say (thread/address.js). Focus stands only on what the window shows."""
+    say (records/thread/address.js). Focus stands only on what the window shows."""
     url = serve(LONG_PAGE)
     root = panel_comment(
         serve.page_dir, "Why here?", {"section": "p40", "quote": "Paragraph 40."}
@@ -192,7 +192,7 @@ def test_a_reload_keeps_where_the_user_stood_in_the_panel(
     request, serve, engine, where
 ):
     """Whatever the floating panel shows comes back after a reload as the user left it,
-    as the entry's record has it (history.js): the agent's On list rather than On Me, a
+    as the entry's record has it (records/history.js): the agent's On list rather than On Me, a
     list the menu opens, as Versions, and how far down a list the user had read."""
     url = serve(LONG_PAGE)
     if where == "Versions":
@@ -238,7 +238,7 @@ def test_a_reload_keeps_the_user_on_the_versions_row_they_were_on(
     """In Versions the user stands on a row as in any list, the press that shows a
     version or the Compare beside it, and a reload returns them to it rather than to
     the version Versions opens at: each row is named by the version it is (the entry's
-    record, history.js)."""
+    record, records/history.js)."""
     url = live_url(serve(LONG_PAGE))
     for mark in ["two", "three"]:
         stamp_page(
@@ -368,7 +368,7 @@ def test_a_reload_keeps_focus_on_the_add_beside_an_option_being_added(
     """Focus on the press that adds an option the user is writing in, beside the box
     they wrote it in, comes back to that press after a reload, so Enter adds the option,
     as it does for a control in a comment's box: the option's box is a draft's box like
-    any other (drafts.js, `draftFocus`)."""
+    any other (records/drafts.js, `draftFocus`)."""
     page = open_page(request.getfixturevalue(engine), serve(OBLIGATION_PAGE))
     another = page.locator("#jobs > .lf-another")
     field = another.locator("leaf-text")
@@ -453,7 +453,7 @@ def test_a_reload_recovery_asks_for_again_returns_to_the_record(request, serve, 
             failed.append(route.request.url)
             route.abort("internetdisconnected")
 
-    page.route("**/runtime/rendering.js", lose)
+    page.route("**/runtime/base/rendering.js", lose)
     page.wait_for_function("navigation.transition === null")
     page.reload(wait_until="commit")
     holding(page, documents, 2, "the document recovery asks for")
@@ -1055,11 +1055,11 @@ def test_a_visit_whose_address_moves_while_it_starts_opens_no_stale_thread(
 
 
 # What the restoration under way allows the routes it starts, a thread view's opening
-# without focus among them (thread/destination.js, `openPageThread`): whether its intent
-# is still available (history.js, `pendingRestoration`).
+# without focus among them (records/thread/destination.js, `openPageThread`): whether its intent
+# is still available (records/history.js, `pendingRestoration`).
 HISTORY = """async () => {
   const entry = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
-  window.__lfHistory = await import(new URL('runtime/history.js', new URL(entry, location.href)).href);
+  window.__lfHistory = await import(new URL('runtime/records/history.js', new URL(entry, location.href)).href);
 }"""
 RESTORATION_AVAILABLE = (
     "() => window.__lfHistory.pendingRestoration()?.intent.available() ?? null"

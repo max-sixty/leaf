@@ -19,7 +19,7 @@ handled is a retry: do not repeat its repository edits or external actions.
 ## One envelope on every transport
 
 Every transport delivers the same immutable object.
-`DELIVERY` in the plugin’s `src/leaf/delivery.py` declares every field, with the thread
+`DELIVERY` in the plugin’s `src/leaf/agents/delivery.py` declares every field, with the thread
 digests. Some harnesses put it in your context; others give a pointer, which
 `leaf delivery read <id>` resolves. A large envelope reads in numbered parts
 instead: each reading names its `part` of `parts` and holds a slice of the
@@ -65,8 +65,8 @@ Events keep their stored fields and log order, and add:
   answer is written, `leaf page close` refuses, and the Stop hook holds the turn
   open unless the turn started the update (`references/conversation-loop.md`,
   "Long-running work"). Events with no `answer` owe nothing: a page action outside
-  any obligation, a pick still waiting for the user's Done, or a message followed by a
-  newer one in its thread (your reply to the newer one covers both).
+  any obligation, a pick still waiting for the user's Done, or a message or pick
+  followed by a newer one in its thread (your reply to the newer one covers both).
 - `handling`: ids of clauses in the batch's `handling` object, in reading order. The
   object holds each clause's text once, and the ids mean nothing outside the batch.
   Follow every clause the event names.
@@ -88,6 +88,13 @@ the whole thread with `leaf page state <page> <message>`, paginated with
 `--after`. A long
 thread may also carry `summary_hint`
 ([threads, "Summarize a long discussion"](threads.md#summarize-a-long-discussion)).
+
+The batch's `held` lists your open to-dos on the page whose work waits on something
+you named with `--waiting-on` ([threads](threads.md)), each with its `id`, `text`
+and `waiting_on`. Leaf can't tell which input ends a wait, so it lists them with
+every batch. Where the batch's input ends what one waits on, whether or not it owes
+an answer, start that to-do with `leaf task start <page> <id> --text "<the work, in
+a line>"`, which ends its wait, and take its work up.
 
 ## Delivery and acknowledgement
 

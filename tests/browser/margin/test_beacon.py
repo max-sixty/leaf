@@ -75,7 +75,7 @@ def test_the_beacon_stands_once_the_comment_box_s_field_leaves_the_window(
     expect(beacon).to_be_hidden()
 
     # The box waits at the window's top while its paragraph is in sight
-    # (annotation-overlay/floating.js), so a scroll first carries the paragraph out,
+    # (annotations/annotation-overlay/floating.js), so a scroll first carries the paragraph out,
     # then the field after it.
     field = page.locator(".lf-fab-bar .lf-compose-field")
     early = page.locator("#early")

@@ -34,7 +34,7 @@ customElements.define(
       );
     }
 
-    /** @param {readonly import("/runtime/thread/surfaces.js").OutletTarget[]} targets */
+    /** @param {readonly import("/runtime/records/thread/surfaces.js").OutletTarget[]} targets */
     threadOutlets(targets) {
       return targets.map(({ anchor, placement }) =>
         anchor.datum && anchor.datum === this.#shown

@@ -2,10 +2,11 @@
 
 import pytest
 from browser.controls import LIVE_SAMPLES_PAGE
-from browser.controls.test_live_samples import ACCENT
+from browser.controls.test_live_samples import RING_INK
 from playwright.sync_api import expect
-from render_cases_layout import current_location_ring
 from render_harness import leaf_page, open_page, put_preview_away, rendered, resized
+
+from leaf_dev.rings import current_location_ring
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -19,13 +20,13 @@ def test_the_gutter_shows_while_keys_go_to_the_sample(browser, serve):
     sample.evaluate("async sample => { await sample.ready; }")
     gutter = sample.locator(".lf-sample-exhibit")
     resting = gutter.evaluate("el => getComputedStyle(el).borderLeftColor")
-    accent = page.evaluate(ACCENT)
-    assert resting != accent
+    ring_ink = page.evaluate(RING_INK)
+    assert resting != ring_ink
     frame = sample.locator("iframe")
     child = frame.element_handle().content_frame()
 
     child.locator("#child-heading").click()
-    expect(gutter).to_have_css("border-left-color", accent)
+    expect(gutter).to_have_css("border-left-color", ring_ink)
     rendered(page)
     assert current_location_ring(page) is None
     page.locator("#host-heading").click()
@@ -33,13 +34,13 @@ def test_the_gutter_shows_while_keys_go_to_the_sample(browser, serve):
 
     sample.get_by_role("button", name="Full view", exact=True).focus()
     page.keyboard.press("Tab")
-    expect(gutter).to_have_css("border-left-color", accent)
+    expect(gutter).to_have_css("border-left-color", ring_ink)
     rendered(page)
     assert current_location_ring(page)
     child.locator("#child-heading").click()
     rendered(page)
     assert current_location_ring(page) is None
-    expect(gutter).to_have_css("border-left-color", accent)
+    expect(gutter).to_have_css("border-left-color", ring_ink)
     page.keyboard.press("Tab")
     rendered(page)
     assert current_location_ring(page)
@@ -57,7 +58,7 @@ def test_tab_walks_into_and_out_of_a_full_view_sample(browser, serve):
     frame = sample.locator("iframe")
     child = frame.element_handle().content_frame()
     gutter = sample.locator(".lf-sample-exhibit")
-    accent = page.evaluate(ACCENT)
+    ring_ink = page.evaluate(RING_INK)
     sample.get_by_role("button", name="Full view", exact=True).click()
     view = sample.locator("dialog.lf-sample-view")
     expect(
@@ -79,7 +80,7 @@ def test_tab_walks_into_and_out_of_a_full_view_sample(browser, serve):
         at = view.evaluate(current_location)
         assert at != "page", "Tab left Full view for the page beneath"
         if at == "frame" and child.evaluate("() => document.hasFocus()"):
-            expect(gutter).to_have_css("border-left-color", accent)
+            expect(gutter).to_have_css("border-left-color", ring_ink)
             rendered(page)
             assert current_location_ring(page)
         entered |= at == "frame" and child.evaluate("() => document.hasFocus()")

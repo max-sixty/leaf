@@ -83,23 +83,23 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import hosting as hosting_model
-from leaf import http as http_model
-from leaf import layer as layer_model
-from leaf import leases as leases_model
-from leaf import render_checks as render_checks_model
-from leaf import schema as schema_model
-from leaf import service as service_model
-from leaf.findings import Finding
-from leaf.registry.contract import is_element_name
-from leaf.render_checks import asked_again, rendered, wait_until_ready
-from leaf.render_gate import readings as render_gate_readings
-from leaf.render_gate import scheme as render_gate_scheme
-from leaf.render_gate import version as render_gate_model
-from leaf.render_gate.widget_quality import own_tags
-from leaf.validation import composition as validation_model
+from leaf.base import leases as leases_model
+from leaf.base import schema as schema_model
+from leaf.base import service as service_model
+from leaf.base.findings import Finding
+from leaf.commands import cli as cli_model
+from leaf.pages import hosting as hosting_model
+from leaf.pages.render_gate import readings as render_gate_readings
+from leaf.pages.render_gate import scheme as render_gate_scheme
+from leaf.pages.render_gate import version as render_gate_model
+from leaf.pages.render_gate.widget_quality import own_tags
+from leaf.records import page_data as page_data_model
+from leaf.serving import http as http_model
+from leaf.source import layer as layer_model
+from leaf.source import render_checks as render_checks_model
+from leaf.source.registry.contract import is_element_name
+from leaf.source.registry.validation import incoming_registry
+from leaf.source.render_checks import asked_again, rendered, wait_until_ready
 from leaf_dev.example_data import authored_sources, named_source, seed_log
 from leaf_dev.page_fixtures import read_event_lines
 
@@ -157,7 +157,7 @@ def test_a_drawing_reports_its_height_where_its_first_box_differed(browser, serv
     takes the drawing's height, as an inline diff's source text can.
     """
     findings = []
-    _, _, completed = render_gate_scheme._render_page(
+    _, _, completed = render_gate_model._render_page(
         browser,
         serve(
             leaf_page(
@@ -548,7 +548,7 @@ def test_an_unanswered_entry_fails_the_render_gate(
         def new_page(self, **options):
             return page
 
-    failures, _, completed = render_gate_scheme._render_page(
+    failures, _, completed = render_gate_model._render_page(
         ExistingPage(),
         dropped,
         {"width": 1200, "height": 900},
@@ -609,7 +609,7 @@ def test_a_refused_document_reports_its_status_with_the_gate_failure(browser, se
     controlled = primed(
         browser.unwatched, lambda page: page.set_default_timeout(EXPECTED_STALL_MS)
     )
-    failures, _, completed = render_gate_scheme._render_page(
+    failures, _, completed = render_gate_model._render_page(
         controlled,
         refused,
         {"width": 1200, "height": 900},
@@ -1076,7 +1076,7 @@ def test_diagrams_preserve_late_state_labels_and_sequence_titles(browser, serve)
                 "diagram semantics",
                 """
 <h1 id="title">Diagram semantics</h1>
-<lf-diagram id="life" parts="all"><pre>
+<lf-diagram id="life"><pre>
 stateDiagram-v2
   [*] --&gt; A
   A --&gt; B
@@ -1085,7 +1085,7 @@ stateDiagram-v2
     Fetch --&gt; Build
   }
 </pre></lf-diagram>
-<lf-diagram id="exchange" parts="all"><pre>
+<lf-diagram id="exchange"><pre>
 sequenceDiagram
   title Order handshake
   loop Retry
@@ -1093,11 +1093,11 @@ sequenceDiagram
   end
   Note right of Server: Checks order
 </pre></lf-diagram>
-<lf-diagram id="relationships" parts="all"><pre>
+<lf-diagram id="relationships"><pre>
 erDiagram
   RUNNER ||--o{ JOB : runs
 </pre></lf-diagram>
-<lf-diagram id="identities" parts="all"><pre>
+<lf-diagram id="identities"><pre>
 flowchart TD
   123[Start] --&gt; Ω[Done]
 </pre></lf-diagram>
@@ -1176,7 +1176,9 @@ DIAGRAM_FAMILIES = {
 }
 
 
-def _author_lying_callout(tmp_path):
+def _author_callout_writing_an_undeclared_attribute(tmp_path):
+    """A callout whose module writes an attribute its declaration doesn't name, which
+    the gate reads only once the page has replayed its state (`undeclared-attr`)."""
     add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     module = tmp_path / ".leaf" / "widgets" / "lf-callout.js"
     module.write_text(
@@ -1186,7 +1188,7 @@ def _author_lying_callout(tmp_path):
         "  class extends HTMLElement {\n"
         "    connectedCallback() {\n"
         "      if (!once(this)) return;\n"
-        '      this.textContent = "Entirely different words.";\n'
+        '      this.setAttribute("mood", "unsettled");\n'
         "    }\n"
         "  },\n"
         ");\n"
@@ -1206,18 +1208,18 @@ def test_only_a_final_settling_failure_keeps_projection_findings(
     browser, serve, tmp_path, monkeypatch, failed_stage, expects_projection
 ):
     monkeypatch.chdir(tmp_path)
-    _author_lying_callout(tmp_path)
+    _author_callout_writing_an_undeclared_attribute(tmp_path)
     if failed_stage == "pageSettled":
-        probe = render_gate_scheme.wait_for_probe
+        probe = render_gate_model.wait_for_probe
 
         def moving(page, name, *args, **kwargs):
             if name == "pageSettled":
                 raise PlaywrightTimeout("held moving")
             return probe(page, name, *args, **kwargs)
 
-        monkeypatch.setattr(render_gate_scheme, "wait_for_probe", moving)
+        monkeypatch.setattr(render_gate_model, "wait_for_probe", moving)
     else:
-        ready = render_gate_scheme.wait_until_ready
+        ready = render_gate_model.wait_until_ready
 
         def unready(page, *args, through=None, **kwargs):
             # The page upgrades, and then stops at the stage held.
@@ -1225,9 +1227,9 @@ def test_only_a_final_settling_failure_keeps_projection_findings(
                 return ready(page, *args, through=through, **kwargs)
             raise render_checks_model.PageNotReady(failed_stage, f"held {failed_stage}")
 
-        monkeypatch.setattr(render_gate_scheme, "wait_until_ready", unready)
+        monkeypatch.setattr(render_gate_model, "wait_until_ready", unready)
 
-    failures, _notices, completed = render_gate_scheme._render_page(
+    failures, _notices, completed = render_gate_model._render_page(
         browser,
         serve(CUSTOM_WIDGET_PAGE, packages=(*EXAMPLE_PACKAGES, "./.leaf")),
         {"width": 1200, "height": 900},
@@ -1237,7 +1239,7 @@ def test_only_a_final_settling_failure_keeps_projection_findings(
 
     assert completed is True
     codes = {failure.code for failure in failures}
-    assert ("verbatim" in codes) is expects_projection
+    assert ("undeclared-attr" in codes) is expects_projection
     assert ("never-settled" in codes) is (failed_stage == "pageSettled")
 
 
@@ -1303,10 +1305,10 @@ def test_the_state_wait_follows_a_source_rewritten_under_it(browser, serve):
             "</lf-text-document>",
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
+    page_data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
     page = open_page(browser, url)
     held = render_gate_scheme.served(page, url, "/api/state").json()
-    data_model.cmd_data_set(serve.page_dir, "notes", "Second.\n")
+    page_data_model.cmd_data_set(serve.page_dir, "notes", "Second.\n")
     expect(page.locator("#notes code")).to_have_text("Second.\n")
     expect(page.locator("body")).not_to_have_attribute(
         "data-lf-reading", held["reading"]
@@ -1366,13 +1368,13 @@ def test_the_state_wait_follows_a_source_back_to_the_version_the_page_shows(
             "</lf-text-document>",
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
+    page_data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
     page = open_page(browser, url)
     reads = []
     page.route("**/api/state*", lambda route: reads.append(route))
-    data_model.cmd_data_set(serve.page_dir, "notes", "Second.\n")
+    page_data_model.cmd_data_set(serve.page_dir, "notes", "Second.\n")
     held = render_gate_scheme.served(page, url, "/api/state").json()
-    data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
+    page_data_model.cmd_data_set(serve.page_dir, "notes", "First.\n")
     for read in reads:
         read.continue_()
     page.unroute("**/api/state*")
@@ -1402,61 +1404,6 @@ def test_the_state_wait_covers_a_status_that_moves_neither_log_nor_data(browser,
         assert "awaits" in page.locator(".lf-fp-leaf").get_attribute("aria-label")
     finally:
         leases_model.release_lease(lease)
-
-
-def _author_stateful_verbatim_widget(tmp_path):
-    """A stateful widget whose corrupt state rewrites prose it does not own: its own
-    paragraph, or, inside the preserving `lf-shell` wrapper, the wrapper's."""
-    add_test_widget(tmp_path / ".leaf", "lf-stateful", upgrade=True)
-    registry_path = tmp_path / ".leaf" / "registry.json"
-    declarations = json.loads(registry_path.read_text())
-    stateful = declarations["lf-stateful"]
-    stateful["attributes"]["properties"].update(
-        {
-            "user": {"type": "string"},
-            "agent": {"type": "string"},
-        }
-    )
-    stateful["verbs"] = {
-        "change": {
-            "unit": "widget",
-            "record": {"kind": "value", "attr": "user"},
-        },
-        "status": {
-            "writer": "agent",
-            "unit": "widget",
-            "record": {"kind": "value", "attr": "agent"},
-        },
-    }
-    declarations["lf-shell"] = {
-        "description": "A preserving wrapper around a stateful child.",
-        "attributes": {
-            "properties": {},
-            "required": ["id"],
-        },
-        "content": "markup",
-        "verbatim": True,
-        "example": '<lf-shell id="shell-example">Example</lf-shell>',
-    }
-    registry_path.write_text(json.dumps(declarations, indent=2))
-    (tmp_path / ".leaf" / "widgets" / "lf-shell.js").write_text(
-        'import { once } from "/runtime/lib/once.js";\n'
-        'customElements.define("lf-shell", class extends HTMLElement {\n'
-        "  connectedCallback() { once(this); }\n"
-        "});\n"
-    )
-    (tmp_path / ".leaf" / "widgets" / "lf-stateful.js").write_text(
-        'import { LeafElement } from "/runtime/lib/leaf-element.js";\n'
-        'import { keepsText } from "/runtime/lib/keeps.js";\n'
-        'customElements.define("lf-stateful", class extends LeafElement {\n'
-        "  render() {\n"
-        "    const { state } = this;\n"
-        '    if (state.change.value === "corrupt" || state.status.value === "corrupt")\n'
-        '      keepsText(this.closest("lf-shell")?.querySelector(":scope > p")'
-        ' ?? this.querySelector("p"), "State replaced unrelated prose.");\n'
-        "  }\n"
-        "});\n"
-    )
 
 
 # The page's longest scroller, the one its reader spends the scroll in.
@@ -1865,7 +1812,7 @@ def test_reader_state_observes_behavior_without_freezing_the_dom(browser, serve)
 # Each surface a page-level key opens, by the keys that open it from the page, and the
 # control that shows the page has one to open: a page with no thread has no card, and a
 # page with no other page live has no All pages. Escape unwinds any of them to the
-# page (keyboard/AGENTS.md); the ones Go-to opens take the most presses. A new surface
+# page (dom/keyboard/AGENTS.md); the ones Go-to opens take the most presses. A new surface
 # joins by its keys.
 #
 
@@ -1885,12 +1832,12 @@ def other_pages(page):
 
 
 # Where the focus stands in a thread, by the runtime's own selectors
-# (thread/selectors.js): "reply" in that thread's reply field, "card" elsewhere in it,
+# (records/thread/selectors.js): "reply" in that thread's reply field, "card" elsewhere in it,
 # or null outside every thread or where the user sees none of the focused node. Seeing
 # it takes both what the browser draws, which `checkVisibility` reads through every
 # ancestor's display, visibility and opacity, and where it is drawn, which `seenRect`
-# (geometry.js) holds to the viewport, every clip and the chrome, as
-# anchor-resolution.js composes the two for a passage.
+# (dom/geometry.js) holds to the viewport, every clip and the chrome, as
+# readings/anchor-resolution.js composes the two for a passage.
 IN_THREAD = """async () => {
   const {THREAD, SAY_BOX} = await window.__lfCheckApi();
   const {focused} = await window.__lfCheckApi();
@@ -2081,10 +2028,10 @@ def resize_findings(page, path):
 
 def untouched_resize_findings(page):
     """A page opened at its widest and scrolled by no one still shows its place, the
-    words at its landing edge (reading-place.js), once the window narrows to a phone's:
+    words at its landing edge (readings/reading-place.js), once the window narrows to a phone's:
     continuity keeps the page's own place, and a region the narrowing carries into the
     page, as a sidebar's track or a pane stacking under the one before, holds no place
-    of the reader's to take the page to (version.js, `placeFor`). Read on a page of its
+    of the reader's to take the page to (features/version.js, `placeFor`). Read on a page of its
     own, since every other journey scrolls the page it reads."""
     assert page.viewport_size["width"] == RESIZE_PATH[0]
     rendered(page)
@@ -2593,7 +2540,7 @@ def test_every_idiom_in_the_catalog_stands_in_a_corpus_source(browser):
     Every key is put to the engine, so a key that is not a selector fails here too.
     `pre > code.language-*` would be one: readable, matching nothing, and with no
     other way to be checked."""
-    registry = validation_model.incoming_registry(
+    registry = incoming_registry(
         [
             schema_model.ASSETS,
             schema_model.DEFAULT_PACKAGE,
@@ -2686,7 +2633,7 @@ COMPUTED_FACES = """([properties]) => {
 RELOCATE_ADOPTED = """async () => {
     const rules = document.adoptedStyleSheets.flatMap((sheet) => [...sheet.cssRules]);
     // The page states its layer order in the first rule it loads (layer.py,
-    // CASCADE_LAYERS). A copy standing first has to state it again, or the first layer
+    // DOCUMENT_LAYER_ORDER). A copy standing first has to state it again, or the first layer
     // its own rules name becomes the lowest.
     const order = [...document.styleSheets].map((sheet) => sheet.cssRules[0])
         .find((rule) => rule instanceof CSSLayerStatementRule);
@@ -3165,7 +3112,7 @@ def test_a_diagrams_reserved_box_includes_its_scrollbar_clearance(
     # The example's chain fits any column it is laid out for; a row of six calls
     # still runs past a 678px viewport and scrolls, which this test needs.
     source, drawn = re.subn(
-        r'(id="security-before-flow") data-height="449"( parts="all">\s*<pre>).*?</pre>',
+        r'(id="security-before-flow") data-height="449"(>\s*<pre>).*?</pre>',
         lambda m: f'{m[1]} data-height="240"{m[2]}\n{FAN_OUT}</pre>',
         source,
         count=1,
@@ -3262,7 +3209,7 @@ def test_a_widget_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar
         packages=("diff",),
     )
     wide = "_".join(["argument"] * 40)
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "calls-data",
         call_diff(
@@ -3274,7 +3221,7 @@ def test_a_widget_box_of_text_that_scrolls_leaves_its_last_line_clear_of_the_bar
             )
         ),
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
@@ -3772,7 +3719,10 @@ def test_a_widened_wrapper_that_takes_its_words_off_the_column_is_advised(
 ):
     """A text block starts at its holder's edge, so a wrapper reaching before the prose
     moves its words off the column, on a page the rest of which stands on it. A wide
-    wrapper keeps the prose's start edge, and a caption belongs to its figure."""
+    wrapper keeps the prose's start edge, a figure's caption stays on the column, and a
+    widget in the figure that declares a width of its own, as a board or a diagram
+    does, is no words. A plain box that declares a width keeps the words it holds at
+    its own edge, so it still takes them off the column."""
     source = leaf_page(
         "Words off the column",
         """<h1>Words off the column</h1><p>Prose sets the column.</p>
@@ -3784,6 +3734,11 @@ def test_a_widened_wrapper_that_takes_its_words_off_the_column_is_advised(
         <section id="wide" data-width="wide"><p>Keeps its start edge.</p></section>
         <figure id="pictured" data-width="available"><div>Picture.</div>
           <figcaption>Caption.</figcaption></figure>
+        <figure id="drawn" data-width="available">
+          <lf-board id="board"><lf-column id="ready" label="Ready"></lf-column></lf-board>
+          <figcaption>Caption.</figcaption></figure>
+        <section id="boxed" data-width="available"><div data-width="available">
+          <p>Words.</p></div></section>
         <div id="exhibit" data-width="available"><table><tr><td>Cell</td></tr></table></div>""",
     )
     page = open_page(browser, serve(source))
@@ -3794,10 +3749,15 @@ def test_a_widened_wrapper_that_takes_its_words_off_the_column_is_advised(
         for finding in reading["contained"]
         if finding["code"] == "words-off-column"
     ]
-    assert found == ["<section id=words>", "<details id=more>", "<section id=inner>"]
+    assert found == [
+        "<section id=words>",
+        "<details id=more>",
+        "<section id=inner>",
+        "<section id=boxed>",
+    ]
     advice = render_gate_readings.swept_faults([(1440, reading)])
     worded = [finding for finding in advice if finding.code == "words-off-column"]
-    assert all(finding.severity == "advice" for finding in worded) and len(worded) == 3
+    assert all(finding.severity == "advice" for finding in worded) and len(worded) == 4
     assert "move data-width to the block inside" in str(worded[0])
 
 
@@ -3857,7 +3817,7 @@ def test_unpainted_padding_can_hold_focus_rings_inside_the_page_gutter(browser, 
 
 def test_a_turned_box_clips_its_contents_to_its_turned_band(browser, serve):
     """A box turned a quarter shows across what it holds down, so what it clips to is
-    the box its turned padding box covers (geometry.js, `shownBand`): words it shows
+    the box its turned padding box covers (dom/geometry.js, `shownBand`): words it shows
     whole are not clipped out, and words held past its foot are."""
     source = leaf_page(
         "Turned column",

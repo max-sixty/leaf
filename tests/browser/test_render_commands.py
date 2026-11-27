@@ -26,14 +26,18 @@ from render_harness import (
     open_page,
     opened_tab,
     page_declarations,
+    primed,
     refuse,
     resized,
     scroll_settled,
     select,
 )
 
-from leaf import render_checks as render_checks_model
-from leaf.render_gate import browser as browser_model
+from leaf.pages.render_gate import browser as browser_model
+from leaf.pages.render_gate import command as render_command_model
+from leaf.pages.render_gate.screens import screens_dir
+from leaf.pages.validation.command import check_page
+from leaf.source import render_checks as render_checks_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -132,6 +136,129 @@ def test_a_driver_that_never_starts_is_reported_rather_than_raised(serve, tmp_pa
         ran(missing, "page", "check", str(d), "--render"),
         "No such file or directory",
     )
+
+
+UNLINKED = {
+    "description": "A widget whose module imports a name the imported module lacks.",
+    "attributes": {
+        "type": "object",
+        "properties": {},
+        "required": ["id"],
+        "additionalProperties": False,
+    },
+    "content": "empty",
+    "example": '<lf-unlinked id="example"></lf-unlinked>',
+}
+UNLINKED_MODULE = """
+import { notExported } from '/runtime/portable-api.js';
+customElements.define('lf-unlinked', class extends HTMLElement {
+  connectedCallback() { this.textContent = notExported; }
+});
+"""
+# The same module, imported only once a reader outside the page first asks how ready
+# it is (`lfReadiness`, which the render gate's wait for the widget layer reads), so
+# the page declares it cannot start after the gate has seen the runtime start.
+LATE_MODULE = """
+const entry = document.querySelector('script[data-lf-entry]');
+const readiness = entry.lfReadiness;
+await new Promise((resolve) => {
+  entry.lfReadiness = (...asked) => (resolve(), readiness(...asked));
+});
+entry.lfReadiness = readiness;
+await import('./lf-unlinked-import.js');
+"""
+
+
+@pytest.mark.parametrize("declared", ["at-import", "once-read"])
+def test_a_render_check_names_the_import_a_package_module_fails_to_link(
+    browser, serve, monkeypatch, declared
+):
+    """A package widget's module that imports a name the imported module doesn't
+    export fails to link, so the page says it cannot start. `page check --render`
+    reports the render gate's finding, which quotes the browser's message naming the
+    module and the name. It takes no screens: the page never got ready, and a second
+    page would only wait for it to. The page has no code of its own, so the render
+    gate is the only gate that reads it. The finding is the same whichever of the
+    gate's waits reads the page's declaration, since either may."""
+    widgets = (
+        {"lf-unlinked.js": UNLINKED_MODULE}
+        if declared == "at-import"
+        else {
+            "lf-unlinked.js": LATE_MODULE,
+            "lf-unlinked-import.js": UNLINKED_MODULE,
+        }
+    )
+    serve(
+        leaf_page("Unlinked", '<lf-unlinked id="unlinked"></lf-unlinked>'),
+        packages=(),
+        layer_registry={"lf-unlinked": UNLINKED},
+        layer_widgets=widgets,
+    )
+    opened = []
+    # Screens open a context of their own, which this browser doesn't lend.
+    gate = primed(browser.unwatched, opened.append)
+    monkeypatch.setattr(
+        render_command_model,
+        "run_in_browser",
+        lambda read, engine: (read(gate), "the suite's browser"),
+    )
+    report, _ = check_page(serve.page_dir, render=True)
+    assert report["status"] == 1, report
+    assert report["browser"]["asked"] == ["render check"]
+    [failure] = [f for f in report["findings"] if f["severity"] == "error"]
+    assert failure["code"] == "no-runtime", failure
+    assert "/runtime/portable-api.js" in failure["text"], failure
+    assert "notExported" in failure["text"], failure
+    assert "screens" not in report["browser"], report
+    assert len(opened) == 1, opened
+
+
+TOUCH_ONLY = UNLINKED | {
+    "description": "A widget whose module throws on a device with touch input.",
+    "example": '<lf-touch-only id="example"></lf-touch-only>',
+}
+TOUCH_ONLY_MODULE = """
+if (navigator.maxTouchPoints > 0) throw new Error('This module refuses touch');
+customElements.define('lf-touch-only', class extends HTMLElement {
+  connectedCallback() { this.textContent = 'Drawn without touch.'; }
+});
+"""
+
+
+def test_a_render_check_fails_a_page_that_cannot_start_for_its_phone_screens(
+    browser, serve, monkeypatch
+):
+    """A module that throws only on a device with touch input leaves the page ready at
+    the desktop window, where the render gate reads it, and unable to start as the
+    phone the check opens for its phone screens. `page check --render` reports that
+    as a failure in the page's own words, saying which screens the page was opened
+    for, and saves no screens: the desktop screens it had taken by then leave the
+    state home with the directory they were written to."""
+    serve(
+        leaf_page("Touch only", '<lf-touch-only id="touch-only"></lf-touch-only>'),
+        packages=(),
+        layer_registry={"lf-touch-only": TOUCH_ONLY},
+        layer_widgets={"lf-touch-only.js": TOUCH_ONLY_MODULE},
+    )
+    monkeypatch.setattr(
+        render_command_model,
+        "run_in_browser",
+        lambda read, engine: (read(browser.unwatched), "the suite's browser"),
+    )
+    report, _ = check_page(serve.page_dir, render=True)
+    assert report["status"] == 1, report
+    [failure] = [f for f in report["findings"] if f["severity"] == "error"]
+    assert failure["code"] == "not-ready", failure
+    assert failure["values"]["stage"] == "refused", failure
+    error = failure["values"]["error"]
+    assert error.startswith(
+        "opened for the phone screens, the runtime could not start: "
+    ), error
+    assert "This module refuses touch" in error, error
+    assert report["browser"]["ran"] == ["render check"], report
+    assert "screens" not in report["browser"], report
+    kept = screens_dir(serve.page_dir).parent
+    assert list(kept.iterdir()) == [], list(kept.iterdir())
 
 
 @pytest.mark.parametrize("touch", [False, True])
@@ -714,11 +841,11 @@ def test_a_shot_keeps_its_reserved_frame_while_images_load(browser, serve):
       })]))"""
     held = shots.evaluate_all(boxes)
     assert held["shot-nav"][0][3] > 100, held
-    # The 600 × 300 captures at 2×: each frame takes the focus's 80 px inside its
-    # border, not the captures' 150, and Slider lays the pair's frames over each other.
+    # The 600 × 300 captures at 2×: each frame takes the focus's 80 px, not the
+    # captures' 150, and Slider lays the pair's frames over each other.
     for shot in focused:
         _, before, after = held[shot]
-        assert before[3] == pytest.approx(80 + 2, abs=1), (shot, held)
+        assert before[3] == pytest.approx(80, abs=1), (shot, held)
         assert after == pytest.approx(before, abs=1), (shot, held)
     assert shots.locator("img").evaluate_all(
         "images => images.every(image => image.naturalWidth === 0)"
@@ -801,12 +928,12 @@ def test_a_shot_holds_its_drawn_height_before_its_module_draws(browser, serve):
         "shots => shots.map(shot => shot.dataset.lfShotLayout)"
     )
     assert layouts == ["stack", "stack", "side"]
-    # The 600 × 300 captures at 2×: the focus's 80 px and the frame's 150, each
-    # inside the frame's border.
+    # The 600 × 300 captures at 2×: the focus's 80 px and the frame's 150, which the
+    # slider's frames fill.
     frames = page.locator("#focused, #dense").evaluate_all(
         "shots => shots.map(shot => shot.querySelector('.lf-shotframe').offsetHeight)"
     )
-    assert frames == pytest.approx([80 + 2, 150 + 2], abs=1)
+    assert frames == pytest.approx([80, 150], abs=1)
 
 
 def test_a_shot_takes_a_view_pressed_as_the_page_shows_and_keeps_its_divider(
@@ -1068,12 +1195,13 @@ def test_a_shot_opens_on_its_focus_and_preserves_choices_when_it_changes(
                 100,
                 50,
             ]
+            # The capture starts at its window's edge, with no strip between them.
             source_box = viewport.locator(".lf-shotplane").bounding_box()
             assert source_box["x"] == pytest.approx(
-                viewport.bounding_box()["x"] - 5, abs=1
+                viewport.bounding_box()["x"] - 5, abs=0.5
             ), (direction, view)
             assert source_box["y"] == pytest.approx(
-                viewport.bounding_box()["y"] - 25, abs=1
+                viewport.bounding_box()["y"] - 25, abs=0.5
             ), (direction, view)
     shot.get_by_role("button", name="Image options").click()
     full.check()
@@ -1138,7 +1266,9 @@ def test_a_shot_narrower_than_its_box_keeps_its_labels_on_its_frames(
     tools = shot.locator(".lf-shot-actions")
     captions = shot.locator(".lf-shot-toolbar .lf-shotcap")
     held = None
-    for view, width in (("Slider", 602), ("Pair", 2 * 602 + 8), ("Slider", 602)):
+    # A Pair frame keeps room round its capture for the ring the capture wears; the
+    # slider's frames fill it, and it stands in that room itself.
+    for view, width in (("Slider", 600), ("Pair", 2 * 602 + 8), ("Slider", 600)):
         shot.get_by_role("radio", name=view, exact=True).click()
         frames = [
             frame.bounding_box()

@@ -19,9 +19,9 @@ from interact_support import (
     yaml_document,
 )
 
-from leaf import files as files_model
-from leaf import leases as leases_model
-from leaf import state as cleanup_model
+from leaf.base import files as files_model
+from leaf.base import leases as leases_model
+from leaf.base import state as cleanup_model
 
 
 def test_a_user_move_no_watcher_will_pick_up_messages_its_claude_code_session(
@@ -187,7 +187,7 @@ import urllib.parse
 import urllib.request
 
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND
+from conftest import LEAF_COMMAND, hooks_run_this_tree
 from interact_support import (
     acknowledged_through,
     append_carried_log_record,
@@ -205,12 +205,13 @@ from interact_support import (
     write_record,
 )
 
-from leaf import cli as cli_model
-from leaf import hooks as hooks_model
-from leaf import hosting as hosting_model
-from leaf import server as server_model
-from leaf import service as service_model
-from leaf import session as session_model
+from leaf.base import server as server_model
+from leaf.base import service as service_model
+from leaf.commands import cli as cli_model
+from leaf.commands import hooks as hooks_model
+from leaf.commands import session as session_model
+from leaf.pages import hosting as hosting_model
+from leaf.records import transaction as transaction_model
 
 
 def test_wait_restarts_a_server_that_died_under_it(
@@ -231,7 +232,7 @@ def test_wait_restarts_a_server_that_died_under_it(
         },
     )
     comment_once_served(page_dir)
-    service_model.claim_page(page_dir)
+    transaction_model.claim_page(page_dir)
     waited = CliRunner().invoke(cli_model.cli, ["wait", str(page_dir)])
     assert waited.exit_code == 0, waited.output
     info = server_model.running_server(page_dir)
@@ -291,8 +292,9 @@ def test_wait_revival_cannot_take_a_page_back_after_claim_transfer(
     wait_for(selected.exists, bool, failure="the waiter never selected its page")
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "replacement")
+    hooks_run_this_tree("replacement")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    service_model.claim_page(page)
+    transaction_model.claim_page(page)
     declare_idle(page)
 
     first_out, first_err = first.communicate(input="continue\n", timeout=STATED_TIMEOUT)
@@ -405,6 +407,7 @@ def test_a_harness_claim_supersedes_a_bare_shell_wait(page_dir, sessionless, spa
         "CLAUDE_PID": str(os.getpid()),
     }
     leases_model.mark_hooks("harness-owner")  # its harness runs Leaf's hooks
+    hooks_run_this_tree("harness-owner")
     subprocess.run(
         [*LEAF_COMMAND, "page", "claim", str(page_dir)], env=harness_env, check=True
     )
@@ -435,7 +438,7 @@ def test_a_harness_claim_supersedes_a_bare_shell_wait(page_dir, sessionless, spa
     harness_out, harness_err = harness.communicate(timeout=STATED_TIMEOUT)
 
     assert bare.returncode == 2, bare_out + bare_err
-    assert "no longer owns it" in bare_out
+    assert "session harness-owner holds it, and this Leaf acts for no" in bare_out
     assert harness.returncode == 0, harness_err
     _, _, shown = woken(harness_out, "harness-owner")
     assert [event["id"] for event in shown] == ["once"]
@@ -501,9 +504,9 @@ def test_a_superseded_waiter_cannot_deliver_the_new_owners_batch(
     held_subscription = """
 import sys
 from pathlib import Path
-from leaf import session
+from leaf.commands import session
 from leaf.__main__ import main
-from leaf.service import claim_page
+from leaf.records.transaction import claim_page
 
 constructor = session.FileChanges
 marker, page = map(Path, sys.argv[1:])
@@ -599,8 +602,9 @@ def test_a_claim_transfer_stops_a_waiter_already_inside_a_poll(
     assert claim_record["id"] == "leaf-watcher-1"
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "replacement")
+    hooks_run_this_tree("replacement")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    service_model.claim_page(page)
+    transaction_model.claim_page(page)
     append_carried_log_record(page, {"kind": "comment", "author": "user", "text": "hi"})
     first_out, first_err = first.communicate(input="continue\n", timeout=STATED_TIMEOUT)
     assert first.returncode == 2, first_out + first_err

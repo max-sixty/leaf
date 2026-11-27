@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { parse, render } from "../../packages/diagram/vendor/pele.esm.js";
 
-// Pele 1.9.0's flowchart converter dropped an edge's authored classes, so page CSS could
+// Pele's flowchart converter drops an edge's authored classes, so page CSS could
 // mark a node in theme colours but not an edge. `build/vendor.mjs` carries them
 // to the edge's group and its label's group, as node classes reach `.pele-node`.
 test("a flowchart edge's class reaches its drawn group and its label's", () => {

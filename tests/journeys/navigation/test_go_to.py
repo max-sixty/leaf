@@ -5,11 +5,11 @@ import re
 import pytest
 from browser.threads import open_panel_thread
 from playwright.sync_api import expect
-from render_cases_interaction import OBLIGATIONS_PAGE
+from render_cases_interaction import OBLIGATIONS_PAGE, serve_obligations
 from render_cases_navigation import _publish
 from render_harness import PANEL, all_pages_offered, open_page, panel_view, resized
 
-from leaf import event_log as events_model
+from leaf.log import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -19,7 +19,7 @@ def test_global_destinations_switch_from_a_covering_workspace(
 ):
     """An open view keeps the global Go-to addresses that can replace it."""
     live_leaf("second", "A second leaf")
-    url = serve(OBLIGATIONS_PAGE, comments=1)
+    url = serve_obligations(serve, comments=1)
     _publish(serve.page_dir, 2, OBLIGATIONS_PAGE, "two")
     page = open_page(browser, url)
     resized(page, 420, 800)

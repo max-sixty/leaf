@@ -22,7 +22,7 @@ import click
 from selenium import webdriver
 from selenium.common.exceptions import JavascriptException
 
-from leaf.render_checks import (
+from leaf.source.render_checks import (
     HANDOVER_DEADLINE_MS,
     STANDING,
     UNREADY,

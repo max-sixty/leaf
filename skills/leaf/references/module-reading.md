@@ -5,10 +5,13 @@ Read with [module-authoring.md](module-authoring.md).
 ## Reading the page
 
 Read an element's words with `says(element)`, which returns them as passages and
-comments read them; `textContent` also returns words a widget generated that passages
-leave out. For text to copy or send, `says(element, {format: "lines"})` keeps rendered
-block boundaries, explicit line breaks and preformatted whitespace. Read a connected
-element so its computed styles supply these boundaries; a closed popover is supported.
+comments read them. `textContent` also returns words passages leave out, among them a
+generated control's words and the words Leaf writes into an element the author wrote,
+such as the quiet word on a part the user changed (`module-scroll-and-motion.md`,
+"Notices and spoken words"). For text to copy or send,
+`says(element, {format: "lines"})` keeps rendered block boundaries, explicit line
+breaks and preformatted whitespace. Read a connected element so its computed styles
+supply these boundaries; a closed popover is supported.
 Inline values stay in their sentence, and ordinary HTML source indentation collapses.
 `{drawn: true}` keeps only the words the page draws now, and `until` names an element
 to stop at.
@@ -75,20 +78,11 @@ link preview counts a thread about any of them.
 
 `anchorLabel(anchor, about)` names a comment's anchor as Threads does.
 
-### Reading declarations
-
-Read the registry rather than repeating it. `layerFact(name)` returns the registry's
-entry under a name, as the package's `registry.json` spells it: a widget's declaration
-under its tag, each fact under its own name, as `layerFact(element.localName)?.awaits`
-reads a widget's `awaits`, or a frozen layer-wide `$` declaration, such as
-`$reactions`. A plain HTML tag, such as `table`, can have an entry of authoring
-guidance, so read the fact you need rather than whether an entry exists.
-
 ### Following a reference
 
-Reach another widget through an attribute declared in `refers`
+Take the user to another widget through an attribute declared in `refers`
 ([package-data.md, "References between widgets"](package-data.md#references-between-widgets)),
-not by looking up the id yourself.
+rather than by finding its element and moving there yourself.
 
 `navigateToDatum(this, attribute, key, {success, missing, focus})` takes the user to
 the first element `key` names in the referenced widget: a visual part's id, a projected
@@ -239,16 +233,16 @@ shows in `answer` at once; which obligations exist changes when the server's rea
 arrives. Each `source.kind` adds its own facts:
 
 - For a `message` obligation, an agent message sent with `--obligation`, the user's
-  next message in its thread is its `answer.value` (`{text}`, or `{token}` for a
-  settling reaction). Once its
+  next message in its thread is its `answer.value` (`{text}`, or `{emoji}` for a
+  reaction). Once its
   thread is resolved after it, it stays `waiting` with no `next_actor`, even when the
   thread reopens, until a message asks it again.
 - An `update` is what a message the user sent, or an action in an answered widget's
   obligation, is owed. `source.id` names the event and `source.subject` the thread or
   widget the update concerns. Its next actor is the agent while it owes a reply or a version,
   the user when it was handed back to send again, and `null` once a reply, named by
-  `answer.event`, answered it. Of several messages the user sent in a row, only the
-  newest has one. No region holds an update.
+  `answer.event`, answered it. Where the user sends several of these in one Thread
+  before an answer, only the newest has one. No region holds an update.
 
 `answerWords(obligation)` words an answer for display, using a widget's `answerWords`
 (`module-state.md`, "Declared widget state").

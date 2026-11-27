@@ -11,7 +11,7 @@ from render_harness import (
     reported_browser_errors,
 )
 
-from leaf.render_checks import one_frame
+from leaf.source.render_checks import one_frame
 
 # A row seating one occupant at a time. A press on Swap puts the other in its place, the
 # way the page's `data-swap` says: by replacing the node, by moving in one that stood on

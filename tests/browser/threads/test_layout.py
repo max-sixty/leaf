@@ -39,8 +39,8 @@ from browser.threads import (
     open_panel_thread,
     paste_image,
 )
-from leaf import thread as thread_model
-from leaf.render_checks import one_frame, rendered
+from leaf.agents import thread as thread_model
+from leaf.source.render_checks import one_frame, rendered
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -143,11 +143,11 @@ def test_a_later_message_copies_its_markdown_from_the_card_s_edge(browser, serve
     shown = """message => { const controls = message.querySelector('.lf-msg-controls');
       return [getComputedStyle(controls.closest('.lf-msg-head'), '::after').opacity,
         ...[...controls.children].map((c) => getComputedStyle(c).opacity)]; }"""
-    assert first.evaluate(shown) == ["1", "1", "1"]
+    assert set(first.evaluate(shown)) == {"1"}
     reply.locator(".lf-msg-text p").first.hover()
     rendered(page)
     assert first.evaluate("m => m.contains(document.activeElement)")
-    assert first.evaluate(shown) == ["0", "0", "0"]
+    assert set(first.evaluate(shown)) == {"0"}
     # The hovered reply's Copy shows over its head row's cell in the actions' track.
     assert reply.locator(".lf-msg-copy").evaluate(
         """copy => { const box = copy.getBoundingClientRect();
@@ -335,7 +335,7 @@ def test_a_margin_message_copy_keeps_its_edge_when_send_motion_ends(browser, ser
 
 
 def test_every_message_says_when_it_was_said(browser, serve):
-    """Every message in a thread says when it was said (presence.js, `saidAt`): replies
+    """Every message in a thread says when it was said (state/presence.js, `saidAt`): replies
     hours apart three days ago each read their own time of day and day, as the reader's
     locale writes them, where an age would read "3d ago" over all of them, and a reply
     written now reads "just now", where its time of day would read like any other."""
@@ -926,7 +926,7 @@ def test_a_coined_class_cannot_reach_the_chromes_rules(browser, serve):
     its unclassed twin.
 
     The chrome sheet reaches the page only through the classes its owner declares
-    shared (`chromeSharedClasses`, runtime/stylesheets.js): a rule written outside the
+    shared (`chromeSharedClasses`, runtime/base/stylesheets.js): a rule written outside the
     block that names any other class is a private rule leaking out, not a widening. The
     guard against page rules (styles/chrome-guard.css) stands outside the block and names
     only `lf-chrome`, the chrome's own root, which no authored element may wear since
@@ -1030,7 +1030,9 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
     Threads list does, and its top row names whoever wrote the words under it. The
     card pinned the root's name beside its actions, so it opened at the top to keep
     that name true, leaving the newest turn out of view. A continuation fades the
-    words below the moving name without fading the next message's author."""
+    words below the moving name without fading the next message's author. A jump
+    stands over the turns toward each edge they run on past, and a press on one glides
+    them to that edge."""
     url = serve(PANEL_PAGE)
     root = panel_comment(
         serve.page_dir, "Opening turn. " + LANDING_WORDS, {"section": "how-store"}
@@ -1070,6 +1072,22 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
         landed["under"] == -1 and landed["endGap"]
     ), landed
     assert not transcript.evaluate("box => box.hasAttribute('data-lf-more-below')")
+
+    def jump(to):
+        return page.locator(
+            f'.lf-margin-preview .lf-page-thread[data-lf-thread="{root}"]'
+            f' > .lf-thread-jump[data-lf-jump="{to}"]'
+        )
+
+    def jumps(above, below):
+        """Whether the jump to the turns' start and the jump to their end stand."""
+        for to, stands in (("start", above), ("end", below)):
+            if stands:
+                expect(jump(to)).to_be_visible()
+            else:
+                expect(jump(to)).to_be_hidden()
+
+    jumps(above=True, below=False)
 
     def continuation():
         """Read the fade's actual painted box, including its grid positioning."""
@@ -1132,6 +1150,16 @@ def test_the_thread_card_opens_on_its_latest_message_under_its_own_name(browser,
             ), cue
         else:
             assert cue["height"] == 0, cue
+        jumps(above=index > 0, below=True)
+
+    jump("end").click()
+    jumps(above=True, below=False)
+    assert transcript.evaluate(
+        "box => box.scrollHeight - box.clientHeight - box.scrollTop <= 2"
+    )
+    jump("start").click()
+    jumps(above=False, below=True)
+    assert transcript.evaluate("box => box.scrollTop") == 0
 
     # Follow the outgoing header as the next author pushes it off the top, then
     # follow the transcript edge through the gap. Neither position fades a name. The
@@ -1453,7 +1481,7 @@ def test_a_dropped_surface_keeps_its_box_until_placement_commits(
 @pytest.mark.parametrize("turned", ["root", "card"])
 def test_a_carried_card_travels_with_the_pointer_when_turned(browser, serve, turned):
     """The carry's translate moves the card along the axes of the box it stands in, at
-    the card's own zoom (element-axes.js, `translateAxes`): a transform on the root
+    the card's own zoom (dom/element-axes.js, `translateAxes`): a transform on the root
     turns those axes, and the card's own turn, which applies inside its translate,
     leaves them alone. So on a page turned half round, and as a card turned half round
     and zoomed, the card travels the way the pointer does, standing under it from the

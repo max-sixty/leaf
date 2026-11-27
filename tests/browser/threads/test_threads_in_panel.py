@@ -1,7 +1,7 @@
 """Where a thread about a passage opens: beside its passage as a card, or in the floating
 panel once the user chose the panel with a card's Open in panel, until the panel's Show
-on page chooses cards again (thread/threads-in-panel.js; the rule is
-thread/destination.js's)."""
+on page chooses cards again (records/thread/threads-in-panel.js; the rule is
+records/thread/destination.js's)."""
 
 import pytest
 from interact_support import append_carried_log_record
@@ -16,13 +16,14 @@ from render_harness import (
     scroll_settled,
     sending,
     undo,
+    word_point,
     write,
 )
 
 from browser.navigation.test_reading_place import ITEMS_LAYER, ITEMS_WIDGETS
-from browser.threads import PANEL_REPLY, choose_threads_in_panel, open_panel_thread
-from leaf.render_checks import wait_until_ready
-from leaf_dev.browser import PANEL, PANEL_THREAD, panel_view
+from browser.threads import PANEL_REPLY, open_panel_thread
+from leaf.source.render_checks import wait_until_ready
+from leaf_dev.browser import PANEL, PANEL_THREAD, choose_threads_in_panel, panel_view
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -31,7 +32,8 @@ SECTIONS = ("near", "mid", "far")
 
 
 def threads_page(serve):
-    """A page with a thread on each of three sections far apart, and their ids."""
+    """A page with a thread on the words of each of three sections far apart, and their
+    ids."""
     url = serve(
         leaf_page(
             "Where threads open",
@@ -45,7 +47,11 @@ def threads_page(serve):
         )
     )
     roots = {
-        name: panel_comment(serve.page_dir, f"About {name}?", {"section": name})
+        name: panel_comment(
+            serve.page_dir,
+            f"About {name}?",
+            {"section": name, "quote": f"question about the {name}"},
+        )
         for name in SECTIONS
     }
     return url, roots
@@ -90,7 +96,8 @@ def test_open_in_panel_and_show_on_page_choose_where_threads_open(browser, serve
     page.locator("#far").scroll_into_view_if_needed()
     scroll_settled(page)
     before = page.evaluate("scrollY")
-    page.locator("#far p").get_by_text("The question about the far section.").click()
+    point = word_point(page.locator("#far p"), "question")
+    page.mouse.click(point["x"], point["y"])
     expect(view("far")).to_be_visible()
     expect(cards).to_be_hidden()
     scroll_settled(page)
@@ -107,7 +114,7 @@ def test_open_in_panel_and_show_on_page_choose_where_threads_open(browser, serve
 
     page.reload()
     wait_until_ready(page)
-    # The reload returns the user to the reply the row's press put them in (history.js),
+    # The reload returns the user to the reply the row's press put them in (records/history.js),
     # which Escape leaves for its thread, where `t` walks on.
     expect(page.locator(PANEL_REPLY)).to_be_focused()
     page.keyboard.press("Escape")
@@ -301,7 +308,8 @@ def test_a_press_on_words_the_panel_opens_over_brings_them_clear(browser, serve)
         " behavior: 'instant'})"
     )
     scroll_settled(page)
-    words.get_by_text("The question about the mid section.").click()
+    point = word_point(words, "question")
+    page.mouse.click(point["x"], point["y"])
     view = page.locator(f'{PANEL_THREAD}[data-lf-thread="{roots["mid"]}"]')
     expect(view).to_be_visible()
     scroll_settled(page)

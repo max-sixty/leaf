@@ -3,7 +3,7 @@
    actions withdrawn by undo, member-unit records and complete position maps. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { foldWidgetStates, obligationValue } from "/runtime/projection/model.js";
+import { foldWidgetStates, obligationValue } from "/runtime/state/projection/model.js";
 
 import { servedObligationValues } from "../served.mjs";
 

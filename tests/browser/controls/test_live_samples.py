@@ -15,16 +15,16 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import cli as cli_model
-from leaf import event_log as events_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 
 # The focus ring's colour, as the page computes it.
-ACCENT = """() => {
+RING_INK = """() => {
   const probe = document.body.appendChild(document.createElement("i"));
-  probe.style.color = "var(--lf-accent)";
+  probe.style.color = "var(--lf-ok)";
   const color = getComputedStyle(probe).color;
   probe.remove();
   return color;
@@ -56,6 +56,8 @@ def test_an_agent_reply_runs_its_live_sample_in_the_thread(browser, serve):
             "reply",
             "--done",
             response_reference(serve.page_dir, question),
+            "--title",
+            "Alternative sample",
             "--text",
             "Try it here:" + "\n\n" + (REPLY_SAMPLE),
         ],

@@ -1,6 +1,6 @@
 """Board, suggestion, ask, and widget composition tests."""
 
-from leaf.structure import SourceDocument
+from leaf.source.structure import SourceDocument
 from leaf_dev import corpus as corpus_model
 
 

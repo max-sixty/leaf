@@ -9,11 +9,11 @@ from browser.drafts.test_reading_place import (
 )
 from browser.threads import SEAT_DIFF, SEAT_FILLER
 from playwright.sync_api import expect
-from render_cases_layout import current_location_ring, ring_faults
 from render_harness import leaf_page, open_page, resized, scroll_settled
 
-from leaf import data as data_model
-from leaf.render_checks import one_frame
+from leaf.records import page_data as page_data_model
+from leaf.source.render_checks import one_frame
+from leaf_dev.rings import current_location_ring, ring_faults
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -68,7 +68,7 @@ def test_a_comment_editor_seated_in_a_widget_stays_in_view_as_the_window_changes
             f'source="review-patch"></lf-diff>{SEAT_FILLER}',
         )
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         {"files": [{"path": "app.py", "patch": SEAT_DIFF}]},

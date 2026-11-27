@@ -1,7 +1,7 @@
 """Replay Leaf's conversation forks on short constructed conversations, and score
-each answer: the turn-end check (`leaf.clerk`), the line fork that writes the agent's
-working line on a thread message (`leaf.forks`), and the fork beside it that
-summarizes a long thread (`leaf.summary_fork`). Claude
+each answer: the turn-end check (`leaf.agents.clerk`), the line fork that writes the agent's
+working line on a thread message (`leaf.agents.forks`), and the fork beside it that
+summarizes a long thread (`leaf.agents.summary_fork`). Claude
 Code makes every fork, so every case runs on that harness alone.
 
 A case in `workflows/fork_eval.yaml` is a conversation written for one decision a
@@ -15,10 +15,10 @@ Claude Code environment runs it: its launcher, and its Python for what has no
 command (`Leaf`). The executor builds the page in a throwaway state home, opens a
 turn for a fresh session id and claims the page as that session
 (`CLAUDE_CODE_SESSION_ID`, with this process as `CLAUDE_PID`). It reports to `leaf
-hook --fork` as the hooks module does (`leaf.carrier`): a turn's end, or the report
+hook --fork` as the hooks module does (`leaf.agents.carrier`): a turn's end, or the report
 the pages follower lists for a round that awaits a line, whose answer is the fork to
 make, and then that fork's answer. For a line or summary fork, a process of the arm's
-holds the session's forks lane (`forks.take_lane`) while the user's waiting messages
+holds the session's forks lane (`leases.take_lane`) while the user's waiting messages
 are admitted, as the event endpoint admits them, and until the answer is taken, as the
 pages follower holds it, and reports the round the follower would list (`forks.look`,
 `LOOK`). A turn-end case's Leaf line
@@ -112,7 +112,7 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any
 
-from leaf.harness import ClaudeCodeHarness, claude_code_config
+from leaf.base.harness import ClaudeCodeHarness, claude_code_config
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     MODELS,
@@ -180,7 +180,7 @@ PRICES = {
 # Holds the session's forks lane until stdin closes.
 LANE = """
 import sys
-from leaf.forks import take_lane
+from leaf.base.leases import take_lane
 lane = take_lane(sys.argv[1])
 print("held", flush=True)
 sys.stdin.read()
@@ -192,9 +192,9 @@ sys.stdin.read()
 LOOK = """
 import json, sys
 from pathlib import Path
-from leaf.event_contracts import append_admitted
-from leaf.forks import look
-from leaf.service import PageTransaction
+from leaf.records.event_contracts import append_admitted
+from leaf.agents.forks import look
+from leaf.records.transaction import PageTransaction
 
 page, session = Path(sys.argv[1]), sys.argv[2]
 _, after = look(session, page, None)
@@ -208,7 +208,7 @@ print(json.dumps(look(session, page, after)[0]))
 NOTE = """
 import json, sys
 from pathlib import Path
-from leaf.interaction_log import read_interactions
+from leaf.log.interaction_log import read_interactions
 notes = read_interactions(Path(sys.argv[1]), types=(sys.argv[2],))
 print(json.dumps(notes[-1] if notes else None))
 """
@@ -217,24 +217,25 @@ print(json.dumps(notes[-1] if notes else None))
 SUMMARY = """
 import json, sys
 from pathlib import Path
-from leaf.event_log import read_events
+from leaf.log.event_log import read_events
 found = [e for e in read_events(Path(sys.argv[1])) if e["id"] == sys.argv[2]]
 print(json.dumps(found[0]["text"] if found else None))
 """
 
-# The page's words as the user reads them, as the turn-end check reads them.
+# The words of the session's one page as the user reads them, as the turn-end check
+# is shown them.
 PAGE_TEXT = """
 import json, sys
-from pathlib import Path
-from leaf.clerk import _facts
-print(json.dumps(_facts(Path(sys.argv[1]))["text"]))
+from leaf.commands.agent_state import turn_end_facts
+[facts] = turn_end_facts(sys.argv[1])
+print(json.dumps(facts["text"]))
 """
 
 # The line Leaf's clerk queues for a finding, or null on an arm that queues none.
 FOUND = """
 import json, sys
 try:
-    from leaf.clerk import _found
+    from leaf.agents.clerk import _found
 except ImportError:
     print("null")
 else:
@@ -371,7 +372,7 @@ class Leaf:
 
     def fork(self, payload: dict):
         """One report to the arm's Leaf, as the hooks module makes it
-        (`leaf.carrier`), and what Leaf answered."""
+        (`leaf.agents.carrier`), and what Leaf answered."""
         ran = self.run(
             *("hook", "--harness", "claude-code", "--if-claimed", "--fork"),
             stdin={"hook_event_name": "Fork", "running": [], **payload},
@@ -867,7 +868,7 @@ def score_turn_end(
     labels = scenario.get("labels", {})
     matched = match(items, labels)
     found, changed = matched["found"], applied.get("changed", [])
-    shown = words_of(leaf.python(PAGE_TEXT, str(page))) if changed else ""
+    shown = words_of(leaf.python(PAGE_TEXT, leaf.session)) if changed else ""
 
     def landed(label: dict, item: dict) -> bool:
         if label["edit"] is None:

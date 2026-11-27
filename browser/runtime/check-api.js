@@ -2,10 +2,10 @@
    This diagnostic entry is separate from package authoring. Pure rules are tested
    at their source owner in Node; optional physical geometry lives in the overlay's
    check-api.js so core checks never load that renderer. */
-export { startNearWork } from "./presentation.js";
-export { declarationFor } from "./registry.js";
+export { startNearWork } from "./readings/presentation.js";
+export { declarationFor } from "./state/registry.js";
 export { validationWidgetStates } from "./validation.js";
-export { visualPartProblems } from "./visual-parts.js";
+export { drawsAbsentParts, visualPartProblems } from "./state/visual-parts.js";
 export {
   readApplication,
   watchSemantic,
@@ -16,9 +16,12 @@ export {
   whenApplicationPresented,
   whenApplicationRegionsPresented,
   whenDocumentPresented,
-} from "./semantic-state.js";
-export { USER_VIEW_RESTORE_CASES, THREADS_IN_PANEL_KEY } from "./restore-state.js";
-export { restoreThreadsInPanel } from "./thread/threads-in-panel.js";
+} from "./state/semantic-state.js";
+export {
+  USER_VIEW_RESTORE_CASES,
+  THREADS_IN_PANEL_KEY,
+} from "./state/restore-state.js";
+export { restoreThreadsInPanel } from "./records/thread/threads-in-panel.js";
 export {
   ADDRESSABLE,
   anchorForRange,
@@ -26,7 +29,8 @@ export {
   aimTargets,
   aimTargetAt,
   captured,
-} from "./anchor-resolution.js";
+  visualParts,
+} from "./readings/anchor-resolution.js";
 export {
   shownBand,
   shownBox,
@@ -39,13 +43,13 @@ export {
   stuckBox,
   stackLevel,
   shownParts,
-} from "./geometry.js";
-export { inChrome, uiInside } from "./ui-marks.js";
-export { anchoringIsReady } from "./anchor-resolution.js";
-export { windowHoldsRail } from "./content-layout.js";
-export { CONTRIBUTION_ENTRY_SCHEMA } from "./contribution-model.js";
-export { NOTICE_MS, notice } from "./notifications.js";
-export { raiseError } from "./errors.js";
+} from "./dom/geometry.js";
+export { inChrome, uiInside } from "./base/ui-marks.js";
+export { anchoringIsReady } from "./readings/anchor-resolution.js";
+export { windowHoldsRail } from "./readings/content-layout.js";
+export { CONTRIBUTION_ENTRY_SCHEMA } from "./base/contribution-model.js";
+export { NOTICE_MS, notice } from "./transport/notifications.js";
+export { raiseError } from "./transport/errors.js";
 export {
   readingRegions,
   shownRegionBounds,
@@ -57,15 +61,12 @@ export {
   unconcealedReadingRegions,
   regionScrollBehavior,
   watchReadingRegionTransitions,
-} from "./reading-regions.js";
-export { carriersOf } from "./scroll-containers.js";
+} from "./readings/reading-regions.js";
+export { carriersOf } from "./readings/scroll-containers.js";
 export {
   layoutBox,
   pageDocument,
   inPage,
-  quoteFrom,
-  verbatimBoundaryIdentity,
-  verbatimOwnerIdentity,
   pageText,
   fencePassageParts,
   findQuote,
@@ -73,22 +74,30 @@ export {
   spanIn,
   settledAway,
   textNodesUnder,
-} from "./passages.js";
-export { shallowSigs } from "./projection/presentation.js";
+} from "./readings/passages.js";
+export { shallowSigs } from "./records/projection/presentation.js";
 export {
   commandDeclarationsWithin,
   commandsUnread,
   paintKeys,
-} from "./keyboard/scopes.js";
+} from "./dom/keyboard/scopes.js";
 export {
   commandRoutes,
   allBindings,
   commandEntries,
   commandPresentations,
   live,
-} from "./keyboard/bindings.js";
-export { availableCommandRoutes, stack, executeCommand } from "./keyboard/dispatch.js";
-export { captureDraftEditing, draftHasContent, draftsWaiting } from "./drafts.js";
+} from "./dom/keyboard/bindings.js";
+export {
+  availableCommandRoutes,
+  stack,
+  executeCommand,
+} from "./dom/keyboard/dispatch.js";
+export {
+  captureDraftEditing,
+  draftHasContent,
+  draftsWaiting,
+} from "./records/drafts.js";
 export {
   focused,
   handBack,
@@ -97,68 +106,69 @@ export {
   ringBox,
   takesLetters,
   tabStops,
-} from "./focus.js";
-export { selectionAnchor } from "./composing/capture.js";
+} from "./dom/focus.js";
+export { selectionAnchor } from "./annotations/composing/capture.js";
 // A range's owner's word of where the pointer rests, as a passage mark's is.
-export { PREVIEW_TIMERS, pointRange } from "./preview.js";
-export { TEXT_BLOCK } from "./kernel-facts.js";
-export { afterScript, renderingState } from "./rendering.js";
-export { pageScroller } from "./scrolling.js";
+export { PREVIEW_TIMERS, pointRange } from "./annotations/preview.js";
+export { TEXT_BLOCK } from "./state/kernel-facts.js";
+export { afterScript, renderingState } from "./base/rendering.js";
+export { pageScroller } from "./dom/scrolling.js";
 export {
   readingBlock,
   blocksOnScreen,
   capturePlace,
   placeNode,
   restorePlace,
-} from "./reading-place.js";
-export { replaceEntry } from "./history.js";
-export { walkOrigin, heldObligation, placeOf } from "./current-target.js";
-export { beginWalk, walkPosition } from "./walk-position.js";
-export { threadCounts } from "./thread/model.js";
+} from "./readings/reading-place.js";
+export { replaceEntry } from "./records/history.js";
+export { walkOrigin, heldObligation, placeOf } from "./records/current-target.js";
+export { beginWalk, walkPosition } from "./records/walk-position.js";
+export { threadCounts } from "./state/thread/model.js";
 export {
   closeNativeLayer,
   nativeLayers,
   showNativeLayer,
-} from "./keyboard/layer-stack.js";
-export { scrollAxes, elementFrame } from "./element-frame.js";
-export { carriedBox, elementBorderFrame, innerBox } from "./element-axes.js";
-export { fitsWhole, alreadyShown } from "./landing-scroll.js";
+} from "./dom/keyboard/layer-stack.js";
+export { scrollAxes, elementFrame } from "./dom/element-frame.js";
+export { carriedBox, elementBorderFrame, innerBox } from "./dom/element-axes.js";
+export { fitsWhole, alreadyShown } from "./readings/landing-scroll.js";
 export {
   browserScrolls,
   holdScroll,
   scrolling,
   setScroll,
   watchScrollEnds,
-} from "./arrivals.js";
-export { pageScopes } from "./keyboard/register.js";
+} from "./dom/arrivals.js";
+export { pageScopes } from "./dom/keyboard/register.js";
 export {
   chromeSheet,
   chromeSharedClasses,
   marksSheet,
   annotationSheets,
-} from "./stylesheets.js";
-export { claimed } from "./thread/surfaces.js";
-export { writingStore, userStore, PAGE_SCOPE } from "./storage.js";
-export { tabStore } from "./tab-store.js";
+} from "./base/stylesheets.js";
+export { claimed } from "./records/thread/surfaces.js";
+export { writingStore, userStore, PAGE_SCOPE } from "./state/storage.js";
+export { tabStore } from "./state/tab-store.js";
 export {
   frameVisibility,
   onFrameVisibility,
   readSampleVisibility,
-} from "./frame-visibility.js";
-export { createPresentationSchedule } from "/runtime/framework.js";
-export { reachScrollers, releaseReachStop } from "./reach.js";
-export { reveal, dragHeld } from "./widget-elements.js";
-export { replyIsEditing } from "./thread/replies.js";
-export { THREAD, SAY_BOX } from "./thread/selectors.js";
-export { registerSampleCommand } from "./sample-child.js";
-export { recordInteraction } from "./interaction-log.js";
-export { bringBackSurfaceOf } from "./off-flow.js";
-export { TEXT_BOX, WORKS } from "./control-selectors.js";
-export { readingReturn, completeReadingReturn } from "./reading-continuity.js";
+} from "./base/frame-visibility.js";
+export { createPresentationSchedule } from "./base/presentation.js";
+export { reachScrollers, releaseReachStop } from "./dom/reach.js";
+export { reveal, dragHeld } from "./dom/widget-elements.js";
+export { replyIsEditing } from "./records/thread/replies.js";
+export { THREAD, SAY_BOX } from "./records/thread/selectors.js";
+export { registerSampleCommand } from "./host/sample-child.js";
+export { controllerOf } from "./host/widget-controller.js";
+export { recordInteraction } from "./transport/interaction-log.js";
+export { bringBackSurfaceOf } from "./readings/off-flow.js";
+export { TEXT_BOX, WORKS } from "./dom/control-selectors.js";
+export { readingReturn, completeReadingReturn } from "./base/reading-continuity.js";
 
-export { servedElements } from "./version.js";
-export { versionPicker } from "./version-picker.js";
-export { colourableAs, colouredAs } from "./syntax.js";
+export { servedElements } from "./features/version.js";
+export { versionPicker } from "./features/version-picker.js";
+export { colourableAs, colouredAs } from "./readings/syntax.js";
 
-export { pageRange } from "./native-selection.js";
-export { leavesOffered } from "./live-leaves.js";
+export { pageRange } from "./dom/native-selection.js";
+export { leavesOffered } from "./host/live-leaves.js";

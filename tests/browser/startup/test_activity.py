@@ -25,12 +25,12 @@ from render_harness import (
     told,
 )
 
-from leaf import render_checks as render_checks_model
+from leaf.source import render_checks as render_checks_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 # Where the folded leaf says the status's whole sentence: under its name in its
-# preview (preview.js), once that opens after the pointer's dwell. Closed, the preview
+# preview (annotations/preview.js), once that opens after the pointer's dwell. Closed, the preview
 # still holds the lines of whatever it last showed, such as a thread row's.
 PEEK = "#lf-preview:popover-open .lf-preview-detail"
 LEAF = ".lf-fp-leaf"
@@ -39,7 +39,7 @@ LEAF = ".lf-fp-leaf"
 def expect_status_says(page, words):
     """Fold the panel to its leaf, the one seat that says the status's whole sentence
     when pointed at, read it in the leaf's preview, which keeps what it opened with
-    while it shows (preview.js), and unfold the panel again. Folding puts away what
+    while it shows (annotations/preview.js), and unfold the panel again. Folding puts away what
     stands open in the panel, and the pointer leaves, so the next reading is a new
     one."""
     close = page.locator(".lf-fp-close")
@@ -83,7 +83,7 @@ def test_the_leaf_perks_as_the_agent_takes_up_work_not_as_the_page_reconnects(
     d = serve.page_dir
     record_claim(d, id="s", pid=os.getpid(), agent="Claude")
     # The sequence of motions the leaf's mark starts, each by the turn it reaches first
-    # (floating-panel.js, `MOTIONS`).
+    # (panel/floating-panel.js, `MOTIONS`).
     page.evaluate(
         """() => {
           window.__lfLeaf = [];

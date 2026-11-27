@@ -1,4 +1,4 @@
-/* A draft's preview (composing/field-editor.js) draws what its sent message will, and a
+/* A draft's preview (annotations/composing/field-editor.js) draws what its sent message will, and a
    field editing a Markdown body in place draws what the body shows, each from the
    reading of the renderer that draws it. A rule the renderer enables whose tokens the
    preview doesn't draw leaves its construct as source in the field while the message
@@ -9,7 +9,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { DRAWN } from "/runtime/composing/field-editor.js";
+import { DRAWN } from "/runtime/annotations/composing/field-editor.js";
 import { makeMarkdown } from "/runtime/lib/markdown.js";
 
 // What each rule emits that a reader sees, by the token type the preview reads it as:
@@ -26,6 +26,8 @@ const EMITS = {
   text_join: [],
   blank_lines: [],
   fence_words: ["fence"],
+  // A file's formula is the code span it is typed as, its dollars the span's markers.
+  file_formulas: ["code_inline"],
   safe_links: [],
   // block
   code: ["code_block"],

@@ -5,7 +5,11 @@ Read with [module-authoring.md](module-authoring.md).
 Pointing reads; pressing acts (`interface-goals.md`). Leaf previews an element when a
 pointer rests on it, when Tab brings the keyboard to it or something inside it, and when
 a finger holds it, beside the element over the page, in one face: a name with key chips,
-then lines of detail. A command's landing, such as a walk's, previews nothing, since
+then lines of detail. An element with no Tab stop, such as an age, previews to the
+keyboard when the caret stands in it and the user presses `K`, in browsers with caret
+browsing (Chromium and Firefox), so a preview needs no Tab stop of its own. Leaf then
+calls `lfPreview("focus")`, though the element doesn't hold focus. A command's
+landing, such as a walk's, previews nothing, since
 what the user asked the command for is in front of them (`module-input.md`, "Focus and layers"). The preview holds no control, so a control the user presses stays
 on the widget; a pointer may cross onto it to read it, and a finger's long press reads
 it and presses nothing, so a widget's click answers a tap alone.
@@ -96,7 +100,8 @@ there takes the pointer: a control, native or ARIA, an element with a `title` or
 `lfPreview`, or a widget that draws its content itself (`content` `data`, `markdown`
 or `empty`). There the element's own preview shows, or none, and the thread is reached
 by its margin entry. Words a widget holds of the author's markup, outside any control
-in it, preview their thread.
+in it, preview their thread. A thread on a whole element, such as a widget, draws no
+mark on the element, so only the thread's margin entry previews it.
 
 A link an author wrote to a place on the page previews that place with no declaration.
 A link a widget draws previews nothing of the place unless the widget declares it,

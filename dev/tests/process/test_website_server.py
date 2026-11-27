@@ -36,10 +36,10 @@ from process.website_server import (  # noqa: F401
 )
 
 import leaf_website as website_server
-from leaf.event_log import read_events
-from leaf.files import revision_path
-from leaf.render_checks import HANDOVER_DEADLINE_MS, OUTSTANDING
-from leaf.state import session_record
+from leaf.base.files import revision_path
+from leaf.base.state import session_record
+from leaf.log.event_log import read_events
+from leaf.source.render_checks import HANDOVER_DEADLINE_MS, OUTSTANDING
 from leaf_dev import ROOT, startup, website
 from leaf_dev.commands.journey import _journey as journey
 from leaf_dev.commands.journey import chart as journey_chart
@@ -532,10 +532,6 @@ def test_the_journey_emits_one_json_sample_for_each_website_target(monkeypatch):
     refused = runner.invoke(journey_run.journey, ["website-adapter", "--http"])
     assert refused.exit_code == 2
     assert "a website's journey is its page in a browser" in refused.output
-    for target in ("website-adapter", "claude-code", "pi"):
-        refused = runner.invoke(journey_run.journey, [target, "--preview"])
-        assert refused.exit_code == 2
-        assert "--preview is an option of the codex targets" in refused.output
     # A remote journey needs no local build: the origin names its release.
     remote_result = runner.invoke(journey_run.journey, ["https://leaf-dev.example/"])
     assert remote_result.exit_code == 0, remote_result.output
@@ -808,7 +804,7 @@ def test_local_worker_name_is_valid_when_run_suffix_starts_with_underscore(
     ):
         pass
 
-    name = calls[0][-1].removeprefix("name=^workerd-").removesuffix("-")
+    name = calls[0][-1].removeprefix("name=^workerd-[0-9a-f]+-").removesuffix("-")
     assert re.fullmatch(r"[a-z0-9]+(?:[._]|__|[-]+[a-z0-9]+)*", name)
 
 
@@ -901,8 +897,8 @@ def test_the_deploy_gate_stops_waiting_on_a_page_with_no_agent_on_the_comment():
 
 
 def test_the_deploy_gate_reads_a_durable_harness_failure(page_dir):
-    from leaf.event_contracts import event_record_error
-    from leaf.registry.storage import load_registry
+    from leaf.records.event_contracts import event_record_error
+    from leaf.source.vocabulary import load_registry
 
     harness = website_server.WebsiteCodexHarness("codex")
     comment = append_event(
@@ -1084,8 +1080,8 @@ def test_a_title_written_after_the_reply_is_still_timed(tmp_path):
     after the reply that ended the turn's wait; the journey reads on for it rather
     than reporting the title as never written. The state it reads is the one a page
     server serves, since the journey reads titles from it."""
-    from leaf.event_log import append_event
-    from leaf.thread import title_event
+    from leaf.agents.thread import title_event
+    from leaf.log.event_log import append_event
     from leaf_dev.arms import PageClient, serving
     from leaf_dev.review_scenario import prepare
 

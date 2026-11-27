@@ -51,7 +51,7 @@ capability. A stored answer alone does not establish what it means after a
 rewrite. The useful comparison is an answered interface revised around a
 person's decisions, passage comments, unsent drafts and reading position, then
 resumed through the supported route after its original session ends. Leaf's
-[tasks](../src/leaf/todos.py) already outlive execution attempts; process state,
+[tasks](../src/leaf/records/todos.py) already outlive execution attempts; process state,
 delivery and a fulfilled obligation are separate facts.
 
 **Views and evidence.** Earlier Workbench and Sfora demos showed alternate views
@@ -218,7 +218,7 @@ still needs a shared interaction test.
 
 Mermaid-to-Excalidraw editing, standalone asset export and live DOM checks remain
 useful references. The user's browser can report overflow/clipping for a batched
-repair prompt; Leaf's [render gate](../src/leaf/render_gate/version.py) checks
+repair prompt; Leaf's [render gate](../src/leaf/pages/render_gate/version.py) checks
 publication across desktop/narrow viewports and layout transitions.
 
 ## Sideshow
@@ -371,11 +371,11 @@ stored ones, and takes the best. An annotation with no candidate becomes an orph
 counted on its own sidebar tab.
 
 Leaf's anchor carries the same `quote`, `prefix` and `suffix`, but matches the quote
-exactly ([events.md](../src/leaf/events.md), "Anchors";
-`anchor_capture.resolve_quote`). It takes the occurrence whose context matches
-exactly, or the quote's only occurrence. Repeated text with no deciding context
-detaches, and a revision that drops the passage moves the thread to its surviving
-section or detaches it. Approximate matching suits Hypothesis, where a page changes
+exactly ([events.md](../src/leaf/events.md), "Anchors"; `findQuote` in
+`browser/runtime/readings/passages.js`). It takes the occurrence whose context matches
+exactly, or the quote's only occurrence. A thread on repeated text with no deciding
+context, or on words a revision rewrote, stands on its section, and a revision that
+drops the section detaches it. Approximate matching suits Hypothesis, where a page changes
 without its author knowing about the annotations, so a likely position is better than
 an orphan. In Leaf the agent revising the page can move a thread itself in a reply,
 and a thread moved silently to the wrong sentence would misstate what the user said.

@@ -16,9 +16,9 @@ from render_harness import (
     stance_exit,
 )
 
-from leaf import event_log as events_model
-from leaf import exporting as exporting_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.pages import exporting as exporting_model
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

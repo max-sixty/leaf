@@ -9,7 +9,7 @@
 /* Draw mode and Capture area take presses on the document plane, page-widget controls
    included, while Leaf surfaces keep their gestures. Their crosshair stands on the
    element under the pointer, inside a widget's tree where the pointer is over one, and
-   never on a Leaf surface, which keeps its own cursor (page-geometry.js). It is
+   never on a Leaf surface, which keeps its own cursor (panel/page-geometry.js). It is
    important: it covers whatever cursor the page or a widget states for its own
    controls. This sheet reaches the document and every shadow tree, so one rule serves
    both. Stated on every element, the crosshair restyled the whole page each time a
@@ -57,7 +57,7 @@
    top border, a pane that clipped the block's surroundings cut it in half or hid it.
    While it shows it covers the first line's last words, which a pointer leaving the
    block uncovers. Hover, keyboard focus, or a tap that stands the user on the source
-   reveals it (code-copy.js). Hidden, it takes no presses, so a finger selecting the
+   reveals it (records/code-copy.js). Hidden, it takes no presses, so a finger selecting the
    words beneath it reaches them. Its toolbar is its mark, its padding and its ring. */
 .lf-code-copy {
   --lf-code-copy-box: calc(var(--lf-mark-size) + 4px);
@@ -89,7 +89,7 @@
    and stack where the control would. A positioned box is the containing block of an
    absolute one, which an anchor outside it cannot position (CSS Anchor Positioning,
    "acceptable anchor element"), and a document control stands in two: Leaf's chrome
-   root (base.css, `:root > .lf-chrome`) and, cut, its frame. So a document control is
+   root (elements.css, `:root > .lf-chrome`) and, cut, its frame. So a document control is
    fixed, with the window for its containing block, and its anchor carries it through
    every scroll. A widget's control, standing in the widget's own tree with its block,
    stays absolute. */
@@ -126,7 +126,7 @@
   pointer-events: auto;
 }
 /* A heading's link stands in the gutter before its first line, centered on that line
-   (heading-links.js writes where the line stands in the heading's box), and at the
+   (records/heading-links.js writes where the line stands in the heading's box), and at the
    heading's far end where the gutter has no room for it. It shows as Copy does, and is
    a symbol (controls.css, `.lf-icon-action`) a line tall. */
 :root {

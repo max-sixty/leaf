@@ -29,7 +29,7 @@ from urllib.parse import urljoin, urlsplit
 import click
 from playwright.sync_api import Error as PlaywrightError
 
-from leaf.render_checks import open_render_context, open_render_page
+from leaf.source.render_checks import open_render_context, open_render_page
 from leaf_dev.browser import go_to_threads, headless_shell, panel_view
 from leaf_dev.startup import startup_line, startup_profile, startup_reading
 from leaf_dev.website import (
@@ -400,10 +400,10 @@ page = root / manifest["pages"]["/examples/heat-loss"]["directory"]
 SAVED_STATE_FIXTURE = (
     SAVED_STATE_PAGE
     + r"""
-from leaf.event_contracts import append_admitted
-from leaf.files import latest_revision, revision_path
-from leaf.revisioning import activate_source
-from leaf.service import PageTransaction
+from leaf.records.event_contracts import append_admitted
+from leaf.base.files import latest_revision, revision_path
+from leaf.records.revisioning import activate_source
+from leaf.records.transaction import PageTransaction
 stylesheet = "#saved-state-recall { font-weight: 600; }\n"
 (page / "page").mkdir(exist_ok=True)
 (page / "page/saved-state-recall.css").write_text(stylesheet)
@@ -416,7 +416,7 @@ if activation.error:
     raise RuntimeError(activation.error)
 revision = latest_revision(page)
 with PageTransaction(page) as transaction:
-    choice, _ = append_admitted(transaction, {"kind": "action", "author": "user", "revision": revision, "widget": "heat-first", "action": "choose", "detail": {"value": ["heat-opt-window"]}})
+    choice, _ = append_admitted(transaction, {"kind": "action", "author": "user", "revision": revision, "widget": "heat-first", "action": "choose", "detail": {"value": ["heat-opt-window"]}, "answered": True})
     comment, _ = append_admitted(transaction, {"kind": "comment", "author": "user", "revision": revision, "text": "Saved before the container stopped."})
 print(json.dumps({"revision": revision, "revision_name": revision_path(page, revision).name, "comment": comment["id"], "choice": choice["id"], "stylesheet": stylesheet}))
 """

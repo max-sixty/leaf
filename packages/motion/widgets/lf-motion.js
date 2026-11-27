@@ -139,7 +139,7 @@ class MotionStudy extends HTMLElement {
     if (!controls || !play || !time || !speed)
       throw new Error("Motion transport did not draw its controls");
     const ui = (this.#ui = { controls, play, time, speed });
-    // A row with no run names the press its control makes (keyboard/bindings.js).
+    // A row with no run names the press its control makes (dom/keyboard/bindings.js).
     this.lfCommands = {
       title: "In a motion study",
       rows: [

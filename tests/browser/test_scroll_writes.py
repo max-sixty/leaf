@@ -1,12 +1,12 @@
 """A script's scroll write. Through `setScroll`, the runtime's own, it moves a box as far
 as the browser lets it, on whichever side of zero the box scrolls, and writes nothing
 that would leave a still box where it stands. Through the browser's own calls, whoever
-makes it, the runtime hears it as it is made (`runtime/arrivals.js`)."""
+makes it, the runtime hears it as it is made (`runtime/dom/arrivals.js`)."""
 
 import pytest
 from render_harness import consume_browser_errors, leaf_page, open_page
 
-from leaf.render_checks import SERVED_TIMEOUT_MS
+from leaf.source.render_checks import SERVED_TIMEOUT_MS
 
 # Each style that decides which side of zero a box scrolls on, alone and in the
 # combinations where two of them cancel. Chromium and Firefox agree on every one.

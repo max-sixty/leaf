@@ -128,7 +128,7 @@ for (const [foreignFirst, reported] of [
 }
 
 // Words a field still shows within a longer text, as when a draft joins another tab's
-// words before them (runtime/drafts.js), have not left the screen, nor have they where a
+// words before them (runtime/records/drafts.js), have not left the screen, nor have they where a
 // re-render then replaces that field with one showing the same text; words the new text
 // leaves out have.
 for (const replaced of [false, true]) {

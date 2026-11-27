@@ -47,9 +47,9 @@ from render_harness import (
     write,
 )
 
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
-from leaf_dev.browser import PANEL_THREAD, slow_cpu
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD, slow_cpu, text_field
 
 
 def test_a_settled_delivery_activates_one_fresh_document_with_continuity(
@@ -171,7 +171,7 @@ def test_primary_arrival_records_a_return_place_only_when_travelling(
     page = open_page(browser, url)
     # The short window moves the workspace's reading regions, and the page puts back
     # the place it recorded before them on the frame after; scrolling to the source
-    # before that has the page undo it (version.js, `restoreShifted`).
+    # before that has the page undo it (features/version.js, `restoreShifted`).
     resized(page, 1440, 320)
     rendered(page)
     heading = page.locator("h1")
@@ -276,7 +276,7 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
         email.get_by_role("checkbox").click()
     expect(workspace.locator(".counts")).to_contain_text("Email")
     workspace.get_by_role("button", name="Keep it concise.", exact=True).click()
-    editor = workspace.get_by_role("textbox", name="Reply", exact=True)
+    editor = text_field(workspace, name="Reply", exact=True)
     write(editor, "A shared draft")
     workspace.get_by_role("button", name="Feed", exact=True).click()
     expect(editor).to_have_js_property("value", "A shared draft")
@@ -284,13 +284,11 @@ def test_primary_package_reader_retains_native_widgets_drafts_and_creation(
     assert page.evaluate(
         "document.querySelector('#workspace').querySelector('#email') === window.originalOption"
     )
-    expect(
-        workspace.get_by_role("textbox", name="Reply", exact=True).last
-    ).to_have_js_property("value", "A shared draft")
+    expect(text_field(workspace, name="Reply", exact=True).last).to_have_js_property(
+        "value", "A shared draft"
+    )
     with sending(page, "send the retained reply"):
-        workspace.get_by_role("textbox", name="Reply", exact=True).last.press(
-            "Control+Enter"
-        )
+        text_field(workspace, name="Reply", exact=True).last.press("Control+Enter")
     expect(workspace.get_by_text("A shared draft", exact=True)).to_be_visible()
     # One reply answers both questions. Counts include them, while the compact
     # answer summary names only widget choices instead of repeating words.

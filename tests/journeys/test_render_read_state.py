@@ -24,10 +24,10 @@ from render_harness import (
     write,
 )
 
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import thread as thread_model
-from leaf.render_checks import (
+from leaf.agents import thread as thread_model
+from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
+from leaf.source.render_checks import (
     PROBE_POLL_MS,
     SERVED_TIMEOUT_MS,
     rendered,
@@ -407,7 +407,7 @@ def test_a_reply_in_a_diff_thread_draws_where_the_user_is_and_waits_elsewhere(
     inside the widget's shadow tree, is read once shown. Both moves stay inside the
     widget's shadow tree, where the document hears no focus event."""
     url = serve(LONG_LINE_DIFF_PAGE)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
     page = open_page(browser, url)
     page.wait_for_function("document.querySelector('lf-diff.lf-rendered') !== null")
     _select_new_route(page)
@@ -487,7 +487,7 @@ def test_a_page_seat_the_open_panel_stands_over_is_not_read(
     Threads lists rows rather than messages, so the page seat is the only copy in view.
     The answer arrives below the window's foot, where it is drawn at once."""
     url = serve(LONG_LINE_DIFF_PAGE)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", MULTI_HUNK_PATCH)
     page = open_page(browser, url)
     page.wait_for_function("document.querySelector('lf-diff.lf-rendered') !== null")
     _select_new_route(page)

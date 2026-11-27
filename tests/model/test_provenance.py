@@ -1,6 +1,6 @@
 """Which of the user's messages waited while a version was saved, and where each
-revision stands in the log (`provenance.py`, `revisioning.py`): what a version says
-it was saved after."""
+revision stands in the log (`provenance.py`, `revision_publication.py`): what a
+version says it was saved after."""
 
 import random
 from copy import deepcopy
@@ -11,24 +11,25 @@ from click.testing import CliRunner
 from interact_support import ModelPage, append_command, model_layer, response_reference
 from model_folds import NOW, leaf_page, served_view
 
-from leaf import cli as cli_model
-from leaf import event_log as event_log_model
-from leaf.event_contracts import admitted_event
-from leaf.event_facts import EventFacts
-from leaf.event_log import EventRefused
-from leaf.events import (
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as event_log_model
+from leaf.log.event_log import EventRefused
+from leaf.log.events import (
     build_threads,
     owed_turns,
     spoken_turns,
     taken_back,
     unanswered_turns,
 )
-from leaf.passages import SourceReading, enclosing_ids
-from leaf.provenance import revision_places
-from leaf.provenance import saved_after as line_of
-from leaf.registry.kernel import kernel_event_kinds
-from leaf.revisioning import activate_source
-from leaf.structure import SourceDocument
+from leaf.log.provenance import revision_places
+from leaf.log.provenance import saved_after as line_of
+from leaf.records.event_contracts import admitted_event
+from leaf.records.event_facts import EventFacts
+from leaf.records.revisioning import activate_source
+from leaf.source.passages import enclosing_ids
+from leaf.source.reading import SourceReading
+from leaf.source.registry.kernel import kernel_event_kinds
+from leaf.source.structure import SourceDocument
 from model.interact_contract.test_thread_resolution import (
     ASKED,
     CLOSED,
@@ -182,7 +183,13 @@ def test_a_message_waited_where_its_thread_still_owed_it_at_any_of_the_versions_
     pages = {1: SETTLED, 2: SETTLED, 3: SETTLED}
     assert saved_after([ASKED, live(2)], 1, 2, pages) == [waited("e1")]
     assert saved_after([ASKED, PICKED, live(2)], 1, 2, pages) == []
-    overlapping = [ASKED, PICKED, CLOSED, {"kind": "undo", "undoes": "e2"}, live(2)]
+    overlapping = [
+        ASKED,
+        PICKED,
+        CLOSED,
+        {"kind": "undo", "undoes": "e2", "answered": False},
+        live(2),
+    ]
     assert saved_after(overlapping, 1, 2, pages) == [waited("e1")]
     reopened = [
         ASKED,
@@ -251,6 +258,7 @@ def test_a_version_is_read_under_its_own_document():
             "widget": "picks",
             "action": "choose",
             "detail": {"value": ["option-a"]},
+            "answered": True,
         },
         {
             "kind": "note",
@@ -331,6 +339,8 @@ def test_a_revision_takes_its_place_in_the_log_from_the_event_naming_its_bundle(
             response_reference(page_dir, asked),
             "--text",
             "The rollout flag, off by default.",
+            "--title",
+            "Thread title",
         ],
         catch_exceptions=False,
     )

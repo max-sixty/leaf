@@ -4,5 +4,6 @@ exit: 1
 
 stdout:
   error: >-
-    delivery no longer owns its page: <page>
+    delivery no longer owns its page: <page>; another session or Leaf version holds
+    it, and `leaf server start <page>` in an agent session takes it over
   findings: []

@@ -10,7 +10,8 @@ from interact_support import (
 )
 from model.test_native_watch import DIAGNOSTIC_QUIET_WINDOW_S, _subscriber
 
-from leaf import state as cleanup_model
+from leaf.base import state as cleanup_model
+from leaf.serving.user_views import USER_VIEWS
 
 
 @pytest.mark.parametrize("owner", ["page", "session"])
@@ -18,23 +19,23 @@ def test_a_page_subscription_hears_every_input_its_reading_reads(
     page_dir, tmp_path, monkeypatch, owner
 ):
     """A page's subscription watches only the directories its reading reads
-    (`reading.page_roots`), none with its tree, so the history beneath
+    (`page_inputs.page_roots`), none with its tree, so the history beneath
     `revisions/` costs it no watch and a process watching pages needs no recursive
     watcher.
     Each path the reading stamps, found by recording its stamps rather than from a
     list, is written in turn: every write wakes the subscription and moves the
     reading. A write beneath a revision, to a diagnostic or to a staging file does
     neither."""
-    from leaf import files
-    from leaf.file_bindings import bind_file
-    from leaf.served_state import reading
+    from leaf.base import files
+    from leaf.source import file_bindings, page_inputs
+    from leaf.source.file_bindings import bind_file
 
     record_claim(page_dir, id="reading-owner")
     cleanup_model.ensure_session("reading-owner", {"pid": os.getpid()})
     bound = tmp_path / "notes.txt"
     bound.write_text("hello\n")
     bind_file(page_dir, "notes", bound)
-    for tree in reading.TREES:
+    for tree in page_inputs.TREES:
         (page_dir / tree / "nested").mkdir(parents=True, exist_ok=True)
         (page_dir / tree / "nested" / "input.txt").write_text("authored")
     revision = page_dir / "revisions" / "r1-history"
@@ -45,14 +46,15 @@ def test_a_page_subscription_hears_every_input_its_reading_reads(
     stamped = []
     stamp = files.file_stamp
 
-    def recording(path):
+    def recording(path, **options):
         stamped.append(Path(path))
-        return stamp(path)
+        return stamp(path, **options)
 
     with monkeypatch.context() as stamps:
         stamps.setattr(files, "file_stamp", recording)
-        stamps.setattr(reading, "file_stamp", recording)
-        reading.page_reading(page_dir)
+        stamps.setattr(page_inputs, "file_stamp", recording)
+        stamps.setattr(file_bindings, "file_stamp", recording)
+        page_inputs.page_reading(page_dir)
     inputs = sorted({path for path in stamped if path.exists()})
     assert bound in inputs and page_dir / "revisions" in inputs
 
@@ -74,11 +76,11 @@ def test_a_page_subscription_hears_every_input_its_reading_reads(
             changes, generation = subscribe()
             while changes.wait(generation, DIAGNOSTIC_QUIET_WINDOW_S):
                 changes, generation = subscribe()
-            before = reading.page_reading(page_dir)
+            before = page_inputs.page_reading(page_dir)
             write()
             return (
                 changes.wait(generation, timeout),
-                reading.page_reading(page_dir) != before,
+                page_inputs.page_reading(page_dir) != before,
             )
 
         unheard = [
@@ -90,7 +92,7 @@ def test_a_page_subscription_hears_every_input_its_reading_reads(
         for path in (
             revision / "index.html",
             revision / "resources" / "module.js",
-            page_dir / "user-views.json",
+            USER_VIEWS.file(page_dir / "user-views.json"),
             page_dir / ".leaf-staging.tmp",
         ):
             path.touch()

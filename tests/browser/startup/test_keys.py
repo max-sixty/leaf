@@ -29,8 +29,8 @@ from browser.startup import (
     first_frame,
 )
 from browser.startup.test_readiness import answer_as_another_runtime
-from leaf import event_log as events_model
-from leaf.render_checks import asked_again, rendered, wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import asked_again, rendered, wait_until_ready
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -66,7 +66,7 @@ def test_history_dependent_keys_wait_for_the_first_read(browser, serve, command)
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "keep",
+            "emoji": "👍",
             "anchor": {"section": "target"},
         }
     )
@@ -99,7 +99,7 @@ def test_history_dependent_keys_wait_for_the_first_read(browser, serve, command)
         expect(page.locator(".lf-held-key")).to_have_text(["e", "1"])
         assert not any(
             event["kind"] == "undo"
-            or (event.get("token") == "keep" and event["id"] != "saved-reaction")
+            or (event.get("emoji") == "👍" and event["id"] != "saved-reaction")
             for event in events_model.read_events(serve.page_dir)
         )
     release()
@@ -144,7 +144,7 @@ def test_response_reaction_controls_wait_for_history(browser, serve, route):
     page.keyboard.press("c")
     expect(page.locator(".lf-fab-input")).to_be_focused()
     page.keyboard.press("Tab")
-    chip = page.locator('.lf-response-options .lf-react[data-lf-token="keep"]')
+    chip = page.locator('.lf-response-options .lf-react[data-lf-emoji="👍"]')
     expect(chip).to_be_visible()
     expect(chip).to_have_attribute("aria-disabled", "true")
     if route == "pointer":
@@ -167,7 +167,7 @@ def test_response_reaction_controls_wait_for_history(browser, serve, route):
     reactions = [
         event
         for event in events_model.read_events(serve.page_dir)
-        if event.get("token") == "keep"
+        if event.get("emoji") == "👍"
     ]
     assert len(reactions) == 1
     assert reactions[0]["anchor"]["section"] == "said"
@@ -230,7 +230,7 @@ def test_a_failed_first_read_stays_unpresented_across_the_retry_clock(browser, s
         "kind": "comment",
         "author": "user",
         "revision": 1,
-        "token": "keep",
+        "emoji": "👍",
         "anchor": {"section": "target"},
     }
     page = browser.new_page(viewport={"width": 1200, "height": 900})

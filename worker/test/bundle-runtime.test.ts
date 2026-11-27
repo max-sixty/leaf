@@ -96,7 +96,7 @@ describe("published runtime bundle", () => {
         `export const state = { revision: "${revision}" };`,
       );
       expect(
-        await readFile(join(layer, "runtime", "layer-client.js"), "utf8"),
+        await readFile(join(layer, "runtime", "transport", "layer-client.js"), "utf8"),
       ).toContain(revision);
     }
   });
@@ -131,13 +131,14 @@ describe("published runtime bundle", () => {
           [
             "import sys",
             "from pathlib import Path",
-            "from leaf.registry.storage import layer_record, selected",
-            "from leaf.revision_artifact import Resource, resource_type",
-            "from leaf.runtime_selection import serving_runtime",
+            "from leaf.source.layer import selected_layer",
+            "from leaf.source.registry.storage import layer_record",
+            "from leaf.source.revision_artifact import Resource, resource_type",
+            "from leaf.source.runtime_selection import serving_runtime",
             "page = Path(sys.argv[1])",
             "layer = {",
             "    path: Resource(data, resource_type(path))",
-            "    for path, data in selected(layer_record(page), page).files.items()",
+            "    for path, data in selected_layer(layer_record(page), page).files.items()",
             "}",
             "for path, resource in serving_runtime().resources(layer, {}).items():",
             "    target = page / path.lstrip('/')",
@@ -152,9 +153,11 @@ describe("published runtime bundle", () => {
       const output = join(directory, "bundled");
       await bundleLayer(runtime, "/published/layer", output);
       const bundled = await readFile(join(output, "leaf.js"), "utf8");
-      expect(await readFile(join(output, "runtime", "media.js"), "utf8")).toBeTruthy();
       expect(
-        await readFile(join(output, "runtime", "layer-client.js"), "utf8"),
+        await readFile(join(output, "runtime", "records", "media.js"), "utf8"),
+      ).toBeTruthy();
+      expect(
+        await readFile(join(output, "runtime", "transport", "layer-client.js"), "utf8"),
       ).toBeTruthy();
       const verifier = await readFile(
         fileURLToPath(new URL("../../dev/leaf_dev/website.js", import.meta.url)),

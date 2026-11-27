@@ -30,8 +30,8 @@ from render_harness import (
     write,
 )
 
-from leaf import render_checks as render_checks_model
-from leaf.leases import release_lease, take_wait_lease, waiter_lease_path
+from leaf.base.leases import release_lease, take_wait_lease, waiter_lease_path
+from leaf.source import render_checks as render_checks_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -63,7 +63,7 @@ def looked_since(page):
     page.wait_for_function("since => window.__lfAsked.news >= since + 2", arg=since)
 
 
-# The page's shared clock (`TICK_MS` in runtime/state-feed.js), which asks again after a
+# The page's shared clock (`TICK_MS` in runtime/host/state-feed.js), which asks again after a
 # failed read and otherwise only repaints.
 TICK_MS = 2000
 
@@ -410,6 +410,7 @@ def test_a_widget_presents_its_authored_state_offline_and_the_log_on_recovery(
             "widget": "options",
             "action": "choose",
             "detail": {"value": ["two"]},
+            "answered": True,
         },
     )
     page = browser.new_page(viewport={"width": 1200, "height": 900})
@@ -445,6 +446,7 @@ def test_a_widget_draws_its_authored_state_while_its_first_read_waits(browser, s
             "widget": "options",
             "action": "choose",
             "detail": {"value": ["two"]},
+            "answered": True,
         },
     )
     page = browser.new_page(viewport={"width": 1200, "height": 900})
@@ -454,10 +456,10 @@ def test_a_widget_draws_its_authored_state_while_its_first_read_waits(browser, s
     holding(page, held, 1, "the first state read")
     waiting = page.evaluate(
         """async () => {
-          const {widgetController} = await window.__lfWidgetApi();
+          const {controllerOf} = await window.__lfCheckApi();
           const options = document.querySelector('#options');
           await options.updateComplete;
-          const {state} = widgetController(options).read();
+          const {state} = controllerOf(options).read();
           return {
             verbs: Object.keys(state).sort(),
             chosen: state.choose.value,
@@ -651,8 +653,8 @@ window.fetch = (input, init = {}) => {
 @pytest.mark.parametrize(
     ("lost", "fails"),
     [
-        ("runtime/rendering.js", "once"),
-        ("runtime/rendering.js", "every time"),
+        ("runtime/base/rendering.js", "once"),
+        ("runtime/base/rendering.js", "every time"),
         ("theme.css", "once"),
     ],
 )

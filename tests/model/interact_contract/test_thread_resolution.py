@@ -17,42 +17,40 @@ from interact_support import (
     publish,
 )
 
-from leaf import delivery as delivery_model
-from leaf import event_contracts as event_contracts_model
-from leaf import event_log as events_model
-from leaf import events as event_folds_model
-from leaf import files as files_model
-from leaf import passages as passages_model
-from leaf import structure as structure_model
-from leaf import thread as thread_model
-from leaf.registry import storage as registry_storage
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.base import files as files_model
+from leaf.log import event_log as events_model
+from leaf.log import events as event_folds_model
+from leaf.records import event_contracts as event_contracts_model
+from leaf.source import passages as passages_model
+from leaf.source import reading as reading_model
+from leaf.source import structure as structure_model
+from leaf.source import vocabulary as vocabulary_model
 from model.interact_contract import declare_vocabulary, vocabulary
 
 
 def test_new_words_reopen_a_thread_without_settling_a_newer_user_turn(page_dir):
-    """Late answers keep their exact scope; marks and failure receipts stay closed."""
+    """Late answers keep their exact scope; a failure receipt stays closed."""
     publish(page_dir)
     append_carried_log_record(
         page_dir,
         {"kind": "comment", "id": "question", "author": "user", "text": "Why?"},
     )
     thread_model.cmd_resolve(page_dir, "question")
-    for message in (
-        {"author": "user", "token": "keep"},
+    append_carried_log_record(
+        page_dir,
         {
+            "kind": "reply",
+            "parent": "question",
             "author": "agent",
             "text": "Delivery failed",
             "failure": "unavailable",
             "responds": "question",
         },
-    ):
-        append_carried_log_record(
-            page_dir, {"kind": "reply", "parent": "question", **message}
-        )
-        threads = event_folds_model.build_threads(
-            events_model.read_events(page_dir), {}
-        )
-        assert threads["question"]["resolved"] is not None
+    )
+    threads = event_folds_model.build_threads(events_model.read_events(page_dir), {})
+    assert threads["question"]["resolved"] is not None
 
     answer = thread_model.post_reply(
         page_dir,
@@ -126,6 +124,7 @@ def test_late_answer_to_a_thread_widget_reopens_without_repeating_its_obligation
                 "widget": "thread-picks",
                 "action": "choose",
                 "detail": {"value": ["thread-option"]},
+                "answered": True,
             }
         ).encode(),
     )
@@ -177,6 +176,7 @@ PICKED = {
     "widget": "sug-a",
     "action": "decide",
     "detail": {"outcome": "accept"},
+    "answered": True,
 }
 
 
@@ -185,6 +185,7 @@ TURNED_DOWN = {
     "widget": "sug-a",
     "action": "decide",
     "detail": {"outcome": "reject"},
+    "answered": True,
 }
 
 
@@ -246,7 +247,7 @@ def test_the_answer_that_settles_a_thread_acknowledges_what_it_said():
 
     assert unread() == ["e2"]
     assert unread(PICKED) == []
-    assert unread(PICKED, {"kind": "undo", "undoes": "e3"}) == ["e2"]
+    assert unread(PICKED, {"kind": "undo", "undoes": "e3", "answered": False}) == ["e2"]
     assert unread(PICKED, {**edit, "text": "Try sug-a first."}, TURNED_DOWN) == ["e4"]
 
 
@@ -279,11 +280,11 @@ def test_an_answer_the_user_took_back_leaves_its_thread_open(page_dir):
             },
         },
     )
-    spk = passages_model.SourceReading(
+    spk = reading_model.SourceReading(
         structure_model.SourceDocument(
             (page_dir / "index.html").read_text(encoding="utf-8")
         ),
-        registry_storage.require_registry(page_dir),
+        vocabulary_model.require_registry(page_dir),
     ).spoken
     threads = event_folds_model.build_threads(
         events_model.read_events(page_dir), passages_model.enclosing_of(spk)
@@ -339,7 +340,8 @@ def test_taking_back_a_reject_lets_the_accept_it_superseded_stand_again():
     holding nothing that says so."""
     assert settlement(ASKED, PICKED, TURNED_DOWN) is None
     # The reject is the third event written, so `e3` is what the undo names.
-    taken_back = {"kind": "undo", "undoes": "e3"}
+    # The accept still stands, so the suggestion stays decided.
+    taken_back = {"kind": "undo", "undoes": "e3", "answered": True}
     assert settlement(ASKED, PICKED, TURNED_DOWN, taken_back)["detail"] == {
         "outcome": "accept"
     }
@@ -364,10 +366,10 @@ def test_containment_reads_the_same_with_a_vocabulary_and_without_one(page_dir):
     whole reading and the distinction this rests on would not exist. The diagram's
     data body is the element whose words the vocabulary changes."""
     document = structure_model.SourceDocument(FLOW_PAGE)
-    registry = registry_storage.require_registry(page_dir)
-    full = passages_model.SourceReading(document, registry).spoken
+    registry = vocabulary_model.require_registry(page_dir)
+    full = reading_model.SourceReading(document, registry).spoken
     assert passages_model.enclosing_ids(document) == passages_model.enclosing_of(full)
-    bare = passages_model.SourceReading(document, {}).spoken
+    bare = reading_model.SourceReading(document, {}).spoken
     assert any(full[wid].words != bare[wid].words for wid in full)
 
 
@@ -407,8 +409,8 @@ def test_a_thread_answer_reads_the_same_wherever_it_is_folded(page_dir):
             "restated": ["c1"],
         },
     )
-    spk = passages_model.SourceReading(
-        document, registry_storage.require_registry(page_dir)
+    spk = reading_model.SourceReading(
+        document, vocabulary_model.require_registry(page_dir)
     ).spoken
     assert "sug-a" in spk["c1"].within  # the namesake really is inside the widget
     folds = [passages_model.enclosing_of(spk), passages_model.enclosing_ids(document)]
@@ -451,7 +453,7 @@ def test_independent_state_does_not_reopen_an_answer_even_after_retirement(
     (page_dir / "index.html").write_text(source)
     append_carried_log_record(page_dir, dict(COMMENT))
     publish(page_dir)
-    from leaf.files import latest_revision
+    from leaf.base.files import latest_revision
 
     revision = latest_revision(page_dir)
 
@@ -462,6 +464,8 @@ def test_independent_state_does_not_reopen_an_answer_even_after_retirement(
             "widget": "proposal",
             "action": action,
             "detail": detail,
+            # A decided suggestion says its question is answered.
+            "answered": True,
             "attempt": attempt,
         }
         status, body = fetch(f"{server}/api/event", data=json.dumps(command).encode())
@@ -507,10 +511,10 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
     """Each verb is its own coordinate, so another verb on the deciding widget stands
     beside the decision: neither the thread it closed nor its membership moves."""
 
-    from leaf.projection import page_reading
-    from leaf.thread_context import thread_memberships
+    from leaf.log.projection import page_reading
+    from leaf.log.thread_context import thread_memberships
 
-    registry = registry_storage.require_registry(page_dir)
+    registry = vocabulary_model.require_registry(page_dir)
     registry = deepcopy(registry)
     registry["lf-suggestion"]["verbs"]["label"] = {
         "detail": {"type": "object"},
@@ -525,6 +529,7 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
         "widget": "sug-a",
         "action": "label",
         "detail": {},
+        "answered": True,
     }
     html = '<lf-suggestion id="sug-a" resolves="c1"><lf-new><p>Proposed</p></lf-new></lf-suggestion>'
     stated = ModelPage(html, registry=registry)
@@ -537,7 +542,7 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
     events.append({**accepted, "id": "accept1", "seq": 2})
     events.append(event_contracts_model.admitted_event(stated, events, event))
     page = page_reading(
-        passages_model.SourceReading(structure_model.SourceDocument(html), registry),
+        reading_model.SourceReading(structure_model.SourceDocument(html), registry),
         events,
         1,
     )
@@ -554,7 +559,7 @@ def test_a_gesture_at_a_coordinate_reaches_only_the_answers_still_in_force_there
     closed, and its undo the same, until that answer is taken back or a version
     retracts what it rested on: after either, the thread it closed is no longer the
     later gesture's, as a revised suggestion that resolves another thread shows."""
-    from leaf.thread_context import thread_memberships
+    from leaf.log.thread_context import thread_memberships
 
     def decide(id, outcome, answer, revision=1, depends=("sug-a",)):
         return {
@@ -651,8 +656,8 @@ def test_every_change_to_a_threads_resolution_reaches_its_membership():
     """Membership names every thread whose resolution an event changes, as
     `build_threads` reads it before and after that event, over every three-step
     history of answers, non-answers, undos, and version notes at one coordinate."""
-    from leaf.events import build_threads
-    from leaf.thread_context import thread_memberships
+    from leaf.log.events import build_threads
+    from leaf.log.thread_context import thread_memberships
 
     within = {"x": ("w", "x"), "y": ("w", "y")}
     comments = [

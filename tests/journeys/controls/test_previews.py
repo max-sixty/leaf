@@ -26,7 +26,7 @@ from render_harness import (
     told,
 )
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 
 
 def test_a_focus_preview_adds_to_a_link_s_own_description(browser, serve):
@@ -266,7 +266,7 @@ def test_a_thread_s_words_where_something_else_takes_the_pointer_preview_that(
     engine, request, serve
 ):
     """A thread's words preview the thread only where nothing else there takes the
-    pointer (widget-elements.js, `aimableAt`). Words inside a link, or all of a link's,
+    pointer (dom/widget-elements.js, `aimableAt`). Words inside a link, or all of a link's,
     preview the link; in a titled button, only the title the browser shows; a gloss's
     words, its explanation; and words in a card that says what it holds, the card.
     Words in plain prose preview their thread."""
@@ -527,7 +527,7 @@ def test_a_message_s_parts_follow_its_accepted_edit(browser, serve):
     page = open_page(browser, url)
     view = open_panel_thread(page, thread)
     part = """async () => {
-      const {partOver} = await import('/runtime/thread/placement.js');
+      const {partOver} = await import('/runtime/records/thread/placement.js');
       const words = [...document.querySelectorAll('.lf-msg-body p')]
         .find((p) => p.textContent.includes('Words after the heading'));
       return partOver(words)?.textContent.trim() ?? null;

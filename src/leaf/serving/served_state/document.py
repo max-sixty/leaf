@@ -1,0 +1,106 @@
+"""Document-scoped browser projection and undo readings."""
+
+from leaf.log.events import UndoReading, action_retracted
+from leaf.log.gesture_words import GestureWords
+from leaf.log.projection import PageReading, StateProjection
+from leaf.records.document_reading import DocumentReading
+from leaf.serving.served_state.wire import browser_projection
+from leaf.source.registry.kernel import kinds_declaring
+
+
+def browser_document(page: PageReading) -> dict:
+    """A revision's document as a view serves it: its widget state's projection,
+    under the registry it captured, which a version comparison folds too."""
+    return {
+        "revision": page.revision,
+        "projection": browser_projection(
+            page.projection,
+            scope="document",
+            within=page.within,
+            floors=page.floors,
+        ),
+    }
+
+
+def browser_undo_candidates(
+    events: list,
+    document: DocumentReading,
+    thread_projection: StateProjection,
+    *,
+    undo_reading: UndoReading,
+    words: GestureWords,
+) -> list[dict]:
+    """The user's gestures this document can take back, newest first.
+
+    This is the one undo list: ⌘Z takes its first entry and a widget's Undo offers
+    the entries naming that widget, so the browser applies no rule of its own. Beyond
+    what the append door refuses (`UndoReading`), an entry must paint something on
+    this document. An action stands where its widget and verb are in this document's
+    projection or the thread
+    markup's, and a page action no longer stands once a later revision restated what
+    it rests on. A decision carried from an earlier revision is otherwise as
+    undoable as one made on this one; where this revision's markup places its unit,
+    the door refuses it (`absorbed`).
+
+    ⌘Z takes back the user's newest gesture or nothing, so the head carries
+    `newest` only when it is that gesture: the newest of the user's events that
+    is neither bookkeeping, an undo, nor already withdrawn. A gesture the door
+    refuses or this document no longer paints, such as a move a later revision's
+    markup places, ends the walk rather than letting ⌘Z reach past it. Every entry
+    stays on the list for the exact control that names it, as a reaction's chip or
+    mark does, but a message with words, which no exact control names, is listed only
+    while it is the newest gesture: an older one is deleted by rewriting it to no
+    words (events.md, "Undo").
+
+    The head carries `gesture`, what an action did in its own document's words
+    (`GestureWords.gesture`), so `z` names what it takes in every tab and after a
+    reload. Only the head pays for that reading: an exact control names the
+    gesture it shows, and the browser words the other kinds from what it already
+    holds (records/undo.js)."""
+    candidates = []
+    withdrawn = undo_reading.withdrawn
+    bookkeeping = kinds_declaring("bookkeeping")
+    newest = next(
+        (
+            event["id"]
+            for event in reversed(events)
+            if event.get("author") == "user"
+            and event["kind"] != "undo"
+            and event["kind"] not in bookkeeping
+            and event["id"] not in withdrawn
+        ),
+        None,
+    )
+    for event in reversed(events):
+        if (
+            event.get("author") != "user"
+            or event["kind"] == "undo"
+            or event["id"] in withdrawn
+        ):
+            continue
+        if undo_reading.error({"undoes": event["id"]}):
+            continue
+        if (
+            event["kind"] in kinds_declaring("message")
+            and "emoji" not in event
+            and event["id"] != newest
+        ):
+            continue
+        item: dict = {"event": event}
+        if event["kind"] == "action":
+            if event["id"] in document.projection.classified:
+                if action_retracted(event, document.floors, document.within):
+                    continue
+                coordinate, _entry = document.projection.classified[event["id"]]
+            elif event["id"] in thread_projection.classified:
+                coordinate, _entry = thread_projection.classified[event["id"]]
+            else:
+                continue
+            item["coordinate"] = list(coordinate)
+        candidates.append(item)
+    if candidates and candidates[0]["event"]["id"] == newest:
+        head = candidates[0]
+        head["newest"] = True
+        if head["event"]["kind"] == "action":
+            head["gesture"] = words.gesture(head["event"])
+    return candidates

@@ -6,10 +6,10 @@ from click.testing import CliRunner
 from interact_support import write_revision
 from model_folds import leaf_page
 
-from leaf.cli import cli
-from leaf.files import list_revisions
-from leaf.page_inspection import cmd_inspect
-from leaf.user_views import observe_user_view
+from leaf.base.files import list_revisions
+from leaf.commands.cli import cli
+from leaf.serving.page_inspection import cmd_inspect
+from leaf.serving.user_views import observe_user_view
 from model.test_user_views import report as browser_report
 
 

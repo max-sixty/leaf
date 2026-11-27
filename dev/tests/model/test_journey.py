@@ -18,10 +18,10 @@ from interact_support import STATED_TIMEOUT
 from playwright.sync_api import BrowserContext
 from playwright.sync_api import Page as BrowserPage
 
-from leaf import harness
-from leaf.harness import NUDGE_WORDS
-from leaf.hook_transport import inline_context
-from leaf.interaction_log import read_interactions
+from leaf.agents.delivery import inline_context
+from leaf.base import harness
+from leaf.base.harness import NUDGE_WORDS
+from leaf.log.interaction_log import read_interactions
 from leaf_dev import ROOT
 from leaf_dev.commands.journey import _claude_code as journey_claude_code
 from leaf_dev.commands.journey import _journey as journey
@@ -121,7 +121,7 @@ def test_release_publication_requires_the_marker_in_board_markup():
 
 
 def test_release_publication_ignores_rebased_resource_urls_in_board():
-    from leaf.revision_delivery import rebase_document
+    from leaf.serving.revision_delivery import rebase_document
 
     marker = "71b197da"
     authored = '<main><img src="/page/chart.svg" alt="Current chart"></main>'
@@ -1043,8 +1043,8 @@ def test_the_release_ask_over_http_is_the_shared_check(tmp_path, monkeypatch):
     check as in a browser waits on its turn, title and answer, requiring a published
     revision naming the release; it reads nothing a browser would. A step's comment
     is posted on its section."""
-    from leaf.event_log import append_event, read_events
-    from leaf.thread import post_reply, title_event
+    from leaf.agents.thread import post_reply, title_event
+    from leaf.log.event_log import append_event, read_events
     from leaf_dev.arms import run_leaf, serving
     from leaf_dev.review_scenario import post, prepare
 
@@ -1119,7 +1119,7 @@ def test_a_harness_journey_over_http_starts_no_browser(monkeypatch):
     entered = []
 
     @contextmanager
-    def target_session(browser, target, release, *, sandbox, preview):
+    def target_session(browser, target, release, *, sandbox):
         entered.append(browser)
         end = (
             journey.HttpEnd("http://127.0.0.1:1/?t=t", Path("page"), time.sleep)

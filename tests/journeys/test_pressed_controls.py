@@ -10,7 +10,6 @@ control in the view. A thread's card in the margin offers the same gestures, but
 takes away the control it was pressed on, so it leaves nothing to check."""
 
 import pytest
-from browser.threads import choose_threads_in_panel
 from render_harness import (
     open_threads,
     panel_settled,
@@ -19,6 +18,7 @@ from render_harness import (
 )
 
 from journeys.widgets.test_pressed_controls import open_served, press_each_control
+from leaf_dev.browser import choose_threads_in_panel
 from leaf_dev.example_data import authored_sources
 
 # A view of the panel and the actions on what it shows, such as a thread's Resolve,

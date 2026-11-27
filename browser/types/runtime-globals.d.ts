@@ -4,13 +4,8 @@ interface DocumentInputs {
   readonly textBox: string;
   typesText(node: EventTarget | null | undefined): boolean;
   takesLetters(node: EventTarget | null | undefined): boolean;
-  /** Which state a reload carries for a control (document-inputs.js). */
-  holdsValue(
-    node: Element,
-  ): node is
-    | HTMLInputElement
-    | HTMLTextAreaElement
-    | HTMLElementTagNameMap["leaf-text"];
+  /** Which state a reload carries for a control (base/document-inputs.js). */
+  holdsValue(node: Element): node is HTMLElement & { value: string };
   holdsTick(node: Element): node is HTMLInputElement;
   holdsOpen(node: Element): node is HTMLDetailsElement;
   readonly count: number;
@@ -18,13 +13,13 @@ interface DocumentInputs {
   readonly entered: number;
   holdKeys(
     hold: {
-      holds(event: KeyboardEvent): boolean;
+      holds(event: Event): boolean;
       /** `stepped`: the input is a step Back or Forward the browser says the user
        * took; otherwise it is an act within the entry. */
       counted(stepped: boolean): void;
     } | null,
   ): void;
-  /** Whether the user has changed `node` in this document (document-inputs.js). */
+  /** Whether the user has changed `node` in this document (base/document-inputs.js). */
   edited(node: Element): boolean;
   observe(read: (event: Event) => void): () => boolean;
 }
@@ -38,13 +33,13 @@ interface DocumentInputs {
 // Leaf's prepaint installs each required Window capability before module loading.
 // Element metadata remains optional because ordinary elements do not carry it.
 
-/** Attributes and custom properties an element wears as one set (`dress.js`). */
+/** Attributes and custom properties an element wears as one set (`dom/dress.js`). */
 interface LeafDress {
   attributes: Record<string, string | null>;
   properties: Record<string, string>;
 }
 
-/** A tab or user store that never throws on an unavailable backing (`storage.js`). */
+/** A tab or user store that never throws on an unavailable backing (`state/storage.js`). */
 interface LeafStore {
   read(key: string): { available: boolean; value: string | null };
   get(key: string): string | null;
@@ -53,7 +48,7 @@ interface LeafStore {
   keys(): string[];
 }
 
-/** Whether a margin element layout or breakout reading changed what it writes (`content-layout.js`). */
+/** Whether a margin element layout or breakout reading changed what it writes (`readings/content-layout.js`). */
 interface LeafReading {
   changed: boolean;
 }
@@ -98,10 +93,12 @@ type HeldWords = readonly (string | { readonly key: string })[];
 /** A sample child's channel to the page that embeds it (`bootstrap.js`). */
 interface LeafSampleBridge {
   ready: Promise<void>;
-  readonly settings: import("../runtime/sample-protocol.js").SampleSettings;
-  send(value: import("../runtime/sample-protocol.js").ChildMessage): void;
+  readonly settings: import("../runtime/base/sample-protocol.js").SampleSettings;
+  send(value: import("../runtime/base/sample-protocol.js").ChildMessage): void;
   receive(
-    callback: (data: import("../runtime/sample-protocol.js").ParentMessage) => void,
+    callback: (
+      data: import("../runtime/base/sample-protocol.js").ParentMessage,
+    ) => void,
   ): void;
   present(): void;
   /** Set once the bootstrap has built what a connected sample wears. */
@@ -119,7 +116,7 @@ interface Window {
       selector?: string,
     ): Element | null | undefined;
     keep(holder: Element, member: Element | null, leaving?: Element | null): void;
-    /** The runtime's showing of a member something reveals, once it loads (views.js). */
+    /** The runtime's showing of a member something reveals, once it loads (records/views.js). */
     reveal?: (holder: Element, member: Element) => void;
   };
   lfLinks: {
@@ -133,7 +130,18 @@ interface Window {
     tabStore: LeafStore;
     userStore: LeafStore;
     /** The handoff the reload that loaded this document handed it (prepaint.js). */
-    readonly handoff: { readonly typing?: unknown } | null;
+    readonly handoff: {
+      readonly typing?: unknown;
+      readonly draftEditing?: { readonly context: string } | null;
+    } | null;
+    /** The carried record of the control of the page's own the handoff puts focus back
+     * in, which the key hold types the user's words into where it holds a caret
+     * (prepaint.js). */
+    readonly handedFocus: {
+      id: string;
+      value?: string;
+      caret?: [number, number, ...unknown[]];
+    } | null;
     /** Whether the handoff puts the user back where they were, here (prepaint.js). */
     placesUser(): boolean;
     /** What this document hands on as it goes from now on (prepaint.js). */
@@ -166,49 +174,49 @@ interface HTMLElement {
 interface Element {
   readonly updateComplete?: Promise<unknown>;
   cloneNode(deep?: boolean): Element;
-  /** Package-owned address resolution for generated content (anchor-resolution.js). */
+  /** Package-owned address resolution for generated content (readings/anchor-resolution.js). */
   lfDataDatum?(key: string, options?: { outdated?: boolean }): Element | null;
   lfDatumLabel?(key: string): string | null;
   lfElementsFor?(key: string): Iterable<Element> | null;
   lfRevealDatum?(key: string): void | null | Promise<unknown>;
   /** The keys a widget binds while the user is in this element, as data Leaf reads when
-   * the element says they changed (`lf-commands`; keyboard/scopes.js): a scope's
+   * the element says they changed (`lf-commands`; dom/keyboard/scopes.js): a scope's
    * title, rows and options. */
   lfCommands?:
-    | (import("../runtime/keyboard/scopes.js").ScopeOptions & {
+    | (import("../runtime/base/command-declaration.js").ScopeOptions & {
         title: string | null;
-        rows: readonly import("../runtime/keyboard/bindings.js").Command[];
+        rows: readonly import("../runtime/dom/keyboard/bindings.js").Command[];
       })
     | null
     | undefined;
-  /** The text a block marked `data-lf-copy` copies (`code-copy.js`). */
+  /** The text a block marked `data-lf-copy` copies (`records/code-copy.js`). */
   lfCopy?: (() => string) | undefined;
   /** The toolbar a widget draws over a block marked `data-lf-copy`, where Leaf stands
-   * the block's Copy as the last mark (`code-copy.js`). */
+   * the block's Copy as the last mark (`records/code-copy.js`). */
   lfBar?: HTMLElement | undefined;
   /** What pointing at this element adds, asked once as its preview shows on a route
-   * (`preview.js`): null adds nothing, false shows nothing here or around it. */
-  lfPreview?: import("../runtime/preview.js").Read;
+   * (`annotations/preview.js`): null adds nothing, false shows nothing here or around it. */
+  lfPreview?: import("../runtime/base/preview-declaration.js").Read;
   /** A visual's parts where its `data-lf-part` marks don't say them, read as each
-   * reading of the visual asks (`visual-parts.js`). */
-  lfParts?: import("../runtime/visual-parts.js").Parts | undefined;
+   * reading of the visual asks (`state/visual-parts.js`). */
+  lfParts?: import("../runtime/state/visual-parts.js").Parts | undefined;
 }
 
 interface HTMLScriptElement {
   /** A sample child's private port, owned by the bootstrap element until the entry starts. */
   lfDocumentPort?: MessagePort;
   // The entry's scene readings, for render checks (`leaf.js`, `validationEntry`).
-  lfReadiness?: typeof import("../runtime/presentation.js").pageReadiness;
-  lfArrivalsOutstanding?: typeof import("../runtime/presentation.js").arrivalsOutstanding;
-  lfRenderingState?: typeof import("../runtime/rendering.js").renderingState;
+  lfReadiness?: typeof import("../runtime/readings/presentation.js").pageReadiness;
+  lfArrivalsOutstanding?: typeof import("../runtime/readings/presentation.js").arrivalsOutstanding;
+  lfRenderingState?: typeof import("../runtime/base/rendering.js").renderingState;
   lfObserveQueuedWork?: typeof import("../runtime/lib/queued-work.js").observeQueuedWork;
-  lfObserveWidgetPreparations?: typeof import("../runtime/rendering.js").observePreparations;
-  lfNativeLayers?: typeof import("../runtime/keyboard/layer-stack.js").nativeLayers;
-  lfFloatingSelections?: typeof import("../runtime/annotation-overlay/floating.js").floatingSelections;
+  lfObserveWidgetPreparations?: typeof import("../runtime/base/rendering.js").observePreparations;
+  lfNativeLayers?: typeof import("../runtime/dom/keyboard/layer-stack.js").nativeLayers;
+  lfFloatingSelections?: typeof import("../runtime/annotations/annotation-overlay/floating.js").floatingSelections;
 }
 
 interface Window {
-  lfMove?: typeof import("../runtime/dom-move.js").move;
+  lfMove?: typeof import("../runtime/dom/dom-move.js").move;
 
   /** The sample bridge, kept across a sample child's document swaps. */
   lfSampleBridge?: LeafSampleBridge;
@@ -216,37 +224,40 @@ interface Window {
 
 /** The runtime's own elements, by tag, as each module defines it. */
 interface HTMLElementTagNameMap {
-  "leaf-floating-panel": import("../runtime/floating-panel.js").FloatingPanelElement;
-  "leaf-composition-field": import("../runtime/composing/input.js").CompositionFieldElement;
-  "leaf-text": import("../runtime/composing/text-field.js").LeafTextElement;
-  "leaf-margin-cluster": import("../runtime/annotation-overlay/margin-cluster-view.js").MarginClusterViewElement;
+  "leaf-floating-panel": import("../runtime/panel/floating-panel.js").FloatingPanelElement;
+  "leaf-composition-field": import("../runtime/annotations/composing/input.js").CompositionFieldElement;
+  "leaf-text": import("../runtime/annotations/composing/text-field.js").LeafTextElement;
+  "leaf-margin-cluster": import("../runtime/annotations/annotation-overlay/margin-cluster-view.js").MarginClusterViewElement;
 }
 
 // The events Leaf dispatches with a detail, by where they are heard.
 
 interface WindowEventMap {
-  /** A page or module could not start (`prepaint.js`, `fault`). */
+  /** A page or module could not start (`prepaint.js`, `fault`). A page's own script
+   * may declare it with no detail. */
   "lf-startup-failed": CustomEvent<{
     reason?: string;
     error?: unknown;
     page?: boolean;
-  }>;
+  } | null>;
   /** A widget's words for a listener, which Leaf says in its live region
    * (`lib/widget-events.js`, `ANNOUNCE`): the words, or the words and the command rows
-   * whose keys Leaf names after them (`notifications.js`). */
+   * whose keys Leaf names after them (`transport/notifications.js`). */
   "lf-announce": CustomEvent<
-    | import("../runtime/voice.js").Words
+    | import("../runtime/base/voice.js").Words
     | {
         words: string;
-        rows: readonly import("../runtime/keyboard/bindings.js").Command[];
+        rows: readonly import("../runtime/dom/keyboard/bindings.js").Command[];
       }
   >;
   /** Where a step of a widget's own walk landed, which Leaf's panel says, or null
    * where the user has left that stop (`lib/widget-events.js`, `WALK`;
-   * `walk-position.js`). */
-  "lf-walk": CustomEvent<import("../runtime/walk-position.js").SaidPlace | null>;
+   * `records/walk-position.js`). */
+  "lf-walk": CustomEvent<
+    import("../runtime/records/walk-position.js").SaidPlace | null
+  >;
   /** A widget's words for something the user did that has not taken, which Leaf keeps
-   * in its Errors list (`errors.js`). */
+   * in its Errors list (`transport/errors.js`). */
   "lf-error": CustomEvent<string>;
   /** The prepaint's first startup fault, said once (`bootstrap.js`, `recover`). */
   "lf-startup-fault": CustomEvent<{
@@ -256,7 +267,7 @@ interface WindowEventMap {
 }
 
 interface DocumentEventMap {
-  /** A command ran, with the words it was invoked under (`keyboard/dispatch.js`). */
+  /** A command ran, with the words it was invoked under (`dom/keyboard/dispatch.js`). */
   "lf-command-invoked": CustomEvent<{
     id: string;
     binding: unknown;
@@ -273,7 +284,12 @@ interface DocumentEventMap {
       ready(event: KeyboardEvent): boolean;
       keep(): boolean;
     } & (
-      | { keys?: never; pressed?: never; pause?: never; release?: never }
+      | {
+          keys?: never;
+          pressed?: never;
+          pause?: never;
+          release?: never;
+        }
       | {
           keys: readonly KeyboardEvent[];
           /** The first key leaves the run as the controller presses it. */
@@ -286,15 +302,15 @@ interface DocumentEventMap {
   >;
   /** The floating panel's offer of its field to say the bootstrap's held keys in, null
    * once none are shown, and to take the words written in the served row's field
-   * (`bootstrap.js`, `floating-panel.js`). */
+   * (`bootstrap.js`, `panel/floating-panel.js`). */
   "lf-held-keys-seat": CustomEvent<{
     show(words: HeldWords | null): void;
     write(box: HTMLTextAreaElement): void;
   }>;
-  /** A sample child's request to scroll the page along from its frame (`sample.js`). */
+  /** A sample child's request to scroll the page along from its frame (`host/sample.js`). */
   "lf-sample-step": CustomEvent<
     Extract<
-      import("../runtime/sample-protocol.js").ChildStatus,
+      import("../runtime/base/sample-protocol.js").ChildStatus,
       { type: "step" }
     >["detail"]
   >;
@@ -305,8 +321,12 @@ interface DocumentEventMap {
   /** A hold the user has on something in an element, until `complete` settles
    * (`lib/widget-events.js`, `HOLD`). */
   "lf-hold": Event & { complete?: PromiseLike<unknown> };
-  /** An action a widget asks Leaf to record, and one it asks Leaf to take back; Leaf
-   * sets `delivery` on each it sends (`widget-controller.js`). */
+}
+
+interface ElementEventMap {
+  /** An action a widget asks Leaf to record, and one it asks Leaf to take back, each
+   * heard on the widget's own element; Leaf sets `delivery` on each it sends
+   * (`host/widget-controller.js`, `hearRecords`). */
   "lf-action": CustomEvent<{
     verb: string;
     detail?: Record<string, unknown>;
@@ -319,21 +339,23 @@ interface DocumentEventMap {
 }
 
 // TypeScript's DOM library lacks the platform's close watcher (HTML, "Close requests
-// and close watchers"), which `keyboard/close-requests.js` holds; only what it uses.
+// and close watchers"), which `dom/keyboard/close-requests.js` holds; only what it uses.
 interface CloseWatcher extends EventTarget {
   destroy(): void;
 }
 declare var CloseWatcher: { prototype: CloseWatcher; new (): CloseWatcher };
 
 interface Window {
-  SpeechRecognition?: new () => import("../runtime/composing/dictation.js").Recognition;
-  webkitSpeechRecognition?: new () => import("../runtime/composing/dictation.js").Recognition;
+  SpeechRecognition?: new () => import("../runtime/annotations/composing/dictation.js").Recognition;
+  webkitSpeechRecognition?: new () => import("../runtime/annotations/composing/dictation.js").Recognition;
 }
 
 interface CustomElementConstructor {
   answerWords?: (value: unknown, element: Element) => unknown;
+  /** Whether the widget's question is answered as `state` stands (`awaits`). */
+  answered?: (state: import("./domain.js").WidgetState, element: Element) => unknown;
   /** How a revision reaches the widget while it stands in the page: `"members"` has
-   * Leaf edit inside its direct authored children in place (`version.js`,
+   * Leaf edit inside its direct authored children in place (`features/version.js`,
    * `reachesMembers`). A class field's literal is typed `string`, so this is too. */
   lfPatch?: string;
 }
@@ -396,7 +418,7 @@ interface DocumentEventMap {
 }
 
 interface DocumentEventMap {
-  "lf-drafts": CustomEvent<import("../runtime/drafts.js").DraftNews>;
+  "lf-drafts": CustomEvent<import("../runtime/records/drafts.js").DraftNews>;
 }
 
 // Cloning an SVG node preserves its native element namespace, not custom state.
@@ -407,11 +429,13 @@ interface SVGElement {
 interface Element {
   /** A package's declared thread surface, read after its upgrade. */
   threadOutlets?(
-    ...args: Parameters<import("../runtime/thread/surfaces.js").ThreadOutletSelector>
-  ): ReturnType<import("../runtime/thread/surfaces.js").ThreadOutletSelector>;
+    ...args: Parameters<
+      import("../runtime/records/thread/surfaces.js").ThreadOutletSelector
+    >
+  ): ReturnType<import("../runtime/records/thread/surfaces.js").ThreadOutletSelector>;
   /** On an outlet a widget returns for itself: the words of the second send the comment
    * box offers there, whose comment holds the widget while its thread is open
-   * (`composing/surface.js`). */
+   * (`annotations/composing/surface.js`). */
   lfHold?: string;
 }
 
@@ -432,10 +456,10 @@ interface Navigation {
 // Overlay controls retain the immutable reading they currently present.
 interface Element {
   lfEntry?:
-    | import("../runtime/annotation-overlay/margin-cluster-view.js").MarginEntry
+    | import("../runtime/annotations/annotation-overlay/margin-cluster-view.js").MarginEntry
     | undefined;
   lfFirstSpilledOption?:
-    | import("../runtime/annotation-overlay/margin-cluster-view.js").Item
+    | import("../runtime/annotations/annotation-overlay/margin-cluster-view.js").Item
     | undefined;
 }
 
@@ -446,7 +470,7 @@ interface DocumentEventMap {
 }
 
 interface WindowEventMap {
-  /** An element's `lfCommands`, or what its rows read, changed (`keyboard/scopes.js`);
+  /** An element's `lfCommands`, or what its rows read, changed (`dom/keyboard/scopes.js`);
    * `within` says every scope at or under it reads again. */
   "lf-commands": CustomEvent<{ within?: boolean } | null>;
 }
@@ -469,6 +493,6 @@ interface DocumentOrShadowRoot {
 
 interface Element {
   lfTarget?: Element | null | undefined;
-  lfChoice?: import("../runtime/margin-model.js").ReadingChoice | undefined;
+  lfChoice?: import("../runtime/features/margin-model.js").ReadingChoice | undefined;
   lfTakeFocus?: boolean;
 }

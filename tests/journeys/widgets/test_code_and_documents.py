@@ -16,8 +16,8 @@ from render_harness import (
     write,
 )
 
-from leaf import data as data_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.records import page_data as page_data_model
+from leaf.source.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -77,7 +77,7 @@ def test_a_long_text_document_draws_the_lines_in_view_and_keeps_the_rest_whole(
             "</lf-text-document>",
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "log-text", text)
+    page_data_model.cmd_data_set(serve.page_dir, "log-text", text)
     page = open_page(request.getfixturevalue(engine), url)
     assert page.locator("#log code").text_content() == text
     expect(page.locator("#log .lf-text-document-run")).to_have_count(8)

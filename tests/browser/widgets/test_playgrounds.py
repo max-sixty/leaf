@@ -31,8 +31,9 @@ from browser.threads import open_panel_thread
 from browser.widgets import (
     PLAYGROUND_PAGE,
 )
-from leaf import event_log as events_model
-from leaf.render_checks import wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import wait_until_ready
+from leaf_dev.browser import text_field
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -1773,9 +1774,7 @@ def test_a_comment_names_the_playground_member_it_points_at(browser, serve, subt
     page.mouse.down()
     page.mouse.up()
     page.keyboard.up("Alt")
-    field = page.get_by_role(
-        "textbox", name=re.compile(r"^Comment on .* · Reply, Comment$")
-    )
+    field = text_field(page, name=re.compile(r"^Comment on .* · Reply, Comment$"))
     expect(field).to_be_focused()
     page.keyboard.type("Could this say less?")
     with sending(page, "the comment on the option"):
@@ -1879,9 +1878,11 @@ def test_a_choice_made_while_the_settings_hold_a_retired_field_reads_as_chosen(
             "widget": "notification-playground",
             "action": "tune",
             "detail": {"values": {**values, "retired": "kept"}},
+            # A tune answers nothing until the choice that follows it.
+            "answered": False,
         },
     )
-    assert response.ok
+    assert response.ok, response.text()
     wait_for(
         lambda: playground.evaluate(
             "root => root.state?.tune?.detail?.values?.retired"

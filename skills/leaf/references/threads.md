@@ -8,27 +8,42 @@ for a diagram or image, a declared part for one box within a visual, or nothing 
 the page as a whole:
 
 ```bash
-leaf thread create <page> --quote "<passage in the current page>" --obligation --text "…?"
-leaf thread create <page> --section <element-id> --text "…"
-leaf thread create <page> --section <diagram-id> --part node:<source-id> --text "…"
-leaf thread create <page> --obligation --text "…?"
+leaf thread create <page> --quote "<passage in the current page>" --title "…" --obligation --text "…?"
+leaf thread create <page> --section <element-id> --title "…" --text "…"
+leaf thread create <page> --section <visual-id> --part <part-id> --title "…" --text "…"
+leaf thread create <page> --title "…" --obligation --text "…?"
 ```
 
-For a diagram, percent-encode the entire source id in the part token:
-`node:Line%20Item` names `Line Item`.
+A visual is a widget whose declaration in `leaf page vocabulary <page>` has a `visual`
+key, such as a diagram or a chart. Where that key gives `prefixes`, a thread can name
+one part of the visual. Copy a part's id from `leaf page state <page>`, which
+lists the parts a thread can name in each visual as `parts` on the visual's entry in
+`elements`, each with its `id` and `label`. The list appears once `page check --render`,
+or the page's server after you hand the page over, has read the version the page shows
+with the data it holds now. So run the check if the visual has no `parts`, as after you
+save the page or update its data. A visual lists only the parts it had drawn when the
+check read it. A part it finds only when asked, such as a chart's single data point, or
+draws only while a view of it is open, is missing from the list; name such a part as the
+widget's guidance says.
 
 `leaf thread create` anchors in the active revision as the user sees it. Quote exact
-words from the page's HTML that the user can see, within one widget part. The
-command refuses a quote that matches more than one place, or is retired, replaced,
-or crosses a boundary, rather than open a thread with no anchor. The thread's id is
-the `id` of its opening comment, in the record the command prints.
+words the user can see once, within one widget part, including words a page's script
+draws. The page finds them as it draws them: where it doesn't show them once, the
+thread stands on its section, or in Threads without one. Its section is the
+`--section` you named, or else the element around the one copy Leaf's reading of the
+page's files finds. Where that reading finds the words zero or several times, the
+record the command prints carries a note saying where the thread stands. The command refuses a
+`--section` the active revision doesn't hold or a decision took off the page. The
+thread's id is the `id` of its opening comment, in the record the command prints.
 `leaf page state <page> <message>`, `leaf thread reply`, `edit`, `resolve` and
 `reopen` take the id of any message in the thread.
 
 Link directly to a thread by adding `thread=<message-id>` to the page URL's query
 parameters, preserving any existing access parameters: `?thread=<message-id>`, or
 `&thread=<message-id>` when a query is already present. The link takes the user to
-the thread's usual card or reader, including a page-level thread with no anchor. With
+the thread's usual card or reader, including a page-level thread with no anchor, and
+a reply's id lands them on that reply. A message's Copy link copies such a link, so
+one the user pastes names a message by its id. With
 an `#element-id` as well, the page lands on that element and the thread opens without
 taking the user there. Input during startup cancels the automatic opening. The page
 keeps `thread=` in its own address while a thread stands open, so a link the user
@@ -38,10 +53,10 @@ When the user comments on repeated words that the surrounding text cannot tell
 apart, Leaf keeps the quote but not which copy they meant. The comment has
 `anchor.detached: true`, and Threads keeps it with the quote it was about.
 
-When you open a thread, title it with `--title`, a few words naming its subject in
-Threads. When the user opens a thread, Leaf usually titles it as they post;
-if it is still untitled when you answer, the event's `handling` asks you to add
-`--title`.
+Threads lists each thread by its title, a few words naming its subject. Give one
+with `--title` when you open a thread. When the user opens a thread,
+Leaf usually titles it as they post. Where it hasn't, give `--title` on your first
+reply in the thread; a reply without one is refused.
 
 ```bash
 leaf thread create <page> --section <element-id> --title "Afternoon workshop" --text "…"
@@ -120,12 +135,15 @@ leaf thread reply <page> <message> --text "The monitoring window has ended."
 ```
 
 Use the whole `answer.ref` when answering a delivered update or posting progress on
-it. The reference identifies the page, thread and exact input being answered.
-A message posted by page and message id answers nothing, so an answer its thread
-owes stays owed.
+it. The reference names the thread's newest input you were shown, and a reply there
+answers every input in the thread up to it. If the user has added to the thread
+or taken that input back since, Leaf refuses the reply, and the change reaches you:
+write again, answering it with the rest or apart from it, as you judge. Replies at the newest
+reference all go in, so you can answer part now and the rest later; a `--todo`
+holds you to the rest. A message posted by page and message id answers nothing, so
+an answer its thread owes stays owed.
 While the session an update was delivered to holds the page,
-`leaf page state` shows the same `ref` on the update's `answer`. A reply on a `ref`
-delivered before the user's newer correction does not answer that correction.
+`leaf page state` shows the same `ref` on the update's `answer`.
 
 Successful answers check the saved `index.html` and make it the active revision
 with the answer; the first answer on a revision also notes the advice `page check`
@@ -147,7 +165,7 @@ reply on a revision, list each open thread whose anchor no longer resolves and w
 revision moves it: to its section if that survives, otherwise detached.
 
 Where you know what replaced the passage, move the thread onto it in the reply that
-reports the change, with `--section`, narrowed by `--quote` or, in a diagram,
+reports the change, with `--section`, narrowed by `--quote` or, in a visual,
 `--part`:
 
 ```bash
@@ -171,7 +189,7 @@ Every answer declares whose move it leaves:
 
 - `--obligation`: the user's. It leaves them a decision, or something to try or
   review before making one, or asks them for an answer or permission. It creates
-  `message:<its id>` on On Me until their next reply or a settling reaction answers
+  `message:<its id>` on On Me until their next reply, words or a reaction, answers
   it, or they resolve the thread, so the answer stays on their list even where the
   decision it informs is already there. Where you can list the answers, a choice in
   the message usually asks instead ("Ask for a pick").
@@ -188,17 +206,30 @@ Every answer declares whose move it leaves:
   ([Long-running work](conversation-loop.md#long-running-work)). A later `--done` on
   the same reference posts its reply in the thread, and Leaf names the to-do still
   open for `leaf task end`.
+
+  Where the work can't start until something you don't control happens, such as the
+  user's pick elsewhere on the page or another change landing, add
+  `--waiting-on "<what>"`, naming it in a few words as the user knows it. Each
+  delivery from the page lists the to-do under `held`, so you meet it again when
+  input that may end its wait arrives ([event batches](event-batches.md)).
+
 - `--done`: nobody's. It delivers what the message asked for and leaves the user
   nothing to decide.
 
 ```bash
 leaf thread reply <answer.ref> --obligation --text "How long must exports be kept?"
 leaf thread reply <answer.ref> --todo "Rebuild the banner quieter" --text "Rebuilding it; it lands in v4."
+leaf thread reply <answer.ref> --todo "Redo the card's top line" --waiting-on "Whose Words" --text "Held until Whose Words lands, since the top line depends on it."
 ```
 
 The answer's head shows what it leaves: **Waiting on me** while its question is open,
-and **Still to do** until you end the to-do. A promise declared `--done` reads as
-finished work.
+and **Still to do**, or **Waiting on <what>**, until you start or end the to-do. A
+promise declared `--done` reads as finished work.
+
+A reply may be one emoji in place of words, `--emoji 👍` for `--text`, where an emoji
+says all the answer needs to, as for a thanks in words that asks nothing. It declares what it
+leaves with `--done` or `--todo`; a reply that asks (`--obligation`), reports progress
+(`--ephemeral`) or moves its thread needs words.
 
 ### Ask for a pick
 
@@ -214,7 +245,8 @@ The text holds the question, what is true of every option and your
 reason; each card holds what is true of its option alone, such as what choosing it
 does and costs. The choice needs no heading or group round it. Title each option by
 what choosing it does and mark the one you advise (`authoring-on-me.md`, "What a
-question holds").
+question holds"). In the titles, as in your text, “I” means you and “you” the user:
+“Hold it until you've read it”, not “Hold it for my review”.
 
 ```bash
 leaf thread reply <answer.ref> <<'EOF'
@@ -323,8 +355,7 @@ one is not an answer.
 When a thread's topic has moved on, or settled detail buries the current exchange,
 summarize the earlier discussion as part of answering new input, without waiting to
 be asked. New input may carry `summary_hint`, a suggested range. Read the originals
-with `leaf page state <page> <message>` and choose a contiguous range yourself,
-starting and ending on spoken messages rather than reactions.
+with `leaf page state <page> <message>` and choose a contiguous range yourself.
 
 Fold what compresses most: settled detail and finished exchanges, whose outcome a
 few sentences carry. Keep in full the messages whose wording still matters

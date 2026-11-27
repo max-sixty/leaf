@@ -59,6 +59,18 @@ window.HTMLSlotElement.prototype.assignedElements = function (options) {
     ? flattened(this).filter((node) => node.nodeType === Node.ELEMENT_NODE)
     : assignedElements.call(this);
 };
+// An element laid out `display: contents` generates no box, so every engine answers
+// that it is not visible, and gives it no focus unless it hands focus on; happy-dom
+// reads only its ancestors.
+const checkVisibility = window.Element.prototype.checkVisibility;
+const boxless = (element) => window.getComputedStyle(element).display === "contents";
+window.Element.prototype.checkVisibility = function (options) {
+  return !boxless(this) && checkVisibility.call(this, options);
+};
+const focus = window.HTMLElement.prototype.focus;
+window.HTMLElement.prototype.focus = function (options) {
+  if (!boxless(this) || this.shadowRoot?.delegatesFocus) focus.call(this, options);
+};
 // happy-dom answers no composed range, which every engine ships and the runtime reads a
 // selection by (`pageRange`). An end in a shadow root the caller doesn't name moves out
 // to its host's edge, after the host for the range's end, as the DOM's rescoping does.
@@ -86,8 +98,31 @@ window.Selection.prototype.getComposedRanges ??= function ({ shadowRoots = [] } 
   const [endContainer, endOffset] = rescoped(range.endContainer, range.endOffset, true);
   return [{ startContainer, startOffset, endContainer, endOffset }];
 };
+// Nor an element's `part`, the token list of its `part` attribute, which every engine
+// ships and dom/focus.js marks a focused part with. As a DOMTokenList does, a change
+// writes the attribute unless it is absent and stays empty, and tokens split at ASCII
+// whitespace alone.
+if (!("part" in Element.prototype))
+  Object.defineProperty(Element.prototype, "part", {
+    configurable: true,
+    get() {
+      const tokens = () =>
+        (this.getAttribute("part") ?? "").split(/[\t\n\f\r ]+/).filter(Boolean);
+      /** @param {string[]} list */
+      const write = (list) => {
+        if (list.length || this.hasAttribute("part"))
+          this.setAttribute("part", [...new Set(list)].join(" "));
+      };
+      return {
+        contains: (/** @type {string} */ token) => tokens().includes(token),
+        add: (/** @type {string[]} */ ...added) => write([...tokens(), ...added]),
+        remove: (/** @type {string[]} */ ...gone) =>
+          write(tokens().filter((token) => !gone.includes(token))),
+      };
+    },
+  });
 // happy-dom has no StaticRange either, which the runtime builds for a span of the page
-// it reads rather than selects (passages.js, `runReading`).
+// it reads rather than selects (readings/passages.js, `runReading`).
 globalThis.StaticRange ??= class StaticRange {
   /** @param {{startContainer: Node, startOffset: number, endContainer: Node, endOffset: number}} init */
   constructor({ startContainer, startOffset, endContainer, endOffset }) {
@@ -96,7 +131,7 @@ globalThis.StaticRange ??= class StaticRange {
 };
 // Nothing is laid out here, so every box is whatever a test states. The window is the
 // one box this world states itself, as a browser does: the root reports its size, and
-// the visual viewport, which happy-dom lacks and geometry.js reads (`shownWindow`) and
+// the visual viewport, which happy-dom lacks and dom/geometry.js reads (`shownWindow`) and
 // listens to (`whenNone`), covers it unzoomed.
 for (const [name, size] of [
   ["clientWidth", () => innerWidth],
@@ -120,6 +155,9 @@ for (const [name, read] of Object.entries({
 window.visualViewport ??= viewport;
 // Nor does it run animations, so none is under way.
 document.getAnimations ??= () => [];
+// Nor does it load fonts, so its document has no font set to hear one load from.
+if (!("fonts" in document))
+  Object.defineProperty(document, "fonts", { value: new window.EventTarget() });
 // happy-dom's computed style is the declared style: no initial values, and no
 // shorthand expanded. The runtime names the values it acts on, so a property left
 // unset reads as its initial value, but it reads overflow per axis, which a test may
@@ -151,15 +189,15 @@ window.getComputedStyle = (element, pseudo) => {
   });
 };
 // A box's transforms compute to their initial values where nothing declares them, which
-// a scroll's axes read (element-axes.js) to carry a glide's travel to the window.
+// a scroll's axes read (dom/element-axes.js) to carry a glide's travel to the window.
 const UNTRANSFORMED = { rotate: "none", scale: "none", transform: "none", zoom: "1" };
 // What a delivered document's prepaint declares before any module runs
 // (`runtime/prepaint.js`): the page's storage scope, "" for a page at the origin's root.
 document.documentElement.dataset.lfPageScope = "";
-await import("../../browser/runtime/document-inputs.js");
+await import("../../browser/runtime/base/document-inputs.js");
 await import("../../browser/runtime/prepaint.js");
 // And the runtime sheets every delivery carries (`delivery_sheets` in
-// revision_delivery.py), which `runtime/stylesheets.js` constructs as it evaluates.
+// revision_delivery.py), which `runtime/base/stylesheets.js` constructs as it evaluates.
 // Nothing here is laid out, so their rules are empty.
 const sheets = document.createElement("script");
 sheets.type = "application/json";

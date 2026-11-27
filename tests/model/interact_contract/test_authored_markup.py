@@ -8,6 +8,7 @@ from interact_support import (
     PAGE,
     PAGE_GROUP,
     append_carried_log_record,
+    bound_twice,
     check,
     check_findings,
     command_findings,
@@ -17,9 +18,9 @@ from interact_support import (
     styled,
 )
 
-from leaf import passages as passages_model
-from leaf import structure as structure_model
-from leaf.findings import Finding
+from leaf.base.findings import Finding
+from leaf.source import passages as passages_model
+from leaf.source import structure as structure_model
 
 
 def test_check_refuses_the_runtimes_own_markers_in_authored_markup(page_dir):
@@ -98,6 +99,45 @@ def test_check_rejects_an_invalid_bound_and_advises_on_loose_pane_text(page_dir)
     )
     (pane,) = found(findings, "pane-body", "<lf-pane>", body=["#text", "p"])
     assert pane.severity == "advice"
+
+
+@pytest.mark.parametrize(
+    "items,advised",
+    [
+        ("<section id=open-items>{}</section>", True),
+        ("<section id=open-items hidden=until-found>{}</section>", True),
+        ("<section id=open-items hidden>{}</section>", False),
+        ("<dialog id=open-items open>{}</dialog>", False),
+    ],
+)
+def test_check_advises_a_workspace_to_keep_one_body(page_dir, items, advised):
+    """A workspace's bodies share the window's height evenly, so a list written between
+    its header and its regions halves them and leaves blank space under its own lines,
+    with nothing out of reach for the render check to see. A body that takes no room
+    takes no share, as a script, a dialog or one the page hides does, while one hidden
+    until found keeps its box."""
+    (page_dir / "index.html").write_text(
+        PAGE.replace(
+            "<main>",
+            '<main class="layout-workspace"><header><h1>Plan</h1></header>'
+            + items.format("<ul><li>Merge it</li></ul>")
+            + "<script>void 0</script>",
+        )
+    )
+    status, findings = check_findings(page_dir)
+    assert status == 0
+    tag = items[1 : items.index(" ")]
+    assert [
+        (f.at, f.values["line"], f.values["bodies"], f.severity)
+        for f in found(findings, "workspace-bodies")
+    ] == [
+        (
+            "<main>",
+            7,
+            [f"<{tag} id=open-items>", "<lf-group id=plan-questions>"],
+            "advice",
+        )
+    ] * advised
 
 
 @pytest.mark.parametrize("target", ["Plan_Notes", "missing-notes"])
@@ -299,13 +339,15 @@ SAMPLE_DOCUMENT_CASES = [
 ]
 
 
-# `source.sample_errors` is the one gate either door reads a child through, so the
-# message door takes the one case that also reaches a child's own samples.
+# `documents.sample_errors` is the one gate either door reads a child through, so the
+# message door takes the one case that also reaches a child's own samples, and a
+# binding conflict, which a message's gate reads in its own markup alone.
 @pytest.mark.parametrize(
     ("markup", "code", "samples", "holder"),
     [
         *((*case, "page") for case in SAMPLE_DOCUMENT_CASES),
         (*SAMPLE_DOCUMENT_CASES[-1], "message"),
+        (bound_twice("shared"), "contract-conflict", ("practice",), "message"),
     ],
 )
 def test_check_validates_each_sample_document(page_dir, markup, code, samples, holder):
@@ -318,6 +360,41 @@ def test_check_validates_each_sample_document(page_dir, markup, code, samples, h
         return
     [refused] = found(errors, code)
     assert refused.samples == samples
+
+
+def test_a_binding_conflict_is_reported_once_by_the_gate_of_its_document(page_dir):
+    """A source bound under two contracts is a conflict within one document, so the
+    gate that reads that document reports it, and only that gate: the page's for its
+    own markup, a sample child's for the template's, and the fixture's admission for
+    a fixture message's, each naming the document where the author fixes it."""
+    history = [
+        {"kind": "comment", "id": "aabb0011", "author": "agent", "text": "Open"},
+        {
+            "kind": "reply",
+            "parent": "aabb0011",
+            "author": "agent",
+            "revision": 1,
+            "text": f"Both:\n\n{bound_twice('fixture-feed')}",
+        },
+    ]
+    sample = (
+        f'<script id="fixture" type="application/json">{json.dumps(history)}</script>'
+        '<template id="practice" data-sample data-sample-events="fixture">'
+        f"<h1>Child</h1>{bound_twice('sample-feed')}</template>"
+    )
+    (page_dir / "index.html").write_text(
+        PAGE.replace("</main>", bound_twice("page-feed") + sample + "</main>")
+    )
+    _status, findings = check_findings(page_dir)
+    assert [
+        (conflict.samples, conflict.values["source"])
+        for conflict in found(findings, "contract-conflict")
+    ] == [((), "page-feed"), (("practice",), "sample-feed")]
+    [fixture] = found(findings, "fixture-markup", event=2)
+    assert [
+        (nested.code, nested.values["source"])
+        for nested in map(Finding.loads, fixture.values["findings"])
+    ] == [("contract-conflict", "fixture-feed")]
 
 
 @pytest.mark.parametrize("holder", ["page", "message"])
@@ -361,6 +438,8 @@ def test_a_message_sample_cannot_select_the_thread_holding_it(page_dir, poster):
             "aabb0011",
             "--text",
             f"Try:\n\n{sample}",
+            "--title",
+            "Thread title",
         )
     else:
         history = [
@@ -396,7 +475,13 @@ def sample_holder_findings(page_dir, holder, source) -> list[Finding]:
         return findings
     published(page_dir)
     return command_findings(
-        "thread", "create", str(page_dir), "--text", f"Try it:\n\n{source}"
+        "thread",
+        "create",
+        str(page_dir),
+        "--text",
+        f"Try it:\n\n{source}",
+        "--title",
+        "Agent thread",
     )
 
 
@@ -476,6 +561,8 @@ def test_an_id_the_log_gives_an_event_is_refused_in_a_page_and_a_message(page_di
         page_dir,
         "--text",
         'See:\n\n<lf-code id="6d1d57ac">\n<pre><code>1</code></pre></lf-code>',
+        "--title",
+        "Agent thread",
     )
     assert [(f.code, f.values) for f in message] == [
         ("ids-taken-by-events", {"ids": ["6d1d57ac"]})
@@ -538,8 +625,8 @@ def test_what_delivery_cannot_read_is_refused_at_each_door(
     root's included, and refuses with its words. A nested rule in a style attribute
     parses as a block's contents but not as the declaration list delivery reads,
     and unasked would pass every check only for delivery to refuse it."""
-    from leaf.revision_artifact import ArtifactError
-    from leaf.revision_delivery import DeliveryAddress, rebase_document
+    from leaf.serving.revision_delivery import DeliveryAddress, rebase_document
+    from leaf.source.capture_refusals import ArtifactError
 
     markup = holder.format(f'<p style="{style}">Shown</p>')
     source = styled("", markup)
@@ -549,7 +636,13 @@ def test_what_delivery_cannot_read_is_refused_at_each_door(
     else:
         published(page_dir)
         findings = command_findings(
-            "thread", "create", page_dir, "--text", f"Look:\n\n{markup}"
+            "thread",
+            "create",
+            page_dir,
+            "--text",
+            f"Look:\n\n{markup}",
+            "--title",
+            "Agent thread",
         )
     [refused] = findings if door == "message" else found(findings, "css-syntax")
     assert refused.code == "css-syntax"
@@ -570,7 +663,13 @@ def test_a_sheet_delivery_refuses_reports_nothing_dropped(page_dir, door):
     if door == "message-sample":
         published(page_dir)
         findings = command_findings(
-            "thread", "create", page_dir, "--text", f"Try:\n\n{sample}"
+            "thread",
+            "create",
+            page_dir,
+            "--text",
+            f"Try:\n\n{sample}",
+            "--title",
+            "Agent thread",
         )
     else:
         (page_dir / "index.html").write_text(
@@ -593,6 +692,8 @@ def test_a_message_takes_the_advice_its_markup_draws_on_a_page(page_dir):
         page_dir,
         "--text",
         'Run:\n\n<pre><code class="language-nope">go</code></pre>',
+        "--title",
+        "Agent thread",
     )
     assert [(f.code, f.values["language"]) for f in noted] == [
         ("uncoloured-language", "nope")
@@ -615,7 +716,13 @@ def test_a_dropped_declaration_is_advice(page_dir):
     (page_dir / "index.html").write_text(PAGE)
     published(page_dir)
     noted = command_notes(
-        "thread", "create", page_dir, "--text", f"Try:\n\n{published_markup}"
+        "thread",
+        "create",
+        page_dir,
+        "--text",
+        f"Try:\n\n{published_markup}",
+        "--title",
+        "Agent thread",
     )
     assert [(f.code, f.severity) for f in noted] == [("css-dropped", "advice")]
 
@@ -626,9 +733,9 @@ def test_a_sampled_thread_starts_as_its_source_log_leaves_it():
     again on that one revision: an answer the parent no longer counts leaves the
     child's copy of its thread open too, and the action it had superseded, which
     answered nothing, decides the widget there as it does in the parent."""
-    from leaf.events import build_threads
-    from leaf.passages import enclosing_ids
-    from leaf.thread_context import sample_events
+    from leaf.log.events import build_threads
+    from leaf.log.thread_context import sample_events
+    from leaf.source.passages import enclosing_ids
 
     document = structure_model.SourceDocument(
         '<main><lf-suggestion id="sug-a" resolves="c1">'
@@ -796,7 +903,7 @@ SAMPLE_FIXTURE_REFUSALS = [
 ]
 
 
-# `sample_content.initial_sample_events` reads a fixture for either door, so the
+# `documents.initial_sample_events` reads a fixture for either door, so the
 # message door takes the one case a holder's own script and a child's ids both reach.
 @pytest.mark.parametrize(
     ("history", "script_attrs", "template_attrs", "code", "values", "holder"),
@@ -862,3 +969,38 @@ def test_sample_fixture_message_markup_uses_the_message_gate(page_dir, markup, c
     assert found(
         [Finding.loads(nested) for nested in refused.values["findings"]], code
     ), refused
+
+
+def test_a_fixture_anchor_keeps_the_context_it_gives(page_dir):
+    """A side a fixture gives picks its own copy of the words, here the first, which
+    the files read with a space inside it, so the anchor keeps only the sides the
+    fixture gave, with no note, rather than borrowing the other side from the one copy
+    the files hold."""
+    from leaf.records.authored_checks.documents import initial_sample_events
+    from leaf.source.vocabulary import read_page_registry
+
+    anchor = {"section": "child-p", "quote": "preflight", "prefix": "First"}
+    history = json.dumps(
+        [{"kind": "comment", "author": "user", "text": "x", "anchor": anchor}]
+    )
+    source = (
+        f'<script id="fixture" type="application/json">{history}</script>'
+        '<template id="practice" data-sample data-sample-events="fixture">'
+        '<div id="child-p">First <b>pre</b><em>flight</em> alpha. Later preflight beta.'
+        "</div></template>"
+    )
+    (page_dir / "index.html").write_text(PAGE.replace("</main>", source + "</main>"))
+    published(page_dir)
+    holder = structure_model.SourceDocument((page_dir / "index.html").read_text())
+    [template] = holder.samples
+    events, notes = initial_sample_events(
+        page_dir,
+        holder,
+        [],
+        holder,
+        template,
+        read_page_registry(page_dir).registry,
+        {},
+    )
+    [comment] = [event for event in events if event["kind"] == "comment"]
+    assert (comment["anchor"], notes) == (anchor, [])

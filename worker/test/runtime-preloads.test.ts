@@ -7,7 +7,10 @@ import { Window } from "happy-dom";
 
 import { runtimeEntries } from "../../build/runtime-bundle.mjs";
 import { bundleSite } from "../bundle-runtime.mjs";
-import { registeredTags, widgetImports } from "../../browser/runtime/widget-imports.js";
+import {
+  registeredTags,
+  widgetImports,
+} from "../../browser/runtime/state/widget-imports.js";
 
 it("an arriving widget scope requires its own upgrade while template contents stay inert", async () => {
   const window = new Window();
@@ -28,7 +31,7 @@ it("an arriving widget scope requires its own upgrade while template contents st
       "lf-arrival.selected": {
         example: '<lf-arrival class="selected"></lf-arrival>',
       },
-    } as unknown as import("../../browser/runtime/widget-imports.js").Registry;
+    } as unknown as import("../../browser/runtime/state/widget-imports.js").Registry;
     expect(registeredTags(scope, registry)).toEqual(["lf-arrival"]);
     expect(widgetImports(scope, registry)).toMatchObject({
       modules: ["lf-arrival"],
@@ -72,26 +75,37 @@ it("bundles each document's static graph without fetching optional modules or ch
         }),
       );
       const sources = {
-        "leaf.js": `import "./runtime/document-inputs.js"; import "./runtime/bundle-common.js"; export * from "${root}/vendor/framework.js"; export * from "${root}/page/app.mjs"; export const optional = () => import("./runtime/optional.js");`,
+        "leaf.js": `import "./runtime/base/document-inputs.js"; import "./runtime/bundle-common.js"; export * from "${root}/vendor/framework.js"; export * from "${root}/page/app.mjs"; export const optional = () => import("./runtime/optional.js");`,
         "runtime/bundle-common.js":
           'import "./bundle-cycle.js"; export const state = 1;',
-        "runtime/document-inputs.js": "(() => { window.inputsInstalled = true; })();",
+        "runtime/base/document-inputs.js":
+          "(() => { window.inputsInstalled = true; })();",
         "runtime/bundle-cycle.js": 'export * from "./bundle-common.js";',
         "vendor/framework.js":
-          'export * from "/vendor/lit.js"; export * from "../runtime/media.js";',
+          'export * from "/vendor/lit.js"; export * from "../runtime/records/media.js";',
         "vendor/lit.js": `import "./framework.js"; export * from "./revision-${revision}.js"; export const html = 1;`,
         [`vendor/revision-${revision}.js`]: `export const revision = ${revision};`,
         "runtime/optional.js": "window.optionalLoaded = true;",
-        "runtime/media.js": "export const media = 1;",
-        "runtime/layer-client.js": "export const client = 1;",
+        "runtime/records/media.js": "export const media = 1;",
+        "runtime/transport/layer-client.js": "export const client = 1;",
         "runtime/widget-api.js": "export const api = 1;",
         "runtime/portable-api.js": "export const portable = 1;",
         "runtime/check-api.js": "export const checks = 1;",
-        // The library's modules are entries too, by the bundler's own list, and no
+        // The bundler's other entries, such as the library's modules, and no
         // document's static graph reaches one.
         ...Object.fromEntries(
           runtimeEntries
-            .filter((path) => path.startsWith("runtime/lib/"))
+            .filter(
+              (path) =>
+                path !== "leaf.js" &&
+                ![
+                  "records/media.js",
+                  "transport/layer-client.js",
+                  "widget-api.js",
+                  "portable-api.js",
+                  "check-api.js",
+                ].includes(path.slice("runtime/".length)),
+            )
             .map((path) => [path, "export const shared = 1;"]),
         ),
         "widgets/lf-used.js":
@@ -151,8 +165,8 @@ it("bundles each document's static graph without fetching optional modules or ch
         expect(preloads.sort()).toEqual(
           [
             `${root}/leaf.js`,
-            `${root}/runtime/media.js`,
-            `${root}/runtime/document-inputs.js`,
+            `${root}/runtime/records/media.js`,
+            `${root}/runtime/base/document-inputs.js`,
             `${root}/vendor/framework.js`,
             `${root}/vendor/lit.js`,
             `${root}/vendor/revision-${revision}.js`,
@@ -174,7 +188,7 @@ it("bundles each document's static graph without fetching optional modules or ch
       if (
         !path.includes("/vendor/") &&
         !path.includes("/page/") &&
-        !path.endsWith("/runtime/document-inputs.js")
+        !path.endsWith("/runtime/base/document-inputs.js")
       )
         continue;
       expect(await readFile(path, "utf8")).toBe(source);

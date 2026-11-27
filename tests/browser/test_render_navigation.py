@@ -18,6 +18,7 @@ from render_harness import (
     scroll_settled,
 )
 
+from leaf_dev.browser import text_field
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -96,7 +97,7 @@ def test_thread_navigation_lands_after_resizing_an_open_reply(browser, serve):
     ).to_be_focused()
     scroll_settled(page)
     page.keyboard.press("Enter")
-    expect(page.get_by_role("textbox", name="Reply", exact=True)).to_be_focused()
+    expect(text_field(page, name="Reply", exact=True)).to_be_focused()
     resized(page, 390, 844)
     scroll_settled(page)
     expect(card).to_be_hidden()
@@ -104,7 +105,7 @@ def test_thread_navigation_lands_after_resizing_an_open_reply(browser, serve):
     expect(reply).to_be_focused()
     page.keyboard.press("Escape")
     page.keyboard.press("Shift+t")
-    view = page.locator(".lf-fp-view:not([data-lf-leaving])")
+    view = page.locator(".lf-fp-view")
     expect(view).to_be_focused()
     expect(view).to_contain_text("Is lunch provided")
     page.keyboard.press("c")

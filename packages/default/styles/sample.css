@@ -97,7 +97,7 @@ lf-sample > * {
   --lf-box-cap: 100%;
 }
 /* A quoted sample's note, "quoted", says it takes no input. It takes the label font
- * (base.css, `.lf-label`), stated here since a pseudo-element can't wear the class. A
+ * (elements.css, `.lf-label`), stated here since a pseudo-element can't wear the class. A
  * sample that works, interactive or live, wears none, since its gutter or frame already
  * marks it a sample. The user chose that over opening with "interactive sample" or
  * "live sample", a word whose one distinction, this page's log or the sample's own, the
@@ -107,7 +107,7 @@ lf-sample:not([interactive], :has(> template[data-sample]))::before {
   content: "quoted";
   display: table-caption;
   margin-bottom: var(--lf-sp-1);
-  font: var(--lf-font-label);
+  font: var(--lf-font-heading);
   letter-spacing: 0.06em;
   text-transform: uppercase;
   color: var(--lf-muted);
@@ -206,12 +206,12 @@ lf-sample:has(> template[data-sample]) {
  * put them there. The frame wears the ring itself only where a ring belongs, after a
  * Tab: a press rings no control, and a ring round the frame would ring the whole
  * sample. A sandboxed frame matches neither :focus nor :focus-visible on its host, so
- * both read the runtime's marks (focus.js, `inputInFrame`). */
+ * both read the runtime's marks (dom/focus.js, `inputInFrame`). */
 .lf-sample-exhibit > .lf-sample-frame {
   --lf-focus-box: .lf-sample-exhibit;
 }
 .lf-sample-exhibit[data-lf-control-focus] {
-  border-left-color: var(--lf-accent);
+  border-left-color: var(--lf-ok);
 }
 @media (forced-colors: active) {
   .lf-sample-exhibit[data-lf-control-focus] {

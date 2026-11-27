@@ -22,8 +22,8 @@
 # installed plugin are the same tree — and this runs that project: uv keeps one
 # environment per installed version, and `uv run` syncs it from the lock before
 # each run where the lock or project has changed, so an update needs no step here.
-# A harness session runs the copy it loaded unless it selected a checkout
-# (`src/leaf/session_runtime.py` says which calls hand themselves on to it).
+# Every launcher runs the tree it sits in, so a harness session runs the copy it
+# loaded (`src/leaf/session-lifetime.md`, "Which Leaf runs a session").
 # `--no-dev` because the project's dev group is the test suite and the
 # `leaf-dev` tooling, recorded in the shipped lock but never a harness's to
 # install. `-q` because an agent reads stderr back and an ordinary sync has
@@ -66,7 +66,7 @@
 # one (SANDBOX_RUNTIME), the bridge Leaf's hooks keep outside it runs the command
 # (`bridge.py`). `-I` keeps the agent's directory off the module path.
 root=$(CDPATH='' cd -- "$(dirname -- "$0")/.." && pwd)
-state="$root/src/leaf/state.py"
+state="$root/src/leaf/base/state.py"
 python="$root/.venv/bin/python"
 if [ "$#" -eq 1 ] && [ "$1" = session-end ]; then
     exec python3 -S "$state"
@@ -87,7 +87,7 @@ if [ ! -f "$root/pyproject.toml" ]; then
     exit 1
 fi
 if [ -n "${SANDBOX_RUNTIME:-}" ] && [ -x "$python" ]; then
-    exec "$python" -I -m leaf.bridge run "$@"
+    exec "$python" -I -m leaf.base.bridge run "$@"
 fi
 if [ "${1:-}" = hook ] && [ "${4:-}" = --if-claimed ] && [ -x "$python" ]; then
     payload=$(cat)

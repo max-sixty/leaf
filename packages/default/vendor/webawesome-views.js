@@ -1,2 +1,2 @@
-/*! Web Awesome 3.14.0 — MIT — licenses: webawesome.LICENSES.txt */
-import"./webawesome/chunk-LHYK7BWL.js";import"./webawesome/chunk-HU5QTSKI.js";
+/*! Web Awesome 3.15.0 — MIT — licenses: webawesome.LICENSES.txt */
+import"./webawesome/chunk-FKBBDFJF.js";import"./webawesome/chunk-R6VXBKT7.js";

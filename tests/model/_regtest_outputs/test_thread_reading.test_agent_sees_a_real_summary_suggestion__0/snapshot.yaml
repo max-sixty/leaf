@@ -1,7 +1,7 @@
 # The summary hint from real thread events and the delivery an explicit wait prints.
 
 delivery:
-  format: leaf-delivery/52
+  format: leaf-delivery/59
   id: <delivery>
   created_at: <time>
   acknowledge: >-
@@ -92,8 +92,9 @@ delivery:
           in a widget that asks, such as `<lf-options id="…">` holding an `<lf-option
           id="…">` for each answer: the user answers with a press, and the choice
           waits on them by itself (`references/threads.md`, "Ask for a pick"). `--todo
-          "<what you owe>"` when it is yours, promising work beyond this turn. `--done`
-          when it leaves nobody a move.
+          "<what you owe>"` when it is yours, promising work beyond this turn, with
+          `--waiting-on "<what>"` where it can't start until something you don't
+          control happens. `--done` when it leaves nobody a move.
         h5: >-
           Your reply renders as Markdown in a narrow card or panel. The thread already
           reaches the passage or section it is on, as a card beside it or by Show

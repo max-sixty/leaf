@@ -4,42 +4,84 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="A local text file, edited directly with quiet automatic saving and explicit conflict recovery."
+      content="A local Markdown file, edited directly with quiet automatic saving and explicit conflict recovery, beside a rendered copy and its changes, which follow each save."
     />
     <title>Quiet file editing</title>
+    <style>
+      #file-editing-regions {
+        display: grid;
+        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+      }
+      @media (width < 720px) {
+        #file-editing-regions {
+          grid-template-columns: minmax(0, 1fr);
+        }
+      }
+    </style>
   </head>
   <body>
-    <main class="layout-column">
+    <main class="layout-workspace density-working">
       <header id="file-editing">
         <h1>Edit the file</h1>
-        <p>
-          Changes save automatically. The editor follows changes made elsewhere and asks
-          which version to keep when edits overlap.
-        </p>
       </header>
-      <lf-file-editor
-        id="research-file"
-        binding="research-notes"
-        data-width="available"
-        data-height="480"
-      ></lf-file-editor>
-      <details id="file-editing-setup">
-        <summary>Where the file lives</summary>
-        <p>
-          The page binds <code>files/research-notes.md</code> in its own directory, so
-          every copy of the page, a preview or a visitor's on leaf.page, edits its own
-          copy:
-        </p>
-        <pre><code>leaf file bind "$PAGE" research-notes "$PAGE/files/research-notes.md"</code></pre>
-        <p>
-          Edit a line and inspect the file on disk. A normal save leaves the header
-          still. Hold a write request open to inspect delayed saving feedback. Change a
-          line you are not editing during an unsaved edit and the editor takes it in;
-          change the line you are editing to inspect conflict recovery. With the binding
-          withdrawn (<code>leaf file unbind</code>), the editor explains what is
-          missing.
-        </p>
-      </details>
+      <div id="file-editing-regions">
+        <lf-pane id="file-editing-source" label="Source">
+          <lf-file-editor id="research-file" binding="research-notes"></lf-file-editor>
+        </lf-pane>
+        <lf-pane id="file-editing-rendered" label="Rendered and changes">
+          <lf-tabs id="file-editing-views" flow="page">
+            <lf-tab id="file-editing-rendered-view" label="Rendered">
+              <lf-text-document
+                id="research-rendered"
+                for="research-file"
+                preview="markdown"
+              ></lf-text-document>
+            </lf-tab>
+            <lf-tab id="file-editing-changes" label="Changes">
+              <lf-diff
+                id="research-changes"
+                before="research-committed"
+                after="research-notes"
+              ></lf-diff>
+            </lf-tab>
+          </lf-tabs>
+        </lf-pane>
+      </div>
+      <footer>
+        <details id="file-editing-setup">
+          <summary>Where the file lives</summary>
+          <p>
+            Edits save automatically, and the rendered copy and the Changes tab follow
+            each save. Double-click a word in the rendered copy to type at the start of
+            its line in the editor. The editor follows changes made elsewhere and asks
+            which version to keep when edits overlap.
+          </p>
+          <p>
+            The Changes tab compares the file with the text it started from, which the
+            page holds as a source. On a repository, the agent sets that source from the
+            last commit, and sets it again after the next:
+          </p>
+          <pre
+            id="file-editing-committed"
+          ><code>git show HEAD:research-notes.md | jq -Rs '{name: "research-notes.md", text: .}' | leaf data set "$PAGE" research-committed</code></pre>
+          <p>
+            The page binds <code>files/research-notes.md</code> in its own directory, so
+            every copy of the page, a preview or a visitor's on leaf.page, edits its own
+            copy:
+          </p>
+          <pre
+            id="file-editing-bind"
+          ><code>leaf file bind "$PAGE" research-notes "$PAGE/files/research-notes.md"</code></pre>
+          <p>
+            Edit a line and inspect the file on disk. A normal save leaves the header
+            still. Hold a write request open to inspect delayed saving feedback. Change
+            a line you are not editing during an unsaved edit and the editor takes it
+            in; change the line you are editing to inspect conflict recovery. With the
+            binding withdrawn (<code>leaf file unbind</code>), the editor explains what
+            is missing.
+          </p>
+        </details>
+      </footer>
     </main>
   </body>
 </html>

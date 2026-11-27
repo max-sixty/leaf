@@ -9,8 +9,8 @@ canonical.dataset.lfRuntime = "";
 canonical.href = "https://leaf.test/pages/feed/";
 document.head.append(canonical);
 globalThis.fetch = async () => new Response(null, { status: 204 });
-const { connection } = await import("/runtime/http-api.js");
-const { applicationState } = await import("/runtime/semantic-state.js");
+const { connection } = await import("/runtime/host/http-api.js");
+const { applicationState } = await import("/runtime/state/semantic-state.js");
 
 test("a connection returns the host response without publishing or retrying", async (t) => {
   applicationState.identify(1, null, true);
@@ -82,6 +82,16 @@ test("a refused save resolves the server's reason and the newer file it holds", 
     async () => new Response("Bad gateway", { status: 502 }),
   );
   await assert.rejects(file.save(snapshot), /HTTP 502/);
+  // A fault in the server's words may come after the write, as when the host's store
+  // refuses to keep it.
+  fetch.mock.mockImplementation(
+    async () =>
+      new Response(JSON.stringify({ error: "PageStoreRefused: 503" }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      }),
+  );
+  await assert.rejects(file.save(snapshot), /PageStoreRefused/);
 });
 
 test("a file request without an answer retains its original cause", async (t) => {

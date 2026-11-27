@@ -22,12 +22,12 @@ from render_harness import (
     write,
 )
 
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf.event_log import read_events
-from leaf.passages import page_passages
-from leaf.render_checks import wait_until_ready
-from leaf.structure import SourceDocument
+from leaf.commands import cli as cli_model
+from leaf.log.event_log import read_events
+from leaf.records import page_data as page_data_model
+from leaf.source.passages import page_passages
+from leaf.source.render_checks import wait_until_ready
+from leaf.source.structure import SourceDocument
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -41,6 +41,7 @@ def test_atlas_report_waits_behind_a_stationary_refresh_control(browser, serve):
     expect(page.locator("#w-1 > details")).to_have_attribute("open", "")
     expect(page.locator("#ground-corpus > .atlas-task-state")).to_have_text("done")
     report = page.locator("#w-1 .atlas-worker-report")
+    # The report's own words: the age after them is drawn by its own element.
     before = report.inner_text()
     report.scroll_into_view_if_needed()
     box = report.bounding_box()
@@ -58,7 +59,8 @@ def test_atlas_report_waits_behind_a_stationary_refresh_control(browser, serve):
     )
     assert result.exit_code == 0, result.output
     told(page)
-    expect(report).to_have_text(before)
+    expect(report).to_contain_text(before)
+    expect(report).not_to_contain_text("Expanded report.")
     after = report.bounding_box()
     assert abs(after["y"] - box["y"]) < 1
     latest = page.get_by_role("button", name="Show latest", exact=True)
@@ -66,7 +68,7 @@ def test_atlas_report_waits_behind_a_stationary_refresh_control(browser, serve):
     latest.click()
     expect(report).to_contain_text("Expanded report.")
     expect(latest).to_be_disabled()
-    heard = report.locator("time")
+    heard = report.locator("lf-age")
     event = next(
         row
         for row in reversed(read_events(serve.page_dir))
@@ -76,7 +78,7 @@ def test_atlas_report_waits_behind_a_stationary_refresh_control(browser, serve):
     expect(heard).to_have_text("just now")
     tree = page.locator("#tree-w-1")
     tree.locator("summary").click()
-    observed = tree.locator("time")
+    observed = tree.locator("lf-age")
     expect(observed).to_have_attribute("datetime", "2026-08-21T11:42:00-07:00")
     expect(observed).to_have_text(re.compile(r"\d+d ago"))
     # A new datum is held while its evidence is being read. Revealing it must
@@ -88,7 +90,7 @@ def test_atlas_report_waits_behind_a_stationary_refresh_control(browser, serve):
     ]
     refreshed_at = datetime.now().astimezone().isoformat(timespec="seconds")
     worktrees["tree-w-1"]["observedAt"] = refreshed_at
-    data_model.cmd_data_set(serve.page_dir, "atlas-worktrees", worktrees)
+    page_data_model.cmd_data_set(serve.page_dir, "atlas-worktrees", worktrees)
     told(page)
     expect(observed).to_have_text(re.compile(r"\d+d ago"))
     expect(latest).to_be_enabled()
@@ -159,7 +161,7 @@ def test_work_status_is_a_generated_browser_passage(browser, serve, owner):
         }""")
         assert captured == {
             "words": status,
-            "anchor": {"section": "goal", "quote": status},
+            "anchor": {"section": "goal", "quote": status, "prefix": "", "suffix": ""},
             "kind": "passage",
             "exact": True,
         }
@@ -181,7 +183,12 @@ def test_work_status_is_a_generated_browser_passage(browser, serve, owner):
             if event["kind"] == "comment"
             and event["text"] == f"Discuss {status} status"
         ]
-        assert comment["anchor"] == {"section": "goal", "quote": status}
+        assert comment["anchor"] == {
+            "section": "goal",
+            "quote": status,
+            "prefix": "",
+            "suffix": "",
+        }
         page.keyboard.press("Escape")
         return comment
 
@@ -226,14 +233,18 @@ def test_work_status_is_a_generated_browser_passage(browser, serve, owner):
     check_generated_status(revised, "active")
     check_thread_quotes([blocked, active])
     # Each thread's view quotes what it was about, the one whose words the revision
-    # took away detached.
-    for comment, said, detached in (
-        (blocked, "blocked", True),
-        (active, "active", False),
+    # took away standing on the task, its words marked as changed.
+    for comment, said, status in (
+        (blocked, "blocked", "Changed"),
+        (active, "active", None),
     ):
         head = open_panel_thread(page, comment["id"]).locator(".lf-thread-quote-head")
         expect(head.locator(".lf-thread-quote")).to_have_text(said)
-        assert (head.get_attribute("data-lf-detached") is not None) is detached
+        assert head.get_attribute("data-lf-detached") is None
+        if status:
+            expect(head.locator(".lf-anchor-status")).to_have_text(status)
+        else:
+            expect(head.locator(".lf-anchor-status")).to_have_count(0)
     assert [
         event for event in read_events(serve.page_dir) if event["kind"] == "comment"
     ] == [blocked, active]

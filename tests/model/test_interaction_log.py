@@ -6,8 +6,8 @@ import time
 import pytest
 from click.testing import CliRunner
 
-from leaf.cli import cli
-from leaf.interaction_log import (
+from leaf.commands.cli import cli
+from leaf.log.interaction_log import (
     INTERACTIONS_FILE,
     admit_batch,
     append_interactions,
@@ -33,7 +33,7 @@ def test_reader_deduplicates_and_reports_loss_before_host_time_filtering(
 ):
     def stamp(second):
         monkeypatch.setattr(
-            "leaf.interaction_log.now_iso", lambda: f"2026-10-09T06:08:{second}Z"
+            "leaf.log.interaction_log.now_iso", lambda: f"2026-10-09T06:08:{second}Z"
         )
 
     stamp(42)
@@ -87,9 +87,9 @@ def test_cli_queries_canonical_records_without_changing_the_log(tmp_path, monkey
     # Process inspection may be refused by the test runner's sandbox; this test
     # exercises command recording against a known launch time.
     started = time.time()
-    monkeypatch.setattr("leaf.interaction_log.launched", lambda: started)
+    monkeypatch.setattr("leaf.log.interaction_log.launched", lambda: started)
     monkeypatch.setattr(
-        "leaf.interaction_log.now_iso", lambda: "2026-10-09T06:08:42.551Z"
+        "leaf.log.interaction_log.now_iso", lambda: "2026-10-09T06:08:42.551Z"
     )
     (tmp_path / "events.jsonl").write_text("")
     rows = client_records(
@@ -188,14 +188,14 @@ def test_required_transport_is_validated_once_and_torn_lines_are_skipped(tmp_pat
 
 def test_command_recording_includes_output_and_excludes_help(monkeypatch):
     """Diagnostics end after the caller has its output, and help names no work."""
-    from leaf import cli as cli_model
+    from leaf.commands import cli as cli_model
 
     sequence = []
     monkeypatch.setattr(
         cli_model, "_print_result", lambda result: sequence.append("output")
     )
     monkeypatch.setattr(
-        "leaf.interaction_log.record_command",
+        "leaf.log.interaction_log.record_command",
         lambda command, **_: sequence.append(command),
     )
     runner = CliRunner()

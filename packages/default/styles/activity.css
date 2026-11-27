@@ -103,7 +103,7 @@ lf-activity .lf-activity-undone {
   color: var(--lf-muted);
   font: var(--lf-font-chip);
   border: 1px solid var(--lf-border);
-  border-radius: var(--lf-chip-r);
+  border-radius: var(--lf-r-s);
   padding: var(--lf-chip-pad);
 }
 lf-activity

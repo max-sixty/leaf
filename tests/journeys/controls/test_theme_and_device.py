@@ -11,11 +11,12 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 
 def test_a_page_s_reset_leaves_leaf_s_controls_their_faces(browser, serve):
-    """A page that brings its own framework takes no theme, and its reset in a layer
-    named `reset` clears the page's own elements and leaves what Leaf draws as it was
-    (layer.py, `PAGE_RESET_LAYER`). Left to rank above every tier of Leaf's, as any
-    layer a page names does, the reset would take the padding, border and ground from
-    Leaf's buttons and fields and the frame from a choice group."""
+    """A page that brings its own framework takes no theme, and its reset, in the `base`
+    layer Tailwind keeps it in, clears the page's own elements and leaves what Leaf
+    draws as it was: Leaf's faces for its controls and widgets rank above the page's
+    `base` (layer.py, `DOCUMENT_LAYER_ORDER`). Ranked below it, as a theme's rules
+    are, the reset would take the padding, border and ground from Leaf's buttons and
+    fields and the frame from a choice group."""
     body = (
         '<h1>Retention</h1><p id="own">Words.</p><p id="controls"></p>'
         '<lf-group id="window-q" label="How long?">'
@@ -44,7 +45,7 @@ def test_a_page_s_reset_leaves_leaf_s_controls_their_faces(browser, serve):
         reset.evaluate("getComputedStyle(document.getElementById('own')).marginTop")
         == "0px"
     ), "the reset still clears the page's own elements"
-    # Only `reset` ranks low: an author's own layer still outranks the theme's look.
+    # An author's own layer outranks the theme's look.
     themed = open_page(
         browser,
         serve(

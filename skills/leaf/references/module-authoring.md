@@ -15,8 +15,32 @@ back, and others say that it is drawing, holding something for the user or faili
 [module-plain-elements.md](module-plain-elements.md) gives each property, event and
 mark of that protocol. A widget that only records state and reads bound data imports
 nothing. One that draws with Lit usually extends `LeafElement`, the Lit element on that
-protocol, and one that draws from a page reading must (`module-plain-elements.md`,
-"`LeafElement`").
+protocol, and one that draws from a page reading either does (`module-plain-elements.md`,
+"`LeafElement`") or is an Effect UI component that `defineWidget` defines
+(`/runtime/effect-widget.js`, whose header gives its contract): Leaf's reading and
+what its `inputs` read arrive as props, and its events record.
+
+Whatever a package leans on Leaf for is one of these kinds, and each kind has its own
+form. Find a need's kind, then read the section that describes its form:
+
+| A package leans on Leaf for                    | The form it takes                       | Described in                               |
+| ---------------------------------------------- | --------------------------------------- | ------------------------------------------ |
+| What Leaf must know before any module runs     | A key of the tag's declaration          | `packages.md`, "A widget"                  |
+| What changes while the page runs               | The widget protocol                     | `module-plain-elements.md`                 |
+| What a widget and a page's author both need    | An element Leaf defines on every page   | `module-state.md`, "Time readings"         |
+| What only Leaf can do or know                  | A function from `widget-api.js`         | "Functions", below                         |
+| A theme's choice                               | A custom property the sheet reads       | `package-themes.md`, "Theme tokens"        |
+| A fact about where the widget's box stands     | A custom property Leaf or a Layout sets | `packages.md`, "Styles and composition"    |
+| What the widget's box tells Leaf               | A custom property the sheet sets        | `package-themes.md`, "A theme change"      |
+| Leaf's look for a part the widget draws        | A control built by its role, or a class | `module-controls.md`                       |
+| A part of an element Leaf builds in the widget | A class on that part                    | `module-input.md`, "Text entry and drafts" |
+
+An element Leaf defines has an entry in the page's vocabulary, as any tag does. A custom
+property about scrolling or a sticky header is described with that subject, in
+`module-scroll-and-motion.md`, and the parts of a widget's resolved threads in
+`module-annotations.md`. What HTML, CSS and the browser's own APIs already do, a widget
+writes as any web page does. That is no part of Leaf's interface, and nor is the
+library ("Shared web code").
 
 Whatever an element can't do through the protocol, such as reading the page's words or
 its obligations, keeping the user's place, moving focus or keeping a draft, is a
@@ -50,12 +74,10 @@ In this file:
 
 In [module-state.md](module-state.md):
 
-- "The widget controller": `widgetController` reads what Leaf holds for a widget, the
-  module's own or another's.
 - "State only this tab keeps": `tabStore` keeps a string for this tab, and
   `viewMembers`, `openingView` and `keepView` show one member of a widget at a time,
   which Leaf remembers, names in the address and returns the user to their place in.
-- "Time readings": `ago`, `agePreview` and `clockValue` read the server's time.
+- "Time readings": `clockValue` reads the server's time.
 - "Editing a bound file": `boundFile`.
 - "Authenticated HTTP connections": `connection`.
 - "LLM generation": `generate`.
@@ -65,7 +87,6 @@ In [module-reading.md](module-reading.md):
 - "Reading the page": `says`, `named` and `phrasing` read an element's words, and
   `elementById` finds the element an address names.
 - "Naming": `nameOf`, `titledElement` and `anchorLabel`.
-- "Reading declarations": `layerFact` reads the registry.
 - "Following a reference": `navigateToDatum` takes the user to a part of another
   widget.
 - "Markdown": `pageLinks`.
@@ -137,6 +158,18 @@ the widget's own module, and gives the element its drawing box. For the widget's
 links the layer's `portable.css`, served beside `/widgets/` (`packages.md`, "Styles and
 composition").
 
+`says()`, `named()` and `motion` are not among the portable functions, so the widget
+does without them, on a Leaf page too:
+
+- In place of `says()` and `named()`, it takes a part's name from an attribute, as
+  `lf-timeline` takes an event's from `label`, and reads a data body with the
+  library's `data-body.js` or from a bound input (`module-reading.md`, "Reading the
+  page"). It takes no other words from an element the author wrote: on a Leaf page
+  that element can also hold words Leaf wrote, which its `textContent` or a copy of
+  its nodes would carry along.
+- In place of `motion`, it moves a box with a transition in its stylesheet, as
+  `lf-timeline` moves its playhead (`module-scroll-and-motion.md`, "Motion").
+
 Leaf adds its services through the protocol's properties, events and declarations
 (`module-plain-elements.md`), and a plain host ignores them all: there the widget's
 `state` is never set, it binds no key, shows no preview, offers no comment target and
@@ -153,6 +186,8 @@ says nothing aloud. Off Leaf:
 - `tabStore` keeps nothing: a read answers null. Focus, scrolling and controls use the
   document's native behavior, and `langForPath` reads shipped defaults in place of the
   page's composed language map.
+- Leaf stops no motion there for a user who asked for less, so the widget's sheet
+  declares its motion under `@media (prefers-reduced-motion: no-preference)`.
 
 `lf-chart` and `lf-code` in the default package, `lf-diagram`, `lf-motion` and
 `lf-timeline` are the worked examples.
@@ -166,7 +201,8 @@ script", lists.
   observers and registrations in `whileConnected` ("Upgrade", "Connection lifetimes").
 - Wire no input inside an exhibit, which Leaf marks `data-lf-exhibit` ("Upgrade").
 - Read the page's words with `says()`, and name a part with `named()`,
-  never with `textContent` (`module-reading.md`, "Reading the page").
+  never with `textContent` (`module-reading.md`, "Reading the page"). A widget that
+  also runs off Leaf imports neither ("A widget that also runs off Leaf").
 - Build injected controls, and a press that looks like Leaf's controls by its role,
   with the library's control constructors (`module-controls.md`). Mark words the
   widget writes apart from the author's with `data-lf-gen` (`module-plain-elements.md`,
@@ -183,8 +219,8 @@ script", lists.
   "Commands and keyboard routes").
 - Move focus with `focusDestination`, never `element.focus()` (`module-input.md`,
   "Focus and layers").
-- Animate with `motion`, never `element.animate` (`module-scroll-and-motion.md`,
-  "Motion").
+- Animate with `motion` or in a stylesheet, never with `element.animate`
+  (`module-scroll-and-motion.md`, "Motion").
 
 ## Upgrade
 
@@ -392,8 +428,8 @@ On a plain host `shadowStage` stages only the renderer's content; a Leaf page su
 its theme, annotation support and page watches from outside the widget.
 
 Wrap stylesheet text the module writes itself in `@layer lf-base { … }`, so its rules
-sit in the theme's `lf-base` cascade layer, below Layouts, theme packages and the
-page's own stylesheet.
+sit with the widgets' defaults in `lf-base`, above the page's `base` layer and below
+Layouts, package overrides and the page's other layers and unlayered rules.
 
 ### Scheduling paints
 

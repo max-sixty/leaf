@@ -30,6 +30,7 @@ from render_harness import (
     sending,
     stamp_page,
     told,
+    without_end_room,
     write,
 )
 
@@ -44,13 +45,13 @@ from browser.threads import (
     stream_reply,
     thread_row,
 )
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf import interaction_log as interaction_model
-from leaf import service as service_model
-from leaf import thread as thread_model
-from leaf import todos as todos_model
-from leaf.render_checks import rendered
+from leaf.agents import thread as thread_model
+from leaf.commands import cli as cli_model
+from leaf.commands import tasks as tasks_model
+from leaf.log import event_log as events_model
+from leaf.log import interaction_log as interaction_model
+from leaf.records import transaction as transaction_model
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import open_on_me
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -145,6 +146,8 @@ def test_a_message_obligation_opens_its_question_and_accepts_an_answer(
             "thread",
             "create",
             str(serve.page_dir),
+            "--title",
+            "Rehearsal report",
             "--text",
             "The rehearsal is complete.",
             *(["--section", "title"] if anchor != "page" else []),
@@ -301,7 +304,7 @@ def test_a_durable_reply_completes_its_stream_placeholder_in_place(
         attempt=STREAM_ATTEMPT,
         identity={"agent": "Codex", "session": "codex-thread"},
     )
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         transaction.clear_stream_reply("codex-thread", "leaf-turn")
 
     told(page)
@@ -403,7 +406,7 @@ def test_a_codex_reply_streams_into_an_open_card_and_its_answer_completes_it(
         identity={"agent": "Codex", "session": "codex-thread"},
     )
     assert reply["responds"] == root
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         transaction.clear_stream_reply("codex-thread", "leaf-turn")
     told(page)
     expect(streamed).to_have_count(1)
@@ -452,7 +455,7 @@ def test_a_held_card_counts_a_streaming_reply_once_and_names_the_users_own_messa
         attempt="leaf-response-explicit",
         identity={"agent": "Codex", "session": "codex-thread"},
     )
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         transaction.clear_stream_reply("codex-thread", "leaf-turn")
     told(page)
     expect(notice).to_have_text("1 new")
@@ -498,7 +501,7 @@ def test_an_answer_completing_its_stream_with_the_same_words_keeps_progress_hidd
         attempt=STREAM_ATTEMPT,
         identity={"agent": "Codex", "session": "codex-thread"},
     )
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         transaction.clear_stream_reply("codex-thread", "leaf-turn")
     told(page)
     expect(thread.locator(".lf-thread-news")).to_have_count(0)
@@ -547,7 +550,7 @@ def test_an_idle_card_replaces_progress_with_the_answer(
         attempt=STREAM_ATTEMPT,
         identity={"agent": "Codex", "session": "codex-thread"},
     )
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         transaction.clear_stream_reply("codex-thread", "leaf-turn")
     told(page)
     answer = thread.locator(".lf-msg[data-lf-author=agent]:visible")
@@ -732,6 +735,8 @@ def test_a_new_step_shows_at_once_in_the_thread_being_written_in(browser, serve,
         ephemeral=True,
     )
     page = open_page(browser, url)
+    if room == "short":
+        without_end_room(page)
     resized(page, 390, 900)
     thread = page.locator("#jobs .lf-page-thread")
     words = thread.locator(".lf-thread-working-words")
@@ -844,7 +849,7 @@ def test_a_streaming_answer_hides_the_working_message_and_its_progress(
         failure="turn_failed",
         identity={"agent": "Codex", "session": "codex-thread"},
     )
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         transaction.clear_stream_reply("codex-thread", "leaf-turn")
     told(page)
     expect(streamed.locator(".lf-msg-text")).to_have_text("Recording the release now.")
@@ -918,7 +923,7 @@ def test_an_answer_says_what_it_leaves_while_that_stands(browser, serve, request
     )
     expect(head.locator(".lf-msg-leaves")).to_have_text("On it")
 
-    todos_model.cmd_end(serve.page_dir, promise["id"], "done", "Rebuilt in v4")
+    tasks_model.cmd_end(serve.page_dir, promise["id"], "done", "Rebuilt in v4")
     told(page)
     expect(head.locator(".lf-msg-leaves")).to_have_count(0)
 
@@ -973,7 +978,7 @@ def test_a_card_moved_on_a_board_in_a_reply_reports_delivery_on_that_reply(
         if event["kind"] == "action"
     ]
     assert not moved["attention"]
-    assert moved not in service_model.unacknowledged(
+    assert moved not in transaction_model.unacknowledged(
         events_model.read_events(serve.page_dir), 0
     )
 
@@ -1129,6 +1134,8 @@ def test_a_bounded_log_in_an_agent_reply_follows_its_end_as_a_reading_region(
             "reply",
             "--done",
             response_reference(serve.page_dir, root),
+            "--title",
+            "Deploy log",
             "--text",
             "Here is its log." + "\n\n" + (markup),
         ],
@@ -1182,7 +1189,7 @@ def test_canceling_a_long_stream_keeps_the_panel_reading(browser, serve, request
     top = view.evaluate("node => node.scrollTop")
     reply_top = reply.bounding_box()["y"]
     assert top > 500
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         transaction.clear_stream_reply("codex-thread", "leaf-turn")
     told(page)
     expect(view.locator(f'.lf-msg[data-lf-attempt="{STREAM_ATTEMPT}"]')).to_have_count(

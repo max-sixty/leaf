@@ -10,8 +10,8 @@ import {
   applicationState,
   readPart,
   whenApplicationPresented,
-} from "/runtime/semantic-state.js";
-import { clockValue, tickClock } from "/runtime/presence.js";
+} from "/runtime/state/semantic-state.js";
+import { clockValue, tickClock } from "/runtime/state/presence.js";
 
 const phase = readPart((root) => root.phase);
 
@@ -154,7 +154,7 @@ test("explicit presentation rereads mechanical inputs without duplicate claims",
 });
 
 test("an unchanged intermediary still carries its upstream DOM dependencies", async () => {
-  const { PRESENTATION_DOM } = await import("/runtime/semantic-state.js");
+  const { PRESENTATION_DOM } = await import("/runtime/state/semantic-state.js");
   let dom = "old";
   const seen = [];
   // The DOM the projection waits for, none until an owner upstream of it draws.
@@ -203,8 +203,8 @@ test("a paint advancing a version it does not read claims no second pass", async
   // An owner's commit advances the version its readers follow, inside the paint that
   // commits. `tick` writes without reading, so the paint is not subscribed to its own
   // write; `x.value += 1` reads first, and claims the region again for nothing.
-  const { tick } = await import("/runtime/version-signal.js");
-  const { signal } = await import("/runtime/framework.js");
+  const { tick } = await import("/runtime/state/version-signal.js");
+  const { signal } = await import("/vendor/signals-core.js");
   const paints = { ticked: 0, added: 0 };
   const ticked = signal(0);
   const added = signal(0);

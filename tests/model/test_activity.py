@@ -35,22 +35,23 @@ from interact_support import (
 )
 from interact_support import declare as declare_status
 
-from leaf import activity as activity_model
-from leaf import cli as cli_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import harness as harness_model
-from leaf import hooks as hooks_model
-from leaf import leases as leases_model
-from leaf import obligations as obligations_model
-from leaf import presence as presence_model
-from leaf import schema as schema_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import standing as standing_model
-from leaf import state as cleanup_model
-from leaf.served_state import context as read_context
-from leaf.served_state import page as served_page
+from leaf.agents import delivery as delivery_model
+from leaf.agents import presence as presence_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import schema as schema_model
+from leaf.base import service as service_model
+from leaf.base import standing as standing_model
+from leaf.base import state as cleanup_model
+from leaf.commands import cli as cli_model
+from leaf.commands import hooks as hooks_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.log import obligations as obligations_model
+from leaf.records import activity as activity_model
+from leaf.records import transaction as transaction_model
+from leaf.serving.served_state import context as read_context
+from leaf.serving.served_state import page as served_page
 
 
 def test_a_claimant_inside_a_turn_is_listening_between_two_waits(claimed):
@@ -666,7 +667,7 @@ def test_queued_input_does_not_hide_fresh_work(claimed):
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "One more note"}
     )
-    with service_model.PageTransaction(claimed) as transaction:
+    with transaction_model.PageTransaction(claimed) as transaction:
         delivery_model.record_pickup(transaction, [comment], phase="queued")
 
     activity = activity_reading(claimed)
@@ -717,7 +718,7 @@ def test_queued_input_does_not_hide_live_codex_activity(claimed):
     assert claim is not None
     lease = leases_model.take_wait_lease(lease_path_2)
     assert lease
-    with service_model.PageTransaction(claimed) as transaction:
+    with transaction_model.PageTransaction(claimed) as transaction:
         transaction.set_stream_activity(
             "s1", "turn-live", {"kind": "tool", "detail": "Running the checks"}
         )
@@ -725,7 +726,7 @@ def test_queued_input_does_not_hide_live_codex_activity(claimed):
     comment = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "One more note"}
     )
-    with service_model.PageTransaction(claimed) as transaction:
+    with transaction_model.PageTransaction(claimed) as transaction:
         delivery_model.record_pickup(transaction, [comment], phase="queued")
 
     activity = activity_reading(claimed)
@@ -751,7 +752,7 @@ def test_live_codex_activity_overlays_the_declared_page_status(claimed):
     lease = leases_model.take_wait_lease(lease_path_3)
     assert lease
 
-    with service_model.PageTransaction(claimed) as transaction:
+    with transaction_model.PageTransaction(claimed) as transaction:
         transaction.set_stream_activity(
             "s1", "turn-live", {"kind": "tool", "detail": "Running the tests"}
         )
@@ -776,7 +777,7 @@ def test_live_codex_activity_overlays_the_declared_page_status(claimed):
     session_model.cmd_waiting(claimed)
     assert activity_reading(claimed)["observed"] == "Running the tests"
 
-    with service_model.PageTransaction(claimed) as transaction:
+    with transaction_model.PageTransaction(claimed) as transaction:
         transaction.clear_stream_activity("s1", "turn-live")
     returned = activity_reading(claimed)
     assert (returned["presence"], returned["state"], returned["detail"]) == (
@@ -791,23 +792,24 @@ def test_stream_activity_writes_only_new_readings(claimed, monkeypatch):
     serving(claimed, 1)
     session_model.cmd_waiting(claimed)
 
-    with service_model.PageTransaction(claimed) as transaction:
+    with transaction_model.PageTransaction(claimed) as transaction:
         transaction.set_stream_activity(
             "s1", "turn-live", {"kind": "tool", "detail": "Running the tests"}
         )
-    unchanged = (claimed / "stream.json").read_bytes()
+    stream = service_model.STREAM.file(claimed / "stream.json")
+    unchanged = stream.read_bytes()
 
-    with service_model.PageTransaction(claimed) as transaction:
+    with transaction_model.PageTransaction(claimed) as transaction:
         transaction.set_stream_activity(
             "s1", "turn-live", {"kind": "tool", "detail": "Running the tests"}
         )
-    assert (claimed / "stream.json").read_bytes() == unchanged
+    assert stream.read_bytes() == unchanged
 
-    with service_model.PageTransaction(claimed) as transaction:
+    with transaction_model.PageTransaction(claimed) as transaction:
         transaction.set_stream_activity(
             "s1", "turn-live", {"kind": "thinking", "detail": "Reviewing the result"}
         )
-    changed = (claimed / "stream.json").read_bytes()
+    changed = stream.read_bytes()
     assert changed != unchanged
     observed = read_record(claimed / "stream.json")["activity"]
     assert observed["detail"] == "Reviewing the result"
@@ -816,8 +818,8 @@ def test_stream_activity_writes_only_new_readings(claimed, monkeypatch):
         datetime.fromisoformat(observed["ts"]) + timedelta(minutes=6)
     ).isoformat()
     with monkeypatch.context() as patch:
-        patch.setattr(service_model, "now_iso", lambda: renewed_at)
-        with service_model.PageTransaction(claimed) as transaction:
+        patch.setattr(transaction_model, "now_iso", lambda: renewed_at)
+        with transaction_model.PageTransaction(claimed) as transaction:
             transaction.set_stream_activity(
                 "s1",
                 "turn-live",
@@ -844,7 +846,7 @@ def test_a_current_declaration_keeps_the_sentence_a_live_stream_stands_beside(cl
     assert lease
 
     start = working(claimed, "Checking the rollout against staging")
-    with service_model.PageTransaction(claimed) as transaction:
+    with transaction_model.PageTransaction(claimed) as transaction:
         assert claim is not None
         transaction.set_stream_activity(
             claim["id"],
@@ -925,7 +927,7 @@ def test_a_malformed_old_stream_record_is_ignored(claimed):
     # Written past `write_record`, whose schema check would refuse the activity
     # without its `kind`.
     cleanup_model.write_json(
-        claimed / "stream.json",
+        service_model.STREAM.file(claimed / "stream.json"),
         service_model.STREAM.stored(
             {
                 **service_model.no_stream(),
@@ -966,7 +968,7 @@ def test_stream_work_is_scoped_to_the_live_session_and_freshness(claimed):
     lease = leases_model.take_wait_lease(lease_path_6)
     assert lease
     session_model.cmd_waiting(claimed)
-    with service_model.PageTransaction(claimed) as transaction:
+    with transaction_model.PageTransaction(claimed) as transaction:
         assert claim is not None
         transaction.set_stream_activity(
             claim["id"],
@@ -1128,6 +1130,8 @@ def test_waiting_written_over_an_unanswered_move_names_it(claimed, snapshot):
             response_reference(claimed, comment),
             "--text",
             "ok",
+            "--title",
+            "Thread title",
         ],
     )
     assert replied.exit_code == 0, replied.output
@@ -1271,7 +1275,7 @@ def test_the_activity_a_claim_its_turn_and_their_silence_come_to(page_dir, dead_
                 ).isoformat(timespec="seconds"),
             )
         else:
-            service_model.claim_path(d).unlink(missing_ok=True)
+            service_model.CLAIM.remove(service_model.claim_path(d))
         declare_status(
             d,
             "waiting" if state == "working" else state,
@@ -1317,7 +1321,7 @@ def test_the_activity_a_claim_its_turn_and_their_silence_come_to(page_dir, dead_
     [first_comment] = [
         event for event in events_model.read_events(d) if event["kind"] == "comment"
     ]
-    with service_model.PageTransaction(d) as transaction:
+    with transaction_model.PageTransaction(d) as transaction:
         delivery_model.record_pickup(transaction, [first_comment], phase="queued")
     _, activity = declare("working", "revising the plan")
     assert activity["state"] == "running"
@@ -1326,7 +1330,7 @@ def test_the_activity_a_claim_its_turn_and_their_silence_come_to(page_dir, dead_
 
     # Picked up into the claimant's open turn before the agent has said anything: the
     # page is working, on the comment the turn picked up.
-    with service_model.PageTransaction(d) as transaction:
+    with transaction_model.PageTransaction(d) as transaction:
         delivery_model.record_pickup(
             transaction, [first_comment], phase="opened", session="s", turn="turn-1"
         )
@@ -1515,7 +1519,7 @@ def test_an_ended_pickup_keeps_the_invitation_the_agent_declared(page_dir):
     lease = leases_model.take_wait_lease(lease_path_9)
     assert lease
     try:
-        with service_model.PageTransaction(page_dir) as transaction:
+        with transaction_model.PageTransaction(page_dir) as transaction:
             delivery_model.record_pickup(transaction, [comment])
             cleanup_model.close_session_turn(claim["id"])
         result = CliRunner().invoke(cli_model.cli, ["page", "open", str(page_dir)])
@@ -1543,7 +1547,7 @@ def test_an_update_its_turn_left_blocks_an_undeclared_page_on_the_user(claimed):
     )
     claim = service_model.page_claim(claimed)
     assert claim is not None
-    with service_model.PageTransaction(claimed) as transaction:
+    with transaction_model.PageTransaction(claimed) as transaction:
         delivery_model.record_pickup(
             transaction, [comment], session=claim["id"], turn=claim["turn"]
         )
@@ -1571,7 +1575,7 @@ def test_newer_page_work_takes_the_activity_from_an_older_thread_start(page_dir)
         {"kind": "comment", "author": "user", "revision": 1, "text": "Why?"},
     )
     record_claim(page_dir, id="s", pid=os.getpid(), agent="Claude")
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         delivery_model.record_pickup(transaction, [comment])
     started = CliRunner().invoke(
         cli_model.cli,

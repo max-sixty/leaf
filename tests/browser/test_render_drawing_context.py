@@ -117,12 +117,14 @@ def test_drawing_preview_contains_page_content_and_freezes_it(
       let red = 0, ink = 0;
       for (let i = 0; i < pixels.length; i += 4) {
         if (pixels[i] > 200 && pixels[i+1] < 120 && pixels[i+2] < 120) red++;
-            if (pixels[i] < 180 && pixels[i+1] > 60 && pixels[i+2] > 100) ink++;
+        if (pixels[i+1] > pixels[i] + 30 && pixels[i+1] > pixels[i+2]) ink++;
       }
       return {red, ink, picture: canvas.toDataURL()};
     }""")
     assert pixels["red"] > 1000, "the picture must show the page underneath the strokes"
-    assert pixels["ink"] > 20, "the picture must include the drawing over the page"
+    assert pixels["ink"] > 20, (
+        "the picture must include the green draft ink over the page"
+    )
     shelf = page.locator(".lf-fab-bar .lf-composer-media")
     assert shelf.evaluate("el => el.scrollWidth <= el.clientWidth"), (
         "both drawing controls must fit"
@@ -155,7 +157,7 @@ def test_drawing_preview_contains_page_content_and_freezes_it(
         # The page places the composer for the narrow window in the rendering updates
         # after the resize. Until then the button stands where the wide window put
         # it, outside this one, and a key pressed there lets go of it
-        # (keyboard/controller.js).
+        # (panel/page-keys/controller.js).
         rendered(page)
     inspect = page.get_by_role("button", name="Inspect drawing, 1 stroke")
     if touch:

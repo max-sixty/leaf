@@ -12,7 +12,7 @@ import { readFileSync } from "node:fs";
 import test from "node:test";
 
 import { authoredRank, rankAt } from "/runtime/lib/rank.js";
-import { foldWidgetStates } from "/runtime/projection/model.js";
+import { foldWidgetStates } from "/runtime/state/projection/model.js";
 
 // The rank cases `test_interact_document.py` holds `projection.py` to, so the append
 // door admits what this module computes and both runtimes rank authored units alike.

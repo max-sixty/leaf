@@ -35,22 +35,24 @@ from interact_support import (
     state_json,
 )
 
-from leaf import cli as cli_model
-from leaf import delivery as delivery_model
-from leaf import event_contracts as contracts_model
-from leaf import event_endpoint as endpoint_model
-from leaf import event_log as events_model
-from leaf import plans as plans_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import standing as standing_model
-from leaf import state as state_model
-from leaf import thread as thread_model
-from leaf import todos as todos_model
-from leaf.event_contracts import append_admitted
-from leaf.findings import Rejected
-from leaf.served_state.page import full_state
-from leaf.state import EVENTS_FILE
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.base import service as service_model
+from leaf.base import standing as standing_model
+from leaf.base import state as state_model
+from leaf.base.findings import Rejected
+from leaf.base.state import EVENTS_FILE
+from leaf.commands import cli as cli_model
+from leaf.commands import session as session_model
+from leaf.commands import tasks as tasks_model
+from leaf.log import event_log as events_model
+from leaf.records import event_contracts as contracts_model
+from leaf.records import plans as plans_model
+from leaf.records import todos as todos_model
+from leaf.records import transaction as transaction_model
+from leaf.records.event_contracts import append_admitted
+from leaf.serving import event_endpoint as endpoint_model
+from leaf.serving.served_state.page import full_state
 
 
 def leaf(*args):
@@ -82,6 +84,8 @@ def test_page_state_tracks_both_lists_until_they_are_settled(page_dir):
             "--text",
             "Merge or abandon?",
             "--obligation",
+            "--title",
+            "Agent thread",
         )
     )
     queue = state_json(page_dir)
@@ -120,6 +124,7 @@ def test_page_state_tracks_both_lists_until_they_are_settled(page_dir):
             "widget": "choice",
             "action": "choose",
             "detail": {"value": ["flag-first"]},
+            "answered": True,
         },
     )
     queue = state_json(page_dir)
@@ -157,6 +162,8 @@ def test_a_todo_holds_its_thread_on_the_agent_past_reply_and_resolve(page_dir):
             "Building it now.",
             "--todo",
             "Rebuild the banner quieter",
+            "--title",
+            "Thread title",
         )
     )
     assert (todo["kind"], todo["todo"]) == ("reply", "Rebuild the banner quieter")
@@ -225,16 +232,38 @@ def test_an_answer_says_what_it_leaves_the_thread_with(page_dir):
     for text, flags in (
         ("On it.", []),
         ("On it.", ["--done", "--todo", "Tighten"]),
+        # A blank to-do promises nothing, so it settles nothing either.
+        ("On it.", ["--todo", "   "]),
         ("On it.", ["--ephemeral", "--done"]),
         # HTML with no question in it asks nothing back, so it declares nothing.
         ('On it.\n\n<figure id="sketch"><p>A sketch.</p></figure>', []),
     ):
-        result = leaf("thread", "reply", reference, "--text", text, *flags)
+        result = leaf(
+            "thread",
+            "reply",
+            reference,
+            "--text",
+            text,
+            *flags,
+            "--title",
+            "Thread title",
+        )
         assert result.exit_code != 0, (flags, result.output)
     assert kinds(state_json(page_dir)["queues"]["on_agent"]) == [
         ("update", f"update:{comment['id']}")
     ]
-    reply = written(leaf("thread", "reply", reference, "--text", "Done.", "--done"))
+    reply = written(
+        leaf(
+            "thread",
+            "reply",
+            reference,
+            "--text",
+            "Done.",
+            "--done",
+            "--title",
+            "Thread title",
+        )
+    )
     assert "todo" not in reply
     assert state_json(page_dir)["queues"] == {"on_user": [], "on_agent": []}
 
@@ -341,7 +370,16 @@ def test_a_plan_reads_each_steps_state_from_the_records_it_arranges(page_dir):
     # A question whose thread the agent resolved, as it does once the user answers
     # elsewhere, reads done, and a rewrite that leaves the to-do out leaves it owed.
     question = written(
-        leaf("thread", "create", page_dir, "--text", "Merge?", "--obligation")
+        leaf(
+            "thread",
+            "create",
+            page_dir,
+            "--text",
+            "Merge?",
+            "--obligation",
+            "--title",
+            "Agent thread",
+        )
     )
     asked = f"message:{question['id']}"
     written(leaf("thread", "resolve", page_dir, question["id"]))
@@ -432,6 +470,27 @@ def test_a_goal_counts_only_the_steps_that_ended_done(task_log):
     assert (goal["outcome"], goal["done"], goal["total"]) == ("failed", 1, 1)
 
 
+def test_a_plan_step_may_name_an_update_the_agent_owes(page_dir):
+    """An update the user handed over is an obligation on the agent's list, so a step
+    naming its id is admitted and reads where that update stands."""
+    publish(page_dir)
+    comment = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Quieter."},
+    )
+    owed = f"update:{comment['id']}"
+    written(
+        CliRunner().invoke(
+            cli_model.cli,
+            ["task", "plan", str(page_dir)],
+            input=json.dumps([{"depth": 0, "item": owed}]),
+        )
+    )
+    [step] = state_json(page_dir)["plan"]["steps"]
+    assert step["item"] == {"kind": "obligation", "id": owed}
+    assert (step["next_actor"], step["state"]) == ("agent", "waiting")
+
+
 def test_a_plan_step_reads_its_todo_stopped_once_the_turn_that_started_it_ends(
     claimed,
 ):
@@ -488,6 +547,8 @@ def test_a_long_todo_or_plan_step_title_is_fitted_rather_than_refused(page_dir):
             "On it.",
             "--todo",
             words,
+            "--title",
+            "Thread title",
         )
     )
     assert answered["todo"] == fitted
@@ -596,7 +657,7 @@ def test_an_opening_obligation_retains_its_answer_in_the_obligation_inventory(
             "author": "user",
             "revision": 1,
             "parent": question["id"],
-            **({"text": "Warm."} if answer_kind == "reply" else {"token": "keep"}),
+            **({"text": "Warm."} if answer_kind == "reply" else {"emoji": "👍"}),
         },
     )
     served = full_state(page_dir, events_model.read_events(page_dir))
@@ -619,10 +680,9 @@ def test_an_opening_obligation_retains_its_answer_in_the_obligation_inventory(
         assert served_todos(served["browser"]) == []
 
 
-def test_an_obligation_ends_at_the_reaction_that_settles_it(page_dir):
-    """A reaction answers an obligation only when its token settles (`$reactions`): one
-    that doesn't leaves the obligation on the user, and the one that does is the
-    outcome the ended obligation records."""
+def test_an_obligation_ends_at_the_reaction_after_it(page_dir):
+    """A reaction is the user's next message, so whatever its emoji it answers the
+    question before it, and it is the outcome the ended obligation records."""
     publish(page_dir)
     comment = append_carried_log_record(
         page_dir,
@@ -636,48 +696,31 @@ def test_an_obligation_ends_at_the_reaction_that_settles_it(page_dir):
             "--text",
             "Warm or cool?",
             "--obligation",
+            "--title",
+            "Thread title",
         )
     )
-
-    def react(token):
-        return append_carried_log_record(
-            page_dir,
-            {
-                "kind": "reply",
-                "author": "user",
-                "revision": 1,
-                "parent": question["id"],
-                "token": token,
-            },
-        )
-
-    react("clarify")
-    assert standing_model.is_open(
-        next(
-            item
-            for item in state_json(page_dir)["obligations"]
-            if item["source"]["id"] == question["id"]
-        )
-    )
-    keep = react("keep")
-    assert standing_model.answered(
-        next(
-            item
-            for item in state_json(page_dir)["obligations"]
-            if item["source"]["id"] == question["id"]
-        )
+    reaction = append_carried_log_record(
+        page_dir,
+        {
+            "kind": "reply",
+            "author": "user",
+            "revision": 1,
+            "parent": question["id"],
+            "emoji": "🤔",
+        },
     )
     served = full_state(page_dir, events_model.read_events(page_dir))
     [answered] = served_obligations(served["browser"])["all"]
     assert standing_model.answered(answered)
-    assert answered["answer"]["event"]["id"] == keep["id"]
+    assert answered["answer"]["event"]["id"] == reaction["id"]
 
 
 def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
     """A message whose reply failed is the user's to send again, an obligation of its
     own on On Me. A question the agent then leaves in its thread is a second
     obligation there, listed ahead of it, and the thread reads as that question: `m`
-    stops at a thread once (queue-walk.js)."""
+    stops at a thread once (panel/queue-walk.js)."""
     publish(page_dir)
     comment = append_carried_log_record(
         page_dir,
@@ -709,6 +752,8 @@ def test_a_thread_is_on_you_once_however_many_moves_it_holds_for_you(page_dir):
             "--text",
             "Short or long title?",
             "--obligation",
+            "--title",
+            "Thread title",
         )
     )
     state = state_json(page_dir)
@@ -765,6 +810,8 @@ def test_working_names_a_move_until_its_answer_and_a_todo_until_its_end(page_dir
             response_reference(page_dir, comment["id"]),
             "--text",
             "Done.",
+            "--title",
+            "Thread title",
         )
     )
     state = state_json(page_dir)
@@ -813,7 +860,7 @@ def test_a_claim_reaching_the_door_as_its_update_settles_takes_nothing_in_hand(
     the update is still owed under the same log lock as the append, so a claim that
     reaches the lock while the settlement holds it takes nothing in hand, and the page
     never reads Working on a settled update. A bare start is refused; progress still
-    posts in the thread, with a note of what the log now holds the update as."""
+    posts in the thread, at the thread's newest input."""
     publish(page_dir)
     comment = append_command(
         page_dir,
@@ -832,7 +879,7 @@ def test_a_claim_reaching_the_door_as_its_update_settles_takes_nothing_in_hand(
 
     def take_in_hand():
         if claim == "task start":
-            todos_model.cmd_start(page_dir, comment["id"], "Tightening it")
+            tasks_model.cmd_start(page_dir, comment["id"], "Tightening it")
         else:
             thread_model.post_response(reference, "Tightening it", ephemeral=True)
 
@@ -845,7 +892,7 @@ def test_a_claim_reaching_the_door_as_its_update_settles_takes_nothing_in_hand(
             refusals.append(refused)
 
     claiming = threading.Thread(target=run_claim, name="claim")
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         claiming.start()
         assert claim_waits.wait(STATED_TIMEOUT)
         # Another session's resolve answers for the thread; the user's own would
@@ -868,9 +915,6 @@ def test_a_claim_reaching_the_door_as_its_update_settles_takes_nothing_in_hand(
             True,
             False,
         )
-        noted = json.loads(capsys.readouterr().err.splitlines()[-1])
-        assert noted["code"] == "superseded-progress"
-        assert "resolved the thread" in noted["text"]
     state = state_json(page_dir)
     assert state["workflows"] == []
     assert state["activity"]["state"] != "running"
@@ -899,6 +943,8 @@ def test_a_thread_todo_runs_under_its_start_line(page_dir, capsys, start):
             "On it.",
             "--todo",
             "Rebuild the chart",
+            "--title",
+            "Thread title",
         )
     )
     line = ("--text", "Waiting on the build")
@@ -913,7 +959,6 @@ def test_a_thread_todo_runs_under_its_start_line(page_dir, capsys, start):
         capsys.readouterr()
         progress = written(leaf("thread", "reply", *address, "--ephemeral", *line))
         assert progress["start"] == {"item": todo["id"]}
-        assert "superseded-progress" not in capsys.readouterr().err
     state = state_json(page_dir)
     [thread] = state["threads"]
     assert thread["attention"] == todo["id"]
@@ -922,6 +967,140 @@ def test_a_thread_todo_runs_under_its_start_line(page_dir, capsys, start):
         todo["id"],
         "Waiting on the build",
     )
+
+
+def test_a_todo_waits_on_what_the_agent_named_until_it_takes_the_work_up(page_dir):
+    """A to-do may name what its work waits on, opened by a reply or by `task
+    create`, and carries it until a start takes the work up: a start that lapses or
+    is put down later leaves it a to-do still to do, not waiting again, and an ended
+    one, or the plan step naming it, waits on nothing. Only a to-do
+    waits on something, and words too long to stand in a status are fitted rather
+    than refused. Each delivery from the page lists the to-dos still waiting, so the
+    agent meets them again whatever input arrives."""
+    publish(page_dir)
+    comment = append_carried_log_record(
+        page_dir,
+        {"kind": "comment", "author": "user", "revision": 1, "text": "Wait for it."},
+    )
+    reference = response_reference(page_dir, comment["id"])
+    lone = leaf(
+        "thread",
+        "reply",
+        reference,
+        "--text",
+        "Held.",
+        "--done",
+        "--waiting-on",
+        "Whose Words",
+        "--title",
+        "Thread title",
+    )
+    assert lone.exit_code != 0, lone.output
+    held = written(
+        leaf(
+            "thread",
+            "reply",
+            reference,
+            "--text",
+            "Held.",
+            "--todo",
+            "Take up the card's top line",
+            "--waiting-on",
+            "Whose Words",
+            "--title",
+            "Thread title",
+        )
+    )
+    created = written(
+        leaf(
+            "task",
+            "create",
+            page_dir,
+            "page",
+            "--title",
+            "Merge the change",
+            "--waiting-on",
+            "its review by the release team and then CI",
+        )
+    )
+
+    def waits() -> dict:
+        return {
+            record["id"]: record["waiting_on"]
+            for record in open_todos(state_json(page_dir))
+        }
+
+    assert waits() == {
+        held["id"]: "Whose Words",
+        created["id"]: "its review by the release…",
+    }
+
+    def delivered() -> dict:
+        """The batch a delivery of a new comment of the user's hands the agent."""
+        said = append_carried_log_record(
+            page_dir,
+            {"kind": "comment", "author": "user", "revision": 1, "text": "Picked."},
+        )
+        [batch] = freeze_events(page_dir, [said])["batches"]
+        return batch
+
+    # Every delivery from the page lists what is held, whatever its input, and an
+    # input that owes an answer is told how to take one up.
+    batch = delivered()
+    assert batch["held"] == [
+        {
+            "id": held["id"],
+            "text": "Take up the card's top line",
+            "waiting_on": "Whose Words",
+        },
+        {
+            "id": created["id"],
+            "text": "Merge the change",
+            "waiting_on": "its review by the release…",
+        },
+    ]
+    [event] = batch["events"]
+    assert any("`held`" in batch["handling"][clause] for clause in event["handling"])
+    # A plan step naming one says what it waits on, as the to-do does.
+    written(
+        CliRunner().invoke(
+            cli_model.cli,
+            ["task", "plan", str(page_dir)],
+            input=json.dumps(
+                [{"depth": 0, "item": held["id"]}, {"depth": 0, "item": created["id"]}]
+            ),
+        )
+    )
+
+    def steps() -> dict:
+        return {
+            step["item"]["id"]: (step["state"], step["waiting_on"])
+            for step in state_json(page_dir)["plan"]["steps"]
+        }
+
+    assert steps() == {
+        held["id"]: ("waiting", "Whose Words"),
+        created["id"]: ("waiting", "its review by the release…"),
+    }
+
+    written(leaf("task", "start", page_dir, held["id"], "--text", "Building it"))
+    written(leaf("page", "open", page_dir))
+    assert waits() == {
+        held["id"]: None,
+        created["id"]: "its review by the release…",
+    }
+    assert [item["id"] for item in delivered()["held"]] == [created["id"]]
+
+    written(leaf("task", "end", page_dir, held["id"], "done"))
+    written(leaf("task", "end", page_dir, created["id"], "dropped"))
+    assert "held" not in delivered()
+    state = state_json(page_dir)
+    assert {
+        record["id"]: (record["state"], record["waiting_on"])
+        for record in state["obligations"]
+        if record["source"]["kind"] == "todo"
+    } == {held["id"]: ("done", None), created["id"]: ("done", None)}
+    assert steps() == {held["id"]: ("done", None), created["id"]: ("done", None)}
 
 
 @pytest.fixture
@@ -1164,6 +1343,7 @@ def test_a_start_on_a_widget_todo_holds_the_moves_delivered_before_it(page_dir):
             "widget": "choice",
             "action": "choose",
             "detail": {"value": ["flag-first"]},
+            "answered": True,
         },
     )
     todo = written(
@@ -1190,6 +1370,7 @@ def test_a_start_on_a_widget_todo_holds_the_moves_delivered_before_it(page_dir):
             "widget": "choice",
             "action": "choose",
             "detail": {"value": ["backfill-first"]},
+            "answered": True,
         },
     )
     [workflow] = state_json(page_dir)["workflows"]
@@ -1265,6 +1446,8 @@ def test_a_decision_ends_through_its_state_and_a_question_with_its_thread(page_d
             "--text",
             "Warm or cool?",
             "--obligation",
+            "--title",
+            "Thread title",
         )
     )
     asked = f"message:{question['id']}"
@@ -1320,6 +1503,8 @@ def test_a_reply_clears_a_question_until_the_agent_reopens_it(page_dir):
             "--obligation",
             "--text",
             "Can you try the build on your phone?",
+            "--title",
+            "Thread title",
         )
     )
     item = f"message:{question['id']}"
@@ -1401,6 +1586,8 @@ def test_one_reply_reopens_each_question_the_users_message_answered(page_dir):
             "--obligation",
             "--text",
             "Can you try the build?",
+            "--title",
+            "Thread title",
         )
     )
     second = written(
@@ -1460,6 +1647,8 @@ def test_obligation_names_a_question_its_own_thread_asks(page_dir):
                 "--obligation",
                 "--text",
                 text,
+                "--title",
+                "Thread title",
             )
         )
 
@@ -1537,6 +1726,8 @@ def test_the_agent_ends_a_choice_the_user_answered_in_words(page_dir):
             '<lf-option id="store-account" label="Account store"><strong>Account store</strong></lf-option>'
             '<lf-option id="store-own" label="Their own store"><strong>Their own store</strong></lf-option>'
             "</lf-options>",
+            "--title",
+            "Thread title",
         )
     )
     said = append_command(
@@ -1654,6 +1845,7 @@ def test_a_start_on_a_page_move_holds_that_move_and_not_a_later_one(page_dir):
             "widget": "choice",
             "action": "choose",
             "detail": {"value": ["flag-first"]},
+            "answered": True,
         },
     )
 
@@ -1675,6 +1867,7 @@ def test_a_start_on_a_page_move_holds_that_move_and_not_a_later_one(page_dir):
             "widget": "choice",
             "action": "choose",
             "detail": {"value": ["backfill-first"]},
+            "answered": True,
         },
     )
     assert [
@@ -1752,7 +1945,7 @@ def test_a_start_is_one_log_record_read_at_the_status_and_the_move(
         "blocked": 0,
         "unseen": 1,
     }
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     assert session_model.cmd_wait(page_dir) == 0
     delivered(capsys)
     *_, pickup = (
@@ -1777,6 +1970,8 @@ def test_a_start_is_one_log_record_read_at_the_status_and_the_move(
                 response_reference(page_dir, "c2"),
                 "--text",
                 "Because.",
+                "--title",
+                "Thread title",
             ],
         )
         .exit_code
@@ -1812,6 +2007,7 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
             "widget": "plan-choice",
             "action": "answer",
             "detail": {},
+            "answered": True,
         },
     )
     before_state = page_state(page_dir)
@@ -1830,7 +2026,7 @@ def test_a_recordless_receipt_from_a_stale_revision_waits_for_a_later_note(page_
     ]
 
     claim = record_claim(page_dir)
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         delivery_model.record_pickup(
             transaction,
             [answer],
@@ -1925,6 +2121,7 @@ def test_a_put_down_start_holds_no_input_in_hand(page_dir):
                 "widget": "draft",
                 "action": "edit",
                 "detail": {"value": text},
+                "answered": bool(text),
             },
         )
 
@@ -2014,7 +2211,13 @@ def test_explicit_message_obligations_need_no_html(page_dir, route):
             if route == "addressed"
             else ["thread", "reply", page_dir, thread]
         )
-    message = written(leaf(*command, "--obligation", "--text", "Which environment?"))
+    message = written(
+        leaf(
+            *command,
+            *("--title", "Release environment"),
+            *("--obligation", "--text", "Which environment?"),
+        )
+    )
     identity = f"message:{message['id']}"
     state = state_json(page_dir)
     [item] = [item for item in state["obligations"] if item["id"] == identity]
@@ -2057,7 +2260,7 @@ def test_thread_task_preserves_its_reaction_root(page_dir, attach_first):
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "keep",
+            "emoji": "👍",
             "anchor": {"section": "plan"},
         },
     )
@@ -2078,7 +2281,7 @@ def test_thread_task_preserves_its_reaction_root(page_dir, attach_first):
             )["threads"]
             if thread["id"] == root["id"]
         ]
-        assert kept["root"]["withdrawn"]["was"] == "keep"
+        assert kept["root"]["withdrawn"]["was"] == "👍"
         # The thread stays a thread, so the agent may attach more work to it.
         append_command(page_dir, {**task, "title": "Check on a tablet"})
         assert opened["id"] in {
@@ -2093,7 +2296,11 @@ def test_thread_task_preserves_its_reaction_root(page_dir, attach_first):
 def test_obligations_are_not_progress_or_user_authored(page_dir):
     """The admission boundary prevents unanswerable requests on non-agent messages."""
     publish(page_dir)
-    root = written(leaf("thread", "create", page_dir, "--text", "Status"))
+    root = written(
+        leaf(
+            "thread", "create", page_dir, "--text", "Status", "--title", "Agent thread"
+        )
+    )
     before = events_model.read_events(page_dir)
     for extra in (
         {"author": "user"},

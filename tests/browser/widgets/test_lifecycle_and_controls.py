@@ -6,13 +6,13 @@ import re
 import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import CHIP_PAGE
-from render_cases_layout import rings_drawn
 from render_harness import displayed, leaf_page, open_page
 
 from browser.widgets import (
     _bound_diff,
 )
-from leaf.render_checks import wait_until_ready
+from leaf.source.render_checks import wait_until_ready
+from leaf_dev.rings import rings_drawn
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

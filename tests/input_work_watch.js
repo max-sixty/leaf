@@ -4,7 +4,7 @@
 // it runs while an input's other work is waiting. Native await continuations do not
 // call Promise.prototype.then. Their owner captures the callback that commits an
 // effect before awaiting, and invokes it afterwards. Leaf draft sends put words away
-// synchronously before awaiting delivery (drafts.js). A reactive element's update is
+// synchronously before awaiting delivery (records/drafts.js). A reactive element's update is
 // the exception the watch follows itself: Lit defers it behind a native await, and the
 // request that starts it names its cause (`adoptReactive`). The blur and focus a
 // press or key dispatches as its native default belong to that gesture.

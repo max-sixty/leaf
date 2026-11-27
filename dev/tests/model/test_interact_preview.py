@@ -8,6 +8,7 @@ opening a browser.
 """
 
 import json
+import os
 import shutil
 import sys
 from functools import partial
@@ -15,19 +16,24 @@ from pathlib import Path
 
 import pytest
 from click.testing import CliRunner
+from conftest import hooks_run_leaf
 from interact_support import (
     ROOT,
+    append_carried_log_record,
     fetch,
     wait_for,
 )
+from model_folds import leaf_page
 
-from leaf import cli as cli_model
-from leaf import server, service
-from leaf.interaction_log import read_interactions
-from leaf.layer import stylesheet
-from leaf.media import media_name
-from leaf.registry.storage import layer_record, load_registry, selected
-from leaf.structure import SourceDocument
+from leaf.base import server, service
+from leaf.commands import cli as cli_model
+from leaf.log.interaction_log import read_interactions
+from leaf.records import transaction
+from leaf.serving.media import media_name
+from leaf.source.layer import selected_layer, stylesheet
+from leaf.source.registry.storage import layer_packages, layer_record
+from leaf.source.structure import SourceDocument
+from leaf.source.vocabulary import load_registry
 from leaf_dev import arms, page_fixtures
 from leaf_dev.commands import preview
 from leaf_dev.example_data import named_source
@@ -115,7 +121,7 @@ def test_product_previews_prepare_the_authored_layer_and_media(
     assert layer_2 is not None
     assert (
         stylesheet(package / "overrides.css", package).rstrip()
-        in selected(layer_2, page).top_files["theme.css"].decode()
+        in selected_layer(layer_2, page).top_files["theme.css"].decode()
     )
     watched = preview.watch_paths(source, ROOT, [])
     assert str(ROOT / "docs" / "layer.json") in watched.paths
@@ -199,7 +205,7 @@ def test_a_preview_subscribes_to_a_root_over_every_input_it_follows():
     other half: its own writes are a user's feedback, and watching them would make
     every gesture a reload.
     """
-    from leaf.layer import layer_inputs
+    from leaf.source.layer import layer_inputs
 
     source = named_source("heat-loss")
     packages = json.loads((ROOT / "examples" / "layer.json").read_text())
@@ -357,8 +363,8 @@ def test_preview_file_subscription_follows_atomic_replacements(tmp_path):
 
 def test_corpus_preview_follows_authored_sources(tmp_path, monkeypatch, capsys):
     """Native source events regenerate the corpus before its live page is refreshed."""
-    from leaf.data import read_data
-    from leaf.registry.storage import load_registry
+    from leaf.source.data import read_data
+    from leaf.source.vocabulary import load_registry
     from leaf_dev.example_data import data_file, page_files
 
     examples = tmp_path / "examples"
@@ -585,6 +591,53 @@ def test_a_page_directory_source_takes_its_layer_records_packages(tmp_path):
     assert preview.source_packages(page / "index.html") == ["diagram"]
 
 
+@pytest.fixture(name="held_copy_source")
+def held_copy_source_fixture(tmp_path, monkeypatch):
+    """The `index.html` of a page directory that selects a package by path, so its
+    layer record names the copy the page directory holds, `./packages/shortlist`."""
+    monkeypatch.chdir(ROOT)
+    page = tmp_path / "page"
+    selection = ["--package", "./tests/fixtures/packages/shortlist"]
+    result = CliRunner().invoke(cli_model.cli, ["page", "init", *selection, str(page)])
+    assert result.exit_code == 0, result.output
+    source = page / "index.html"
+    source.write_text(leaf_page("Shortlist", "<h1>Shortlist</h1>"))
+    return source
+
+
+def test_a_page_directory_source_builds_with_the_package_copy_it_holds(
+    tmp_path, held_copy_source
+):
+    """A path in a page's layer record names the copy inside that page directory,
+    which a build reaches from the checkout's root, where it runs `page init`."""
+    source, page = held_copy_source, held_copy_source.parent
+    built = tmp_path / "built"
+    prepare_page(built, read_fixture(source), leaf_in_process, final_status=None)
+
+    assert layer_packages(built) == ["./packages/shortlist"]
+    assert load_registry(built)["lf-shortlist"] == load_registry(page)["lf-shortlist"]
+
+
+def test_a_preview_reaches_a_held_package_copy_from_its_runtime(
+    tmp_path, monkeypatch, capsys, held_copy_source
+):
+    """A preview runs `page init` in the runtime it was given (`preview.leaf`), so it
+    states the page's package copy from there: it watches the copy and builds with it.
+    """
+    # A directory deeper than this checkout, for the launcher to run in. From one no
+    # deeper, a path stated from the checkout's root still reaches the page, since its
+    # `..` segments stop at the filesystem root.
+    runtime = tmp_path.joinpath(*ROOT.parts[1:])
+    runtime.mkdir(parents=True)
+    monkeypatch.setattr(preview, "TMP", tmp_path)
+    source = held_copy_source
+
+    held = source.parent / "packages" / "shortlist"
+    assert preview.source_roots(source, runtime)[-1].resolve() == held
+    preview.export_preview(runtime, ROOT / "bin/leaf", source, None)
+    assert Path(capsys.readouterr().out.splitlines()[-1]).is_file()
+
+
 def test_an_unrelated_ancestor_layer_does_not_change_an_external_source(tmp_path):
     source = tmp_path / "project" / "docs" / "page.html"
     source.parent.mkdir(parents=True)
@@ -604,9 +657,9 @@ def test_an_unrelated_ancestor_layer_does_not_change_an_external_source(tmp_path
 def test_a_preview_captures_acquisition_before_an_accepted_commit_is_interrupted(
     page_dir, monkeypatch, transferred
 ):
-    from leaf import detached
-    from leaf.hosting import cmd_stop
-    from leaf.service import page_claim
+    from leaf.base import detached
+    from leaf.base.service import page_claim
+    from leaf.pages.hosting import cmd_stop
 
     owner = preview.PreviewService(page_dir, user=True)
     sent = detached.socket.socket.sendall
@@ -621,9 +674,9 @@ def test_a_preview_captures_acquisition_before_an_accepted_commit_is_interrupted
                 failure="accepted start did not publish its claim",
             )
             if transferred:
-                from leaf.harness import ClaudeCodeHarness
+                from leaf.base.harness import ClaudeCodeHarness
 
-                with service.PageTransaction(page_dir) as page:
+                with transaction.PageTransaction(page_dir) as page:
                     page.take_claim(ClaudeCodeHarness("successor", "Claude"))
             raise KeyboardInterrupt
         return sent(speaker, data)
@@ -641,6 +694,48 @@ def test_a_preview_captures_acquisition_before_an_accepted_commit_is_interrupted
         owner.stop()
         assert bool(server.running_server(page_dir)) == transferred
     finally:
+        cmd_stop(page_dir)
+
+
+def test_a_user_preview_in_a_session_another_leaf_runs_serves_for_no_session(
+    page_dir, tmp_path, capsys
+):
+    """A developer's flow: a checkout's `--user` preview, in a session whose hooks run
+    another Leaf, as an installed copy, acts for no session. It serves the page
+    unclaimed and says so in the reading it prints beneath the URL, the line a read
+    of the log for the URL meets, and the checkout's own `leaf wait` on the page
+    hears the user."""
+    from leaf.base.findings import hold, release
+    from leaf.commands.session import cmd_wait
+    from leaf.pages.hosting import cmd_stop
+
+    installed = tmp_path / "plugins" / "cache" / "leaf" / "leaf" / "0a0a0a0a0a0a"
+    hooks_run_leaf(os.environ["CLAUDE_CODE_SESSION_ID"], installed)
+    owner = preview.PreviewService(page_dir, user=True)
+    hold()
+    try:
+        with owner.starting() as url:
+            pass
+        reading = json.loads(owner.reading(url))
+        assert release() == []
+        assert owner.claim is None
+        assert service.page_claim(page_dir) is None
+        assert server.running_server(page_dir)
+        assert reading["url"] == url
+        assert [note["code"] for note in reading["findings"]] == [
+            "serves-for-no-session"
+        ]
+        assert capsys.readouterr().err == ""
+
+        append_carried_log_record(
+            page_dir, {"kind": "comment", "author": "user", "text": "for the checkout"}
+        )
+        assert cmd_wait(page_dir) == 0
+        [delivery] = [json.loads(line) for line in capsys.readouterr().out.splitlines()]
+        [batch] = delivery["batches"]
+        assert [event["text"] for event in batch["events"]] == ["for the checkout"]
+    finally:
+        release()
         cmd_stop(page_dir)
 
 
@@ -738,9 +833,9 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
     The source and value publication use the same real refresh as a resumed or
     live preview; a literal seed edited on the page remains that page's data.
     """
-    from leaf.data import read_data
-    from leaf.publishing import authored_digest
-    from leaf.registry.storage import load_registry
+    from leaf.records.publishing import authored_digest
+    from leaf.source.data import read_data
+    from leaf.source.vocabulary import load_registry
 
     source = tmp_path / "reading.html"
     source.write_text(
@@ -857,8 +952,8 @@ def test_resumed_preview_follows_capture_bindings_and_files_without_replaying_se
 
 def test_preview_keeps_watching_after_unreadable_inputs(tmp_path, monkeypatch, capsys):
     """Unreadable runtime inputs or incomplete captures leave the last page serving."""
-    from leaf.data import read_data
-    from leaf.registry.storage import load_registry
+    from leaf.source.data import read_data
+    from leaf.source.vocabulary import load_registry
 
     source = tmp_path / "reading.html"
     source.write_text(

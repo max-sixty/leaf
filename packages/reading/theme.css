@@ -1,0 +1,65 @@
+/* Leaf's reading look, the bundled `reading` theme, which a page wears by listing
+ * this package (`leaf page init --package reading`). It holds the body's type
+ * and colour, the page's ground, and a wide page's title; the
+ * idioms an author writes, such as a tag or a callout, are Leaf's own and draw on every
+ * page (browser/styles/components/idioms.css). A theme builds on this one where the
+ * page lists it after this package, and stands alone where the page lists it without
+ * (src/leaf/pages/vendoring.py). As the package's `theme.css`, its rules stand in `lf-theme`,
+ * below Layouts, Leaf's faces for what it draws and the page's `base` layer and those
+ * after it, so a page's framework and its own sheet outrank them. It sets
+ * `--lf-reading-face: 1` on the root, which gives the page's markup the face Leaf's
+ * own surfaces read in (headings, prose, lists, tables, code, quotes, figures,
+ * disclosures, definitions, rules and pictures, browser/styles/components/reading.css)
+ * and its own buttons, fields and labelled choices the faces of Leaf's controls
+ * (controls.css, "The faces of Leaf's control roles"), and the root's colour scheme,
+ * which lets the tokens' light-dark() pairs follow the reader's preference.
+ *
+ * Three faces, because the page already has three kinds of words and the norms
+ * turn on telling them apart. What the page *says* is set in a text serif: prose
+ * a user reads closely and points at. Dense working surfaces such as tables
+ * use the sans too: their words are compared across rows rather than read in sequence.
+ * A table's own column headings go with them, quieter rather than tracked.
+ * What the page *labels* — an eyebrow, a chip, a metric's caption — is
+ * apparatus, set in the UI sans at small sizes with tracking, so it reads as
+ * machinery around the argument rather than as part of it. What it *shows* is mono:
+ * code, diffs, trees, timestamps.
+ *
+ * The serif is stacked, not shipped. The layer's sheet is inlined whole into every
+ * `page export` and parsed by `page check` on every version, so a webfont
+ * would have to arrive as a base64 blob in both — and referenced by URL instead
+ * it silently falls back in exactly the medium (an exported file, mailed on) that
+ * has no server to ask. Charter and Iowan Old Style ship on macOS, Georgia everywhere
+ * else; each is a screen serif with a large x-height, which is the property that
+ * matters at 17px. */
+
+/* The document is warm paper under near-black ink, in either scheme. Leaf steps its
+   neutrals from these two (browser/styles/tokens.css). */
+:root {
+  color-scheme: light dark;
+  --lf-reading-face: 1;
+  --lf-paper: light-dark(#faf9f5, #191815);
+  --lf-ink: light-dark(#1c1b18, #e8e4db);
+}
+body {
+  background: var(--lf-ground);
+  color: var(--lf-ink);
+  font: var(--lf-t-4)/1.6 var(--lf-serif);
+}
+/* A container is contained, and containment keeps the body's background off the canvas,
+ * so the root paints the page's colour itself: a page shorter than the window, with no
+ * live body stretched to fill it, otherwise ended in white. A page with no theme paints
+ * its own root, in its own colour. */
+html {
+  background: var(--lf-paper);
+}
+/* A page as wide as the window (`--lf-wide-page`, set by the sidebar Layout)
+ * sets its title tighter, to hold its line above panels as wide as the window. The
+ * Layout says how wide the page is; the tracking is answered here. A page at working
+ * density keeps the working title, since it is a surface the reader operates or
+ * glances at, such as a rollout dashboard, whose first window the panels need. */
+@container style(--lf-wide-page: 1) and (not style(--lf-density: working)) {
+  h1 {
+    letter-spacing: -0.02em;
+    line-height: 1.1;
+  }
+}

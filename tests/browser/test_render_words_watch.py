@@ -434,7 +434,7 @@ CLOSE_BOX = """<!doctype html><body>
 
 @pytest.mark.parametrize("on", ["close-keeps", "close-discards"])
 def test_words_a_close_request_puts_away_only_words_it_keeps(browser, on):
-    """Escape may throw words away, but back may not (keyboard/close-requests.js), so a
+    """Escape may throw words away, but back may not (dom/keyboard/close-requests.js), so a
     close watcher's close puts words away only where the page still stores them. A
     close that discards them fails, which makes every browser test check that back
     never loses words; counting every close as the user's put-away hid exactly that."""

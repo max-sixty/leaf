@@ -1,7 +1,7 @@
 /**
  * Leaf's watcher and hook transport in Pi: the extension does for a Pi session what `hooks.json`
  * does for a Claude Code one (`PiHarness` in
- * `src/leaf/harness.py`).
+ * `src/leaf/base/harness.py`).
  *
  * Highly experimental: a trial of Leaf on Pi. The site and most references
  * still name only Claude Code and Codex.
@@ -67,7 +67,9 @@ function run(
   payload: Payload,
   timeout?: number,
 ): { child: ChildProcess; done: Promise<string> } {
-  const child = spawn(LEAF, args, {
+  // A spawn that fails at the process's file limit gives the child no streams, piped or
+  // not, so they are read as `ChildProcess` says.
+  const child: ChildProcess = spawn(LEAF, args, {
     stdio: ["pipe", "pipe", "ignore"],
     timeout,
   });

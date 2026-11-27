@@ -4,9 +4,9 @@
    lists it starts from are the ones `page state` prints. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createSemanticApplication } from "../../browser/runtime/framework/application.js";
-import { itemEnding, itemOutcome } from "../../browser/runtime/queues.js";
-import { todoWord } from "../../browser/runtime/thread/workflow.js";
+import { createSemanticApplication } from "../../browser/runtime/state/semantic-application.js";
+import { itemEnding, itemOutcome } from "../../browser/runtime/state/queues.js";
+import { todoWord } from "../../browser/runtime/records/thread/workflow.js";
 import { servedReading } from "../served.mjs";
 
 const adopted = (name) => {
@@ -141,9 +141,16 @@ test("words sent to a question leave it on the user until the log answers", () =
   assert.ok(!published(app).on_agent.some((item) => item.id === "update:pending:a4"));
 });
 
-test("a pending widget gesture changes no obligation membership", () => {
+// The widget's word on its obligation, as `widgetAnswered` reads it, for one widget.
+const says = (widget, answered) => (/** @type {string} */ asked) =>
+  asked === widget ? answered : undefined;
+const record = (app, id) => app.read().effective.obligations.byId.get(id);
+
+test("a widget's gesture answers its question in the task that draws it", () => {
   const { app } = adopted("queues on both sides");
   const before = published(app);
+  const onUser = () => published(app).on_user.some(({ id }) => id === "widget:pick");
+  assert.ok(onUser());
   app.enqueue(
     {
       kind: "action",
@@ -155,8 +162,67 @@ test("a pending widget gesture changes no obligation membership", () => {
     },
     "now",
   );
+  // Until the widget says, a gesture moves nothing on either list.
   assert.deepEqual(kinds(published(app).on_user), kinds(before.on_user));
   assert.deepEqual(kinds(published(app).on_agent), kinds(before.on_agent));
+  app.answer("a2", says("pick", true));
+  // The event carries the word to the log, and the question leaves On Me for Done
+  // before the server has read the pick.
+  assert.equal(app.entry("a2")?.event.answered, true);
+  assert.ok(!onUser());
+  assert.ok(published(app).done.some(({ id }) => id === "widget:pick"));
+  const answered = record(app, "widget:pick");
+  assert.deepEqual(
+    [answered.state, answered.answered, answered.next_actor],
+    ["done", true, null],
+  );
+  // A refusal returns the question to where the server has it.
+  app.refuse("a2");
+  assert.ok(onUser());
+  assert.equal(record(app, "widget:pick").state, "waiting");
+});
+
+test("a gesture that leaves its widget open says nothing new", () => {
+  const { app } = adopted("queues on both sides");
+  const before = published(app);
+  app.enqueue(
+    {
+      kind: "action",
+      widget: "pick",
+      action: "choose",
+      detail: { value: [] },
+      revision: 1,
+      attempt: "a2",
+    },
+    "now",
+  );
+  app.answer("a2", says("pick", false));
+  assert.equal(app.entry("a2")?.event.answered, false);
+  assert.deepEqual(kinds(published(app).on_user), kinds(before.on_user));
+  assert.equal(record(app, "widget:pick").state, "waiting");
+});
+
+test("undoing the act that answered a question asks it again at once", () => {
+  const { app } = adopted("done");
+  const answered = record(app, "widget:ship");
+  assert.equal(answered.state, "done");
+  const id = /** @type {string} */ (answered.answer?.event?.id);
+  app.enqueue({ kind: "undo", undoes: id, attempt: "a9" }, "now");
+  app.answer("a9", says("ship", false));
+  assert.equal(app.entry("a9")?.event.answered, false);
+  const reopened = record(app, "widget:ship");
+  assert.deepEqual(
+    [reopened.state, reopened.answered, reopened.next_actor],
+    ["waiting", false, "user"],
+  );
+  assert.ok(published(app).on_user.some(({ id }) => id === "widget:ship"));
+});
+
+test("a gesture on nothing that asks carries no word", () => {
+  const { app } = adopted("queues on both sides");
+  app.enqueue({ kind: "comment", text: "Hm.", revision: 1, attempt: "a3" }, "now");
+  app.answer("a3", () => true);
+  assert.equal("answered" in (app.entry("a3")?.event ?? {}), false);
 });
 
 test("Done lists completed obligations and to-dos through their own records", () => {

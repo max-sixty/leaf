@@ -37,18 +37,19 @@ from render_harness import (
     resized,
     round_trip,
     sending,
+    still_page,
     take_browser_errors,
     told,
     write,
 )
 
 from browser.threads import open_panel_thread
-from leaf import event_endpoint as endpoint_model
-from leaf import event_log as events_model
-from leaf import http as http_model
-from leaf import thread as thread_model
-from leaf.findings import Finding
-from leaf.render_checks import (
+from leaf.agents import thread as thread_model
+from leaf.base.findings import Finding
+from leaf.log import event_log as events_model
+from leaf.serving import event_endpoint as endpoint_model
+from leaf.serving import http as http_model
+from leaf.source.render_checks import (
     rendered,
     wait_until_ready,
 )
@@ -57,6 +58,7 @@ from leaf_dev.browser import (
     panel_tab,
     threads_tab,
 )
+from leaf_dev.example_data import named_source
 
 
 def test_opening_threads_acknowledges_the_first_visible_answer(
@@ -287,6 +289,21 @@ def test_reading_a_thread_moves_nothing_in_it(browser, serve):
       return moved;
     }}""")
     assert moved == []
+
+
+def test_a_card_its_placement_brings_into_view_is_read(browser, serve):
+    """A thread card that opens with a scroll and then stands, without another scroll,
+    where its message shows whole marks that message read. At 1200x900 with reduced
+    motion, opening the thread below the page's top scrolls the page at once, and the
+    card's placement then holds it at the window's foot, moving its body from mostly
+    below the window to wholly in it, a move no scroll or resize announces."""
+    page = still_page(browser, serve(named_source("thread-choice-hints")))
+    page.evaluate("scrollTo({top: 252, behavior: 'instant'})")
+    rendered(page)
+    _expect_news(page, True)
+    page.keyboard.press("t")
+    expect(page.locator(".lf-margin-preview .lf-page-thread")).to_be_focused()
+    _expect_news(page, False)
 
 
 def test_first_unread_opens_the_exact_message_and_exposure_acknowledges_it(

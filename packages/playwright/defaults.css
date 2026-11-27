@@ -495,14 +495,17 @@ lf-trace[hidden="until-found"] {
 }
 /* Point metadata owns its scroll. Frame gaps and disclosure cannot shrink the
  * surrounding page or pull a control out from under a reader during playback. Its
- * ring stands one band inside its edge (below), so its words start a ring's room in,
- * clear of the band; the scrollbar's gutter keeps the other side clear. */
+ * ring stands one band inside its edge (below), so its rows stand a ring's room in
+ * from either side, clear of the band. The room is padding on both sides because a
+ * scrollbar gutter is no room at all where scrollbars overlay the content, as on macOS
+ * and in headless browsers, and the sticky "Saved elements" row would paint over the
+ * ring's right edge there. */
 .lf-trace-metadata {
   margin-block-start: var(--lf-sp-3);
   block-size: 14rem;
   overflow: auto;
   scrollbar-gutter: stable;
-  padding-inline-start: var(--lf-focus-ring-room);
+  padding-inline: var(--lf-focus-ring-room);
   --lf-top: 0px;
   --lf-holds-height: 1;
 }

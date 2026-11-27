@@ -46,23 +46,23 @@ from render_harness import (
 )
 
 from journeys import detached_threads, listed_threads
-from leaf import anchor_capture as anchor_capture_model
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import passages as passages_model
-from leaf import service as service_model
-from leaf import structure as structure_model
-from leaf.registry.storage import read_page_registry
-from leaf.render_checks import rendered, wait_until_ready
-from leaf_dev.browser import PANEL_THREAD
+from leaf.agents import delivery as delivery_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
+from leaf.records import transaction as transaction_model
+from leaf.source import anchor_capture as anchor_capture_model
+from leaf.source import passages as passages_model
+from leaf.source import structure as structure_model
+from leaf.source.render_checks import rendered, wait_until_ready
+from leaf.source.vocabulary import read_page_registry
+from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 from leaf_dev.example_data import named_source, patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
 from browser.test_render_anchors import open_selected_comment
-from browser.threads import choose_threads_in_panel, open_panel_thread
+from browser.threads import open_panel_thread
 
 from journeys import (
     first_thread_head,
@@ -193,7 +193,7 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
             const resolved = resolveAnchor(anchor);
             // A cross-cell selection remains a real native selection and a writable
             // comment. It must not acquire an exact semantic highlight by ignoring
-            // the same fences file capture respects. Generated wordless faces and
+            // the reading's fences. Generated wordless faces and
             // identified data can also retain an element fallback.
             if (!resolved?.exact || resolved.kind !== 'passage') {
                 nonexact.push(anchor);
@@ -251,15 +251,17 @@ def test_real_page_passages_can_be_quoted(browser, serve, source):
     }"""
     )
     # Refusing a highlight needs evidence independent of browser resolution. A
-    # regression that detaches ordinary file-readable prose must fail this sweep.
+    # regression that detaches prose the file's reading says once must fail this sweep.
     passages = passages_model.page_passages(
         structure_model.SourceDocument((serve.page_dir / "index.html").read_text()),
         read_page_registry(serve.page_dir).registry,
     )
     for anchor in result["nonexact"]:
-        located = {key: value for key, value in anchor.items() if key != "detached"}
-        assert anchor_capture_model.resolve_quote(passages, located) is None, (
-            f"{source.stem}: browser detached a file-readable passage: {anchor}"
+        found = anchor_capture_model.copies(
+            passages, anchor["quote"], anchor.get("section")
+        )
+        assert len(found) != 1, (
+            f"{source.stem}: browser detached a passage the file says once: {anchor}"
         )
     assert result["attempted"] > 0, f"{source.stem}: the passage sweep found nothing"
     assert result["missed"] == [], (
@@ -721,7 +723,7 @@ diff --git a/README.md b/README.md
 -Routes by legacy key.
 +Routes by token.
 """
-    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
     page = open_page(browser, url)
     page.wait_for_function(
         "() => document.querySelector('lf-diff.lf-rendered') !== null"
@@ -752,7 +754,7 @@ diff --git a/README.md b/README.md
     details.evaluate(
         "element => { element.open = false; window.__lfDiffDetails = element; }"
     )
-    data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", patch)
     told(page)
     assert details.evaluate("element => element === window.__lfDiffDetails")
     expect(details).not_to_have_attribute("open", "")
@@ -882,7 +884,7 @@ diff --git a/README.md b/README.md
     expect(page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')).to_have_count(0)
     panel_settled(page, open=False)
     # Show on page chose cards for threads, so it lands on the thread there, where the
-    # panel's field shows that choice's notice (thread/focus.js, `openingPart`).
+    # panel's field shows that choice's notice (records/thread/focus.js, `openingPart`).
     expect(inline.locator(".lf-page-thread")).to_be_focused()
 
     selected = added.evaluate(
@@ -958,7 +960,7 @@ diff --git a/README.md b/README.md
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
 
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         """diff --git a/app.py b/app.py
@@ -994,7 +996,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
         "</lf-diff>",
     )
     url = serve(authored)
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         """diff --git a/app.py b/app.py
@@ -1040,7 +1042,7 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     inline_status.evaluate("node => { node.dataset.identityProbe = 'inline'; }")
     panel_status.evaluate("node => { node.dataset.identityProbe = 'panel'; }")
     record_claim(serve.page_dir)
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(transaction, [root])
     told(page)
     expect(inline_status).to_have_text("Delivered")
@@ -1152,12 +1154,12 @@ def test_a_diff_surface_keeps_the_complete_thread_lifecycle_inline(browser, serv
     strip = thread.locator(f'.lf-msg[data-lf-event="{reply["id"]}"] .lf-react-strip')
     thread.locator(f'.lf-msg[data-lf-event="{reply["id"]}"] .lf-react-trigger').click()
     with sending(page, "the inline reaction"):
-        strip.locator('.lf-react[data-lf-token="change"]').click()
+        strip.locator('.lf-react[data-lf-emoji="❌"]').click()
     reacted = events_model.read_events(serve.page_dir)[-1]
-    assert (reacted["kind"], reacted["parent"], reacted["token"]) == (
+    assert (reacted["kind"], reacted["parent"], reacted["emoji"]) == (
         "reply",
         reply["id"],
-        "change",
+        "❌",
     )
 
     # Resolve is the thread's own control, reached by the keyboard like any other.
@@ -1215,7 +1217,7 @@ def test_the_widget_reads_the_diff_patch_table(browser, serve):
     )
     url = serve(leaf_page("diff patch table", f'<h1 id="cases">Cases</h1>{markup}'))
     for case in [*accepted, *stored]:
-        data_model.cmd_data_set(
+        page_data_model.cmd_data_set(
             serve.page_dir, f"files-{case['id']}", patch_manifest(case["patch"])
         )
     page = open_page(browser, url)

@@ -6,7 +6,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import leaf_page, open_page, stamp_page, told, wait_for_revision
 
-from leaf.render_checks import wait_until_ready
+from leaf.source.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

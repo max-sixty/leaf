@@ -127,6 +127,11 @@ lf-deck[data-lf-deck-flying] {
       border: 1px solid var(--lf-rule);
       border-radius: var(--lf-r);
       background: var(--lf-card);
+      /* The card draws a frame with the deck's bar flush above it, so its marks stand
+         one band inside its edge, over the frame (tokens.css, "Where it stands"):
+         outside it they would stand under the bar, which sticks over the cards in a
+         workspace. */
+      --lf-ring-at: var(--lf-focus-ring-inset);
       --lf-deck-first-edge:
         0 var(--lf-deck-edge) 0 calc(-1 * var(--lf-deck-edge) / 2) var(--lf-card),
         0 var(--lf-deck-edge) 0 calc(-1 * var(--lf-deck-edge) / 2 + 1px) var(--lf-rule);
@@ -178,6 +183,41 @@ lf-deck[data-lf-deck-flying] {
       margin: 0;
       padding: 0;
       border: 0;
+    }
+  }
+}
+/* Told it has a definite height to fill (`--lf-full-height`, layouts.css), as a
+ * workspace's body, the deck is the box that scrolls there (layouts.css), and its bar
+ * sticks at its top, so a card taller than the region scrolls under the bar and the bar
+ * never leaves the window. The bar adds its height to `--lf-top` for the cards, as any
+ * sticky header does (module-scroll-and-motion.md, "Sticky headers"), so what `m` or a
+ * Tab brings into view lands below it, the end of the pass included. The deck tells its
+ * bar it fills a height with a property of its own rather than passing `--lf-full-height`
+ * on, which would tell its cards they have a height to fill; each deck sets that property
+ * afresh, so a deck inside another's card keeps a bar that scrolls.
+ * Rejected: the deck filling the region with the open card scrolling inside its own
+ * frame. `m` reveals an answer through the scrollports round it, so it scrolled the
+ * card to its options and left the card's question above them, out of view. */
+@media screen {
+  html[data-lf-interactive] lf-deck {
+    --lf-deck-fills: 0;
+  }
+  @container style(--lf-full-height: 1) {
+    html[data-lf-interactive] lf-deck {
+      --lf-deck-fills: 1;
+      --lf-deck-top: var(--lf-top);
+    }
+  }
+  @container style(--lf-deck-fills: 1) {
+    html[data-lf-interactive] lf-deck > .lf-deck-bar {
+      position: sticky;
+      top: var(--lf-top);
+      --lf-head-inset: 0px;
+      z-index: 3;
+      background: var(--lf-paper);
+    }
+    html[data-lf-interactive] lf-deck > :not(.lf-deck-bar) {
+      --lf-top: calc(var(--lf-deck-top) + var(--lf-deck-bar-h));
     }
   }
 }

@@ -12,6 +12,7 @@ from xml.etree import ElementTree
 
 import pytest
 from click.testing import CliRunner
+from conftest import hooks_run_this_tree
 from interact_support import (
     PAGE,
     PAGE_GROUP,
@@ -55,22 +56,25 @@ from interact_support import (
     yaml_document,
 )
 
-from leaf import activity as activity_model
-from leaf import cli as cli_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import harness as harness_model
-from leaf import hooks as hooks_model
-from leaf import leases as leases_model
-from leaf import revisioning as revisioning_model
-from leaf import schema as schema_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as cleanup_model
-from leaf import thread as thread_model
-from leaf.json_block import read_json_block
-from leaf.registry import contract as registry_contract
-from leaf.registry import storage as registry_storage
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import schema as schema_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.base.json_block import read_json_block
+from leaf.base.service import PREVIEW
+from leaf.commands import cli as cli_model
+from leaf.commands import hooks as hooks_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.records import activity as activity_model
+from leaf.records import revisioning as revisioning_model
+from leaf.records import transaction as transaction_model
+from leaf.source import vocabulary as vocabulary_model
+from leaf.source.registry import contract as registry_contract
+from leaf.source.registry import storage as registry_storage
 
 
 def test_a_completed_stream_answers_its_event_even_when_the_reply_address_differs():
@@ -117,8 +121,9 @@ def test_stop_hook_does_not_borrow_a_foreign_bare_waiter_lease(page_dir, monkeyp
     try:
         assert page_state(page_dir)["listening"]
         monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "harness-owner")
+        hooks_run_this_tree("harness-owner")
         monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-        assert service_model.claim_page(page_dir)
+        assert transaction_model.claim_page(page_dir)
         claim = service_model.page_claim(page_dir)
         assert claim is not None
         lease_path_4 = leases_model.waiter_lease_path(page_dir, claim["id"])
@@ -184,7 +189,7 @@ def test_pages_owing_the_same_thing_carry_one_copy_of_the_protocol(
     """
     second = tmp_path / "second-page"
     shutil.copytree(claimed, second)
-    assert service_model.claim_page(second)
+    assert transaction_model.claim_page(second)
     deliveries = {}
     for page, comment, label in (
         (claimed, "c1", "first"),
@@ -264,7 +269,9 @@ def test_a_preview_owes_no_watcher_but_still_carries_its_user(
     # Presence is the whole reading. The serve path's user raises on a preview
     # file it cannot parse, and this guard fails open by saying nothing, so a
     # user here would take every page the session holds down without a word.
-    (claimed / schema_model.PREVIEW_FILE).write_text("{not json", encoding="utf-8")
+    PREVIEW.file(claimed / schema_model.PREVIEW_FILE).write_text(
+        "{not json", encoding="utf-8"
+    )
     hooks_model.cmd_hook("codex", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
@@ -335,6 +342,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
             "widget": "picks",
             "action": "choose",
             "detail": {"value": ["flag-first"]},
+            "answered": True,
         },
     )
     note = {
@@ -409,7 +417,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(
 
     # A bound move can be answered by its provider final or an explicit addressed
     # reply. The proactive thread writer still refuses an owed move.
-    with service_model.PageTransaction(claimed) as page:
+    with transaction_model.PageTransaction(claimed) as page:
         assert session is not None
         page.reserve_delivery_reply(session["id"], asked["id"], "a1")
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
@@ -424,7 +432,7 @@ def test_an_acknowledged_comment_nobody_answered_holds_the_turn(
     with pytest.raises(delivery_model.Refused) as refused:
         thread_model.post_response(ref, "gave up", failure="turn_failed")
     assert f"with `leaf thread reply {ref}`" in str(refused.value)
-    with service_model.PageTransaction(claimed) as page:
+    with transaction_model.PageTransaction(claimed) as page:
         assert session is not None
         page.clear_delivery_reply_reservation(session["id"], asked["id"], "a1")
 
@@ -537,16 +545,15 @@ def test_the_guard_survives_a_page_whose_layer_cannot_be_composed(
     )
     receive_through(claimed, last_deliverable_seq(claimed))
     record = registry_storage.layer_record(claimed)
-    layer = claimed / schema_model.LAYER_FILE
-    layer.unlink()
+    (claimed / schema_model.LAYER_FILE).unlink()
     assert record is not None
-    registry_storage.LAYER.write(
-        layer, {**record, "packages": [*record["packages"], "./moved-package"]}
+    registry_storage.write_layer(
+        claimed, {**record, "packages": [*record["packages"], "./moved-package"]}
     )
     # Without this the test passes for the wrong reason: it has to be a page
     # whose layer the current Leaf really does refuse.
     with pytest.raises(registry_contract.RegistryError):
-        registry_storage.load_registry(claimed)
+        vocabulary_model.load_registry(claimed)
 
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     answer = json.loads(capsys.readouterr().out)
@@ -592,6 +599,8 @@ def test_idle_cannot_close_a_page_over_events_nobody_read(claimed, capsys):
                 response_reference(claimed, comment),
                 "--text",
                 "ok",
+                "--title",
+                "Thread title",
             ],
         )
         .exit_code
@@ -658,7 +667,7 @@ def test_idle_and_the_stop_hook_hold_the_agent_to_the_same_moves(
 
     def pickup(phase: str) -> None:
         with (
-            service_model.PageTransaction(claimed) as page,
+            transaction_model.PageTransaction(claimed) as page,
             delivery_model.receive_batch(page, batch, session_id="s1") as delivered,
         ):
             delivery_model.record_pickup(
@@ -700,9 +709,9 @@ def test_idle_cannot_race_past_an_event_arriving_after_its_pending_check(
     events = open(page_dir / "events.jsonl", "a+b")
     fcntl.flock(events, fcntl.LOCK_EX)
     probe = """\
-from leaf import service as service_model
+from leaf.records import transaction as transaction_model
 
-original_flocked = service_model.flocked
+original_flocked = transaction_model.flocked
 events = Path(os.environ["EVENTS"]).resolve()
 marker = Path(os.environ["MARKER"])
 
@@ -713,7 +722,7 @@ def observed_flocked(path, **kwargs):
     with original_flocked(path, **kwargs) as stream:
         yield stream
 
-service_model.flocked = observed_flocked
+transaction_model.flocked = observed_flocked
 sys.argv = ["leaf", "page", "close", os.environ["PAGE"]]
 cli_model.cli()
 """
@@ -762,13 +771,9 @@ cli_model.cli()
     assert declared(page_dir)["state"] == "waiting"
 
 
-def test_a_reaction_holds_no_turn_as_an_unanswered_obligation(
-    claimed, printing, capsys
-):
-    """A reaction is a mark, not a question: the agent answers it by acting, so an
-    acknowledged one nobody replied to does not hold the turn the way a comment
-    does. Nor does an `ok` the user put on the agent's answer hand the thread back
-    to the agent — a reaction is not the user speaking. The user's words are."""
+def test_a_reaction_holds_the_turn_as_words_do(claimed, printing, capsys):
+    """A reaction is the user speaking: a 👍 they put on the agent's answer, once
+    acknowledged and unanswered, holds the turn as words under the answer do."""
     session_model.cmd_waiting(claimed)
     session = service_model.page_claim(claimed)
     assert session is not None
@@ -776,29 +781,19 @@ def test_a_reaction_holds_no_turn_as_an_unanswered_obligation(
     assert lease_path_7 is not None
     lease = leases_model.take_wait_lease(lease_path_7)
     assert lease
-    append_carried_log_record(
-        claimed,
-        {"kind": "comment", "author": "user", "revision": 1, "token": "shorten"},
-    )
     asked = append_carried_log_record(
         claimed, {"kind": "comment", "author": "user", "text": "why B?"}
     )
     answer = thread_model.post_reply(
         claimed, {"parent": asked["id"], "responds": asked["id"]}, "because"
     )
-    append_carried_log_record(
-        claimed,
-        {"kind": "reply", "author": "user", "parent": answer["id"], "token": "keep"},
-    )
     receive_through(claimed, last_deliverable_seq(claimed))
-
     hooks_model.cmd_hook("claude-code", {"hook_event_name": "Stop", "session_id": "s1"})
     assert capsys.readouterr().out == ""
 
-    # Words under the answer are the user's last word, and hold the turn as ever.
     append_carried_log_record(
         claimed,
-        {"kind": "reply", "author": "user", "parent": answer["id"], "text": "but C?"},
+        {"kind": "reply", "author": "user", "parent": answer["id"], "emoji": "👍"},
     )
     cleanup_model.prompt_turn("s1")
     receive_through(claimed, last_deliverable_seq(claimed))
@@ -892,11 +887,13 @@ def test_a_move_the_turn_started_lets_that_turn_end(claimed, printing, capsys):
     leases_model.release_lease(lease)
 
 
-def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, printing, capsys):
-    """A thread's messages share one reply, but a move on an obligation in one of its
-    messages owes an answer of its own, so each is started on its own id. Once their
-    replies settle them, a later move in the thread is offered no start in place of
-    its answer."""
+def test_a_threads_messages_and_moves_share_one_start_and_one_reply(
+    claimed, printing, capsys
+):
+    """A move on an obligation in a thread's message and the user's message after it
+    share the thread's one reply, addressed to the newer, so a start on that one
+    holds both. Once the reply settles them, a later message in the thread is
+    offered no start in place of its answer."""
     assert revisioning_model.activate_source(claimed).error is None
     lease = _watched(claimed)
     asked = append_carried_log_record(
@@ -920,6 +917,7 @@ def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, printing, 
                 "widget": "thread-region",
                 "action": action,
                 "detail": detail,
+                "answered": True,
             },
         )
     follow = append_carried_log_record(
@@ -928,17 +926,13 @@ def test_each_owed_move_in_a_thread_takes_a_start_of_its_own(claimed, printing, 
     )
     receive_through(claimed, last_deliverable_seq(claimed))
     reason = _stop(capsys)
-    assert done["id"] in reason and follow["id"] in reason
+    assert follow["id"] in reason and done["id"] not in reason
     assert _start(claimed, follow["id"], "checking West").exit_code == 0
-    reason = _stop(capsys)
-    assert done["id"] in reason and follow["id"] not in reason
-    assert _start(claimed, done["id"], "checking East").exit_code == 0
     assert _stop(capsys) is None
 
-    for move in (done, follow):
-        thread_model.post_reply(
-            claimed, {"parent": move["id"], "responds": move["id"]}, "East it is."
-        )
+    thread_model.post_reply(
+        claimed, {"parent": follow["id"], "responds": follow["id"]}, "East, and West."
+    )
     hooks_model.cmd_hook(
         "claude-code", {"hook_event_name": "UserPromptSubmit", "session_id": "s1"}
     )
@@ -976,7 +970,7 @@ def test_a_stop_keeps_the_turn_going_only_for_owed_input(claimed, capsys):
     assert claim_record_5["turn_closed"]
     assert [
         event["id"]
-        for event in service_model.unacknowledged(
+        for event in transaction_model.unacknowledged(
             events_model.read_events(claimed),
             acknowledged_through(claimed),
         )
@@ -1046,7 +1040,7 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
         if history == "lost-pointer":
             receive_through(page_dir, latest["seq"])
         else:
-            with service_model.PageTransaction(page_dir) as page:
+            with transaction_model.PageTransaction(page_dir) as page:
                 page.take_claim(
                     harness_model.EmbeddedHarness("prior", "Prior owner", os.getpid())
                 )
@@ -1106,6 +1100,8 @@ def test_a_stop_reminder_recovers_the_exact_reply_address(
                 event["answer"]["ref"],
                 "--text",
                 "Here, next week.",
+                "--title",
+                "Thread title",
             ],
         )
         assert reply.exit_code == 0, reply.output
@@ -1149,6 +1145,8 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(
             "widget": "note",
             "action": "edit",
             "detail": {"value": "Green room."},
+            # A draft says words stand in it, whether or not it asks the user.
+            "answered": True,
         },
     )
     edited = state_json(claimed)
@@ -1175,6 +1173,7 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(
             "widget": "choice",
             "action": "choose",
             "detail": {"value": ["backfill-first"]},
+            "answered": True,
         },
     )
     state = state_json(claimed)
@@ -1232,9 +1231,9 @@ def test_a_pick_of_an_added_option_settles_without_writing_the_option_in(claimed
     )
     (claimed / "index.html").write_text(source)
     publish(claimed)
-    for action, detail in [
-        ("add", {"option": "choice-option-mine", "text": "Neither yet."}),
-        ("choose", {"value": ["choice-option-mine"]}),
+    for action, detail, answered in [
+        ("add", {"option": "choice-option-mine", "text": "Neither yet."}, False),
+        ("choose", {"value": ["choice-option-mine"]}, True),
     ]:
         picked = append_command(
             claimed,
@@ -1245,6 +1244,7 @@ def test_a_pick_of_an_added_option_settles_without_writing_the_option_in(claimed
                 "widget": "choice",
                 "action": action,
                 "detail": detail,
+                "answered": answered,
             },
         )
     assert {"kind": "markup", "action": picked["id"]} in [
@@ -1274,10 +1274,10 @@ def test_done_hands_over_a_pick_the_markup_must_still_record(claimed):
     source = PAGE.replace(PAGE_GROUP, '<lf-options id="choice" multiple>')
     (claimed / "index.html").write_text(source)
     publish(claimed)
-    for action, detail in [
-        ("add", {"option": "choice-option-mine", "text": "Both, staged."}),
-        ("choose", {"value": ["flag-first", "choice-option-mine"]}),
-        ("answer", {}),
+    for action, detail, answered in [
+        ("add", {"option": "choice-option-mine", "text": "Both, staged."}, False),
+        ("choose", {"value": ["flag-first", "choice-option-mine"]}, False),
+        ("answer", {}, True),
     ]:
         done = append_command(
             claimed,
@@ -1288,6 +1288,7 @@ def test_done_hands_over_a_pick_the_markup_must_still_record(claimed):
                 "widget": "choice",
                 "action": action,
                 "detail": detail,
+                "answered": answered,
             },
         )
     [workflow] = owed(state_json(claimed))
@@ -1307,23 +1308,12 @@ def test_done_hands_over_a_pick_the_markup_must_still_record(claimed):
     assert state_json(claimed)["workflows"] == []
 
 
-@pytest.mark.parametrize("declared", ["shipped", "done-only"])
-def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared):
+def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys):
     """A multiple-choice obligation finishes with Done. Until then a tick is the user's
     own unfinished answer: it is not agent work, the panel does not count it as an
     update waiting, no delivery is prepared, and Stop does not
     hold the turn. Done hands the obligation over, and the answer it owes is a version.
-
-    The tick is held because it is a move on a widget whose obligation stands open, not
-    because `choose` happens to answer some other group: a layer answering the
-    group only by its Done holds the tick the same way."""
-    if declared == "done-only":
-        declare_on_page(
-            claimed,
-            lambda registry: registry["lf-options"]["awaits"].update(
-                answered={"answer": {}}
-            ),
-        )
+    The tick is held because the group says its question stands open."""
     source = PAGE.replace(PAGE_GROUP, '<lf-options id="choice" multiple>')
     (claimed / "index.html").write_text(source)
     publish(claimed)
@@ -1337,6 +1327,7 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
             "widget": "choice",
             "action": "choose",
             "detail": {"value": ["flag-first"]},
+            "answered": False,
         },
     )
     ticked = state_json(claimed)
@@ -1349,7 +1340,7 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
         "unseen": 0,
     }
 
-    assert service_model.unacknowledged(events_model.read_events(claimed), 0) == []
+    assert transaction_model.unacknowledged(events_model.read_events(claimed), 0) == []
     assert _stop(capsys) is None
 
     done = append_command(
@@ -1361,6 +1352,7 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys, declared
             "widget": "choice",
             "action": "answer",
             "detail": {},
+            "answered": True,
         },
     )
     finished = state_json(claimed)
@@ -1378,7 +1370,7 @@ def test_a_queue_owes_nothing_until_it_is_finished_and_then_every_card_moved(
     page_dir, where
 ):
     """A move leaving cards queued keeps the obligation on the user, and completing the
-    queue owes every moved card, not just the final one."""
+    queue hands over every moved card, not just the final one."""
     declare_on_page(
         page_dir, lambda registry: registry.update(queue_board_registry(registry))
     )
@@ -1415,7 +1407,7 @@ def test_a_queue_owes_nothing_until_it_is_finished_and_then_every_card_moved(
             },
         )
 
-    def sort(card, rank):
+    def sort(card, rank, emptied=False):
         return append_command(
             page_dir,
             {
@@ -1425,6 +1417,8 @@ def test_a_queue_owes_nothing_until_it_is_finished_and_then_every_card_moved(
                 "widget": "triage",
                 "action": "move",
                 "detail": {"unit": card, "value": "keep", "rank": rank},
+                # The queue says it is answered once its Queued column is empty.
+                "answered": emptied,
             },
         )
 
@@ -1434,11 +1428,13 @@ def test_a_queue_owes_nothing_until_it_is_finished_and_then_every_card_moved(
     assert sorting["workflows"] == []
     assert [item["widget"] for item in obligations_on_user(sorting)] == ["triage"]
 
-    sort("card-c", "w")
+    sort("card-c", "w", emptied=True)
     finished = state_json(page_dir)
     assert obligations_on_user(finished) == []
-    assert sorted(item["coordinate"][1] for item in owed(finished)) == [
-        "card-a",
-        "card-b",
-        "card-c",
-    ]
+    moved = ["card-a", "card-b", "card-c"]
+    assert sorted(item["coordinate"][1] for item in finished["workflows"]) == moved
+    # On the page the version that writes each move in answers it; in a thread, the
+    # reply to the newest answers them all.
+    assert sorted(item["coordinate"][1] for item in owed(finished)) == (
+        moved if where == "page" else ["card-c"]
+    )

@@ -20,11 +20,11 @@ from interact_support import (
 )
 from model.test_interact_product import PAGE_FIXTURES
 
-import leaf.validation.command as checking_command
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf.registry import storage as registry_storage
-from leaf.thread_context import logged_fragment
+import leaf.pages.validation.command as checking_command
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.log.events import logged_fragment
+from leaf.source import vocabulary as vocabulary_model
 from leaf_dev.example_data import authored_sources, named_source, seed_log
 from leaf_dev.page_fixtures import (
     leaf_in_process,
@@ -37,7 +37,7 @@ from leaf_dev.page_fixtures import (
 def test_a_settled_group_keeps_an_id_but_an_unreferenced_group_may_leave(page_dir):
     """A settled group needs an id for its disclosure state, as every group does,
     but the whole unreferenced group may leave a later revision."""
-    registry = registry_storage.load_registry(page_dir)
+    registry = vocabulary_model.load_registry(page_dir)
     assert found(
         markup_findings(
             '<lf-options settled><lf-option id="o1" label="A"><strong>A</strong></lf-option></lf-options>',
@@ -203,6 +203,8 @@ def test_reply_validates_widget_markup(page_dir):
                 "reply",
                 "--done",
                 response_reference(page_dir, "c1"),
+                "--title",
+                "Diagram check",
                 "--text",
                 f"See:\n\n{markup}",
             ],
@@ -269,6 +271,8 @@ def test_a_reply_drawn_before_posting_runs_no_script_its_thread_would_not(page_d
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
+            "--title",
+            "Inert script",
             "--text",
             'See:\n\n<lf-diagram id="f">\n<pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>\n'
             '<script type="module">throw new Error("inert-message-script")</script>',
@@ -299,6 +303,8 @@ def test_the_wire_ships_a_message_as_logged(page_dir):
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
+            "--title",
+            "Poll fix",
             "--text",
             'Fixed in `poll()`.\n\n<lf-diagram id="fix">\n<pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>',
         ],

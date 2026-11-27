@@ -23,8 +23,8 @@ from render_harness import (
     told,
 )
 
-from browser.threads import choose_threads_in_panel
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.source.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import choose_threads_in_panel
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -691,6 +691,7 @@ def test_generated_page_interface_reconciles_before_semantic_interaction(
                     f"Migration checkpoint {number}." for number in range(1, 17)
                 )
             },
+            "answered": True,
         },
     )
     held = []
@@ -1064,7 +1065,8 @@ def test_co_located_headings_share_the_current_title_and_lens_position(browser, 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser", "webkit_browser"])
 def test_the_lens_follows_the_scroll_in_every_engine(request, serve, engine):
     """The lens shows the reader's place by the browser's own scroll timeline in each
-    engine Leaf supports, at the top, the middle and the foot of the document."""
+    engine Leaf supports, at the top, the middle and the foot of the document, while
+    the map itself stands still in the window, the document's end room included."""
     source = contents_page(
         "contents lens in every engine",
         """
@@ -1079,8 +1081,10 @@ def test_the_lens_follows_the_scroll_in_every_engine(request, serve, engine):
     page = open_page(request.getfixturevalue(engine), serve(source))
     resized(page, 1400, 900)
     lens = page.locator("#lens-contents .lf-toc-window")
+    rows = page.locator("#lens-contents .lf-toc-rows")
     expect(lens).to_be_visible()
     track = []
+    stood = []
     for fraction in (0, 0.5, 1):
         page.evaluate(
             "fraction => { const s = document.scrollingElement; "
@@ -1089,9 +1093,11 @@ def test_the_lens_follows_the_scroll_in_every_engine(request, serve, engine):
             "() => requestAnimationFrame(done))); }",
             fraction,
         )
-        track.append(lens.bounding_box()["y"])
+        stood.append(rows.bounding_box()["y"])
+        track.append(lens.bounding_box()["y"] - stood[-1])
     top, middle, foot = track
     assert top < middle < foot and foot > top + 300, track
+    assert max(stood) - min(stood) < 0.5, stood
 
 
 @pytest.mark.parametrize(
@@ -1130,6 +1136,37 @@ def test_the_current_entry_follows_the_document_from_a_sticking_track(
             "node => node.scrollIntoView({block: 'start', behavior: 'instant'})"
         )
         expect(current).to_have_text(name)
+
+
+def test_the_current_section_is_the_one_that_fills_the_window(browser, serve):
+    """A heading risen into the window's top half makes its section current, and one
+    lower leaves the section above it current, whose words fill the window. A short
+    section reached by its link is current though the next heading stands in the top
+    half too."""
+    sections = "".join(
+        f'<section><h2 id="{name.lower()}">{name}</h2>'
+        f'<div style="height: {height}px"></div></section>'
+        for name, height in (("Prepare", 1400), ("Move", 120), ("Verify", 1400))
+    )
+    source = contents_page("current section", f"<h1>A migration</h1>{sections}")
+    page = open_page(browser, serve(source))
+    resized(page, 1728, 999)
+    current = page.locator("#contents a[aria-current='location']")
+    move = page.locator("#move")
+    for top, name in ((147, "Move"), (700, "Prepare")):
+        move.evaluate(
+            "(node, top) => scrollTo({behavior: 'instant', "
+            "top: node.getBoundingClientRect().top + scrollY - top})",
+            top,
+        )
+        expect(current).to_have_text(name)
+
+    page.locator("#contents a[href='#move']").evaluate("node => node.click()")
+    expect(page).to_have_url(re.compile(r"#move$"))
+    expect(current).to_have_text("Move")
+    assert page.locator("#verify").evaluate(
+        "node => node.getBoundingClientRect().top < innerHeight / 2"
+    )
 
 
 def test_a_route_too_long_for_its_labels_leaves_its_deepest_level_off_the_map(
@@ -1347,7 +1384,7 @@ ROW_MARKS = """(toc) => {
     probe.remove();
     return value;
   };
-  const marks = { thread: colour('--lf-thread'), 'on-me': colour('--lf-turn') };
+  const marks = { thread: colour('--lf-accent'), 'on-me': colour('--lf-ok') };
   const markers = [...toc.querySelectorAll('.lf-toc-marker')];
   return Object.fromEntries([...toc.querySelectorAll('.lf-toc-start, li')]
     .filter((row, index) => row.dataset.lfTocMark && (
@@ -1569,7 +1606,7 @@ def test_the_outline_beside_the_body_marks_its_introduction_on_its_label(
 def test_a_gloss_opens_at_its_phrase_for_pointer_keyboard_and_touch(browser, serve):
     """The explanation is a glance, not a mouse-only tooltip: the phrase previews it to
     a resting pointer and to Tab, which reaches its Explain control, in the face every
-    preview wears (preview.js), and a click pins it as the page's card for mouse or
+    preview wears (annotations/preview.js), and a click pins it as the page's card for mouse or
     touch. The preview and the card each stay inside the viewport, Escape puts either
     away, and both the phrase and explanation remain the page's authored words."""
     source = leaf_page(

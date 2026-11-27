@@ -11,7 +11,7 @@ environment, and runs a sandboxed command through the bridge client (`bridge.py`
 which forwards its arguments to Leaf unparsed.
 """
 
-from leaf.cli import cli
+from leaf.commands.cli import cli
 
 
 def main() -> None:

@@ -10,11 +10,12 @@ from model_folds import leaf_page
 from playwright.sync_api import expect
 from render_harness import ROOT, consume_browser_errors
 
-from leaf import cli as cli_model
-from leaf import exporting as exporting_model
-from leaf.render_checks import wait_until_ready
-from leaf.render_gate.widget_quality import UnreadablePage, widget_findings
-from leaf.revision_delivery import json_script
+from leaf.commands import cli as cli_model
+from leaf.pages import exporting as exporting_model
+from leaf.pages.render_gate import command as render_command_model
+from leaf.pages.render_gate.widget_quality import UnreadablePage, widget_findings
+from leaf.serving.revision_delivery import json_script
+from leaf.source.render_checks import wait_until_ready
 
 
 def test_the_starter_widgets_leave_the_render_check_nothing_to_advise(
@@ -48,6 +49,37 @@ customElements.define("lf-async-panel", class extends LeafElement {
 """)
     with pytest.raises(UnreadablePage, match="The instrument paint failed"):
         widget_findings(browser.unwatched, package)
+
+
+def test_package_render_check_names_the_import_a_module_fails_to_link(
+    tmp_path, browser, monkeypatch
+):
+    """A widget module that imports a name the imported module doesn't export fails to
+    link, so the page of worked examples says it cannot start. The check ends when the
+    page says so and reports the page's reason, which quotes the browser's message
+    naming the module and the name. A wait that ran to its deadline would instead
+    name the stage the page never reached."""
+    package = tmp_path / "package"
+    made = CliRunner().invoke(
+        cli_model.cli, ["package", "init", str(package), "--widget", "lf-unlinked"]
+    )
+    assert made.exit_code == 0, made.output
+    (package / "widgets/lf-unlinked.js").write_text("""\
+import { notExported } from "/runtime/portable-api.js";
+customElements.define("lf-unlinked", class extends HTMLElement {
+  connectedCallback() { this.textContent = notExported; }
+});
+""")
+    monkeypatch.setattr(
+        render_command_model,
+        "run_in_browser",
+        lambda read: (read(browser.unwatched), "the suite's browser"),
+    )
+    [finding] = render_command_model.widget_quality(package).findings
+    assert finding.code == "unreadable-examples"
+    error = finding.values["error"]
+    assert error.startswith("the runtime could not start: "), error
+    assert "/runtime/portable-api.js" in error and "notExported" in error, error
 
 
 def keyed(tag: str, badge: str) -> str:

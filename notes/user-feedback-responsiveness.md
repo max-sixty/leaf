@@ -139,7 +139,7 @@ document 130–160. Work that was repeated or read by no one made up most of the
 difference: the check walked the page's containment once per live sample
 (`passages.enclosing_ids`), anchor relocation walked both revisions in full
 (`SourceReading.decided_passages`), every check judged the recorded data for
-advice only `page check` prints (`validation.source.source_advice`), and the
+advice only `page check` prints (`authored_checks.source.source_advice`), and the
 document's delivery copied the whole page once per mark it wrote
 (`revision_delivery._spliced`). The user-view report also forced the style and
 layout of every hidden tab, about 280 ms 300 ms after each presentation, which

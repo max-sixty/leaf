@@ -54,8 +54,8 @@ const FAILURE = Symbol("failure");
  * it, or, for one an element dispatched, that element, where the event began rather
  * than the shadow host it reached the document by, and the event's error, or its
  * message where it carries no error. Null for an error that is the window's own, such as
- * an exception.
- * @param {ErrorEvent & {[FAILURE]?: {element: Element, reason: unknown}}} event
+ * an exception. A package may send a plain `Event` named `error`, which has neither.
+ * @param {Event & Partial<ErrorEvent> & {[FAILURE]?: {element: Element, reason: unknown}}} event
  * @returns {{element: Element, reason: unknown} | null} */
 export function failureOf(event) {
   if (event[FAILURE]) return event[FAILURE];

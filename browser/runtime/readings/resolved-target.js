@@ -13,7 +13,7 @@
 
 import { shownParts } from "../dom/geometry.js";
 import { renderedOrder } from "../lib/shadow-tree.js";
-import { rangeOf, segmentLines, segmentsBox } from "./passages.js";
+import { rangeOf, segmentLines, segmentsBox, segmentsIn } from "./passages.js";
 
 /** @typedef {{exact: boolean, status: "exact" | "fallback" | "outdated", datumElement: Element | null}} Resolution
  * @typedef {Resolution & {kind: "element", element: Element, place: Element, surface: Element | null, label: string | null}} ElementTarget
@@ -122,6 +122,9 @@ export const targetRange = (resolved) => {
   return rangeOf(segments);
 };
 
+// A selection's geometry. It attaches to the first line its words are drawn in, as a
+// passage does (`passageGeometry`), never to the box of an element it starts across,
+// whose padding stands above and before that line.
 /** @param {Range} range */
 export function rangeGeometry(range) {
   return {
@@ -132,8 +135,9 @@ export function rangeGeometry(range) {
         : (range.startContainer.childNodes[range.startOffset] ?? range.startContainer),
     box: range.getBoundingClientRect(),
     attachment:
-      [...range.getClientRects()].find((rect) => rect.width > 0 && rect.height > 0) ??
-      null,
+      segmentLines(segmentsIn(range)).find(
+        (rect) => rect.width > 0 && rect.height > 0,
+      ) ?? null,
   };
 }
 

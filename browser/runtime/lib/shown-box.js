@@ -27,7 +27,7 @@ function readContents(node, read) {
 export const contentsRects = (node) =>
   readContents(node, (range) => [...range.getClientRects()]);
 /** @param {Node} node */
-export const contentsBox = (node) =>
+const contentsBox = (node) =>
   readContents(node, (range) => range.getBoundingClientRect());
 
 // What draws something to see without words: a replaced element, or a widget, which is

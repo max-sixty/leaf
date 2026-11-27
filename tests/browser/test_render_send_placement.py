@@ -2618,6 +2618,105 @@ def test_a_multiline_passage_attaches_to_its_first_words_through_focus_reflow_an
     attached(".lf-margin-preview")
 
 
+def test_a_box_under_right_to_left_words_stands_at_their_first_word(browser, serve):
+    """Right-to-left words start at their first line's right edge, so a box under a
+    passage that wraps from mid-line stands its right edge there, as a box under
+    left-to-right words stands its left edge at their first word, rather than at the
+    far end of the passage's first line."""
+    prose = (
+        "يبدأ النص من اليمين ويمتد إلى اليسار، وتقرأ الكلمات بهذا الاتجاه في كل سطر من"
+        " أسطر الفقرة الطويلة التي تملأ عرض العمود بأكمله قبل أن تلتف إلى السطر التالي."
+    )
+    page = open_page(
+        browser,
+        serve(
+            leaf_page("نص", f'<p id="prose">{prose}</p><p>فقرة بعد النص.</p>').replace(
+                '<html lang="en">', '<html lang="ar" dir="rtl">'
+            )
+        ),
+    )
+    resized(page, 900, 600)
+    fragments = page.evaluate(
+        """words => {
+          const text = document.querySelector('#prose').firstChild;
+          const start = text.data.indexOf(words);
+          const range = document.createRange();
+          range.setStart(text, start);
+          range.setEnd(text, text.data.length - 1);
+          return [...range.getClientRects()].filter(r => r.width && r.height)
+            .map(r => r.toJSON());
+        }""",
+        "من اليمين",
+    )
+    first, last = fragments[0], fragments[-1]
+    # The passage wraps, and its first line runs far past the box's width from its
+    # first word, which stands far enough from the room's left edge for the box's whole
+    # place, so the two ends of that line are told apart.
+    assert len(fragments) > 1 and first["right"] - first["left"] > 400, fragments
+    select(
+        page,
+        (first["right"] - 2, first["top"] + first["height"] / 2),
+        (last["left"] + 2, last["top"] + last["height"] / 2),
+    )
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    rendered(page)
+    selected = page.evaluate(
+        """() => [...getSelection().getRangeAt(0).getClientRects()]
+          .find(r => r.width && r.height).toJSON()"""
+    )
+    assert selected["right"] - selected["left"] > 400, selected
+    box = page.evaluate(RECT, ".lf-fab-bar")
+    prose_box = page.evaluate(RECT, "#prose")
+    assert box["top"] >= prose_box["bottom"], (box, prose_box)
+    assert box["right"] == pytest.approx(selected["right"], abs=1), (box, selected)
+
+
+def test_a_box_beside_words_that_start_in_a_padded_element_stands_at_their_line(
+    browser, serve
+):
+    """A selection that starts across a whole padded element attaches to its first
+    word's line, not to the element's padding above it, so a box beside it stands level
+    with the words."""
+    rest = "and the rest of the paragraph runs on past the chip. " * 6
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Chip",
+                '<p id="prose"><span style="display:inline-block;padding:36px 48px">'
+                f"First words</span> {rest}</p>",
+            )
+        ),
+    )
+    resized(page, 1700, 800)
+    words = page.evaluate(
+        """() => {
+          const prose = document.querySelector('#prose');
+          const chip = prose.firstElementChild.firstChild;
+          const range = document.createRange();
+          range.setStart(prose, 0);
+          range.setEnd(prose.lastChild, 30);
+          getSelection().removeAllRanges();
+          getSelection().addRange(range);
+          const first = document.createRange();
+          first.setStart(chip, 0);
+          first.setEnd(chip, 1);
+          return first.getBoundingClientRect().toJSON();
+        }"""
+    )
+    page.keyboard.press("c")
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    rendered(page)
+    box = page.locator(".lf-fab-bar")
+    rect = page.evaluate(RECT, ".lf-fab-bar")
+    side = SIDES[box.get_attribute("data-lf-placement")]
+    assert side == "right", side
+    assert (
+        stands(side, rect, words, page.evaluate(RECT, "#prose"))
+        == "level with the words"
+    ), (rect, words)
+
+
 def test_a_comment_keeps_its_measure_when_its_passage_scrolls_away(browser, serve):
     page = open_page(
         browser,

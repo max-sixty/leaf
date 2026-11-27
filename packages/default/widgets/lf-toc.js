@@ -10,8 +10,8 @@
  * first h1 as the start row, and each row's destination (`destinationFor`), and reads
  * them again as a revision settles the page's interface (`lf-page-interface`) and as a
  * destination's id changes. Rows are keyed by their heading, so a revision that keeps a
- * heading, or replaces it with one of the same authored id, keeps its row's nodes, and
- * focus on its link. Every link is a real fragment link: the browser owns its
+ * heading, or replaces it with one of the same authored id or in the same identified
+ * destination (`keyOf`), keeps its row's nodes, and focus on its link. Every link is a real fragment link: the browser owns its
  * navigation, history, :target state, wheel input and scroll restoration, and
  * hidden-until-found reveals a disclosure or tab containing the target. On an initial
  * load the shared arrival pass runs after all widgets settle, so it can honor a

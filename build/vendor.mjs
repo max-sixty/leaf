@@ -169,8 +169,9 @@ const bundles = {
     ],
   }),
 
-  // Effect and Effect UI, the component model widgets and Leaf's own chrome draw
-  // with (runtime/effect-widget.js). One module, so a page runs one Effect runtime.
+  // Effect and Effect UI, the component model a widget ported from Lit draws with
+  // (runtime/effect-widget.js; browser/AGENTS.md, "Renderers"). One module, so a page
+  // runs one Effect runtime.
   // The `production` condition picks Effect UI's builds without its development
   // checks and hot reload, which read session storage and scan every root at each
   // mount.

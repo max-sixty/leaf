@@ -21,9 +21,7 @@
    - `ShowHeld` shows what the element's `HeldReading`s hold back, since the reader
      asked to see it (held-news.js, `showHeldReadings`). */
 import { Command, Effect, Layer, Schema } from "/vendor/effect-ui.js";
-import { obligationActions, threadActions } from "./host/application.js";
-import { showHeldReadings } from "./records/thread/held-news.js";
-import { readThreads } from "./records/thread/state.js";
+import { obligationActions } from "./host/application.js";
 import { sendGesture } from "./lib/widget-events.js";
 
 /** What became of a recorded gesture. */
@@ -58,10 +56,23 @@ const send = (element, detail) =>
     return (await delivery) ? "admitted" : "refused";
   });
 
+// The host modules the services call, imported once a widget mounts: a page with no
+// such widget never loads them, and a gesture finds them loaded, so its Command runs
+// in the microtasks after it rather than a module load later.
+const host = async () => {
+  const { threadActions } = await import("./host/application.js");
+  const { showHeldReadings } = await import("./records/thread/held-news.js");
+  const { readThreads } = await import("./records/thread/state.js");
+  return { threadActions, showHeldReadings, readThreads };
+};
+/** @type {ReturnType<typeof host> | undefined} */
+let hosted;
+
 /** Leaf's services for the widget `element`.
  * @param {Element} element */
-export const leafServices = (element) =>
-  Layer.mergeAll(
+export const leafServices = (element) => {
+  hosted ??= host();
+  return Layer.mergeAll(
     RecordAction.toLayer((/** @type {any} */ args) =>
       send(element, stripUndefined(args)),
     ),
@@ -69,13 +80,17 @@ export const leafServices = (element) =>
       Effect.sync(() => obligationActions.next({ within })),
     ),
     OpenThread.toLayer((/** @type {any} */ { id }) =>
-      Effect.sync(() => {
+      Effect.promise(async () => {
+        const { threadActions, readThreads } = await (hosted ??= host());
         const thread = readThreads().threads.find((thread) => thread.id === id);
         if (thread) void threadActions.open(thread.key, { part: "thread" });
       }),
     ),
-    ShowHeld.toLayer(() => Effect.sync(() => showHeldReadings(element))),
+    ShowHeld.toLayer(() =>
+      Effect.promise(async () => (await (hosted ??= host())).showHeldReadings(element)),
+    ),
   );
+};
 
 /** @param {Record<string, unknown>} args */
 const stripUndefined = (args) =>

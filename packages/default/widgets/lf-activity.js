@@ -259,10 +259,6 @@ function rowTime(route) {
   return said && said.name ? { detail: [said.name] } : null;
 }
 
-/** @param {any} builder @param {Record<string, string>} attributes */
-const withAttributes = (builder, attributes) =>
-  Object.entries(attributes).reduce((b, [name, value]) => b.attr(name, value), builder);
-
 export const Activity = Html.component({
   name: "Activity",
   props: ActivityProps,
@@ -291,7 +287,8 @@ export const Activity = Html.component({
     /** @param {ActivityRowType} row */
     const target = (row) => {
       if (row.thread)
-        return withAttributes(h.button, pressAttributes("inline", "lf-activity-target"))
+        return h.button
+          .attrs(pressAttributes("inline", "lf-activity-target"))
           .attr("data-lf-echo", "")
           .attr("data-lf-carry", `row-${row.id}`)
           .prop("lfPreview", rowTime)
@@ -325,7 +322,8 @@ export const Activity = Html.component({
           )
         : feed
     ).children(
-      withAttributes(h.button, pressAttributes("inline", "lf-activity-news"))
+      h.button
+        .attrs(pressAttributes("inline", "lf-activity-news"))
         .attr("data-lf-carry", "notice")
         .attr("aria-expanded", String(model.open))
         .attr("data-lf-news", news ? "" : undefined)

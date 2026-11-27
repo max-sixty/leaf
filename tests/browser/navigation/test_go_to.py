@@ -738,11 +738,11 @@ def test_go_to_names_leaf_s_own_controls_but_not_its_own_way_out(browser, serve)
     """Go-to's map holds the controls Leaf draws over the page as it holds the page's
     own: with Threads open, the floating panel's tabs and the leaf wear chips, though
     Go-to arms as the Threads view fades in. A tab a Go-to key already opens wears that
-    key, as On Me wears M, and the tab no key opens, as Threads' own tab while Threads
-    shows, wears a code that presses it. Each tab's chip
-    stands on the tab's words rather than on its box's corner, in the padding it shares
-    with the tab before it. The ✕ and the field's Close that end Go-to wear none, since
-    each would only do what Escape does (panel/floating-panel.js, `heldByStance`)."""
+    key, as On Me wears M, and a tab no key opens, as Menu, wears a code that presses
+    it. Each tab's chip stands on the tab's words rather than on its box's corner, in
+    the padding it shares with the tab before it. The ✕ and the field's Close that end
+    Go-to wear none, since each would only do what Escape does
+    (panel/floating-panel.js, `heldByStance`)."""
     page = open_page(
         browser,
         serve(
@@ -782,8 +782,10 @@ def test_go_to_names_leaf_s_own_controls_but_not_its_own_way_out(browser, serve)
     page.keyboard.press("Escape")
     expect(page.locator("body")).not_to_have_attribute("data-lf-go-to-active", "")
     page.keyboard.press("g")
-    page.keyboard.type(routes["Control, Threads"])
-    expect(page.locator(".lf-fp-tab", has_text="Threads")).to_be_focused()
+    expect(chips.first).to_be_visible()
+    page.keyboard.type(routes["Control, Menu"])
+    expect(panel).to_have_attribute("data-lf-open", "menu")
+    expect(page.locator(".lf-fp-tab", has_text="Menu")).to_be_focused()
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     expect(panel).to_have_attribute("data-lf-open", "queue")

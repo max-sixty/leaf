@@ -803,6 +803,44 @@ test("a carried surface whose words scrolled past the room is no wider than the 
   assert.ok(width !== null && width <= boundary.width, String(width));
 });
 
+test("a surface carried left of its subject widens away from the left edge it holds", async () => {
+  const ui = await import("/vendor/floating-ui.esm.js");
+  const platform = windowPlatform(() => ({ width: 320, height: 120 }));
+  // Words from 600px to 1280px leave room only on their left, where the box stood until
+  // the reader carried it by its grip against the room's left edge.
+  const words = block(600, 680, 300, 400);
+  const surface = commentPlacement();
+  surface.adopt({
+    box: new DOMRect(8, 300, 320, 120),
+    placement: { side: "left", boundary: boundary.key, moved: true, holds: "left" },
+  });
+  const seat = surface.choose({
+    clear: words,
+    room: paragraph,
+    boundary,
+    element: subject,
+    scroller: scroller(100),
+    coarse: false,
+  });
+  let width = null;
+  const { reference, placement, middleware } = seat.options(ui, {
+    clear: words,
+    room: paragraph,
+    row: words.top,
+    boundary,
+    fit(room) {
+      ({ width } = room);
+    },
+  });
+  await ui.computePosition({ getBoundingClientRect: () => reference }, document.body, {
+    placement,
+    middleware,
+    platform,
+    strategy: "fixed",
+  });
+  assert.equal(width, boundary.right - 8);
+});
+
 test("chrome beside a card's columns leaves it the window's height", async () => {
   const ui = await import("/vendor/floating-ui.esm.js");
   const platform = windowPlatform(() => ({ width: 320, height: 700 }));

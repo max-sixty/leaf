@@ -1022,8 +1022,8 @@ def test_obligation_action_binding_badges_use_the_available_card_action_seats(
     page.evaluate("""() => {
       window.__addEmptyBeforeFrame = new Promise(resolve => {
         document.addEventListener('input', () => requestAnimationFrame(() => {
-          resolve(document.querySelector(
-            '#live-question .lf-compose-submit').hasAttribute('data-lf-empty'));
+          resolve(document.querySelector('#live-question').shadowRoot
+            .querySelector('.lf-compose-submit').hasAttribute('data-lf-empty'));
         }), {once: true});
       });
     }""")
@@ -1207,9 +1207,13 @@ def test_obligation_binding_badges_do_not_cover_their_key_line(browser, serve):
           };
           return {
             line: read(document.querySelector('.lf-fp-row')),
-            chips: [...document.querySelectorAll(
-              '.lf-command-binding-badges .lf-command-binding-badge, [data-lf-binding-badge]'
-            )].filter(node => node.checkVisibility({visibilityProperty: true})).map(read),
+            // The page's badges, and those the groups and options draw in their roots.
+            chips: [document, ...[...document.querySelectorAll('lf-options, lf-option')]
+              .map((host) => host.shadowRoot)]
+              .flatMap((root) => [...root.querySelectorAll(
+                '.lf-command-binding-badges .lf-command-binding-badge, [data-lf-binding-badge]'
+              )])
+              .filter(node => node.checkVisibility({visibilityProperty: true})).map(read),
           };
         }"""
     )

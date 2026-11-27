@@ -79,6 +79,21 @@ export function readingOrder(left, right, nodeOrder = renderedOrder) {
 export const targetSegments = (resolved) =>
   resolved?.kind === "passage" ? resolved.segments : [];
 
+// Whether two readings of a passage stand in the same text, segment by segment: a
+// revision or a script that writes words ahead of it keeps its ranges, which move with
+// the words, but not where it stands.
+export const sameSegments = (a, b) =>
+  a.length === b.length &&
+  a.every((segment, at) => {
+    const other = b[at];
+    return (
+      other !== undefined &&
+      segment.node === other.node &&
+      segment.start === other.start &&
+      segment.end === other.end
+    );
+  });
+
 export const targetPlace = (resolved) => resolved?.place ?? null;
 
 export const exactTarget = (resolved) =>

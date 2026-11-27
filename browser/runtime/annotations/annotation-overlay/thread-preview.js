@@ -149,13 +149,12 @@ import {
   scrollLimit,
 } from "../../dom/scrolling.js";
 import { signal } from "/vendor/signals-core.js";
+import { nothing, render } from "/vendor/lit.js";
 import { tick } from "../../state/version-signal.js";
-import { afterScript } from "../../base/rendering.js";
 import { cancelRender, nextRender } from "../../lib/frame-pass.js";
 import { spokenSubject } from "../../base/contribution-model.js";
 import { labelWords } from "../../lib/words.js";
 import { THREAD_CARD } from "./margin-layout.js";
-import { slotTop } from "../../dom/geometry.js";
 import { elementBorderFrame } from "../../dom/element-axes.js";
 import {
   focusDestination,
@@ -186,7 +185,9 @@ import { threadKey } from "../../state/thread/model.js";
 import {
   anchorLabel,
   releaseAuthoredUnder,
+  threadHeading,
   threadPassage,
+  titleShown,
 } from "../../records/thread/messages.js";
 import { coarsePointer } from "../../base/pointer.js";
 import {
@@ -241,7 +242,7 @@ import { errorOver } from "../../transport/errors.js";
  * focusPending: {holding: Element | null} | null, withheldFocus: ReturnType<typeof holdFocus>,
  * transcript: HTMLElement | null, settled: (() => void) | null, answering: (() => boolean) | null,
  * placesEnd: ((before: import("../../dom/scrolling.js").BoxExtent) => boolean) | null,
- * gutter: (() => void) | null, stopRegion: (() => void) | null, stopDraw: (() => void) | null, end: import("../../dom/scrolling.js").EndKeeper | null, side: ReturnType<typeof commentPlacement>,
+ * bar: ((recount?: boolean) => void) | null, stopRegion: (() => void) | null, stopDraw: (() => void) | null, end: import("../../dom/scrolling.js").EndKeeper | null, side: ReturnType<typeof commentPlacement>,
  * reading: {input: number, scroll: number} | null, itemView: {node: HTMLElement, body: HTMLElement} | null, width: number | null, wide: boolean, scroller: Element, followed: boolean}} Session
  * @typedef {{latest: boolean, scroll: number, keepTop: boolean, transcript: HTMLElement}} Reading
  */
@@ -328,14 +329,16 @@ export function createThreadPreview({
   );
   previewOpenInPanel.setAttribute("data-lf-carry", "expand");
   previewOpenInPanel.lfPreview = () => ({ detail: [`${IN_PANEL} from now on`] });
-  // The card's head line: the thread's notice of held news and Next unread, Previous and
-  // Next, Open in panel, the thread's Resolve or Reopen, and Close. It stands in the
-  // thread, over its first message's head, whose track it shares (annotation-chrome.css),
-  // and holds the boxes the thread draws its notice, Next unread and its settlement in
-  // (thread-card.js, `CardOutlets`, `line`).
+  // The card's head line: the thread's title, then its notice of held news and Next
+  // unread, Previous and Next, Open in panel, the thread's Resolve or Reopen, and Close.
+  // It stands in the thread, above its messages (annotation-chrome.css), and holds the
+  // boxes the thread draws its notice, Next unread and its settlement in (thread-card.js,
+  // `CardOutlets`, `line`). The title says what the floating panel's view of the thread
+  // says over it (`previewItemNode`).
   const previewHead = el("div", "lf-margin-thread-controls");
+  const previewTitle = el("h2", "lf-margin-thread-title");
   const previewActions = el("span", "lf-thread-meta-actions");
-  previewHead.append(previewActions);
+  previewHead.append(previewTitle, previewActions);
   const previewList = el("div", "lf-margin-preview-list");
   // The body of the thread the card shows, whose seat goes when it draws another.
   /** @type {HTMLElement | null} */
@@ -495,12 +498,15 @@ export function createThreadPreview({
   /** @param {Session} session @param {ReturnType<typeof import("../../records/thread/inline.js").renderMarginThread>[number]} reading */
   function syncPreviewTranscript(
     session,
-    { thread: card, transcript, settled, answering, placesEnd },
+    { transcript, settled, answering, placesEnd },
   ) {
     session.settled = settled;
     session.answering = answering;
     session.placesEnd = placesEnd;
-    if (transcript === session.transcript) return;
+    if (transcript === session.transcript) {
+      session.bar?.(true);
+      return;
+    }
     session.stopRegion?.();
     session.stopRegion = null;
     session.transcript = transcript;
@@ -518,88 +524,50 @@ export function createThreadPreview({
       transcript,
       (before) => session.arriving || Boolean(session.placesEnd?.(before)),
     );
-    session.gutter = null;
+    session.bar = null;
     if (previewRegionMounted) {
-      // Once its turns overflow, the transcript holds its scrollbar's gutter
+      // Once its turns overflow, the transcript shows its scrollbar
       // (`data-lf-overflows`, annotation-chrome.css) until its width or the number of
-      // turns it shows changes. The gutter narrows the turns, and a narrowed picture is
-      // shorter, so turns can overflow without the gutter and fit with it: dropping the
-      // gutter whenever they fit brought it back the next frame, and so on every frame.
-      // A transcript that stops overflowing otherwise, as when the window grows taller
-      // or the reply box empties, keeps its words the gutter's width narrower until
-      // then. A send's ride draws the turns below where they stand, which the browser
-      // counts as overflow, so the decision reads where layout stands them
-      // (`scrollLimit`).
-      // The gutter resizes the transcript's box, so the card's fit decides it in the
-      // script that changes the card's room (`measureThreadCard`), before the size
-      // delivery that reports the transcript; the paint below decides it for a change
-      // no fit answers.
-      // The transcript's width and shown turns when its gutter was last decided.
+      // turns it shows changes. Where bars take room, the bar narrows the turns, and a
+      // narrowed picture is shorter, so turns can overflow without the bar and fit with
+      // it: hiding the bar whenever they fit brought it back the next frame, and so on
+      // every frame. A send's ride draws the turns below where they stand, which the
+      // browser counts as overflow, so the decision reads where layout stands them
+      // (`scrollLimit`). The bar resizes the transcript's box, so the card's fit decides
+      // it in the script that changes the card's room (`measureThreadCard`), before the
+      // size delivery that reports the transcript; each reading of the transcript's
+      // reach decides it for a change no fit answers, as a picture loading in a turn
+      // is. Each reading of the thread counts its turns again (`syncPreviewTranscript`);
+      // a reading of the reach where the bar already says whether the turns overflow and
+      // the width stands, as every scroll's is, decides nothing, so a wheel step reads
+      // three lengths and counts no turns.
+      // The transcript's width and shown turns when its bar was last decided.
       let decided = "";
-      const gutter = () => {
+      let width = -1;
+      const bar = (recount = false) => {
+        const overflows = scrollLimit(transcript) > 0;
+        const wide = transcript.offsetWidth;
+        if (
+          !recount &&
+          wide === width &&
+          overflows === transcript.hasAttribute("data-lf-overflows")
+        )
+          return;
+        width = wide;
         const shown = [...transcript.querySelectorAll(":scope > .lf-msg")].filter(
           (message) => !(/** @type {HTMLElement} */ (message).hidden),
         ).length;
-        const overflows = scrollLimit(transcript) > 0;
-        const shape = `${transcript.offsetWidth} ${shown}`;
+        const shape = `${wide} ${shown}`;
         if (overflows || shape !== decided)
           keeps(transcript, "data-lf-overflows", overflows ? "" : null);
         decided = shape;
       };
-      session.gutter = gutter;
+      session.bar = bar;
       session.stopRegion = registerReadingRegion({
         id: THREAD_CARD,
         host: preview,
         body: transcript,
-        paintContinuation: (above) => {
-          // A head sticks only while its own message is under it. Follow its real
-          // lower edge as the next message pushes it away; between messages the
-          // transcript's edge is the cut. A declared head height cannot say this.
-          let edge = 0;
-          let height = above ? 12 : 0;
-          /** @type {NodeListOf<HTMLElement>} */
-          const messages = transcript.querySelectorAll(":scope > .lf-msg");
-          const room = slotTop(transcript);
-          const top =
-            transcript.getBoundingClientRect().top + transcript.clientTop + room;
-          // A later message's head spans the actions' track (annotation-chrome.css),
-          // so while its line shares the actions' it keeps to its own track and its
-          // controls stand aside.
-          for (const message of messages) {
-            const head = message.querySelector(":scope > .lf-msg-head");
-            const box = head?.getBoundingClientRect();
-            keeps(
-              message,
-              "data-lf-beside-actions",
-              above && box && box.top < top + box.height && box.bottom > top
-                ? ""
-                : null,
-            );
-          }
-          if (above) {
-            for (const head of transcript.querySelectorAll(".lf-msg-head")) {
-              const box = head.getBoundingClientRect();
-              if (!box.height || box.bottom <= top) continue;
-              if (box.top <= top) edge = box.bottom - top;
-              else {
-                // Heads follow message order. Stop before the next name, including
-                // when only a sliver of the inter-message gap remains above it.
-                height = Math.min(height, box.top - top - edge);
-                break;
-              }
-            }
-          }
-          // Each length inherits through the thread (annotation-chrome.css), so a write
-          // restyles the card's every element. At zero it stays unset, which the fade reads
-          // as zero, so a card nothing has scrolled, as a new one is, writes nothing.
-          for (const [name, length] of /** @type {const} */ ([
-            ["--lf-thread-fade-top", edge],
-            ["--lf-thread-fade-height", height],
-          ]))
-            if (length) card.style.setProperty(name, layoutPx(length));
-            else card.style.removeProperty(name);
-          gutter();
-        },
+        onReach: () => bar(),
       });
     }
   }
@@ -801,7 +769,7 @@ export function createThreadPreview({
           share === null ? "" : layoutPx(share),
         );
     }
-    session.gutter?.();
+    session.bar?.();
     // A reader at the end stays there through this fit by the transcript's own keeper
     // (`syncPreviewTranscript`).
     if (reading?.latest) showArrival(session, reading.transcript);
@@ -1206,7 +1174,7 @@ export function createThreadPreview({
       answering: null,
       placesEnd: null,
       reading: null,
-      gutter: null,
+      bar: null,
       stopRegion: null,
       stopDraw: null,
       end: null,
@@ -1264,11 +1232,11 @@ export function createThreadPreview({
       scroll: session.transcript.scrollTop,
     };
     const present = () => {
-      // The card is headed by the passage the selected thread quotes, as the panel
-      // heads it, words a revision rewrote included (`threadPassage`), else by its
-      // margin entry's title: a card headed "aside · The fallback cookie is
-      // read-only…" over a comment on the aside's last sentence was a third name for
-      // one thread, and the least exact.
+      // The card's label, which assistive tech reads, names the passage the selected
+      // thread quotes, words a revision rewrote included (`threadPassage`), else its
+      // margin entry's title: a label "aside · The fallback cookie is read-only…" over
+      // a comment on the aside's last sentence was a third name for one thread, and
+      // the least exact.
       const passage = threadPassage(selected.thread);
       const quoted = passage ? anchorLabel(passage, selected.thread.root.about) : null;
       const title = labelWords(quoted || entry.title);
@@ -1276,8 +1244,8 @@ export function createThreadPreview({
       keepsHidden(previewNav, threadItems.length < 2);
       const selectedIndex = Math.max(0, threadItems.indexOf(selected));
       // Every other walk says "1 of 3" (records/walk-position.js). This one stands on the card's
-      // actions line, which on a card in a narrow room (`--lf-thread-card-min`) already
-      // leaves the message heads little room; " of " would widen it enough to push the
+      // head line, which on a card in a narrow room (`--lf-thread-card-min`) already
+      // leaves the title little room; " of " would widen it enough to push the
       // actions past the start of a narrow card.
       keepsText(previewPosition, `${selectedIndex + 1}/${threadItems.length}`);
       previewPrevious.toggleAttribute("disabled", selectedIndex === 0);
@@ -1338,6 +1306,13 @@ export function createThreadPreview({
     }
     const { node, body } = view;
     const shownThread = item.thread;
+    // The title says what the floating panel's view of the thread says over it, from
+    // the thread as it stands, so a title arriving with news the thread holds shows
+    // there at once, as in the panel (panel/floating-panel.js, `VIEWS`, `thread`). An
+    // untitled thread's card draws none: the card's label names the thread already.
+    const titled = titleShown(shownThread);
+    render(titled ? threadHeading(shownThread) : nothing, previewTitle);
+    keepsHidden(previewTitle, !titled);
     // The panel's view carries the reply being written along from the closed card
     // (records/thread/replies.js, `carry`).
     previewOpenInPanel.onclick = () => {
@@ -1557,24 +1532,7 @@ export function createThreadPreview({
     previewClose.onclick = onDismiss;
     previewPrevious.onclick = () => stepPreviewThread(-1);
     previewNext.onclick = () => stepPreviewThread(1);
-    // Focus in the transcript lifts the fade over its top (annotation-chrome.css), so
-    // the fade never lies over a focused message's ring. Like focus paint (dom/focus.js), the
-    // mark follows where the script leaves the user: a script that moves them out of the
-    // transcript and back marks nothing.
-    /** @type {Element | null} */
-    let transcriptFocus = null;
-    const markTranscriptFocus = () => {
-      const transcript = previewSession?.transcript;
-      if (transcript?.parentElement)
-        keeps(
-          transcript.parentElement,
-          "data-lf-transcript-focus",
-          transcriptFocus && under(transcriptFocus, transcript) ? "" : null,
-        );
-    };
     onCurrentLocation((node, cause, left) => {
-      transcriptFocus = node;
-      afterScript(markTranscriptFocus);
       if (
         node &&
         under(node, preview) &&

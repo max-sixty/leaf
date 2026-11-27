@@ -50,9 +50,15 @@ import { el } from "../lib/elements.js";
 import { offerAction } from "../lib/controls.js";
 import { keeps } from "../lib/keeps.js";
 
-import { elementById } from "../readings/passages.js";
+import { elementById, spellingOf } from "../readings/passages.js";
 import { addressableWord } from "../lib/element-word.js";
-import { anchoringIsReady, visualPartLabel } from "../readings/anchor-resolution.js";
+import {
+  anchoringIsReady,
+  resolveAnchor,
+  visualPartLabel,
+} from "../readings/anchor-resolution.js";
+import { sameSegments, targetSegments } from "../readings/resolved-target.js";
+import { sameAnchor } from "../base/anchor-coordinate.js";
 import { announce } from "../transport/notifications.js";
 import { claimsEsc, keys } from "../dom/keyboard/scopes.js";
 import { saying } from "../dom/keyboard/control-keys.js";
@@ -94,10 +100,30 @@ import { PRESS, rowArrows } from "../lib/keys.js";
 export const reactionEmoji = () => registry.$reactions?.emoji ?? [];
 // A toggle needs the saved reaction in force, including proof that none stands.
 export const reactionAvailable = () => readThreads().phase === "ready";
+// Whether a thread stands on the bar's target, both read from the page as it stands. A
+// quote stands only on the words it resolves to, so an edit beside them, which changes
+// the context its anchor recorded, leaves its emoji pressed there, and a quote that
+// resolves nowhere stands nowhere. Any other target stands by its anchor's record.
+const wordsOf = (anchor) => targetSegments(resolveAnchor(anchor));
+const standsOn = (anchor) => {
+  if (!anchor.quote) return ({ anchor: its }) => sameAnchor(its, anchor);
+  const words = wordsOf(anchor);
+  const spelling = spellingOf(anchor.quote);
+  // Only a reaction whose quote is spelled alike can stand on the same words, which
+  // spares resolving the rest.
+  return ({ anchor: its }) =>
+    its?.quote !== undefined &&
+    spellingOf(its.quote) === spelling &&
+    words.length > 0 &&
+    sameSegments(words, wordsOf(its));
+};
 // The choices on one anchor, from the threads' current reading.
 const anchorChoices = (anchor) =>
   reactionAvailable()
-    ? emojiChoices(reactionEmoji(), anchor ? reactionsAt(threadList(), anchor) : [])
+    ? emojiChoices(
+        reactionEmoji(),
+        anchor ? reactionsAt(threadList(), standsOn(anchor)) : [],
+      )
     : [];
 
 // One reaction as a press in the response bar; a reply's strip builds its own

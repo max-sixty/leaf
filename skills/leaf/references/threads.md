@@ -294,7 +294,13 @@ A widget that asks in a message keeps its thread at "Your turn" until the
 user answers it ("Ask for a pick"). A thread you open waits on nobody by itself:
 `--obligation` registers the message's request without a widget.
 
-Correct a message you or an earlier agent wrote, without adding a turn:
+## Keeping a thread current
+
+The user comes back to a thread to learn where its subject stands, so leave each of
+yours ending there, with no answer of yours left standing that you have since found
+wrong. How you get there is yours to choose: reply, fold messages under a summary
+("Summarize a long discussion"), or rewrite a message you or an earlier agent wrote;
+a rewrite adds no turn:
 
 ```bash
 leaf thread edit <page> <message> --text "Corrected wording."
@@ -302,18 +308,9 @@ leaf thread edit <page> <message> --text "Corrected wording."
 
 The page labels it `edited`, and the log keeps every wording. An edit may change the
 message's HTML too. An answer the user gave a widget in it stays with the widget's
-ids, and shows on whatever the edit leaves under them.
-
-While your reply is still the thread's latest message and the user hasn't answered
-it, a correction to it, or a later finding of yours that changes its answer, goes
-into that reply with `leaf thread edit` rather than a new reply, so the user returns
-to the current answer rather than to messages that correct one another. Keep new
-replies for news the user is waiting on, such as a result you promised, and for
-answering a delivered update, which an edit does not answer. Where you already
-posted such a correction as a new reply, fold it and the reply it corrects under one
-summary that gives the answer as it now stands, as short as any summary ("Summarize a
-long discussion"): `leaf thread summarize <page> --from <earlier-reply> --through
-<correction> --text "<the current answer>"`.
+ids, and shows on whatever the edit leaves under them. Replies below it stay as they
+were, so one the user wrote to the old wording no longer answers what the message
+says. An edit answers no update the user handed over, so answer one with a reply.
 
 An ordinary reply leaves the thread open, or reopens one you resolved, so the user can
 inspect the answer; the user usually resolves it. Resolve a thread yourself only when

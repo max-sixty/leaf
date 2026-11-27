@@ -750,9 +750,7 @@ the same engine kept a child's copy of the column's room through a window resize
 an `available` block sized from it stayed 1392px wide at 1200 and 900px wide
 windows. So the column's room (`--lf-free-start`, `--lf-free-end`,
 `browser/layouts.css`) inherits, and a box outside the column's flow sets it back
-to zero; and a thread card's fade (`--lf-thread-fade-top`,
-`--lf-thread-fade-height`, `annotation-chrome.css`) inherits, though each write then
-restyles every element in the thread. Recheck with a page holding that pair of
+to zero. Recheck with a page holding that pair of
 rules in `leaf-dev probe --browser webkit`, then with
 `test_a_breakout_grows_only_from_a_holder_that_spans_the_column` in
 `tests/browser/test_render_pages.py` under `webkit_browser` after making the
@@ -1135,13 +1133,13 @@ Chromium (156 on macOS, 153 on Linux) and Firefox 155 on Linux lay a subgrid's
 items on its parent's tracks without the room an `overflow: auto` scrollbar takes,
 against css-grid-2's rule that the subgrid's scrollbar gutter is extra margin on
 its edge items. Where the bar takes room (Linux, Windows, macOS with a mouse), a
-margin card's transcript, a subgrid, ran its words under the bar. On 2026-10-30
-Linux Chromium's 10px bar left the transcript 10px of sideways travel; Firefox's
-6px bar fit within the transcript's 6px of room, so its words reached the bar
-without scrolling sideways. Both engines count the bar of `overflow: scroll` and a
-`scrollbar-gutter: stable` gutter, so the transcript holds a gutter once its turns
-overflow (`data-lf-overflows`, `annotation-chrome.css`; `thread-preview.js` says
-until when). WebKit is unrecorded,
+margin card's transcript, then a subgrid, ran its words under the bar. On
+2026-10-30 Linux Chromium's 10px bar left the transcript 10px of sideways travel;
+Firefox's 6px bar fit within the transcript's 6px of room, so its words reached the
+bar without scrolling sideways. Both engines count the bar of `overflow: scroll`
+and a `scrollbar-gutter: stable` gutter. No scroller in Leaf is a subgrid: the
+transcript lays out its own track (`annotation-chrome.css`), so its bar takes room
+in both. WebKit is unrecorded,
 since Playwright's WebKit draws only overlay scrollbars on macOS and Linux. No
 Chromium or Firefox bug tracks the `auto` case (searched 2026-10-30), and Leaf
 has left it unreported, so only a recheck shows when a browser fixes it.
@@ -1153,7 +1151,7 @@ image (`mcr.microsoft.com/playwright/python`, arm64 on this Mac), Chromium
 launched without `--hide-scrollbars`, and Firefox launched headed under
 `xvfb-run` with `GTK_OVERLAY_SCROLLING=0` and
 `widget.gtk.overlay-scrollbars.enabled` false (headless Firefox draws overlay
-bars). Once they match in both, the attribute and its rule can go.
+bars). Once they match in both, a scroller may be a subgrid.
 `test_a_card_that_scrolls_gives_its_scrollbar_room` in
 `tests/browser/margin/test_card_reply.py` covers the card in Chromium.
 
@@ -1162,10 +1160,9 @@ bars). Once they match in both, the attribute and its rule can go.
 Firefox leaves a grid scroll container's block-end padding, and its last item's
 end margin, out of its scroll range whenever one of its items is `position:
 sticky`. A block or flex scroller, or a sticky box inside a grid item, keeps the
-padding. A margin card's transcript is such a grid, with the paper row over its
-heads and New reply sticking in it, so in the user's Firefox on 2026-11-24 a
-rewrite of the last turn, scrolled to the card's end, lost the bottom side of its
-focus ring, which it draws in the room the transcript kept below its turns as
+padding. In the user's Firefox on 2026-11-24 a margin card's transcript, then such
+a grid with New reply sticking in it, lost the bottom side of a focus ring a
+rewrite of its last turn draws in the room the transcript keeps below its turns as
 padding. In Playwright Firefox 159.0 (build 1572), a 100px grid scroller with
 8px of end padding holding a 150px item reports a `scrollHeight` of 158, and
 170 with a 20px sticky item added; Chromium 159.0.8154.6 (build 1255) and WebKit
@@ -1174,13 +1171,12 @@ and loses its 16px of end padding the same way when a sticky widget, such as
 `lf-dial`, stands directly in it, which no page does yet. No Mozilla bug found
 matches (searched 2026-11-24), and Leaf has left it unreported.
 
-So the transcript keeps that room as a row its `::after` holds after the last
-turn, which every engine counts (`annotation-chrome.css`), as it keeps the room
-above its heads as a row before the first. Recheck with that fixture: once
-Firefox reports 178, the room can go back to padding.
+The transcript is a block scroller (`annotation-chrome.css`), so every engine
+keeps its padding. Recheck with that fixture: once Firefox reports 178, a
+scroller holding a sticky item may be a grid.
 `test_a_rewrite_at_the_foot_of_a_card_that_scrolls_keeps_its_whole_ring` in
-`tests/browser/threads/test_rewrites.py` fails in Firefox while the room is
-padding.
+`tests/browser/threads/test_rewrites.py` fails in Firefox while the transcript is
+such a grid.
 
 ### A landing in a skipped `content-visibility: auto` box in Firefox and WebKit
 

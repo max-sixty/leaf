@@ -125,8 +125,8 @@
  * gesture the user made, and refuses a value two options carry, since that would pick
  * one of them for the user. An exhibit takes no pick, so it refuses every request.
  *
- * How it is drawn: a decorating widget. This is the shape every widget that wraps
- * author-written children takes, lf-tabs' and lf-board's included.
+ * How it is drawn: a decorating widget, here in shadow roots; browser/AGENTS.md,
+ * "Renderers", says when another decorating widget takes one.
  *
  * - The light DOM is the author's, and the page's record. The author's children stay
  *   where and as they were written; what the widget states there is only its record:

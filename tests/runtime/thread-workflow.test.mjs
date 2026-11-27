@@ -698,25 +698,25 @@ test("a thread this tab opened carries every field a served thread does", () => 
 });
 
 test("a reaction on a passage stays the user's to take back once the agent answers it", () => {
-  // The picker reads the reactions in force on its anchor, so pressing one again takes it
-  // back whatever has been said since, until the thread is resolved.
-  const anchor = { section: "plan", quote: "Ship dark" };
-  const root = { id: "r", kind: "comment", author: "user", emoji: "✂️", anchor };
+  // The picker reads the reactions in force where it stands, so pressing one again takes
+  // it back whatever has been said since, until the thread is resolved.
+  const root = { id: "r", kind: "comment", author: "user", emoji: "✂️" };
   const answer = { id: "a", kind: "reply", author: "agent", parent: "r", text: "Cut." };
   /** @param {object[]} msgs @param {object | null} resolved */
   const thread = (msgs, resolved = null, opened = root) => ({
     id: "r",
     root: opened,
     msgs,
-    anchor,
     resolved,
   });
-  assert.deepEqual(reactionsAt([thread([root])], anchor), [root]);
-  assert.deepEqual(reactionsAt([thread([root, answer])], anchor), [root]);
+  const here = () => true;
+  assert.deepEqual(reactionsAt([thread([root])], here), [root]);
   assert.deepEqual(
-    reactionsAt([thread([root, answer], { author: "user" })], anchor),
+    reactionsAt([thread([root])], () => false),
     [],
   );
+  assert.deepEqual(reactionsAt([thread([root, answer])], here), [root]);
+  assert.deepEqual(reactionsAt([thread([root, answer], { author: "user" })], here), []);
   const words = { ...root, emoji: undefined, text: "Why?" };
-  assert.deepEqual(reactionsAt([thread([words], null, words)], anchor), []);
+  assert.deepEqual(reactionsAt([thread([words], null, words)], here), []);
 });

@@ -552,7 +552,12 @@ summary {
 .lf-page-thread,
 .lf-fab-bar {
   --lf-thread-text-inset: 8px;
-  --lf-msg-head-height: 28px;
+  /* A head's height: 28px, or a line of the name face (`--lf-font-name`, tokens.css)
+     where the reader's font size makes that taller. A view's head line, in a card or
+     the floating panel, its messages' heads and the room a comment box keeps for them
+     all read it, so a title, its placeholder or a name never stands taller than the
+     room kept for it. */
+  --lf-msg-head-height: max(28px, var(--lf-t-working-label) * var(--lf-ui-lh));
   --lf-msg-body-gap: 4px;
   /* The room between a message's last line and what follows it in the conversation,
      the next message, a checkpoint, the working step or the reply box: far more than a
@@ -566,10 +571,17 @@ summary {
   --lf-msg-control-size: var(--lf-icon-action-face);
   --lf-msg-control-width: max(var(--lf-msg-control-size), var(--lf-aim-floor));
   --lf-msg-edit-gap: 4px;
-  /* The widest a news notice beside a message head's words stands: a primary
-     reader's, in a message head or a part, and a margin card's, in its controls row
-     (annotation-chrome.css), so the head keeps its author and time. */
+  /* The widest a news notice beside a message head's words stands, a primary
+     reader's, in a message head or a part, so the head keeps its author and time. */
   --lf-news-width: 5rem;
+  /* The room a margin card's transcript keeps inside the card's edges, at its sides
+     and under the card's head line: what the card's padding and border leave inside
+     the card's own ring (annotation-chrome.css, at `--lf-transcript-room`). */
+  --lf-transcript-edge-room: calc(var(--lf-thread-frame) - var(--lf-focus-ring-w));
+  /* How far a margin card's first message stands below the card's top: its head line
+     and that room under it. Beside its passage, the card stands that message, not its
+     top, level with the passage (annotation-overlay/comment-placement.js, `cardLine`). */
+  --lf-card-line: calc(var(--lf-msg-head-height) + var(--lf-transcript-edge-room));
 }
 .lf-thread-transcript {
   min-width: 0;
@@ -587,9 +599,10 @@ summary {
   --lf-thread-notice-room: var(--lf-msg-head-height);
 }
 
-/* One animated phase feeds every painted part of a message. Animating the
-   background itself lets Firefox's compositor leave an inheriting sticky head
-   behind; a typed inherited ground keeps both paints on the same frame. */
+/* One animated phase feeds every painted part of a message: its ground, and what it
+   holds that paints the ground, as the band behind its controls does (controls.css).
+   A typed inherited ground keeps those paints on the same frame, where animating the
+   background itself left a head painting the ground behind in Firefox's compositor. */
 @property --lf-msg-ground {
   syntax: "<color>";
   inherits: true;
@@ -685,16 +698,21 @@ summary {
     border-image: none;
   }
 }
-/* Every message header holds the same control-height row, including sticky margin
-   heads. Thread actions and reactions must not change its metadata-to-body gap. A
-   head too narrow for what it holds, as a first message's beside a narrow card's
-   actions can be, cuts it at its end, a gap past it, so it never runs under them; it
-   cuts nothing above or below, where its controls' rings and a finger's reach stand.
-   It holds what is placed against its own box, such as the rule past a first
-   message's controls (controls.css), unless it sticks. */
+/* Every message header holds the same control-height row. Thread actions and
+   reactions must not change its metadata-to-body gap. A head too narrow for what it
+   holds, as a first message's beside a page thread's controls can be, cuts it at its
+   end, a gap past it, so it never runs under them; it cuts nothing above or below,
+   where its controls' rings and a finger's reach stand, or at its start, where a card
+   hangs an unread reply's dot (annotation-chrome.css). It holds what is placed
+   against its own box, such as the rule past a first message's controls
+   (controls.css). A clip's sides are physical, so a right-to-left head names its end
+   on the left. */
 :where(.lf-msg-head) {
   position: relative;
   clip-path: inset(-100vh calc(-1 * var(--lf-sp-2)) -100vh -100vw);
+}
+:where(.lf-msg-head:dir(rtl)) {
+  clip-path: inset(-100vh -100vw -100vh calc(-1 * var(--lf-sp-2)));
 }
 .lf-msg-head,
 .lf-thread-working-head {
@@ -719,13 +737,11 @@ summary {
    million times the next one's, so a part gives up all its room before the next gives
    up any visible width. The metadata shrinks as one part at its time's weight, which
    keeps its annotations and time together in the order. A primary reader's notice of
-   news (below) gives way with the metadata, each in proportion to its width. A card's
-   notice, on the line of its actions beside the first head, keeps its whole count
-   (annotation-chrome.css), so that head gives up its parts beside it. A long name is
-   cut at its cap (below) however much room is left. Shown, the controls stand over the
-   words' end (controls.css), so they cover the parts in this order too, and where they
-   are wider than the room the head leaves beside its name, as a message's three are on
-   a card's least-width line beside Previous and Next, they cover the name as well. */
+   news (below) gives way with the metadata, each in proportion to its width. A long
+   name is cut at its cap (below) however much room is left. Shown, the controls stand
+   over the words' end (controls.css), so they cover the parts in this order too, and
+   where they are wider than the room the head leaves beside its name, they cover the
+   name as well. */
 .lf-msg-head,
 .lf-thread-working-head {
   & > .lf-msg-control-room {
@@ -826,9 +842,9 @@ summary {
    messages it covers, which stand where they were said and are hidden while it is
    closed (records/thread/transcript.js). One disclosure at its head controls the entire
    range. Open, the covered messages follow it at their own inner gap. Each item of a
-   transcript keeps its gap above it alone, since nothing collapses a gap below one
-   into the next: a card's transcript is a grid, and a closed fold's hidden messages
-   are boxes of their own between the checkpoint and what follows. */
+   transcript keeps its gap above it alone, so no gap below one meets the next's, and a
+   closed fold's hidden messages are boxes of their own between the checkpoint and what
+   follows. */
 .lf-thread-checkpoint {
   margin-block-start: var(--lf-msg-gap);
   anchor-name: var(--lf-fold-head);
@@ -853,9 +869,9 @@ summary {
   background: var(--lf-chip);
 }
 /* Open, the region takes in the messages the summary folds: the fill stands under
-   them, and each stands on the tint as its own ground, so a head stuck at a card's top
-   keeps it. A message keeps its box and so its lines: a summary arriving open over the
-   message the reader is on moves none of its words. The fill spans siblings, from the
+   them, and each stands on the tint as its own ground. A message keeps its box and so
+   its lines: a summary arriving open over the message the reader is on moves none of
+   its words. The fill spans siblings, from the
    checkpoint's head to the foot of its last message, so it is anchored to both, in the
    thread content outside the scrolling transcript. Under them, it needs the transcript
    to be the stacking context it paints in. */

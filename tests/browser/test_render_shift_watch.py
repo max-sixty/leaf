@@ -5205,11 +5205,11 @@ motion.pause();motion.currentTime=150;
 
 @pytest.mark.parametrize("fault", [False, True])
 def test_a_sticky_inset_moves_its_box_only_within_its_block(browser, fault):
-    """A ride carries a scroller's messages while their sticky heads' insets travel
-    against the carry (dom/box-motion.js), so a stuck head holds its line and one short of
-    it rides with its message. The inset is credited by the head's move within its
-    message, not read as an offset that cancels the carry; a head moving the other
-    way within its message still fails."""
+    """A ride carries a scroller's contents while each box sticking in them travels its
+    inset against the carry (dom/box-motion.js), as a thread's jumps do, so a stuck box
+    holds its line and one short of it rides with its block. The inset is credited by
+    the box's move within its block, not read as an offset that cancels the carry; a
+    box moving the other way within its block still fails."""
     page = browser.new_page()
     page.goto(
         "data:text/html,"

@@ -54,7 +54,11 @@
    counter a widget redraws each frame, places no thread again, and reads the page again
    only once something asks. */
 import { anchoringIsReady, resolveAnchor } from "../readings/anchor-resolution.js";
-import { resolvedInMessage, targetElement } from "../readings/resolved-target.js";
+import {
+  resolvedInMessage,
+  sameSegments,
+  targetElement,
+} from "../readings/resolved-target.js";
 import {
   catchUpWords,
   hearPageWords,
@@ -73,20 +77,6 @@ import { tick } from "../state/version-signal.js";
 import { version as keptVersion } from "../state/kept.js";
 import { inChrome } from "../base/ui-marks.js";
 
-// Whether two readings of a passage stand in the same text, segment by segment: a
-// revision or a script that writes words ahead of it keeps its ranges, which move with
-// the words, but not where it stands.
-const sameSegments = (a, b) =>
-  a.length === b.length &&
-  a.every((segment, at) => {
-    const other = b[at];
-    return (
-      other !== undefined &&
-      segment.node === other.node &&
-      segment.start === other.start &&
-      segment.end === other.end
-    );
-  });
 const samePlacement = (a, b) =>
   a?.kind === b?.kind &&
   (a?.kind !== "passage" ||

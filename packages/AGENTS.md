@@ -4,7 +4,8 @@
 contract, and `../skills/leaf/references/module-authoring.md` and the `module-*.md`
 files own what a behavior module must do and the public browser API. `../browser/AGENTS.md` holds the
 browser-wide rules a module must keep, including "Leaf's interface", which binds the
-bundled packages; `../skills/leaf/references/interface-goals.md` is what other authors'
+bundled packages, and "Renderers", which a port of a widget from Lit to Effect UI
+follows; `../skills/leaf/references/interface-goals.md` is what other authors'
 packages get.
 
 ## A widget's need of Leaf

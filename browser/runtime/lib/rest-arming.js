@@ -1,3 +1,4 @@
+// Compiled from rest-arming.ts by build/typescript.mjs; edit that file.
 /* When a control standing over words the user types takes presses: once the pointer has
    rested on it, so a press aimed at the words beneath reaches them. A composer's Send over
    its last line and a draft's toolbar over its first both stand there. The owner hands
@@ -26,12 +27,8 @@
 // press aimed at the words' end takes to land.
 const DWELL = 150;
 
-/**
- * @param {() => Element | null | undefined} control
- * @param {{point?: () => void, arm: () => void, unpoint?: () => void}} on `point` as the
- *   pointer comes onto the control, `arm` once it has rested there, `unpoint` as it
- *   leaves or the owner resets
- */
+/** Calls `point` as the pointer comes onto the control, `arm` once it has rested
+ * there, and `unpoint` as it leaves or the owner resets. */
 export function restArming(control, { point, arm, unpoint }) {
   let dwell = 0;
   let pointed = false;
@@ -41,7 +38,6 @@ export function restArming(control, { point, arm, unpoint }) {
     pointed = false;
     unpoint?.();
   };
-  /** @param {PointerEvent} event */
   const move = (event) => {
     if (event.pointerType === "touch") return;
     const at = control()?.getBoundingClientRect();

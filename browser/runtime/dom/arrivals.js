@@ -1,3 +1,4 @@
+// Compiled from arrivals.ts by build/typescript.mjs; edit that file.
 /* Elements of one kind, held while they stand in the page, and the stages they stand in.
 
    Some of the runtime's paint belongs to an element for as long as it stands, whoever
@@ -90,26 +91,17 @@ import {
 } from "../lib/widget-events.js";
 import { reportFailure } from "../lib/failure.js";
 
-/** The elements a watch holds: whether `is` one, and every one `within` a tree.
- * @typedef {{is: (el: Element) => boolean, within: (root: Element | ShadowRoot) => Iterable<Element>}} Kind
- * @typedef {{kind: Kind, attributes: string[], observer: MutationObserver, offerMany: (elements: Iterable<Element>) => void}} ArrivalWatch
- * @typedef {{connect(): void, disconnect(): void}} Connection */
-/** @type {Set<ArrivalWatch>} */
+/** The elements a watch holds: whether `is` one, and every one `within` a tree. */
+
 const watches = new Set();
-/** @type {Set<WeakRef<ShadowRoot>>} */
 const stageRefs = new Set();
 // Each stage by its host, closed ones included, which no host answers through
 // `shadowRoot`.
-/** @type {WeakMap<Element, ShadowRoot>} */
 const hostStages = new WeakMap();
-/** @param {Element} host */
 export const stageOf = (host) => hostStages.get(host) ?? null;
-/** @type {WeakMap<Element, Set<Connection>>} */
 const owners = new WeakMap();
-/** @type {((element: Element) => void) | undefined} */
 let offerOwner;
 
-/** @param {Element} element @param {keyof Connection} method */
 function notifyOwners(element, method) {
   for (const subscription of owners.get(element) ?? []) {
     try {
@@ -133,7 +125,6 @@ const ownerWatch = () =>
 
 // Independent subscriptions share their element's connection lifetime. The arrival
 // batch decides whether it actually left, so an in-document move retains them.
-/** @param {Element} owner @param {Partial<Connection>} lifecycle */
 export function watchOwner(owner, lifecycle) {
   let connected = false;
   const subscriptions = owners.get(owner) ?? new Set();
@@ -172,13 +163,11 @@ export function watchOwner(owner, lifecycle) {
 /** Start mechanical resources for each connection, abort their listeners and run
  * the optional returned cleanup when the owner leaves. Register once: moves within
  * an arrival batch retain the same scope, and the returned stop retires it. */
-/** @param {Element} owner @param {(signal: AbortSignal) => (() => void) | void} start */
 export function whileConnected(owner, start) {
   let disconnect = () => {};
   return watchOwner(owner, {
     connect() {
       const controller = new AbortController();
-      /** @type {(() => void) | void} */
       let cleanup;
       // Install disposal before setup, so a failed start releases its signal too.
       disconnect = () => {
@@ -196,7 +185,6 @@ export function whileConnected(owner, start) {
 /** One coalesced nextRender callback while the owner stands. A departure cancels
  * pending work; the callback also checks connection before the arrival batch runs.
  * A return permits fresh scheduling, without replaying the cancelled callback. */
-/** @param {Element} owner @param {() => void} run */
 export function frameFor(owner, run) {
   let frame = 0;
   watchOwner(owner, {
@@ -224,13 +212,11 @@ export function liveStages() {
   return live;
 }
 
-/** @param {Node} root @returns {root is ShadowRoot} */
 export const isStage = (root) => {
   const host = shadowHost(root);
   return host !== null && hostStages.get(host) === root;
 };
 
-/** @param {Element} el */
 const stands = (el) => {
   const root = el.getRootNode();
   return root === document || (isStage(root) && root.host.isConnected);
@@ -238,7 +224,6 @@ const stands = (el) => {
 
 // An owner (`watchOwner`) can be any element, so finding the owners in what a mutation
 // added visits every element there, and offers only the owners.
-/** @type {Kind} */
 const ownerKind = {
   is: (el) => owners.has(el),
   *within(root) {
@@ -247,7 +232,6 @@ const ownerKind = {
 };
 
 // Every match in what a record names, the stages inside it included.
-/** @param {Node | null} node @param {Kind} kind @returns {Generator<Element>} */
 function* matching(node, kind) {
   if (!isElement(node)) return;
   if (kind.is(node)) yield node;
@@ -256,11 +240,7 @@ function* matching(node, kind) {
     if (under(stage.host, node)) yield* kind.within(stage);
 }
 
-/**
- * @param {string} selector
- * @param {string[]} attributes
- * @param {Watcher} watcher Each arrival goes to `arriveBatch` where there is one, else to `arrive`.
- */
+/** @param watcher Each arrival goes to `arriveBatch` where there is one, else to `arrive`. */
 export const watchArrivals = (selector, attributes, watcher) =>
   watchKind(
     {
@@ -271,17 +251,9 @@ export const watchArrivals = (selector, attributes, watcher) =>
     watcher,
   );
 
-/**
- * @typedef {{
- *   leave: (element: Element) => void,
- * } & ({arrive: (element: Element) => void, arriveBatch?: never}
- * | {arrive?: never, arriveBatch: (elements: Element[]) => void})} Watcher
- * @param {Kind} kind @param {string[]} attributes @param {Watcher} watcher
- */
 function watchKind(kind, attributes, { arrive, arriveBatch, leave }) {
   const arrived = new WeakSet();
   // Every departure a batch shows is decided before any arrival in it.
-  /** @param {Iterable<Element>} elements */
   const offerMany = (elements) => {
     const present = [];
     for (const el of elements) {
@@ -294,7 +266,6 @@ function watchKind(kind, attributes, { arrive, arriveBatch, leave }) {
       arriveBatch(present);
     }
   };
-  /** @param {Element} el */
   const offer = (el) => {
     if (stands(el) && kind.is(el)) {
       arrived.add(el);
@@ -302,12 +273,9 @@ function watchKind(kind, attributes, { arrive, arriveBatch, leave }) {
       else arrive(el);
     } else if (arrived.delete(el)) leave(el);
   };
-  /** @param {Node | null} node */
   const beside = (node) =>
     isElement(node) && (arrived.has(node) || kind.is(node)) ? [node] : [];
-  /** @param {MutationRecord[]} records */
   const read = (records) => {
-    /** @type {Set<Element>} */
     const offered = new Set();
     for (const record of records) {
       if (record.type === "attributes") {
@@ -331,7 +299,6 @@ function watchKind(kind, attributes, { arrive, arriveBatch, leave }) {
   const watch = { kind, attributes, observer, offerMany };
   watches.add(watch);
   for (const root of [document.documentElement, ...liveStages()]) enroll(watch, root);
-  /** @param {Element} [el] */
   return (el) => {
     const made = observer.takeRecords();
     if (made.length) read(made);
@@ -339,7 +306,6 @@ function watchKind(kind, attributes, { arrive, arriveBatch, leave }) {
   };
 }
 
-/** @param {ArrivalWatch} watch @param {Element | ShadowRoot} root */
 function enroll({ kind, attributes, observer, offerMany }, root) {
   observer.observe(root, {
     childList: true,
@@ -350,7 +316,6 @@ function enroll({ kind, attributes, observer, offerMany }, root) {
   offerMany(kind.within(root));
 }
 
-/** @param {ShadowRoot} stage */
 export function watchArrivalsIn(stage) {
   if (hostStages.get(stage.host) === stage) return;
   hostStages.set(stage.host, stage);
@@ -373,10 +338,8 @@ export function watchArrivalsIn(stage) {
 // page's script attached or an element opened without saying `lf-connect`, reaches
 // neither Leaf nor this report.
 const BUBBLED = [COMMANDS, CONNECT, DEFER, HOLD, LAYOUT, WALK];
-/** @param {Document | ShadowRoot} root */
 function reportUnheardIn(root) {
   const staged = root !== document;
-  /** @param {Event} event */
   const report = (event) => {
     const [origin] = event.composedPath();
     if (!isElement(origin) || (staged ? event.composed : event.bubbles)) return;
@@ -402,10 +365,8 @@ reportUnheardIn(document);
 // itself. Leaf's instant scroll writes announce their completed position here too: a
 // write in resize delivery paints before the browser sends its scroll event, so
 // dependent paint cannot wait on that event.
-/** @type {Set<(box: Element | null) => void>} */
 const scrollListeners = new Set();
 const SCROLL = { capture: true, passive: true };
-/** @param {Element | null} box */
 function announceScroll(box) {
   if (box) {
     heardAt.set(box, standing(box));
@@ -421,7 +382,6 @@ function announceScroll(box) {
 // (lib/scroll-range.js, `scrollMoves`, says what such a write would do), so a writer may
 // restate a position as often as it likes, as `keeps` lets one restate a DOM value.
 // Stopping a scroll is a write of its own (`stopWhereItStands`).
-/** @param {Element} box @param {{top?: number, left?: number, behavior?: "instant"}} to */
 export function setScroll(box, to) {
   const { scrollTop, scrollLeft } = box;
   if (!scrollMoves(box, to)) return;
@@ -434,7 +394,6 @@ export function setScroll(box, to) {
 // before it paints, and readers of the whole scene wait for it to be drawn
 // (`scrollDrawn`). A write that left the box where it stood records nothing: the
 // browser moves the box later, as for a smooth write, or not at all.
-/** @param {Element} box @param {number} top @param {number} left @param {boolean} [places] */
 function wrote(box, top, left, places = true) {
   if (box.scrollTop === top && box.scrollLeft === left) return;
   if (places) placed.set(box, { top: box.scrollTop, left: box.scrollLeft });
@@ -466,11 +425,9 @@ function wrote(box, top, left, places = true) {
 // - Each document has entry points of its own: a live sample's page loads this module
 //   and hears its own, and an element made in another document keeps that document's.
 let writing = false;
-/** @typedef {(this: any, ...args: any[]) => unknown} ScrollCall */
-/** @param {ScrollCall} native
- * @param {boolean} [page] Whether the call scrolls the page, as the window's do. */
+
+/** @param page Whether the call scrolls the page, as the window's do. */
 function hearsWrite(native, page = false) {
-  /** @this {unknown} @param {unknown[]} args */
   return function heardWrite(...args) {
     const box = page ? document.scrollingElement : this;
     if (writing || !isElement(box)) return native.apply(this, args);
@@ -489,7 +446,6 @@ function hearsWrite(native, page = false) {
 }
 // Record a write the hearing made for a caller (`wrote`). What fails here is reported
 // once that call has returned.
-/** @param {Element} box @param {number} top @param {number} left @param {boolean} places */
 function heard(box, top, left, places) {
   try {
     wrote(box, top, left, places);
@@ -499,7 +455,7 @@ function heard(box, top, left, places) {
     });
   }
 }
-for (const method of /** @type {const} */ (["scrollTo", "scroll", "scrollBy"])) {
+for (const method of ["scrollTo", "scroll", "scrollBy"]) {
   Element.prototype[method] = hearsWrite(Element.prototype[method]);
   window[method] = hearsWrite(window[method], true);
 }
@@ -518,13 +474,11 @@ for (const offset of ["scrollTop", "scrollLeft"]) {
 // moves are heard by their events. The call reveals in the documents around this one
 // too, as in a live sample's host page, whose own runtime hears that scroll by its
 // events.
-/** @param {ScrollCall} native */
 function hearsReveal(native) {
-  /** @this {unknown} @param {unknown[]} args */
   return function heardWrite(...args) {
     if (writing || !isElement(this)) return native.apply(this, args);
     const stood = [];
-    for (let box = /** @type {Element | null} */ (this); box; box = renderedParent(box))
+    for (let box = this; box; box = renderedParent(box))
       stood.push({
         box,
         top: box.scrollTop,
@@ -543,16 +497,13 @@ function hearsReveal(native) {
   };
 }
 {
-  const reveals = /** @type {Record<string, ScrollCall | undefined>} */ (
-    /** @type {unknown} */ (Element.prototype)
-  );
+  const reveals = Element.prototype;
   for (const method of ["scrollIntoView", "scrollIntoViewIfNeeded"]) {
     const native = reveals[method];
     // Firefox lacks scrollIntoViewIfNeeded.
     if (native) reveals[method] = hearsReveal(native);
   }
 }
-/** @param {Element} box @param {ScrollToOptions} options */
 function unheardWrite(box, options) {
   writing = true;
   try {
@@ -573,7 +524,6 @@ function unheardWrite(box, options) {
 // again (readings/key-badges/hints.js). Two frame callbacks enclose the update. A reader waits for the
 // writes made before it asks, not for later ones, so a log a stream keeps at its end
 // holds no reading back for as long as it streams.
-/** @type {PromiseWithResolvers<void> | null} */
 let undrawn = null;
 function drawLater() {
   const write = (undrawn = Promise.withResolvers());
@@ -597,7 +547,6 @@ export const scrollDrawn = () => undrawn?.promise ?? null;
 // `m` pressed as PageDown moved the page lost its landing to PageDown. A smooth write
 // takes the box from whatever moves it, in both, and the instant one after ends that
 // write's own motion where the box stands.
-/** @param {Element} box */
 export function stopWhereItStands(box) {
   const at = { top: box.scrollTop, left: box.scrollLeft };
   unheardWrite(box, { ...at, behavior: "smooth" });
@@ -626,9 +575,7 @@ export function stopWhereItStands(box) {
 // `whereGlidesLand`), which nothing else moves: their events fold into those of the
 // glide's own writes, or read as a frame of the glide that moved nothing, and the
 // glide holds the box's scroll sequence open (`holdScroll`), so they end nothing.
-/** @template T @param {Iterable<readonly [Element, number]>} at @param {() => T} read @returns {T} */
 export function readScrolled(at, read) {
-  /** @type {[Element, number][]} */
   const stood = [];
   try {
     for (const [box, top] of at) {
@@ -642,13 +589,10 @@ export function readScrolled(at, read) {
       if (box.scrollTop !== top) unheardWrite(box, { top, behavior: "instant" });
   }
 }
-/** @type {WeakSet<Document | ShadowRoot>} */
 const hearing = new WeakSet();
-/** @param {Document | ShadowRoot} root */
 export function hearScrollsIn(root) {
   if (hearing.has(root)) return;
   hearing.add(root);
-  /** @param {Event} event */
   const heard = ({ type, target }) => {
     const box =
       target === document
@@ -666,7 +610,6 @@ export function hearScrollsIn(root) {
   root.addEventListener("scrollend", heard, SCROLL);
 }
 hearScrollsIn(document);
-/** @param {(box: Element | null) => void} listener */
 export function watchScrolls(listener) {
   scrollListeners.add(listener);
   return () => scrollListeners.delete(listener);
@@ -695,30 +638,23 @@ export function watchScrolls(listener) {
 // subscribes as it loads, so who chose the position is decided before any later reader
 // asks (features/version.js reads it).
 const SETTLE_MS = 80;
-/** @type {Set<(box: Element) => void>} */
 const endListeners = new Set();
+
 // Each box whose sequence runs, with how many of its scrolls have been heard, when the
 // last one was, and where the box stood when the reader's input started it
 // (`startReaderScroll`).
-/** @typedef {{heard: number, at: number, reader?: {top: number, left: number, fromEnd: number}}} Sequence */
-/** @type {Map<Element, Sequence>} */
 const sequences = new Map();
-/** @type {Map<Element, number>} */
 const holds = new Map();
 // Where a script last put each box (`setScroll`), until the box's sequence ends.
-/** @type {WeakMap<Element, {top: number, left: number}>} */
 const placed = new WeakMap();
 // Where the page last heard each box stand: at its scroll events, Leaf's own writes and
 // stops (`startReaderScroll`).
-/** @type {WeakMap<Element, {top: number, left: number, fromEnd: number}>} */
 const heardAt = new WeakMap();
-/** @param {Element} box @returns {Sequence} */
 function sequenceIn(box) {
   let sequence = sequences.get(box);
   if (!sequence) sequences.set(box, (sequence = { heard: 0, at: performance.now() }));
   return sequence;
 }
-/** @param {Element} box */
 function inSequence(box) {
   const sequence = sequenceIn(box);
   const heard = ++sequence.heard;
@@ -730,7 +666,6 @@ function inSequence(box) {
   };
   nextFrame(() => nextFrame(quiet));
 }
-/** @param {Element} box */
 function endSequence(box) {
   if (!sequences.has(box) || holds.has(box)) return;
   sequences.delete(box);
@@ -742,7 +677,6 @@ function endSequence(box) {
 // it less than a pixel, owes the box no scroll event and no `scrollend`, so its release
 // ends the sequence. Any other release ends it as a glide's last frame would: at the
 // `scrollend` the last write owes, or after the quiet spell.
-/** @param {Element} box @returns {(landed?: boolean) => void} */
 export function holdScroll(box) {
   holds.set(box, (holds.get(box) ?? 0) + 1);
   sequenceIn(box);
@@ -777,7 +711,6 @@ export function holdScroll(box) {
 // keeps the box's end where the page last heard it, so its `scrollend` still ends
 // nothing of the reader's.
 // It returns where the input found the box.
-/** @param {Element} box @returns {{top: number, left: number, fromEnd: number}} */
 export function startReaderScroll(box) {
   placed.delete(box);
   const now = standing(box);
@@ -788,15 +721,12 @@ export function startReaderScroll(box) {
   inSequence(box);
   return found;
 }
-/** @param {Element} box */
 const standing = (box) => ({
   top: box.scrollTop,
   left: box.scrollLeft,
   fromEnd: fromEnd(box),
 });
-/** @param {Element} box */
 const fromEnd = (box) => box.scrollHeight - box.clientHeight - box.scrollTop;
-/** @param {Element} box */
 const awaitsReader = (box) => {
   const at = sequences.get(box)?.reader;
   return Boolean(
@@ -812,7 +742,6 @@ export const scrolling = () => sequences.size > 0;
 // that the reader's input has just asked of it (`startReaderScroll`). A script's last
 // write keeps the sequence open while it settles (`inSequence`), and that settling is
 // still the script's.
-/** @param {Element} box */
 export const browserScrolls = (box) => {
   if (!sequences.has(box) || holds.has(box)) return false;
   const at = placed.get(box);
@@ -821,9 +750,7 @@ export const browserScrolls = (box) => {
 // Whether the reader's input has set `box` scrolling: a sequence it started
 // (`startReaderScroll`), from the input, before the browser moves the box, until the
 // sequence ends. A sequence layout starts, as a clamp does, is not the reader's.
-/** @param {Element} box */
 export const readerScrolls = (box) => Boolean(sequences.get(box)?.reader);
-/** @param {(box: Element) => void} listener */
 export function watchScrollEnds(listener) {
   endListeners.add(listener);
   return () => endListeners.delete(listener);

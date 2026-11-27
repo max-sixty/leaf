@@ -1,3 +1,4 @@
+// Compiled from copy-control.ts by build/typescript.mjs; edit that file.
 /* Leaf's copy control: Web Awesome's copy button, which copies its `value` and shows
  * the result on its own face, a check or a cross where its copy icon stood, and Leaf
  * says the same words in its status line, since focus need not be on the control to
@@ -26,7 +27,6 @@ const copiesThroughSelection = () =>
  * command; a surface that offers a copy only where one can work asks this. */
 export const canCopy = () =>
   Boolean(navigator.clipboard?.writeText) || copiesThroughSelection();
-/** @param {string} value @param {Element} trigger */
 function copyThroughSelection(value, trigger) {
   if (!value) return false;
   const selection = document.getSelection();
@@ -64,9 +64,7 @@ function copyThroughSelection(value, trigger) {
  * takes from its slot as it names the control from `copyLabel`; or it is pressed
  * through `trigger`, a press its caller built by role, which Web Awesome shows in its
  * button's place. The caller may render the trigger itself, as the floating panel's
- * rows are, and passes `trigger: true` to say it will.
- * @param {string} className
- * @param {{label?: string, success: string, error: string, action?: string, role?: LeafActionRole, trigger?: Element | boolean | null}} options */
+ * rows are, and passes `trigger: true` to say it will. */
 export function copyControl(
   className,
   { label = "", success, error, action = "copy", role = undefined, trigger = null },
@@ -96,7 +94,6 @@ export function copyControl(
   const symbol =
     copy.querySelector(":scope > svg[data-lf-icon]") ??
     actionElement(action, "lf-copy-icon");
-  /** @type {[Element, string][]} */
   const icons = [
     [symbol, "copy-icon"],
     [iconElement("check", "lf-copy-icon"), "success-icon"],
@@ -123,7 +120,7 @@ export function copyControl(
         copy.isCopying = true;
         const copied = copyThroughSelection(copy.value, copy);
         // Use the component's normal icon, announcement and lock reset.
-        /** @type {any} */ (copy).showStatus(copied ? "success" : "error");
+        copy.showStatus(copied ? "success" : "error");
         copy.dispatchEvent(
           copied
             ? new CustomEvent("wa-copy", {
@@ -140,16 +137,13 @@ export function copyControl(
   return copy;
 }
 
-/** The native default trigger, once Web Awesome has rendered the copy control.
- * @param {HTMLElementTagNameMap["wa-copy-button"] | null | undefined} copy
- * @returns {HTMLButtonElement | null} */
+/** The native default trigger, once Web Awesome has rendered the copy control. */
 export function copyTrigger(copy) {
   return copy?.shadowRoot?.querySelector("button") ?? null;
 }
 
 /** Presses `copy` as its own trigger would, once it has drawn: a control made by the
- * press, or with a block the press stands on, has not drawn its button yet.
- * @param {HTMLElementTagNameMap["wa-copy-button"]} copy */
+ * press, or with a block the press stands on, has not drawn its button yet. */
 export async function pressCopy(copy) {
   await customElements.whenDefined(copy.localName);
   await copy.updateComplete;

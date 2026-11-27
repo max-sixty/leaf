@@ -1,3 +1,4 @@
+// Compiled from region-capture.ts by build/typescript.mjs; edit that file.
 /* Area capture is a bounded page interaction; the selector and rasterizer load on demand.
  * Its page scope and early pointer/touch claim suspend page input without changing
  * Draw or Design mode. The passive overlay leaves current target hit tests intact. Captures
@@ -19,9 +20,6 @@ import { onCurrentLocation, pressHolds, pressRecords } from "../../dom/focus.js"
 import { raiseError } from "../../transport/errors.js";
 import { closestAcross } from "../../lib/shadow-tree.js";
 
-/** @param {Omit<import("./region-selector.js").RegionSelectorOptions, "returnTo"> & {
- * refreshCrosshair: () => void, closeTargetPicker: () => void,
- * closeReactionMode: () => void}} options */
 export function createRegionCapture({
   refreshCrosshair,
   parent,
@@ -31,16 +29,13 @@ export function createRegionCapture({
   closeReactionMode,
 }) {
   let opening = false;
-  /** @type {ReturnType<typeof import("./region-selector.js").createRegionSelector> | null} */
   let selector = null;
   // A claimed drag owns its compatibility mouse events, even after release, for as long
   // as the press lasts (dom/focus.js, `pressRecords`), and the next primary press starts a
   // new gesture, including on a chrome control. A timer cannot delimit that ownership:
   // its work may outlive the next tap.
-  /** @type {import("../../dom/focus.js").PressRecords<true>} */
   const claimed = pressRecords();
   const active = () => opening;
-  /** @param {Event} event */
   const claim = (event) => {
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -48,18 +43,12 @@ export function createRegionCapture({
   // Preventing pointer defaults and touch-action stop page input, but Chromium can
   // still recognize a fling that consumes the next tap. Consume the native touch
   // gesture at its start; Leaf's controls keep their own native activation.
-  /** @param {TouchEvent} event */
   const claimTouch = (event) => {
     if (!leafSurface(event.composedPath()[0])) claim(event);
   };
   // Register before Drawing and Aim mount. Paint is pointer-transparent, so selection
   // never occludes the actual page targets that anchor confirmation reads.
-  for (const type of /** @type {const} */ ([
-    "pointerdown",
-    "pointermove",
-    "pointerup",
-    "pointercancel",
-  ]))
+  for (const type of ["pointerdown", "pointermove", "pointerup", "pointercancel"])
     document.addEventListener(
       type,
       (event) => {
@@ -83,7 +72,6 @@ export function createRegionCapture({
       },
       { capture: true },
     );
-  /** @type {readonly ("mousedown" | "mouseup" | "click" | "dblclick" | "auxclick")[]} */
   const mouseEvents = ["mousedown", "mouseup", "click", "dblclick", "auxclick"];
   for (const type of mouseEvents)
     document.addEventListener(
@@ -99,20 +87,18 @@ export function createRegionCapture({
     );
 
   // Native editing elsewhere is a new task. Keep the focus the user just chose.
-  onCurrentLocation(
-    /** @param {Element | null} node */ (node) => {
-      if (
-        selector &&
-        node &&
-        node !== document.body &&
-        !closestAcross(
-          node,
-          ".lf-floating-panel, .lf-command-reference, .lf-region-capture",
-        )
+  onCurrentLocation((node) => {
+    if (
+      selector &&
+      node &&
+      node !== document.body &&
+      !closestAcross(
+        node,
+        ".lf-floating-panel, .lf-command-reference, .lf-region-capture",
       )
-        selector.cancel({ restore: false });
-    },
-  );
+    )
+      selector.cancel({ restore: false });
+  });
 
   // A different command starts a new interaction. Let it take over before it runs,
   // while the universal command reference can inspect this interaction and return.
@@ -133,7 +119,6 @@ export function createRegionCapture({
       const intent = retainUserIntent();
       opening = true;
       paintKeys();
-      /** @type {(() => void) | undefined} */
       let removeScope;
       try {
         const { createRegionSelector } = await import("./region-selector.js");

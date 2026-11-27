@@ -1,3 +1,4 @@
+// Compiled from summary-ranges.ts by build/typescript.mjs; edit that file.
 /* Summary ranges over retained thread messages on every surface.
 
    The server names each active contiguous range with the exact message ids it covers.
@@ -8,20 +9,8 @@
    the working message's included, stands among the ranges where its words were said
    (`workingPlace`). */
 
-/** @typedef {import("../../../types/domain.js").Thread["summaries"][number]} Summary */
-/** @template M
- * @typedef {{kind: "message", message: M, summary?: never, messages?: never}
- * | {kind: "summary", summary: Summary, messages: readonly [M, ...M[]], message?: never}} MessageRange
- */
-
-/** @template {{id: string}} M
- * @param {readonly M[]} messages
- * @param {readonly Summary[]} summaries
- * @returns {readonly MessageRange<M>[]}
- */
 export function summaryRanges(messages, summaries) {
   const index = new Map(messages.map((message, at) => [message.id, { message, at }]));
-  /** @type {Map<number, {summary: Summary, messages: [M, ...M[]]}>} */
   const byStart = new Map();
   const covered = new Set();
   for (const summary of summaries) {
@@ -36,7 +25,6 @@ export function summaryRanges(messages, summaries) {
       messages: [first.message, ...visible.slice(1).map(({ message }) => message)],
     });
   }
-  /** @type {MessageRange<M>[]} */
   const ranges = [];
   let skipThrough = -1;
   for (const [at, message] of messages.entries()) {
@@ -62,8 +50,6 @@ export function summaryRanges(messages, summaries) {
 // its words' original log position. A range stands before that face when it contains a
 // message said before it; a summary keeps all its originals together even where the face
 // falls inside its covered interval.
-/** @template {{sequence: number}} M
- * @param {readonly MessageRange<M>[]} ranges @param {number} position */
 export function workingPlace(ranges, position) {
   return ranges.findLastIndex((range) =>
     range.kind === "message"

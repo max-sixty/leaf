@@ -1,3 +1,4 @@
+// Compiled from document-identity.ts by build/typescript.mjs; edit that file.
 /* The immutable identity delivered with this document.
  *
  * The server's runtime markers say which revision and public stamp the document is
@@ -10,18 +11,18 @@
 import { applicationState } from "./semantic-state.js";
 import { LIVE_ROOT } from "./context.js";
 
-const servedRevisionText = /** @type {HTMLMetaElement | null} */ (
-  document.querySelector('meta[name="lf-revision"][data-lf-runtime]')
+const servedRevisionText = document.querySelector(
+  'meta[name="lf-revision"][data-lf-runtime]',
 )?.content;
 export const servedRevision = servedRevisionText
   ? parseInt(servedRevisionText, 10)
   : null;
-const servedStampMarker = /** @type {HTMLMetaElement | null} */ (
-  document.querySelector('meta[name="lf-version"][data-lf-runtime]')
+const servedStampMarker = document.querySelector(
+  'meta[name="lf-version"][data-lf-runtime]',
 );
 
-export const servedExecutable = /** @type {HTMLMetaElement | null} */ (
-  document.querySelector('meta[name="lf-executable"][data-lf-runtime]')
+export const servedExecutable = document.querySelector(
+  'meta[name="lf-executable"][data-lf-runtime]',
 )?.content;
 
 export function initializeServedDocument() {

@@ -1,3 +1,4 @@
+// Compiled from pointed-place.ts by build/typescript.mjs; edit that file.
 /* Where inside its target a comment stands: the row a pointing gesture landed on.
 
    A comment's target is its anchor's, whatever size that is; a pointing gesture also
@@ -40,11 +41,8 @@ import { isElement, isText, upFrom, under } from "../lib/shadow-tree.js";
 import { inChrome } from "../base/ui-marks.js";
 
 // A sent comment's point by its thread's key: `{ element, passage, row, readFor }`.
-/** @typedef {{element: Element, passage: import("./anchor-resolution.js").Anchor | null, row: string, readFor: number | null}} HeldPoint */
-/** @type {Map<string, HeldPoint>} */
 const points = new Map();
 // Points a send has handed over (`commitPoint`), until the pass takes them in.
-/** @type {Map<string, Pick<HeldPoint, "element" | "passage">>} */
 const handed = new Map();
 
 // Boxes that are not a line of their own: laid out within one, or drawing no box.
@@ -64,7 +62,6 @@ const WITHIN_A_LINE = /^(inline|contents$)/;
 // appearing as a second one pushed below it. First is read off the document, as nothing
 // drawn coming before it in the target, so no reflow, zoom or font moves a comment
 // between the two rows.
-/** @param {Element | null | undefined} target @param {Node | null | undefined} node */
 export function pointInto(target, node) {
   let at = isElement(node) ? node : (node?.parentElement ?? null);
   if (!target || target instanceof SVGElement || !at || !under(at, target)) return null;
@@ -84,9 +81,7 @@ export function pointInto(target, node) {
 
 // Whether `line` is the first thing `target` draws: no words and no box the page draws
 // come before it inside the target. Leaf's own chrome seated there is not the page's.
-/** @param {Element} target @param {Element} line */
 function opens(target, line) {
-  /** @type {Element | null} */
   let at = line;
   for (; at && at !== target; at = upFrom(at))
     for (let before = at.previousSibling; before; before = before.previousSibling)
@@ -94,7 +89,6 @@ function opens(target, line) {
   return true;
 }
 
-/** @param {Node} node */
 const drawn = (node) =>
   isText(node)
     ? Boolean(node.data.trim()) && Boolean(node.parentElement?.checkVisibility())
@@ -104,7 +98,6 @@ const drawn = (node) =>
       [...node.getClientRects()].some((box) => box.width && box.height);
 
 // A point still present inside `target` with a box to stand by, or null.
-/** @param {Element | null | undefined} target @param {Element | null | undefined} point */
 export function livePoint(target, point) {
   return target &&
     point?.isConnected &&
@@ -116,7 +109,6 @@ export function livePoint(target, point) {
 }
 
 // A send hands its thread's point over: `element`, and `passage`, its words or null.
-/** @param {string} key @param {Element} element @param {HeldPoint["passage"]} passage */
 export function commitPoint(key, element, passage) {
   handed.set(key, { element, passage });
 }
@@ -129,10 +121,8 @@ export function commitPoint(key, element, passage) {
 // point again; a point whose thread the log does not hold, a refused send's, is
 // forgotten. A pass with none, before the log is read, says nothing about which threads
 // it holds and forgets nothing.
-/** @param {Iterable<{key: string, target: Element | null}>} threads @param {ReadonlySet<string>} known */
 export function placePoints(threads, known) {
   // Which page reading stands is asked only for a point to find again.
-  /** @type {number | undefined} */
   let text;
   for (const [key, { element, passage }] of handed) {
     if (!known.has(key)) continue;
@@ -168,7 +158,6 @@ export function placePoints(threads, known) {
 
 // The band of `box` (the target's) level with `point`: across, the target's; down, the
 // row's, kept inside the target.
-/** @param {import("../base/box.js").Box} box @param {Element} point */
 export function pointBand(box, point) {
   const row = point.getBoundingClientRect();
   const top = clamp(row.top, box.top, box.bottom);

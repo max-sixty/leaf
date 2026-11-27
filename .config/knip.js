@@ -15,6 +15,7 @@
 // HTML or Markdown file named it as a word, which kept every facade re-export whose
 // name the package references document alive.
 import { relative } from "node:path";
+import { typescriptModules } from "../build/typescript.mjs";
 import { ROOTS } from "../tests/served-paths.mjs";
 
 // TypeScript's `paths` takes the first candidate that holds the name, so the root a
@@ -46,6 +47,10 @@ export default {
     "hooks/*.ts",
     "worker/{src/index,test/**/*}.ts",
     ".config/dependency-cruiser.mjs",
+    // A TypeScript module, whose imports name the JavaScript compiled beside it
+    // (build/typescript.mjs): knip follows those to read what each export serves, and
+    // the module itself to read which types it uses.
+    ...(await typescriptModules()),
   ],
   project: ["**/*.{js,mjs,cjs,ts}", "!**/vendor/**"],
   // Declarations generated per schema definition or bundle export, whichever a reader

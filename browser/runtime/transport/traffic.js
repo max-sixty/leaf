@@ -1,3 +1,4 @@
+// Compiled from traffic.ts by build/typescript.mjs; edit that file.
 /* What this tab has said to the server and heard back, counted at the door each trip
    goes through and painted on the root element as one fact (data-lf-traffic). A reader
    outside the page — the suite, a probe — waits on the runtime's own ledger, rather than
@@ -35,7 +36,6 @@
 import { PAGE_PAINT_ATTRIBUTE } from "../base/page-paint.js";
 import { setRuntimeRootAttribute } from "../state/root-state.js";
 
-/** @type {{sends: number, acked: number, asked: number, heard: number, received: number, applied: number, pending: string[]}} */
 const ledger = {
   sends: 0,
   acked: 0,
@@ -54,16 +54,14 @@ function paint() {
   );
 }
 
-/** @param {"sends" | "acked" | "asked" | "heard" | "received" | "applied"} key */
 export function countTraffic(key) {
   ledger[key] += 1;
   paint();
 }
 
 /** Paint `pending` from the published sending attempts, the ledger's only writer of it.
-    A selection calls its listener at once and then whenever the attempts change; the
-    first reading, before any send, paints nothing.
-    @param {{subscribe: (listener: (attempts: readonly string[]) => void) => () => void}} sending */
+ *     A selection calls its listener at once and then whenever the attempts change; the
+ *     first reading, before any send, paints nothing. */
 export function watchPendingTraffic(sending) {
   let first = true;
   return sending.subscribe((attempts) => {

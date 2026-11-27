@@ -1,3 +1,4 @@
+// Compiled from native-selection.ts by build/typescript.mjs; edit that file.
 /* Native selection endpoints and the provenance of programmatic writes. Passage
  * capture, view restoration and control activation share the same composed range;
  * none reads Chromium's retargeted light-DOM endpoints as the selected words. */
@@ -24,7 +25,6 @@ import { holdingElement, isElement, isText } from "../lib/shadow-tree.js";
 // light-DOM range on purpose: a Range cannot hold ends in two roots, and a quote
 // running from the page's prose into a widget's shadow is exactly what the fences
 // already refuse.
-/** @param {Selection} sel */
 export function pageRange(sel) {
   const plain = sel.getRangeAt(0);
   const shadowRoots = pageShadowRoots();
@@ -62,12 +62,10 @@ export function pageRange(sel) {
 // over stands beside the host, not in it. Every open root counts, declared or not,
 // since this asks where the caret is drawn, as a pointer's composed path does. A caret
 // inside a closed root stays at its host's edge, so its element is the host's container.
-/** @returns {{node: Node, offset: number, element: Element | null, letter: Range | null} | null} */
 export function userCaret() {
   const sel = getSelection();
   if (!sel?.rangeCount) return null;
   const forward = !selectionBackward(sel);
-  /** @type {ShadowRoot[]} */
   const shadowRoots = [];
   for (;;) {
     const [range] = sel.getComposedRanges({ shadowRoots });
@@ -90,7 +88,6 @@ export function userCaret() {
 // the zero-width space, the joiners, the word joiner and the zero-width no-break space
 // that leads an age's words (age.js).
 const UNDRAWN = /[\u200b-\u200d\u2060\ufeff]/;
-/** @param {Node} node @param {number} offset */
 function letterAt(node, offset) {
   if (!isText(node) || !node.length) return null;
   let from = Math.min(offset, node.length - 1);
@@ -104,12 +101,10 @@ function letterAt(node, offset) {
 // Native page selections share one endpoint writer, including their provenance.
 // Native selectionchange arrives asynchronously, so its endpoints say whether it is
 // still the programmatic write or a later user adjustment (including touch handles).
-/** @type {ReturnType<typeof selectionEnds> | null} */
 let writtenSelection = null;
 let writtenBackward = false;
 // Each end is a boundary point, `[node, offset]`.
-/** @typedef {[node: Node, offset: number]} SelectionEnd */
-/** @param {SelectionEnd} anchor @param {SelectionEnd} focus */
+
 // Its ends may stand in different trees, as a passage's run from the page into a
 // shadow stage, which the selection holds as one composed range and the platform orders
 // (`direction`), where comparing them as two ranges' bounds throws.
@@ -122,7 +117,6 @@ export function selectEnds(anchor, focus) {
 }
 // The selection's ends as the platform holds them and as the composed range reads them,
 // so two selections compare equal only where they hold the same words.
-/** @param {Selection} selection */
 export const selectionEnds = (selection) => {
   const range = selection.rangeCount ? pageRange(selection) : null;
   return [
@@ -143,7 +137,6 @@ export const selectionEnds = (selection) => {
 // with an end inside one of the nodes about to move is read before they move, and its
 // ends go back through `selectEnds` once both stand again. An end inside a shadow tree
 // lies outside every placed node, and stays its editor's to keep (`connectedMoveCallback`).
-/** @param {Iterable<Node>} placed @returns {(() => void) | null} */
 export function holdSelection(placed) {
   // The selection's ends stand in the document, so only a connected node can hold one.
   // Reading the selection lays the page out in Chromium, so a placement of nodes not yet
@@ -155,14 +148,11 @@ export function holdSelection(placed) {
   if (!selection?.rangeCount) return null;
   const { anchorNode, anchorOffset, focusNode, focusOffset } = selection;
   if (!anchorNode || !focusNode) return null;
-  /** @param {Node} node */
   const inside = (node) => {
-    for (let at = /** @type {Node | null} */ (node); at; at = at.parentNode)
-      if (moving.has(at)) return true;
+    for (let at = node; at; at = at.parentNode) if (moving.has(at)) return true;
     return false;
   };
   if (!inside(anchorNode) && !inside(focusNode)) return null;
-  /** @param {Node} node @param {number} offset */
   const stands = (node, offset) =>
     node.isConnected &&
     offset <= (node instanceof CharacterData ? node.length : node.childNodes.length);
@@ -178,7 +168,6 @@ export function holdSelection(placed) {
   };
 }
 
-/** @param {Selection | null} selection */
 export function programmaticSelection(selection) {
   if (!selection) {
     writtenSelection = null;
@@ -199,7 +188,6 @@ export function programmaticSelection(selection) {
 // do on macOS for every selection a mouse makes, the anchor's place against the
 // composed range's start answers, and an anchor in another tree than the range keeps
 // the direction Leaf's own write recorded.
-/** @param {Selection} selection @param {Range} range */
 export function selectionBackward(selection, range = pageRange(selection)) {
   if (selection.direction !== "none") return selection.direction === "backward";
   const anchor = selection.anchorNode;

@@ -522,7 +522,7 @@ Leaf", says.
 - A prepared installation compiles the whole library into the chunk every page loads
   (`portableHomes` in `../build/runtime-bundle.mjs`). So a library module imports
   lazily any `/vendor/` bundle the page's boot doesn't already load.
-- A module's header and JSDoc are its whole documentation. The package references say
+- A module's header and doc comments are its whole documentation. The package references say
   where the library is and describe none of its functions.
 
 ### What a style rule costs
@@ -1001,7 +1001,9 @@ through `readPart` selectors that return exactly what it draws, so it reruns onl
 that answer changes (`state/semantic-state.js`).
 
 Test what one module decides on its own under `tests/runtime/`
-(`pnpm run test:runtime`). The runtime is JavaScript a page runs as written.
+(`pnpm run test:runtime`). A runtime or bundled widget module is TypeScript or
+JavaScript with JSDoc types, and modules move to TypeScript as they are rewritten or
+converted (`../build/AGENTS.md` says how one is compiled and served).
 `pnpm run check:browser` strictly type-checks every maintained runtime and widget
 module; no file pragma is needed.
 `../build/browser/build.mjs` owns checker selection; `types/` holds its configuration

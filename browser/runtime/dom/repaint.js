@@ -1,3 +1,4 @@
+// Compiled from repaint.ts by build/typescript.mjs; edit that file.
 /* One frame for repainting the user's current location and chrome geometry. Boot supplies the
    painters after every module has evaluated, each a named slot, and this owner calls
    them in its fixed order; callers only invalidate the frame. Chrome layout splits the
@@ -25,16 +26,10 @@
 import { onCurrentLocation, onFocusVisibility } from "./focus.js";
 import { nextRender } from "../lib/frame-pass.js";
 
-/** @typedef {Partial<Record<"reflectFirstScopes" | "markHere" | "paintCurrentLocation" | "paintSelectedMarginEntries"
- * | "paintTouchControls" | "paintCloseRequests" | "paintStatusContext" | "syncLayout" | "pageShifted"
- * | "publishInputHint" | "restFab" | "paintGoToHints" | "paintTargetPickerHints" | "paintCommandHints" | "paintCoreControls"
- * | "reflectKeys", () => unknown>>} Painters */
-/** @type {Painters | null} */
 let painters = null;
 let frame = 0;
 let movePage = false;
 
-/** @param {Painters} slots */
 export function mountRepaint(slots) {
   painters = slots;
   onCurrentLocation(requestFrame);

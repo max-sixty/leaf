@@ -1,3 +1,4 @@
+// Compiled from preview.ts by build/typescript.mjs; edit that file.
 /* Pointing reads; pressing acts (browser/AGENTS.md, "Pointing reads; pressing acts"):
    the one owner of what a mark, control or value says before a press acts on it.
 
@@ -371,13 +372,6 @@ import { linkPreview } from "./place-preview.js";
 import { markRoom } from "../readings/mark-room.js";
 import { anchorBox } from "../dom/css-anchors.js";
 
-/** @import { Box } from "../base/box.js" */
-/** @import { Words, Presses, List, Preview, Declared, Route, Read } from "../base/preview-declaration.js" */
-/** @typedef {{name: Words | null, keys: Presses, detail: Words[], list: List | null, at: Element | Box | null, about: Element | null, excerpt: boolean, unseen: boolean, restates: boolean, declared: Preview | null}} Reading
- * @typedef {Element | Range} Target
- * @typedef {{from: Target, target: Target, holder: Element, route: Route, read: Read | null, at: {x: number, y: number} | undefined, line?: number, within?: Box | null, away?: boolean, reading: Reading, clock: number, stop: () => void, described: {el: Element, attribute: string | null, elements: readonly Element[] | null} | null}} Shown
- * @typedef {{pointerId: number, node: Node | null, parent: Element | null, element: Element | null, range: Range | null, says: Read | null, at: {x: number, y: number}, armed: boolean, read: boolean, timer: ReturnType<typeof setTimeout> | undefined}} Hold */
-
 const DWELL = 500;
 const LINGER = 200;
 const HOLD = 500;
@@ -412,19 +406,14 @@ const mark = document.createElement("span");
 mark.hidden = true;
 stage.append(mark, tip);
 // The chrome the preview stands in when no modal dialog does.
-/** @type {Element | null} */
 let home = null;
 
 // The one face: the name with each press as key chips, then each line of detail.
-const chip = (/** @type {string} */ step) =>
-  html`<kbd class="lf-key-badge">${step}</kbd>`;
-const chips = (/** @type {readonly string[]} */ steps) =>
-  html`<span class="lf-preview-keys">${steps.map(chip)}</span>`;
-const detailLine = (/** @type {Words} */ line) =>
-  html`<span class="lf-preview-detail">${line}</span>`;
-const item = (/** @type {Words} */ line) =>
+const chip = (step) => html`<kbd class="lf-key-badge">${step}</kbd>`;
+const chips = (steps) => html`<span class="lf-preview-keys">${steps.map(chip)}</span>`;
+const detailLine = (line) => html`<span class="lf-preview-detail">${line}</span>`;
+const item = (line) =>
   html`<span class="lf-preview-detail lf-preview-item">${line}</span>`;
-/** @type {(reading: Reading) => unknown[]} */
 const face = ({ name, keys, detail, list }) => [
   name || keys.length
     ? html`<span class="lf-preview-name"
@@ -451,12 +440,9 @@ const face = ({ name, keys, detail, list }) => [
 // The room alone decides it, measured from the face's top, never from where a past fit
 // left the face's foot, and each place is written once, with its final value, so the
 // lines a past fit clamped are read as they lay out whole.
-/** @param {Reading} reading @param {number} room */
 function fit(reading, room) {
   const { blocks, counted } = faceLines(reading);
-  const more = /** @type {HTMLElement | null} */ (
-    body.querySelector(":scope > .lf-preview-more")
-  );
+  const more = body.querySelector(":scope > .lf-preview-more");
   const { list } = reading;
   const was = clampedNow();
   // Where the room it is held to ends for its lines, measured from its top, a list's
@@ -464,7 +450,6 @@ function fit(reading, room) {
   const end = wholeHeight() > room ? room - counted : Infinity;
   const over = blocks.findIndex((at) => at.top + at.lines * at.line > end);
   // The block the room ends in, cut by line where it holds words, not a list's item.
-  /** @type {{el: HTMLElement, lines: number} | null} */
   let clamp = null;
   const block = blocks[over];
   if (block && !block.item) {
@@ -496,8 +481,7 @@ function fit(reading, room) {
   more.style.visibility = hidden ? "" : "hidden";
 }
 // The block a past fit clamped to the lines that fit, if any.
-const clampedNow = () =>
-  /** @type {HTMLElement | null} */ (body.querySelector("[data-lf-clamp]"));
+const clampedNow = () => body.querySelector("[data-lf-clamp]");
 // The face's whole height, laid out unclamped and unheld, whatever room it was last held
 // to: its drawn height where it is whole, which is fractional where scrollHeight rounds,
 // and what a past fit's clamp holds back added in.
@@ -518,25 +502,20 @@ function wholeHeight() {
 // clamp was given: the block may since hold another reading's words, which the face
 // draws into the same elements, and a clamp holds back nothing of a part the browser
 // lays out as a grid, such as a table's, so its box stands whole.
-/** @param {Reading} reading @returns {{blocks: {block: HTMLElement, el: HTMLElement, item: boolean, top: number, line: number, lines: number}[], rooms: number[], padEnd: number, counted: number}} */
 function faceLines(reading) {
   const faceTop = body.getBoundingClientRect().top;
   const padEnd = parseFloat(getComputedStyle(body).paddingBlockEnd);
-  const more = /** @type {HTMLElement | null} */ (
-    body.querySelector(":scope > .lf-preview-more")
-  );
+  const more = body.querySelector(":scope > .lf-preview-more");
   // The count line measures before it says anything, its first words those for all the
   // items, the longest it can say.
   if (reading.list && more && !more.textContent)
     render(reading.list.more(reading.list.items.length), more);
   const counted = reading.list && more ? more.getBoundingClientRect().height : padEnd;
   let held = 0;
-  const blocks = /** @type {HTMLElement[]} */ ([
+  const blocks = [
     ...body.querySelectorAll(":scope > .lf-preview-name, :scope > .lf-preview-detail"),
-  ]).map((block) => {
-    const el = /** @type {HTMLElement} */ (
-      block.querySelector(":scope > .lf-preview-word") ?? block
-    );
+  ].map((block) => {
+    const el = block.querySelector(":scope > .lf-preview-word") ?? block;
     const box = el.getBoundingClientRect();
     const shown = Math.max(
       1,
@@ -555,7 +534,6 @@ function faceLines(reading) {
       lines,
     };
   });
-  /** @type {number[]} */
   const bottoms = [];
   for (const { top, line, lines } of blocks)
     for (let n = 1; n <= lines; n += 1) bottoms.push(top + n * line);
@@ -580,12 +558,10 @@ const PROXY = `.${actionClass("proxy")}`;
 
 // The words a `title` gives `el`. A frame's title is its accessible name, not words a
 // tooltip shows.
-/** @param {Element} el */
 const titleOf = (el) =>
   el.localName === "iframe" ? null : el.getAttribute("title") || null;
 // Whether the browser shows its own tooltip over the innermost node of `path`: the
 // nearest element along it with a title says, and an empty one says none.
-/** @param {Iterable<EventTarget>} path */
 function tooltipped(path) {
   for (const node of path)
     if (isElement(node) && node.hasAttribute("title")) return Boolean(titleOf(node));
@@ -593,31 +569,25 @@ function tooltipped(path) {
 }
 
 // The words of `text` alone, as one reads them, punctuation and case aside.
-/** @param {string} text */
 const wordsOf = (text) =>
   text
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, " ")
     .trim();
 // What `text` draws, its spaces aside, as a face of marks with no words is read.
-/** @param {string} text */
 const marksOf = (text) => text.replace(/\s+/gu, "");
 // The elements labelling a form control: its `<label>`s, and what `aria-labelledby`
 // names, as a playground's words beside its range do.
-/** @param {Element} control @returns {Element[]} */
 function labelsOf(control) {
-  const { labels } = /** @type {{labels?: NodeListOf<HTMLLabelElement> | null}} */ (
-    control
-  );
+  const { labels } = control;
   return [...(labels ?? []), ...labelledBy(control)];
 }
 // The elements a control's `aria-labelledby` names, found by id in its tree. Not its
 // `ariaLabelledByElements`: Firefox's content process crashes once the page and an
 // isolated world, such as Playwright's role locator, have both read that property
 // (https://bugzilla.mozilla.org/show_bug.cgi?id=2090055).
-/** @param {Element} control @returns {Element[]} */
 function labelledBy(control) {
-  const root = /** @type {Document | ShadowRoot} */ (control.getRootNode());
+  const root = control.getRootNode();
   if (!("getElementById" in root)) return [];
   return (control.getAttribute("aria-labelledby") ?? "")
     .split(/\s+/)
@@ -626,14 +596,13 @@ function labelledBy(control) {
 // The text of the labels naming a form control, less the control's own where a label
 // holds it, as a select's options: its name, whether or not the label shows, and no more
 // than a face's worth (`FACE`).
-/** @param {Element} control */
 function labelText(control) {
   const runs = [];
   let room = FACE;
   for (const label of labelsOf(control)) {
     const walker = faceWalker(label, control);
     for (let node = walker.nextNode(); node && room > 0; node = walker.nextNode()) {
-      const text = /** @type {Text} */ (node).data;
+      const text = node.data;
       room -= 1 + text.trim().length;
       runs.push(text);
     }
@@ -649,23 +618,21 @@ const FACE = 300;
 // over `skip` and a select's or datalist's options without entering them, so they cost
 // no room: the control's words aren't its label's, and a list shows only its chosen
 // option (`controlFace`), however many it holds.
-/** @param {Element} root @param {Element | null} skip */
 const faceWalker = (root, skip) =>
   document.createTreeWalker(root, NodeFilter.SHOW_ELEMENT | NodeFilter.SHOW_TEXT, {
     acceptNode: (node) =>
       node instanceof Text
         ? NodeFilter.FILTER_ACCEPT
-        : node === skip || /** @type {Element} */ (node).matches("select, datalist")
+        : node === skip || node.matches("select, datalist")
           ? NodeFilter.FILTER_REJECT
           : NodeFilter.FILTER_SKIP,
   });
 // Whether a listener hears the text `parent` holds as part of `root`'s name: the browser
 // draws it, and nothing inside `root` hides it with `aria-hidden`, as a menu row's key
 // chip is hidden.
-/** @param {Element | null} parent @param {Element} root */
 const heardIn = (parent, root) =>
   Boolean(parent && drawsText(parent) && !overIn(parent, '[aria-hidden="true"]', root));
-/** @typedef {{words: string, joined: string, marks: string, partial: boolean, cut: boolean, quiet: string, chips: string[]}} Face */
+
 // What `root` shows the user whole, less any part inside `skip`, or null where it holds
 // more than a face. A run of its text counts where the browser draws it (`drawsText`) and
 // every box that clips it leaves it whole (`clippedContents`), so words an ellipsis, a
@@ -677,11 +644,9 @@ const heardIn = (parent, root) =>
 // that some of those are words a listener hears (`heardIn`). `quiet` is the quiet words
 // a listener hears in `root` (`.lf-quiet`, records/declared-words.js), which the screen never
 // shows, so they aren't cut. `chips` are the key chips it shows, in order.
-/** @param {Element} root @param {Element | null} [skip] @returns {Face | null} */
 function faceOf(root, skip = null) {
   const walker = faceWalker(root, skip);
   const range = document.createRange();
-  /** @type {import("../dom/geometry.js").ClipCache} */
   const clips = new Map();
   const runs = [];
   const quiet = [];
@@ -690,7 +655,7 @@ function faceOf(root, skip = null) {
   let cut = false;
   let room = FACE;
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
-    const text = /** @type {Text} */ (node);
+    const text = node;
     room -= 1 + text.data.trim().length;
     if (room < 0) return null;
     if (!/\S/.test(text.data)) continue;
@@ -738,7 +703,6 @@ function faceOf(root, skip = null) {
 // shows the option chosen, not the rest. Its chips are its own and the keys the command
 // hints label it with, as Done's digit or a playground's commit's `1`. The words it cuts
 // and its quiet words are its own, the words a name from its content holds.
-/** @param {Element} control @returns {Face | null} */
 function controlFace(control) {
   const chosen =
     control instanceof HTMLSelectElement
@@ -761,7 +725,6 @@ function controlFace(control) {
     ...labelsOf(control).flatMap((label) => faceOf(label, control) ?? []),
     own,
   ];
-  /** @param {"words" | "joined"} read */
   const all = (read) =>
     faces
       .map((face) => face[read])
@@ -779,7 +742,6 @@ function controlFace(control) {
 }
 // Whether `face` shows `line` whole, read apart or together. A line of marks with no
 // words, as a reaction's emoji, it shows where it draws those marks and nothing else.
-/** @param {Face} face @param {Words | null} line */
 const shows = (face, line) =>
   typeof line === "string" &&
   (/\p{L}/u.test(line)
@@ -792,7 +754,6 @@ const shows = (face, line) =>
 // symbol's short word under its longer label. A count alone, as a folded list's "1"
 // beside its mark, names nothing; a name of marks alone, as a reaction's emoji, the
 // face says where it draws just those marks (`shows`).
-/** @param {Face} face @param {string} name */
 const faceSays = (face, name) =>
   (/\p{L}/u.test(face.words) &&
     (shows(face, name) ||
@@ -802,7 +763,6 @@ const faceSays = (face, name) =>
         )))) ||
   (!wordsOf(name) && shows(face, name));
 // A control's name as its markup gives it, short of its content.
-/** @param {Element} control */
 function markupName(control) {
   const label = control.getAttribute("aria-label")?.trim();
   if (label) return label;
@@ -817,29 +777,25 @@ function markupName(control) {
 // The name a control's content gives it, as a screen reader reads it: the words the
 // browser draws, each box's apart and a word its inline markup splits whole, less what
 // `aria-hidden` hides, as a menu row's key chip.
-/** @param {Element} control */
 function contentName(control) {
   const walker = document.createTreeWalker(control, NodeFilter.SHOW_TEXT);
   let name = "";
-  /** @type {Element | null} */
   let last = null;
   for (let node = walker.nextNode(); node; node = walker.nextNode()) {
     const parent = node.parentElement;
     if (!parent || !heardIn(parent, control)) continue;
     if (last && apart(last, parent, control)) name += " ";
-    name += /** @type {Text} */ (node).data;
+    name += node.data;
     last = parent;
   }
   return name.replace(/\s+/g, " ").trim();
 }
 // Whether a box's edge falls between text in `a` and text in `b`, both inside `root`: an
 // element on either's way up to the one holding both lays out as a box of its own.
-/** @param {Element} a @param {Element} b @param {Element} root */
 function apart(a, b, root) {
-  /** @param {Element} from @param {Element} other */
   const boxed = (from, other) => {
     for (
-      let el = /** @type {Element | null} */ (from);
+      let el = from;
       el && el !== root && !el.contains(other);
       el = el.parentElement
     ) {
@@ -853,7 +809,6 @@ function apart(a, b, root) {
 
 // What `node` declares, read once as its preview shows on `route`. A declaration that
 // throws is a package's bug, reported where its author will see it, and says nothing.
-/** @param {Element} node @param {Route} route @returns {Declared} */
 function declaration(node, route) {
   const declared = node.lfPreview;
   if (typeof declared !== "function") return null;
@@ -867,16 +822,13 @@ function declaration(node, route) {
 
 // Whether the search stops at `node` to read it: it declares a preview, carries a
 // `title`, or is a control.
-/** @param {Element} node */
 const mayPreview = (node) =>
   typeof node.lfPreview === "function" ||
   Boolean(titleOf(node)) ||
   (node.matches(CONTROL) && !typesText(node));
 
 /** Read `declared` into the face's lines: the name first, then each line of detail, each
- * said once, with the presses that reach `control`.
- * @param {Preview | null} declared @param {{name?: string | null, keys?: Presses, title?: string | null}} own
- * @returns {Reading | null} */
+ * said once, with the presses that reach `control`. */
 function lines(declared, own) {
   const keys = advertisesKeys()
     ? [
@@ -888,7 +840,6 @@ function lines(declared, own) {
         ).values(),
       ]
     : [];
-  /** @type {Words[]} */
   const said = [];
   for (const line of [
     declared?.name ?? own.name,
@@ -919,7 +870,6 @@ function lines(declared, own) {
 // all its face leaves unsaid, and the keys that press it; a declaration and a `title`
 // add their lines under them. Its `aria-description` is a screen reader's, which often
 // names what its face shows, as a diff row's names its path, so a preview leaves it out.
-/** @param {Element} node @param {Route} route @returns {Reading | null | false} */
 function readingOf(node, route) {
   if (node.getAttribute("aria-expanded") === "true" || node.matches(PROXY)) return null;
   // A link into the page declares the place it opens, as its own declaration would.
@@ -962,7 +912,6 @@ function readingOf(node, route) {
 // ellipsis, aren't among those it shows, so a line holding them stays, since the preview
 // is then where the rest is read. A reading standing by a part of its target (`at`), as a
 // chart's point, is about that part, so the face's other words don't speak for it.
-/** @param {Reading | null} reading @param {() => Face | null} read @returns {Reading | null} */
 function beyondFace(reading, read) {
   if (!reading || reading.at || reading.list) return reading;
   const face = read();
@@ -978,7 +927,6 @@ function beyondFace(reading, read) {
     : { ...reading, detail, keys };
 }
 // The innermost node along `path` the search stops at, read as its preview shows.
-/** @param {Iterable<EventTarget>} path @returns {Element | null} */
 function candidate(path) {
   for (const node of path) {
     if (!isElement(node)) continue;
@@ -987,15 +935,12 @@ function candidate(path) {
   }
   return null;
 }
-/** @param {Element} node */
 function* climb(node) {
-  for (let at = /** @type {Element | null} */ (node); at; at = renderedParent(at))
-    yield at;
+  for (let at = node; at; at = renderedParent(at)) yield at;
 }
 // What previews from `node` outward on `route`, and where it stands.
-/** @param {Element} node @param {Route} route @returns {{target: Element, reading: Reading} | null} */
 function readOutward(node, route) {
-  for (let at = /** @type {Element | null} */ (node); at; at = renderedParent(at)) {
+  for (let at = node; at; at = renderedParent(at)) {
     if (at === tip) return null;
     if (!mayPreview(at)) continue;
     const reading = readingOf(at, route);
@@ -1005,7 +950,6 @@ function readOutward(node, route) {
   return null;
 }
 
-/** @type {Shown | null} */
 let shown = null;
 // Whether a preview stands for Escape to put away, its first step (the `preview` scope).
 // The page holds a close watcher while Escape has a step to take, read in the repaint
@@ -1023,29 +967,22 @@ function stepMoved() {
 }
 // When the last preview the user saw went, for the warm switch.
 let cooled = -Infinity;
+
 // What a hovering pointer rests on, in two layers, each kept until whoever said it says
 // otherwise: the element `pointerover` found that previews itself (`over`), and the
 // range a range's owner says it rests on, with what pointing at it reads and where the
 // pointer was (`ranged`, `pointRange`). Which of them the pointer reads is the one rule
 // every route that reads a point follows (`readingAt`), so the pointer leaving a link
 // for the passage's words around it is on the passage again with nothing told anew.
-/** @typedef {{range: Range, read: Read | null, at: {x: number, y: number} | undefined}} Ranged */
-/** @type {Element | null} */
 let over = null;
-/** @type {Ranged | null} */
 let ranged = null;
 // The target under a hovering pointer, the read its range's owner gave, and the dwell
 // before its preview.
-/** @type {Target | null} */
 let pointing = null;
-/** @type {Read | null} */
 let pointingRead = null;
-/** @type {{x: number, y: number} | undefined} */
 let pointingAt;
-/** @type {ReturnType<typeof setTimeout> | undefined} */
 let dwell;
 // The target the dwell counts for, until it ends or stops (`stopDwell`).
-/** @type {Target | null} */
 let dwelling = null;
 function stopDwell() {
   clearTimeout(dwell);
@@ -1053,18 +990,14 @@ function stopDwell() {
 }
 // The target under the pointer whose wait is over, by its dwell or at once while warm,
 // so a new aim inside it shows at once (`changed`).
-/** @type {Target | null} */
 let rested = null;
 // The wait before a pointer's preview goes once the pointer has left its target.
-/** @type {ReturnType<typeof setTimeout> | undefined} */
 let leaving;
 // The target whose preview a press, a key or Escape put away, quiet until the user aims
 // again: the pointer reaches a target, focus arrives or a keyboard walk lands, or a
 // finger holds. What a widget declares again, as it redraws with the same reading,
 // is no aim of the user's.
-/** @type {Target | null} */
 let quiet = null;
-/** @type {Hold | null} */
 let hold = null;
 // A reading whose subject the user can't see, as a point scrolled out of a box, a
 // control under a header stuck over its box, or a target out of view as it was aimed
@@ -1080,9 +1013,7 @@ let hold = null;
 const coming = new IntersectionObserver((entries) => {
   if (shown?.away && entries.some((entry) => entry.isIntersecting)) decide(false);
 });
-/** @type {Element | null} */
 let awaited = null;
-/** @param {Element | null} el */
 function awaitView(el) {
   if (el === awaited) return;
   if (awaited) coming.unobserve(awaited);
@@ -1090,7 +1021,6 @@ function awaitView(el) {
   if (el) coming.observe(el);
 }
 // End `record`'s reading, or suspend focus's, and say it stands nowhere.
-/** @param {Shown} record */
 function away(record) {
   if (record.route !== "focus") {
     hide();
@@ -1113,14 +1043,11 @@ let rest = { x: NaN, y: NaN };
 let finger = false;
 // The innermost node under a mouse pointer, which says whether a changed preview is the
 // pointer's to read.
-/** @type {Node | null} */
 let beneath = null;
 // Whether the pointer rides a preview that lets it through (`ride`).
 let riding = false;
 
 // What `from` previews on `route`, a range's through the read its owner gave.
-/** @param {Target} from @param {Route} route @param {Read | null} read
- * @returns {{target: Target, holder: Element, reading: Reading} | null} */
 function readFrom(from, route, read) {
   if (!(from instanceof Range)) {
     const outward = from.isConnected ? readOutward(from, route) : null;
@@ -1147,7 +1074,6 @@ function readFrom(from, route, read) {
 // can't be seen is suspended (`away`) and shows nothing yet, and any other ends. A hold
 // that shows a reading has read, whichever way the reading came, so its release presses
 // nothing.
-/** @param {Target} from @param {Route} route @param {Read | null} [read] @param {{x: number, y: number}} [at] @param {boolean} [again] @param {boolean} [aim] */
 function show(from, route, read = null, at, again = false, aim = false) {
   if (!again && shown?.from === from && shown.route === route) return !shown.away;
   const found = readFrom(from, route, read);
@@ -1181,7 +1107,6 @@ function show(from, route, read = null, at, again = false, aim = false) {
     route !== "focus" && !standing && performance.now() - cooled >= WARM ? "" : null,
   );
   render(face(reading), body);
-  /** @type {Shown} */
   const record = {
     from,
     target,
@@ -1239,7 +1164,6 @@ function show(from, route, read = null, at, again = false, aim = false) {
 // stand by one element are one preview to the eye, as each of a widget's controls
 // standing its preview by the widget, or one element's next reading, so the next takes
 // the standing one's place with no fade. A range's stands by its own line.
-/** @param {{target: Target, holder: Element, reading: Reading}} found */
 const standsBy = ({ target, holder, reading }) =>
   target instanceof Range ? null : isElement(reading.at) ? reading.at : holder;
 
@@ -1272,12 +1196,11 @@ const REACH = 23;
 
 // The nearest HTML element with a box of its own at or around `el`: a `display:
 // contents` element's first shown part, and a shape in a drawing's HTML host.
-/** @param {Element} el @returns {HTMLElement | null} */
 function boxed(el) {
-  for (let at = /** @type {Element | null} */ (el); at; at = renderedParent(at)) {
+  for (let at = el; at; at = renderedParent(at)) {
     if (!isHTML(at)) continue;
     const [part] = shownParts(at);
-    if (isHTML(part)) return /** @type {HTMLElement} */ (part);
+    if (isHTML(part)) return part;
   }
   return null;
 }
@@ -1285,7 +1208,6 @@ function boxed(el) {
 // A declared box as offsets inside the element the preview stands by, taken as each
 // reading is, since a widget may change one box in place, and carried by that element
 // from then on, so a decision made again as the page moves reads it where it stands.
-/** @param {Shown} record */
 function takeWithin(record) {
   const declared = record.reading.at;
   const source = declared && !isElement(declared) ? boxed(record.holder) : null;
@@ -1305,7 +1227,6 @@ function takeWithin(record) {
 // coordinates; for an element, the box it shows as (dom/geometry.js, `shownBox`), every
 // part of an element drawn through `display: contents` included, and the element,
 // whose marks the preview stands clear of too (`stand`).
-/** @param {Shown} record @param {Reading} reading @returns {{source: HTMLElement, box: Box, subject?: Element} | null} */
 function anchorOf(record, reading) {
   const { target, holder, at } = record;
   if (target instanceof Range) {
@@ -1346,9 +1267,7 @@ function anchorOf(record, reading) {
 // The source the preview was last shown with, where it stood then, what it said, and
 // which side of its stage's mark it stands on. Held weakly, since it outlives the
 // preview and a revision may remove it.
-/** @type {WeakRef<Element> | null} */
 let anchored = null;
-/** @type {Element | null} */
 let seated = null;
 let said = "";
 let beforeMark = false;
@@ -1369,7 +1288,6 @@ function seat() {
 // popover itself changed since, as its words (notes/browser-support.md). Any insertion
 // lays it out again, so a new source that comes with the same words moves it to the
 // other side of its mark, a change the page's watch of its writes reads as one.
-/** @param {HTMLElement} source @param {boolean} standing @param {boolean} moved */
 function open(source, standing, moved) {
   const last = anchored?.deref();
   if (standing && source === last && !moved) return;
@@ -1390,11 +1308,8 @@ function open(source, standing, moved) {
 // it was placed at, so it moves nothing. A scroll of a box holding it decides its place
 // again (`replace`), heard at the document and at each shadow root around it, since a
 // scroll inside a shadow tree is heard no further than its root.
-/** @type {Element | null} */
 let followed = null;
-/** @type {{width: number, height: number} | null} */
 let followedSize = null;
-/** @type {ShadowRoot[]} */
 let followedRoots = [];
 const following = sizeObserver(
   (entries) => {
@@ -1408,7 +1323,6 @@ const following = sizeObserver(
   // A preview comes and goes for as long as the page plays.
   { counted: false },
 );
-/** @param {Element | null} source */
 function follow(source) {
   if (source === followed) return;
   if (followed) following.unobserve(followed);
@@ -1427,7 +1341,6 @@ function follow(source) {
     followedRoots.push(root);
   }
 }
-/** @param {Event} event */
 function scrolled(event) {
   const box = event.target;
   if (
@@ -1442,7 +1355,6 @@ function scrolled(event) {
 // stands by, and else its place alone, as a scroll's or the visible viewport's.
 let deciding = 0;
 let rereading = false;
-/** @param {boolean} reread */
 function decide(reread) {
   if (!shown) return;
   rereading ||= reread;
@@ -1460,13 +1372,11 @@ function decide(reread) {
   });
 }
 
-/** @typedef {{y: "below" | "above" | "top", x: "left" | "right" | "after" | "before" | "center", from: number, room: number, box: Box}} Placement */
 // The element the standing preview stands by, the side it stands on, the edge across it
 // stands by, left or right, and its top corner on that edge as offsets from the box it
 // stands by, which the next decision standing by that element tries first, whichever
 // target's reading it draws. What stands around it is tested afresh every time, since
 // the page may have changed there whatever the target did.
-/** @type {{source: HTMLElement, side: {y: Placement["y"], x: Placement["x"]}, x: "left" | "right", corner: {x: number, y: number}} | null} */
 let placed = null;
 
 // Stand the preview by its anchor, and say whether it stands: the one decision of where
@@ -1474,7 +1384,6 @@ let placed = null;
 // the place it stands at now first, or its side by the new box for a new `aim` inside
 // it, and afresh for a new target. Where it can stand nowhere, its reading ends, or,
 // focus's, is suspended (`away`) until a decision finds it a place.
-/** @param {Shown} record @param {Reading} reading @param {boolean} standing @param {boolean} [aim] */
 function stand(record, reading, standing, aim = false) {
   const moved = seat();
   const anchor = anchorOf(record, reading);
@@ -1496,7 +1405,6 @@ function stand(record, reading, standing, aim = false) {
   const gap =
     target instanceof Range ? GAP.line : route === "hold" ? GAP.hold : GAP.box;
   const marks = subject ? markRoom(subject, box, gap) : null;
-  /** @param {"left" | "top" | "right" | "bottom"} side */
   const past = (side) => Math.max(0, marks?.[side] ?? 0) + gap;
   const clear = {
     top: box.top - past("top"),
@@ -1525,12 +1433,10 @@ function stand(record, reading, standing, aim = false) {
   const about = reading.about?.isConnected
     ? reading.about.getBoundingClientRect()
     : null;
-  /** @param {Placement} at */
   const inside = (at) =>
     at.box.left >= room.left - 0.5 &&
     at.box.right <= room.right + 0.5 &&
     at.box.top >= room.top - 0.5;
-  /** @param {Placement["y"]} y */
   const rowRoom = (y) =>
     y === "below"
       ? room.bottom - clear.bottom
@@ -1541,9 +1447,7 @@ function stand(record, reading, standing, aim = false) {
   // across the box, so the same side builds the same place from the same geometry.
   // Centred, it stands as near the window's middle as it can while it still stands across
   // its target, so it never reads as standing for something else far off.
-  /** @param {number} left */
   const slid = (left) => Math.min(Math.max(left, room.left), room.right - width);
-  /** @param {Placement["x"]} x */
   const leftOf = (x) =>
     x === "left"
       ? slid(box.left)
@@ -1560,7 +1464,6 @@ function stand(record, reading, standing, aim = false) {
   // A place on a side, from the edge it grows from: the top where it stands below or
   // level with the box, which its words grow down from, and the bottom above it, which
   // they grow up from; its box is as much of the preview as the window holds there.
-  /** @param {Placement["y"]} y @param {Placement["x"]} x @param {number} from @param {number} space @param {number} left @returns {Placement} */
   const placeAt = (y, x, from, space, left) => {
     const tall = Math.min(height, Math.max(space, 0));
     const top = y === "above" ? from - tall : from;
@@ -1572,7 +1475,6 @@ function stand(record, reading, standing, aim = false) {
       box: { left, top, right: left + width, bottom: top + tall },
     };
   };
-  /** @param {Placement["y"]} y @param {Placement["x"]} x */
   const placement = (y, x) =>
     placeAt(
       y,
@@ -1581,9 +1483,7 @@ function stand(record, reading, standing, aim = false) {
       rowRoom(y),
       leftOf(x),
     );
-  const [start, end] = rtl
-    ? /** @type {const} */ (["right", "left"])
-    : /** @type {const} */ (["left", "right"]);
+  const [start, end] = rtl ? ["right", "left"] : ["left", "right"];
   // Where it stands now: its top corner on the edge it stands by at the same offsets
   // from the box it stands by, so words that grow keep its first line still. A new aim
   // keeps its side by the new box instead, standing by the edge that side stands by, its
@@ -1603,27 +1503,23 @@ function stand(record, reading, standing, aim = false) {
             ? box.right - was.corner.x - width
             : box.left + was.corner.x,
         );
-  /** @type {Placement["y"][]} */
   const rows = route === "hold" || point ? ["above", "below"] : ["below", "above"];
-  /** @type {Placement[]} */
   const placements = rows.flatMap((y) => [placement(y, start), placement(y, end)]);
   if (!(target instanceof Range)) {
     const toward =
       box.left + box.right > room.left + room.right
-        ? /** @type {const} */ (["after", "before"])
-        : /** @type {const} */ (["before", "after"]);
+        ? ["after", "before"]
+        : ["before", "after"];
     placements.push(...toward.map((x) => placement("top", x)));
   }
   placements.push(...rows.map((y) => placement(y, "center")));
   const { rooms } = faceLines(reading);
   const least = Math.min(...rooms, height);
   // How many whole lines a room holds.
-  /** @param {number} space */
   const linesIn = (space) =>
     rooms.reduce((most, need, at) => (need <= space ? at + 1 : most), 0);
   // The room a place holds clear of every other control and of what it is about. A
   // finger's hand hides what lies below the touch, so below it holds none.
-  /** @param {Placement} at */
   const clearHeight = (at) => {
     if (route === "hold" && at.y === "below") return 0;
     const reach = atLayoutPrecision(
@@ -1640,7 +1536,6 @@ function stand(record, reading, standing, aim = false) {
         : clearRoom(at, reach, holder, holder.getBoundingClientRect(), null);
     return Math.min(reach, atLayoutPrecision(room));
   };
-  /** @type {Placement | null} */
   let chosen = null;
   let held = 0;
   // Where it stands now stays while its clear room holds a whole line, held to that
@@ -1672,12 +1567,8 @@ function stand(record, reading, standing, aim = false) {
   // and where even that holds none, nothing shows.
   let covering = false;
   if (!chosen) {
-    /** @param {Placement[]} among */
     const roomiest = (among) =>
-      among.reduce(
-        (most, at) => (!most || at.room > most.room ? at : most),
-        /** @type {Placement | null} */ (null),
-      );
+      among.reduce((most, at) => (!most || at.room > most.room ? at : most), null);
     const sides = placements.filter(inside);
     const seen = sides.filter((at) => !(route === "hold" && at.y === "below"));
     chosen = roomiest(seen.length ? seen : sides);
@@ -1732,13 +1623,12 @@ function stand(record, reading, standing, aim = false) {
   return true;
 
   // How far a place may grow from its edge before it meets what it is about.
-  /** @param {Placement} at */
   function towardSubject(at) {
     let until = Infinity;
-    for (const [subject, clearing] of /** @type {const} */ ([
+    for (const [subject, clearing] of [
       [clear, 0],
       [about, 0],
-    ])) {
+    ]) {
       if (!subject || subject.left >= at.box.right || at.box.left >= subject.right)
         continue;
       if (at.y === "above") {
@@ -1768,11 +1658,9 @@ function stand(record, reading, standing, aim = false) {
 // mark on its own line (`line`), across its leading (dom/geometry.js, `lined`) and its whole
 // width, goes untested, since there the mark is the preview's own or one beside it; a
 // control there, as a button in a deep leading just below the words, is still tested.
-/** @param {Placement} at @param {number} reach @param {Element} holder @param {Box | null} own @param {Box | null} line */
 function clearRoom(at, reach, holder, own, line) {
   const around = new Set(climb(holder));
   // The boxes around `holder` a press acts on (`targetAt`).
-  /** @type {Set<Element>} */
   const taking = new Set();
   for (let up = renderedParent(holder); up; up = renderedParent(up)) {
     const takes = aimableAt(up);
@@ -1799,7 +1687,6 @@ function clearRoom(at, reach, holder, own, line) {
   return Infinity;
 }
 // The points `REACH` apart from just inside `from` to just inside `to`.
-/** @param {number} from @param {number} to */
 function steps(from, to) {
   const count = Math.max(1, Math.ceil((to - from - 2) / REACH));
   return Array.from(
@@ -1816,17 +1703,15 @@ function steps(from, to) {
 // and whatever previews, which a pointer reads. It is wider than what takes the
 // pointer (`aimableAt`), since a press must still reach a region the pointer only reads.
 const EMBEDS = "iframe, embed, object";
-/** @param {Element} el */
 function keepsAccess(el) {
   if (el.matches(WORKS) || el.matches(EMBEDS) || mayPreview(el)) return true;
-  if ("tabIndex" in el && /** @type {HTMLElement} */ (el).tabIndex >= 0) return true;
+  if ("tabIndex" in el && el.tabIndex >= 0) return true;
   if (el.scrollHeight <= el.clientHeight && el.scrollWidth <= el.clientWidth)
     return false;
   const { overflowX, overflowY } = getComputedStyle(el);
   return /auto|scroll/.test(`${overflowX} ${overflowY}`);
 }
 // What a point of the page finds beneath the preview, through every shadow tree there.
-/** @param {number} x @param {number} y */
 function hitAt(x, y) {
   let hit = document.elementsFromPoint(x, y).find((el) => !tip.contains(el)) ?? null;
   for (
@@ -1837,14 +1722,12 @@ function hitAt(x, y) {
     hit = inner;
   return hit;
 }
+
 // A range a press acts on, as a thread's passage mark is, has no element of its own for
 // a hit test to find, so its owner says where one lies under a point of the page: the
 // box of its line there, or null. `under` is the page's element at the point, beneath
 // the preview.
-/** @typedef {(x: number, y: number, under: Element) => Box | null} RangesAt */
-/** @type {Set<RangesAt>} */
 const rangeOwners = new Set();
-/** @param {RangesAt} at */
 export function declareRanges(at) {
   rangeOwners.add(at);
   return () => void rangeOwners.delete(at);
@@ -1861,7 +1744,7 @@ export function declareRanges(at) {
 // it (`taking`), as a card a press opens around a chart is. Rejected: counting every
 // box around it that takes the pointer, so inside `lf-toc`, drawn across the
 // column, no side holds a line and a row's preview stands over the next row.
-/** @param {number} x @param {number} y @param {Element} holder @param {Set<Element>} around @param {Set<Element>} taking @param {boolean} marks whether to ask the ranges' owners @returns {Box | null} */
+/** @param marks whether to ask the ranges' owners */
 function targetAt(x, y, holder, around, taking, marks) {
   const hit = hitAt(x, y);
   if (!hit) return null;
@@ -1909,7 +1792,6 @@ function hide() {
 // The element whose preview `record` read hears that it ended (`PREVIEW_ENDED`), with
 // what it declared for that reading, as a chart that drew a mark for the point it read
 // takes the mark off. A range's owner knows its own.
-/** @param {Shown} record */
 function ended(record) {
   if (isElement(record.target))
     record.target.dispatchEvent(
@@ -1922,7 +1804,6 @@ function ended(record) {
 // pointer that leaves its target for nothing, as on its way onto the preview, puts the
 // preview away only after `LINGER`, which its reaching the preview or the target
 // cancels; one that reaches another target shows that one at once.
-/** @param {Target | null} target @param {Read | null} [read] @param {{x: number, y: number}} [at] @param {boolean} [again] */
 function point(target, read = null, at, again = false) {
   riding = false;
   if (sameTarget(target, pointing)) return;
@@ -1983,7 +1864,7 @@ function point(target, read = null, at, again = false) {
 // point or a passage's words to their preview, past the chart's edge or over unmarked
 // words, keeps it, and one that reaches a field beneath it takes the field.
 const inTip = () => holds(tip.getBoundingClientRect(), rest.x, rest.y);
-/** @param {Node | null} [node] the innermost node under the pointer */
+/** @param node the innermost node under the pointer */
 function onPreview(node = beneath) {
   if (shown?.route !== "pointer") return false;
   if (under(node, tip)) return true;
@@ -1996,7 +1877,6 @@ function onPreview(node = beneath) {
 }
 // Whether the pointer is on what a preview is about, by its own boxes rather than the
 // element holding it: a range's lines, a declared point's box, or the element's.
-/** @param {Shown} record */
 function onSubject(record) {
   const boxes =
     record.target instanceof Range
@@ -2006,7 +1886,7 @@ function onSubject(record) {
 }
 function ride() {
   clearTimeout(leaving);
-  pointing = /** @type {Shown} */ (shown).from;
+  pointing = shown.from;
   riding = true;
 }
 
@@ -2018,18 +1898,15 @@ function quieten() {
   hide();
 }
 
-/** @param {Range} a @param {Target | null} b */
 const sameRange = (a, b) =>
   b instanceof Range &&
   a.startContainer === b.startContainer &&
   a.startOffset === b.startOffset &&
   a.endContainer === b.endContainer &&
   a.endOffset === b.endOffset;
-/** @param {Target | null} a @param {Target | null} b */
 const sameTarget = (a, b) => a === b || (a instanceof Range && sameRange(a, b));
 
 // The pointer's target, from what each layer says it rests on (`over`, `ranged`).
-/** @returns {Target | null} */
 function aimed() {
   return readingAt(beneath, over, ranged?.range ?? null);
 }
@@ -2040,11 +1917,8 @@ function aimed() {
 // titled button shows only its title, and a thread's words in code or a draft preview
 // nothing, their thread reached by its margin entry, `t` and its Threads row. Focus
 // rests on an element and reads it, never a range.
-/** @param {Node | null} node @param {Element | null} element @param {Range | null} range
- * @returns {Target | null} */
 const readingAt = (node, element, range) =>
   range && !aimableAt(node) ? range : element;
-/** @param {Hold} held */
 const heldTarget = (held) => readingAt(held.node, held.element, held.range);
 function aim() {
   const target = aimed();
@@ -2062,8 +1936,7 @@ function aim() {
  * range's words (`readingAt`). A pointer on the range's preview keeps the range, by
  * the one answer to whether it is on a preview (`onPreview`), as one on an element's
  * preview keeps the element (WCAG 1.4.13, "Hoverable"). A finger holding a press holds the range it rests on
- * (`holdRange`); one that only moved reads none.
- * @param {Range | null} range @param {Read} [read] @param {{x: number, y: number}} [at] */
+ * (`holdRange`); one that only moved reads none. */
 export function pointRange(range, read, at) {
   if (hold) holdRange(hold, range, read, at);
   else if (finger) return;
@@ -2092,7 +1965,6 @@ export function pointRange(range, read, at) {
 // A finger's hold rests on a range or on none, beside the element it found, and reads
 // whichever the pointer's rule takes (`readingAt`); once the hold is armed, it shows
 // that. The same range again keeps its place and takes its owner's latest words.
-/** @param {Hold} held @param {Range | null} range @param {Read | undefined} read @param {{x: number, y: number}} [at] */
 function holdRange(held, range, read, at) {
   if (range ? sameRange(range, held.range) : !held.range) {
     if (range && read) held.says = read;
@@ -2104,7 +1976,6 @@ function holdRange(held, range, read, at) {
   if (held.armed) showHeld(held);
 }
 // The hold's reading, shown where it says something, put away where it says nothing.
-/** @param {Hold} held */
 function showHeld(held) {
   const target = heldTarget(held);
   const says = target instanceof Range ? held.says : null;
@@ -2125,9 +1996,7 @@ function showHeld(held) {
 // What changed is the element that supplied the reading, its owner, which may stand
 // around what the route aims at, as a widget declares for the control in it that holds
 // focus.
-/** @param {Element} node @param {boolean} aim */
 function changed(node, aim) {
-  /** @param {Target | null | undefined} at */
   const within = (at) => isElement(at) && renderedUnder(at, node);
   if (aim && within(quiet)) quiet = null;
   if (shown && (shown.target === node || shown.from === node)) {
@@ -2169,7 +2038,6 @@ function here() {
 // or one the focus is drawn inside, as Tab's and `K`'s at focus are, and as `K`'s at a
 // caret in a focused message's words is. A reading at the caret of something inside
 // what focus is on, as of an age in a focused row, isn't.
-/** @param {Shown} record */
 const readsFocus = (record) =>
   record.route === "focus" &&
   isElement(record.target) &&
@@ -2178,7 +2046,6 @@ const readsFocus = (record) =>
 // Focus the user moved to `node` shows its preview once the task that moved it has
 // done, which may be opening a popover the platform lets no other open inside, where
 // the browser shows that focus, and not where they put this preview away.
-/** @param {Element} node */
 const showFocus = (node) =>
   queueMicrotask(() => {
     if (focused() !== node || !node.matches(":focus-visible")) return;
@@ -2207,7 +2074,6 @@ function refresh() {
 }
 let refreshing = false;
 
-/** @param {HTMLElement} chrome */
 export function mountPreviews(chrome) {
   home = chrome;
   chrome.append(stage);
@@ -2234,20 +2100,14 @@ export function mountPreviews(chrome) {
     PREVIEW,
     (event) => {
       const [node] = event.composedPath();
-      if (isElement(node))
-        changed(node, Boolean(/** @type {CustomEvent} */ (event).detail?.aim));
+      if (isElement(node)) changed(node, Boolean(event.detail?.aim));
     },
     { capture: true },
   );
   // The platform hides a hint as another popover opens over it, or as a press lands
   // elsewhere, and the record goes with it; a suspended reading's own close keeps it.
   tip.addEventListener("toggle", (event) => {
-    if (
-      /** @type {ToggleEvent} */ (event).newState === "closed" &&
-      shown &&
-      !shown.away
-    )
-      hide();
+    if (event.newState === "closed" && shown && !shown.away) hide();
   });
   // The pointer reaching a new node. The platform tells the document of a move between
   // two nodes of one shadow tree by no `pointerover` (the event, retargeted to the host
@@ -2399,7 +2259,6 @@ export function mountPreviews(chrome) {
         origin.releasePointerCapture(event.pointerId);
       // Where no element previews, the hold waits for a range's owner to say what the
       // finger rests on (`holdRange`), which it says as the press arrives.
-      /** @type {Hold} */
       const held = {
         pointerId: event.pointerId,
         node: origin instanceof Node ? origin : null,
@@ -2483,7 +2342,6 @@ export function mountPreviews(chrome) {
 // Once the browser calls the press long, or held for `HOLD` where it says nothing, the
 // finger reads, wherever it is now: one that slid onto the gap beside a neighbour reads
 // the next it reaches.
-/** @param {Hold} held */
 function arm(held) {
   if (hold !== held || held.armed) return;
   clearTimeout(held.timer);

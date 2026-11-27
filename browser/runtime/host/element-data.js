@@ -1,3 +1,4 @@
+// Compiled from element-data.ts by build/typescript.mjs; edit that file.
 /* Leaf's data integration for one element it drives (element-integration.js), which
    calls initialize before the element's first draw from Leaf, deliver in each pass of
    sets, and connect with the element's presentation region on each arrival. The
@@ -44,20 +45,18 @@ import {
 import { dataBody } from "../lib/data-body.js";
 import { failSoft } from "../lib/failure.js";
 import { registry } from "../state/registry.js";
+
 import { projectMarked } from "../records/projection/data.js";
 
 export class ElementData {
   #element;
   #stage;
-  /** @type {{input: string, property: string, bound: boolean, read: ReturnType<typeof dataReader> | null}[]} */
   #inputs;
   // Each property's last supplied snapshot, undefined once its setter threw, and
   // primitive values a later drawing can still name. Object values carry their snapshot
   // through suppliedSnapshot.
-  /** @type {Map<string, {snapshot: import("./data.js").DataSnapshot | null | undefined, primitives: Map<unknown, import("./data.js").DataSnapshot | null>}>} */
   #sent = new Map();
 
-  /** @param {Element} element @param {() => void} stage */
   constructor(element, stage) {
     this.#element = element;
     this.#stage = stage;
@@ -78,8 +77,7 @@ export class ElementData {
     if (this.#inputs.length)
       element.addEventListener("drawn", (event) => {
         // The widget's own event: one sent with no detail names no property (`#drawn`).
-        if (event.target === element)
-          this.#drawn(/** @type {CustomEvent} */ (event).detail ?? {});
+        if (event.target === element) this.#drawn(event.detail ?? {});
       });
   }
 
@@ -104,7 +102,6 @@ export class ElementData {
     return awaitsData(this.#element);
   }
 
-  /** @param {string} region */
   connect(region) {
     return registry[this.#element.localName]?.inputs ? joinDataDelivery(region) : null;
   }
@@ -114,7 +111,6 @@ export class ElementData {
   // every other input is still read and set, so the caller follows each one's next
   // delivery; the first failure is thrown once all are set.
   deliver() {
-    /** @type {{error: unknown} | null} */
     let failed = null;
     for (const entry of this.#inputs) {
       if (!entry.bound) continue;
@@ -142,7 +138,6 @@ export class ElementData {
     if (failed) throw failed.error;
   }
 
-  /** @param {Record<string, unknown>} detail */
   #drawn(detail) {
     const element = this.#element;
     try {
@@ -176,7 +171,6 @@ export class ElementData {
 
   // A drawing retires only primitives supplied before the value it names: a newer
   // delivery may already have arrived while that drawing was being prepared.
-  /** @param {string} property @param {unknown} value */
   #retire(property, value) {
     const primitives = this.#sent.get(property)?.primitives;
     if (!primitives?.has(value)) return undefined;

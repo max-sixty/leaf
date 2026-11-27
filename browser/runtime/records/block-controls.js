@@ -1,3 +1,4 @@
+// Compiled from block-controls.ts by build/typescript.mjs; edit that file.
 /* A control the runtime stands over one of the page's blocks: Copy at a code block's
    corner (code-copy.js) and a heading's link (heading-links.js).
 
@@ -37,7 +38,6 @@ import { skipped } from "../lib/shadow-tree.js";
 const home = document.createElement("div");
 home.className = "lf-block-controls";
 // The frames each document control stands in, under its block's sticky headers.
-/** @type {WeakMap<HTMLElement, ReturnType<typeof cutFrames>>} */
 const cuts = new WeakMap();
 const makeCut = () => {
   const frame = document.createElement("div");
@@ -47,10 +47,8 @@ const makeCut = () => {
 // Stands a document control in the frames its block's headers cut (`headerLevels`),
 // read again each time the control is revealed and once a frame after a resize, since a
 // header can come, go or change height while the control shows or while it hides.
-/** @type {Map<HTMLElement, Element>} */
 const placed = new Map(); // document control → its block
 // The controls other chrome keeps clear of where they stand (`blockControlBoxes`).
-/** @type {WeakSet<HTMLElement>} */
 const footprints = new WeakSet();
 let restanding = 0;
 addEventListener("resize", () => {
@@ -85,7 +83,6 @@ export function blockControlBoxes() {
  * control first stands, says whether other chrome keeps clear of it
  * (`blockControlBoxes`). A control made only when it shows, as a heading's link is,
  * has none, since a pin keeping clear of it would move as the pointer passed. */
-/** @param {HTMLElement} control @param {Element} block @param {ReturnType<typeof headerLevels>} levels @param {boolean} [footprint] */
 export function standInChrome(control, block, levels, footprint = true) {
   if (footprint && !placed.has(control)) footprints.add(control);
   const frames = cutFrames(
@@ -105,7 +102,6 @@ export function standInChrome(control, block, levels, footprint = true) {
 /** Whether `block` renders near the window, kept current while the control stands: a
  * control whose block is away is `hidden`, which hides it whatever display its own
  * rules give it (base.css). The caller writes the first reading. */
-/** @param {HTMLElement} control @param {Element} block */
 export function watchNear(control, block) {
   const place = () => {
     keepsHidden(control, !anchorView(control, block, place));
@@ -115,12 +111,10 @@ export function watchNear(control, block) {
 
 /** The reading `aimControl` writes from: whether `block` renders near the window
  * (`watchNear`), and the block's anchor name. */
-/** @template {HTMLElement} C @param {C} control @param {Element} block */
 export function anchorControl(control, block) {
   return { control, near: watchNear(control, block), anchor: anchorReading(block) };
 }
 
-/** @template {HTMLElement} C @param {{control: C, near: boolean, anchor: ReturnType<typeof anchorReading>}} reading */
 export function aimControl({ control, near, anchor }) {
   keepsHidden(control, !near);
   const name = nameAnchor(anchor);
@@ -135,7 +129,6 @@ export function aimControl({ control, near, anchor }) {
 // about to show, and wherever a pin keeps off where it stands at rest
 // (`blockControlBoxes`); a control shown as it arrives reads them with the batch's
 // other readings.
-/** @param {Element} block */
 export function readInsets(block) {
   const box = block.getBoundingClientRect();
   const at = anchorBox(block);
@@ -146,10 +139,6 @@ export function readInsets(block) {
     dh: box.height - at.height,
   };
 }
-/**
- * @param {HTMLElement} control
- * @param {ReturnType<typeof readInsets>} insets
- */
 export function writeInsets(control, { dx, dy, dw, dh }) {
   for (const [property, length] of Object.entries({
     "--lf-block-control-dx": dx,
@@ -160,7 +149,6 @@ export function writeInsets(control, { dx, dy, dw, dh }) {
     control.style.setProperty(property, length ? layoutPx(length) : "");
   }
 }
-/** @param {HTMLElement} control @param {Element} block */
 export function revealControl(control, block) {
   if (cuts.has(control)) standInChrome(control, block, headerLevels(block));
   writeInsets(control, readInsets(block));
@@ -169,7 +157,6 @@ export function revealControl(control, block) {
 
 /** Let Tab from a document control continue from its block's place in the document,
  * rather than from the control's later place in chrome, until `signal` aborts. */
-/** @param {HTMLElement} control @param {Element} block @param {AbortSignal} signal */
 export function tabFromBlock(control, block, signal) {
   control.addEventListener(
     "keydown",
@@ -192,12 +179,10 @@ addEventListener(
   { capture: true },
 );
 /** Whether a click on `control` comes from a press that began elsewhere. */
-/** @param {MouseEvent} event @param {Element} control */
 export const pressedElsewhere = (event, control) =>
   event.detail > 0 && !pressedPath.has(control);
 
 /** Take a document control and its frames out of chrome once its block has left. */
-/** @param {HTMLElement} control */
 export function releaseControl(control) {
   control.remove();
   cuts.get(control)?.[0]?.frame.remove();

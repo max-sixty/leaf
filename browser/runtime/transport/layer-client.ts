@@ -1,0 +1,658 @@
+/* The delivery gate, the event and media doors, the page's JSON requests, and the
+   page's error channel to the agent.
+
+   A document speaks the generation of the layer record it was served under, and runs
+   the runtime of the Leaf that served it (`runtime_selection.py`), both of which its
+   server names in the document (`DELIVERY`). `admitResponse` observes the session
+   metadata of every answer from the page's server and checks every successful payload
+   against the document's layer, runtime and website release, including a freshness
+   token whose body has not changed: a server restarted under another runtime serves
+   state this code may not read, and refuses what it sends. A foreign answer is always
+   refused. A file under a revision's assets path is no such answer: the path is named
+   by the file's bytes (`http.py`, `assets_path`), so the browser keeps the file for a
+   year, across leaf.page deploys that leave those bytes alone, with the headers of the
+   release it cached it from. Only leaf.page's
+   edge names a release (`worker/src/index.ts`), so another release means the edge has
+   moved on and has a newer document to give, and the page reloads at once. Whether a
+   foreign layer or runtime reloads it is the document source's to answer, through the
+   same probe startup recovery uses, because only a source that has moved on has a
+   different document to give and a page that reloads without one never stops. A
+   page's record survives replacement of its serving process, including a website
+   container, so process identity cannot invalidate the document. Do not let one
+   delivery interpret another's state. A refused key is read here too, for every
+   response: it is the page cut off from its log rather than an answer about any
+   request, so the event door throws it as it throws a lost connection and the page
+   status names the link that ends it.
+
+   `reportPageError` is the common runtime error surface. A widget failure may `failSoft`
+   its own element so the rest of the page and Threads remain usable, but a presentation
+   failure neither rolls back accepted semantic state nor proves pending receipts were
+   shown. The window error listener, module load failures, a widget's `failSoft`, the
+   application's presentation and settlement of a gesture, and the render gate all
+   report through the same page-level evidence. Do not catch an error merely to stamp
+   readiness or continue accounting for pending attempts.
+
+   A fault that leaves part of the page not working as authored, such as the tab icon,
+   an interaction demo that fails to load or run a command, or a code block that fails
+   to highlight, reports here so the agent hears of it, not only the console. On
+   leaf.page a passive session reads the published page, so the Worker answers that
+   report at the edge and logs it for the site's maintainers instead
+   (`worker/src/index.ts`, `pageFault`). A failed
+   user-view observer stays silent: that context is optional and must not become agent
+   work. Code running inside a sample's child page reports to the child's own
+   disposable log, not the page that embeds it. */
+
+import { defineOwn } from "../base/snapshot.js";
+import { exceptionText } from "../lib/exception.js";
+import { countTraffic } from "./traffic.js";
+import { recordInteraction } from "./interaction-log.js";
+import { DELIVERY, offlineInteractive, pageUrl, runtime } from "../state/context.js";
+import { notice } from "./notifications.js";
+import { holdingError } from "./errors.js";
+import { failureContext, failureOf } from "../lib/failure.js";
+import type {
+  BrowserCommand,
+  ServedChange,
+  ServedFileSnapshot,
+  ServedMediaAnswer,
+  ServedRefusal,
+  ServedStaleFile,
+  ServedState,
+  ServedTail,
+} from "../../types/contract.js";
+import type { SourceReading } from "../../types/domain.js";
+
+const { layer: layerGeneration, release, probe, runtime: runtimeIdentity } = DELIVERY;
+
+// Which layer this page belongs to is settled by whatever serves its documents, not by
+// whoever answered last. An answer naming another generation may come from a party a
+// reload will never reach, and reloading at each such answer lands on the same document
+// and is told again, so the user watches the page restart. The probe is the document
+// source's own reading, as it is for startup recovery: the registry still answers with
+// this document's `Leaf-Layer` while the source has not moved on.
+// True when the source has a different document, false when it does not, and undefined
+// when the probe could not be read or names no layer, which settles nothing and leaves
+// the question open for the next foreign answer.
+async function sourceMovedOn() {
+  if (!probe) return true;
+  let response;
+  try {
+    response = await fetch(probe, { cache: "no-store" });
+  } catch {
+    return undefined;
+  }
+  if (!response.ok) return undefined;
+  if (!sameRuntime(response)) return true;
+  const generation = response.headers.get("Leaf-Layer");
+  return generation ? generation !== layerGeneration : undefined;
+}
+
+// A reload Leaf asks for, as a delivery that moved on and a revision that needs a fresh
+// document do, rather than the user. The document going hands the one it loads the
+// user's place (features/version.js, `captureHandoff`), and the tab carries its unsent words to
+// it (records/drafts.js), so the leave prompt that reload raises asks the user nothing
+// (`takeLeafUnload`). A page's own prompt can still keep the document: `leafReloads`
+// stays true, so whichever departure ends it later hands over the place it leaves,
+// while a later prompt is no longer the reload's, so a close asks before dropping words.
+let leafReloading = false;
+let unloadAsked = false;
+export const leafReloads = () => leafReloading;
+// Whether the `beforeunload` being dispatched is the reload's: the first after Leaf
+// asks for one, whether the engine fires it inside `location.reload()`, as Chromium and
+// Firefox do, or later, as WebKit does. Its one reader takes it.
+export const takeLeafUnload = () => {
+  const asked = unloadAsked;
+  unloadAsked = false;
+  return asked;
+};
+export function reloadDocument() {
+  leafReloading = true;
+  unloadAsked = true;
+  location.reload();
+}
+
+let layerReloading = false;
+function reloadNow(message: string) {
+  if (layerReloading) return;
+  layerReloading = true;
+  notice(message);
+  reloadDocument();
+}
+
+// Each foreign answer gets its own reading of the source, because the source may move
+// while the page waits — this very page can be re-initialized during the hold — and an
+// answer carried over from an earlier reading would leave the tab with no way back. One
+// probe is in the air at a time, so a burst of refusals costs one. Waiting lasts as long
+// as the disagreement does, so it is a held error (errors.js) rather than a passing
+// notice: raised once, it stands until an answer from this delivery is admitted.
+let asking = false;
+const holdWaiting = holdingError();
+function reloadDelivery(message: string) {
+  if (layerReloading || asking) return;
+  asking = true;
+  void (async () => {
+    try {
+      const moved = await sourceMovedOn();
+      if (moved === undefined) return;
+      if (!moved) {
+        // The answers stay refused, which is the offline reading this page already knows
+        // how to hold: authored content stays readable and the feed keeps asking, so the
+        // page rejoins the log by itself once the server is back on this delivery.
+        holdWaiting("Waiting for Leaf to finish updating.");
+        return;
+      }
+      reloadNow(message);
+    } finally {
+      asking = false;
+    }
+  })();
+}
+
+// Whether an answer comes from a server running this document's runtime. A website
+// release names its runtime, so neither side names one there.
+const sameRuntime = (response: Response) => {
+  const served = response.headers.get("Leaf-Runtime");
+  return !runtimeIdentity || !served || served === runtimeIdentity;
+};
+
+export function layerHeaders(headers?: HeadersInit) {
+  const result = new Headers({
+    ...(layerGeneration && { "Leaf-Layer": layerGeneration }),
+    ...(runtimeIdentity && { "Leaf-Runtime": runtimeIdentity }),
+    ...(runtime.currentRevision && {
+      "Leaf-View-Revision": String(runtime.currentRevision),
+    }),
+    ...(release && { "Leaf-Release": release }),
+  });
+  new Headers(headers).forEach((value, name) => result.set(name, value));
+  return result;
+}
+
+type WholeAnswer = ServedState & {
+  active: NonNullable<ServedState["active"]>;
+  browser: NonNullable<ServedState["browser"]>;
+};
+export type StateAnswer = WholeAnswer | ServedTail;
+export type CompletedState = Omit<WholeAnswer, "data"> & {
+  data: { version: string; sources: Record<string, SourceReading> };
+};
+type Held = {
+  data: { version: string | null; sources: Record<string, SourceReading> };
+  state: CompletedState | null;
+};
+
+// A state request names what the tab holds, and the answer leaves that out for its
+// reader to restore from the same holding (http.py, `sent`). An answer to a request
+// naming the reading the tab adopted, by its `browser.basis.key`, may carry only the
+// changes since that reading, each data source that changed among them, and the
+// events logged after it (`served_state/tail.py`). A whole answer at the data version
+// the tab names leaves out its sources, since data moves only when an agent sets it.
+// A newer reading can be adopted while a request is out, so its reader captures the
+// holding before asking and completes the answer from that.
+export const heldReading = (): Held => ({ data: runtime.data, state: runtime.state });
+export const heldHeaders = ({ data, state }: Held) => ({
+  ...(data.version !== null && { "Leaf-Data-Version": data.version }),
+  ...(state?.browser.basis.key && { "Leaf-Held-Basis": state.browser.basis.key }),
+});
+
+type Change = ServedChange;
+type Container = Record<string, unknown> | unknown[];
+
+// The list a change names, from the held one: the items it sent and those it changed in
+// their places, those it moved or added after the item it pairs each with, in the
+// list's order, and the rest where they were (`served_state/tail.py`). A changed item
+// is the held one with its own changes applied, so what they leave alone in it, such
+// as each message of a thread one reply joined, keeps its identity too.
+function changedList(
+  held: readonly unknown[],
+  {
+    by,
+    items = [],
+    changed = [],
+    dropped = [],
+    after = [],
+  }: Extract<Change, { by: unknown }>,
+) {
+  const name = (item: unknown) =>
+    (by === "self"
+      ? item
+      : by === "id"
+        ? (item as { id: string }).id
+        : (item as { event: { id: string } }).event.id) as string;
+  const sent = new Map(items.map((item) => [name(item), item]));
+  const kept = new Map(held.map((item) => [name(item), item]));
+  for (const [key, patch] of changed) sent.set(key, patched(kept.get(key), patch));
+  const placed = new Set([...dropped, ...after.map(([key]) => key)]);
+  // Each item `after` places is the one item now right after the one it names, so the
+  // list is the held items that stay, each followed by the run placed after it.
+  const next = new Map(after.map(([key, before]) => [before, key]));
+  const order: string[] = [];
+  const run = (key: string | null) => {
+    for (let at = next.get(key); at !== undefined; at = next.get(at)) order.push(at);
+  };
+  run(null);
+  for (const key of kept.keys())
+    if (!placed.has(key)) {
+      order.push(key);
+      run(key);
+    }
+  return order.map((key) => (sent.has(key) ? sent.get(key) : kept.get(key)));
+}
+
+// The held reading with each change applied in turn. Only the objects and lists on a
+// change's path are copied, so every record the changes leave alone is the very one the
+// held reading had, which is what lets the publisher and the folds after it skip it.
+function patched<T>(reading: T, patch: readonly Change[]): T {
+  const copies: Set<unknown> = new Set();
+  const copy = (value: unknown): Container => {
+    if (copies.has(value)) return value as Container;
+    const owned = Array.isArray(value)
+      ? [...value]
+      : { ...(value as Record<string, unknown>) };
+    copies.add(owned);
+    return owned;
+  };
+  const root = copy(reading) as Record<string, unknown>;
+  for (const change of patch) {
+    const key = change.at.at(-1) as string;
+    let parent = root;
+    for (const step of change.at.slice(0, -1)) {
+      const owned = copy(parent[step]) as Record<string, unknown>;
+      defineOwn(parent, step, owned);
+      parent = owned;
+    }
+    if ("by" in change)
+      defineOwn(parent, key, changedList(parent[key] as unknown[], change));
+    else if ("value" in change) defineOwn(parent, key, change.value);
+    else delete parent[key];
+  }
+  return root as T;
+}
+
+// The whole answer: for an answer carrying the changes since the reading its request
+// named, that reading with them applied, which is exactly the answer the server would
+// have sent whole; else the answer, with the sources of the data it named restored.
+export function completeState(answer: StateAnswer, held: Held): CompletedState {
+  if (!("since" in answer)) {
+    const sources = answer.data.sources ?? held.data.sources;
+    return { ...answer, data: { ...answer.data, sources } };
+  }
+  const { since, patch, events } = answer;
+  const prior = held.state;
+  if (!prior || prior.browser.basis.key !== since.key)
+    throw new Error("The state answer extends a reading this tab did not name");
+  return {
+    ...patched(prior, patch),
+    events: events.length ? [...prior.events, ...events] : prior.events,
+  };
+}
+
+// An answer `admitResponse` refused: it came from another delivery, and whether the page
+// reloads is already settled there. Each caller says what that means for its request.
+export class LayerRefused extends Error {}
+
+/** The structured HTTP failure produced by requestJson, including a file conflict. */
+export class RequestError extends Error {
+  status: number;
+  body: string;
+  current: ServedFileSnapshot | undefined;
+  said: string | undefined;
+
+  constructor(
+    message: string,
+    {
+      status,
+      body,
+      cause,
+      current,
+      said,
+    }: {
+      status: number;
+      body: string;
+      cause?: unknown;
+      current?: ServedFileSnapshot | undefined;
+      said?: string | undefined;
+    },
+  ) {
+    super(message, { cause });
+    this.status = status;
+    this.body = body;
+    this.current = current;
+    this.said = said;
+  }
+}
+
+// The page's JSON requests beside the event door and the state reads: the layer's
+// headers out, the answer admitted, and the JSON read off the text so an error page a
+// proxy wrote fails as its status rather than as a parse. A failure throws the server's
+// `error`, or `<what>: HTTP <status>`, carrying the status, the raw body and, for a file
+// the server holds newer than the draft, its `current`. Whether to send it again is the
+// caller's.
+/** The server owns the response contract named by each endpoint caller. */
+export async function requestJson<T>(
+  url: string,
+  init: RequestInit,
+  what: string,
+): Promise<T> {
+  const response = await fetch(url, { ...init, headers: layerHeaders(init.headers) });
+  if (!admitResponse(response))
+    throw new LayerRefused(`Leaf's layer changed while requesting ${what}`);
+  const text = await response.text();
+  const failed = (
+    message: string,
+    cause: unknown,
+    details: Pick<
+      ConstructorParameters<typeof RequestError>[1],
+      "current" | "said"
+    > = {},
+  ) =>
+    new RequestError(message, {
+      status: response.status,
+      body: text,
+      cause,
+      ...details,
+    });
+  let answer = null;
+  if (
+    response.ok ||
+    response.headers.get("Content-Type")?.split(";").at(0)?.trim() ===
+      "application/json"
+  )
+    try {
+      answer = JSON.parse(text);
+    } catch (error) {
+      throw failed(`${what}: HTTP ${response.status}`, error);
+    }
+  // `said` is the server's own words for the refusal, where it gave any.
+  if (!response.ok) {
+    const refusal: ServedRefusal | ServedStaleFile | null = answer;
+    throw failed(refusal?.error ?? `${what}: HTTP ${response.status}`, undefined, {
+      current: refusal && "current" in refusal ? refusal.current : undefined,
+      said: refusal?.error,
+    });
+  }
+  return answer;
+}
+
+export function sameLayer(generation: string) {
+  if (generation === layerGeneration) return true;
+  // Say what is about to happen before it happens. The user is looking at a page
+  // that `page init` has moved out from under, and a tab that reloads itself with
+  // nothing said is a page that appears to have lost their place for no reason.
+  reloadDelivery("Leaf has been updated — reloading this page.");
+  return false;
+}
+
+export const admitResponse = (response: Response) => admitted(response, true);
+
+// An answer about another revision than the document's, such as the reading of an
+// older version a comparison asks `/api/view` for, speaks that revision's layer. Only
+// the runtime and release of the server answering are held to the document's.
+export const admitReading = (response: Response) => admitted(response, false);
+
+function admitted(response: Response, ofThisLayer: boolean) {
+  observeSession(response);
+  observeKey(response);
+  // Failure responses still name session activation and its public reference. Their
+  // status and error body belong to the caller, not to successful-payload admission.
+  if (!response.ok) return true;
+  if (layerReloading) return false;
+  // The release goes first: a new release's answer may also name a new layer, and the
+  // probe that would settle a layer is this release's own asset, gone once the edge
+  // has moved on.
+  const responseRelease = response.headers.get("Leaf-Release");
+  if (release && responseRelease && responseRelease !== release) {
+    reloadNow("Leaf has been updated — reloading this page.");
+    return false;
+  }
+  const generation = response.headers.get("Leaf-Layer");
+  if (ofThisLayer && generation && !sameLayer(generation)) return false;
+  if (!sameRuntime(response)) {
+    reloadDelivery("Leaf has been updated — reloading this page.");
+    return false;
+  }
+  holdWaiting(null);
+  return true;
+}
+
+// Activation belongs to one private page, whose saved record outlives a deploy. A
+// pinned revision shares its canonical root; another page has a separate record. Tabs
+// tell each other on a channel of their release, since a tab on another release
+// reloads at its next answer.
+let sessionMode = release ? "unknown" : "active";
+const sessionChannel =
+  release && !document.documentElement.lfSample
+    ? new window.BroadcastChannel(`leaf-session:${release}:${pageUrl("")}`)
+    : null;
+
+function activateSession(broadcast: boolean) {
+  const activated = sessionMode !== "active";
+  sessionMode = "active";
+  if (activated) document.dispatchEvent(new Event("lf-session-active"));
+  if (broadcast && activated) sessionChannel?.postMessage({ active: true });
+}
+
+sessionChannel?.addEventListener("message", (event) => {
+  if (event.data?.active === true) activateSession(false);
+});
+
+// Whether the page's next write has to launch its agent's container first, by the last
+// answer: leaf.page answers a page with no private copy yet at the edge
+// (`Leaf-Session: passive`), and one whose container has stopped from its saved record
+// (`Leaf-State-Source: durable`), and a write to either waits while the container
+// starts (`worker/src/index.ts`). A server that names no session runs its agent beside
+// it.
+let agentStopped = false;
+
+function observeSession(response: Response) {
+  const reference = response.headers.get("Leaf-Session-Reference");
+  if (reference !== null && /^\d{12}$/.test(reference))
+    runtime.sessionReference = reference;
+  const mode = response.headers.get("Leaf-Session");
+  if (mode === "active") activateSession(true);
+  else if (mode === "passive" && sessionMode !== "active") sessionMode = "passive";
+  if (mode !== null)
+    agentStopped =
+      mode === "passive" || response.headers.get("Leaf-State-Source") === "durable";
+}
+
+export const sessionIsActive = () => sessionMode === "active";
+export const writeLaunchesAgent = () => agentStopped;
+
+// The server answers a request without this page's key with 401 and nothing else does,
+// whichever route was asked (`http.py`, `_answer`). Any other answer passed the key
+// gate, so each response settles the reading afresh: the tab regains the key the moment
+// the printed link is opened in any tab of this browser, since that sets the cookie its
+// next request carries.
+const KEY_REFUSED = 401;
+function observeKey(response: Response) {
+  runtime.keyRefused = response.status === KEY_REFUSED;
+}
+
+const { promise: layerReady, resolve: layerRevealed }: PromiseWithResolvers<void> =
+  Promise.withResolvers();
+// Once the layer is known, an event goes out in the task that sends it: awaiting the
+// settled promise would put the request behind every microtask queued before it, such
+// as the presentation the gesture's own publication claimed, and delay its answer by
+// as long as they take.
+let layerKnown = false;
+export const revealLayer = () => {
+  layerKnown = true;
+  layerRevealed();
+};
+
+const encoder = new window.TextEncoder();
+// Below the 64 KiB limit, so a message too long for it goes out as an ordinary
+// request; a gesture's body is far smaller.
+const KEEPALIVE_BYTES = 60_000;
+
+// The page's one door to the log, spelled once. Its callers — host/delivery.js, which
+// orders the user's own gestures through it and sends bookkeeping beside them, and the
+// error report below, which deliberately doesn't — share the request rather than
+// anything about the sending: same path, same method, same encoding, so a door that
+// moved would move for all of them. Whether a send waits on the one before it belongs
+// to the caller. The answer's headers decide at once whether the page takes it at all,
+// and the trip ends once its body is read, decoded or not, so `acked` counts a post
+// whose answer the page holds, as `heard` does a read's. A `503`'s plain-text body says
+// nothing the page reads, so its trip ends with its headers.
+export const postEvent = async (
+  event: BrowserCommand,
+  held = heldReading(),
+): Promise<{
+  response: Response;
+  decoded: { answer: any } | { error: unknown };
+} | null> => {
+  if (offlineInteractive)
+    throw new Error("no agent or server is available in an interactive export");
+  if (!layerKnown) await layerReady;
+  countTraffic("sends");
+  recordInteraction("event_post", { kind: event.kind, attempt: event.attempt ?? null });
+  const body = JSON.stringify(event);
+  try {
+    let response;
+    try {
+      response = await fetch(pageUrl("api/event"), {
+        method: "POST",
+        headers: layerHeaders({
+          "Content-Type": "application/json",
+          ...heldHeaders(held),
+        }),
+        body,
+        // A gesture sent as the tab closes, such as the edit a playground records on
+        // leaving, still reaches the log: a keepalive request outlives its document,
+        // which Firefox otherwise drops before it leaves. A page may have 64 KiB of
+        // keepalive bodies in flight and the browser refuses a request past that, so a
+        // longer message goes out tied to its document.
+        keepalive: encoder.encode(body).byteLength < KEEPALIVE_BYTES,
+      });
+    } catch (error) {
+      recordInteraction("event_response", {
+        kind: event.kind,
+        attempt: event.attempt ?? null,
+        error: String(error),
+      });
+      throw error;
+    }
+    recordInteraction("event_response", {
+      kind: event.kind,
+      attempt: event.attempt ?? null,
+      status: response.status,
+    });
+    if (!admitResponse(response)) return null;
+    // A refused key is no answer to the event: the server read none of it, so the send
+    // failed the way a lost connection fails and is retried as one. The page status
+    // names the link that ends it.
+    if (response.status === KEY_REFUSED)
+      throw new Error("the server refused this page's key");
+    const decoded: { answer: any } | { error: unknown } =
+      response.status === 503
+        ? { error: "503" }
+        : await response.json().then(
+            (answer) => ({ answer }),
+            (error) => ({ error }),
+          );
+    return { response, decoded };
+  } finally {
+    countTraffic("acked");
+  }
+};
+
+// Pasted pixels become page content before their Markdown reference enters a draft.
+// The raw body keeps binary data out of JSON and the append-only log; the server
+// derives the served extension and returns the canonical page-relative path. Like an
+// event POST, this request waits for a known layer and accounts for its whole trip.
+export const uploadMedia = async (file: Blob) => {
+  if (offlineInteractive)
+    throw new Error("no agent or server is available in an interactive export");
+  await layerReady;
+  countTraffic("sends");
+  let answer: ServedMediaAnswer;
+  try {
+    answer = await requestJson(
+      pageUrl("api/media"),
+      { method: "POST", headers: { "Content-Type": file.type }, body: file },
+      "image upload",
+    );
+  } catch (error) {
+    if (error instanceof LayerRefused) return null;
+    throw error;
+  } finally {
+    countTraffic("acked");
+  }
+  return answer.path;
+};
+
+// The page reporting itself broken, to the party who can fix it: the agent
+// authored the page and its widgets, and without it the only route for a
+// live-session fault is the user pasting a console nobody told them to
+// open. The event lands in the log as kind "error", author "page" — the
+// watcher hears it beside comments and reports; the user's pending count
+// never claims it. Logged once per message text per load (a reload may repeat
+// one — bounded noise over silence), capped so a fault in a loop cannot flood
+// the log, and sent bare rather than through post(): a poll fault reporting
+// itself through the poll would recurse, and nothing here needs the answer.
+// Not part of the helper surface a module gets: an upgrade that throws is already on
+// this path through window.error, and a widget that wants to say so itself has
+// failSoft, which puts the message where the user is looking and dispatches the
+// `error` event that window.error reports here.
+const reportedReasons = new WeakSet();
+const reportedPrimitives = new Set();
+const reportedErrors = new Set();
+export function reportPageError(reason: unknown, context: string = "") {
+  if (typeof reason === "object" && reason !== null) reportedReasons.add(reason);
+  else reportedPrimitives.add(String(reason));
+  const text = exceptionText(reason, context);
+  window.lfDocumentLifetime.whenActive(`report ${text}`, () => {
+    console.error(`leaf: ${text}`);
+    if (offlineInteractive) return;
+    if (reportedErrors.has(text) || reportedErrors.size >= 20) return;
+    reportedErrors.add(text);
+    postEvent({
+      kind: "error",
+      text,
+      ...(runtime.currentRevision != null && { revision: runtime.currentRevision }),
+    }).catch(() => {});
+  });
+}
+
+// What a consumer reports of a fault it carries: a rejection that travelled up to it
+// from the presentation coordinator or state application, say. Where the producer
+// already reported that fault, a second report would add only the consumer's context
+// and make one fault read as several, so it is dropped; for a fault no producer saw,
+// such as a malformed state body, the consumer is the only reporter. A producer that
+// shares one exception among owners, as a cached rejected load does among its widgets,
+// reports through reportPageError, once per owner. A primitive reason has no identity,
+// so its text stands for it.
+export function reportCarried(reason: unknown, context: string = "") {
+  const reported =
+    typeof reason === "object" && reason !== null
+      ? reportedReasons.has(reason)
+      : reportedPrimitives.has(String(reason));
+  if (!reported) reportPageError(reason, context);
+}
+
+// Any `error` event that reaches the window, a package's plain `Event` among them.
+window.addEventListener("error", (e: Event & Partial<ErrorEvent>) => {
+  // A widget's own failure, which it shows where it stands and dispatches
+  // (`reportFailure`, lib/failure.js), named for the widget it happened in.
+  const failure = failureOf(e);
+  if (failure) {
+    reportPageError(failure.reason, failureContext(failure.element));
+    return;
+  }
+  // Chrome also puts ResizeObserver loop notices on window.error without an
+  // exception. This one live page cannot tell an occasional scheduling notice
+  // from a layout feedback loop, so it persists neither in the user's log. The
+  // render gate and test navigation take one complete confirming reading and
+  // report a notice that recurs there.
+  if (e.message?.startsWith("ResizeObserver loop")) return;
+  // A parse error can have a stack containing only its name and message. The
+  // browser's event still names its source, independently of those stack frames.
+  reportPageError(
+    e.error ?? e.message,
+    e.filename ? `${e.filename}:${e.lineno}:${e.colno}` : "",
+  );
+});
+window.addEventListener("unhandledrejection", (e) => {
+  reportPageError(e.reason);
+});

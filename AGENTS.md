@@ -284,8 +284,8 @@ and the page's packages into the page's layer.
   describes.
 - `notes/`: research, and plans for large work in progress or for a design not yet
   built. Work being built on a branch keeps its contract in its own code, not in a
-  note; to show that work to the user, preview a Leaf page whose source is a file in
-  `.tmp/`. When a design lands, its contract moves beside the code or into a
+  note; to show that work to the user, serve them a Leaf page whose source is a file
+  in `.tmp/` (`/developing-leaf`, "Run `leaf`"). When a design lands, its contract moves beside the code or into a
   reference, and its note is deleted. `notes/TODO.md` lists the biggest current
   challenges and says how to query the backlog, which is the GitHub issues labelled
   `backlog`.
@@ -373,12 +373,12 @@ local-directory marketplace also copies a checkout's `.venv`. Nothing is built a
 install time: installing, authoring pages, writing custom packages and exporting
 need no browser build or npm.
 
-Pages run the browser runtime's source modules from the install that serves them, so
-a runtime change needs no build. The exception is the floating panel's row: the
-build writes a static copy of the row, which a page shows at first paint, so a
-change to the row needs `pnpm run build:browser` (`build/AGENTS.md`). Only a
-prepared installation, such as the website's container, compiles the source modules
-into one bundle, the kernel (`build/runtime-bundle.mjs`,
+Pages run the browser runtime's modules from the install that serves them, as the
+tree holds them. Two kinds of file there are built and committed, so an edit reaches
+pages only once a build writes them (`build/AGENTS.md`): the JavaScript compiled from
+a TypeScript module, and the static copy of the floating panel's row a page shows at
+first paint. Only a prepared installation, such as the website's container, compiles
+the modules into one bundle, the kernel (`build/runtime-bundle.mjs`,
 `leaf.source.runtime_selection.read_runtime`).
 
 `bin/leaf` runs `uv run --no-dev` on the tree, which writes the tree's `.venv`, so the

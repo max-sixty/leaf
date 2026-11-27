@@ -1,13 +1,19 @@
+/** A control's state as a reload carries it, one kind per control. */
+type ControlState =
+  | { open: boolean }
+  | { checked: boolean }
+  | { chosen: string[] }
+  | { value: string };
+
 /** Document input vocabulary and intent, from the earliest installed owner. */
 interface DocumentInputs {
   readonly textField: "leaf-text";
   readonly textBox: string;
   typesText(node: EventTarget | null | undefined): boolean;
   takesLetters(node: EventTarget | null | undefined): boolean;
-  /** Which state a reload carries for a control (base/document-inputs.js). */
-  holdsValue(node: Element): node is HTMLElement & { value: string };
-  holdsTick(node: Element): node is HTMLInputElement;
-  holdsOpen(node: Element): node is HTMLDetailsElement;
+  /** The state a reload carries for a control, and puts back (base/document-inputs.js). */
+  controlState(node: Element): ControlState | null;
+  putControlState(node: Element, state: ControlState): void;
   readonly count: number;
   readonly away: number;
   readonly entered: number;
@@ -139,7 +145,7 @@ interface Window {
      * (prepaint.js). */
     readonly handedFocus: {
       id: string;
-      value?: string;
+      state?: { value?: string };
       caret?: [number, number, ...unknown[]];
     } | null;
     /** Whether the handoff puts the user back where they were, here (prepaint.js). */

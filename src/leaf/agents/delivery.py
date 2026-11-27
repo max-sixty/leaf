@@ -63,8 +63,9 @@ wakes its session with, quote what the user said or chose in the input
 (`quoted_input`). Claude Code's auto mode judges each gated tool call from the
 session's user turns and tool calls, which hold those lines but not the delivery a
 prompt hook adds, so without the quote it found no request of the user's behind an
-action they had picked on the page, and denied it. The quote is cut at
-`QUOTED_CHARS`, since the delivery carries the input whole.
+action they had picked on the page, and denied it. The quote carries the input
+whole, put on one line: a cut quote would hide from the classifier a condition or
+withdrawal the user's last words make.
 """
 
 import re
@@ -1294,10 +1295,6 @@ def unwatched_input(page: PageTransaction) -> str:
     return quoted_input(page.page_dir, page.events, inputs)
 
 
-# How much of one input a waking line quotes.
-QUOTED_CHARS = 280
-
-
 def quoted_input(page_dir: Path, events: list[dict], inputs: list[dict]) -> str:
     """The user's own words and picks among `inputs`, quoted for the line that wakes
     their session, or "" where they hold none. Each quote is the delivery's own fact
@@ -1322,7 +1319,7 @@ def quoted_input(page_dir: Path, events: list[dict], inputs: list[dict]) -> str:
             continue
         if not clauses or clauses[-1][0] != verb:
             clauses.append((verb, []))
-        clauses[-1][1].extend(f"“{_shortened(said)}”" for said in words)
+        clauses[-1][1].extend(f"“{_one_line(said)}”" for said in words)
     quoted = "; ".join(f"the user {verb} {_listed(said)}" for verb, said in clauses)
     return quoted[:1].upper() + quoted[1:]
 
@@ -1332,12 +1329,9 @@ def _listed(items: list[str]) -> str:
     return " and ".join(filter(None, [", ".join(items[:-1]), items[-1]]))
 
 
-def _shortened(words: str) -> str:
-    """`words` on one line, cut to `QUOTED_CHARS`."""
-    line = " ".join(words.split())
-    if len(line) <= QUOTED_CHARS:
-        return line
-    return line[: QUOTED_CHARS - 1].rstrip() + "…"
+def _one_line(words: str) -> str:
+    """`words` on one line, whole."""
+    return " ".join(words.split())
 
 
 def wake_inputs(batch: list[dict], work: "WorkState") -> list[dict]:

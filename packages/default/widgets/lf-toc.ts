@@ -721,9 +721,9 @@ class Reading {
     const scroller = this.#scroller;
     const signal = this.#following.signal;
     // Root scrolling is reported on Document; nested scrollports report on the element
-    // itself.
-    const root = scroller === document.scrollingElement ? null : scroller;
-    (root ?? document).addEventListener("scroll", this.#scrolled, {
+    // itself. The root is this document, not the top window a framed page stands in.
+    const root = scroller === document.scrollingElement ? document : scroller;
+    root.addEventListener("scroll", this.#scrolled, {
       passive: true,
       signal,
     });
@@ -840,28 +840,38 @@ const TocModel = Schema.Struct({
 
 export const TocMessage = UiSchema.TaggedEnum({
   Toggled: { open: Schema.Boolean },
-  Exposed: { exposed: Schema.Boolean, keep: Schema.Boolean },
+  Exposed: { open: Schema.Boolean },
+  Returned: { keep: Schema.Boolean },
   Read: { current: Schema.Number },
   Fitted: { offMap: Schema.Array(Schema.Number) },
 });
 
-// Whether the summary is hidden, so the outline stands open, heard as the summary's box
-// comes and goes, and whether focus is on a link the outline must keep open as the
-// summary returns.
+// The summary's box coming and going, heard as the form hides it, so the outline stands
+// open, and shows it again. As it hides, the disclosure's own state is the reader's
+// last choice, which a press's toggle, queued as a task the browser may fold into the
+// form's opening, can't be trusted to have told. As it returns, whether focus is on a
+// link the outline must keep open.
+type Posture =
+  | { readonly exposed: true; readonly open: boolean }
+  | { readonly exposed: false; readonly keep: boolean };
+
 const FollowPosture = Mount.makeStream("FollowPosture", {}, (summary: HTMLElement) =>
-  Stream.callback<{ exposed: boolean; keep: boolean }>((queue) =>
+  Stream.callback<Posture>((queue) =>
     Effect.gen(function* () {
       let exposed: boolean | undefined;
       const sizes = sizeObserver(() => {
         const now = getComputedStyle(summary).display === "none";
         if (now === exposed) return;
         exposed = now;
-        const rows = summary.parentElement?.querySelector(".lf-toc-rows");
+        const details = summary.parentElement as HTMLDetailsElement;
+        const rows = details.querySelector(".lf-toc-rows");
         const focused = (summary.getRootNode() as Document | ShadowRoot).activeElement;
-        Queue.offerUnsafe(queue, {
-          exposed: now,
-          keep: Boolean(focused && rows?.contains(focused)),
-        });
+        Queue.offerUnsafe(
+          queue,
+          now
+            ? { exposed: true, open: details.open }
+            : { exposed: false, keep: Boolean(focused && rows?.contains(focused)) },
+        );
       });
       sizes.observe(summary);
       yield* Effect.addFinalizer(() => Effect.sync(() => sizes.disconnect()));
@@ -940,8 +950,9 @@ export const Toc = Html.component({
     // form stands it open, the toggle is the form's.
     Toggled: ($: any, { open }: { open: boolean }) =>
       $.model.exposed ? $.model : $.evolve({ open }),
-    Exposed: ($: any, { exposed, keep }: { exposed: boolean; keep: boolean }) =>
-      $.evolve(exposed ? { exposed } : { exposed, open: $.model.open || keep }),
+    Exposed: ($: any, { open }: { open: boolean }) => $.evolve({ exposed: true, open }),
+    Returned: ($: any, { keep }: { keep: boolean }) =>
+      $.evolve({ exposed: false, open: $.model.open || keep }),
     Read: ($: any, { current }: { current: number }) => $.evolve({ current }),
     Fitted: ($: any, { offMap }: { offMap: readonly number[] }) => $.evolve({ offMap }),
   },
@@ -1012,8 +1023,10 @@ export const Toc = Html.component({
               h.summary.class("lf-toc-toggle lf-label lf-disclosure-marker"),
             ).onMount(
               FollowPosture().pipe(
-                Mount.map((posture: { exposed: boolean; keep: boolean }) =>
-                  TocMessage.Exposed(posture),
+                Mount.map((posture: Posture) =>
+                  posture.exposed
+                    ? TocMessage.Exposed({ open: posture.open })
+                    : TocMessage.Returned({ keep: posture.keep }),
                 ),
               ),
             ),

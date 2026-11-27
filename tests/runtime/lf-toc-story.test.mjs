@@ -29,19 +29,31 @@ test("the disclosure opens as the author asked and follows the reader's press", 
 
 test("a form that stands the outline open keeps the reader's choice for flow", () => {
   run((s) => {
-    s.send(TocMessage.Exposed({ exposed: true, keep: false }));
+    s.send(TocMessage.Exposed({ open: false }));
     // The browser's toggle as the form opens the disclosure is not the reader's.
     s.send(TocMessage.Toggled({ open: true }));
     assert.deepEqual([s.model.exposed, s.model.open], [true, false]);
-    s.send(TocMessage.Exposed({ exposed: false, keep: false }));
+    s.send(TocMessage.Returned({ keep: false }));
     assert.deepEqual([s.model.exposed, s.model.open], [false, false]);
   });
 });
 
+test("a press the form's opening overtakes before its toggle is heard still stands", () => {
+  run(
+    (s) => {
+      // The disclosure stood closed by the reader's press as the form hid its summary.
+      s.send(TocMessage.Exposed({ open: false }));
+      s.send(TocMessage.Returned({ keep: false }));
+      assert.equal(s.model.open, false);
+    },
+    { open: true },
+  );
+});
+
 test("returning to flow keeps the outline open while focus is on one of its links", () => {
   run((s) => {
-    s.send(TocMessage.Exposed({ exposed: true, keep: false }));
-    s.send(TocMessage.Exposed({ exposed: false, keep: true }));
+    s.send(TocMessage.Exposed({ open: false }));
+    s.send(TocMessage.Returned({ keep: true }));
     assert.equal(s.model.open, true);
   });
 });

@@ -1168,6 +1168,39 @@ def test_the_current_section_is_the_one_that_fills_the_window(browser, serve):
     )
 
 
+def test_a_framed_page_s_current_section_is_read_against_its_own_window(browser, serve):
+    """A page framed low in its host, as a window sample stands, scrolls in a window of
+    its own, and its current section is the one filling that window's top half, not
+    the host's."""
+    sections = "".join(
+        f'<section><h2 id="{name.lower()}">{name}</h2>'
+        '<div style="height: 1400px"></div></section>'
+        for name in ("Prepare", "Move", "Verify")
+    )
+    page = open_page(
+        browser,
+        serve(contents_page("framed contents", f"<h1>A migration</h1>{sections}")),
+    )
+    resized(page, 1728, 999)
+    page.evaluate("""() => {
+      const frame = document.createElement('iframe');
+      frame.id = 'frame';
+      frame.title = 'Framed';
+      frame.style.cssText =
+        'position: fixed; inset: 600px auto auto 0; width: 1600px; height: 800px';
+      frame.src = location.href;
+      document.body.append(frame);
+    }""")
+    embedded = page.locator("#frame").element_handle().content_frame()
+    wait_until_ready(embedded)
+    current = embedded.locator("#contents a[aria-current='location']")
+    embedded.locator("#move").evaluate(
+        "node => scrollTo({behavior: 'instant', "
+        "top: node.getBoundingClientRect().top + scrollY - 100})"
+    )
+    expect(current).to_have_text("Move")
+
+
 def test_a_route_too_long_for_its_labels_leaves_its_deepest_level_off_the_map(
     browser, serve
 ):

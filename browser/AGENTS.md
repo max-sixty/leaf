@@ -131,10 +131,12 @@ rule draws at once is drawn.
   may scroll to open clear of its target, and otherwise only a field in flow scrolls to
   keep its controls in view (`records/thread/reply-landing.js`).
 - **Readable content comes before activation.** Authored HTML paints while browser
-  modules load. Each widget updates one view while it is mounted; native slots retain
-  authored children and CSS owns their initial layout. Each control waits only for the
-  behavior or state it needs, and nothing holds the whole document behind widget
-  readiness (`../skills/leaf/references/module-authoring.md`, "First paint").
+  modules load. Each widget owns one view across its lifetime ("Renderers"). The view
+  draws beside the widget's authored children or shows them through a native slot;
+  either way they stay in the light DOM, and CSS owns their initial layout. Each
+  control waits only for the behavior or state it needs, and nothing holds the whole
+  document behind widget readiness (`../skills/leaf/references/module-authoring.md`,
+  "First paint").
 - **A widget grows with its content.** In ordinary flow a widget grows with its content,
   and keeps its visible geometry as its state updates. It scrolls inside itself only when
   its task needs a region kept in view while its contents move, or for a live stream
@@ -979,19 +981,49 @@ The gates check contracts, not looks. Prove a change to what the page draws with
 before/after stills of each state it touches (`/developing-leaf`, "Prove and hand off a
 visible change").
 
+## Renderers
+
+Leaf is moving to one renderer, Effect UI, so that each view it draws is written,
+tested and maintained one way. Until it gets there, a bundled widget is either a
+`LeafElement` (`runtime/lib/leaf-element.js`), which draws with Lit, or an Effect UI
+component that `defineWidget` defines (`runtime/effect-widget.js`), and each module's
+header gives its contract. The runtime's own views, Leaf's chrome, draw with Lit.
+
+Lit goes one widget at a time, the chrome last. Each port, the change that moves a
+widget from Lit to Effect UI, has to pay for itself by leaving the widget easier to
+work on and no slower on a large page. Ports follow this rule:
+
+- **A port deletes the Lit view it replaces**, and a service it adds to
+  `runtime/widget-services.js` calls the same owner as the `widget-api.js` function it
+  stands for. That function stays the form plain widgets and page scripts use.
+- **A port names in its commit what it made easier** to build, verify or maintain,
+  such as logic now under a Story test (`@effect/ui/testing`), and doesn't otherwise
+  grow the widget.
+- **A port benches a page full of its widget** with `leaf-dev bench`, base beside
+  head, and keeps the budgets and growth root `AGENTS.md` sets under
+  "Responsiveness". Where no page the bench generates holds the widget, the port adds
+  one to `COLLECTIONS` (`dev/leaf_dev/commands/bench.py`).
+- **A widget that decorates the author's children draws in a light-DOM part beside
+  them first**, as a `LeafElement` can and `defineWidget` does by default, and takes a
+  shadow root only where that part fails.
+- **The chrome moves only once `@effect/ui` publishes a release** whose mount and
+  component APIs (`BrowserHost.mountEffect`, `Mount`, `Component`) no longer carry
+  `@stability experimental`.
+
+A widget that can't meet this rule is the point to stop porting and raise it with the
+maintainer.
+
+Give each component's generated UI one renderer from first paint through live updates.
+When changing it, move its existing generated structure and changing bindings into
+that renderer together; a Lit or Effect UI child inside a manually updated view leaves
+two renderers to maintain. Keep imperative rendering of generated UI only for a
+requirement its renderer cannot meet, and record that requirement beside the
+implementation. The rendering APIs and retained-node operations are in
+`../skills/leaf/references/module-authoring.md`, "Rendering".
+
 ## Working on the runtime
 
-Give each component's generated UI one Lit renderer from first paint through live
-updates. When changing it, move its existing generated structure and changing bindings
-into that renderer together; a Lit child inside a manually updated view leaves two
-renderers to maintain. Lit provides node retention, synchronous drawing and
-unchanged-value checks. Keep imperative rendering of generated UI only for a requirement
-Lit cannot meet, and record that requirement beside the implementation. The rendering
-APIs and retained-node operations are in
-`../skills/leaf/references/module-authoring.md`,
-"Rendering".
-
-A paint that must land in the current turn uses `render`. `LitElement` schedules
+A paint that must land in the current turn uses Lit's `render`. `LitElement` schedules
 updates on a microtask, so code that reads the document right after a paint (a focus
 move onto a control just drawn, a measurement, held news) would have to await `updateComplete` and let other work
 run first. Use it only for runtime views that can wait. A paint reads state

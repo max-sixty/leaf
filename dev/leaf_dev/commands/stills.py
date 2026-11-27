@@ -43,7 +43,11 @@ Elements are keyed by their path of tags, ids and first two classes. A state wit
 differing property, or a subtree only one arm has, also counts as changed, and its
 `styles.txt` lists them (`style_changes`). The properties are the cascade's own, not
 the geometry it produces, which the stills show; width, height and offsets stay out
-because they move with every reflow. Below them, in Chromium, for each group's first
+because they move with every reflow. For the same reason each is read as its computed
+value (`computedStyleMap`), so an auto margin reads `auto`. `getComputedStyle` reports
+the length layout gave that margin instead, and Chromium sometimes reports 0px there
+though the box hasn't moved. Firefox has no `computedStyleMap`, so there the command
+reads `getComputedStyle`'s values. Below them, in Chromium, for each group's first
 element, it lists the declarations Chromium's inspector reads as matching it in only
 one arm, or in another order, each with its sheet, layers, scope and selector
 (`declaration_changes`): the rule a change added, removed, edited or moved. Where none
@@ -180,6 +184,15 @@ STYLES = """(properties) => {
   const faces = new Map();
   const elements = {};
   const read = (window.stillsRead = new Map());
+  const valuesOf = Element.prototype.computedStyleMap
+    ? (element) => {
+        const style = element.computedStyleMap();
+        return properties.map((name) => String(style.get(name)));
+      }
+    : (element) => {
+        const style = getComputedStyle(element);
+        return properties.map((name) => style.getPropertyValue(name));
+      };
   const walk = (parent, prefix) => {
     const seen = {};
     for (const element of parent.children) {
@@ -189,8 +202,7 @@ STYLES = """(properties) => {
         : [...element.classList].slice(0, 2).map((name) => `.${name}`).join(""));
       seen[label] = (seen[label] ?? -1) + 1;
       const key = prefix + label + (seen[label] ? `:${seen[label]}` : "");
-      const style = getComputedStyle(element);
-      const face = JSON.stringify(properties.map((name) => style.getPropertyValue(name)));
+      const face = JSON.stringify(valuesOf(element));
       if (!faces.has(face)) faces.set(face, faces.size);
       elements[key] = faces.get(face);
       read.set(key, element);
@@ -211,12 +223,7 @@ SCALE = 2
 def capture(state: State, folder: Path, arm: str, visit: Visit) -> None:
     """Screenshot the tab `visit` brought to `state` to `folder/ARM.png`, and read
     into the visit the state's region in the screenshot, if it names one, its
-    elements' styles (`STYLES`) and its geometry faults (`leaf_dev.geometry`).
-
-    The styles and geometry are read before the screenshot. The screenshot's style on
-    the root (`browser.HELD`) changes the root's style, and after a change there
-    Chromium can report an auto margin as 0px though the box stands where it did, as
-    `main`'s did on page-comment-photo in some captures and not others."""
+    elements' styles (`STYLES`) and its geometry faults (`leaf_dev.geometry`)."""
     page = visit.page
     if state.region:
         target = page.locator(state.region)

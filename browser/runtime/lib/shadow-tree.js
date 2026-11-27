@@ -96,7 +96,15 @@ export const renderedParent = (node) =>
 // question"), since Chromium keeps a node's `children` or `childNodes` list for the
 // node's life once it is asked for. A walk of elements steps over the text between them
 // unasked: handed every node, Tab stops over a long table take Chromium longer.
-const openRoot = (host) => host.shadowRoot;
+//
+// The root a host shows: its open root, or a closed one its own class hands out as
+// `shadowRoot`, as a widget can for the stage it holds. Whatever else `shadowRoot`
+// answers is no root of the host's, such as a `<form>`'s control of that name or a
+// wrapper forwarding its child's root, and the host reads by its own children.
+export const openRoot = (host) => {
+  const root = host.shadowRoot;
+  return root?.host === host ? root : null;
+};
 // What `node` draws its children from: the nodes a slot draws in their place, or the
 // node or root whose own children they are.
 function drawnFrom(node, rootOf) {
@@ -119,6 +127,30 @@ export function eachRenderedElement(node, each, rootOf = openRoot) {
   }
   for (let child = from.firstElementChild; child; child = child.nextElementSibling)
     each(child);
+}
+
+// `root` and every tree under it that `rootOf` names for a host, however deep they nest:
+// each tree, then the trees under it, `root`'s own first and then its hosts' in document
+// order. The walk finds hosts among each tree's elements, so it costs what `root` holds,
+// and keeps the trees still to read in a list rather than calling itself, so no depth of
+// nesting runs out the stack. Which trees it enters is the caller's, as for the walks
+// above: every open root by default, the declared ones for the page reading, and a closed
+// tree only where the caller holds it.
+export function treesUnder(root, rootOf = openRoot) {
+  const trees = [];
+  const pending = [root];
+  for (let tree = pending.pop(); tree; tree = pending.pop()) {
+    trees.push(tree);
+    const inner = [];
+    const own = isElement(tree) ? rootOf(tree) : null;
+    if (own) inner.push(own);
+    for (const host of tree.querySelectorAll("*")) {
+      const held = rootOf(host);
+      if (held) inner.push(held);
+    }
+    for (const held of inner.reverse()) pending.push(held);
+  }
+  return trees;
 }
 
 // The same two climbs through every node rather than every element: a root, a shadow root

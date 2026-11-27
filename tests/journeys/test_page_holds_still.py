@@ -1948,14 +1948,7 @@ RESOLVE_OVER_WORDS = (
     "and carries Resolve 284-284.5px up from under the pointer resting on it"
     + SECONDARY
 )
-DECK_BACK = (
-    "Back at the page's end brings up a shorter card, and the browser, which scrolls no "
-    "further than the page's last line, pulls the page down and carries Back 404-404.5px "
-    "down from under the pointer resting on it (layouts.css, the user's choice of no "
-    "room below a document's end)"
-)
 MOVES_BY_CHOICE = {
-    **{f"deck-back-deck-back-{engine}": DECK_BACK for engine in ENGINES.values()},
     **{
         f"card-{place}-{thread}-reply-above-{engine}": EMPTY_REPLY
         for place in ("caret", "thread")

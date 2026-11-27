@@ -812,6 +812,7 @@ export function createThreadDestinations({
     threadFocusTarget,
     threadHere,
     threadAtCurrentLocation,
+    threadTarget,
     threadPlace,
   };
 }

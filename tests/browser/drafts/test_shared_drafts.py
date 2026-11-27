@@ -168,8 +168,8 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
     # is born here, so this selection is the state the generation records.
     first.locator("#job-mounts").evaluate("el => el.setAttribute('selected', '')")
     text = "Use a heated camera sleeve"
-    write(first.locator("#jobs > .lf-another leaf-text"), text)
-    expect(second.locator("#jobs > .lf-another leaf-text")).to_have_js_property(
+    write(first.locator("#jobs .lf-another leaf-text"), text)
+    expect(second.locator("#jobs .lf-another leaf-text")).to_have_js_property(
         "value", text
     )
     # The generation holds that selection now, so the tab's own goes back to its
@@ -178,12 +178,12 @@ def test_one_shared_added_option_has_one_action_payload_across_tabs(
 
     held = []
     first.route("**/api/event", lambda route: held.append(route))
-    first.locator("#jobs > .lf-another").get_by_role(
+    first.locator("#jobs .lf-another").get_by_role(
         "button", name="Add and select option", exact=True
     ).click()
     holding(first, held, 1, "the first added option")
 
-    second.locator("#jobs > .lf-another").get_by_role(
+    second.locator("#jobs .lf-another").get_by_role(
         "button", name="Add and select option", exact=True
     ).click()
     round_trip(second)

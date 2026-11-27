@@ -4,12 +4,19 @@
    `defineWidget(tag, component, options)` defines `tag` as a plain custom element that
    mounts `component` with `BrowserHost.mountEffect` into the element, or into an open
    shadow root of its own with `shadow: true`, where a `<slot>` the view draws shows
-   the element's authored children in place. The component's Model holds only what the
+   the element's authored children in place. A widget that decorates those children,
+   drawing its controls in its root around the slot and exposing them to the theme as
+   shadow parts, takes the shape lf-options.js's header gives ("How it is drawn: a
+   decorating widget"). The component's Model holds only what the
    user is doing in the widget, such as an open disclosure; what Leaf knows arrives as
    props:
 
    - `state`, the reading Leaf sets on a widget whose tag declares `verbs`, as the
      `state` property every widget gets.
+   - Each property `options.properties` names, which the element's host sets on it as
+     Leaf sets `state`, and which reaches the component as the prop of that name: what
+     a widget is told by the widget it stands in, as each `lf-option` is told its face
+     by its `lf-options`.
    - What `options.inputs(element)` returns, called inside a signal effect, so a
      signal-backed reader it calls, such as `readObligations`, gives the component
      new props when it moves. The function reads the element's attributes too, and
@@ -32,7 +39,8 @@
    and makes its sets first; where Leaf cancels the event, the element mounts once
    `state` arrives. A descendant's `lf-connect` reads `inputs` again, since a revision
    may have replaced the members they read, as `LeafElement` draws again then.
-   `lfPatch` is the class's static `lfPatch` (module-authoring.md, "Revisions"). Moving
+   `statics` are the class's static members Leaf reads off a widget's class, such as
+   `lfPatch` (module-authoring.md, "Revisions") and `answered` (module-state.md). Moving
    the element keeps its root (`connectedMoveCallback`), and leaving the document
    closes it a microtask later, as `defineElement`'s elements do. */
 import {
@@ -62,12 +70,17 @@ let mounts = 0;
  * @param {string} tag
  * @param {any} component an Effect UI HTML component whose props hold `state` and
  *   what `inputs` returns
- * @param {{shadow?: boolean, lfPatch?: "members", inputs?: (element: HTMLElement) => Record<string, unknown>}} [options]
+ * @param {{shadow?: boolean, statics?: Record<string, unknown>, properties?: string[], inputs?: (element: HTMLElement) => Record<string, unknown>}} [options]
  */
-export function defineWidget(tag, component, { shadow = false, lfPatch, inputs } = {}) {
+export function defineWidget(
+  tag,
+  component,
+  { shadow = false, statics, properties = [], inputs } = {},
+) {
   const Widget = class extends HTMLElement {
-    /** @type {unknown} */
-    #state = undefined;
+    // What the host has set of `state` and the declared properties, each a prop.
+    /** @type {Record<string, unknown>} */
+    #set = {};
     /** @type {Record<string, unknown>} */
     #inputs = {};
     /** @type {{setProps: (props: any) => void} | undefined} */
@@ -95,13 +108,18 @@ export function defineWidget(tag, component, { shadow = false, lfPatch, inputs }
       });
     }
 
-    get state() {
-      return this.#state;
-    }
-    set state(value) {
-      this.#state = value;
-      if (this.#root) this.#update();
-      else this.#mount();
+    static {
+      for (const name of ["state", ...properties])
+        Object.defineProperty(this.prototype, name, {
+          get() {
+            return this.#set[name];
+          },
+          set(value) {
+            this.#set = { ...this.#set, [name]: value };
+            if (this.#root) this.#update();
+            else this.#mount();
+          },
+        });
     }
 
     connectedCallback() {
@@ -145,12 +163,12 @@ export function defineWidget(tag, component, { shadow = false, lfPatch, inputs }
     }
 
     #props() {
-      return { ...this.#inputs, state: this.#state };
+      return { ...this.#inputs, ...this.#set };
     }
 
     #mount() {
       if (this.#root || !this.isConnected) return;
-      if (this.#hosted && this.#state === undefined) return;
+      if (this.#hosted && this.#set.state === undefined) return;
       if (inputs) {
         // The first run reads the inputs the mount draws from; later runs are the
         // signals they read moving.
@@ -201,9 +219,10 @@ export function defineWidget(tag, component, { shadow = false, lfPatch, inputs }
       this.dispatchEvent(new PendingTaskEvent(drawn));
     }
 
+    // Said on the element, which Leaf reads off the event's path, and which holds
+    // every scope its shadow root draws.
     #drawn() {
-      const root = this.shadowRoot ?? this;
-      root.dispatchEvent(
+      this.dispatchEvent(
         new CustomEvent(COMMANDS, {
           bubbles: true,
           composed: true,
@@ -223,6 +242,6 @@ export function defineWidget(tag, component, { shadow = false, lfPatch, inputs }
       );
     }
   };
-  if (lfPatch) Object.assign(Widget, { lfPatch });
+  Object.assign(Widget, statics);
   customElements.define(tag, Widget);
 }

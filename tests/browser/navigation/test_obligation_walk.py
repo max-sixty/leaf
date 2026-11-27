@@ -1260,7 +1260,7 @@ def test_letting_go_of_an_obligation_on_screen_leaves_the_user_beside_it(
     expect(page.locator("#ask-2")).to_be_focused()
     page.keyboard.press("Escape")
     page.keyboard.press("Tab")
-    expect(page.locator("#pick-2 lf-option-control").first).to_be_focused()
+    expect(page.locator("#pick-2 .lf-pick").first).to_be_focused()
 
 
 def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an_obligation(

@@ -886,7 +886,7 @@ def test_going_to_an_obligation_by_name_says_its_place_in_on_me(browser, serve):
     expect(page.locator("#ask-3")).to_be_focused()
     expect_walk_position(page, "2 of 4 waiting on me")
 
-    page.locator("#step lf-option-control").first.click()
+    page.locator("#step .lf-pick").first.click()
     expect_obligations_answered(page, "2/5")
     page.keyboard.press("Escape")
     open_obligation("widget:plan")

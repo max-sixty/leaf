@@ -200,7 +200,7 @@ def test_options_holding_pictures_stand_apart(browser, serve):
                 no.top >= yes.bottom ? no.top - yes.bottom : no.left - yes.right),
               spacing: parseFloat(getComputedStyle(group).getPropertyValue('--lf-sp-3')),
               edges: {group: edge(group), options: ['yes', 'no'].map((s) => edge(el(s))),
-                      add: edge(group.querySelector(':scope > .lf-another'))},
+                      add: edge(group.shadowRoot.querySelector('.lf-another'))},
               pictures: ['yes', 'no'].map((s) =>
                 Math.round(el(`${s}-picture`)?.getBoundingClientRect().width ?? 0)),
             }];
@@ -660,7 +660,8 @@ def test_an_obligation_arrival_starts_with_the_context_that_frames_it(browser, s
     position = page.evaluate(
         """async () => {
           const box = document.activeElement.getBoundingClientRect();
-          const pick = document.querySelector('#storage-options .lf-pick')
+          const pick = document.querySelector('#storage-options > lf-option')
+            .shadowRoot.querySelector('.lf-pick')
             .getBoundingClientRect();
           const foot = (await window.__lfWidgetApi()).landingInsets(document.scrollingElement).bottom;
           return {top: box.top, pick: pick.top, height: innerHeight - foot};
@@ -977,7 +978,7 @@ def test_obligation_action_binding_badges_use_the_available_card_action_seats(
 
     page.keyboard.press("m")
     selector = (
-        "#live-question > :is(lf-option, .lf-another) "
+        "#live-question :is(lf-option, .lf-another) "
         "> .lf-key-badge[data-lf-binding-badge]"
     )
     item = page.locator(selector)
@@ -988,7 +989,7 @@ def test_obligation_action_binding_badges_use_the_available_card_action_seats(
                   right: box.right};
         })"""
     obligation_centers = item.evaluate_all(centers)
-    addition = page.locator("#live-question > .lf-another")
+    addition = page.locator("#live-question .lf-another")
     submit = addition.locator(".lf-compose-submit")
     empty_submit = submit.evaluate(
         """el => { const box = el.getBoundingClientRect();

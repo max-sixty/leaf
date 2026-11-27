@@ -188,7 +188,7 @@ def test_a_press_a_widget_takes_opens_no_thread_marked_over_it(browser, serve):
     card = page.locator(".lf-margin-preview")
 
     page.locator("#cache-redis strong").click()
-    expect(page.locator("#cache-redis lf-option-control")).to_have_attribute(
+    expect(page.locator("#cache-redis .lf-pick")).to_have_attribute(
         "aria-checked", "true"
     )
     page.locator("#wal").click()

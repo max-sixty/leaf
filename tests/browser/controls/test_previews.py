@@ -319,7 +319,7 @@ def test_a_preview_leaves_out_what_its_control_already_shows(engine, request, se
         serve(leaf_page("Feeders", FEEDERS)),
     )
     preview = page.locator(PREVIEW)
-    mark = page.locator("#feeder-porch > .lf-pick")
+    mark = page.locator("#feeder-porch .lf-pick")
     mark.hover()
     dwelt(page)
     assert not preview.is_visible(), preview.inner_text()

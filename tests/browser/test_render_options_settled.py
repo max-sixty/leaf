@@ -66,12 +66,13 @@ def test_a_reconnected_settled_obligation_restores_its_comparison_reading(
     compare_with(page, 1)
     assert (
         page.evaluate(
-            "() => window.detachedViews.querySelector('.lf-settled-diff').textContent"
+            "() => window.detachedViews.querySelector('#transport').shadowRoot"
+            ".querySelector('.lf-settled-diff').textContent"
         )
         == "Δ1"
     ), "a detached comparison consumer painted"
     page.evaluate("() => document.querySelector('main').append(window.detachedViews)")
-    expect(page.locator("#transport > .lf-settled")).to_have_count(1)
+    expect(page.locator("#transport .lf-settled")).to_have_count(1)
     expect(page.locator("#transport .lf-settled-diff")).to_have_count(0)
     expect(page.locator('[aria-controls="decision"] .lf-tabdiff')).to_have_text("")
 
@@ -275,7 +276,7 @@ def test_a_settled_obligation_reconciles_added_options_into_its_disclosure(
     """
     page = open_page(browser, serve(SETTLED_OBLIGATION_PAGE))
     group = page.locator("#jobs")
-    row = group.locator(":scope > .lf-settled")
+    row = group.locator(".lf-settled")
 
     row.click()
     field = text_field(group, name="Another option", exact=True)
@@ -291,7 +292,7 @@ def test_a_settled_obligation_reconciles_added_options_into_its_disclosure(
     page.wait_for_function(
         "() => document.body.getAttribute('data-lf-presented') === '1'"
     )
-    row = group.locator(":scope > .lf-settled")
+    row = group.locator(".lf-settled")
     expect(row).to_have_attribute("aria-expanded", "false")
     expect(group.locator(":scope > lf-option:visible")).to_have_count(0)
     expect(group.locator(":scope > lf-option")).to_have_count(4)

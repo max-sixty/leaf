@@ -296,7 +296,7 @@ RING_CASES = (
             ),
             "feature-gallery": (
                 (".lf-tab-btn", ".lf-tab-btn"),
-                ("lf-option > .lf-pick", "lf-option[data-lf-control-focus-visible]"),
+                ("lf-option .lf-pick", "lf-option[data-lf-control-focus-visible]"),
                 (
                     any_owner_entry("suggestion", "accept") + ":visible",
                     FLOOR_RING,
@@ -412,7 +412,7 @@ RING_CASES = (
         (),
         {
             "current-proposed-comparison": (
-                ("#comparison-policy > .lf-settled", FLOOR_RING),
+                ("#comparison-policy .lf-settled", FLOOR_RING),
             )
         },
     ),
@@ -421,7 +421,7 @@ RING_CASES = (
         (),
         {
             "current-proposed-comparison": (
-                ("#comparison-policy > lf-option > .lf-pick", FLOOR_RING),
+                ("#comparison-policy > lf-option .lf-pick", FLOOR_RING),
             )
         },
     ),
@@ -1452,7 +1452,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                 "node => { node.classList.add('lf-mark-el'); node.tabIndex = 0; }"
             )
         # Settled choices are user view state, so expose their focusable controls.
-        for row in page.locator("lf-options[settled] > .lf-settled").all():
+        for row in page.locator("lf-options[settled] .lf-settled").all():
             if row.is_visible():
                 row.focus()
                 page.keyboard.press("Enter")
@@ -1478,7 +1478,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
             # on them only after their explicit doors have opened. Do that after the
             # scope reset, whose Escape presses would otherwise put the draft away.
             if scope in {"a settled decision", "a settled option"}:
-                settled = page.locator("#comparison-policy[settled] > .lf-settled")
+                settled = page.locator("#comparison-policy[settled] .lf-settled")
                 expect(settled).to_be_visible()
                 if settled.get_attribute("aria-expanded") != "true":
                     # The row ends a workspace that fills the window, so the floating

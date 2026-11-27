@@ -1717,7 +1717,7 @@ def option_row_by_keyboard(page: Page) -> None:
     showing."""
     option_references(page)
     keyboard_modality(page)
-    page.locator("#off-workaround-revise > .lf-pick").focus()
+    page.locator("#off-workaround-revise .lf-pick").focus()
     expect(page.locator("#off-workaround-revise")).to_have_attribute(
         "data-lf-control-focus-visible", ""
     )
@@ -1727,7 +1727,7 @@ def settled_option_row_by_keyboard(page: Page) -> None:
     """An opened settled decision with the keyboard on the row it didn't pick, whose
     mark wears its own focus ring, above the picked row, with the group's digits
     showing."""
-    settled = page.locator("#comparison-policy > .lf-settled")
+    settled = page.locator("#comparison-policy .lf-settled")
     settled.scroll_into_view_if_needed()
     box = settled.bounding_box()
     assert box is not None
@@ -1735,7 +1735,7 @@ def settled_option_row_by_keyboard(page: Page) -> None:
     # stands over its middle; the user presses its words, at its start.
     settled.click(position={"x": 8, "y": box["height"] / 2})
     keyboard_modality(page)
-    page.locator("#comparison-policy-current > .lf-pick").focus()
+    page.locator("#comparison-policy-current .lf-pick").focus()
     expect(
         page.locator(
             "#comparison-policy-current > .lf-key-badge[data-lf-binding-badge]"
@@ -2418,7 +2418,7 @@ def option_long(page: Page) -> None:
 def option_add_hover(page: Page) -> None:
     """A compact alternative's Add face beside its one-line draft, under a resting
     pointer whose preview names the press and its key."""
-    form = page.locator("#bg-choice > .lf-another")
+    form = page.locator("#bg-choice .lf-another")
     form.locator("leaf-text").click()
     page.keyboard.insert_text("Keep the current behavior")
     form.get_by_role("button", name="Add and select option", exact=True).hover()

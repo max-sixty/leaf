@@ -311,7 +311,7 @@ def test_a_choice_s_pin_stands_on_none_of_its_option_cards(browser, serve, optio
     page = open_page(
         browser, serve(leaf_page("a choice", f"<div>{body}</div>", layout="sidebar"))
     )
-    page.locator("#o-leave lf-option-control").click()
+    page.locator("#o-leave .lf-pick").click()
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="o"]')
     expect(row).to_have_attribute("data-lf-place", "pin")
     margins_laid_out(page)
@@ -353,7 +353,7 @@ def test_an_option_s_key_moves_no_pin_and_stands_under_none(browser, serve):
         row = page.locator(f'.lf-margin-cluster[data-lf-margin-for="{target}"]')
         expect(row).to_have_attribute("data-lf-place", "pin")
     before = [pin_reading(page, target)["entries"] for target in targets]
-    page.locator("#c-1 lf-option-control").focus()
+    page.locator("#c-1 .lf-pick").focus()
     keys = page.locator("#c .lf-key-badge[data-lf-binding-badge]")
     expect(keys.first).to_be_visible()
     margins_laid_out(page)

@@ -59,10 +59,10 @@ def test_an_add_field_reconnects_to_its_shared_draft(browser, serve, one_user):
         document.querySelector("main").append(group);
     }""")
     text = "A shared answer after the question moves."
-    write(first.locator("#jobs > .lf-another leaf-text"), text)
+    write(first.locator("#jobs .lf-another leaf-text"), text)
 
-    expect(second.locator("#jobs > .lf-another")).to_have_count(1)
-    expect(second.locator("#jobs > .lf-another leaf-text")).to_have_js_property(
+    expect(second.locator("#jobs .lf-another")).to_have_count(1)
+    expect(second.locator("#jobs .lf-another leaf-text")).to_have_js_property(
         "value", text
     )
 
@@ -76,7 +76,7 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     """
     page = open_page(browser, serve(OBLIGATION_PAGE))
     option = page.locator("#job-camera")
-    form = page.locator("#jobs > .lf-another")
+    form = page.locator("#jobs .lf-another")
     field = text_field(form, name="Another option", exact=True)
     add = form.get_by_role(
         "button", name="Add and select option", exact=True, include_hidden=True
@@ -108,7 +108,7 @@ def test_the_add_field_previews_the_option_it_will_make(browser, serve):
     assert abs(form.evaluate(inner_height) - option.evaluate(inner_height)) < 0.5
 
     card_words = page.locator("#br-steel > strong")
-    card_field = page.locator("#bracket > .lf-another leaf-text")
+    card_field = page.locator("#bracket .lf-another leaf-text")
     assert same_face(card_field.evaluate(typography), card_words.evaluate(typography))
     assert abs(card_field.bounding_box()["x"] - card_words.bounding_box()["x"]) < 0.5
 
@@ -233,7 +233,7 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     # the add field; the field is an ordinary later stop in the Tab order.
     page.keyboard.press("Enter")
     expect(mark).to_be_focused()
-    expect(page.locator("#storage-options > .lf-another leaf-text")).not_to_be_focused()
+    expect(page.locator("#storage-options .lf-another leaf-text")).not_to_be_focused()
     expect(page.locator("#storage-options > lf-option[selected]")).to_have_count(0)
 
     # Located on the obligation shows its discussion beside it, so c enters the reply
@@ -243,7 +243,7 @@ def test_an_option_mark_keeps_addition_and_clarification_as_separate_routes(
     page.keyboard.press("c")
     expect(reply).to_be_focused()
     expect(page.locator(".lf-composer")).to_be_hidden()
-    expect(page.locator("#storage-options > .lf-another leaf-text")).not_to_be_focused()
+    expect(page.locator("#storage-options .lf-another leaf-text")).not_to_be_focused()
     page.keyboard.press("Escape")
     expect(reply).not_to_be_focused()
     expect(page.locator("#storage-options > lf-option[selected]")).to_have_count(0)
@@ -260,7 +260,7 @@ def test_the_add_field_hands_its_words_to_the_option_it_drew(held_events, serve)
     """
     browser, held = held_events
     page = open_page(browser, serve(OBLIGATION_PAGE))
-    form = page.locator("#jobs > .lf-another")
+    form = page.locator("#jobs .lf-another")
     field = text_field(form, name="Another option", exact=True)
     words = "Insulate the camera battery"
     write(field, words)
@@ -309,7 +309,7 @@ def test_a_pick_made_while_an_option_is_in_flight_cannot_strand_it(held_events, 
     """
     browser, held = held_events
     page = open_page(browser, serve(OBLIGATION_PAGE))
-    form = page.locator("#jobs > .lf-another")
+    form = page.locator("#jobs .lf-another")
     field = text_field(form, name="Another option", exact=True)
     words = "Insulate the camera battery"
     write(field, words)
@@ -343,7 +343,7 @@ def test_an_added_option_keeps_the_row_its_field_held(browser, serve, group):
     after the authored options where the user put it, so no revision moves it.
     """
     page = open_page(browser, live_url(serve(OBLIGATION_PAGE)))
-    form = page.locator(f"#{group} > .lf-another")
+    form = page.locator(f"#{group} .lf-another")
     field = text_field(form, name="Another option", exact=True)
     write(field, "Ask the neighbours first")
     # The row inside the hairline any cell but the last draws under itself.
@@ -381,7 +381,7 @@ def test_a_keyboard_press_on_add_leaves_the_user_in_the_field(browser, serve):
     they press its send control from the keyboard, as Enter does, rather than on the
     control, where the next letters would fall on nothing."""
     page = open_page(browser, live_url(serve(OBLIGATION_PAGE)))
-    form = page.locator("#jobs > .lf-another")
+    form = page.locator("#jobs .lf-another")
     field = text_field(form, name="Another option", exact=True)
     write(field, "Ask the neighbours first")
     send = form.locator(".lf-compose-submit")
@@ -421,7 +421,7 @@ def test_the_add_field_says_why_it_will_not_take_a_pasted_image(browser, serve):
             uploads.append(request.url) if request.url.endswith("/api/media") else None
         ),
     )
-    form = page.locator("#jobs > .lf-another")
+    form = page.locator("#jobs .lf-another")
     field = text_field(form, name="Another option", exact=True)
     pixels = (example_media() / "051bee487bfb5d13.png").read_bytes()
     field.evaluate(PASTE_IMAGE, base64.b64encode(pixels).decode())
@@ -454,7 +454,7 @@ def test_an_arrival_cannot_hide_an_obligation_draft(browser, serve):
     """
     page = open_page(browser, serve(OBLIGATION_PAGE))
     d = serve.page_dir
-    first = page.locator("#jobs > .lf-another leaf-text")
+    first = page.locator("#jobs .lf-another leaf-text")
     draft = "Keep this answer even if another thread arrives first."
     write(first, draft)
 
@@ -474,7 +474,7 @@ def test_an_arrival_cannot_hide_an_obligation_draft(browser, serve):
     expect(first).to_be_visible()
     expect(first).to_have_js_property("value", draft)
 
-    page.locator("#jobs > .lf-another").get_by_role(
+    page.locator("#jobs .lf-another").get_by_role(
         "button", name="Add and select option", exact=True
     ).click()
     round_trip(page)
@@ -514,7 +514,7 @@ def test_on_a_phone_options_draw_no_keys_and_return_adds_a_written_one(browser, 
     )
 
     field = text_field(
-        page.locator("#bracket > .lf-another"), name="Another option", exact=True
+        page.locator("#bracket .lf-another"), name="Another option", exact=True
     )
     expect(field).to_have_attribute("one-line", "")
     field.tap()
@@ -565,8 +565,8 @@ def test_a_closed_group_answers_only_from_its_options(browser, serve):
     )
 
     expect(page.locator("#jobs > lf-option").first).to_be_visible()
-    expect(page.locator("#jobs > .lf-another")).to_have_count(0)
-    expect(page.locator("#jobs > lf-options-done")).to_be_visible()
+    expect(page.locator("#jobs .lf-another")).to_have_count(0)
+    expect(page.locator("#jobs lf-options-done")).to_be_visible()
     below_last_cell = page.locator("#jobs").evaluate(
         """group => group.getBoundingClientRect().bottom - Math.max(
           ...[...group.children].map((cell) => cell.getBoundingClientRect().bottom))"""
@@ -574,7 +574,7 @@ def test_a_closed_group_answers_only_from_its_options(browser, serve):
     assert below_last_cell <= 2, below_last_cell
     # Nor does it keep the field's number: Done takes the one after the last option.
     page.keyboard.press("m")
-    expect(page.locator("#jobs > lf-options-done .lf-key-badge")).to_have_text("4")
+    expect(page.locator("#jobs lf-options-done .lf-key-badge")).to_have_text("4")
 
 
 def test_firefox_s_copy_of_a_group_builds_no_add_field(firefox_browser, serve):
@@ -589,7 +589,7 @@ def test_firefox_s_copy_of_a_group_builds_no_add_field(firefox_browser, serve):
     built; past the textarea an unvisited field holds, it clones the range alone. So
     the user visits the field before the drag."""
     page = open_page(firefox_browser, serve(OBLIGATION_PAGE))
-    field = page.locator("#bracket > .lf-another leaf-text")
+    field = page.locator("#bracket .lf-another leaf-text")
     field.focus()
     rendered(page)
     page.evaluate(RELEASE_FOCUS)
@@ -641,7 +641,7 @@ def test_another_option_becomes_a_real_option_without_starting_a_thread(browser,
     d = serve.page_dir
 
     expect(page.locator("#jobs .lf-page-thread")).to_have_count(0)
-    added = page.locator("#jobs > .lf-another")
+    added = page.locator("#jobs .lf-another")
     assert added.count() == 1, (
         f"the add-option cell was not rendered: {shown(page.lf_errors)}; "
         f"group={page.locator('#jobs').inner_html()}"

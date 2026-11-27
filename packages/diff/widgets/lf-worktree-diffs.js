@@ -64,7 +64,7 @@ const WorktreeDiffs = Html.component({
 
 defineWidget("lf-worktree-diffs", WorktreeDiffs, {
   shadow: true,
-  lfPatch: "members",
+  statics: { lfPatch: "members" },
   inputs: (host) => {
     const members = [...host.querySelectorAll(":scope > lf-worktree")];
     const known = members.filter(

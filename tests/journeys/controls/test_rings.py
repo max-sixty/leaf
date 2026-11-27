@@ -78,7 +78,7 @@ customElements.define('lf-shadow-focus', class extends HTMLElement {
     }; }"""
     button = page.locator("#focus-button")
     tab = page.get_by_role("tab", name="First", exact=True)
-    choice = page.locator("#focus-choice > .lf-pick")
+    choice = page.locator("#focus-choice .lf-pick")
     shadow_button = page.locator("#focus-shadow").get_by_role(
         "button", name="Shadow button", exact=True
     )

@@ -1414,7 +1414,7 @@ def _title_option(*, required: bool):
 @click.option(
     "--obligation",
     is_flag=True,
-    help="put this message on On Me until the user replies or settles it",
+    help="put this message on On Me until the user replies",
 )
 def thread_create(
     page_dir: Path,
@@ -1431,7 +1431,7 @@ def thread_create(
     the work as a whole. The text is Markdown, and HTML in it draws, checked here.
 
     Use --obligation when the next move is the user's: the message waits on
-    On Me until their reply or settling reaction. A question whose answers you
+    On Me until their next message in the thread. A question whose answers you
     can list takes a widget that asks in the text instead, such as an
     `lf-options` choice, which waits on the user until they pick. A --quote is
     found in the page as the browser draws it: where it doesn't stand there once,
@@ -1487,10 +1487,21 @@ def thread_create(
 )
 @body_options("the reply's text")
 @click.option(
+    "--emoji",
+    metavar="EMOJI",
+    help="the reply as one emoji, a reaction, in place of --text or --file",
+)
+@click.option(
     "--todo",
     metavar="TITLE",
     help="the reply promises work it doesn't deliver; opens that to-do on the "
     "thread, ended by `leaf task end` with the reply's id",
+)
+@click.option(
+    "--waiting-on",
+    metavar="WHAT",
+    help="with --todo: what the work waits on that you don't control, in a few "
+    "words; the to-do reads Waiting on WHAT until you start or end it",
 )
 @click.option("--ephemeral", is_flag=True, help="one-line progress, without answering")
 @_title_option(required=False)
@@ -1502,7 +1513,7 @@ def thread_create(
     flag_value="",
     callback=_asked_questions,
     help=(
-        "put this message on On Me until the user replies or settles it; with the ID "
+        "put this message on On Me until the user replies; with the ID "
         "of a question their reply left standing, ask that question again, once per "
         "question"
     ),
@@ -1523,7 +1534,8 @@ def thread_reply(
 ) -> dict | None:
     """Answer a delivered update by its `answer.ref` alone, or post into the
     thread PAGE MESSAGE names, which answers nothing that thread owes.
-    The text is Markdown, and HTML in it draws, checked here.
+    The text is Markdown, and HTML in it draws, checked here; --emoji says
+    one emoji in its place.
 
     An answer declares what it leaves with --done, --todo or --obligation, or
     carries a widget in its text that asks, as an `lf-options` choice asks a
@@ -1536,7 +1548,10 @@ def thread_reply(
     from leaf.agents.thread import post_reply, post_response
     from leaf.pages.render_gate.messages import message_check
 
-    text = read_body(options.pop("text"), options.pop("body_file"))
+    text, body_file = options.pop("text"), options.pop("body_file")
+    if options["emoji"] is not None and (text is not None or body_file is not None):
+        raise click.UsageError("give the reply as --text, --file or --emoji, not two")
+    text = None if options["emoji"] is not None else read_body(text, body_file)
     # The agent names a thread nobody has titled yet (`untitled-thread`).
     options["title_owed"] = True
     if message is not None:
@@ -1652,7 +1667,15 @@ def task() -> None:
 @page_argument(renew=True)
 @click.argument("subject", metavar="SUBJECT")
 @click.option("--title", required=True, help="the to-do, in a few words")
-def task_create(page_dir: Path, subject: str, title: str) -> dict:
+@click.option(
+    "--waiting-on",
+    metavar="WHAT",
+    help="what the work waits on that you don't control, in a few words; the to-do "
+    "reads Waiting on WHAT until you start or end it",
+)
+def task_create(
+    page_dir: Path, subject: str, title: str, waiting_on: str | None
+) -> dict:
     """Create a to-do titled --title on SUBJECT and print it; its `id` names it later.
 
     SUBJECT is a thread id, an element's id, or `page` for the whole page.
@@ -1661,7 +1684,7 @@ def task_create(page_dir: Path, subject: str, title: str) -> dict:
     answer, send a message with --obligation instead."""
     from leaf.commands.tasks import cmd_create
 
-    return cmd_create(page_dir, subject, title)
+    return cmd_create(page_dir, subject, title, waiting_on)
 
 
 @task.command(

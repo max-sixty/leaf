@@ -409,6 +409,7 @@ import {
   stateFootBand,
 } from "../dom/geometry.js";
 import { overlaps } from "../dom/rect.js";
+import { elementBorderFrame, elementMatrix } from "../dom/element-axes.js";
 import { registerReadingRegion } from "../readings/reading-regions.js";
 import { sectionsInView } from "../readings/reading-place.js";
 import { agentName, documentChanged } from "../state/semantic-state.js";
@@ -2005,7 +2006,7 @@ export function createFloatingPanel({
    *   room: number | null,
    *   rewriting: boolean,
    *   pressed: {
-   *     node: Element, at: number, height: number, holds: number, keep: () => void,
+   *     node: Element, at: number, height: number | null, holds: number, keep: () => void,
    *   } | null,
    *   drawnRows: Map<string, {section: string, at: number}> | null,
    *   drawnDrafts: Set<string> | null,
@@ -2258,7 +2259,7 @@ export function createFloatingPanel({
   // delivers no observer a box shallower than the view later in the frame it resized,
   // so the box is read again here, before that frame paints what moved.
   const fit = sizeObserver(() => {
-    stood = openView()?.offsetHeight ?? null;
+    stood = heightOf(openView());
     followBox();
   });
   const follow = sizeObserver(() => {
@@ -2395,6 +2396,15 @@ export function createFloatingPanel({
   // holds.
   /** @type {number | null} */
   let stood = null;
+  // The height a view stands at, which a hold writes back as its `height`: in the
+  // view's own layout pixels, fraction included (dom/element-axes.js,
+  // `elementBorderFrame`). The view stands on its foot, so a height off by any amount
+  // carries all it holds by that much as the hold takes: `offsetHeight`'s whole pixel
+  // by up to half of one, a device pixel on a screen of two to the CSS pixel, and a
+  // bounding rect's height by the page's `zoom`.
+  /** @param {Element | null} view */
+  const heightOf = (view) =>
+    view instanceof HTMLElement ? elementBorderFrame(view).height : null;
   /** @param {number | null} height */
   const holdThread = (height) => {
     if (!trail.value.at(-1)?.thread || opening.room !== null || height === null)
@@ -2421,7 +2431,7 @@ export function createFloatingPanel({
       // Drawn once the script that made the press ends, still before the frame: a
       // press that leaves the thread, as Back does, takes the hold with the view, so
       // the hold never writes a height the leaving view would lose in the same script.
-      if (holdThread(view?.getBoundingClientRect().height ?? null)) afterScript(paint);
+      if (holdThread(heightOf(view))) afterScript(paint);
       if (press.closest(".lf-fp-news-outlet") && view)
         landing = {
           key: threadByKey(route.thread)?.key ?? route.thread,
@@ -2518,7 +2528,7 @@ export function createFloatingPanel({
     opening.pressed = {
       node,
       at: contentTop(node, view),
-      height: view.offsetHeight,
+      height: heightOf(view),
       holds: holding(view),
       keep: holdPlaceOf(node),
     };
@@ -2607,7 +2617,7 @@ export function createFloatingPanel({
     if (!opening.drawn) return false;
     const view = shownView();
     if (!view || view.querySelector(".lf-fp-asked:empty")) return false;
-    opening.room = view.offsetHeight;
+    opening.room = heightOf(view);
     return true;
   }
   // A tab, filter or search the user presses changes what the list shows, which it
@@ -3768,7 +3778,7 @@ export function createFloatingPanel({
       landing: (resolved) => {
         // Enter on Resolve runs the thread's command before any click, so the press
         // holds the view here as a pointer's does on the head line (`head`).
-        if (holdThread(openView()?.getBoundingClientRect().height ?? null)) paint();
+        if (holdThread(heightOf(openView()))) paint();
         return resolved ? null : resolveLanding(thread.key);
       },
       drawn: threadDrawn(thread, view, outlet),
@@ -4066,10 +4076,11 @@ export function createFloatingPanel({
     failed: "Failed",
     dropped: "Dropped",
   });
-  // A blocked step says why in the word its item says on every other surface.
+  // A blocked step says why, and a waiting one what it waits on, in the word its item
+  // says on every other surface.
   /** @param {import("../../types/contract.js").ServedPlanStep} step */
   const planWord = (step) =>
-    step.state === "blocked"
+    step.state === "blocked" || step.waiting_on
       ? todoWord(step).text
       : PLAN_STATES[step.state === "done" ? (step.outcome ?? "done") : step.state];
   const PLAN_MARKS = Object.freeze({
@@ -4129,7 +4140,9 @@ export function createFloatingPanel({
             ? html`<span class="lf-fp-plan-detail"
                 >${voiced(agentSays(step.detail))}</span
               >`
-            : nothing
+            : step.waiting_on
+              ? html`<span class="lf-fp-plan-detail">${voiced(todoWord(step))}</span>`
+              : nothing
       }${
         step.steps.length
           ? html`<ol class="lf-fp-plan-steps">
@@ -4222,13 +4235,20 @@ export function createFloatingPanel({
     if (view && listed && opening.room === null) return;
     fitting = false;
     if (!view || !listed || opening.room === null) return;
+    // Measured on screen and held in the view's own pixels, which a page's `zoom`
+    // scales (`heightOf`).
+    const scale = elementMatrix(view).d;
     const foot =
       view.getBoundingClientRect().bottom -
-      Number.parseFloat(getComputedStyle(view).paddingBottom);
+      scale * Number.parseFloat(getComputedStyle(view).paddingBottom);
     const card = view.querySelector(".lf-fp-on-item[data-lf-open]");
     const end = (card ?? view.lastElementChild)?.getBoundingClientRect().bottom;
     const change =
-      end === undefined ? 0 : card ? Math.max(0, end - foot) : Math.min(0, end - foot);
+      (end === undefined
+        ? 0
+        : card
+          ? Math.max(0, end - foot)
+          : Math.min(0, end - foot)) / scale;
     if (change) {
       opening.room = Math.max(0, opening.room + change);
       viewMovingUntil = performance.now() + viewResizeMs();
@@ -4800,18 +4820,31 @@ export function createFloatingPanel({
     )}`;
   }
   // On <agent>: the work as the user chose to see it, a list or a summary. The list's
-  // groups are states, not places: what the agent has in hand, what is up next, and
-  // what it finished, folded under Done. While the agent has a plan, its goals head
-  // the list, which then holds only the items no step names.
+  // groups are states, not places: what the agent has in hand, what is up next, what
+  // waits on something the agent named (`waiting_on`), and what it finished, folded
+  // under Done. While the agent has a plan, its goals head the list, which then holds
+  // only the items no step names.
+  /** @param {ReturnType<typeof queueLists>["agent"][number]} item */
+  const waits = (item) =>
+    "waiting_on" in item.obligation && Boolean(item.obligation.waiting_on);
   /** @param {ReturnType<typeof queueLists>} lists */
   function workView(lists) {
     /** @param {ReturnType<typeof queueLists>["agent"]} items */
     const held = (items) => items.filter((item) => inHand(item.obligation));
     /** @param {ReturnType<typeof queueLists>["agent"]} items */
-    const queued = (items) => items.filter((item) => !inHand(item.obligation));
+    const queued = (items) =>
+      items.filter((item) => !inHand(item.obligation) && !waits(item));
+    /** @param {ReturnType<typeof queueLists>["agent"]} items */
+    const waiting = (items) =>
+      items.filter((item) => !inHand(item.obligation) && waits(item));
     if (layoutOf() === "summary") {
       forgetOpened([]);
-      return workSummary(held(lists.agent), queued(lists.agent), lists.done);
+      return workSummary(
+        held(lists.agent),
+        queued(lists.agent),
+        waiting(lists.agent),
+        lists.done,
+      );
     }
     const goals = readPlan()?.steps ?? [];
     const named = new Set(goals.flatMap(namedIn));
@@ -4820,6 +4853,7 @@ export function createFloatingPanel({
     const groups = [
       { key: "in-hand", title: "In hand", items: held(agent) },
       { key: "queued", title: "Up next", items: queued(agent) },
+      { key: "waiting", title: "Waiting", items: waiting(agent) },
       { key: "done:agent", title: "Done", items: done, folds: true },
     ].filter((group) => group.items.length);
     forgetOpened([...agent, ...(unfolded.has("done:agent") ? done : [])]);
@@ -4832,26 +4866,30 @@ export function createFloatingPanel({
     )}`;
   }
   // The work said in a few sentences: how much the agent has in hand and for how long,
-  // what is queued, what its newest step says, how far the plan has come, and what it
-  // finished last. Leaf says them, around the agent's own line and an item's name.
-  /** @param {ReturnType<typeof queueLists>["agent"]} inHand @param {ReturnType<typeof queueLists>["agent"]} queued @param {ReturnType<typeof queueLists>["done"]} done */
-  function workSummary(inHand, queued, done) {
+  // what is queued or waiting, what its newest step says, how far the plan has come,
+  // and what it finished last. Leaf says them, around the agent's own line and an
+  // item's name.
+  /** @param {ReturnType<typeof queueLists>["agent"]} inHand @param {ReturnType<typeof queueLists>["agent"]} queued @param {ReturnType<typeof queueLists>["agent"]} waiting @param {ReturnType<typeof queueLists>["done"]} done */
+  function workSummary(inHand, queued, waiting, done) {
     const work = inHand.map(workOn);
     const since = work
       .map((each) => each.since)
       .filter(Boolean)
       .toSorted()[0];
     const longest = since && shortAgo(since) !== "now" ? since : null;
-    const waiting = queued.length ? `${queued.length} up next` : "";
+    const owed = [
+      queued.length ? `${queued.length} up next` : "",
+      waiting.length ? `${waiting.length} waiting` : "",
+    ]
+      .filter(Boolean)
+      .join(", ");
     const first = inHand.length
       ? html`${voiced(
           leafSays(`Working on ${inHand.length}${longest ? ", the longest for " : ""}`),
         )}${longest ? panelAge(longest, { spoken: true }) : nothing}${voiced(
-          leafSays(waiting ? `; ${waiting}.` : "."),
+          leafSays(owed ? `; ${owed}.` : "."),
         )}`
-      : voiced(
-          leafSays(waiting ? `${capitalized(waiting)}.` : "Nothing to do right now."),
-        );
+      : voiced(leafSays(owed ? `${capitalized(owed)}.` : "Nothing to do right now."));
     const now = work.find(
       (each) => each.line && each.line.text !== each.word?.text,
     )?.line;
@@ -5249,7 +5287,7 @@ export function createFloatingPanel({
         const key = card.getAttribute("data-lf-key");
         if (key === null) throw new Error("On Me card has no item key");
         if (!opening.seatHeights.has(key))
-          opening.seatHeights.set(key, card.getBoundingClientRect().height);
+          opening.seatHeights.set(key, elementBorderFrame(card).height);
       }
     }
     // The drawing grows the card after it was fitted, so it is fitted again once the

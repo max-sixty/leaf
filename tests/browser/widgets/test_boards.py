@@ -16,10 +16,10 @@ from render_harness import (
     PREVIEW,
     clocked,
     consume_browser_errors,
+    holding,
     http_error_console,
     leaf_page,
     open_page,
-    reported_browser_errors,
     resized,
     scroll_settled,
     sending,
@@ -32,6 +32,7 @@ from render_harness import (
 )
 
 from leaf.log import event_log as events_model
+from leaf.source.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -927,6 +928,10 @@ def test_a_section_and_a_board_answer_one_decision(browser, serve):
     page.locator("#rail-section").scroll_into_view_if_needed()
     undo(page)
     stands("col-next", "rail-next")
+    # The options record the drop under the card's words, so Undo names the move.
+    expect(page.locator(".lf-live")).to_have_text(
+        "Undone: Moved “Keep the rail” to Undecided just now"
+    )
 
     (serve.page_dir / "index.html").write_text(
         ANSWERS_BOARD_PAGE.replace(
@@ -952,28 +957,87 @@ def test_a_section_and_a_board_answer_one_decision(browser, serve):
     assert len(picks()) == 2
 
 
-def test_a_card_with_shows_never_stands_by_a_board_move(browser, serve):
-    """Only the board's module holds a card with `shows` to the answer it shows:
-    `page check` requires only that the element exists, and the append door admits a
-    board move of the card. Such a move in the log, which the module never sends,
-    leaves the card in its answer's column. A card whose `shows` names an element with no answer stands
-    where the markup puts it and takes no move, and the board tells the author so
-    once, as the page's error."""
-    source = ANSWERS_BOARD_PAGE.replace(
-        '<lf-column id="col-open" label="Undecided"></lf-column>',
-        '<lf-column id="col-open" label="Undecided">'
-        '<lf-card id="card-section" label="The section" shows="rail-section">'
-        "<strong>The section</strong></lf-card></lf-column>",
-    )
-    page = open_page(browser, live_url(serve(source)))
+def test_a_card_offers_the_columns_its_choice_takes_once_the_choice_arrives(
+    browser, serve
+):
+    """A board can set up before the question's choice reaches its card, as when the
+    options' module loads last. A card the markup already stands in its choice's
+    column then still offers a button for each other column the choice takes, once
+    the choice arrives."""
+    page = open_page(browser, live_url(serve(ANSWERS_BOARD_PAGE)))
+    held = []
+    page.route("**/widgets/lf-options.js", lambda route: held.append(route))
+    page.reload(wait_until="commit")
+    holding(page, held, 1, "the options module")
+    expect(page.locator("#card-rail .lf-grip")).to_be_attached()
+    held[0].continue_()
+    page.unroute("**/widgets/lf-options.js")
+    wait_until_ready(page)
     expect(page.locator("#col-later > #card-rail")).to_have_count(1)
-    report = (
-        '<lf-card id="card-section"> failed: shows="rail-section" names <lf-group>,'
-        " which has no answer a board can show"
-    )
-    reported_browser_errors(page, report)
+    for column, offered in (
+        ("col-open", True),
+        ("col-next", True),
+        ("col-later", False),
+    ):
+        expect(
+            page.locator(f'#card-rail [data-lf-board-target="{column}"]')
+        ).to_have_js_property("hidden", not offered)
 
-    stray = append_command(
+
+@pytest.mark.parametrize(
+    ("rewritten", "step", "asked"),
+    [
+        # Leaf has bound the card to `rail`, so the drop asks `rail`.
+        ("once the card has drawn", "ArrowLeft", "rail"),
+        # Leaf binds the card to `other`, so the drop asks `other`.
+        ("as the card's class is defined", "ArrowRight", "other"),
+    ],
+)
+def test_a_drop_asks_the_widget_whose_choice_the_card_shows(
+    browser, serve, rewritten, step, asked
+):
+    """The card's binding names both the choice it shows and the widget its drop asks,
+    whenever a script rewrites `shows`: the drop asks the widget whose choice the card
+    stands by."""
+    source = ANSWERS_BOARD_PAGE.replace(
+        '<lf-board id="plan">',
+        '<lf-group id="other-section" label="Keep the other rail?">'
+        '<h2 id="other-section-h">Keep the other rail?</h2><lf-options id="other">'
+        '<lf-option id="other-next" value="next">Next</lf-option>'
+        '<lf-option id="other-later" value="later">Later</lf-option>'
+        '</lf-options></lf-group><lf-board id="plan">',
+    )
+    rewrite = "document.getElementById('card-rail').setAttribute('shows', 'other')"
+    context = browser.new_context()
+    if rewritten.startswith("as"):
+        context.add_init_script(
+            f"customElements.whenDefined('lf-card').then(() => {rewrite});"
+        )
+    page = open_page(browser, live_url(serve(source)), context=context)
+    if rewritten.startswith("once"):
+        expect(page.locator("#col-later > #card-rail")).to_have_count(1)
+        page.evaluate(rewrite)
+
+    with sending(page, "the drop"):
+        page.locator("#card-rail .lf-grip").focus()
+        for press in ("Enter", step, "Enter"):
+            page.keyboard.press(press)
+    expect(page.locator("#col-next > #card-rail")).to_have_count(1)
+    assert [
+        (event["widget"], event["action"], event["detail"])
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "action"
+    ] == [(asked, "choose", {"value": [f"{asked}-next"]})]
+
+
+def test_a_card_with_shows_never_stands_by_a_board_move(browser, serve):
+    """The append door admits a board move of a card with `shows`, which the board's
+    module never sends. Such a move in the log leaves the card in the column its
+    choice names."""
+    page = open_page(browser, live_url(serve(ANSWERS_BOARD_PAGE)))
+    expect(page.locator("#col-later > #card-rail")).to_have_count(1)
+
+    append_command(
         serve.page_dir,
         {
             "kind": "action",
@@ -986,21 +1050,6 @@ def test_a_card_with_shows_never_stands_by_a_board_move(browser, serve):
     )
     told(page)
     expect(page.locator("#col-later > #card-rail")).to_have_count(1)
-
-    grip = page.locator("#card-section .lf-grip")
-    expect(grip).to_have_attribute("aria-disabled", "true")
-    grip.focus()
-    for press in ("Enter", "ArrowRight", "Enter"):
-        page.keyboard.press(press)
-    expect(page.locator("#col-open > #card-section")).to_have_count(1)
-    events = events_model.read_events(serve.page_dir)
-    assert [event["id"] for event in events if event["kind"] == "action"] == [
-        stray["id"]
-    ]
-    # The draws since, for the stray move and the refused grab, report nothing more.
-    assert [
-        event["text"].startswith(report) for event in events if event["kind"] == "error"
-    ] == [True]
 
 
 def test_an_answer_naming_no_one_column_stands_with_the_undecided(browser, serve):
@@ -1043,15 +1092,15 @@ def test_an_answer_naming_no_one_column_stands_with_the_undecided(browser, serve
     expect(page.locator("#col-open > #card-pager")).to_have_count(1)
 
 
-def test_the_board_reports_a_card_whose_question_gives_its_options_no_value(
-    browser, serve
-):
-    """Options that carry no `value` can put a card in no column, so the board tells
-    the author. A card whose `shows` is empty shows no answer, and is the board's own
-    to move."""
+def test_an_option_without_a_value_answers_with_its_id(browser, serve):
+    """An option that carries no `value` answers with its id, so a column whose `value`
+    is that id holds the card while the option is picked, and a drop there picks it. A
+    card whose `shows` is empty shows no answer, and is the board's own to move."""
     source = (
         ANSWERS_BOARD_PAGE.replace(' value="next">Next<', ">Next<")
         .replace(' value="later" selected>Later<', " selected>Later<")
+        .replace('label="Next" value="next"', 'label="Next" value="rail-next"')
+        .replace('label="Later" value="later"', 'label="Later" value="rail-later"')
         .replace(
             '<lf-column id="col-open" label="Undecided"></lf-column>',
             '<lf-column id="col-open" label="Undecided">'
@@ -1059,13 +1108,16 @@ def test_the_board_reports_a_card_whose_question_gives_its_options_no_value(
             "<strong>Own</strong></lf-card></lf-column>",
         )
     )
-    assert source.count(" value=") == 2
+    assert source.count(' value="rail-') == 2
     page = open_page(browser, live_url(serve(source)))
-    reported_browser_errors(
-        page,
-        '<lf-card id="card-rail"> failed: shows="rail" names <lf-options>, none of'
-        " whose members carries a `value`",
-    )
+    expect(page.locator("#col-later > #card-rail")).to_have_count(1)
+
+    with sending(page, "the drop"):
+        page.locator("#card-rail .lf-grip").focus()
+        for press in ("Enter", "ArrowLeft", "Enter"):
+            page.keyboard.press(press)
+    expect(page.locator("#col-next > #card-rail")).to_have_count(1)
+    expect(page.locator("#rail-next")).to_have_attribute("selected", "")
 
     with sending(page, "the move"):
         page.locator("#card-own .lf-grip").focus()
@@ -1073,10 +1125,10 @@ def test_the_board_reports_a_card_whose_question_gives_its_options_no_value(
             page.keyboard.press(press)
     expect(page.locator("#col-next > #card-own")).to_have_count(1)
     assert [
-        (event["widget"], event["action"], event["detail"]["unit"])
+        (event["widget"], event["action"], event["detail"].get("unit"))
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "action"
-    ] == [("plan", "move", "card-own")]
+    ] == [("rail", "choose", None), ("plan", "move", "card-own")]
 
 
 def centre(locator):

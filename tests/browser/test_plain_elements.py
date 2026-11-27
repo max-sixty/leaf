@@ -110,6 +110,7 @@ def decided(page_dir, value, widget="verdict"):
             "widget": widget,
             "action": "decide",
             "detail": {"value": value},
+            "answered": bool(value),
         },
     )
 
@@ -428,6 +429,7 @@ def chose(page_dir, value):
             "widget": "plan-choice",
             "action": "choose",
             "detail": {"value": value},
+            "answered": bool(value),
         },
     )
 

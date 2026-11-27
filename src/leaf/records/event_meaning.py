@@ -8,13 +8,14 @@ referenced element still changes containment without changing an old event.
 from functools import cached_property
 
 from leaf.log.events import event_document
-from leaf.log.obligations import answer_verbs, answering_action, replayed_attrs
+from leaf.log.obligations import gesture_answers, replayed_attrs
 from leaf.log.projection import (
     page_reading,
     thread_markup_reading,
     with_action,
 )
 from leaf.log.thread_context import thread_structure
+from leaf.source.passages import enclosing_of
 from leaf.source.registry.contract import (
     deciding_verb,
     matches_when,
@@ -114,22 +115,26 @@ def state_meaning(event: dict, record: dict, registry: dict, scope: str) -> dict
 
 
 def answer_meaning(
-    sender, record: dict, event: dict, readings: AdmissionReadings
+    record: dict, event: dict, readings: AdmissionReadings
 ) -> tuple[bool, str | None]:
     """Whether this admitted action answers its widget's obligation, and the thread it closes.
 
-    The answering action is the one whose admission makes the obligation's declared state
-    condition hold, so it is read with the candidate in force in the fold of its own
-    document. The thread it closes is the widget's authored `resolves`, read from the
-    immutable document that sent it rather than carried in the command. A decision
-    whose outcome is the one its verb `withdraws` leaves the page as if nothing had
-    been proposed, so it answers the obligation and closes no thread: turning a fix down
-    leaves the question it was written for open. A registered source may retain
-    answer provenance after its request is withdrawn; only a source currently
+    The widget says whether its obligation is answered on each gesture
+    (`obligations.gesture_answers`). The answering action is one that says it is while
+    the widget asks or keeps an earlier registration, and either records the answer
+    itself (its verb is `awaits.value`) or turns the obligation from open to answered,
+    as Done on a multiple choice does. So adding an option to a question already
+    answered answers nothing. The widget's `when` is read with the candidate in force
+    in the fold of its own document. The thread it closes is the widget's authored
+    `resolves`, read from the immutable document that sent it rather than carried in the
+    command. A decision whose outcome is the one its verb `withdraws` leaves the page as
+    if nothing had been proposed, so it answers the obligation and closes no thread:
+    turning a fix down leaves the question it was written for open. A registered source
+    may retain answer provenance after its request is withdrawn; only a source currently
     asking can close the thread it declares."""
-    registry = readings.registry
-    entry = registry[record["tag"]]
-    if event["kind"] != "action" or event["action"] not in answer_verbs(entry):
+    entry = readings.registry[record["tag"]]
+    awaits = entry.get("awaits")
+    if event["kind"] != "action" or not awaits or not event.get("answered"):
         return False, None
     withdrawn = withdrawing_outcome(entry)
     declined = (
@@ -137,12 +142,11 @@ def answer_meaning(
         and withdrawn is not None
         and event["detail"]["outcome"] == withdrawn
     )
-    if event_document(event)["kind"] == "page":
-        reading = readings.page(event["revision"])
-        byid = sender.by_id
-    else:
-        reading = readings.thread
-        byid = reading.by_id
+    reading = (
+        readings.page(event["revision"])
+        if event_document(event)["kind"] == "page"
+        else readings.thread
+    )
     candidate = {
         **event,
         "seq": readings.events[-1]["seq"] + 1 if readings.events else 1,
@@ -150,27 +154,25 @@ def answer_meaning(
     projection = with_action(
         reading.projection, candidate, entry["verbs"][event["action"]]
     )
-    return (
-        answering_action(
-            byid[event["widget"]],
-            entry,
-            event["action"],
-            projection,
-            byid,
-            reading.spoken,
-            registry,
-            registered=any(
-                item["source"]["kind"] == "widget"
-                and item["source"]["id"] == event["widget"]
-                for item in readings.work.all_obligations["all"]
-            ),
-        ),
-        record["attrs"].get("resolves")
-        if not declined
-        and matches_when(
-            replayed_attrs(record, projection), entry["awaits"].get("when")
+    asking = matches_when(replayed_attrs(record, projection), awaits.get("when"))
+    answers = (
+        asking
+        or any(
+            item["source"]["kind"] == "widget"
+            and item["source"]["id"] == event["widget"]
+            for item in readings.work.all_obligations["all"]
         )
-        else None,
+    ) and (
+        event["action"] == awaits["value"]
+        or not gesture_answers(
+            readings.events,
+            reading.projection,
+            enclosing_of(reading.spoken),
+            event["revision"] if event_document(event)["kind"] == "page" else None,
+        ).get(event["widget"], False)
+    )
+    return answers, (
+        record["attrs"].get("resolves") if answers and not declined and asking else None
     )
 
 
@@ -186,7 +188,7 @@ def admit_widget_event(sender, event: dict, readings: AdmissionReadings) -> dict
         scope = "thread"
     admitted = dict(event)
     admitted["meaning"] = state_meaning(event, record, registry, scope)
-    answers, closes = answer_meaning(sender, record, admitted, readings)
+    answers, closes = answer_meaning(record, admitted, readings)
     if answers:
         admitted["meaning"]["answer"] = closes
     return admitted

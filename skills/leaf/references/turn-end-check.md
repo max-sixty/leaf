@@ -69,8 +69,9 @@ passed on. Name:
   null where the fix needs more than a sentence or a choice the conversation hasn't
   made; the agent revises the page.
 - `settled`: an On Me item the user has answered elsewhere, such as in chat, or
-  that the work has made moot. The agent records the answer on the page, or resolves
-  the thread that asks it.
+  that the work has made moot. The agent retires a page question in a new version
+  with the attribute its `awaits.retired` names, such as `settled`, since markup
+  answers nothing, or resolves the thread that asks it.
 - `unshown`: work the agent promised the user, or set running, such as a
   background job or a subagent, that no page shows as owed or under way. Leave out
   servers, watchers and wait loops that only serve the agent's own checks. The

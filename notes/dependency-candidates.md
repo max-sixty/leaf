@@ -55,7 +55,7 @@ Practices pattern. Read, and probed in Chromium, on 2026-11-12.
   tree, listbox or select-only combobox reaches the widget's typeahead, and Leaf's page
   letters work again once focus leaves it (`browser/runtime/dom/keyboard/text-entry.js`). Their
   values reach the event log only where page code passes them to a playground
-  contributor or a widget controller.
+  contributor or to a widget that records them.
   Each component's entry measures 13–53 KB gzipped on its own, by the repository's
   `size-budget.json`.
 - **`checkPattern`** (`@ui-sdk/core/testing`, marked experimental). Run on eight

@@ -52,8 +52,8 @@ export const elementDeclarations = perVocabulary(() =>
 
 // Take in the fetched vocabulary. A verb's writer is read from `$states`
 // (`registry-contract.js`), where composition stamped it.
-// The layer-wide `$` declarations are frozen as they arrive, so `layerFact` hands a
-// package module the registry's own value, which it can read but not write.
+// The layer-wide `$` declarations are frozen as they arrive, so every reader shares the
+// registry's own value and none can write it.
 /** @param {typeof registry} declarations */
 export function adoptRegistry(declarations) {
   for (const [name, value] of Object.entries(declarations))
@@ -117,14 +117,6 @@ export const stateSpecs = () => indexedState().specs;
 /** @param {import("../../types/domain.js").StateRecord} record */
 export const recordedWidgetSelector = (record) =>
   indexedState().recordSelectors.get(recordSlot(record)) ?? "";
-
-// The registry's entry under a name, the one reader a package module has: a widget's
-// declaration under its tag, or a shared `$` declaration, which belongs to the layer
-// rather than to one widget. Each `$` one is frozen on adoption, so a package module
-// reads its cross-widget vocabulary without a registry write path, and a reader called
-// per element copies nothing.
-/** @param {string} name */
-export const layerFact = (name) => registry[name];
 
 // The declaration a widget's tag has: its attribute schema and the facts it declares,
 // each under its own name (`$keys`). An idiom, which a selector keys, is no element's

@@ -565,10 +565,11 @@ export function createPlayground(host) {
         shown.set(name, value);
         each.write(value);
       }
-      if (instruction === null) {
-        for (const { slot, name } of slots)
-          keepsText(slot, words(/** @type {FieldValue} */ (next[name] ?? null), ", "));
-      } else {
+      for (const { slot, name } of slots)
+        keepsText(slot, words(/** @type {FieldValue} */ (next[name] ?? null), ", "));
+      // A script's instruction takes the place of the output's words, readings
+      // included; a reading anywhere else in the playground stays and follows its field.
+      if (instruction !== null) {
         if (!output.hasAttribute("data-lf-gen")) {
           output.replaceChildren();
           keeps(output, "data-lf-gen", "1");

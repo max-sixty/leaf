@@ -115,42 +115,6 @@ AWAITING_CONDITION = {
     },
 }
 
-# When a local obligation is answered: a map from each answering verb (`verbs`) to
-# the condition its current state meets. An empty condition means the verb's state
-# stands (a non-empty attribute or value record, otherwise an action in force). `when`
-# narrows the verb to instances whose attributes match; `empty` holds when the one
-# container of the verb's position record (`within`) inside the widget that its `when`
-# selects is left with no members by the current positions; `every` holds when each
-# `member` element the widget holds has an action of the verb in force at its own id.
-# One map, so every answer is a reading of state the fold already keeps.
-ANSWERED_SCHEMA = {
-    "type": "object",
-    "minProperties": 1,
-    "propertyNames": {"pattern": f"^{HTML_NAME}$"},
-    "additionalProperties": {
-        "type": "object",
-        "properties": {
-            "when": AWAITING_CONDITION,
-            "detail": {"type": "object", "minProperties": 1},
-            "empty": {
-                "type": "object",
-                "properties": {"when": AWAITING_CONDITION},
-                "required": ["when"],
-                "additionalProperties": False,
-            },
-            "every": {
-                "type": "object",
-                "properties": {
-                    "member": {"type": "string", "pattern": f"^{WIDGET_NAME}$"}
-                },
-                "required": ["member"],
-                "additionalProperties": False,
-            },
-        },
-        "additionalProperties": False,
-    },
-}
-
 ACTION_CREATES = {
     "type": "object",
     "properties": {
@@ -272,16 +236,14 @@ VERBS_SCHEMA = {
     "propertyNames": {"pattern": f"^{HTML_NAME}$"},
     "additionalProperties": VERB_SCHEMA,
 }
-# A widget's obligation is answered by its own state (`value` and `answered`).
-# Composition writes `answered` wherever a declaration names a `value` and leaves it
-# out (`registry.contract.complete_declarations`), so every reader finds it. This
-# schema doesn't require it, so that an `awaits` naming no `value` is refused for that.
+# A widget's obligation: the attributes that make it ask (`when`), the verb whose state
+# is its typed answer (`value`), and how it ends. Whether it is answered is the
+# widget's own word, carried on its gestures (`obligations.gesture_answers`).
 AWAITS_SCHEMA = {
     "type": "object",
     "properties": {
         "when": AWAITING_CONDITION,
         "value": {"type": "string", "pattern": f"^{HTML_NAME}$"},
-        "answered": ANSWERED_SCHEMA,
         "all": {"type": "string", "pattern": f"^{HTML_NAME}$"},
         "retired": {"type": "string", "pattern": f"^{HTML_NAME}$"},
     },
@@ -503,7 +465,9 @@ _CLAUSES = {
 # The shape of each shared layer fact a complete vocabulary carries, every one
 # required and each held to its schema on its own (`registry.validation.check_layer_facts`).
 # Its consumers read each directly: a string `$tones.names` would answer the tone
-# check's membership test by substring, and a blank reaction emoji paints nothing.
+# check's membership test by substring, and a reaction the picker offers that is no
+# emoji is one admission refuses. A `leaf:` reference names a kernel record's field
+# (`registry.schema.leaf_resources`).
 # What names another fact, or needs more than a shape (a clause's `when` and a
 # contract's `schema` are JSON Schemas, `resources` are JMESPath), the same module's
 # `validate_layer_declarations` checks.
@@ -567,14 +531,10 @@ LAYER_FACTS = {
         "type": "object",
         "properties": {
             "emoji": {
-                "type": "object",
-                # An emoji is a mark: at most four code points.
-                "propertyNames": {"pattern": r"\S", "maxLength": 4},
-                "additionalProperties": {
-                    "type": "object",
-                    "properties": {"settles": {"type": "boolean"}},
-                    "additionalProperties": False,
-                },
+                "type": "array",
+                # One emoji, by the form a reaction's record holds it to.
+                "items": {"$ref": "leaf:event/comment#/properties/emoji"},
+                "uniqueItems": True,
             }
         },
         "required": ["emoji"],

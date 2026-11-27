@@ -629,6 +629,71 @@ def test_a_permitted_step_permits_nothing_after_it(browser):
     consume_browser_errors(page, moved_within("button#act"))
 
 
+# How a card's transcript changes as the card widens and its padding lifts its head,
+# and whether the watch credits that rise.
+RISES = {
+    "a-message-joins": ("log.append(answer)", True),
+    "the-reply-grows": ("log.lastElementChild.append(answer.textContent)", True),
+    "nothing-joins": ("card.style.paddingTop = '120px'", False),
+    "a-hidden-child-joins": (
+        "answer.hidden = true; log.append(answer); card.style.paddingTop = '120px'",
+        False,
+    ),
+    "the-transcript-pads": ("log.style.paddingBottom = '120px'", False),
+    "a-short-message-joins-past-it": (
+        "answer.textContent = 'Yes.'; log.append(answer);"
+        " card.style.paddingTop = '120px'",
+        False,
+    ),
+}
+
+
+@pytest.mark.parametrize("change", list(RISES))
+def test_a_card_standing_on_its_foot_rises_as_it_widens_only_as_far_as_its_transcript_grew(
+    browser, change
+):
+    """A card over its subject stands on its foot (`data-lf-rises`), so the long message
+    that widens it once (`data-lf-widens`) lifts its head in the same frame, carrying
+    its controls up and sideways, whether the message joins its transcript or grows
+    the reply streaming into it. A card whose head rises further than what joined its
+    transcript, as with no message, a hidden one, padding or a short one with padding
+    past it, is reported."""
+    script, credited = RISES[change]
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0"><div data-lf-runtime>'
+            '<div id="card" data-lf-widens data-lf-rises style="position:fixed;'
+            'bottom:40px;right:40px;width:160px">'
+            '<button id="close">Close</button>'
+            '<div id="log" data-lf-reflow="append">'
+            "<p data-lf-append-tail>A short question.</p></div>"
+            "</div></div></body>"
+        )
+    )
+    paint(page)
+    page.evaluate(
+        """script => new Promise((done) => {
+          const answer = document.createElement("p");
+          answer.textContent = "An answer long enough to stand taller than wide. ".repeat(12);
+          card.style.width = "320px";
+          new Function("answer", script)(answer);
+          requestAnimationFrame(() => requestAnimationFrame(done));
+        })""",
+        script,
+    )
+    judge_watches()
+    if not credited:
+        consume_browser_errors(
+            page,
+            lambda problem: (
+                problem.code == "moved-without-input"
+                and ["div#card"] in problem.values["beside"]
+            ),
+        )
+
+
 def test_the_document_moves_what_it_painted_half_parsed_without_a_finding(browser):
     """Chrome may paint a document the parser has only partly added, as a slow
     runner's parser yields mid-page: a select before its option and the taller box

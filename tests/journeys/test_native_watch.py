@@ -27,7 +27,7 @@ def test_a_page_subscription_hears_every_input_its_reading_reads(
     reading. A write beneath a revision, to a diagnostic or to a staging file does
     neither."""
     from leaf.base import files
-    from leaf.source import page_inputs
+    from leaf.source import file_bindings, page_inputs
     from leaf.source.file_bindings import bind_file
 
     record_claim(page_dir, id="reading-owner")
@@ -46,13 +46,14 @@ def test_a_page_subscription_hears_every_input_its_reading_reads(
     stamped = []
     stamp = files.file_stamp
 
-    def recording(path):
+    def recording(path, **options):
         stamped.append(Path(path))
-        return stamp(path)
+        return stamp(path, **options)
 
     with monkeypatch.context() as stamps:
         stamps.setattr(files, "file_stamp", recording)
         stamps.setattr(page_inputs, "file_stamp", recording)
+        stamps.setattr(file_bindings, "file_stamp", recording)
         page_inputs.page_reading(page_dir)
     inputs = sorted({path for path in stamped if path.exists()})
     assert bound in inputs and page_dir / "revisions" in inputs

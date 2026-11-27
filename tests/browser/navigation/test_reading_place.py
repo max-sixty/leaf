@@ -787,8 +787,7 @@ def test_back_returns_the_passage_chosen_between_trips(
     """A passage the user chose after one trip, by click or Tab, is where the next trip
     departs from, even while the first landing still shows: Back returns to it, and
     another Back to the original reading. A click on words that take no focus is
-    returned as the selection it left. The large landing's paragraph follows its
-    section, since a click on the commented section opens its thread instead."""
+    returned as the selection it left."""
     stop = ' tabindex="0"' if focusable else ""
     elsewhere = f'<p id="elsewhere"{stop}>This independent paragraph has no thread.</p>'
     first = (

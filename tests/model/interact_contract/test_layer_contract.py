@@ -109,7 +109,7 @@ def test_layer_facts_read_names_whole_and_an_absent_records_as_null():
     named = {"description": "Build facts.", "schema": {}}
     refused = registry_refusal(lambda: facts(data={"contracts": {"builds\n": named}}))
     assert refused.values["keyword"] == "pattern"
-    refused = registry_refusal(lambda: facts(reactions={"emoji": {" ": {}}}))
+    refused = registry_refusal(lambda: facts(reactions={"emoji": [" "]}))
     assert refused.values["keyword"] == "pattern"
 
 
@@ -527,8 +527,9 @@ How this text reaches the agent, by example
    `$events.handling.comment` in the page's copy of registry.json, then those
    under `$events.answering.reply`, the answer it owes. Each clause has a `text`
    and may have a `when`, a JSON Schema that must hold for the clause to apply.
-   It is tested against the log line together with its `answer` and its
-   `thread`'s entry in the delivery's `threads` (step 4). There are
+   It is tested against the log line together with its `answer`, its
+   `thread`'s entry in the delivery's `threads` (step 4) and its batch's `held`
+   to-dos, of which this page has none. There are
    @COUNT@; here they all are, with whether the comment satisfies each `when`:
 
 @CLAUSES@
@@ -653,10 +654,21 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
             "text": "this looks off ![screenshot](/media/0a1b2c.png)",
             **owes("reply"),
         },
+        "comment on a page with a held to-do": {
+            "kind": "comment",
+            **untitled,
+            "held": [{"id": "t1", "text": "Redo the top line", "waiting_on": "Q1"}],
+            **owes("reply"),
+        },
         "comment a newer message answers through": {"kind": "comment"},
         "suggestion": {"kind": "comment", "suggestion": True, **owes("reply")},
         "design comment": {"kind": "comment", "about": "design", **owes("reply")},
-        "reaction on the page": {"kind": "comment", "emoji": "👍"},
+        "reaction on the page": {
+            "kind": "comment",
+            "emoji": "👍",
+            **untitled,
+            **owes("reply"),
+        },
         "reply": {"kind": "reply", **titled, **owes("reply")},
         "reply in an untitled thread": {
             "kind": "reply",
@@ -688,7 +700,12 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
             "settled": [{"id": "message:m1", "text": "Can you try the build?"}],
             **owes("reply"),
         },
-        "reaction on a message": {"kind": "reply", "emoji": "👍"},
+        "reaction on a message": {
+            "kind": "reply",
+            "emoji": "👍",
+            **titled,
+            **owes("reply"),
+        },
         "rewritten message": {
             "kind": "edit",
             "text": "Tuesdays, after the report run",
@@ -721,6 +738,12 @@ def test_each_case_of_an_event_is_told_what_the_snapshot_shows(
             "kind": "action",
             "action": "add",
             "meaning": on_page,
+        },
+        "pick on a page with a held to-do": {
+            "kind": "action",
+            "meaning": on_page,
+            "held": [{"id": "t1", "text": "Redo the top line", "waiting_on": "Q1"}],
+            **owes("markup"),
         },
         "pick before Done": {"kind": "action", "meaning": on_page},
         "pick a thread's open question is about": {

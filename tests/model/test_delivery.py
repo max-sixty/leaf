@@ -312,7 +312,7 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
     (page_dir / "index.html").write_text(source)
     publish(page_dir)
 
-    def action(widget, verb, detail):
+    def action(widget, verb, detail, **answered):
         return append_command(
             page_dir,
             {
@@ -322,13 +322,15 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
                 "widget": widget,
                 "action": verb,
                 "detail": detail,
+                **answered,
             },
         )
 
-    composing = action("choice", "choose", {"value": ["flag-first"]})
+    # The multiple choice says it is answered only while its Done stands.
+    composing = action("choice", "choose", {"value": ["flag-first"]}, answered=False)
     assert not composing["attention"]
     assert transaction_model.unacknowledged(events_model.read_events(page_dir), 0) == []
-    completed = action("choice", "answer", {})
+    completed = action("choice", "answer", {}, answered=True)
     assert completed["attention"]
     receive_through(page_dir, completed["seq"])
     # The agent takes the answered pick on as a task on its widget.
@@ -342,21 +344,29 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
         == 0
     )
     undone = append_command(
-        page_dir, {"kind": "undo", "author": "user", "undoes": completed["id"]}
+        page_dir,
+        {
+            "kind": "undo",
+            "author": "user",
+            "undoes": completed["id"],
+            "answered": False,
+        },
     )
     assert undone["attention"]
     # The obligation is unfinished again, but the agent is already acting on its pick.
-    changed = action("choice", "choose", {"value": ["backfill-first"]})
+    changed = action("choice", "choose", {"value": ["backfill-first"]}, answered=False)
     assert changed["attention"]
     assert append_command(
-        page_dir, {"kind": "undo", "author": "user", "undoes": changed["id"]}
+        page_dir,
+        {"kind": "undo", "author": "user", "undoes": changed["id"], "answered": False},
     )["attention"]
-    quiet = action("draft", "edit", {"value": "Green room."})
+    quiet = action("draft", "edit", {"value": "Green room."}, answered=True)
     assert not quiet["attention"]
     assert not append_command(
-        page_dir, {"kind": "undo", "author": "user", "undoes": quiet["id"]}
+        page_dir,
+        {"kind": "undo", "author": "user", "undoes": quiet["id"], "answered": False},
     )["attention"]
-    quiet = action("draft", "edit", {"value": "Red room."})
+    quiet = action("draft", "edit", {"value": "Red room."}, answered=True)
     assert (
         CliRunner()
         .invoke(
@@ -366,7 +376,9 @@ def test_delivery_distinguishes_composing_an_obligation_from_changing_input_in_h
         .exit_code
         == 0
     )
-    assert action("draft", "edit", {"value": "Orange room."})["attention"]
+    assert action("draft", "edit", {"value": "Orange room."}, answered=True)[
+        "attention"
+    ]
     selected = transaction_model.unacknowledged(
         events_model.read_events(page_dir), completed["seq"]
     )
@@ -498,10 +510,12 @@ def test_widget_actions_withdrawals_reports_and_errors_remain_deliverable(page_d
             "widget": "permit",
             "action": "choose",
             "detail": {"value": ["publish"]},
+            "answered": True,
         },
     )
     undo = append_command(
-        page_dir, {"kind": "undo", "author": "user", "undoes": done["id"]}
+        page_dir,
+        {"kind": "undo", "author": "user", "undoes": done["id"], "answered": False},
     )
     report = append_command(
         page_dir,
@@ -760,6 +774,7 @@ def test_a_delivered_gesture_on_a_sent_widget_carries_its_thread(page_dir, capsy
             "widget": "gm",
             "action": "choose",
             "detail": {"value": ["m-cap"]},
+            "answered": True,
         },
     )
 
@@ -840,6 +855,7 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
             "widget": "plan-choice",
             "action": "choose",
             "detail": {"value": ["flag-first"]},
+            "answered": False,
         },
     )
     answered = append_command(
@@ -851,6 +867,7 @@ def test_a_delivered_gesture_says_what_the_user_chose_on_their_version(
             "widget": "plan-choice",
             "action": "answer",
             "detail": {},
+            "answered": True,
         },
     )
     assert transaction_model.claim_page(page_dir)
@@ -903,6 +920,7 @@ def test_done_on_an_empty_pick_says_nothing(page_dir, capsys):
             "widget": "plan-choice",
             "action": "answer",
             "detail": {},
+            "answered": True,
         },
     )
     assert transaction_model.claim_page(page_dir)
@@ -961,6 +979,7 @@ def test_one_action_can_belong_to_its_widget_thread_and_the_thread_it_resolves(
             "widget": "thread-answer",
             "action": "decide",
             "detail": {"outcome": "accept"},
+            "answered": True,
         },
     )
 
@@ -1040,6 +1059,7 @@ def test_a_delivered_gesture_on_a_sent_widget_keeps_its_message_in_a_long_thread
             "widget": "thread-commands",
             "action": "choose",
             "detail": {"value": ["restart"]},
+            "answered": True,
         },
     )
 
@@ -1100,6 +1120,7 @@ def test_a_delivery_and_page_state_agree_on_what_a_floor_took_back(
             "widget": "picks",
             "action": "choose",
             "detail": {"value": ["flag-first"]},
+            "answered": True,
         },
     )
     # Rewriting the option they picked retracts the pick: the thing they chose is
@@ -1172,6 +1193,7 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
             "widget": "gm",
             "action": "choose",
             "detail": {"value": ["m-cap"]},
+            "answered": False,
         },
     )
     # Bury the question: enough later exchange that the bound would drop it.
@@ -1205,50 +1227,34 @@ def test_the_bound_keeps_the_message_a_carried_gesture_needs(page_dir, capsys):
     assert chose["id"] == thread["actions"][0]["id"]
 
 
-def test_a_settling_reaction_wakes_only_when_it_answers_the_agent(
+def test_a_reaction_wakes_the_agent_and_is_owed_an_answer(
     page_dir, sessionless, capsys
 ):
+    """A reaction is a message: on a passage or on the agent's question, it wakes the
+    agent and is owed an answer as words are, and on the question it answers it, which
+    its delivery lists as `settled`."""
     serving(page_dir, 1)
     publish(page_dir)
     session_model.cmd_waiting(page_dir)
     question = thread_model.cmd_comment(page_dir, "", "", "", "Forty?", obligation=True)
-    quiet = append_command(
+    cut = append_command(
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "emoji": "✂️"},
     )
-    assert quiet["attention"] is False
-    assert transaction_model.unacknowledged(events_model.read_events(page_dir), 0) == []
-    answer = append_command(
+    nod = append_command(
         page_dir,
         {"kind": "reply", "author": "user", "parent": question["id"], "emoji": "👍"},
     )
-    assert answer["attention"] is True
+    assert cut["attention"] is True and nod["attention"] is True
     assert session_model.cmd_wait(page_dir) == 0
-    payload, _, events = printed(capsys.readouterr().out)
-    [shown] = events
-    assert shown["id"] == answer["id"] and shown["emoji"] == "👍"
-    assert "answer" not in shown
-    assert page_state(page_dir)["pending"] == 1
-    delivery_ack_model.receive_delivery(payload["id"])
-    assert page_state(page_dir)["pending"] == 0
-    restored = append_command(
-        page_dir, {"kind": "undo", "author": "user", "undoes": answer["id"]}
-    )
-    assert restored["attention"] is True
-    ordinary = append_command(
-        page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "parent": question["id"],
-            "text": "No further question.",
-        },
-    )
-    mark = append_command(
-        page_dir,
-        {"kind": "reply", "author": "user", "parent": ordinary["id"], "emoji": "👍"},
-    )
-    assert mark["attention"] is False
+    _payload, _, events = printed(capsys.readouterr().out)
+    shown = {event["id"]: event for event in events}
+    assert shown[cut["id"]]["emoji"] == "✂️"
+    assert shown[cut["id"]]["answer"]["kind"] == "reply"
+    assert shown[nod["id"]]["answer"]["kind"] == "reply"
+    assert [each["id"] for each in shown[nod["id"]]["settled"]] == [
+        f"message:{question['id']}"
+    ]
 
 
 def test_successful_replies_require_an_exact_agent_answer():
@@ -1389,6 +1395,7 @@ def test_a_pick_carries_the_questions_still_waiting_about_its_decision(page_dir)
             "widget": "permit",
             "action": "choose",
             "detail": {"value": ["publish"]},
+            "answered": True,
         },
     )
     [batch] = freeze_events(page_dir, [pick])["batches"]
@@ -1442,19 +1449,30 @@ def test_a_message_on_a_playground_carries_the_settings_it_showed(
                 "widget": widget,
                 "action": "tune",
                 "detail": {"values": {"radius": radius}},
+                "answered": submitted.get(widget, False),
             }
         )
 
+    submitted: dict[str, bool] = {}
     round_ = tune("notify", 12)
-    user({"kind": "undo", "undoes": tune("notify", 4)["id"]})
+    user({"kind": "undo", "undoes": tune("notify", 4)["id"], "answered": False})
     # The submission the agent got already is sent work, so it isn't carried again.
     submit = {"values": {"radius": 12}, "instruction": "Build it."}
-    user({"kind": "action", "widget": "notify", "action": "choose", "detail": submit})
+    user(
+        {
+            "kind": "action",
+            "widget": "notify",
+            "action": "choose",
+            "detail": submit,
+            "answered": True,
+        }
+    )
+    submitted["notify"] = True
     comment = {"kind": "comment", "text": "Too round."}
     opened = user({**comment, "anchor": {"section": "card"}})
     sharper = tune("notify", 6)
     reply = user({"kind": "reply", "parent": opened["id"], "text": "Now too sharp."})
-    user({"kind": "undo", "undoes": sharper["id"]})
+    user({"kind": "undo", "undoes": sharper["id"], "answered": True})
     moved = tune("other", 3)
     agent = {"author": "agent", "agent": "Claude"}
     append_command(

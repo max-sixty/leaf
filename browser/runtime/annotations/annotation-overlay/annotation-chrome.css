@@ -99,11 +99,10 @@
      card Send opens grows out of the field from that start (dom/box-motion.js, `drawnAt`).
      The frame is as wide as its words' longest line, from the card's least width
      (`--lf-thread-card-min`) to the measure (`--lf-thread-card`) or its room where that
-     is narrower, and wraps them there, so a first line widens it away from its start,
-     and the card Send opens keeps that width (thread-preview.js, `size-width`). Where
-     its placement can't widen it from the edge its words start at, it takes its widest
-     at once (`data-lf-card-width`; comment-placement.js, `widens`). So does a
-     draft that scrolls in it (`:state(overflows)`, annotations/composing/text-field.js): its editor
+     is narrower, and wraps them there, so a first line widens it away from the edge its
+     placement holds (comment-placement.js, `holds`), and the card Send opens keeps
+     that width (thread-preview.js, `size-width`). A draft that scrolls in it
+     (`:state(overflows)`, annotations/composing/text-field.js) takes its widest: its editor
      draws only the lines near what the box shows, so the longest drawn would change as
      the reader scrolls, and so would the box's width. Only the
      field paints; the transparent rows neither take document flow nor intercept
@@ -129,10 +128,6 @@
     padding: var(--lf-comment-frame-top) 0 var(--lf-comment-frame-bottom);
     pointer-events: none;
   }
-  .lf-fab-bar[data-lf-card-width]:not(
-      [data-lf-target-only],
-      [data-lf-presentation="inline"]
-    ),
   .lf-fab-bar:has(.lf-compose-field > leaf-text:state(overflows)):not(
       [data-lf-target-only],
       [data-lf-presentation="inline"]

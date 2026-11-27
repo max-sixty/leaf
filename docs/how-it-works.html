@@ -193,6 +193,7 @@
               <ul>
                 <li><a href="#architecture">Pages, core, and packages</a></li>
                 <li><a href="#architecture-parts">Responsibilities and state</a></li>
+                <li><a href="#browser-and-server">Browser and server</a></li>
                 <li><a href="#exchange">The exchange</a></li>
                 <li><a href="#specification-map">Find the right guide</a></li>
               </ul>
@@ -307,6 +308,56 @@ flowchart TD
               runtime and composes its layer from the recorded selection. Historical
               revisions keep authored content and recorded decisions, while the serving
               Leaf supplies the code that draws them.
+            </p>
+          </section>
+          <section id="browser-and-server">
+            <h2>Browser and server</h2>
+            <p id="browser-and-server-lede">
+              A page runs as two programs that share no memory: Leaf's
+              <a href="#browser-state">browser runtime</a>, in each tab that shows the
+              page, and the page's server, a Python process. The server learns what the
+              user did only from what a browser sends it. A widget deals only with the
+              runtime: the runtime sets the element's <code>state</code> property, and
+              the element dispatches <code>lf-action</code>, or <code>lf-undo</code>, to
+              say what the user did (<a href="#widgets">Widgets</a>).
+            </p>
+            <figure id="browser-and-server-figure" class="diagram-figure">
+              <lf-diagram id="browser-and-server-sequence" data-height="424">
+                <pre>
+sequenceDiagram
+  accTitle: One pick, from the widget to the log and back
+  accDescr: The widget dispatches lf-action. Leaf's runtime sets the widget's state at once, so the pick shows, and posts the action to the page's server. The server validates it against the registry, appends it to events.jsonl and reads the markup and the log again. It answers with the recorded event and its new reading, and the runtime sets each widget's state from that reading.
+  participant W as Widget
+  participant R as Leaf's runtime
+  participant S as Page's server
+  participant L as events.jsonl
+  W-&gt;&gt;R: lf-action {verb, detail}
+  R--&gt;&gt;W: sets state: the pick shows
+  R-&gt;&gt;S: POST /api/event
+  Note over S: validates against the registry
+  S-&gt;&gt;L: appends the action
+  Note over S: reads markup and log again
+  S-&gt;&gt;R: the event and the new reading
+  R--&gt;&gt;W: sets state from the reading
+</pre>
+              </lf-diagram>
+              <figcaption id="browser-and-server-caption">
+                <strong>One pick, from the widget to the log and back.</strong> The
+                runtime
+                <a href="#browser-updates">draws the pick before the request leaves</a>,
+                and a refusal returns the widget to the server's state. Other tabs hear
+                of the change through their
+                <a href="#browser-freshness">freshness checks</a> and read
+                <code>GET /api/state</code>.
+              </figcaption>
+            </figure>
+            <p id="browser-and-server-reading">
+              Facts that depend on the whole log, such as which questions still wait on
+              the user, arrive with the server's reading rather than with the gesture.
+              The server computes every reading from the authored markup and the log,
+              without running any widget's module, so the agent's deliveries, its
+              turn-end check and <code>leaf page state</code> see the same state with no
+              tab open.
             </p>
           </section>
           <section id="exchange">
@@ -1367,12 +1418,12 @@ sequenceDiagram
               <p id="fork-writes">
                 Leaf posts each remaining ask as the agent's message, as the agent's
                 <code>leaf thread</code> command would. The user's pick answers a
-                choice, and any other ask carries an obligation, which their reply or a
-                settling reaction answers. A question asked again goes in its thread,
-                and reopens the thread if the user closed it. Any other opens a thread
-                of its own, on that passage, or on the page as a whole where the fork
-                named none or the page doesn't show its words once. Nothing on the page
-                marks where an ask came from.
+                choice, and any other ask carries an obligation, which their reply
+                answers. A question asked again goes in its thread, and reopens the
+                thread if the user closed it. Any other opens a thread of its own, on
+                that passage, or on the page as a whole where the fork named none or the
+                page doesn't show its words once. Nothing on the page marks where an ask
+                came from.
               </p>
               <p id="fork-fixes">
                 Where a few of a page's words have gone stale, the fork can give the
@@ -2088,7 +2139,7 @@ flowchart TD
   Door -- "record" --&gt; Log[("events.jsonl")]
   Log -- "derive state" --&gt; Fold["State"]
   Initial["Authored initial values"] --&gt; Fold
-  Fold -- "render()" --&gt; Widget
+  Fold -- "state" --&gt; Widget
 </pre>
             </lf-diagram>
             <table id="layers-table">
@@ -2170,7 +2221,7 @@ flowchart TD
             <h2>Verb declarations</h2>
             <p id="verbs-lede">
               This is everything <code>lf-options</code> tells Leaf about its three
-              verbs and when its obligation counts as answered.
+              verbs and the question it asks.
             </p>
             <lf-code id="options-verbs" data-width="wide">
               <pre><code class="language-json">
@@ -2189,11 +2240,7 @@ flowchart TD
   "answer": {"detail": {}}
 },
 "awaits": {
-  "value": "choose",
-  "answered": {
-    "choose": {"when": {"multiple": [false]}},
-    "answer": {"when": {"multiple": [true]}}
-  }
+  "value": "choose"
 }
 </code></pre>
               <lf-note at="2"
@@ -2221,14 +2268,16 @@ flowchart TD
                 ><code>answer</code> is the Done press that closes a
                 <code>multiple</code> choice.</lf-note
               >
+              <lf-note at="15"
+                >Whether the question is answered is the widget's own word: after each
+                pick, Done or undo, Leaf asks the module's static <code>answered</code>,
+                which says a single choice is answered once an option is selected and a
+                multiple choice once the user presses Done, and sends the word with the
+                gesture.</lf-note
+              >
               <lf-note at="16"
                 >The obligation's typed answer comes from the current
                 <code>choose</code> value.</lf-note
-              >
-              <lf-note at="17"
-                >A single choice is answered when an option is selected. A multiple
-                choice is answered when the user presses Done. Undo can make the
-                obligation unanswered again.</lf-note
               >
             </lf-code>
             <p id="coordinate">
@@ -2320,7 +2369,7 @@ flowchart TD
 {"kind": "action", "revision": 1, "widget": "ship", "action": "add",
  "detail": {"option": "ship-option-1f82bf7ba6828718a418aa6076e29c63",
    "text": "After the canary is healthy"},
- "attempt": "1f82bf7ba6828718a418aa6076e29c63", "author": "user",
+ "answered": false, "attempt": "1f82bf7ba6828718a418aa6076e29c63", "author": "user",
  "id": "f541943a",
  "meaning": {"scope": "page",
    "unit": "ship-option-1f82bf7ba6828718a418aa6076e29c63",
@@ -2339,7 +2388,7 @@ flowchart TD
  "attention": false, "ts": "2026-09-23T22:09:53-07:00", "seq": 2}
 {"kind": "action", "revision": 1, "widget": "ship", "action": "choose",
  "detail": {"value": ["ship-option-1f82bf7ba6828718a418aa6076e29c63"]},
- "attempt": "d10bc95f51e47796494c2aa01b7c872f", "author": "user",
+ "answered": true, "attempt": "d10bc95f51e47796494c2aa01b7c872f", "author": "user",
  "id": "c47d1659",
  "meaning": {"scope": "page",
    "unit": "ship",
@@ -2359,7 +2408,7 @@ flowchart TD
  "attention": true, "ts": "2026-09-23T22:09:53-07:00", "seq": 3}
 {"kind": "action", "revision": 1, "widget": "ship", "action": "choose",
  "detail": {"value": ["ship-later"]},
- "attempt": "26e7a30143df35cda03ec8b7b164f2b6", "author": "user",
+ "answered": true, "attempt": "26e7a30143df35cda03ec8b7b164f2b6", "author": "user",
  "id": "0450d79c",
  "meaning": {"scope": "page",
    "unit": "ship",
@@ -2377,19 +2426,20 @@ flowchart TD
        "additionalProperties": false}},
    "answer": null},
  "attention": true, "ts": "2026-09-23T22:09:54-07:00", "seq": 4}
-{"kind": "undo", "attempt": "abec07d894a0444733756c659d4edafe", "undoes": "0450d79c", "author": "user",
+{"kind": "undo", "attempt": "abec07d894a0444733756c659d4edafe", "undoes": "0450d79c", "answered": true, "author": "user",
  "id": "6d9e1f06", "attention": true, "ts": "2026-09-23T22:09:54-07:00", "seq": 5}
-{"kind": "undo", "attempt": "5a3b1fb07f32ba1933b472b288a03e36", "undoes": "c47d1659", "author": "user",
+{"kind": "undo", "attempt": "5a3b1fb07f32ba1933b472b288a03e36", "undoes": "c47d1659", "answered": false, "author": "user",
  "id": "935db19d", "attention": true, "ts": "2026-09-23T22:09:55-07:00", "seq": 6}
-{"kind": "undo", "attempt": "7d324c8ea06016e59db0ca09ea0303e4", "undoes": "f541943a", "author": "user",
+{"kind": "undo", "attempt": "7d324c8ea06016e59db0ca09ea0303e4", "undoes": "f541943a", "answered": false, "author": "user",
  "id": "b0f9f750", "attention": false, "ts": "2026-09-23T22:09:55-07:00", "seq": 7}
 </code></pre>
               <lf-note at="1"
                 >The browser sent <code>kind</code>, <code>revision</code>,
-                <code>widget</code>, <code>action</code>, <code>detail</code>, and
-                <code>attempt</code>, its retry key. Leaf added the remaining fields.
-                <code>attention</code> records whether the action changes work the agent
-                owes.</lf-note
+                <code>widget</code>, <code>action</code>, <code>detail</code>,
+                <code>answered</code>, the widget's word on whether its question is
+                answered, and <code>attempt</code>, its retry key. Leaf added the
+                remaining fields. <code>attention</code> records whether the action
+                changes work the agent owes.</lf-note
               >
               <lf-note at="6"
                 >Leaf derives <code>meaning</code> and refuses a sender that supplies
@@ -2406,10 +2456,9 @@ flowchart TD
                 record's line in the log.</lf-note
               >
               <lf-note at="39"
-                >This pick makes the obligation's answered condition hold, so it
-                completes the obligation. <code>null</code> means it closes no thread; a
-                widget with a <code>resolves</code> attribute would name one
-                here.</lf-note
+                >The widget said this pick answers its question, so it completes the
+                obligation. <code>null</code> means it closes no thread; a widget with a
+                <code>resolves</code> attribute would name one here.</lf-note
               >
               <lf-note at="61"
                 >An undo names the gesture to withdraw. Leaf excludes that gesture when
@@ -2491,9 +2540,8 @@ flowchart TD
                 <a
                   href="https://github.com/max-sixty/leaf/blob/main/skills/leaf/references/package-data.md#user-state"
                   >User state</a
-                >: how a package declares <code>verbs</code>,
-                <code>awaits.answered</code>, <code>creates</code>, and agent-written
-                verbs.
+                >: how a package declares <code>verbs</code>, <code>awaits</code>,
+                <code>creates</code>, and agent-written verbs.
               </li>
               <li>
                 <a href="/extending/#verbs">Registry keys</a>: the exact definition of
@@ -3069,10 +3117,10 @@ flowchart TD
             <p id="progress-lists-answer">
               On the page, an item On Me is answered only in the widget or thread that
               asks it, and Leaf adds no control of its own to end one. A widget’s
-              obligation is answered by the actions its
-              <code>awaits</code> declaration names, such as a pick, or the Done a
+              obligation is answered when the widget says the user's gesture on it
+              answered it (<code>awaits</code>), as a pick does, or the Done a
               multi-select choice offers as its own control. A question in a thread is
-              answered by the user’s reply there or a settling reaction, such as 👍. The
+              answered by the user’s reply there, in words or a reaction such as 👍. The
               agent ends its to-dos with <code>leaf task end</code>, and ends a thread
               question the user answered elsewhere, such as in chat, by resolving its
               thread. Done history records the outcome, including withdrawn obligations
@@ -3144,7 +3192,7 @@ flowchart TD
               <li id="updates-written-question">
                 <strong><code>leaf thread reply … --obligation</code></strong>
                 Opens a question on On Me and makes the thread read
-                <em>Your turn</em>. A reply or settling reaction answers it at once, so
+                <em>Your turn</em>. A reply, words or a reaction, answers it at once, so
                 On Me clears without waiting for the agent. A step the user is to take,
                 such as trying a build, is asked this way where only words can give its
                 answer, such as what an error said; where its outcomes can be listed,

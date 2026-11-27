@@ -3339,7 +3339,7 @@ def without_end_room(page):
     (layouts.css), so the page ends where its content does, as one with no Layout
     does. A test whose subject is what happens where no scroll is left, a destination
     at the page's foot or content leaving below that clamps the page, needs it."""
-    page.add_style_tag(content="body { padding-bottom: 0 !important; }")
+    page.add_style_tag(content="body { --lf-end-room: 0px !important; }")
 
 
 def resized(page, width, height):
@@ -3588,15 +3588,20 @@ window.SpeechRecognition = class {
 
 def word_point(locator, word):
     """The middle of `word` where the browser drew it, first inside `locator`, so a
-    gesture lands on letters rather than on blank space in a block's box."""
+    gesture lands on letters rather than on blank space in a block's box. Text that
+    draws no box, such as a `<style>`'s, holds no such word."""
     return locator.evaluate(
         """(node, sought) => {
       const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
-      let word; while ((word = walker.nextNode()) && !word.data.includes(sought)) {}
-      const range = document.createRange(), start = word.data.indexOf(sought);
-      range.setStart(word, start); range.setEnd(word, start + sought.length);
-      const box = range.getBoundingClientRect();
-      return {x: box.left + box.width / 2, y: box.top + box.height / 2};
+      const range = document.createRange();
+      for (let word; (word = walker.nextNode()); ) {
+        const start = word.data.indexOf(sought);
+        if (start < 0) continue;
+        range.setStart(word, start); range.setEnd(word, start + sought.length);
+        const box = range.getBoundingClientRect();
+        if (box.width) return {x: box.left + box.width / 2, y: box.top + box.height / 2};
+      }
+      throw new Error(`no drawn ${sought}`);
     }""",
         word,
     )

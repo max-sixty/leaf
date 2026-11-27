@@ -186,7 +186,7 @@ Every answer declares whose move it leaves:
 
 - `--obligation`: the user's. It leaves them a decision, or something to try or
   review before making one, or asks them for an answer or permission. It creates
-  `message:<its id>` on On Me until their next reply or a settling reaction answers
+  `message:<its id>` on On Me until their next reply, words or a reaction, answers
   it, or they resolve the thread, so the answer stays on their list even where the
   decision it informs is already there. Where you can list the answers, a choice in
   the message usually asks instead ("Ask for a pick").
@@ -203,17 +203,30 @@ Every answer declares whose move it leaves:
   ([Long-running work](conversation-loop.md#long-running-work)). A later `--done` on
   the same reference posts its reply in the thread, and Leaf names the to-do still
   open for `leaf task end`.
+
+  Where the work can't start until something you don't control happens, such as the
+  user's pick elsewhere on the page or another change landing, add
+  `--waiting-on "<what>"`, naming it in a few words as the user knows it. Each
+  delivery from the page lists the to-do under `held`, so you meet it again when
+  input that may end its wait arrives ([event batches](event-batches.md)).
+
 - `--done`: nobody's. It delivers what the message asked for and leaves the user
   nothing to decide.
 
 ```bash
 leaf thread reply <answer.ref> --obligation --text "How long must exports be kept?"
 leaf thread reply <answer.ref> --todo "Rebuild the banner quieter" --text "Rebuilding it; it lands in v4."
+leaf thread reply <answer.ref> --todo "Redo the card's top line" --waiting-on "Whose Words" --text "Held until Whose Words lands, since the top line depends on it."
 ```
 
 The answer's head shows what it leaves: **Waiting on me** while its question is open,
-and **Still to do** until you end the to-do. A promise declared `--done` reads as
-finished work.
+and **Still to do**, or **Waiting on <what>**, until you start or end the to-do. A
+promise declared `--done` reads as finished work.
+
+A reply may be one emoji in place of words, `--emoji 👍` for `--text`, where an emoji
+says all the answer needs to, as for a thanks in words that asks nothing. It declares what it
+leaves with `--done` or `--todo`; a reply that asks (`--obligation`), reports progress
+(`--ephemeral`) or moves its thread needs words.
 
 ### Ask for a pick
 
@@ -339,8 +352,7 @@ one is not an answer.
 When a thread's topic has moved on, or settled detail buries the current exchange,
 summarize the earlier discussion as part of answering new input, without waiting to
 be asked. New input may carry `summary_hint`, a suggested range. Read the originals
-with `leaf page state <page> <message>` and choose a contiguous range yourself,
-starting and ending on spoken messages rather than reactions.
+with `leaf page state <page> <message>` and choose a contiguous range yourself.
 
 Fold what compresses most: settled detail and finished exchanges, whose outcome a
 few sentences carry. Keep in full the messages whose wording still matters

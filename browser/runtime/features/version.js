@@ -743,15 +743,17 @@ const diffBlockSel = () =>
     // opaque, and its paragraph's words would run across it.
     ...tagsDeclaring((e) => !e.inline && e.verbatim),
   ].join(",");
-// Opaque: a widget whose upgrade renders its data body, so the text on screen is the
-// module's and can't compare; and one whose slots a decision retires, which holds two
-// versions of one passage and is already its own mark. Plus svg, drawn by either.
+// Opaque: a widget whose upgrade renders its data body or its bound data, so the text on
+// screen is the module's and can't compare; and one whose slots a decision retires,
+// which holds two versions of one passage and is already its own mark. Plus svg, drawn
+// by either. A widget that keeps its authored words (`verbatim`) compares them, whatever
+// data it takes in besides.
 const diffOpaqueSel = () =>
   [
     ...tagsDeclaring((e, tag) => upgrades(tag) && !e.verbatim && bodyIsData(e)),
     // External data is absent from both authored documents. Its seat is opaque, and
     // the authored binding and immutable selector below are the comparison key.
-    ...tagsDeclaring((e, tag) => upgrades(tag) && e.inputs),
+    ...tagsDeclaring((e, tag) => upgrades(tag) && !e.verbatim && e.inputs),
     ...Object.entries(registry.$decisions)
       .filter(([, { retires }]) => Object.keys(retires).length)
       .map(([owner]) => owner),

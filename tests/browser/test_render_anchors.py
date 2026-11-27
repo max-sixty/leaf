@@ -18,8 +18,6 @@ from render_cases_interaction import (
     live_url,
 )
 from render_cases_layout import (
-    AIM_SEAM,
-    AIM_SEAM_PAGE,
     MARK,
     SHOT_SRC,
     SHOTS,
@@ -56,9 +54,11 @@ from render_harness import (
     SAID_PAGE,
     _traffic,
     available_commands,
+    clocked,
     compare_with,
     comparison_view,
     consume_browser_errors,
+    dwelt,
     expect_open_threads,
     expect_panel_says,
     hold_selection,
@@ -2785,7 +2785,7 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     figure = page.locator("#fig")
     expect(figure).to_have_class(re.compile(r"\blf-mark-el\b"))
     figure.scroll_into_view_if_needed()
-    figure.click()
+    page.locator('[data-lf-margin-for="fig"] .lf-margin-marker').first.click()
     expect(figure).to_have_attribute("data-lf-projected-mark", "")
     expect(figure).to_have_attribute("data-lf-mark", re.compile("."))
     look = figure.evaluate(MARK)
@@ -2816,6 +2816,66 @@ def thread_a_press_opened(page):
     return page.evaluate(f"() => {FOCUSED_THREAD}.innerText")
 
 
+# Two marked lines of one paragraph meeting at a seam the browser puts between two whole
+# pixels: the paragraph stands at a fixed fraction of a pixel and each line is a whole
+# number of pixels tall, so the seam's fraction is the stylesheet's on every machine.
+# Each line is shorter than its font's glyphs, so a point either side of the seam is
+# over a character of the line it is on, where a passage's mark is found
+# (annotations/anchor-paint.js, `markHit`).
+MARK_SEAM_PAGE = leaf_page(
+    "mark seam",
+    """
+<h1 id="t">Mark seam</h1>
+<p id="seam-lines">The line above the seam.<br>The line below the seam.</p>
+""",
+    head="""<style>
+  #seam-lines { position: fixed; top: 300.3px; left: 40px; margin: 0;
+    font-size: 24px; line-height: 16px; white-space: nowrap; }
+</style>""",
+)
+# Where the caret lookup stops answering the upper line and starts answering the lower
+# one, and a point beside that seam whose whole-pixel rounding lands on the other side of
+# it, as `AIM_SEAM` (render_cases_layout.py) finds between two elements.
+MARK_SEAM = """() => {
+  const lines = document.getElementById("seam-lines");
+  const [above, , below] = lines.childNodes;
+  const box = lines.getBoundingClientRect();
+  const x = Math.round(box.left + 40) + 0.5;
+  const at = (y) => {
+    const node = document.caretPositionFromPoint(x, y)?.offsetNode;
+    return node === above ? "above" : node === below ? "below" : null;
+  };
+  let lo = box.top + 1, hi = box.bottom - 1;
+  if (at(lo) !== "above" || at(hi) !== "below") return null;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (at(mid) === "above") lo = mid; else hi = mid;
+  }
+  const y = (hi + Math.floor(hi) + 0.5) / 2;
+  return { x, y, at: at(y), rounded: at(Math.round(y)) };
+}"""
+
+
+def mark_each_seam_line(serve):
+    """`MARK_SEAM_PAGE` with a comment on each of its lines."""
+    url = serve(MARK_SEAM_PAGE)
+    for where in ("above", "below"):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": f"About the line {where}.",
+                "anchor": {
+                    "section": "seam-lines",
+                    "quote": f"The line {where} the seam.",
+                },
+            },
+        )
+    return url
+
+
 def test_a_press_on_a_mark_opens_the_thread_under_the_point(browser, serve):
     """The thread the pointer is over and the thread a press opens are one reading of one
     point.
@@ -2828,37 +2888,26 @@ def test_a_press_on_a_mark_opens_the_thread_under_the_point(browser, serve):
     it opens the neighbour's thread.
 
     The seam fixture puts the pointer where the true point and its rounded twin are over
-    different items, and a comment on each makes the disagreement a pair of cards rather
-    than a hit and a miss — so what is asserted is which thread opened, not whether one
-    did. Which item the true point is over follows where in the pixel the seam fell, so
-    the expected card is read off the point rather than named here."""
-    url = serve(AIM_SEAM_PAGE)
-    for ident in ("seam-upper", "seam-lower"):
-        append_carried_log_record(
-            serve.page_dir,
-            {
-                "kind": "comment",
-                "author": "user",
-                "revision": 1,
-                "text": f"About {ident}.",
-                "anchor": {"section": ident},
-            },
-        )
+    different marked lines, and a comment on each makes the disagreement a pair of cards
+    rather than a hit and a miss — so what is asserted is which thread opened, not whether
+    one did. Which line the true point is over follows where in the pixel the seam fell,
+    so the expected card is read off the point rather than named here."""
+    url = mark_each_seam_line(serve)
     page = open_page(browser, url)
     expect_open_threads(page, 2)
-    seam = page.evaluate(AIM_SEAM, ["seam-upper", "seam-lower"])
-    assert seam and {seam["at"], seam["rounded"]} == {"seam-upper", "seam-lower"}, (
+    seam = page.evaluate(MARK_SEAM)
+    assert seam and {seam["at"], seam["rounded"]} == {"above", "below"}, (
         "the fixture no longer straddles a seam — the point and the whole pixel it rounds "
-        "to are not on the two marked elements either side of it, so a press that read either "
+        "to are not on the two marked lines either side of it, so a press that read either "
         f"of them would pass this: {seam}"
     )
 
     page.mouse.move(seam["x"], seam["y"])
     page.mouse.click(seam["x"], seam["y"])
     opened = thread_a_press_opened(page)
-    assert opened and f"About {seam['at']}." in opened, (
-        f"the hover promised the thread on {seam['at']}, and the press at the same point "
-        f"opened: {opened}"
+    assert opened and f"About the line {seam['at']}." in opened, (
+        f"the hover promised the thread on the line {seam['at']}, and the press at the "
+        f"same point opened: {opened}"
     )
 
 
@@ -3012,57 +3061,40 @@ def test_taking_words_inside_a_mark_keeps_them_and_a_press_still_opens_the_threa
     assert opened and "About the retry." in opened, opened
 
 
-def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
+def test_pressing_the_current_mark_keeps_it_marked(browser, serve):
     """A pointer press briefly moves focus from an open thread to the page before its
     click lands back in the thread. Nothing that marks the current location may look
-    deselected in that gap: not the element's contour, which the pointer on the page no
-    longer raises, and not the margin entry's selection.
+    deselected in that gap: not the passage's mark, and not the margin entry's
+    selection.
 
-    So the current location holds across the whole press, every frame from mouse-down until after
-    the click.
+    So the current location holds across the whole press, every frame from mouse-down
+    until after the click.
     """
     url = serve(INLINE_PAGE)
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "About the figure.",
-            "anchor": {"section": "fig"},
-        },
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "emoji": "👍",
-            "anchor": {"section": "fig"},
-        },
-    )
+    quote = "A passage far enough down the page"
+    for said in ({"text": "About the passage."}, {"emoji": "👍"}):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                **said,
+                "anchor": {"section": "q", "quote": quote},
+            },
+        )
     page = open_page(browser, url)
-    figure = page.locator("#fig")
-    figure.scroll_into_view_if_needed()
-    expect(figure).not_to_have_attribute("data-lf-mark", re.compile(".*"))
+    page.locator("#q").scroll_into_view_if_needed()
+    here = "() => (CSS.highlights.get('lf-mark-here')?.size ?? 0) > 0"
+    assert not page.evaluate(here)
 
-    look = """node => { const style = getComputedStyle(node); return {
-      line: style.outlineStyle,
-      drawn: parseFloat(style.outlineWidth) > 0,
-    }; }"""
-
-    box = figure.bounding_box()
-    point = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    point = mark_point(page, "lf-mark")
     page.mouse.move(*point)
     page.mouse.click(*point)
     # The compact preview card reveals its reply box on request, so what a press lands on
     # is the thread itself; the paint under test is the same either way.
     assert thread_a_press_opened(page) is not None, "the press opened no thread"
-    expect(figure).to_have_attribute("data-lf-mark", re.compile(r"\bhere\b"))
-    selected = figure.evaluate(look)
-
-    assert selected == {"line": "solid", "drawn": True}
+    page.wait_for_function(here)
     expect(page.locator("[data-lf-target-selected]")).to_have_count(1)
 
     # Every frame of the press and a few after it, read where the user sees them.
@@ -3071,8 +3103,7 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
           window.lfFrames = [];
           const sample = () => {
             window.lfFrames.push({
-              contour: Boolean(document.querySelector(
-                '#fig[data-lf-mark~="here"]')),
+              mark: (CSS.highlights.get('lf-mark-here')?.size ?? 0) > 0,
               entry: document.querySelectorAll('[data-lf-target-selected]').length,
             });
             if (window.lfFrames.length < 400) requestAnimationFrame(sample);
@@ -3090,7 +3121,7 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
         "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
     )
     frames = page.evaluate("() => window.lfFrames.splice(0)")
-    lost = [frame for frame in frames if not frame["contour"] or frame["entry"] != 1]
+    lost = [frame for frame in frames if not frame["mark"] or frame["entry"] != 1]
     assert not lost, (
         f"the current location blinked during the press: {lost} of {len(frames)} frames"
     )
@@ -3112,36 +3143,25 @@ def test_a_tap_on_a_quote_opens_its_thread(browser, serve):
     The context has a touchscreen because that is the only way to get a gesture with no
     pointermove in it: driving the same point with `page.mouse` records the position on
     the way in and passes whatever the click reads. The seam fixture is reused so the
-    tap's own rounded twin is a different item, and a comment on each makes a wrong
+    tap's own rounded twin is on a different line, and a comment on each makes a wrong
     reading a visible thread rather than a miss."""
-    url = serve(AIM_SEAM_PAGE)
-    for ident in ("seam-upper", "seam-lower"):
-        append_carried_log_record(
-            serve.page_dir,
-            {
-                "kind": "comment",
-                "author": "user",
-                "revision": 1,
-                "text": f"About {ident}.",
-                "anchor": {"section": ident},
-            },
-        )
+    url = mark_each_seam_line(serve)
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, color_scheme="light", has_touch=True
     )
     page = open_page(browser, url, context=context)
     expect_open_threads(page, 2)
-    seam = page.evaluate(AIM_SEAM, ["seam-upper", "seam-lower"])
-    assert seam and {seam["at"], seam["rounded"]} == {"seam-upper", "seam-lower"}, (
+    seam = page.evaluate(MARK_SEAM)
+    assert seam and {seam["at"], seam["rounded"]} == {"above", "below"}, (
         "the fixture no longer straddles a seam — the point and the whole pixel it rounds "
-        "to are not on the two marked elements either side of it, so a tap that read either "
+        "to are not on the two marked lines either side of it, so a tap that read either "
         f"of them would pass this: {seam}"
     )
 
     page.touchscreen.tap(seam["x"], seam["y"])
     opened = thread_a_press_opened(page)
-    assert opened and f"About {seam['at']}." in opened, (
-        f"a tap on the quote for {seam['at']} opened: {opened}"
+    assert opened and f"About the line {seam['at']}." in opened, (
+        f"a tap on the quote of the line {seam['at']} opened: {opened}"
     )
 
 
@@ -6063,9 +6083,9 @@ def test_a_section_staged_again_in_a_new_widget_keeps_its_thread(
     engine, request, serve
 ):
     """A script that stages a section in a new widget's shadow tree and then puts the
-    widget in place of the one whose shadow tree held the section moves the section's
-    thread to the new one: the pointer finds the thread's mark on the new section, as
-    reading the page again finds."""
+    widget in place of the one whose shadow tree held the section moves the thread on
+    the section's words to the new one: the pointer finds the thread's mark on the new
+    section's words, as reading the page again finds."""
     url = serve(
         leaf_page(
             "Staged again",
@@ -6082,13 +6102,16 @@ def test_a_section_staged_again_in_a_new_widget_keeps_its_thread(
             "author": "user",
             "revision": 1,
             "text": "About the section?",
-            "anchor": {"section": "inner"},
+            "anchor": {"section": "inner", "quote": "The staged section."},
         },
     )
     page = open_page(request.getfixturevalue(engine), url)
     page.evaluate("() => document.getElementById('late').stage()")
     inner = "() => document.getElementById('late').shadowRoot.getElementById('inner')"
-    page.wait_for_function(f"() => ({inner})()?.classList.contains('lf-mark-el')")
+    page.wait_for_function(
+        f"""() => [...(CSS.highlights.get('lf-mark') ?? [])]
+          .some((range) => range.startContainer.parentElement === ({inner})())"""
+    )
     page.evaluate(
         """async () => {
           const host = document.createElement('lf-late-stage');
@@ -6860,15 +6883,16 @@ def test_a_search_match_across_blocks_marks_and_selects_each_piece(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_an_element_s_mark_is_under_the_pointer_only_over_the_element(
+def test_a_thread_takes_the_pointer_only_on_the_words_its_mark_paints(
     engine, request, serve
 ):
-    """A thread on an element is under the pointer wherever the platform's hit test puts
-    the pointer inside that element, as over an image, which holds no text to find, and
-    nowhere past it, as beside a marked word at a line's end, where the nearest
-    character is still the word's. The mark under the pointer for a press is the one
-    that previews: the image's thread to a pointer resting on it, and in Chromium to a
-    finger holding it."""
+    """The pointer finds a thread only where the page draws its mark
+    (annotations/anchor-paint.js, header). A thread on an element draws nothing on it at
+    rest, so a pointer resting on the element, here an image, shows no hand and no
+    preview, and in Chromium a finger holding it reads nothing; the thread's margin entry
+    previews it. A passage's thread shows both on its words and nowhere past them, as
+    beside a marked word at a line's end, where the nearest character is still the
+    word's."""
     box = (
         "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' "
         "height='80'%3E%3Crect width='160' height='80' fill='%23a55'/%3E%3C/svg%3E"
@@ -6881,33 +6905,41 @@ def test_an_element_s_mark_is_under_the_pointer_only_over_the_element(
             '<p id="line">A short line ending in <strong id="bold">bold</strong></p>',
         )
     )
-    for section in ("pic", "bold"):
+    for anchor in ({"section": "pic"}, {"section": "line", "quote": "bold"}):
         append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "comment",
                 "author": "user",
                 "revision": 1,
-                "text": f"About {section}?",
-                "anchor": {"section": section},
+                "text": f"About {anchor.get('quote', anchor['section'])}?",
+                "anchor": anchor,
             },
         )
     browser = request.getfixturevalue(engine)
-    page = open_page(browser, url)
-    said = page.locator("#lf-preview .lf-preview-word")
+    page = open_page(clocked(browser), url)
+    preview = page.locator("#lf-preview")
+    said = preview.locator(".lf-preview-word")
+    hand = page.locator("[data-lf-over-mark]")
     pic = page.locator("#pic").bounding_box()
     bold = page.locator("#bold").bounding_box()
     middle = bold["y"] + bold["height"] / 2
     page.mouse.move(pic["x"] + 40, pic["y"] + 40)
     page.mouse.move(pic["x"] + 60, pic["y"] + 50, steps=2)
-    expect(page.locator("[data-lf-over-mark]")).to_have_count(1)
-    expect(said).to_have_text("About pic?")
-    page.mouse.move(bold["x"] + bold["width"] + 35, middle, steps=2)
-    expect(page.locator("[data-lf-over-mark]")).to_have_count(0)
-    expect(page.locator("#lf-preview")).to_be_hidden()
+    dwelt(page)
+    expect(hand).to_have_count(0)
+    expect(preview).to_be_hidden()
     page.mouse.move(bold["x"] + bold["width"] / 2, middle, steps=2)
-    expect(page.locator("[data-lf-over-mark]")).to_have_count(1)
+    dwelt(page)
+    expect(hand).to_have_count(1)
     expect(said).to_have_text("About bold?")
+    page.mouse.move(bold["x"] + bold["width"] + 35, middle, steps=2)
+    dwelt(page, "LINGER")
+    expect(hand).to_have_count(0)
+    expect(preview).to_be_hidden()
+    page.locator('[data-lf-margin-for="pic"] > .lf-margin-marker').hover()
+    dwelt(page)
+    expect(said).to_have_text("About pic?")
     if engine != "browser":
         return
     context = browser.new_context(
@@ -6919,5 +6951,6 @@ def test_an_element_s_mark_is_under_the_pointer_only_over_the_element(
     cdp = context.new_cdp_session(touched)
     cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [point]})
     long_press(touched, point)
-    expect(touched.locator("#lf-preview .lf-preview-word")).to_have_text("About pic?")
+    rendered(touched)
+    expect(touched.locator("#lf-preview")).to_be_hidden()
     cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})

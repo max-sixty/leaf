@@ -92,23 +92,20 @@ import { PRESS, rowArrows } from "../lib/keys.js";
  * @typedef {{withdrawReaction: ReturnType<typeof import("../records/undo.js").createUndo>["withdraw"], postReaction: Post}} ReactionCommands
  */
 
-const reactionVocabulary = () => registry.$reactions?.emoji ?? {};
 // The layer's reactions, each its emoji, in declared order. The bar, a reply's strip,
 // the page row and the keyboard accelerators all read this one list, so a layer that
 // adds or removes an emoji moves every surface at once, and core never names one.
 // Empty until the registry has arrived: the register checks every core row's bindings
 // as the module evaluates, before the vocabulary is known.
-export const reactionEmoji = () => Object.keys(reactionVocabulary());
+/** @returns {readonly string[]} */
+export const reactionEmoji = () => registry.$reactions?.emoji ?? [];
 // A toggle needs the saved reaction in force, including proof that none stands.
 export const reactionAvailable = () => readThreads().phase === "ready";
 // The choices on one anchor, from the threads' current reading.
 /** @param {Anchor | null} anchor */
 const anchorChoices = (anchor) =>
   reactionAvailable()
-    ? emojiChoices(
-        reactionVocabulary(),
-        anchor ? reactionsAt(allThreads(), anchor) : [],
-      )
+    ? emojiChoices(reactionEmoji(), anchor ? reactionsAt(allThreads(), anchor) : [])
     : [];
 
 // One reaction as a press in the response bar; a reply's strip builds its own
@@ -206,7 +203,7 @@ export function createReactionController({
     const palette = el("span", "lf-react-palette");
     palette.setAttribute("role", "group");
     palette.setAttribute("aria-label", "Reactions for this selection or element");
-    for (const choice of emojiChoices(reactionVocabulary(), []))
+    for (const choice of emojiChoices(reactionEmoji(), []))
       palette.append(reactionChip(choice, (emoji) => reactHere(emoji, commands)));
     fabOptions.append(palette);
     syncResponseOptions();

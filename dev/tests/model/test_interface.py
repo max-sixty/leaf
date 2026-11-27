@@ -7,7 +7,7 @@ from click.testing import CliRunner
 
 from leaf_dev import ROOT
 from leaf_dev.cli import cli
-from leaf_dev.commands.interface import Tree, census
+from leaf_dev.commands.interface import PARTS, Tree, census
 from leaf_dev.styling_names import REFERENCES
 
 
@@ -24,6 +24,7 @@ def test_each_part_reads_its_list_and_its_users():
         ("keys", "verbs"): "packages",
         ("elements", "lf-suggestion"): "examples",
         ("protocol", "lf-commands"): "packages",
+        ("contracts", "text-document"): "examples",
         ("functions", "whileConnected"): "packages",
         ("styling", "--lf-ink"): "packages",
     }
@@ -31,6 +32,9 @@ def test_each_part_reads_its_list_and_its_users():
         assert parts[part][name]["users"][group], f"{part} {name} has no {group} use"
     assert parts["protocol"]["lf-action"]["form"] == "event"
     assert parts["styling"]["--lf-ink"]["form"] == "the theme sets it"
+    assert (
+        parts["contracts"]["choice"]["form"] == "default declares it; output, reference"
+    )
 
 
 def test_the_protocol_index_lists_each_protocol_name_a_reference_gives():
@@ -63,18 +67,11 @@ def test_the_protocol_index_lists_each_protocol_name_a_reference_gives():
     )
 
 
-def test_a_base_reads_the_same_parts():
+def test_a_base_reads_the_same_parts(tmp_path):
+    """`--base` takes the census of a commit's files, and a path the copy of them
+    leaves out empties a part without an error, so every part finds names at a
+    commit."""
     result = CliRunner().invoke(cli, ["interface", "--json", "--base", "HEAD"])
     assert result.exit_code == 0, result.output
-    change = json.loads(result.output)
-    assert (
-        change["added"].keys()
-        == change["removed"].keys()
-        == {
-            "keys",
-            "elements",
-            "protocol",
-            "functions",
-            "styling",
-        }
-    )
+    committed = census(Tree.at("HEAD", tmp_path))
+    assert [part for part in PARTS if not committed[part]] == []

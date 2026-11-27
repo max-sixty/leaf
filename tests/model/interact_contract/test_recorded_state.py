@@ -84,7 +84,8 @@ def test_recorded_effect_payloads_are_validated_at_admission(page_dir):
         '<lf-column id="done" label="Done"></lf-column></lf-board>'
     )
     page = ModelPage(source, registry=registry)
-    for widget, action, valid, invalid in (
+    # The group and the draft ask, so each gesture of theirs carries their word.
+    for widget, action, valid, invalid, word in (
         (
             "picks",
             "choose",
@@ -97,6 +98,7 @@ def test_recorded_effect_payloads_are_validated_at_admission(page_dir):
                 {"value": ["first"], "animate": True},
                 {"value": ["missing"]},
             ),
+            {"answered": True},
         ),
         (
             "draft",
@@ -108,6 +110,7 @@ def test_recorded_effect_payloads_are_validated_at_admission(page_dir):
                 {"value": 1},
                 {"value": "New words", "text": "news"},
             ),
+            {"answered": True},
         ),
         (
             "board",
@@ -123,6 +126,7 @@ def test_recorded_effect_payloads_are_validated_at_admission(page_dir):
                 {"unit": "missing", "value": "done", "rank": "0i"},
                 {"unit": "card", "value": "missing", "rank": "0i"},
             ),
+            {},
         ),
     ):
         command = {
@@ -131,6 +135,7 @@ def test_recorded_effect_payloads_are_validated_at_admission(page_dir):
             "revision": 1,
             "widget": widget,
             "action": action,
+            **word,
         }
         admitted = event_contracts_model.admitted_event(
             page, [], {**command, "detail": valid}
@@ -179,6 +184,8 @@ def test_attribute_records_admit_only_sets_of_owned_members(page_dir, writer):
             "widget": "owned",
             "action": "add",
             "detail": {"option": "generated", "text": "Another route"},
+            # Where the group asks, it says each gesture leaves it open until Done.
+            **({"answered": False} if writer == "user" else {}),
         },
     )
     log = [{**added, "seq": 1, "ts": "2026-10-06T12:00:00+00:00"}]
@@ -188,6 +195,8 @@ def test_attribute_records_admit_only_sets_of_owned_members(page_dir, writer):
         "revision": 1,
         "widget": "owned",
         "action": "choose",
+        # A user's pick on a multiple choice leaves it open until Done.
+        **({"answered": False} if writer == "user" else {}),
     }
     for value in ([], ["first"], ["first", "second"], ["generated"]):
         admitted = event_contracts_model.admitted_event(
@@ -375,14 +384,12 @@ def test_report_text_is_required_only_when_declared(page_dir):
 def test_a_declaration_leaves_out_what_its_record_and_value_decide(page_dir):
     """A verb keeps one state for the whole widget unless it names a detail field as
     its `unit`, and a position record's verb keeps one for each member it moves. A
-    record that names no `kind` is one value in its attribute. An obligation is
-    answered while its `value` verb has a state unless `answered` says when. A
-    declaration that leaves these out composes to the one that writes them, so the
+    record that names no `kind` is one value in its attribute. A declaration that
+    leaves these out composes to the one that writes them, so the
     fold, admission and each event's stored state definition read the same entry."""
     written = vocabulary(page_dir)
     registry = deepcopy(written)
     del registry["lf-suggestion"]["verbs"]["decide"]["unit"]
-    del registry["lf-suggestion"]["awaits"]["answered"]
     del registry["lf-test-task"]["verbs"]["status"]["unit"]
     del registry["lf-test-task"]["verbs"]["status"]["record"]["kind"]
     del registry["lf-board"]["verbs"]["move"]["unit"]
@@ -395,7 +402,6 @@ def test_a_declaration_leaves_out_what_its_record_and_value_decide(page_dir):
     for tag in ("lf-suggestion", "lf-test-task", "lf-board"):
         assert composed[tag] == written[tag], tag
     assert written["lf-suggestion"]["verbs"]["decide"]["unit"] == "widget"
-    assert written["lf-suggestion"]["awaits"]["answered"] == {"decide": {}}
     assert written["lf-test-task"]["verbs"]["status"]["record"]["kind"] == "value"
     assert written["lf-board"]["verbs"]["move"]["unit"] == "unit"
 
@@ -728,6 +734,7 @@ def test_member_records_compose_without_claiming_each_others_state(tmp_path):
             reading.registry,
             {"sources": {}},
             tmp_path,
+            files={},
             outcomes=retirement_outcomes(projection.actions),
             retired=set(),
             thread="thread",

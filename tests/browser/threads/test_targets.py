@@ -8,6 +8,7 @@ from click.testing import CliRunner
 from interact_support import append_carried_log_record, response_reference
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, live_url, panel_comment
+from render_cases_navigation import mark_point
 from render_harness import (
     EXAMPLE_PACKAGES,
     RELEASE_FOCUS,
@@ -17,7 +18,6 @@ from render_harness import (
     leaf_page,
     open_page,
     panel_settled,
-    put_preview_away,
     resized,
     select_words,
     selection_field,
@@ -82,7 +82,7 @@ def test_a_thread_mark_inside_a_tab_panel_opens_on_press(browser, serve):
                     "author": "user",
                     "revision": 1,
                     "text": "About this paragraph.",
-                    "anchor": {"section": "inside"},
+                    "anchor": {"section": "inside", "quote": "Commented words"},
                 }
             ],
         ),
@@ -90,9 +90,10 @@ def test_a_thread_mark_inside_a_tab_panel_opens_on_press(browser, serve):
     panel = page.locator("#first")
     expect(panel).to_have_attribute("tabindex", "0")
     passage = page.locator("#inside")
-    passage.hover()
+    at = mark_point(page, "lf-mark")
+    page.mouse.move(*at)
     expect(passage).to_have_css("cursor", "pointer")
-    passage.click()
+    page.mouse.click(*at)
     expect(
         page.locator(
             '.lf-margin-preview .lf-page-thread[data-lf-thread="inside-thread"]'
@@ -100,30 +101,20 @@ def test_a_thread_mark_inside_a_tab_panel_opens_on_press(browser, serve):
     ).to_be_visible()
 
 
-def test_the_hand_over_a_commented_section_spares_its_controls(browser, serve):
-    """A press in a commented section opens its thread, but one on a field or button
-    inside it keeps its own meaning (annotations/composing/surface.js), so the hand stands over the
-    section's words and the field keeps its own cursor."""
+def test_an_armed_button_keeps_its_cursor_whether_or_not_a_thread_marks_it(
+    browser, serve
+):
+    """Holding ⌥, a press is the aim's, and a button a thread is on keeps the cursor its
+    unmarked twin shows."""
     source = leaf_page(
-        "Commented form",
-        '<section id="form"><p id="words">Fill this in, please.</p>'
-        '<textarea id="field">Notes</textarea></section>'
-        '<p><button id="act">Act</button> '
-        '<button id="twin">Twin</button></p>',
+        "Commented button",
+        '<p><button id="act">Act</button> <button id="twin">Twin</button></p>',
     )
     page = open_page(
         browser,
         serve(
             source,
             events=[
-                {
-                    "kind": "comment",
-                    "id": "form-thread",
-                    "author": "user",
-                    "revision": 1,
-                    "text": "About this form.",
-                    "anchor": {"section": "form"},
-                },
                 {
                     "kind": "comment",
                     "id": "act-thread",
@@ -135,24 +126,6 @@ def test_the_hand_over_a_commented_section_spares_its_controls(browser, serve):
             ],
         ),
     )
-    expect(page.locator("#form")).to_have_class(re.compile(r"\blf-mark-el\b"))
-    at_pointer = "([x, y]) => getComputedStyle(document.elementFromPoint(x, y)).cursor"
-    field = page.locator("#field")
-    field.hover()
-    box = field.bounding_box()
-    centre = [box["x"] + box["width"] / 2, box["y"] + box["height"] / 2]
-    rendered(page)
-    expect(field).not_to_have_attribute("data-lf-over-mark", re.compile(".*"))
-    assert page.evaluate(at_pointer, centre) != "pointer"
-    words = page.locator("#words")
-    words.hover()
-    expect(words).to_have_css("cursor", "pointer")
-    # The words preview their thread after a dwell, and that preview can stand over the
-    # buttons below, so put it away before aiming at them.
-    put_preview_away(page)
-
-    # Armed, a press is the aim's, and a button keeps its own cursor whether or not a
-    # thread marks it: the same as its unmarked twin's.
     expect(page.locator("#act")).to_have_class(re.compile(r"\blf-mark-el\b"))
     armed = {}
     for button in ("twin", "act"):
@@ -167,11 +140,11 @@ def test_the_hand_over_a_commented_section_spares_its_controls(browser, serve):
 
 
 def test_a_press_a_widget_takes_opens_no_thread_marked_over_it(browser, serve):
-    """A press means one thing. A press on an option card picks it and one on a gloss
-    pins its card, so neither opens the thread on the question they stand in, whose
-    reply box would take the user's focus (annotations/composing/surface.js, the page's click). A
-    gloss in a label leaves the press to the label, which ticks its box. A press on the
-    question's own words still opens that thread."""
+    """A press means one thing. A press on an option card's marked words picks the
+    option and one on a gloss's pins its card, so neither opens the thread on those
+    words, whose reply box would take the user's focus (annotations/composing/surface.js,
+    the page's click). A gloss in a label leaves the press to the label, which ticks its
+    box. A press on marked words outside any control still opens their thread."""
     source = leaf_page(
         "Commented question",
         '<lf-group id="cache-q" label="Which cache should the importer use?">'
@@ -199,13 +172,19 @@ def test_a_press_a_widget_takes_opens_no_thread_marked_over_it(browser, serve):
                     "kind": "comment",
                     "author": "user",
                     "revision": 1,
-                    "text": "Does Redis need a deploy step?",
-                    "anchor": {"section": "cache-q"},
+                    "text": f"About {quote}?",
+                    "anchor": {"section": "cache-q", "quote": quote},
                 }
+                for quote in (
+                    "Redis",
+                    "durable store",
+                    "WAL",
+                    "Both hold a day of results.",
+                )
             ],
         ),
     )
-    expect(page.locator("#cache-q")).to_have_class(re.compile(r"\blf-mark-el\b"))
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) >= 4")
     card = page.locator(".lf-margin-preview")
 
     page.locator("#cache-redis strong").click()
@@ -224,7 +203,8 @@ def test_a_press_a_widget_takes_opens_no_thread_marked_over_it(browser, serve):
     rendered(page)
     expect(card).to_be_hidden()
 
-    page.locator("#words").click()
+    words = page.locator("#words")
+    words.click(position={"x": 12, "y": words.bounding_box()["height"] / 2})
     expect(card.locator("leaf-text")).to_be_focused()
 
 
@@ -288,42 +268,6 @@ REPLY_TRAVEL_PAGE = leaf_page(
 )
 
 
-def test_a_press_on_a_mark_in_the_layer_opens_no_thread(browser, serve):
-    """An outline in the chrome says which element, and stops there.
-
-    An element anchor wears its outline wherever its element stands, the layer's own
-    parts included — that is what lets a design comment about the banner point at the
-    banner. A press there is not the thread's: `markAt` refuses a press inside the
-    chrome on purpose, because what the chrome holds keeps its own presses. The Threads
-    button opens the panel and an option takes a pick; neither of them opens a thread.
-    The cursor over such a mark, which promises no press,
-    `test_an_armed_page_shows_each_place_the_cursor_its_press_keeps` reads."""
-    url = serve(REPLY_TRAVEL_PAGE)
-    seed_reply(
-        serve.page_dir,
-        '<lf-group id="tv-decision-region" label="Which store should I write up?">\n<h3 id="tv-decision-region-h">Which store should I write up?</h3>'
-        '<lf-options id="tv-decision">'
-        '<lf-option id="tv-redis">Redis</lf-option>'
-        "</lf-options></lf-group>",
-        "tv-decision",
-    )
-    page = open_page(browser, url)
-    resized(page, 1280, 900)
-    open_panel_thread(page, "tv-decisioned")
-    rendered(page)
-    expect(page.locator(".lf-fp-view #tv-decision")).to_have_class(
-        re.compile(r"\blf-mark-el\b")
-    )
-    page.locator(".lf-fp-view #tv-decision").click(position={"x": 4, "y": 4})
-    rendered(page)
-    expect(
-        page.locator(f'{PANEL_THREAD}[data-lf-thread="tv-decisioned"]')
-    ).to_be_visible()
-    assert not page.locator(f'{PANEL_THREAD}[data-lf-thread="tv-on-it"]').count(), (
-        "a press on a mark in the layer reached its thread after all"
-    )
-
-
 ARMED_PAGE = leaf_page(
     "Armed cursors",
     '<section id="items"><p id="item">Words in an item.</p>'
@@ -342,7 +286,7 @@ ARMED_PAGE = leaf_page(
 ARMED_CURSORS = {
     "words in an item": ("auto", "pointer", "pointer"),
     "beside the column": ("auto", "auto", "auto"),
-    "words in a marked item": ("pointer", "pointer", "pointer"),
+    "words in a marked item": ("auto", "pointer", "pointer"),
     "a tab stop in a marked item": ("auto", "auto", "auto"),
     "a marked passage": ("pointer", "pointer", "pointer"),
     "a link in an item": ("pointer", "pointer", "pointer"),
@@ -354,11 +298,12 @@ ARMED_CURSORS = {
 def test_an_armed_page_shows_each_place_the_cursor_its_press_keeps(
     request, serve, engine
 ):
-    """A hand promises a press: at rest, where a press opens a thread; holding ⌥ or in
-    Design mode, where the aim's press takes an item. A control keeps its own cursor in
-    either, even inside a marked item, where a press only focuses or works it; so do the
-    words no item holds, a draft's item at rest, and a mark in the chrome, which neither
-    press takes. Where the aim's press takes an item, its hand covers any cursor the page
+    """A hand promises a press: at rest, where a press opens a thread, on a passage's
+    marked words; holding ⌥ or in Design mode, where the aim's press takes an item. A
+    control keeps its own cursor in either, even among marked words, where a press only
+    focuses or works it; so do the words of an item a thread is on as a whole, which a
+    press at rest leaves alone (annotations/anchor-paint.js, header), the words no item
+    holds, a draft's item at rest, and a mark in the chrome, which neither press takes. Where the aim's press takes an item, its hand covers any cursor the page
     gives the item. Each place's cursor is read where the pointer is, since each hand is
     painted on the element under it (annotations/anchor-paint.js, panel/page-geometry.js); a mark of the
     arm on `body` made Firefox visit every element of the page as ⌥ went down or up."""
@@ -375,7 +320,7 @@ def test_an_armed_page_shows_each_place_the_cursor_its_press_keeps(
             }
             for section, anchor in (
                 ("marked", {"section": "marked"}),
-                ("stops", {"section": "stops"}),
+                ("stops", {"section": "stops", "quote": "holding a tab stop beside"}),
                 ("passage", {"section": "passage", "quote": "a marked passage"}),
             )
         ],

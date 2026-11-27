@@ -146,7 +146,6 @@ def test_a_projected_attribute_opens_an_obligation_captured_from_authored_markup
         "awaits": {
             "when": {"phase": ["open"]},
             "value": "answer",
-            "answered": {"answer": {}},
         },
         "example": '<lf-conditional id="example" phase="closed">Choose.</lf-conditional>',
     }
@@ -184,6 +183,7 @@ customElements.define("lf-conditional", class extends LeafElement {
                 "widget": "question",
                 "action": "phase",
                 "detail": {"value": phase},
+                "answered": False,
             },
         )
         told(page)
@@ -287,8 +287,8 @@ customElements.define("lf-tally", class extends LeafElement {
     expect(page.locator("body")).to_have_attribute("data-lf-applied", "3")
     kept = page.evaluate(
         """async () => {
-          const {state} = (await window.__lfWidgetApi())
-            .widgetController(document.getElementById('tally-fitted')).read();
+          const {state} = (await window.__lfCheckApi())
+            .controllerOf(document.getElementById('tally-fitted')).read();
           return [state.set.value, state.observe.value];
         }"""
     )
@@ -496,10 +496,10 @@ def test_a_part_and_its_own_widget_keep_same_named_verbs_independent(
     expect(page.locator("#piece")).to_have_attribute("pinned", "yes")
     kept = page.evaluate(
         """async () => {
-          const {widgetController} = await window.__lfWidgetApi();
+          const {controllerOf} = await window.__lfCheckApi();
           return ['owner', 'piece'].map(id => {
             const widget = document.getElementById(id);
-            const {state} = widgetController(widget).read();
+            const {state} = controllerOf(widget).read();
             return [id, (state.move.units?.piece ?? state.move).action];
           });
         }"""
@@ -664,6 +664,7 @@ def test_replay_signatures_exclude_settlement_and_other_runtime_paint(browser, s
             "widget": "sug-refill",
             "action": "decide",
             "detail": {"outcome": "accept"},
+            "answered": True,
         },
     )
     page = open_page(browser, url)
@@ -844,6 +845,7 @@ def test_a_decision_already_in_the_log_retires_its_slot_at_load(browser, serve):
             "widget": "sug-refill",
             "action": "decide",
             "detail": {"outcome": "accept"},
+            "answered": True,
         },
     )
     page = open_page(browser, url)
@@ -908,6 +910,7 @@ def test_a_label_in_a_retired_slot_leaves_the_page_with_the_slot(browser, serve)
             "widget": "sug-swap",
             "action": "decide",
             "detail": {"outcome": "accept"},
+            "answered": True,
         },
     )
     page = open_page(browser, url)

@@ -1645,10 +1645,10 @@ def test_a_comment_rechooses_after_target_width_reflow(browser, serve):
 
 
 def test_a_draft_below_its_passage_keeps_its_lane_whatever_it_holds(browser, serve):
-    """Above or below a passage the field starts where the compact control would, ended
-    on the passage's right edge. The bar's first measured width is the draft's, so a
-    start taken from it put a restored draft further left, in a wider lane, than the
-    same draft typed into an empty field."""
+    """Above or below a passage the field stands by the passage's right edge, where
+    the compact control ends. The bar's first measured width is the draft's, so a place
+    taken from it put a restored draft further left, in a wider lane, than the same
+    draft typed into an empty field."""
     page = open_page(
         browser,
         serve(named_source("release-notes")),
@@ -1662,10 +1662,10 @@ def test_a_draft_below_its_passage_keeps_its_lane_whatever_it_holds(browser, ser
     rendered(page)
     placement = bar.get_attribute("data-lf-placement")
     assert placement in {"top-start", "bottom-start"}, placement
-    empty = bar.bounding_box()
     draft = "A draft long enough that its own width would widen the bar it opens in."
     write(field, draft)
     rendered(page)
+    typed = bar.bounding_box()
 
     page.reload()
     wait_until_ready(page)
@@ -1673,7 +1673,8 @@ def test_a_draft_below_its_passage_keeps_its_lane_whatever_it_holds(browser, ser
     assert bar.get_attribute("data-lf-placement") in {"top-start", "bottom-start"}
     rendered(page)
     restored = bar.bounding_box()
-    assert abs(restored["x"] - empty["x"]) <= 1, (empty, restored)
+    assert restored["x"] == pytest.approx(typed["x"], abs=1), (typed, restored)
+    assert restored["width"] == pytest.approx(typed["width"], abs=1), (typed, restored)
 
 
 # A transform on the target itself and one on a box around it; how a transform reaches
@@ -3564,10 +3565,10 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
 ):
     """Decoration omitted from a contour still belongs to its semantic part.
 
-    The posted comment opens from the line inside the registered element, while the
-    package-selected rectangle alone draws the contour its open thread raises. A second
-    draft on the same part wears the pending contour, since the posted comment draws
-    none at rest.
+    The package-selected rectangle alone draws the contour the posted comment's open
+    thread raises, while an Alt-click on the line inside the registered element still
+    aims at the part. That second draft on the part wears the pending contour, since the
+    posted comment draws none at rest.
     """
     url = serve(
         GENERIC_VISUAL_PAGE,
@@ -3603,14 +3604,7 @@ def test_a_visual_surface_narrows_paint_without_narrowing_semantic_interaction(
         }"""
         )
 
-    point = midpoint(decoration)
-    page.mouse.move(point["x"], point["y"])
-    page.wait_for_function(
-        "({x, y}) => getComputedStyle(document.elementFromPoint(x, y)).cursor"
-        " === 'pointer'",
-        arg=point,
-    )
-    page.mouse.click(point["x"], point["y"])
+    page.locator(".lf-margin-marker").first.click()
     expect(
         page.locator(
             '.lf-margin-preview .lf-page-thread[data-lf-thread="outer-comment"]'
@@ -3653,7 +3647,7 @@ def test_a_non_geometry_visual_surface_uses_one_box_for_aim_and_mark(browser, se
     semantic = page.locator("#html")
     surface = page.locator("#html-surface")
 
-    surface.click()
+    page.locator(".lf-margin-marker").first.click()
     expect(semantic).to_have_attribute("data-lf-projected-mark", "")
     expect(page.locator("[data-lf-mark]")).to_have_id("html-surface")
     marked = surface.evaluate(MARK)
@@ -3690,12 +3684,13 @@ def test_a_shadow_visual_surface_is_clipped_by_its_host(browser, serve):
     host = page.locator("#shadow-visual")
     surface = host.locator("#wide-surface")
 
-    surface.click(position={"x": 20, "y": 20})
+    page.locator(".lf-margin-marker").first.click()
     expect(surface).to_have_attribute("data-lf-mark", re.compile("."))
     assert_drawn_in(surface, token_colour(page, "--lf-ok"), 2)
     assert host.evaluate("host => getComputedStyle(host).overflowX") == "hidden"
     assert surface.bounding_box()["width"] > host.bounding_box()["width"] + 10
 
+    surface.hover(position={"x": 20, "y": 20})
     page.keyboard.down("Alt")
     expect(page.locator("[data-lf-aimed]")).to_have_id("wide-surface")
     assert_drawn_in(surface, token_colour(page, "--lf-ok"), 2)
@@ -3821,6 +3816,73 @@ sequenceDiagram
     open_compact_comment(page)
     expect(page.locator("#lf-composer-quote")).to_have_text("§ diagram · User")
     expect(actor).to_have_class(re.compile(r"\blf-mark-el\b.*\blf-pending\b"))
+
+
+def test_every_box_a_diagram_names_takes_its_own_comment(browser, serve):
+    """Each box an author names takes a comment of its own in every kind of diagram
+    that draws its boxes under their names, and a box that holds others is marked on
+    its own frame. A group leaves a name it shares to the box. A name drawn twice, a
+    group Pele numbers for want of a name, and a journey, whose steps Pele numbers on a
+    phone, take the whole diagram's comment, and the diagram still draws."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Every diagram's boxes",
+                """
+<h1 id="t">Boxes</h1>
+<lf-diagram id="board"><pre>
+kanban
+  Todo
+    t1[Write docs]
+    [Review]
+  Done
+    [Review]
+</pre></lf-diagram>
+<lf-diagram id="years"><pre>
+timeline
+  2024 : Plan
+  2024 : Build
+  2025 : Ship
+</pre></lf-diagram>
+<lf-diagram id="model"><pre>
+classDiagram
+  namespace Job {
+    class Job
+  }
+</pre></lf-diagram>
+<lf-diagram id="blocks"><pre>
+block-beta
+  block
+    a
+  end
+</pre></lf-diagram>
+<lf-diagram id="release"><pre>
+journey
+  section Build
+    Review: 5: Me
+</pre></lf-diagram>
+""",
+            )
+        ),
+    )
+    expect(page.locator("lf-diagram.lf-rendered")).to_have_count(5)
+    parts = page.evaluate(
+        """() => Object.fromEntries([...document.querySelectorAll('lf-diagram')].map(
+          (d) => [d.id, d.lfParts.read().map((p) =>
+            [p.id, p.label, p.surface ? p.surface.localName : p.element.localName])]))"""
+    )
+    assert parts == {
+        "board": [
+            ["node:Todo", "Todo 2", "rect"],
+            ["node:t1", "Write docs", "g"],
+            ["node:Done", "Done 1", "rect"],
+        ],
+        "years": [["node:2025", "2025 Ship", "g"]],
+        "model": [["node:Job", "Job", "g"]],
+        "blocks": [["node:a", "a", "g"]],
+        "release": [],
+    }
 
 
 def test_target_brackets_and_focus_share_the_visible_boundary(browser, serve, subtests):
@@ -5547,3 +5609,86 @@ def test_the_aim_on_a_list_item_stands_clear_of_its_marker(browser, serve):
         assert max(band) < min(marker), (
             f"#{target}: the aim's band runs across the list marker"
         )
+
+
+def test_a_mark_a_clip_would_cut_stands_inside_its_box(browser, serve, subtests):
+    """A box that clips at its edge cuts a mark standing outside what it holds there,
+    as an author's scroll area cut both brackets of the aim on a table filling its
+    width, and a bounded block the ring's start on a link opening a line. There the
+    mark stands one band inside its box, whatever the box's kind, wholly inside the
+    clip, at every scroll of it. A box the clip leaves room round keeps its kind's
+    place."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Clipped marks",
+                """
+<div style="overflow-x: auto"><table id="flush"><tr><th>Kind</th><th>Where</th></tr>
+  <tr><td>Region</td><td>Inside</td></tr></table></div>
+<div style="overflow-x: auto"><p id="roomy" style="margin: 12px">A paragraph the
+  scroller leaves room round.</p></div>
+<div style="overflow-x: auto"><table id="wide" style="width: 2400px">
+  <tr><th>A table wider than its scroller</th><th>Its end</th></tr></table></div>
+<div style="overflow-x: auto"><table id="wide-roomy" style="width: 2400px; margin: 12px">
+  <tr><th>A wide table the scroller leaves room round</th></tr></table></div>
+<div data-bound="start"><p><a id="link" href="#flush">A link that opens a line</a>
+  in a bounded block.</p></div>
+""",
+            )
+        ),
+    )
+    resized(page, 1100, 900)
+    region, band = page.evaluate(
+        """() => ["--lf-focus-region-gap", "--lf-focus-ring-w"].map((name) =>
+          parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name)))"""
+    )
+
+    def stands(target):
+        """Where the mark on `target` stands, and whether the box clipping it holds
+        the mark whole."""
+        return page.locator(f"#{target}").evaluate(
+            """(box) => {
+              const s = getComputedStyle(box);
+              const offset = parseFloat(s.outlineOffset);
+              const grow = offset + parseFloat(s.outlineWidth);
+              const r = box.getBoundingClientRect();
+              const c = box.closest("div").getBoundingClientRect();
+              return {
+                offset,
+                whole: r.left - grow >= c.left - 0.5 && r.right + grow <= c.right + 0.5
+                  && r.top - grow >= c.top - 0.5 && r.bottom + grow <= c.bottom + 0.5,
+              };
+            }"""
+        )
+
+    cases = (("flush", True), ("roomy", False), ("wide", True), ("wide-roomy", False))
+    for target, inside in cases:
+        with subtests.test(aim=target):
+            page.locator(f"#{target}").hover(position={"x": 10, "y": 10})
+            page.keyboard.down("Alt")
+            expect(page.locator("[data-lf-aimed]")).to_have_id(target)
+            mark = stands(target)
+            at = -band if inside else region
+            assert mark["offset"] == at, mark
+            if target.startswith("wide"):
+                # Scrolled, the table's start stands past the scroller's edge, and only
+                # where it stands in what scrolls says whether its marks have room.
+                page.locator(f"#{target}").evaluate(
+                    "(t) => { t.parentElement.scrollLeft = 900; }"
+                )
+                rendered(page)
+                assert stands(target)["offset"] == at, "a scroll moved the mark"
+            else:
+                assert mark["whole"], mark
+            page.keyboard.up("Alt")
+
+    with subtests.test(focus="link"):
+        page.locator("#link").focus()
+        page.keyboard.press("Shift+Tab")
+        page.keyboard.press("Tab")
+        expect(page.locator("#link")).to_have_attribute(
+            "data-lf-mark", re.compile(r"\bfocus\b")
+        )
+        mark = stands("link")
+        assert mark["offset"] == -band and mark["whole"], mark

@@ -60,7 +60,6 @@ from leaf.source.registry.kernel import (
     kinds_declaring,
     verb_writers,
 )
-from leaf.source.registry.reactions import reaction_emoji
 from leaf.source.registry.schema import schema_complaint
 from leaf.source.registry.storage import IncompatibleLayer, layer_record
 from leaf.source.structure import quoted_in
@@ -322,7 +321,11 @@ def datum_anchor_error(view, event: dict, page_by_id: dict, registry: dict):
 
     Source values are replaceable and nothing keeps the ones they replaced, so a
     revision other than the source's current one is admitted as a comment on a
-    value that has since changed: the reader and a replacement may have raced.
+    value that has since changed: the reader and a replacement may have raced. A
+    current revision that holds an error rather than a value is refused, since no
+    widget drew it. A revision digests the value alone, so a reading under another
+    contract than the seat's may still name a value the seat drew under its own, and
+    that is left to `page check` (`data.bound_file_conflicts`).
     """
     anchor = event.get("anchor") or {}
     source = anchor.get("source")
@@ -341,8 +344,19 @@ def datum_anchor_error(view, event: dict, page_by_id: dict, registry: dict):
     ]
     if not bindings:
         return Finding("datum-unbound-source", values=named)
-    if source not in view.contracts:
-        return Finding("datum-unsupplied-source", values=named)
+    reading = view.source(source, registry)
+    if reading is None:
+        return (
+            None
+            if source in view.contracts
+            else Finding("datum-unsupplied-source", values=named)
+        )
+    if anchor.get("source_revision") != reading["revision"]:
+        return None
+    if "error" in reading:
+        return Finding(
+            "datum-undrawn-source", values={**named, "why": reading["error"]}
+        )
     return None
 
 
@@ -367,6 +381,8 @@ def action_contract_error(view, event: dict, readings: AdmissionReadings):
     page_rec = document.by_id.get(event["widget"])
     rec = page_rec or thread_by_id[event["widget"]]
     tag = rec["tag"]
+    if error := word_error(event, tag, registry):
+        return error
     spec = registry[tag]["verbs"][event["action"]]
     # A created child is new: an id the markup already holds is an authored element,
     # which a user's gesture can mark or move but never write into being.
@@ -557,18 +573,6 @@ def _report_error(view, event: dict, readings: AdmissionReadings) -> Finding | N
     return record_contract_error(view, event, spec, readings)
 
 
-def _reaction_error(event: dict, registry: dict) -> Finding | None:
-    if not event.get("emoji"):
-        return None
-    declared = reaction_emoji(registry)
-    if event["emoji"] not in declared:
-        return Finding(
-            "unknown-reaction",
-            values={"emoji": event["emoji"], "declared": list(declared)},
-        )
-    return None
-
-
 def _anchored_comment_error(view, event: dict, registry: dict):
     """Why a comment's declared target is not a place on the page it names.
 
@@ -708,7 +712,29 @@ def _withdrawal_error(
         return None
     newest = view.revisions[-1]
     absorbed = readings.page(newest).projection.absorbed
-    return undo_error(event, events, absorbed)
+    if error := undo_error(event, events, absorbed):
+        return error
+    # The gesture taken back is a widget's action, whose meaning names its tag, or
+    # another kind, which no widget's word speaks for.
+    target = next(e for e in events if e["id"] == event["undoes"])
+    if target["kind"] != "action":
+        return word_error(event, target["kind"], {})
+    origin = target["meaning"].get("state", {}).get("origin")
+    return word_error(event, origin, readings.registry)
+
+
+def word_error(event: dict, tag: str | None, registry: dict) -> Finding | None:
+    """Why a gesture of a `tag` element carries the wrong word on its question: a
+    widget that asks says on each act and undo of it whether its question is answered
+    (`obligations.gesture_answers`), and one that doesn't says nothing. An act that
+    left the word out would answer nothing however the user acted, with nothing to
+    tell anyone."""
+    asks = bool((registry.get(tag) or {}).get("awaits"))
+    if asks and "answered" not in event:
+        return Finding("answered-missing", values={"tag": tag})
+    if not asks and "answered" in event:
+        return Finding("answered-unasked", values={"tag": tag})
+    return None
 
 
 def admission_error(
@@ -731,7 +757,6 @@ def admission_error(
         or _revision_error(view, event)
         or _action_error(view, event, readings)
         or _report_error(view, event, readings)
-        or _reaction_error(event, registry)
         or _anchored_comment_error(view, event, registry)
         or _parent_error(event, events)
         or _named_question_error(event, events)

@@ -46,7 +46,7 @@ from leaf.base.state import (
     record_name,
     session_file,
 )
-from leaf.source.file_bindings import bound_paths
+from leaf.source.file_bindings import bound_paths, observed
 
 # Diagnostic writes cannot move application state. The server writes
 # `user-views.json` as a tab reports its view and `observations.jsonl` for every
@@ -120,6 +120,10 @@ def outside_inputs(page_dir: Path) -> set[Path]:
 
 
 def _outside(page_dir: Path) -> list[tuple[str, Path]]:
+    return _claimed(page_dir) + _bound(page_dir)
+
+
+def _claimed(page_dir: Path) -> list[tuple[str, Path]]:
     named = [("$claim", CLAIM.file(claim_path(page_dir)))]
     claim = page_claim(page_dir)
     if claim:
@@ -131,7 +135,7 @@ def _outside(page_dir: Path) -> list[tuple[str, Path]]:
                 SESSION.file(session_file(claim["id"], SESSION_SUFFIX)).resolve(),
             )
         )
-    return named + _bound(page_dir)
+    return named
 
 
 def _bound(page_dir: Path) -> list[tuple[str, Path]]:
@@ -193,14 +197,23 @@ def held_page_reading(page_dir: Path) -> str:
     the same stamps (`source_readings`), so a file source validation reads that could
     change without moving it would leave a save unactivated; `media/` is stamped
     without descending because its filenames are content-addressed. The state answer
-    also carries each bound file's label and stamp (`file_bindings.bound_files`),
-    naming which binding moved.
+    also carries each bound file as a source (`data.file_sources`), whose run names
+    which binding moved.
     """
     return _token([*page_stamps(page_dir), *_outside_stamps(page_dir)])
 
 
 def _outside_stamps(page_dir: Path) -> list[tuple[str, object]]:
-    return [(name, file_stamp(path)) for name, path in _outside(page_dir)]
+    return [
+        *((name, file_stamp(path)) for name, path in _claimed(page_dir)),
+        *_bound_stamps(page_dir),
+    ]
+
+
+def _bound_stamps(page_dir: Path) -> list[tuple[str, object]]:
+    # A bound file is stamped as its source reads it (`file_bindings.observed`), so
+    # the news moves with every change that moves the source.
+    return [(name, observed(path)) for name, path in _bound(page_dir)]
 
 
 def record_reading(page_dir: Path) -> str:
@@ -213,7 +226,7 @@ def record_reading(page_dir: Path) -> str:
     stamps = [
         stamp for stamp in page_stamps(page_dir) if stamp[0] not in PAGE_PROCESS_FILES
     ]
-    stamps.extend((name, file_stamp(path)) for name, path in _bound(page_dir))
+    stamps.extend(_bound_stamps(page_dir))
     return _token(stamps)
 
 

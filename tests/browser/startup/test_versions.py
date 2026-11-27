@@ -84,6 +84,7 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
             "widget": "draft-ops",
             "action": "edit",
             "detail": {"value": DRAFT_EDITED},
+            "answered": True,
         },
     )
     corrected = "Run the migration after deploying — it needs the new column."
@@ -214,6 +215,7 @@ def test_foreign_state_draws_beside_a_live_drag(browser, serve):
             "widget": "draft-ops",
             "action": "edit",
             "detail": {"value": foreign},
+            "answered": True,
         },
     )
     told(page)
@@ -258,6 +260,30 @@ def test_the_diff_marks_a_card_the_author_relocated(browser, serve):
     assert not page.evaluate(
         "document.getElementById('card-x-note').classList.contains('lf-ins-block')"
     ), "the card's passenger marked as its own move"
+
+
+def test_a_card_s_words_compare_and_anchor_across_its_title(browser, serve):
+    """A card keeps its authored words, though Leaf drives it to set the choice it may
+    show. So Compare marks an edit to them, and a quote that runs from the card's
+    bold title into its prose anchors, as in any paragraph."""
+    v1 = JOURNEY_V1.replace(_CARD, _CARD.replace("One line.", "One line for now."))
+    url = serve(v1)
+    _publish(
+        serve.page_dir,
+        2,
+        JOURNEY_V1.replace(_CARD, _CARD.replace("One line.", "One line for good.")),
+        "reword the card",
+    )
+    page = open_page(browser, url.replace("v1.html", "v2.html"))
+    resolved = page.evaluate(
+        """async () => {
+          const {resolveAnchor} = await window.__lfCheckApi();
+          return resolveAnchor({section: "card-x", quote: "session delete One line"})?.kind;
+        }"""
+    )
+    assert resolved == "passage", resolved
+    compare_with(page)
+    expect(page.locator("#card-x")).to_have_class(re.compile(r"lf-ins-block"))
 
 
 SCRIPT_WORDS = leaf_page(
@@ -522,6 +548,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
             "widget": "sug-fix",
             "action": "decide",
             "detail": {"outcome": "reject"},
+            "answered": True,
         },
     )
     told(page)

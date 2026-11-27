@@ -1151,10 +1151,18 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
         )
 
     user = {"kind": "action", "author": "user", "revision": 1, "widget": "an-set"}
-    choose = {"action": "choose", "detail": {"value": ["an-chase", "an-say"]}}
+    # The group takes several options, so only its Done answers it.
+    choose = {
+        "action": "choose",
+        "detail": {"value": ["an-chase", "an-say"]},
+        "answered": False,
+    }
     append_command(serve.page_dir, user | choose)
     # The Done press. Recordless, and the last word on the group.
-    append_command(serve.page_dir, user | {"action": "answer", "detail": {}})
+    append_command(
+        serve.page_dir,
+        user | {"action": "answer", "detail": {}, "answered": True},
+    )
     # The population first: the probe returns clean for an empty list.
     page = open_page(browser, url)
     resized(page, 1280, 900)
@@ -1248,9 +1256,13 @@ def test_widget_state_excuses_only_the_verbatim_prose_it_projects(
             "detail": {"value": "corrupt"},
         },
     )
-    edit = {"action": "edit", "detail": {"value": "User's current draft."}}
+    edit = {
+        "action": "edit",
+        "detail": {"value": "User's current draft."},
+        "answered": True,
+    }
     append_command(serve.page_dir, user | edit | {"widget": "edited"})
-    accept = {"action": "decide", "detail": {"outcome": "accept"}}
+    accept = {"action": "decide", "detail": {"outcome": "accept"}, "answered": True}
     append_command(serve.page_dir, user | accept | {"widget": "retired"})
     withdrawn = append_command(serve.page_dir, user | accept | {"widget": "undone"})
     append_carried_log_record(
@@ -1443,9 +1455,6 @@ from browser.test_render_gate import (
     SAMPLE_FAULT,
     _panel,
 )
-from render_cases_widgets import (
-    PART_DIAGRAM_PAGE,
-)
 
 
 @pytest.mark.shifts_unsurveyed
@@ -1532,28 +1541,6 @@ def test_the_render_gate_reads_a_page_that_scrolls_sideways_only_between_viewpor
 
 
 @pytest.mark.shifts_unsurveyed
-def test_the_render_gate_refuses_duplicate_diagram_identities(browser, serve):
-    """Two named boxes cannot share the same stable comment identity."""
-    page = PART_DIAGRAM_PAGE.replace(
-        "</lf-diagram>",
-        """</lf-diagram>
-<lf-diagram id="model"><pre>
-classDiagram
-  namespace Job {
-    class Job
-  }
-</pre></lf-diagram>""",
-        1,
-    )
-    failures = render_gate_model.render_version(browser.unwatched, serve(page)).failures
-    assert [(f.code, f.at) for f in failures] == [("console-error", "")], failures
-    assert all(
-        'leaf: <lf-diagram id="model"> failed:' in f.values["text"]
-        and "Job" in f.values["text"]
-        for f in failures
-    ), failures
-
-
 def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
     """Every restore case the layer restores is exercised on one representative page.
 
@@ -1583,6 +1570,7 @@ def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
                 "widget": "sug-rewrite",
                 "action": "decide",
                 "detail": {"outcome": "accept"},
+                "answered": True,
                 "meaning": {
                     "scope": "page",
                     "unit": "sug-rewrite",

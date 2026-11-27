@@ -40,7 +40,7 @@ def test_init_allows_a_log_holding_a_reaction_the_incoming_layer_dropped(
     layer = page_dir.parent / ".leaf"
     layer.mkdir()
     (layer / "registry.json").write_text(
-        json.dumps({"$reactions": {"emoji": {"✂️": None}}})
+        json.dumps({"$reactions": {"emoji": ["👍", "❌", "🤔", "🔎", "🎯"]}})
     )
     monkeypatch.chdir(page_dir.parent)
     result = CliRunner().invoke(
@@ -79,6 +79,7 @@ def test_init_allows_changed_generated_child_semantics(page_dir):
             "widget": "route",
             "action": "add",
             "detail": {"option": "route-user", "text": "User route"},
+            "answered": False,
         },
     )
 

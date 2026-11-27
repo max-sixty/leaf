@@ -163,6 +163,7 @@ export { reveal, dragHeld } from "./dom/widget-elements.js";
 export { replyIsEditing } from "./records/thread/replies.js";
 export { THREAD, SAY_BOX } from "./records/thread/selectors.js";
 export { registerSampleCommand } from "./host/sample-child.js";
+export { controllerOf } from "./host/widget-controller.js";
 export { recordInteraction } from "./transport/interaction-log.js";
 export { bringBackSurfaceOf } from "./readings/off-flow.js";
 export { TEXT_BOX, WORKS } from "./dom/control-selectors.js";

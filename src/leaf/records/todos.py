@@ -8,7 +8,7 @@ a widget's own controls or a reply in a thread (`obligations`), so Leaf adds no 
 of its own to any of them. The user chose this over a to-do on the user
 (`leaf task create --on user`): the widget or thread
 an ask stands on is sovereign over how it is answered, and a step such as trying a
-build is asked in a thread, which the user's reply or settling reaction answers.
+build is asked in a thread, which the user's reply answers, in words or a reaction.
 
 An item on the agent's list is either an update it owes an answer, whose id is the
 update's event id (`workflows`), or a to-do it opened. `leaf task start` writes a
@@ -30,6 +30,17 @@ that opened it leaves it open; that is what a to-do adds over an update, which i
 answer settles. An open to-do keeps its thread the agent's (`standing.leading`),
 counts under `queues.on_agent` in `page state`, and shows in the page's status.
 `../../../skills/leaf/references/conversation-loop.md` tells the agent which work gets a to-do.
+
+A to-do may name, in the agent's words, what its work waits on that the agent doesn't
+control (`waiting_on`), such as the user's pick elsewhere on the page or another
+change landing. The record carries it until the first start on the to-do, which
+says the agent has taken the work up, so a later lapse reads stalled rather than
+waiting again, or until the to-do ends. Leaf reads nothing from the words: it shows them, and never decides
+the wait is over. They are words rather than the id of a record on the page, since
+what work waits on is as often off the page, such as a review or another session's
+change. So that the agent needn't remember a held to-do across a long session, each
+delivery from the page lists it (`delivery.batch_data`, `held`), and the agent
+judges at each input whether that input ends the wait.
 
 A `todo_end` names only a to-do. A question the agent asked in a thread, which the
 user answered elsewhere or which no longer applies, ends when the agent resolves the
@@ -192,7 +203,8 @@ class TodoReading:
 
 def _todos(events: list, ends: dict, starts: dict) -> list[dict]:
     """Every to-do the log opened, as the obligation record it is: its title as the
-    prompt, the start in force on an open one as its `line`, and how it ended, by its
+    prompt, what it waits on until a start takes it up or it ends (`waiting_on`), the start in
+    force on an open one as its `line`, and how it ended, by its
     `todo_end` in force (`ends`) or by the first stamped version whose `--completes`
     names it, whichever came first. Its `thread` is the one it was opened on; a reader
     holding the thread markup adds a widget's (`work_state.work_state`)."""
@@ -210,6 +222,7 @@ def _todos(events: list, ends: dict, starts: dict) -> list[dict]:
                 "answer": None,
                 "end": None,
                 **on("agent"),
+                "waiting_on": opened.get("waiting_on"),
                 "line": None,
                 "seq": opened["seq"],
                 "ts": opened["ts"],
@@ -217,6 +230,8 @@ def _todos(events: list, ends: dict, starts: dict) -> list[dict]:
                 "session": opened.get("session"),
                 "revision": opened.get("revision"),
             }
+        elif (start := start_reading(event)) and start["item"] in todos:
+            todos[start["item"]]["waiting_on"] = None
         elif event["kind"] == "note":
             for identity in note_settlements(event, "todo"):
                 todo = todos.get(identity)
@@ -234,6 +249,8 @@ def _todos(events: list, ends: dict, starts: dict) -> list[dict]:
             todo["end"] = _end(closed, closed["detail"])
         if is_open(todo) and todo["id"] in starts:
             todo["line"] = running(starts[todo["id"]])
+        if not is_open(todo):
+            todo["waiting_on"] = None
     return list(todos.values())
 
 

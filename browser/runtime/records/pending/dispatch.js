@@ -1,7 +1,13 @@
 // @ts-check
 /* Widget command construction and the checked submission boundary. Presentation
    and collision notices belong to the composition root; its callbacks run after
-   the ledger publishes the command synchronously. */
+   the ledger publishes the command synchronously.
+
+   A widget's action, and an undo of one, carries what the widget says of its
+   obligation as the gesture leaves its state (`awaits`). The ledger publishes the
+   gesture first, so the widget's reading holds it, then asks the widget
+   (`answered`, the composition root's), and the word joins the event before transport
+   sends it. */
 import { actionForWidget, isThreadEvent } from "../../state/pending/model.js";
 import { createPendingLedger } from "./state.js";
 import { applicationState, readApplication } from "../../state/semantic-state.js";
@@ -16,7 +22,8 @@ import { messageText } from "../thread/messages.js";
 /** @typedef {import("../../state/semantic-application.js").WidgetDescriptor} WidgetDescriptor */
 /** @typedef {ReturnType<typeof import("../../state/semantic-application.js").createSemanticApplication>} Application */
 /** @typedef {ReturnType<ReturnType<Application["selectWidget"]>["read"]>["actions"][string]["undo"][number]} UndoCandidate */
-/** A package's command, as `widgetController(owner).dispatch` takes it. Admission
+/** A widget's command, as its controller's `dispatch` takes it from the `lf-action` or
+ * `lf-undo` the widget records with (`hearRecords`, host/widget-controller.js). Admission
  * judges each registry-declared detail schema. An action's `says` names the gesture in
  * the widget's words: the one name Leaf acknowledges it by once the log admits it, and
  * names it by when the user undoes it.
@@ -27,6 +34,7 @@ import { messageText } from "../thread/messages.js";
  * named: (entry: import("./state.js").DeliveryHandle, says: string) => void,
  * withdraw: (event: UndoCandidate) => Promise<Event | null> | null,
  * onCollision: (attempt: string | undefined) => void,
+ * answered: (widget: string, tag: string | null) => boolean | undefined,
  * }} DispatchDependencies */
 export function createCommandDispatch() {
   const submitted = new Set();
@@ -55,12 +63,13 @@ export function createCommandDispatch() {
   };
   /** @param {PendingCommand} event */
   const startPost = (event) => {
-    const { onCollision, afterEnqueue } = current();
+    const { onCollision, afterEnqueue, answered } = current();
     const entry = ledger.enqueue(event);
     if (!entry) {
       onCollision(event.attempt);
       return null;
     }
+    applicationState.answer(entry.event.attempt, answered);
     afterEnqueue(entry);
     return entry;
   };

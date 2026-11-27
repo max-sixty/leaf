@@ -466,6 +466,7 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
             "widget": "response-options",
             "action": "choose",
             "detail": {"value": ["response-yes"]},
+            "answered": True,
         },
     )
     # A widget input is answered on the message holding it, not on its own event id.
@@ -1261,6 +1262,7 @@ def test_markup_obligation_cannot_be_discharged_by_reply_or_reply_failure(page_d
             "widget": "plan-choice",
             "action": "answer",
             "detail": {},
+            "answered": True,
         },
     )
     reference = response_reference(page_dir, action)

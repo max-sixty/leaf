@@ -293,7 +293,15 @@ def test_the_event_log_page_shows_the_records_the_door_writes(page_dir):
     ]
 
     # The browser's command: what it posts, before the door stamps anything.
-    command_fields = ("kind", "revision", "widget", "action", "detail", "attempt")
+    command_fields = (
+        "kind",
+        "revision",
+        "widget",
+        "action",
+        "detail",
+        "answered",
+        "attempt",
+    )
     ids = {}
     with transaction_model.PageTransaction(page_dir) as page:
         for record in shown:
@@ -370,10 +378,7 @@ def test_the_event_log_page_quotes_the_registry():
     shown = json.loads("{" + block + "}")
     assert shown == {
         "verbs": entry["verbs"],
-        "awaits": {
-            "value": entry["awaits"]["value"],
-            "answered": entry["awaits"]["answered"],
-        },
+        "awaits": {"value": entry["awaits"]["value"]},
     }
     lines = block.splitlines()
     noted = []
@@ -387,8 +392,8 @@ def test_the_event_log_page_quotes_the_registry():
         '"unit": "option"',
         '"creates": ',
         '"answer": ',
+        '"awaits": ',
         '"value": ',
-        '"answered": ',
     ]
     assert [line[: len(key)] for line, key in zip(noted, explained, strict=True)] == (
         explained

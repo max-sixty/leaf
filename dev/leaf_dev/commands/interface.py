@@ -29,6 +29,13 @@ Each part is read from the list that defines it, as the check that guards it rea
   `tests/runtime/widget-api.test.mjs` reads them. A function's form is the section the
   references' index (`module-authoring.md`, "Functions") files it under, and whether it
   is portable (`portable-api.js` exports it).
+- Data contracts: the names `$data.contracts` declares in `browser/registry.json` and
+  in each bundled package's registry. An example page's registry declares contracts for
+  that page alone, which are no part of the interface. A contract's form is the
+  package that declares it and how widgets bind it: as an `output`, or as an input by
+  `reference` to another widget or by `source` to data the agent sets. A contract
+  states the invoker commands its producer takes in the prose of its `producer`
+  instructions, so the census lists no command.
 - Styling names: the custom properties the references name, and the classes Leaf's
   sheets style that the references or a kernel idiom name (`leaf_dev.styling_names`,
   which `tests/model/test_theme_tokens.py` reads). A name's form is the side of the
@@ -52,6 +59,8 @@ being its HTML file, its `.page` directory and its earlier versions). The counts
 out Leaf's own registry, whose elements a key's form names instead. A use is:
 
 - for a key, an element declaration in a registry that carries it;
+- for a contract, an element declaration in a registry whose `inputs` or `outputs`
+  name it;
 - for an element, its start tag;
 - for a function, its import from `widget-api.js` or `portable-api.js`;
 - for a protocol member, a script's property of its name; for an event, a call in a
@@ -87,7 +96,7 @@ import tree_sitter_javascript
 import turbohtml
 from tree_sitter import Language, Node, Parser, Query, QueryCursor
 
-from leaf.source.registry.contract import is_element_name
+from leaf.source.registry.contract import element_declarations, is_element_name
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     arm_commit,
@@ -113,6 +122,7 @@ PARTS = {
     "keys": "Declaration keys",
     "elements": "Leaf's elements",
     "protocol": "The widget protocol",
+    "contracts": "Data contracts",
     "functions": "Functions",
     "styling": "Styling names",
 }
@@ -423,6 +433,14 @@ class Tree:
             if Path(path).suffix in CODE:
                 yield path, user
 
+    def declarations(self) -> Iterator[tuple[str, tuple[str, str], str, dict]]:
+        """Each element declaration in a user's registry, with the registry's path, the
+        user it counts for, and its tag."""
+        for path, user in self.users.items():
+            if path.endswith("registry.json"):
+                for tag, declaration in element_declarations(self.json(path)).items():
+                    yield path, user, tag, declaration
+
     def imported_modules(self, path: str) -> set[str]:
         """The library modules a script imports, by file name."""
         return {
@@ -445,12 +463,39 @@ def keys(tree: Tree) -> dict[str, Name]:
         rows[key] = Name(
             "; ".join(form + ([f"Leaf's {', '.join(own)}"] if own else []))
         )
-    for path, user in tree.users.items():
-        if path.endswith("registry.json"):
-            for tag, declaration in tree.json(path).items():
-                if is_element_name(tag):
-                    for key in declaration.keys() & rows.keys():
-                        rows[key].used(user, f"{path}: {tag}")
+    for path, user, tag, declaration in tree.declarations():
+        for key in declaration.keys() & rows.keys():
+            rows[key].used(user, f"{path}: {tag}")
+    return rows
+
+
+def contracts(tree: Tree) -> dict[str, Name]:
+    registries = {"browser/registry.json": "Leaf"} | {
+        path: who
+        for path, (group, who) in tree.users.items()
+        if group == "packages" and path == f"packages/{who}/registry.json"
+    }
+    declared = defaultdict(list)
+    for path, who in sorted(registries.items()):
+        for name in tree.json(path).get("$data", {}).get("contracts", {}):
+            declared[name].append(who)
+    rows = {name: Name() for name in declared}
+    bound = defaultdict(set)
+    for path, user, tag, declaration in tree.declarations():
+        for kinds, binding in [
+            *(({"output"}, each) for each in declaration.get("outputs", {}).values()),
+            *(
+                (each.keys() & {"reference", "source"}, each)
+                for each in declaration.get("inputs", {}).values()
+            ),
+        ]:
+            if (row := rows.get(name := binding["contract"])) is not None:
+                bound[name] |= kinds
+                row.used(user, f"{path}: {tag}")
+    for name, who in declared.items():
+        declares = "declares" if len(who) == 1 else "declare"
+        kinds = ", ".join(sorted(bound[name])) or "no widget binds it"
+        rows[name].form = f"{', '.join(who)} {declares} it; {kinds}"
     return rows
 
 
@@ -646,7 +691,11 @@ def styling(tree: Tree) -> dict[str, Name]:
 def census(tree: Tree) -> dict[str, dict[str, Name]]:
     """Every part's names, each with its form and users, fewest direct users first. A
     script that imports a library module using a name reaches the name through it."""
-    read = {"keys": keys(tree), "elements": elements(tree)}
+    read = {
+        "keys": keys(tree),
+        "elements": elements(tree),
+        "contracts": contracts(tree),
+    }
     read["functions"] = functions(tree)
     read["protocol"] = protocol(tree, read["functions"])
     read["styling"] = styling(tree)
@@ -733,9 +782,9 @@ def printed(parts: dict[str, dict[str, Name]]) -> str:
 @base_option()
 def interface(as_json: bool, base: str | None) -> None:
     """Print every name a package's author can lean on Leaf for: an element
-    declaration's keys, Leaf's elements, the widget protocol, functions and styling
-    names, each with its form and what uses it. With --base, print the names this
-    tree adds and removes."""
+    declaration's keys, Leaf's elements, the widget protocol, data contracts,
+    functions and styling names, each with its form and what uses it. With --base,
+    print the names this tree adds and removes."""
     head = census(Tree.working())
     if base is None:
         click.echo(

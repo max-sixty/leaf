@@ -164,9 +164,14 @@ def test_render_allows_authored_state_the_log_replays_over(browser, serve):
     """
     url = serve(REPLAYED_PAGE)
     d = serve.page_dir
-    for widget, action, detail in [
-        ("approach", "choose", {"value": ["opt-shim"]}),
-        ("work", "move", {"unit": "card-importer", "value": "col-done", "rank": "0i"}),
+    for widget, action, detail, word in [
+        ("approach", "choose", {"value": ["opt-shim"]}, {"answered": True}),
+        (
+            "work",
+            "move",
+            {"unit": "card-importer", "value": "col-done", "rank": "0i"},
+            {},
+        ),
     ]:
         append_command(
             d,
@@ -177,6 +182,7 @@ def test_render_allows_authored_state_the_log_replays_over(browser, serve):
                 "widget": widget,
                 "action": action,
                 "detail": detail,
+                **word,
             },
         )
 
@@ -266,10 +272,10 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
         packages=(*EXAMPLE_PACKAGES, ROOT / "tests/fixtures/packages/work", "./.leaf"),
     )
     relative_actions = [
-        ("tally-fitted", "step", {"value": "3"}),
-        ("tally-fitted", "caption", {"value": "Two greys at the north feeder."}),
+        ("tally-fitted", "step", {"value": "3"}, {}),
+        ("tally-fitted", "caption", {"value": "Two greys at the north feeder."}, {}),
     ]
-    for widget, action, detail in [*ACTIONS_IN_FORCE, *relative_actions]:
+    for widget, action, detail, word in [*ACTIONS_IN_FORCE, *relative_actions]:
         append_command(
             serve.page_dir,
             {
@@ -279,6 +285,7 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
                 "widget": widget,
                 "action": action,
                 "detail": detail,
+                **word,
             },
         )
     # The agent channel through its own door, which is the only way a report is
@@ -298,15 +305,21 @@ def test_the_render_gate_applies_every_action_in_force_a_second_time(
 
     page = open_page(browser, url)
     in_force_ids = sorted(
-        {widget for widget, _action, _detail in [*ACTIONS_IN_FORCE, *relative_actions]}
+        {
+            widget
+            for widget, _action, _detail, _word in [
+                *ACTIONS_IN_FORCE,
+                *relative_actions,
+            ]
+        }
         | {"ab-baffles", "ab-wren"}
     )
     in_force = page.evaluate(
         """async ids => {
-          const {widgetController} = await window.__lfWidgetApi();
+          const {controllerOf} = await window.__lfCheckApi();
           return ids.flatMap(id => {
             const widget = document.getElementById(id);
-            const state = widgetController(widget).read().state;
+            const state = controllerOf(widget).read().state;
             return Object.entries(state).flatMap(([verb, value]) =>
               (value.units ? Object.values(value.units) : [value])
                 .filter(({action}) => action)
@@ -750,7 +763,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
         wherever it stands — and `m` reaches it. A single-answer group
     is answered by its pick, as on the page; a `multiple` group's toggles each reach the
     agent live, so only its Done press closes it, as an `answer` action
-    `awaits.answered` names for a `multiple` group. The thread's own reply box is
+    the group says answers a `multiple` group. The thread's own reply box is
     the words'
         home, so the group brings no box of its own. `g T` leaves option-digit scope for
     Threads, while `t` reaches a particular thread and `c` reaches its reply box.
@@ -865,9 +878,10 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     # Taking back a recordless chrome answer rebuilds its authored controls at once —
     # the withdrawal is the user's own gesture on their own widget. The selection is
     # another verb, so it survives that rebuild. Whether the decision is open again is
-    # the log's reading, so the count moves when the withdrawal reaches it and not while
-    # it is held at the wire. In particular, the surviving `choose` action cannot answer
-    # a `multiple` set, whose `awaits.answered` condition is an `answer` in force.
+    # the group's own word, which the withdrawal carries, so the count moves at once,
+    # while the withdrawal is still held at the wire, and the log's reading agrees. In
+    # particular, the surviving `choose` action cannot answer a `multiple` set, which
+    # says it is answered only while its Done stands.
     held = []
     page.route("**/api/event", lambda route: held.append(route))
     with page.expect_request("**/api/event"):
@@ -875,7 +889,7 @@ def test_a_thread_obligation_waits_until_answered(browser, serve):
     expect(page.locator("#tq-set .lf-done")).to_have_attribute("aria-pressed", "false")
     expect(page.locator("#tq-logs")).to_have_attribute("selected", "")
     expect(page.locator("#tq-set-decision > h3")).to_have_text("Which extras apply?")
-    expect_obligations_answered(page, "2/2")
+    expect_obligations_answered(page, "1/2")
     holding(page, held, 1, "the thread answer's withdrawal")
     held[0].continue_()
     page.unroute("**/api/event")

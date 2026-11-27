@@ -106,6 +106,7 @@ BOTH_SIDES = (
         "widget": "ship",
         "action": "choose",
         "detail": {"value": ["ship-now"]},
+        "answered": True,
     },
     {
         "kind": "pickup",
@@ -394,6 +395,7 @@ def build() -> dict:
                         "widget": "sug-refill",
                         "action": "decide",
                         "detail": {"outcome": "accept"},
+                        "answered": True,
                     },
                 ),
             ),
@@ -407,6 +409,7 @@ def build() -> dict:
                         "widget": "ship",
                         "action": "choose",
                         "detail": {"value": ["ship-now"]},
+                        "answered": True,
                     },
                     {"kind": "comment", "text": "Rebuild the chart."},
                     {
@@ -649,11 +652,18 @@ def gesture_sequence() -> dict:
             "widget": "draft-ops",
             "action": "edit",
             "detail": {"value": value},
+            "answered": True,
             "attempt": f"sequence-edit-{index:03}",
         }
         for index, value in enumerate(edits, 1)
     ]
-    withdrawal = {"kind": "undo", "undoes": "e3", "attempt": "sequence-undo-003"}
+    # The earlier edits still stand, so the draft still holds words.
+    withdrawal = {
+        "kind": "undo",
+        "undoes": "e3",
+        "answered": True,
+        "attempt": "sequence-undo-003",
+    }
     commands.append(withdrawal)
     commands.extend(
         {
@@ -720,6 +730,7 @@ TAIL_LOG = (
         "action": "choose",
         "detail": {"value": ["red"]},
         "attempt": "tail-attempt-0001",
+        "answered": False,
     },
     {
         "kind": "action",
@@ -727,6 +738,7 @@ TAIL_LOG = (
         "action": "choose",
         "detail": {"value": ["red", "blue"]},
         "attempt": "tail-attempt-0002",
+        "answered": False,
     },
     {"kind": "comment", "text": "Why both?", "attempt": "tail-attempt-0003"},
     {
@@ -735,8 +747,14 @@ TAIL_LOG = (
         "action": "choose",
         "detail": {"value": ["now"]},
         "attempt": "tail-attempt-0004",
+        "answered": True,
     },
-    {"kind": "undo", "undoes": "e2", "attempt": "tail-attempt-0005"},
+    {
+        "kind": "undo",
+        "undoes": "e2",
+        "answered": False,
+        "attempt": "tail-attempt-0005",
+    },
     {
         "kind": "pickup",
         "author": "page",
@@ -759,6 +777,7 @@ TAIL_LOG = (
         "widget": "kinds",
         "action": "answer",
         "detail": {},
+        "answered": True,
         "attempt": "tail-attempt-0008",
     },
 )
@@ -829,7 +848,6 @@ def tail_cases() -> list[dict]:
             "awaits": {
                 "when": {"active": [True]},
                 "value": "set",
-                "answered": {"set": {}},
             },
             "verbs": {
                 "set": {
@@ -851,6 +869,7 @@ def tail_cases() -> list[dict]:
                 "widget": "typed",
                 "action": "set",
                 "detail": {"value": value},
+                "answered": True,
             }
             for value in values
         ]

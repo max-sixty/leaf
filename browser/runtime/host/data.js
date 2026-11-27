@@ -46,7 +46,8 @@ import { setRuntimeRootAttribute } from "../state/root-state.js";
 import { bindingAttributes, registry, tagsDeclaring } from "../state/registry.js";
 import { isElementName } from "../state/registry-contract.js";
 import { watchArrivals } from "../dom/arrivals.js";
-import { referencedProjection } from "../readings/references.js";
+import { authoredElement } from "../readings/references.js";
+import { settledAway } from "../readings/passages.js";
 import { reportPageError } from "../transport/layer-client.js";
 import { tick } from "../state/version-signal.js";
 
@@ -209,14 +210,18 @@ function deliveredSource(source, declaration, input, accepted) {
 }
 
 // The reading of a bound widget's output of `contract`: what the element under the bound
-// id, resolved in the reader's authored scope, holds in the property its declaration
-// names for that contract. `page check` holds that widget to one output of the contract.
+// id holds in the property its declaration names for that contract. The id names an
+// element in the reader's own document first, then in the page, and never one a
+// settlement retired, which the reading follows as it changes. Wherever that finds an
+// element, `elementById` from the reader finds the same one, so a reader that asks the
+// widget it reads, as a board card asks its question, reaches the producer of what it
+// shows. `page check` holds that widget to one output of the contract.
 // A producer holds a new value to change one: the object it held at the last reading
 // reads as unchanged at no cost, so a large value held beside one that changes often
 // costs its readers nothing as the other moves. A new value is copied as it is read, so
 // the reading is the reader's own, and an equal one keeps the reading it replaced.
-/** @param {Element} element @param {string} attribute @param {string} widget @param {string} contract */
-function heldOutput(element, attribute, widget, contract) {
+/** @param {Element} element @param {string} widget @param {string} contract */
+function heldOutput(element, widget, contract) {
   watchProducers();
   const moved = standingUnder(widget);
   /** @type {DataSnapshot | null} */
@@ -226,7 +231,8 @@ function heldOutput(element, attribute, widget, contract) {
   let read;
   return computed(() => {
     moved.value;
-    const producer = untracked(() => referencedProjection(element, attribute, widget));
+    const found = untracked(() => authoredElement(widget, element));
+    const producer = found && !settledAway(found) ? found : null;
     if (!producer) return (held = null);
     changeOf(producer).value;
     return untracked(() => {
@@ -310,7 +316,7 @@ export function dataReader(element, input, accepted) {
   const bound = source
     ? deliveredSource(source, declaration, input, accepted)
     : widget && declaration.reference
-      ? heldOutput(element, declaration.reference, widget, declaration.contract)
+      ? heldOutput(element, widget, declaration.contract)
       : null;
   /** @type {DataSnapshot | null} */
   let reported = null;

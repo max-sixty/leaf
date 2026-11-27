@@ -53,6 +53,7 @@ const browserGlobals = Object.fromEntries(
     "CSSStyleSheet",
     "CSSTransition",
     "CharacterData",
+    "CommandEvent",
     "CustomEvent",
     "DOMException",
     "DOMParser",

@@ -7,7 +7,6 @@ from leaf.base.schema import DECLARATION_SCHEMA, INPUT_BINDINGS
 from leaf.source.registry.contract import (
     body_is_data,
     deciding_outcomes,
-    deciding_verb,
     element_declarations,
     fact_condition,
     gathering,
@@ -19,7 +18,6 @@ from leaf.source.registry.contract import (
 from leaf.source.registry.kernel import kernel_marks
 from leaf.source.registry.schema import check_schema, json_validator, schema_reading
 from leaf.source.registry.state import (
-    validate_answered_conditions,
     validate_deciding_verb,
     validate_widget_record_contracts,
     validate_widget_retirement,
@@ -107,7 +105,6 @@ def _validate_widget_relations(
     )
     validate_deciding_verb(tag, entry, path)
     validate_widget_retirement(tag, entry, declarations, path)
-    validate_answered_conditions(tag, entry, declarations, path)
 
 
 def _typed(properties: dict, attr: str, kind: str) -> bool:
@@ -275,10 +272,6 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
     conditions = [
         ("awaits", awaits.get("when", {})),
         *(
-            ("awaits", condition.get("when", {}))
-            for condition in awaits.get("answered", {}).values()
-        ),
-        *(
             (key, when)
             for key in kernel_marks()
             if (when := fact_condition(entry.get(key))) is not None
@@ -326,24 +319,17 @@ def _validate_widget_predicates(tag: str, entry: dict, properties: dict, path) -
 def _validate_widget_interactions(
     tag: str, entry: dict, registry: dict, awaits: dict, path
 ) -> None:
-    answered = awaits.get("answered", {})
-    # The user answers their own obligation, so only a verb the user writes can answer it.
-    # `value` is asked first: composition writes it into an `answered` the declaration
-    # left out, and a refusal should name what the author wrote.
+    # The user answers their own obligation, so its answer is a verb the user writes.
     user_verbs = {verb for verb, _spec in state_specs(entry, writer="user")}
     if awaits and awaits["value"] not in user_verbs:
         raise registry_error("awaits-value", path, tag)
-    if unknown := sorted(set(answered) - user_verbs):
-        raise registry_error("awaits-verbs", path, tag, verbs=unknown)
     # A retired obligation was asked and has ended, so the flag that retires it has to be
     # one registration already reads as stopping the widget asking.
     retired = awaits.get("retired")
     if retired and awaits.get("when", {}).get(retired) != [False]:
         raise registry_error("awaits-retired", path, tag, flag=retired)
     # A blanket answer is one decision per obligation, taken through the widget's deciding
-    # verb, so it names an outcome that verb declares and the verb answers the obligation.
-    if (blanket := awaits.get("all")) and (
-        deciding_verb(entry) not in answered or blanket not in deciding_outcomes(entry)
-    ):
+    # verb, so it names an outcome that verb declares.
+    if (blanket := awaits.get("all")) and blanket not in deciding_outcomes(entry):
         raise registry_error("awaits-blanket", path, tag, outcome=blanket)
     require_module(tag, entry, registry, path)

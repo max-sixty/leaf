@@ -138,8 +138,8 @@ Every composition, `page init`'s layer and a page's own declarations over it, wr
 declaration says so. Composition also writes into each declaration the defaults it
 leaves out (`source/registry/contract.complete_declarations`): its `content`, its attribute
 schema, the `type` and `additionalProperties` of that schema and of each verb's
-`detail` schema, each verb's `unit` and its record's `kind`, an obligation's
-`answered`, and each attribute an input binds by, as a string in the attribute
+`detail` schema, each verb's `unit` and its record's `kind`, and each attribute an
+input binds by, as a string in the attribute
 schema and, for the one its `reference` names, in `refers`. It writes them before
 validation, so validation and every later reader read them whether the declaration or
 composition wrote them.

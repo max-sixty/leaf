@@ -1071,18 +1071,27 @@ diff --git a/ab/bracket.py b/ab/bracket.py
 # set of them puts each card where its own rank says, whichever other moves stand. The
 # ranks are the ones lf-board sends: importer before the authored notes ("1"), then
 # notes before importer.
+# Each act with the fields its gesture adds: the word an asking widget sends, which a
+# `multiple` pick or a tune leaves open until its Done or choice.
+ANSWERED = {"answered": True}
+OPEN = {"answered": False}
 ACTIONS_IN_FORCE = [
-    ("ab-pick", "choose", {"value": ["ab-stage"]}),
-    ("ab-pick", "answer", {}),
-    ("ab-pick", "add", {"option": "ab-rewrite", "text": "Rewrite the callers first"}),
-    ("ab-work", "move", {"unit": "ab-importer", "value": "ab-done", "rank": "0i"}),
-    ("ab-work", "move", {"unit": "ab-notes", "value": "ab-done", "rank": "09"}),
-    ("ab-email", "edit", {"value": "The words as the user rewrote them."}),
-    ("ab-sug-410", "decide", {"outcome": "accept"}),
-    ("ab-sug-logs", "decide", {"outcome": "reject"}),
-    ("ab-triage", "choose", {"value": ["ab-capacity"]}),
-    ("ab-triage", "answer", {}),
-    ("ab-card", "tune", {"values": {"radius": 20, "tone": "bold"}}),
+    ("ab-pick", "choose", {"value": ["ab-stage"]}, ANSWERED),
+    ("ab-pick", "answer", {}, ANSWERED),
+    (
+        "ab-pick",
+        "add",
+        {"option": "ab-rewrite", "text": "Rewrite the callers first"},
+        ANSWERED,
+    ),
+    ("ab-work", "move", {"unit": "ab-importer", "value": "ab-done", "rank": "0i"}, {}),
+    ("ab-work", "move", {"unit": "ab-notes", "value": "ab-done", "rank": "09"}, {}),
+    ("ab-email", "edit", {"value": "The words as the user rewrote them."}, ANSWERED),
+    ("ab-sug-410", "decide", {"outcome": "accept"}, ANSWERED),
+    ("ab-sug-logs", "decide", {"outcome": "reject"}, ANSWERED),
+    ("ab-triage", "choose", {"value": ["ab-capacity"]}, OPEN),
+    ("ab-triage", "answer", {}, ANSWERED),
+    ("ab-card", "tune", {"values": {"radius": 20, "tone": "bold"}}, OPEN),
     (
         "ab-card",
         "choose",
@@ -1090,6 +1099,7 @@ ACTIONS_IN_FORCE = [
             "values": {"radius": 20, "tone": "bold"},
             "instruction": "Use a 20px corner radius and a bold tone.",
         },
+        ANSWERED,
     ),
 ]
 RELATIVE_WIDGET_PAGE = leaf_page(
@@ -1311,7 +1321,6 @@ SEATED_OBLIGATION_ENTRY: dict[str, Any] = {
     "awaits": {
         "value": "settle",
         "when": {"asks": [True]},
-        "answered": {"settle": {}},
     },
     "example": '<lf-verdict id="verdict-example" asks>Ship it?</lf-verdict>',
 }

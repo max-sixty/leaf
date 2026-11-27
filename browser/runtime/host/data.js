@@ -210,11 +210,12 @@ function deliveredSource(source, declaration, input, accepted) {
 }
 
 // The reading of a bound widget's output of `contract`: what the element under the bound
-// id holds in the property its declaration names for that contract. The id names the
-// element `elementById` names from the reader wherever the reader has a producer: the
-// reader's own document first, then the page, and nothing a settlement retired, which
-// the reading follows as it changes. So a reader that asks the widget it reads, as a
-// board card asks its question, reaches the producer of what it shows. `page check` holds that widget to one output of the contract.
+// id holds in the property its declaration names for that contract. The id names an
+// element in the reader's own document first, then in the page, and never one a
+// settlement retired, which the reading follows as it changes. Wherever that finds an
+// element, `elementById` from the reader finds the same one, so a reader that asks the
+// widget it reads, as a board card asks its question, reaches the producer of what it
+// shows. `page check` holds that widget to one output of the contract.
 // A producer holds a new value to change one: the object it held at the last reading
 // reads as unchanged at no cost, so a large value held beside one that changes often
 // costs its readers nothing as the other moves. A new value is copied as it is read, so

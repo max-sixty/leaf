@@ -874,7 +874,8 @@ customElements.define(
     // shows a choice moved to the column that choice names. Leaf sets each card's
     // choice as the widget's moves, and the card draws the board again, so a pick in
     // its section, an undo, a refusal and a revision's retraction all redraw the board.
-    // Each column lists its cards by rank, a shown card keeping its authored one.
+    // Each column lists its cards by rank, which the authored order and the board's own
+    // moves set.
     #placement() {
       const { value, ranks } = this.#position;
       const columns = Object.fromEntries(

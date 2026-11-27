@@ -984,10 +984,21 @@ def test_a_card_offers_the_columns_its_choice_takes_once_the_choice_arrives(
         ).to_have_js_property("hidden", not offered)
 
 
-def test_a_drop_asks_the_widget_whose_choice_the_card_shows(browser, serve):
-    """The card's binding names both the choice it shows and the widget its drop asks.
-    Markup owns the binding from the card's arrival, so a script that rewrites `shows`
-    afterwards sends the drop nowhere else."""
+@pytest.mark.parametrize(
+    ("rewritten", "step", "asked"),
+    [
+        # Leaf has bound the card to `rail`, so the drop asks `rail`.
+        ("once the card has drawn", "ArrowLeft", "rail"),
+        # Leaf binds the card to `other`, so the drop asks `other`.
+        ("as the card's class is defined", "ArrowRight", "other"),
+    ],
+)
+def test_a_drop_asks_the_widget_whose_choice_the_card_shows(
+    browser, serve, rewritten, step, asked
+):
+    """The card's binding names both the choice it shows and the widget its drop asks,
+    whenever a script rewrites `shows`: the drop asks the widget whose choice the card
+    stands by."""
     source = ANSWERS_BOARD_PAGE.replace(
         '<lf-board id="plan">',
         '<lf-group id="other-section" label="Keep the other rail?">'
@@ -996,20 +1007,27 @@ def test_a_drop_asks_the_widget_whose_choice_the_card_shows(browser, serve):
         '<lf-option id="other-later" value="later">Later</lf-option>'
         '</lf-options></lf-group><lf-board id="plan">',
     )
-    page = open_page(browser, live_url(serve(source)))
-    expect(page.locator("#col-later > #card-rail")).to_have_count(1)
-    page.evaluate("document.getElementById('card-rail').setAttribute('shows', 'other')")
+    rewrite = "document.getElementById('card-rail').setAttribute('shows', 'other')"
+    context = browser.new_context()
+    if rewritten.startswith("as"):
+        context.add_init_script(
+            f"customElements.whenDefined('lf-card').then(() => {rewrite});"
+        )
+    page = open_page(browser, live_url(serve(source)), context=context)
+    if rewritten.startswith("once"):
+        expect(page.locator("#col-later > #card-rail")).to_have_count(1)
+        page.evaluate(rewrite)
 
     with sending(page, "the drop"):
         page.locator("#card-rail .lf-grip").focus()
-        for press in ("Enter", "ArrowLeft", "Enter"):
+        for press in ("Enter", step, "Enter"):
             page.keyboard.press(press)
     expect(page.locator("#col-next > #card-rail")).to_have_count(1)
     assert [
         (event["widget"], event["action"], event["detail"])
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "action"
-    ] == [("rail", "choose", {"value": ["rail-next"]})]
+    ] == [(asked, "choose", {"value": [f"{asked}-next"]})]
 
 
 def test_a_card_with_shows_never_stands_by_a_board_move(browser, serve):

@@ -80,9 +80,9 @@ link preview counts a thread about any of them.
 
 ### Following a reference
 
-Reach another widget through an attribute declared in `refers`
+Take the user to another widget through an attribute declared in `refers`
 ([package-data.md, "References between widgets"](package-data.md#references-between-widgets)),
-not by looking up the id yourself.
+rather than by finding its element and moving there yourself.
 
 `navigateToDatum(this, attribute, key, {success, missing, focus})` takes the user to
 the first element `key` names in the referenced widget: a visual part's id, a projected

@@ -1,7 +1,7 @@
 /* An Effect UI component on the widget protocol (runtime/effect-widget.js): when it mounts,
-   what a set of `state` draws and when, and what its events say to the host. A Leaf
-   page's own answers to the protocol, such as recording an `lf-action`, are the
-   browser suite's. */
+   what a set of `state` draws and when, where the draw leaves the user, and what its
+   events say to the host. A Leaf page's own answers to the protocol, such as recording
+   an `lf-action`, are the browser suite's. */
 import assert from "node:assert/strict";
 import test from "node:test";
 import {
@@ -297,6 +297,59 @@ test("inputs that throw show the box beside the authored children until they rea
     assert.ok(el.querySelector(".lf-error"));
     note.value = "good";
     assert.equal(el.querySelector(".lf-error"), null);
+  } finally {
+    el.remove();
+  }
+});
+
+// A widget that draws the items `state.shelves` names, each list on a shelf of its
+// own, as its drawn data: each item is keyed by its name and marked with it.
+const Shelves = Html.component({
+  name: "Shelves",
+  props: Schema.Struct({ ...widgetProps }),
+  model: Schema.Struct({}),
+  message: Schema.Never,
+}).make({
+  init: () => ({}),
+  update: {},
+  view: (h) =>
+    h.div.children(
+      .../** @type {{shelves: string[][]}} */ (h.props.state).shelves.map(
+        (items, shelf) =>
+          h.section
+            .key(`shelf-${shelf}`)
+            .children(
+              ...items.map((item) =>
+                h.button.key(item).attr("data-lf-datum", item).children(item),
+              ),
+            ),
+      ),
+    ),
+});
+
+test("an item a new state moves to another shelf keeps the user on it", async () => {
+  const tag = `lf-effect-${++tags}`;
+  defineWidget(tag, Shelves);
+  const el = /** @type {HTMLElement & {state: unknown}} */ (
+    document.createElement(tag)
+  );
+  el.state = { shelves: [["kept", "moved"], []] };
+  document.body.append(el);
+  /** @type {PromiseLike<unknown>[]} */
+  const pending = [];
+  el.addEventListener("pending-task", (event) =>
+    pending.push(/** @type {any} */ (event).complete),
+  );
+  const item = () => el.querySelector('[data-lf-datum="moved"]');
+  const before = /** @type {HTMLButtonElement} */ (item());
+  before.focus();
+  try {
+    el.state = { shelves: [["kept"], ["moved"]] };
+    await Promise.all(pending);
+    // Effect UI matches keys among one parent's children, so the item is a new node.
+    assert.notEqual(item(), before);
+    assert.equal(item()?.parentElement, el.querySelectorAll("section")[1]);
+    assert.equal(document.activeElement, item());
   } finally {
     el.remove();
   }

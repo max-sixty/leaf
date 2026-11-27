@@ -388,7 +388,7 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     page = floating(browser, url)
     open_threads(page)
     page.locator(f"{panel_view('threads')} .lf-fp-thread").first.click()
-    # The currently open thread: moving on to the next thread fades the one it leaves.
+    # Whichever thread stands open, as `r` moves on to the next.
     thread = page.locator(panel_view("thread"))
     expect(thread).to_be_visible()
     first = page.locator(".lf-fp-head .lf-fp-title").inner_text()
@@ -510,20 +510,14 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     expect(field(page)).to_have_attribute("placeholder", "All threads resolved")
     expect(undo).to_have_count(0)
     # The refusal arrives as news once the Resolve's motion has ended, which can be
-    # well after its rendering settles. Its thread rejoins Open in the Threads view as
-    # that view leaves for the thread, which carries the Resolved heading under it
-    # down: the one move the refusal makes without input, inside the panel
-    # (browser/AGENTS.md, "The page holds still under the user's aim", allows a rare
-    # path that move).
+    # well after its rendering settles. Threads goes as the thread comes back, so
+    # nothing in it moves as the thread rejoins Open.
     page_at_rest(page)
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
     page.unroute("**/api/event")
     expect(title).to_have_text(first)
     expect(undo).to_have_count(0)
     rendered(page)
-    consume_browser_errors(
-        page, {"code": "moved-without-input", "node": ["button.lf-fp-settled"]}
-    )
 
     thread.focus()
     with sending(page, "the resolve"):
@@ -1655,65 +1649,6 @@ def test_threads_grow_in_place_and_hold_news_until_asked(browser, serve):
     expect(reader.locator(".lf-msg")).to_have_count(3)
 
 
-def test_threads_fades_out_where_it_stood(browser, serve):
-    """A press on a row opens its thread while Threads fades out where it stood, with
-    the rows it drew: the box takes the thread's height and loses the list's foot, a
-    thread the list held behind its notice stays out, and a reply that would move a
-    row up the list moves none while the fade lasts. Back from the thread takes its
-    view away at once as Threads arrives, since the thread reader takes the thread's
-    messages from it then, so it never fades out empty."""
-    url = serve(LONG_PAGE, comments=3)
-    panel_comment(serve.page_dir, "Is the window long enough?")
-    page = floating(browser, url)
-    open_threads(page)
-    rows = page.locator(panel_view("threads")).locator(".lf-fp-thread")
-    expect(rows).to_have_count(4)
-    panel_comment(serve.page_dir, "Who watches the weekend?")
-    told(page)
-    expect_preview_words(page.locator(".lf-fp-joined .lf-thread-news"), "1 new thread")
-    settled(page)
-    places = """rows => rows.map(row =>
-        [row.dataset.lfKey, Math.round(row.getBoundingClientRect().top)])"""
-    drawn = rows.evaluate_all(places)
-    hold_motion(page)
-    rows.filter(has_text="Is the window long enough?").click()
-    # The box's motion sets out in the press's first update, as the box's size is
-    # delivered (dom/box-motion.js), and stands there while the motion is held.
-    one_frame(page)
-    leaving = page.locator(".lf-fp-view[data-lf-leaving]")
-    expect(leaving).to_have_css("opacity", "1")
-    fading = leaving.locator(".lf-fp-thread")
-    assert fading.evaluate_all(places) == drawn
-    oldest = next(
-        e["id"]
-        for e in events_model.read_events(serve.page_dir)
-        if e["kind"] == "comment"
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "reply",
-            "author": "agent",
-            "agent": "Claude",
-            "parent": oldest,
-            "revision": 1,
-            "text": "The first comment still stands.",
-        },
-    )
-    told(page)
-    assert fading.evaluate_all(places) == drawn
-    finish_held(page)
-    expect(leaving).to_have_count(0)
-    expect(page.locator(panel_view("thread"))).to_be_visible()
-
-    hold_motion(page)
-    page.locator(".lf-fp-head .lf-fp-back").click()
-    one_frame(page)
-    expect(page.locator(panel_view("threads"))).to_be_attached()
-    expect(leaving).to_have_count(0)
-    finish_held(page)
-
-
 # Whether the preview stands open clear of Threads' notice.
 PREVIEW_CLEAR_OF_NOTICE = """() => {
   const tip = document.getElementById('lf-preview');
@@ -2669,7 +2604,7 @@ def test_next_unread_never_shows_for_a_reply_the_opening_reads(browser, serve):
 
 
 FOOT = """([parts, fromEnd]) => {
-  const view = document.querySelector('.lf-fp-view:not([data-lf-leaving])');
+  const view = document.querySelector('.lf-fp-view');
   const part = [...view.querySelectorAll(parts)].at(-1 - fromEnd).getBoundingClientRect();
   const box = view.getBoundingClientRect();
   const press = view.querySelector('.lf-new-reply')?.getBoundingClientRect();
@@ -2762,7 +2697,7 @@ def test_a_tab_into_a_popover_over_an_open_view_leaves_the_view_open(browser, se
     assert reading == {"over": True, "whole": True}
     expect(page.locator("#in-pop")).to_be_focused()
     rendered(page)
-    expect(page.locator(".lf-fp-view:not([data-lf-leaving])")).to_have_count(1)
+    expect(page.locator(".lf-fp-view")).to_have_count(1)
 
 
 def test_an_arrival_the_opening_view_will_cover_puts_it_away(browser, serve):
@@ -2796,9 +2731,8 @@ def test_an_arrival_the_opening_view_will_cover_puts_it_away(browser, serve):
     page.locator("#before").focus()
     page.keyboard.press("Tab")
     expect(page.locator("#foot")).to_be_focused()
-    expect(page.locator(".lf-fp-view:not([data-lf-leaving])")).to_have_count(0)
-    # The box shrinks only once the leaving view's fade ends (panel/floating-panel.js),
-    # so wait for the panel to stand closed rather than for the motions playing now.
+    expect(page.locator(".lf-fp-view")).to_have_count(0)
+    # Its motions last 3 s here, so wait for the panel to stand closed.
     panel_settled(page, open=False)
     seen = page.evaluate(
         """async () => {
@@ -4858,6 +4792,8 @@ def test_a_list_the_menu_leads_to_opens_over_it_and_goes_back(browser, serve):
     expect(annotations).to_be_visible()
 
     page.set_viewport_size({"width": 800, "height": 400})
+    # The window too short for the whole menu, the user scrolls to the row.
+    annotations.scroll_into_view_if_needed()
     annotations.focus()
     page.keyboard.press("Enter")
     panel_settled(page, view="group")
@@ -4879,6 +4815,68 @@ def test_a_list_the_menu_leads_to_opens_over_it_and_goes_back(browser, serve):
     panel_menu(page).locator(".lf-fp-item", has_text="Fold to the leaf").click()
     expect(page.locator(".lf-floating-panel")).to_have_attribute("data-lf-rest", "mark")
     expect(leaf).to_be_focused()
+
+
+# Scrolls the panel's view holding `at` so `at` stands at the view's middle, as a row
+# the user reads a list down to, and returns how far the view then stands scrolled.
+CENTRE = """at => {
+  const view = at.closest('.lf-fp-view');
+  const box = at.getBoundingClientRect(), room = view.getBoundingClientRect();
+  view.scrollBy({top: box.top + box.height / 2 - (room.top + room.height / 2),
+                 behavior: 'instant'});
+  return view.scrollTop;
+}"""
+
+
+def test_back_returns_a_list_as_the_user_left_it(browser, serve):
+    """Back from a thread opened from a list the user scrolled returns the list scrolled
+    as far, standing on the row that opened the thread, Threads' row and On Me's card
+    alike. A reply carries its thread to the head of Threads, so Back after one brings
+    the row into view there."""
+    url = serve(LONG_PAGE, comments=14)
+    for n in range(8):
+        panel_comment(
+            serve.page_dir,
+            f"Which build ships on day {n}?",
+            author="agent",
+            obligation=True,
+        )
+    page = floating(browser, url)
+    page.set_viewport_size({"width": 1200, "height": 560})
+    back = page.locator(".lf-fp-head .lf-fp-back")
+
+    open_threads(page)
+    threads = page.locator(panel_view("threads"))
+    key = threads.locator(".lf-fp-thread").nth(12).get_attribute("data-lf-key")
+    row = threads.locator(f'.lf-fp-thread[data-lf-key="{key}"]')
+    read = row.evaluate(CENTRE)
+    assert read > 0
+    settled(page)
+    row.click()
+    expect(page.locator(panel_view("thread"))).to_be_visible()
+    back.click()
+    expect(row).to_be_focused()
+    expect(threads).to_have_js_property("scrollTop", read)
+    row.click()
+    write(field(page), "Still open.")
+    with sending(page, "the reply"):
+        page.keyboard.press("ControlOrMeta+Enter")
+    back.click()
+    expect(row).to_be_focused()
+    expect(row).to_be_in_viewport(ratio=1)
+
+    panel_tab(page, "On Me").click()
+    on_me = page.locator(panel_view("queue"))
+    card = on_me.locator(".lf-fp-on-item").nth(4)
+    reply = card.locator(".lf-fp-answers button", has_text="Reply")
+    read = reply.evaluate(CENTRE)
+    assert read > 0
+    settled(page)
+    reply.click()
+    expect(page.locator(panel_view("thread"))).to_be_visible()
+    back.click()
+    expect(card).to_be_focused()
+    expect(on_me).to_have_js_property("scrollTop", read)
 
 
 def test_a_double_click_on_the_way_back_goes_back_once(browser, serve):
@@ -5727,7 +5725,7 @@ def test_the_go_to_doors_open_the_panel_s_views(browser, serve):
     url = serve(LONG_PAGE)
     panel_comment(serve.page_dir, "Is the window long enough?")
     page = floating(browser, url)
-    view = page.locator(".lf-fp-view:not([data-lf-leaving])")
+    view = page.locator(".lf-fp-view")
     page.locator("body").focus()
     for keys, shown in (("Shift+t", "threads"), ("Shift+m", "queue")):
         page.keyboard.press("g")

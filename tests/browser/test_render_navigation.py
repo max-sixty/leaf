@@ -105,7 +105,7 @@ def test_thread_navigation_lands_after_resizing_an_open_reply(browser, serve):
     expect(reply).to_be_focused()
     page.keyboard.press("Escape")
     page.keyboard.press("Shift+t")
-    view = page.locator(".lf-fp-view:not([data-lf-leaving])")
+    view = page.locator(".lf-fp-view")
     expect(view).to_be_focused()
     expect(view).to_contain_text("Is lunch provided")
     page.keyboard.press("c")

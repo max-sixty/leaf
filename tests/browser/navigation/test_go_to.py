@@ -826,11 +826,9 @@ def test_a_menu_row_a_go_to_key_runs_wears_that_key(browser, serve):
 def test_go_to_armed_as_a_panel_view_replaces_another_names_the_arriving_view(
     browser, serve
 ):
-    """A panel view arriving in place of another stays unseen until the one leaving has
-    faded out. Go-to armed meanwhile shows its chips once the arriving view shows, so
-    the view's own controls wear chips and no code changes after the first chips show.
-    The page's animations run at a tenth of their speed, so Go-to arms inside the swap
-    however fast the keys land."""
+    """A panel view replaces another in one paint, and fades in. Go-to armed as it
+    arrives shows its chips on the arriving view, so the view's own controls wear
+    chips and no code changes after the first chips show."""
     url = serve(PANEL_PAGE)
     panel_comment(serve.page_dir, "Why forty?", {"section": "how-cap"})
     page = open_page(browser, url)
@@ -839,9 +837,8 @@ def test_go_to_armed_as_a_panel_view_replaces_another_names_the_arriving_view(
     page.keyboard.press("Shift+m")
     expect(panel).to_have_attribute("data-lf-open", "queue")
     rendered(page)
-    cdp = page.context.new_cdp_session(page)
-    cdp.send("Animation.enable")
-    cdp.send("Animation.setPlaybackRate", {"playbackRate": 0.1})
+    page.keyboard.press("g")
+    page.keyboard.press("Shift+t")
     page.evaluate(
         """() => { window.seenCodes = [];
           const tick = () => {
@@ -854,12 +851,14 @@ def test_go_to_armed_as_a_panel_view_replaces_another_names_the_arriving_view(
           requestAnimationFrame(tick); }"""
     )
     page.keyboard.press("g")
-    page.keyboard.press("Shift+t")
-    page.keyboard.press("g")
     expect(panel).to_have_attribute("data-lf-open", "threads")
     expect(page.locator(CHIPS).first).to_be_visible()
+    rendered(page)
+    # Read before `heard_routes` walks the map, whose Tabs can show further chips.
+    seen = page.evaluate("window.seenCodes")
+    assert len(seen) == 1, seen
     routes = heard_routes(page)
-    view = page.locator(".lf-fp-view:not([data-lf-leaving])").bounding_box()
+    view = page.locator(".lf-fp-view").bounding_box()
     in_view = [
         box
         for box in page.locator(CHIPS).evaluate_all(
@@ -869,9 +868,6 @@ def test_go_to_armed_as_a_panel_view_replaces_another_names_the_arriving_view(
         and view["y"] <= box["y"] + box["height"] / 2 <= view["y"] + view["height"]
     ]
     assert in_view, routes
-    assert len(page.evaluate("window.seenCodes")) == 1, page.evaluate(
-        "window.seenCodes"
-    )
 
 
 def test_a_message_s_controls_wear_chips_only_while_they_show(browser, serve):

@@ -326,29 +326,44 @@ def test_file_editor_saves_quietly_and_preserves_inflight_edits(
     assert file.read_text() == draft
 
     # When a focused Retry becomes a conflict, the disappearing button returns typing
-    # to the retained editor rather than the document body. A file that moves again
-    # while the reader weighs the conflict is read once they take the file version,
-    # rather than leaving the editor on the compared one.
+    # to the retained editor rather than the document body. A save with no answer may
+    # have reached the file, so Retry reads it first, and that read finds the file
+    # moved. A file that moves again while the reader weighs the conflict is read once
+    # they take the file version, rather than leaving the editor on the compared one.
     page.route("**/api/files/notes", fail_write)
     replace("# Mine\n")
     page.clock.run_for(600)
     expect(retry).to_be_visible()
     page.unroute("**/api/files/notes", fail_write)
-    held.clear()
-    page.evaluate("window.heldFileWrites = 0")
-    page.route("**/api/files/notes", hold_writes)
-    with page.expect_request(file_write):
+    retry_reads = []
+
+    def hold_retry_read(route):
+        if route.request.method == "POST":
+            route.continue_()
+        else:
+            retry_reads.append(route)
+            page.evaluate("count => window.heldFileReads = count", len(retry_reads))
+
+    page.route("**/api/files/notes", hold_retry_read)
+    with page.expect_request(
+        lambda request: (
+            request.method == "GET" and request.url.endswith("/api/files/notes")
+        )
+    ):
         retry.click()
-    page.wait_for_function("window.heldFileWrites === 1")
+    page.wait_for_function("window.heldFileReads === 1")
     expect(retry).to_be_focused()
     file.write_text("# Compared\n")
-    held[0].continue_()
+    retry_reads[0].continue_()
     page.clock.run_for(100)
     expect(retry).to_be_hidden()
     expect(conflict).to_be_visible()
     expect(editor).to_be_focused()
     caret_visible()
-    page.unroute("**/api/files/notes", hold_writes)
+    assert file.read_text() == "# Compared\n"
+    page.unroute("**/api/files/notes", hold_retry_read)
+    for route in retry_reads[1:]:
+        route.continue_()
     with page.expect_response(lambda response: response.url.endswith("/api/state")):
         file.write_text("# Newest\n")
     choose("Use file version")

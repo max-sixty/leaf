@@ -2,11 +2,17 @@
 
 @skills/leaf/SOUL.md
 
-`SOUL.md`, above, says what a person using a Leaf page and an agent writing one
-can count on. The sections from here to "Repository map" are the principles
-Leaf is built by. The rest of the repository's guidance applies the values and
-principles to particular code, so weigh a case no rule covers against them. They
-are the maintainer's direction and change only when the maintainer asks.
+`SOUL.md`, above, holds Leaf's immovable principles: what a person using a Leaf
+page and an agent writing one can count on. The sections from here to "Repository
+map" are the principles Leaf is built by. Both are the maintainer's direction, and
+their words change only when the maintainer asks.
+
+Every instruction besides `SOUL.md`, in this file and in each area's `AGENTS.md`, is
+guidance, and guidance is weighed against other guidance. Where a rule pulls against
+another, or against a simpler design that serves `SOUL.md` as well, weigh what each
+gives the user and what it costs later changes, and take the better. A change that
+departs from a rule rewrites the rule, and says what a user will see differently,
+with a picture where the difference shows. Weigh a case no rule covers the same way.
 
 ## Leaf's role
 
@@ -62,14 +68,23 @@ as any architectural problem they leave stays easy to fix.
 ## The maintainer decides
 
 Make the improvements the repository's goals and code already justify, and take a
-call its guidance settles, saying which passage settled it. Ask the maintainer only
-where a choice depends on a purpose or intent the code can't tell you:
+call its guidance settles. The work doesn't wait on the maintainer for a call outside
+the list below. Name the call, with the passage that settled it where one did, so
+they can reverse it. Ask them only where a choice depends on a purpose or intent the
+code can't tell you, or shapes what every later user, package author or change works
+with:
 
 - **What Leaf is for**, and any change to `SOUL.md` or these principles.
-- **Waiving a guarantee.** A cost that breaks a guarantee `SOUL.md` or an
-  `AGENTS.md` states, such as losing the user's selection or typed words, is a
-  defect to fix. Listing it as a call the maintainer may reverse doesn't make it
-  a call.
+- **Waiving a guarantee.** A cost that breaks a guarantee `SOUL.md` states, such
+  as losing the user's selection or typed words, is a defect to fix. Listing it
+  as a call the maintainer may reverse doesn't make it a call. A cost to what
+  guidance asks, such as a look or a rule of an area's `AGENTS.md`, is the change's
+  own to weigh and take.
+- **A requirement that keeps code complicated.** When a guarantee, one of these
+  principles, or a choice the maintainer made expecting far less code is what
+  keeps code complicated (`SOUL.md`, "Keep Leaf's code plain"), tell the
+  maintainer what the requirement costs in code and what the user would see with
+  less of it, and keep the requirement until they decide.
 - **Taking a feature away.** "Regular maintenance" says what a proposal to remove
   one rests on.
 - **Lifting a restriction.** A restriction Leaf imposes, such as a content
@@ -80,7 +95,33 @@ where a choice depends on a purpose or intent the code can't tell you:
   maintainer values, or be a side effect nobody chose.
 - **An open design.** Where a visual or interaction design is still open after
   these principles, show the candidates side by side and let the maintainer
-  select one (`/developing-leaf`, "Explore an open design").
+  select one (`/developing-leaf`, "Explore an open design"). Beside each
+  candidate's picture, say what it costs in code, such as the mechanisms it adds,
+  since a pick made on looks alone can commit Leaf to complicated code.
+- **Changing core UX.** Changing how the user does a task on every page, such as
+  commenting, replying or moving through the page, or adding or rebinding a
+  keyboard shortcut, in Leaf's runtime or a bundled package. A user learns these
+  once and relies on them everywhere, so the maintainer keeps the whole set in
+  view. A smaller change within one of these tasks, such as what one press of
+  Escape closes, is the change's own to weigh.
+- **Growing the package interface.** Adding to the package interface, such as a
+  declaration key, one of Leaf's elements, an event, a function or a new rule for
+  using one. The maintainer keeps that interface small and coherent, and it sprawls
+  through additions that each look reasonable alone ("Keep the package interface
+  small"). `uv run leaf-dev interface --base` lists the names a change adds. A
+  rename, or one more member of an existing family, such as a theme token beside
+  its siblings, is the change's own to weigh.
+- **Complicating the core.** Adding to the browser runtime or the server a
+  mechanism that later changes there must reason about, such as a mode or state
+  several modules read, a special case spread across owners, or a queue with
+  ordering rules of its own. Such code costs every change near it ("Regular
+  maintenance"). A fix that keeps the code's existing design, or a change that
+  leaves the core simpler, is the change's own to weigh.
+
+A change the list holds lands only once the maintainer has approved it, and a
+request of theirs that named that very change approves it. Land the rest of the work
+without it where the rest stands alone, as a new control can land without its
+keyboard shortcut.
 
 A choice that will come up again for each new case is better settled once.
 Propose the rule that would decide every such case, with what adopting it
@@ -89,16 +130,20 @@ changes, rather than asking about the case in front of you.
 ## Responsiveness
 
 When the user acts, the page draws each result that follows from the act alone, such
-as the user's message in its thread, a widget's new state or a thread they resolved.
-It draws them in the task that handles the act, before the browser's next frame.
-Facts that depend on the rest of the log, such as whose turn a thread is and which
-obligations the user owes, arrive with the server's reading of the gesture: the
-page's state as the server computes it from the whole log after admitting the
-gesture. That reading should be on screen within 100 ms, since the server usually
-runs on the user's machine. The browser doesn't predict that reading: a prediction
-is a second copy of the server's rules, and each case it misses shows the wrong
-state until the reading arrives. Where the reading takes longer than 100 ms, make
-that path faster.
+as the user's message in its thread, a widget's new state, whether that widget's own
+question is now answered, or a thread they resolved. It draws them in the task that
+handles the act, before the browser's next frame. The widget decides whether its
+question is answered and its gesture carries that word to the log, where the server
+reads it rather than deciding again (`awaits`), so a press that answers a question
+moves it off On Me, and a deck to its next card, at once. Facts that depend on the
+rest of the log, such as whose turn a thread is and whom an open obligation waits on,
+arrive with the server's reading of the gesture: the page's state as the server
+computes it from the whole log after admitting the gesture. A question a gesture
+reopens stands as the user's until that reading says otherwise. That reading should be on
+screen within 100 ms, since the server usually runs on the user's machine. The
+browser doesn't predict that reading: a prediction is a second copy of the server's
+rules, and each case it misses shows the wrong state until the reading arrives. Where
+the reading takes longer than 100 ms, make that path faster.
 
 These times hold on a large page too. A page's size is how much it holds: elements,
 widgets, headings, obligations, threads, events and revisions. An input's work
@@ -112,8 +157,9 @@ bytes it moves grows with how long the session has run. The time to load a page,
 to compute or apply a reading of it, grows no faster than n log n in the page's size
 n. The server checks each event against such a reading before admitting it to the
 log, so its work per event may grow with the events the log holds. On the largest
-page `leaf-dev bench` generates, a keystroke and a wheel step each fit in 8 ms of
-main-thread time, and a click shows the server's reading within 100 ms. A step that
+page `leaf-dev bench` generates, a keystroke and a wheel step each fit in 12 ms of
+main-thread time, and a click shows the server's reading within 100 ms. The 12 ms is
+provisional, to be revisited once the architectural changes under way settle. A step that
 walks one of the page's collections once for each member of another grows with the
 square of the page, as finding each obligation's heading by reading every heading
 did. So does a style or layout pass forced once per element, since each pass can
@@ -201,7 +247,7 @@ runs: the manifests there register Leaf's components with each harness, and
 `bin/leaf` runs the uv project there. The **skill root**, `skills/leaf/`, holds the
 agent's instructions, `SKILL.md` and its references. A copy of the skill root alone
 is not an installation. `pyproject.toml` says where Python finds Leaf's modules,
-`leaf.state` finds the plugin root, and `leaf.schema` derives the paths of the
+`leaf.base.state` finds the plugin root, and `leaf.base.schema` derives the paths of the
 resources under it. When a page is initialized, Leaf composes the core browser assets
 and the page's packages into the page's layer.
 
@@ -210,8 +256,8 @@ and the page's packages into the page's layer.
 - `src/leaf/`: the CLI, server and event model (`src/AGENTS.md`).
 - `browser/`: the browser runtime, registry and theme, with the type check's
   configuration and declarations under `browser/types/`
-  (`browser/AGENTS.md`; `browser/runtime/keyboard/AGENTS.md`
-  for commands, bindings and scopes).
+  (`browser/AGENTS.md`; `browser/runtime/dom/keyboard/AGENTS.md`
+  for commands, bindings and scopes, and for `readings/key-badges/` and `panel/page-keys/`).
 - `packages/`: the bundled packages (`packages/AGENTS.md`).
 - `skills/leaf/references/`: contracts for page authors, package authors and harnesses.
 - `.claude/skills/developing-leaf/`: the maintainer workflow and vocabulary.
@@ -263,9 +309,11 @@ rule covers. A rule whose goal nobody can name is a candidate to cut once
 Place an instruction by who must act on it and by what a session that misses it gets
 wrong. Every session in the repository reads this file, including subagents and the
 runs of Tend, the agent that reviews and maintains the repository from GitHub
-Actions. A session that changes or reviews an area also reads that area's
-`AGENTS.md`. A skill reaches only the sessions that load it, and subagents and
-Tend's runs often don't load one. So an `AGENTS.md` holds the instructions whose
+Actions, so other instructions neither repeat this file's rules nor send their reader
+back to them, though they may point to a detail it holds. A session that changes or
+reviews an area also reads that area's `AGENTS.md`. A skill reaches only the sessions
+that load it, and subagents and Tend's runs often don't load one. So an `AGENTS.md`
+holds the instructions whose
 omission could let a change break something: goals, invariants that span modules,
 who owns what, the criteria a change or review is judged by, and the checks to run,
 each stated as a goal rather than as steps. Instructions for one kind of task, such
@@ -282,8 +330,8 @@ A contract one module owns goes in that module's header, and a helper's contract
 its docstring. A contract several modules share goes in the protocol reference for
 that boundary, which says what each side relies on, not how one side provides it. A
 header also states the product decisions its module embodies, each with its reason,
-whether the user made it, and any alternative a later change might reach for, with
-why that alternative fails. A change that reverses a decision rewrites its statement
+whether the user made it, and what an alternative cost when it was tried, for a later
+change to weigh again. A change that reverses a decision rewrites its statement
 and says so in its commit.
 
 Text in the tree, comments, tests and eval cases included, says what holds now
@@ -331,7 +379,7 @@ build writes a static copy of the row, which a page shows at first paint, so a
 change to the row needs `pnpm run build:browser` (`build/AGENTS.md`). Only a
 prepared installation, such as the website's container, compiles the source modules
 into one bundle, the kernel (`build/runtime-bundle.mjs`,
-`leaf.runtime_selection.read_runtime`).
+`leaf.source.runtime_selection.read_runtime`).
 
 `bin/leaf` runs `uv run --no-dev` on the tree, which writes the tree's `.venv`, so the
 install must be writable; Leaf writes nothing else into it. A plugin update may
@@ -375,7 +423,7 @@ which actions were withdrawn, the state of each thread and of each obligation on
 user's On Me list, and the updates the user has sent the agent. It serves the
 result, the server's reading of the page, to the browser.
 
-In the browser, only `applicationState` (`runtime/semantic-state.js`) combines the
+In the browser, only `applicationState` (`runtime/state/semantic-state.js`) combines the
 authored initial values, the server's latest reading and the tab's unresolved
 gestures into current state. It publishes each state as one immutable value, which
 holds no renderer nodes, promises or DOM attributes. Components read that value
@@ -389,8 +437,9 @@ whole thread, since its markup lives in the log rather than in a version.
 A gesture's own result shows in the task that sends it, before the server answers
 ("Responsiveness"); a disabled control, a spinner or a delivery status is not that
 result. To the server's reading, the browser adds only what a gesture decides by
-itself: a thread the user opens, the user's own reply and its wait for an answer, and
-the words of a refused send, kept for the user to send again. When the server refuses
+itself: a thread the user opens, the user's own reply and its wait for an answer,
+whether the question of the widget it acts on is answered, as that widget says
+(`awaits`), and the words of a refused send, kept for the user to send again. When the server refuses
 a gesture, the browser returns to the server's state.
 
 Focus, scroll position, selection, open disclosures, a drag and layout belong to the
@@ -399,7 +448,7 @@ record them, so each lasts only as long as its DOM node. Code that replaces a no
 moves that state to the new node, matching the two by the key the replacement already
 uses. A draft being typed also stays out of the log until the user sends it, but it
 outlives its node: the page's server keeps it for every tab and device
-(`src/leaf/drafts.py`), and the agent never reads it.
+(`src/leaf/serving/drafts.py`), and the agent never reads it.
 
 Python decides where the agent's work stands, in the one vocabulary every record and
 surface reads (`standing.py`): whose move it is, and whether the work is waiting,
@@ -408,7 +457,9 @@ page, which the Leaf panel shows, and for each obligation record and each update
 user handed over (`workflows.py`), which messages, thread attention, the On lists,
 margin entries and the Stop hook read. A busy page doesn't mean every message is being
 worked on. The browser adds its own unsent gestures to what the server sends, but
-never changes where a workflow stands, not even as time passes. Another page
+never changes where a workflow stands, not even as time passes, apart from a widget's
+own word on its question: an obligation a gesture answers or reopens stands so until
+the server's reading of the gesture arrives. Another page
 learns a page's activity only from the row `server_rows.py` writes and from whether
 the page's server is alive. It shows that activity only in its list of other pages
 (`/api/pages`), and that list feeds no page's own state and no server's reading of a
@@ -427,12 +478,11 @@ on the event, so later readers use those fields directly instead of looking up t
 widget. An event names what it depends on by declared ids, never by words in its
 detail.
 
-A passage, the text a comment points at, is a list of `{node, start, end}` segments,
-which Python and the browser collapse and resolve by the same rules. `says` is
-visible text; `wrote` is authored text. Python never accepts an anchor the rendered
-page can't resolve. When the passage a comment quotes appears more than once and no
-surrounding context picks one copy, the comment detaches rather than taking a copy
-by its order or offset.
+A passage, the text a comment points at, is a list of `{node, start, end}` segments.
+`says` is visible text; `wrote` is authored text. Every anchor an agent gives a section
+resolves, to its words or to its element. When the passage a comment quotes appears
+more than once and no surrounding context picks one copy, the comment stands on its
+section or in Threads rather than taking a copy by its order or offset.
 
 Leaf derives each fact about the page once, and each place that reports on the page
 picks the facts it needs. `leaf page state` tells a later session the facts a
@@ -452,8 +502,7 @@ a standard attribute that means the same to every reader. A declaration on Leaf'
 element uses Leaf's attribute, such as `label`, since no standard defines that
 element. Leaf takes no fact from how content looks or what it says, and reads words
 only to quote, anchor and show them. So restyling a page changes no fact Leaf holds,
-and rewording it changes only its words. Leaf reads markup any other way only where
-the maintainer agrees to the exception.
+and rewording it changes only its words.
 
 ### Keep the layer open
 
@@ -482,6 +531,25 @@ goes. So an author finds a widget the same way whether Leaf bundles it or anothe
 package the page selects provides it, whatever the widget is called. A package's own
 guidance, in its registry entries and its `instructions/author.md`, is that package's
 advice rather than Leaf's, so it may name any widget.
+
+### Keep the package interface small
+
+A package leans on Leaf only through the package interface: the keys of an element
+declaration, the widget protocol, Leaf's own elements, the data contracts Leaf's
+packages declare, the functions `widget-api.js` exports and the styling names the
+references declare. Another author's package has nothing else, so Leaf's bundled
+widgets use nothing else. The interface sprawls through names that each look
+reasonable alone, and every later change keeps each name working, so Leaf keeps it
+small and coherent. A change meets a widget's need without a new name where it can,
+and `packages/AGENTS.md`, "A widget's need of Leaf", says how to choose where it
+can't.
+
+A smaller interface is worth a small visible difference. Where a name's work is to
+keep a look, a first paint or a behaviour exactly as it was, the name goes, and the
+change shows what a user will see differently. A promise the user is owed on every
+widget is Leaf's to keep from outside, for an element that imports nothing, so a name
+stays for a guarantee `SOUL.md` states only while Leaf can't keep it that way. A shift
+as a widget first draws on a loading page breaks no guarantee.
 
 ### Wait for the event that ends the work
 
@@ -552,8 +620,12 @@ makes Leaf harder to develop than it is worth:
   single example; a mechanism that `git log --follow` shows was patched again and
   again (without `--follow`, a file's history stops at its last move). Code in its
   own module, such as a package, a widget or a `leaf-dev` command, costs little
-  beyond its own files; remove it only when it is large and unused. Keep anything
-  users would notice losing, including Leaf's interface guarantees. Taking a feature
+  beyond its own files; remove it only when it is large and unused. Keep what
+  `SOUL.md` guarantees, and each feature: something a user can do on a page, or a
+  page or widget an author can build, by whatever route. A name of the package
+  interface is not one. Nor is how a thing looks, when it first paints or exactly how
+  it moves: a small difference in one of them is a price a removal may pay, and the
+  removal shows it. Taking a feature
   away is the maintainer's call ("The maintainer decides"), so propose the removal
   with what users lose and what it deletes, measured as `/developing-leaf`'s "Measure
   a removal" says. The maintainer builds features ahead of their use, so little use
@@ -571,13 +643,18 @@ makes Leaf harder to develop than it is worth:
   the file you're reading, so search for them as **What it repeats** says.
 - **A mechanism a dependency or the platform already provides.** Delegate it ("Use
   dependencies").
+- **A name the package interface could lose.** `uv run leaf-dev interface` lists every
+  name with its form and what uses it. Look at a function one bundled widget calls, a
+  key one declaration sets, a styling name one sheet reads, and a name that says what
+  HTML or another name already says. Move the promise into Leaf, or the code into the
+  library or the widget, and remove the name (`packages/AGENTS.md`, "A widget's need of
+  Leaf").
 
 ## Working on the repository
 
 A choice about how something looks or moves can't be judged from a description, so
 every UI option you leave to the user carries a picture of its result: a still pair,
-a sketch, a diagram or a live sample. That holds for the UI decisions a PR body
-leaves to the user too, and for a page that relays them.
+a sketch, a diagram or a live sample.
 
 Before writing words the user sees, such as a label, status line or placeholder, and
 before naming anything the user operates or choosing an identifier for it, read
@@ -593,7 +670,7 @@ over or reviews it does both (`/developing-leaf`, "Review a UI change"), with a
 Before finishing a feature:
 
 - Every result a user can reach with a pointer must also be reachable by keyboard
-  and by touch (`browser/runtime/keyboard/AGENTS.md`, "Touch routes"), without a
+  and by touch (`browser/runtime/dom/keyboard/AGENTS.md`, "Touch routes"), without a
   page-level binding for each result. The routes are owed to each result, not to
   each pointer gesture: a gesture needs another route only where, without it, a user
   could no longer see, reach or decide something. Dragging a thread card aside needs
@@ -637,7 +714,7 @@ For a change that can alter browser startup, compare base and head
 (`/developing-leaf`, "Compare checkout versions"). A change that adds work before
 the page first shows the server's state says what the user gains and why the work
 can't wait. A better look or a more immediate answer to the user is gain enough: the
-maintainer weighs how Leaf looks and responds far above its size. Take it and report
+maintainer weighs how Leaf looks and responds far above the bytes it loads. Take it and report
 the bytes, rather than putting the trade to the maintainer or building machinery to
 save them. Saving bytes that don't load before that point, such as a lazy module's,
 a vendored file's or the install's, doesn't by itself justify a change.

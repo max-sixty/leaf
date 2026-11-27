@@ -5,7 +5,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 
 const { PAGE_INTERFACE, whileInterfaceConnected } =
-  await import("/runtime/presentation.js");
+  await import("/runtime/readings/presentation.js");
 
 // A second observer acknowledges delivery of the same mutation batch as arrivals.
 async function mutate(change) {

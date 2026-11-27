@@ -2,11 +2,7 @@
  * Images load before their sources enter the drawing; frames and controls survive
  * capture revisions. ShotView owns inspection state, retained nodes and fitting. */
 import { actionClass } from "/runtime/lib/control-faces.js";
-import {
-  offerElement,
-  offerActionElement,
-  offeredAction,
-} from "/runtime/lib/controls.js";
+import { offerActionElement, offered, offeredAction } from "/runtime/lib/controls.js";
 import { keeps, layoutPx } from "/runtime/lib/keeps.js";
 
 import { html, live, nothing, ref, styleMap } from "/vendor/lit.js";
@@ -281,18 +277,12 @@ export class ShotView {
   render() {
     const { host, optionsId } = this;
 
-    /** @param {string} cls @param {boolean} [pressable] */
-    const offered = (cls, pressable = false) =>
-      ref((node) => {
-        if (!node) return;
-        offerElement(node, cls, pressable);
-      });
     /** @param {Side} state @param {boolean} [frame] */
     const caption = (state, frame = false) => {
       const label = LABELS[state];
       const stacked = this.view === "pair" && this.geometry?.layout === "stack";
       return html`<span
-        ${ref((node) => node && offerElement(node, "lf-shotcap lf-label"))}
+        ${offered("lf-shotcap lf-label")}
         ?data-lf-said=${frame === stacked}
         ?data-lf-echo=${frame !== stacked}
         data-lf-state=${state}

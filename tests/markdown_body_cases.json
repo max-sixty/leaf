@@ -228,5 +228,11 @@
     "words": "Edit setup.py and notes.md, then run install.sh.",
     "blocks": ["p"],
     "links": []
+  },
+  {
+    "source": "Cost: $`c(x) = h\\,x`$ a request, and \\$47 in all.",
+    "words": "Cost: c(x) = h\\,x a request, and $47 in all.",
+    "blocks": ["p"],
+    "links": []
   }
 ]

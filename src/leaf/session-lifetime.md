@@ -21,24 +21,24 @@ server's lease.
 
 The table lists each fact the fold reads, and when it stops being believed.
 
-| Fact                                                                   | Where                                                                                           | Writer                                                                                                                                                                                                                           | Stops being believed                                                                                                                                                                                                                  |
-| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| page declaration: `waiting` or `idle`                                  | the newest `status` event (`activity.declaration`)                                              | `leaf page open` and `leaf page close`; the website harness as it ends a turn, and as it starts one on an idle page                                                                                                              | the next declaration; for `idle`, also a start after it, which reopens the page                                                                                                                                                       |
-| the item in hand: an update or to-do, its line, the turn that wrote it | a `start` event, or an ephemeral reply's start (`todos.start_reading`)                          | `leaf task start`, or `leaf thread reply --ephemeral` on an owed update                                                                                                                                                          | the item ending; a later `status` event; as a belief, when its turn is seen to end unless the harness says work goes on in the background, a quarter of an hour without renewal, or when the lifetime ends                            |
-| live App Server activity: session, turn, kind, detail                  | `activity` in `stream.json`                                                                     | the App Server connection following the turn                                                                                                                                                                                     | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event                                                                                                                      |
-| live App Server reply, and reply reservations                          | `reply` and `reply_reservations` in `stream.json`                                               | an App Server connection bound to a delivery's reply                                                                                                                                                                             | the draft, once a logged event names its attempt or address; a reservation, at commit, at terminal failure, or once its turn is no longer the claim's open turn (`activity.reply_reservation_stands`)                                 |
-| turn id, `turn_opened`, `turn_closed`                                  | the session lifecycle record (`state.py`)                                                       | a prompt, an App Server client, Codex's transcript (`codex_state.py`) or an explicit reader acknowledgement opens or renews the turn, under the harness's id where it names one; the Stop hook or an App Server client closes it | the next opening of another id; a closed id never reopens                                                                                                                                                                             |
-| the harness's word on the session, dated                               | the harness's own record, read live (`Harness.live_turn`)                                       | the harness                                                                                                                                                                                                                      | read live; absent where the harness publishes nothing                                                                                                                                                                                 |
-| the turn ending this page last nudged its session after                | `messaged_ending` in the claim                                                                  | `PageTransaction.note_messaged`, once a nudge lands or a watch wakes the session                                                                                                                                                 | a later ending differs from it                                                                                                                                                                                                        |
-| wait lease                                                             | `waiter.lock`, or `sessions/<session>.wait` for a harness session                               | `leaf wait`, or a harness's watch between turns; the kernel lock proves it live, never the file (`leases.py`)                                                                                                                    | process exit, a crash included, or a later watch superseding it; and by a Leaf at a later page protocol than the one the file names, which that watch can't read (`leases.wait_is_live`)                                              |
-| the harness runs Leaf's hooks for this session                         | `sessions/<session>.hooks`                                                                      | every Leaf hook                                                                                                                                                                                                                  | SessionEnd                                                                                                                                                                                                                            |
-| acknowledgement cursor                                                 | the greatest `through` among `receipt` events (`service.acknowledged`)                          | `delivery.receive_batch` or `delivery.receive_passed`, called by whatever confirms a delivery reached its consumer                                                                                                               | never; it only advances within its log                                                                                                                                                                                                |
-| pickup transition                                                      | a `pickup` event                                                                                | `queued`: Codex's adapter, when Codex accepts a batch it can't observe; `opened`, with session and turn: whatever puts the batch into a turn                                                                                     | never; each transition is idempotent                                                                                                                                                                                                  |
-| page claim: acquisition, session generation, display name, harness     | `<state-home>/claims/<page-key>.json`, located from the session's partition (`page-storage.md`) | `server start` from an agent harness, or its prompt hook serving the page again                                                                                                                                                  | its generation ended or was replaced, or the harness lifetime is gone: the pid, the background job's record, the Claude desktop app's record of the session, or a desktop Codex chat's native transcript (`service.lifetime_is_live`) |
-| service lifetime                                                       | `service.json`                                                                                  | `server start`: session or persistent                                                                                                                                                                                            | `leaf server stop`; a session server also retires when no live claim holds it                                                                                                                                                         |
-| Codex delivery record                                                  | `sessions/<session>.deliveries/`                                                                | the adapter, or an embedded App Server harness                                                                                                                                                                                   | moves under `history/` once every batch is receipted, and goes at the next scan that finds all its pages gone (`codex.py`)                                                                                                            |
-| Codex adapter log                                                      | `sessions/<session>.codex.log`                                                                  | the adapter, begun afresh at each adapter start                                                                                                                                                                                  | removed when the adapter retires owning no page                                                                                                                                                                                       |
-| Leaf delivery                                                          | `<state-home>/deliveries/<id>.json`                                                             | whatever presents a delivery freezes it first (`delivery.freeze_delivery`)                                                                                                                                                       | removed by the sweep each page server runs as it starts, once every page it names is gone                                                                                                                                             |
+| Fact                                                                   | Where                                                                                           | Writer                                                                                                                                                                                                                                | Stops being believed                                                                                                                                                                                                               |
+| ---------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| page declaration: `waiting` or `idle`                                  | the newest `status` event (`activity.declaration`)                                              | `leaf page open` and `leaf page close`; the website harness as it ends a turn, and as it starts one on an idle page                                                                                                                   | the next declaration; for `idle`, also a start after it, which reopens the page                                                                                                                                                    |
+| the item in hand: an update or to-do, its line, the turn that wrote it | a `start` event, or an ephemeral reply's start (`todos.start_reading`)                          | `leaf task start`, or `leaf thread reply --ephemeral` on an owed update                                                                                                                                                               | the item ending; a later `status` event; as a belief, when its turn is seen to end unless the harness says work goes on in the background, a quarter of an hour without renewal, or when the lifetime ends                         |
+| live App Server activity: session, turn, kind, detail                  | `activity` in `stream.json`                                                                     | the App Server connection following the turn                                                                                                                                                                                          | turn completion, connection or observer exit, loss of the wait lease, or the working grace without another event                                                                                                                   |
+| live App Server reply, and reply reservations                          | `reply` and `reply_reservations` in `stream.json`                                               | an App Server connection bound to a delivery's reply                                                                                                                                                                                  | the draft, once a logged event names its attempt or address; a reservation, at commit, at terminal failure, or once its turn is no longer the claim's open turn (`activity.reply_reservation_stands`)                              |
+| turn id, `turn_opened`, `turn_closed`                                  | the session lifecycle record (`state.py`)                                                       | a prompt, an App Server client, Codex's transcript (`codex_transcript.py`) or an explicit reader acknowledgement opens or renews the turn, under the harness's id where it names one; the Stop hook or an App Server client closes it | the next opening of another id; a closed id never reopens                                                                                                                                                                          |
+| the harness's word on the session, dated                               | the harness's own record, read live (`Harness.live_turn`)                                       | the harness                                                                                                                                                                                                                           | read live; absent where the harness publishes nothing                                                                                                                                                                              |
+| the turn ending this page last nudged its session after                | `messaged_ending` in the claim                                                                  | `PageTransaction.note_messaged`, once a nudge lands or a watch wakes the session                                                                                                                                                      | a later ending differs from it                                                                                                                                                                                                     |
+| wait lease                                                             | `waiter.lock`, or `sessions/<session>.wait` for a harness session                               | `leaf wait`, or a harness's watch between turns; the kernel lock proves it live, never the file (`leases.py`)                                                                                                                         | process exit, a crash included, or a later watch superseding it; and by a Leaf at a later page protocol than the one the file names, which that watch can't read (`leases.wait_is_live`)                                           |
+| the harness runs Leaf's hooks for this session                         | `sessions/<session>.hooks`                                                                      | every Leaf hook                                                                                                                                                                                                                       | SessionEnd                                                                                                                                                                                                                         |
+| acknowledgement cursor                                                 | the greatest `through` among `receipt` events (`transaction.acknowledged`)                      | `delivery.receive_batch` or `delivery.receive_passed`, called by whatever confirms a delivery reached its consumer                                                                                                                    | never; it only advances within its log                                                                                                                                                                                             |
+| pickup transition                                                      | a `pickup` event                                                                                | `queued`: Codex's adapter, when Codex accepts a batch it can't observe; `opened`, with session and turn: whatever puts the batch into a turn                                                                                          | never; each transition is idempotent                                                                                                                                                                                               |
+| page claim: acquisition, session generation, display name, harness     | `<state-home>/claims/<page-key>.json`, located from the session's partition (`page-storage.md`) | `server start` from an agent harness, or its prompt hook serving the page again                                                                                                                                                       | its generation ended or was replaced, or the harness lifetime is gone: the pid, the background job's record, the Claude desktop app's record of the session, or a desktop Codex chat's native transcript (`service.session_lives`) |
+| service lifetime                                                       | `service.json`                                                                                  | `server start`: session or persistent                                                                                                                                                                                                 | `leaf server stop`; a session server also retires when no live claim holds it                                                                                                                                                      |
+| Codex delivery record                                                  | `sessions/<session>.deliveries/`                                                                | the adapter, or an embedded App Server harness                                                                                                                                                                                        | moves under `history/` once every batch is receipted, and goes at the next scan that finds all its pages gone (`codex.py`)                                                                                                         |
+| Codex adapter log                                                      | `sessions/<session>.codex.log`                                                                  | the adapter, begun afresh at each adapter start                                                                                                                                                                                       | removed when the adapter retires owning no page                                                                                                                                                                                    |
+| Leaf delivery                                                          | `<state-home>/deliveries/<id>.json`                                                             | whatever presents a delivery freezes it first (`delivery.freeze_delivery`)                                                                                                                                                            | removed by the sweep each page server runs as it starts, once every page it names is gone                                                                                                                                          |
 
 ### Activity
 
@@ -89,12 +89,12 @@ unsettled update's workflow, the evidence of its delivery, and each owed update'
 obligation record, which says who owes it a move. Its header says when each settles.
 `activity` says where each workflow stands, and each record stands where the strongest
 workflow serving it does. The served list names each workflow's `thread`, strongest
-first (`served_state.work.served_workflows`).
+first (`work_state.served_workflows`).
 
 A workflow waits until a turn has taken it in (`seen`), and after, until the agent
 starts it. It is `running` while a start stands on it, while its reply streams in
 (reason `replying`), or while a progress message of the agent's stands after it in
-its thread, such as a line fork's working line (`served_state.work.lined`). It is
+its thread, such as a line fork's working line (`work_state.lined`). It is
 `blocked` where evidence shows it has stopped moving:
 
 - `undelivered`: no harness has carried it past the pickup grace.
@@ -172,7 +172,7 @@ comparing the name. A watcher is one of:
   `leaf delivery ack <delivery-id> && leaf wait` advances the cursor and starts the
   next wait, which names the page again where no harness session holds it.
 - **The adapter**: one detached process per Codex task, holding the task's wait
-  lease and a lease of its own (`codex_adapter.py`). In the desktop app, an IDE
+  lease and a lease of its own (`codex_run.py`). In the desktop app, an IDE
   extension and a plain terminal, Leaf can't reach Codex's App Server. A desktop chat
   a window of the app has opened takes each delivery as a turn the app starts, with no
   message in the user's name (`codex_desktop.py`). Anywhere else the adapter queues it
@@ -240,12 +240,12 @@ page and is interrupted. Input that reaches the page after that has no watcher, 
 the claimant's harness may offer a nudge, the one way to reach such a session.
 
 Admission sends a nudge when an event is appended to a page whose claimant takes no
-input, once per ending of its turn (`presence.nudge_unwatched`). An interrupted turn
+input, once per ending of its turn (`delivery.nudge_unwatched`). An interrupted turn
 runs no hook, so Claude Code also starts the watch as each prompt starts, which waits
 while that turn runs and wakes for what an interrupt leaves (`hooks.cmd_watch`). Where
 no watch holds the lease, the page's server sends for the input an interrupted turn
 left once its presence look reads the turn ended by the harness's record
-(`presence.nudge_interrupted`). Claude Code's nudge is a user message through the session's messaging socket
+(`server_rows.nudge_interrupted`). Claude Code's nudge is a user message through the session's messaging socket
 (`harness.message_claude_code_session`), whose docstring says when the recipient holds
 it; a background job whose worker has retired is resumed with the message as its next
 prompt instead (`harness.resume_claude_code_job`). The adapter and the host declare no
@@ -274,22 +274,57 @@ idle or changes hands.
 
 ### Which Leaf runs a session
 
-A session's hooks, watch and bare `leaf` commands run its delivering Leaf: a checkout
-a user preview selected or one that claimed or re-vendored a page the session holds
-(`session_runtime.py`), or else the copy of Leaf its harness loaded, whose `bin/leaf`
-its hooks run. Claude Code installs each update as a new copy and keeps a running
-process on the copy it loaded until `/reload-plugins`, or until a new process of the
-session, such as a resume or a background job's wake, loads the update. Codex and Pi
-each keep one copy and update it in place, so the session's next hook runs the update.
-A path names no version there, so Leaf identifies a copy by its path and commit
+A session's hooks, watch, pages follower and bare `leaf` commands run the copy of
+Leaf its harness loaded, whose `bin/leaf` its hooks run, and a Codex task's adapter
+starts from that copy too, the only one that claims for the session. Claude Code
+installs each update as a new copy and keeps a running process on the copy it loaded
+until `/reload-plugins`, or until a new process of the session, such as a resume or
+a background job's wake, loads the update. Codex and Pi each keep one copy and
+update it in place, so the session's next hook runs the update. A path names no
+version there, so Leaf identifies a copy by its path and commit
 (`state.installed_copy`, `layer.payload_provenance`).
 
-Each hook records the root of the Leaf it runs (`leases.mark_skill`). At the
+Each hook records the root of the Leaf it runs (`leases.mark_root`). At the
 session's next hook, a page at an older protocol is renewed (`layer-registry.md`,
-"Page protocol"), and where the hook runs another Leaf than the session's previous
-hook, and that Leaf ships another skill, the agent is told to read it again
-(`hooks.skill_changed` says when an edit counts). `server start` from another Leaf
-restarts a page's server under that one at the same address (`hosting.start_page`).
+"Page protocol"). The skill the agent read is the harness's to renew: Leaf tells
+the agent nothing when an update or a merge changes it (`commands/hooks.py`).
+`server start` from another Leaf restarts a page's server under that one at the
+same address (`hosting.start_page`).
+
+A command acts for the session its environment names only from a Leaf that runs
+that session: an installed copy, as the copy the session loaded is, or a checkout
+the session's hooks run, as one Claude Code loads in place is (`state.runs_session`).
+Any other Leaf, such as a checkout's `bin/leaf` run from the session's shell, acts
+for no session, as a command from a bare shell does (`harness.session_harness`),
+from the session's first command on. The user chose that developing Leaf works as
+developing any project does, so that Leaf's version, page protocol included, never
+reaches the session: it claims nothing, writes none of the session's records, and
+serves a page unclaimed, which its own `leaf wait` hears, as `leaf server start`
+and `leaf server run` then say (`serves-for-no-session`). A page the session holds
+it treats as another session's.
+
+Only the session holding a page, through its own Leaf, serves the page or changes
+its layer record, its server up or down (`service.refuse_held`); another session
+takes the page over first by claiming it. Whether a claim holds its page comes from
+its session's record alone, whatever harness the claim names
+(`service.held_elsewhere`). So no other Leaf moves a held page to a protocol its
+session's hooks can't read, whatever the two protocols are.
+
+A Leaf reads a session's lifecycle record and its claims only at its own shapes,
+and reads a page as held while a claim of another shape stands, or a lifecycle of
+another shape for a claim's session whose generation this Leaf's record doesn't name
+(`service.page_holder`). So across an update that changes either record's
+shape, the session's pages stay held: no terminal re-initializes them, no `leaf wait`
+takes their input, and another session takes them only by claiming them, which ends
+the claim at every shape (`service.publish_claim`). One that changes the lifecycle's
+shape meets the session as a resumed one: its first prompt under the new Leaf starts
+a generation and serves its pages again (`reconnect`). One that changes the claim's
+shape leaves the new Leaf no claim of the session's to read, so nothing follows its
+pages to the new copy and their input waits until the session takes each again with
+`leaf server start`, which the refusals of its other commands on the page name. A
+session that ended under the older Leaf leaves that Leaf's lifecycle standing, so its
+pages stay held for the newer one until an agent's session takes each over the same
+way.
 
 A page server or Codex's adapter from an installed copy outlives the hooks that start
 it, and asks on each pass which copy should run it now (`state.LoadedCopy.successor`):
@@ -303,17 +338,17 @@ process from a checkout follows no copy.
 
 An update that moves the page protocol leaves the session's pages at the old one.
 The restart of each page's server renews the page first, as the session's next hook
-would (`hosting.follow_copy`), and the renewal restarts the server itself; the
+would (`vendoring.follow_copy`), and the renewal restarts the server itself; the
 successor adapter or watch delivers the page's input once the renewal lands. What
 holds a renewal back is queued for the session's next step, and wakes an idle session
 where a watch runs between turns.
 
 A server whose service is persistent, or whose page a live session holds, has the copy
 it follows restart it at the same address, for the session holding the page where one
-does, and serves meanwhile (`server.stop_when_service_ends`). The adapter releases
-its leases and starts a successor from the copy it follows. It holds the task's start lock
-until the successor holds its leases and its transport answers, so a claim meanwhile
-waits and then joins the successor (`codex_adapter.py`). Until then, a hook that
+does, and serves meanwhile (`server_lifetime.stop_when_service_ends`). The adapter
+releases its leases and starts a successor from the copy it follows. It holds the
+task's start lock until the successor holds its leases and its transport answers, so a
+claim meanwhile waits and then joins the successor (`codex_run.py`). Until then, a hook that
 reads the adapter lease without the start lock finds no adapter. Pi's watch lets its
 lease go and execs the new copy's watch with the payload that started it, so the
 process Pi's extension started stays the one it reads and stops (`hooks.main`).
@@ -326,9 +361,8 @@ Every file a session keeps in the state home's `sessions/` carries its name
 (`state.session_file`), and its end removes those nothing will read again
 (`state.end_session`). While a claim still names the session, its lifecycle and
 session lock stay, since the page shows that session's turn from the lifecycle, and
-so does the record of the Leaf its hooks last ran and the skill it ships
-(`leases.mark_skill`), which the first hook of a resumed session compares with its
-own. A
+so does the record of the Leaf its hooks last ran (`leases.mark_root`), which a
+resumed process's page servers and commands read before its first hook. A
 session holding no claim on a page that still stands (`state.held_claims`) loses every
 file no other process holds a lock on, so a lease still held, such as a watch's, stays
 with its holder. A session that never used Leaf ends without writing a file, and one
@@ -347,8 +381,8 @@ A serving producer holds the page's transition lock from bind through acceptance
 second start or a stop waits for it and never adopts an uncommitted listener. A
 refusal or cancellation before acceptance leaves the previous claim, service and
 preview watcher as they were. The lock order is page, then session
-(`service.publishing_claim`): the commit publishes the service and then the claim, and
-does no harness or network work while it holds them. Each acquisition has its own id,
+(`transaction.PageTransaction.publishing_claim`): the commit publishes the service and
+then the claim, and does no harness or network work while it holds them. Each acquisition has its own id,
 so a rollback compares claim publications rather than lifecycle fields or timestamps.
 `hosting.claim_and_start` and `detached.py` own the handshake that accepts a start and
 the cleanup an unconfirmed one leaves.
@@ -360,11 +394,10 @@ session and the session has not ended (`service.claim_names_session`).
 ### Adapter lifetime
 
 Desktop Codex unloads an idle instance without ending the chat, so an existing chat
-keeps its server, preview and adapter across inactivity and unload, and loses them
-only on archive, deletion or transfer. Its startup hook captures the chat's native
-transcript (`codex_state.py`), without which a new desktop start owns nothing
-(`state.chat_exists`). A desktop user preview detaches its input watcher for the same
-reason (`dev/leaf_dev/commands/preview.py`).
+keeps its server and adapter across inactivity and unload, and loses them only on
+archive, deletion or transfer. Its startup hook captures the chat's native
+transcript (`codex_transcript.py`), without which a new desktop start owns nothing
+(`state.chat_exists`).
 
 The adapter follows the session's page ownership, not the pages' declarations, and
-retires once ownership ends (`codex_adapter.py`).
+retires once ownership ends (`codex_run.py`).

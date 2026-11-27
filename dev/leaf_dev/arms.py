@@ -54,18 +54,18 @@ from typing import IO, NamedTuple, Self, overload
 
 import click
 
-from leaf.codex import APP_SERVER_ENV
-from leaf.event_log import initialized
-from leaf.harness import (
+from leaf.agents.codex import APP_SERVER_ENV
+from leaf.base.harness import (
     IDENTITY_VARIABLES,
     ClaudeCodeHarness,
     CodexHarness,
     claude_code_config,
 )
-from leaf.harness import codex_home as host_codex_home
-from leaf.registry.kernel import kernel_event_kinds
-from leaf.render_gate import browser as browser_model
-from leaf.render_gate import command as render_command_model
+from leaf.base.harness import codex_home as host_codex_home
+from leaf.log.event_log import initialized
+from leaf.pages.render_gate import browser as browser_model
+from leaf.pages.render_gate import command as render_command_model
+from leaf.source.registry.kernel import kernel_event_kinds
 from leaf_dev import LEAF_COMMAND, ROOT, plain_html
 from leaf_dev.browser import shell_executable
 from leaf_dev.leaf_assets import pinned_copy
@@ -306,16 +306,32 @@ class ServedPage(NamedTuple):
     state: Path
 
     def leaf(
-        self, *args: str, timeout: float | None = None, **extra: str
+        self, *args: str, timeout: float | None = None, session: str | None = None
     ) -> subprocess.CompletedProcess:
-        """Run the arm's launcher under the state home with `extra` in its
-        environment, such as a session for a command only an agent's voice may run,
-        refusing a failed command."""
+        """Run the arm's launcher under the state home, refusing a failed command.
+        With `session`, the command runs as that agent session, for an event that
+        must carry the agent's voice, as a summary or a thread's title does. The
+        session's hooks run the arm, as its first hook would record
+        (`leases.mark_root`), since a checkout's launcher acts for no other session
+        (`state.runs_session`)."""
+        voice = {}
+        if session is not None:
+            mark = (
+                "import sys; from leaf.base.leases import mark_root;"
+                " from leaf.base.state import PLUGIN_ROOT;"
+                " mark_root(sys.argv[1], PLUGIN_ROOT)"
+            )
+            subprocess.run(
+                [*arm_python(self.arm), "-c", mark, session],
+                env=environment(XDG_STATE_HOME=str(self.state)),
+                check=True,
+            )
+            voice["LEAF_SESSION_ID"] = session
         return run_leaf(
             self.arm,
             self.state,
             *args,
-            env=environment(**extra),
+            env=environment(**voice),
             check=True,
             timeout=timeout,
         )
@@ -406,10 +422,9 @@ def merge_base() -> str:
     ).stdout.strip()
 
 
-def copy_working(paths: Iterable[str], dest: Path) -> None:
-    """Copy the files under `paths` into `dest` as the working tree has them: tracked
-    and unignored untracked files, the ones an install copies, with edits included
-    and links kept as links."""
+def working_files(paths: Iterable[str]) -> list[str]:
+    """The files under `paths` as the working tree has them: tracked and unignored
+    untracked files, the ones an install copies, each once and links included."""
     listed = subprocess.run(
         ["git", "-C", ROOT, "ls-files", "-z", "--cached", "--others"]
         + ["--exclude-standard", "--", *paths],
@@ -418,11 +433,20 @@ def copy_working(paths: Iterable[str], dest: Path) -> None:
         check=True,
     ).stdout.split("\0")
     # A conflicted file is listed once per stage; a deleted one is still in the index.
-    for name in dict.fromkeys(filter(None, listed)):
-        source, target = ROOT / name, dest / name
-        if source.is_symlink() or source.is_file():
-            target.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(source, target, follow_symlinks=False)
+    return [
+        name
+        for name in dict.fromkeys(filter(None, listed))
+        if (ROOT / name).is_symlink() or (ROOT / name).is_file()
+    ]
+
+
+def copy_working(paths: Iterable[str], dest: Path) -> None:
+    """Copy the files under `paths` into `dest` as the working tree has them, with
+    edits included and links kept as links (`working_files`)."""
+    for name in working_files(paths):
+        target = dest / name
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(ROOT / name, target, follow_symlinks=False)
 
 
 def copy_committed(paths: Iterable[str], dest: Path, ref: str) -> None:
@@ -736,11 +760,11 @@ def retire_sessions(payload: Path, state: Path) -> None:
             "-c",
             """
 import json
-from leaf.state import SESSION_SUFFIX, end_session, flocked, state_home
-from leaf.leases import adapter_lease_path
-from leaf.codex_adapter import adapter_start_lock_path
-from leaf.hosting import cmd_stop
-from leaf.presence import live_servers
+from leaf.base.state import SESSION_SUFFIX, end_session, flocked, state_home
+from leaf.base.leases import adapter_lease_path
+from leaf.agents.codex_adapter import adapter_start_lock_path
+from leaf.pages.hosting import cmd_stop
+from leaf.agents.presence import live_servers
 
 sessions = state_home() / "sessions"
 for path in sessions.glob(f"*.{SESSION_SUFFIX}"):

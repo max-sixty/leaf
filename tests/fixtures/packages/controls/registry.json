@@ -1,4 +1,12 @@
 {
+  "$data": {
+    "contracts": {
+      "control-value": {
+        "description": "The one value a control holds, the empty string while it holds none.",
+        "schema": { "type": "string" }
+      }
+    }
+  },
   "lf-select": {
     "description": "One choice from a dropdown, drawn by Web Awesome's select, a component that knows nothing of Leaf. Write the library's `wa-select` inside it, with a `wa-option` for each choice, and put it in an `lf-group` whose label asks the question. Write a starting choice as this element's `value`.",
     "attributes": {
@@ -9,12 +17,23 @@
     },
     "verbs": {
       "choose": {
-        "unit": "widget",
-        "record": { "kind": "value", "attr": "value", "property": "value" }
+        "record": { "attr": "value", "property": "value" }
       }
     },
-    "awaits": { "value": "choose", "answered": { "choose": {} } },
+    "awaits": { "value": "choose" },
+    "outputs": { "value": { "contract": "control-value" } },
     "example": "<lf-group id=\"plan\" label=\"Which plan?\"><lf-select id=\"plan-choice\"><wa-select placeholder=\"Choose a plan\"><wa-option value=\"starter\">Starter</wa-option><wa-option value=\"team\">Team</wa-option></wa-select></lf-select></lf-group>"
+  },
+  "lf-chosen": {
+    "description": "The choice another widget holds, as words. Set `for` to the id of a widget that holds a `control-value`.",
+    "attributes": {
+      "required": ["id", "for"]
+    },
+    "content": "empty",
+    "inputs": {
+      "choice": { "contract": "control-value", "reference": "for", "property": "value" }
+    },
+    "example": "<lf-chosen id=\"plan-chosen\" for=\"plan-choice\"></lf-chosen>"
   },
   "lf-level": {
     "description": "A level on a scale, set on a range the element holds, which says `level-change` at every change of its value, a script's set included.",
@@ -30,9 +49,7 @@
     "content": "empty",
     "verbs": {
       "set": {
-        "unit": "widget",
         "record": {
-          "kind": "value",
           "attr": "value",
           "property": "value",
           "event": "level-change"

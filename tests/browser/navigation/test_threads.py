@@ -8,7 +8,7 @@ import pytest
 from interact_support import append_carried_log_record, element_declaration
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, SEATED_OBLIGATION_PAGE, panel_comment
-from render_cases_layout import overlapped_words, ring_faults, rings_drawn
+from render_cases_layout import overlapped_words
 from render_cases_navigation import NOTED_PAGE, compose
 from render_harness import (
     INLINE_PAGE,
@@ -30,14 +30,16 @@ from render_harness import (
     scroll_settled,
     sending,
     wait_for_check_api,
+    without_end_room,
     write,
 )
 
 from browser.navigation import READING_REGIONS_PAGE, expect_walk_position
-from browser.threads import choose_threads_in_panel, open_panel_thread
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
-from leaf_dev.browser import PANEL_THREAD
+from browser.threads import open_panel_thread
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
+from leaf_dev.rings import ring_faults, ring_rule, rings_drawn
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -461,13 +463,62 @@ def test_the_thread_walk_opens_the_thread_on_the_passage_the_caret_is_in(
         page.keyboard.press("Escape")
 
 
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_caret_in_an_age_is_where_the_thread_walk_starts(engine, request, serve):
+    """A caret in an age's drawn words, which a shadow root holds, is in the age in either
+    engine, so the walk opens the thread on the age's paragraph as it would from the
+    paragraph's own words. The caret goes there as caret browsing walks it, by the
+    engine's own caret movement (`Selection.modify`)."""
+    url = serve(
+        leaf_page(
+            "a caret in an age",
+            """
+<h1>Caret walk</h1>
+<p id="before">The earlier discussion comes first.</p>
+<p id="here">The import ran <lf-age datetime="2026-11-20T02:10:00Z">20 Nov</lf-age>,
+which this discussion is about.</p>
+<p id="after">The later discussion comes last.</p>
+""",
+        ),
+        anchored=[
+            ("before", "earlier discussion"),
+            ("here", "this discussion"),
+            ("after", "later discussion"),
+        ],
+    )
+    roots = [
+        event["id"]
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "comment"
+    ]
+    page = open_page(request.getfixturevalue(engine), url)
+    assert page.evaluate(
+        """() => {
+          const age = document.querySelector('#here lf-age');
+          const words = age.previousSibling;
+          getSelection().collapse(words, words.length);
+          getSelection().modify('move', 'forward', 'character');
+          getSelection().modify('move', 'forward', 'character');
+          const [caret] = getSelection().getComposedRanges({ shadowRoots: [age.shadowRoot] });
+          return caret.startContainer.getRootNode() === age.shadowRoot;
+        }"""
+    )
+    page.keyboard.press("t")
+    expect(
+        page.locator(f'.lf-margin-preview .lf-page-thread[data-lf-thread="{roots[1]}"]')
+    ).to_be_focused()
+
+
 @pytest.mark.parametrize("enters", ["c", "Enter"])
 def test_the_thread_walk_stops_at_each_unsent_comment(browser, serve, enters):
     """A comment the user began and put away is a stop of the thread walk, in the page's
     order among the open threads, as Threads lists the two together, a comment about a
     passage of a paragraph holding a thread included. The walk opens the comment's box
     on its words and stands the user on the box, not in it, so the next `t` walks on and
-    puts the box away, and `c` or Enter puts the caret after the words."""
+    puts the box away, and `c` or Enter puts the caret after the words. While the user
+    stands on the box it keeps its resting edge, so it doesn't look like one they type
+    in, and wears `c` as a key chip, since its words cover the placeholder that says
+    `c`."""
     url = serve(
         leaf_page(
             "drafts in the walk",
@@ -508,10 +559,54 @@ def test_the_thread_walk_stops_at_each_unsent_comment(browser, serve, enters):
     page.keyboard.press("t")
     expect(box).to_be_focused()
     expect(field).to_have_js_property("value", "About the passage.")
+    chip = page.locator(".lf-command-binding-badges .lf-command-binding-badge")
+    expect(chip.filter(has_text="c")).to_be_visible()
+    assert ring_rule(box) == ""
+    assert ring_rule(box, "after") == ""
     page.keyboard.press(enters)
+    expect(chip).to_have_count(0)
     expect(field).to_be_focused()
+    assert ring_rule(box, "after")
     expect(field).to_have_js_property("value", "About the passage.")
     expect(field).to_have_js_property("selectionStart", len("About the passage."))
+
+
+def test_a_thread_stop_wears_c_on_a_reply_box_holding_words(browser, serve):
+    """A thread card the walk stands on whose reply box holds a draft wears `c` as a chip
+    on that box's corner, since the draft's words cover the placeholder that says `c`
+    in an empty box. `c` puts the caret after the words, and the chip goes."""
+    url = serve(
+        leaf_page(
+            "a reply draft",
+            '<h1>A reply draft</h1><p id="said">The thread on this paragraph waits.</p>',
+        ),
+        anchored=[("said", "thread on this paragraph")],
+    )
+    page = open_page(browser, url)
+    card = page.locator(".lf-margin-preview .lf-page-thread")
+    reply = card.locator("leaf-text")
+    chip = page.locator(".lf-command-binding-badges .lf-command-binding-badge")
+    page.locator("h1").click()
+    page.keyboard.press("t")
+    expect(card).to_be_focused()
+    expect(chip).to_have_count(0)
+    page.keyboard.press("c")
+    write(reply, "Left unsent.")
+    page.keyboard.press("Escape")
+    page.locator("h1").click()
+
+    page.keyboard.press("t")
+    expect(card).to_be_focused()
+    expect(chip.filter(has_text="c")).to_be_visible()
+    frame = card.locator(".lf-compose-field").bounding_box()
+    at = chip.bounding_box()
+    assert frame and at
+    assert abs(at["x"] + at["width"] / 2 - frame["x"]) < 2
+    assert abs(at["y"] + at["height"] / 2 - frame["y"]) < 2
+    page.keyboard.press("c")
+    expect(reply).to_be_focused()
+    expect(reply).to_have_js_property("selectionStart", len("Left unsent."))
+    expect(chip).to_have_count(0)
 
 
 def test_the_thread_walk_reaches_a_resolved_thread_holding_an_unsent_reply(
@@ -617,7 +712,7 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
     then centre it vertically in the document. `scrollIntoView` also moved the document,
     jumping it to the nearest edge in the press's own task before the smooth centred
     navigation step began. Both local axes must move in that task, while the page waits
-    for its glide (scrolling.js, `glideTo`), whose frames carry it to the centre in one
+    for its glide (dom/scrolling.js, `glideTo`), whose frames carry it to the centre in one
     trip: each one further down, never turning back."""
     lead = "".join(
         f"<p>Reading context before the passage, line {i}.</p>" for i in range(32)
@@ -643,7 +738,7 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
     )
     page = open_page(
         browser,
-        serve(source, anchored=[("far", "Far-side passage")]),
+        serve(source, anchored=[("local", "Far-side passage")]),
     )
     page.evaluate(
         """() => {
@@ -685,7 +780,7 @@ def test_a_thread_walk_starts_one_page_trip_and_reveals_its_nested_passage(
     assert immediate["localXFits"], (
         f"the vertical scrollport also overflowed sideways: {immediate}"
     )
-    # The panel's band at the window's foot, which it states to Leaf's landings.
+    # The root's landing band at the window's foot, over the floating panel's cover.
     foot = page.evaluate(
         "async () => (await window.__lfWidgetApi()).landingInsets("
         "document.scrollingElement).bottom"
@@ -1568,6 +1663,149 @@ def test_a_thread_url_with_a_fragment_lands_there_with_the_thread_open(browser, 
     expect(page.locator("#target")).to_be_in_viewport()
 
 
+def test_a_message_s_copied_link_opens_its_thread_on_that_message(browser, serve):
+    """A message's Copy link copies the page's address naming that message, without
+    the fragment the address held, and the link opens the thread on the message; `y`
+    on the thread's Resolve, which the panel draws apart from its messages, copies the
+    thread's own link."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Where does this end?")
+    reply = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "revision": 1,
+            "text": "At the last paragraph.",
+        },
+    )["id"]
+    context = browser.new_context(permissions=["clipboard-read", "clipboard-write"])
+    page = open_page(browser, thread_url(url, root, "p59"), context=context)
+    thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
+    message = thread.locator(f'.lf-msg[data-lf-event="{reply}"]')
+    message.hover()
+    message.locator(".lf-msg-link").click()
+    expect(message.locator(".lf-msg-link")).to_have_js_property("status", "success")
+    copied = page.evaluate("navigator.clipboard.readText()")
+    # The address as the page holds it, naming the reply in place of the thread.
+    link, here = urlsplit(copied), urlsplit(page.url)
+    assert here.fragment == "p59"
+    assert (link.path, dict(parse_qsl(link.query)), link.fragment) == (
+        here.path,
+        {**dict(parse_qsl(here.query)), "thread": reply},
+        "",
+    )
+    page.locator(".lf-fp-thread-controls .lf-resolve").focus()
+    page.keyboard.press("y")
+    page.wait_for_function(
+        "copied => navigator.clipboard.readText().then((now) => now !== copied)",
+        arg=copied,
+    )
+    assert page.evaluate("navigator.clipboard.readText()") == copied.replace(
+        reply, root
+    )
+
+    followed = open_page(browser, copied, context=context)
+    expect(
+        followed.locator(f'{PANEL_THREAD} .lf-msg[data-lf-event="{reply}"]')
+    ).to_be_focused()
+
+
+def test_a_finger_copies_a_reply_s_link(browser, serve):
+    """Under a finger, where the address names only the thread, a reply offers its Copy
+    link, though not its Copy, whose words a finger selects instead. The opening
+    message offers neither, its link being the thread's, which the address names."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Where does this end?")
+    reply = append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "parent": root,
+            "revision": 1,
+            "text": "At the last paragraph.",
+        },
+    )["id"]
+    context = browser.new_context(
+        viewport={"width": 390, "height": 844},
+        has_touch=True,
+        is_mobile=True,
+        permissions=["clipboard-read", "clipboard-write"],
+    )
+    page = open_page(browser, thread_url(url, root), context=context)
+    message = page.locator(f'{PANEL_THREAD} .lf-msg[data-lf-event="{reply}"]')
+    expect(message.locator(".lf-msg-copy")).to_be_hidden()
+    opening = page.locator(f'{PANEL_THREAD} .lf-msg[data-lf-event="{root}"]')
+    expect(opening.locator(".lf-msg-link")).to_be_hidden()
+    message.locator(".lf-msg-link").tap()
+    expect(message.locator(".lf-msg-link")).to_have_js_property("status", "success")
+    copied = urlsplit(page.evaluate("navigator.clipboard.readText()"))
+    assert dict(parse_qsl(copied.query))["thread"] == reply
+
+
+def test_a_link_to_a_folded_message_opens_its_fold(browser, serve):
+    """A link naming a message a summary folds opens the fold and lands on it."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Where does this end?")
+    said = [
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "reply",
+                "author": "agent",
+                "agent": "Claude",
+                "parent": root,
+                "revision": 1,
+                "text": f"Step {n}.",
+            },
+        )["id"]
+        for n in range(3)
+    ]
+    append_carried_log_record(
+        serve.page_dir,
+        {
+            "kind": "summary",
+            "author": "agent",
+            "agent": "Claude",
+            "thread": root,
+            "from": said[0],
+            "through": said[1],
+            "text": "The first two steps.",
+        },
+    )
+    page = open_page(browser, thread_url(url, said[0]))
+    expect(
+        page.locator(f'{PANEL_THREAD} .lf-msg[data-lf-event="{said[0]}"]')
+    ).to_be_focused()
+
+
+@pytest.mark.parametrize(
+    "named",
+    [
+        {"author": "user", "emoji": "👍"},
+        {"author": "agent", "agent": "Claude", "text": "Reading.", "ephemeral": True},
+    ],
+    ids=["reaction", "progress"],
+)
+def test_a_link_naming_a_message_drawn_without_a_row_opens_its_thread(
+    browser, serve, named
+):
+    """A link naming a reaction, a chip on the message it answers, or a step of the
+    agent's work, which the thread draws as a face, opens the thread as its own link
+    does."""
+    url = serve(LONG_PAGE)
+    root = panel_comment(serve.page_dir, "Where does this end?", author="agent")
+    event = append_carried_log_record(
+        serve.page_dir, {"kind": "reply", "parent": root, "revision": 1, **named}
+    )["id"]
+    page = open_page(browser, thread_url(url, event))
+    expect(page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')).to_be_focused()
+
+
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
 def test_back_and_forward_show_the_thread_each_entry_names(request, serve, engine):
     """An entry's `?thread=` names the thread view standing open on it, renamed as views
@@ -1590,6 +1828,8 @@ def test_back_and_forward_show_the_thread_each_entry_names(request, serve, engin
         },
     )
     page = open_page(request.getfixturevalue(engine), thread_url(url, root))
+    # The last paragraph ends a page with no room below it, so the view stands over it.
+    without_end_room(page)
     thread = page.locator(f'{PANEL_THREAD}[data-lf-thread="{root}"]')
     expect(thread).to_be_focused()
 
@@ -1697,7 +1937,9 @@ def test_thread_url_reveals_a_tab_despite_its_generated_display_fragment(
         ],
     )
     page = open_page(browser, thread_url(url, "answer01"), context=one_user)
-    expect(linked_thread(page, "anchor01")).to_be_focused()
+    expect(
+        linked_thread(page, "anchor01").locator('.lf-msg[data-lf-event="answer01"]')
+    ).to_be_focused()
     expect(page.locator("#target")).to_be_in_viewport()
     assert page.evaluate("history.length") == 2
     # The tab set names the view it opened beside the thread, and the entry keeps both:

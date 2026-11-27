@@ -28,6 +28,7 @@ from render_cases_interaction import (
     TABLE_REPLY,
     live_url,
 )
+from render_cases_layout import mark_edges, token_colour
 from render_cases_navigation import (
     TWICE_PAGE,
 )
@@ -65,10 +66,11 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import service as service_model
-from leaf.render_checks import rendered
+from leaf.agents import delivery as delivery_model
+from leaf.log import event_log as events_model
+from leaf.records import transaction as transaction_model
+from leaf.source.render_checks import rendered
+from leaf_dev.browser import text_field
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -363,7 +365,7 @@ def test_a_questions_options_own_their_digit_bindings(browser, serve, cards):
     page.keyboard.press("2")
     expect(page.locator("#two")).to_have_attribute("selected", "")
     round_trip(page)
-    field = group.get_by_role("textbox", name="Another option")
+    field = text_field(group, name="Another option")
     write(field, "1")
     expect(field).to_have_js_property("value", "1")
     expect(page.locator("#one")).not_to_have_attribute("selected", "")
@@ -384,7 +386,7 @@ def test_added_option_numbers_are_not_reused_after_undo(browser, serve):
         ),
     )
     group = page.locator("#choices")
-    field = group.get_by_role("textbox", name="Another option")
+    field = text_field(group, name="Another option")
     added = group.locator(":scope > lf-option[data-lf-added]")
     page.keyboard.press("m")
     expect(page.locator("#question")).to_be_focused()
@@ -940,7 +942,7 @@ def test_each_shape_of_obligation_leads_with_its_question_and_joins_its_cells(
                  const context = document.createElement('canvas')
                    .getContext('2d', {willReadFrequently: true});
                  const probe = document.body.appendChild(document.createElement('i'));
-                 probe.style.color = 'var(--lf-settled)';
+                 probe.style.color = 'var(--lf-ink-2)';
                  const paints = [
                    getComputedStyle(probe).color,
                    getComputedStyle(document.querySelector('#c-redis')).backgroundColor,
@@ -1181,6 +1183,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
                 "widget": "quoted-suggestion",
                 "action": "decide",
                 "detail": {"outcome": "accept"},
+                "answered": True,
             },
         )
     assert refused_on(refused.value).code == "quoted-widget"
@@ -1810,6 +1813,7 @@ def test_a_nested_obligations_pick_is_not_part_of_its_outers_record(browser, ser
             "widget": "outer",
             "action": "choose",
             "detail": {"value": ["out-drill"]},
+            "answered": False,
         },
     )
 
@@ -1929,7 +1933,9 @@ def test_a_press_on_a_mark_in_an_options_selected_words_opens_its_thread(
     gestures land in the same box, and neither is a pick: the drag's own click ended a
     selection, and the press inside the words it took is the mark's. A press on an
     option's own pick mark still picks it, on a card too, whose digit draws in the
-    mark's seat while the button is down.
+    mark's seat while the button is down. A digit takes no pointer, so a press where
+    one stands lands on what is under it, as one on the Add field's digit puts the user
+    in the field.
 
     In both engines, because they part between a press's release and its click: Firefox
     collapses the words the press landed in before the click, Chromium after it. Read at
@@ -1970,6 +1976,14 @@ def test_a_press_on_a_mark_in_an_options_selected_words_opens_its_thread(
     )
     page.mouse.up()
     expect(stop).to_have_attribute("selected", re.compile(".*"))
+
+    # The group's digits show now, the Add field's in the field's end corner. A press
+    # there is the field's, which a digit that took the press would leave unfocused.
+    digit = page.locator("#retry > .lf-another > .lf-key-badge")
+    expect(digit).to_have_attribute("data-lf-binding-badge", "")
+    seat = digit.bounding_box()
+    page.mouse.click(seat["x"] + seat["width"] / 2, seat["y"] + seat["height"] / 2)
+    expect(page.locator("#retry > .lf-another leaf-text")).to_be_focused()
 
     run = page.evaluate(
         """() => { const r = [...CSS.highlights.get('lf-mark')][0].getClientRects()[0];
@@ -2020,6 +2034,111 @@ def test_a_tap_beside_an_options_selected_words_picks_it(engine, request, serve)
     assert page.evaluate("() => getSelection().toString()").strip()
     option.locator("strong").tap()
     expect(option).to_have_attribute("selected", re.compile(".*"))
+
+
+ROW_OPTIONS_PAGE = leaf_page(
+    "row options",
+    """
+<h1 id="h">The run</h1>
+<lf-group id="when-decision" label="When should it run?"><h2 id="when-decision-h">When should it run?</h2>
+<lf-options id="when">
+  <lf-option id="wh-night">At night, while the deploy queue is empty and nobody is
+  waiting on the build, so a failure costs nobody an afternoon, though nobody is awake
+  to see it fail either, and the morning starts with whatever it left behind</lf-option>
+  <lf-option id="wh-day">During the day, when someone is watching it</lf-option>
+</lf-options></lf-group>
+""",
+)
+
+SELECT_ROW_WORDS = """el => {
+  const words = document.createRange();
+  words.selectNodeContents(
+    [...el.childNodes].find((node) => node.nodeType === 3 && node.data.trim()),
+  );
+  getSelection().removeAllRanges();
+  getSelection().addRange(words);
+  return words.getClientRects()[words.getClientRects().length - 1].toJSON();
+}"""
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_press_in_a_rows_digit_column_is_a_press_on_its_control(
+    engine, request, serve
+):
+    """A row's digit stands in a column of its own, before the control it labels, and
+    takes no pointer. A press anywhere in that column, from the row's top to its foot,
+    is the control's, as a press on a card's digit is its mark's. In an option's column
+    it picks the row and leaves the user on the row's mark, in the group whose digits
+    they were reading; a press that landed on the row would take them out of the group,
+    and its digits with them. On the add field's digit it puts the user in the field.
+    The press here stands above the digit of a row of several lines."""
+    page = open_page(request.getfixturevalue(engine), serve(ROW_OPTIONS_PAGE))
+    night = page.locator("#wh-night")
+    mark = night.locator(":scope > .lf-pick")
+    digit = night.locator(":scope > .lf-key-badge")
+
+    # The keyboard puts the user in the group, on the other row, and its digits show.
+    page.locator("#wh-day > .lf-pick").focus()
+    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("Tab")
+    expect(page.locator("#wh-day > .lf-pick")).to_be_focused()
+    expect(digit).to_have_attribute("data-lf-binding-badge", "")
+
+    row, seat = night.bounding_box(), digit.bounding_box()
+    assert seat["y"] - row["y"] > seat["height"], "the row isn't several lines tall"
+    page.mouse.click(seat["x"] + seat["width"] / 2, row["y"] + 4)
+    expect(night).to_have_attribute("selected", re.compile(".*"))
+    expect(mark).to_be_focused()
+    expect(digit).to_have_attribute("data-lf-binding-badge", "")
+
+    add = page.locator("#when > .lf-another > .lf-key-badge")
+    expect(add).to_have_attribute("data-lf-binding-badge", "")
+    seat = add.bounding_box()
+    page.mouse.click(seat["x"] + seat["width"] / 2, seat["y"] + seat["height"] / 2)
+    expect(page.locator("#when > .lf-another leaf-text")).to_be_focused()
+
+    round_trip(page)
+    assert [
+        e["detail"]["value"]
+        for e in events_model.read_events(serve.page_dir)
+        if e["kind"] == "action"
+    ] == [["wh-night"]], "the press in the row's digit column picked it other than once"
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_click_beside_a_rows_selected_words_picks_it(engine, request, serve):
+    """A click on a row past the end of its words picks it, though the words stand
+    selected: the click reached for no word the selection holds. Chromium keeps a
+    selection through a press beside the lines it spans, where Firefox collapses it, so
+    read at the release, the selection would still stand there and refuse the pick."""
+    page = open_page(request.getfixturevalue(engine), serve(ROW_OPTIONS_PAGE))
+    day = page.locator("#wh-day")
+    last = day.evaluate(SELECT_ROW_WORDS)
+    assert page.evaluate("() => getSelection().toString()").strip()
+    row = day.bounding_box()
+    assert row["x"] + row["width"] - last["right"] > 80, "the words fill the row"
+    page.mouse.click(last["right"] + 40, last["top"] + last["height"] / 2)
+    expect(day).to_have_attribute("selected", re.compile(".*"))
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_the_row_the_keyboard_is_on_wears_its_ring_on_every_side(
+    engine, request, serve
+):
+    """The row whose mark the keyboard is on wears the focus ring one band inside its
+    edge, all four sides of it."""
+    page = open_page(request.getfixturevalue(engine), serve(ROW_OPTIONS_PAGE))
+    page.locator("#wh-day > .lf-pick").focus()
+    page.keyboard.press("Shift+Tab")
+    page.keyboard.press("Tab")
+    expect(page.locator("#wh-day > .lf-pick")).to_be_focused()
+    expect(page.locator("#wh-day")).to_have_attribute(
+        "data-lf-control-focus-visible", ""
+    )
+    rendered(page)
+    ring_ink = tuple(int(n) for n in re.findall(r"\d+", token_colour(page, "--lf-ok")))
+    edges = mark_edges(page, "wh-day", ring_ink)
+    assert all(min(widths) >= 1 for widths in edges.values()), edges
 
 
 def test_a_rows_block_reference_never_costs_its_words_a_line(browser, serve, subtests):
@@ -2645,7 +2764,7 @@ def test_a_sample_in_a_reply_is_quoted_there_too(browser, serve):
     expect(page.locator("#rp-live > .lf-msg-sending")).to_have_count(0)
     expect(status).to_have_text(re.compile(r"^Queued for "))
     record_claim(d)
-    with service_model.PageTransaction(d) as transaction:
+    with transaction_model.PageTransaction(d) as transaction:
         delivery_model.record_pickup(transaction, actions)
     told(page)
     expect(status).to_have_text("Delivered")
@@ -2855,7 +2974,7 @@ def test_an_added_option_renders_its_markdown_and_keeps_its_source(browser, serv
     the words as typed."""
     page = open_page(browser, serve(OBLIGATION_PAGE))
     group = page.locator("#jobs")
-    write(group.get_by_role("textbox", name="Another option"), "Keep **both** routes")
+    write(text_field(group, name="Another option"), "Keep **both** routes")
     group.get_by_role("button", name="Add and select option").click()
     added = group.locator(":scope > lf-option[data-lf-added]")
     expect(added.locator("strong")).to_have_text("both")
@@ -2915,3 +3034,45 @@ def test_an_option_set_as_a_paragraph_starts_under_its_title_as_a_sentence_does(
     )
     for shape in ("element", "paragraph"):
         assert gaps[shape] == pytest.approx(gaps["sentence"], abs=1), gaps
+
+
+def test_a_nested_group_reserves_only_the_cells_it_will_draw(browser, serve):
+    """Before the runtime draws Add and Done, a group holds their place at its foot, and a
+    group nested in an option holds only what it will draw itself: a closed group that
+    takes several answers holds Done's row inside an open group as it does on its own,
+    not its holder's Add besides."""
+    inner = (
+        '<lf-group id="{0}-q" label="Which parts?"><lf-options id="{0}" closed multiple>'
+        '<lf-option id="{0}-a">Alpha</lf-option><lf-option id="{0}-b">Beta</lf-option>'
+        "</lf-options></lf-group>"
+    )
+    url = serve(
+        leaf_page(
+            "Nested groups",
+            '<lf-group id="outer-q" label="Which way?"><lf-options id="outer">'
+            '<lf-option id="outer-a">Either '
+            + inner.format("inner")
+            + '</lf-option><lf-option id="outer-b">Or</lf-option></lf-options></lf-group>'
+            + inner.format("alone"),
+        )
+    )
+    page = browser.new_page(viewport={"width": 1200, "height": 900})
+    held_entry = []
+    # As the widget check holds it (`render_gate/widget_quality.py`): the first
+    # request for the entry waits, and the route stays until the page closes.
+    page.route(
+        "**/leaf.js",
+        lambda route: route.fallback() if held_entry else held_entry.append(route),
+    )
+    with page.expect_request("**/leaf.js"):
+        page.goto(url, wait_until="commit")
+    page.wait_for_function(
+        "[...document.styleSheets].some(sheet => sheet.href?.endsWith('/theme.css'))"
+    )
+    reserves = page.evaluate(
+        """() => Object.fromEntries(['inner', 'alone'].map((id) => [id,
+          parseFloat(getComputedStyle(document.getElementById(id), '::after').height)]))"""
+    )
+    held_entry[0].fallback()
+    assert reserves["alone"] > 0, reserves
+    assert reserves["inner"] == pytest.approx(reserves["alone"], abs=0.5), reserves

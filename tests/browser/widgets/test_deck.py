@@ -6,9 +6,16 @@ import re
 import pytest
 from playwright.sync_api import expect
 from render_cases_interaction import HOLD_MOTION, live_url
-from render_harness import leaf_page, open_page, round_trip, wait_for_check_api
+from render_harness import (
+    holding,
+    leaf_page,
+    open_page,
+    round_trip,
+    undo,
+    wait_for_check_api,
+)
 
-from leaf import event_log as events_model
+from leaf.log import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -32,6 +39,8 @@ DECK_PAGE = leaf_page(
 )
 
 OPEN = "() => document.querySelector('lf-deck > [data-lf-deck-open]')?.id ?? null"
+# Whether no card is in flight, so the deck stands where its last change left it.
+LANDED = "() => !document.querySelector('lf-deck[data-lf-deck-flying]')"
 
 
 def open_card(page, name):
@@ -83,6 +92,42 @@ def test_a_pass_moves_on_by_answers_keeps_later_and_reviews_every_card(browser, 
     open_card(page, "beta-ask")
     forward(page, "Next")
     open_card(page, "notes-ask")
+
+
+# A deck at the page's top with more page below it than the window shows, so a landing
+# that put a card's options at the window's top would scroll the page.
+DECK_ABOVE_MORE_PAGE = leaf_page(
+    "Deck above more",
+    "<h1>Before the release</h1>"
+    '<lf-deck id="deck">'
+    + card("store", "Keep Redis?")
+    + card("beta", "Ship the beta?")
+    + "</lf-deck>"
+    + "".join(
+        f"<p>Paragraph {i}. " + "Words to read. " * 30 + "</p>" for i in range(30)
+    ),
+)
+
+# The page's offset and the top of the options of the card `arg` names.
+PLACE = """(name) => [Math.round(scrollY),
+  Math.round(document.getElementById(name).getBoundingClientRect().top)]"""
+
+
+def test_undo_brings_back_the_card_an_answer_moved_on_from_where_it_stood(
+    browser, serve
+):
+    """Taking back the answer that moved the deck on opens its card again where it
+    stood, with the user on its question, and the page doesn't scroll."""
+    page = open_page(browser, serve(DECK_ABOVE_MORE_PAGE))
+    open_card(page, "store-ask")
+    before = page.evaluate(PLACE, "store-choice")
+    answer(page, "store-yes")
+    open_card(page, "beta-ask")
+    page.wait_for_function(LANDED)
+    undo(page)
+    open_card(page, "store-ask")
+    expect(page.locator("#store-choice")).to_be_focused()
+    assert page.evaluate(PLACE, "store-choice") == before
 
 
 def test_the_end_of_the_pass_lists_each_answer_and_a_row_opens_its_card(browser, serve):
@@ -187,20 +232,61 @@ def test_a_new_tab_opens_on_the_first_card_that_waits(browser, serve):
     open_card(second, "beta-ask")
 
 
-def test_an_answer_from_another_window_leaves_the_card_in_place(browser, serve):
-    """A card the user pressed in stays put when its answer comes from a window other
-    than this one, which is news; Next then moves on."""
+def test_an_answer_from_another_window_moves_the_card_on_here_too(browser, serve):
+    """A card answered in another window moves on in this one too, as it would had
+    this window answered it."""
     url = live_url(serve(DECK_PAGE))
     watching = open_page(browser, url)
-    watching.locator("#store-ask h3").click()
-    watching.evaluate("() => { Document.prototype.hasFocus = () => false; }")
+    open_card(watching, "store-ask")
 
     answering = open_page(browser, url)
-    answer(answering, "store-yes")
-    expect(watching.locator("lf-deck .lf-deck-forward")).to_have_attribute(
-        "aria-label", "Next"
+    answer(answering, "store-no")
+    open_card(watching, "beta-ask")
+
+
+def test_an_answer_read_back_late_moves_the_card_and_not_the_page(browser, serve):
+    """An answer moves its card on when the server's reading of it comes back,
+    wherever the user is by then, as a slow first answer on a hosted page can come
+    after they scrolled away and turned to another window. The page stays where they
+    went, since the answer is no longer their latest gesture."""
+    page = open_page(browser, serve(TALL_DECK_PAGE))
+    open_card(page, "store-ask")
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.locator("#store-yes").click()
+    holding(page, held, 1, "the answer whose reading is held")
+    page.mouse.wheel(0, -2000)
+    page.wait_for_function("() => scrollY === 0")
+    page.evaluate("() => { Document.prototype.hasFocus = () => false; }")
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+    open_card(page, "tall-ask")
+    page.wait_for_function(LANDED)
+    assert page.evaluate("() => scrollY") == 0
+
+
+def test_a_scroll_as_the_card_moves_on_keeps_the_page(browser, serve):
+    """An answer by key brings up the next card, and a wheel the user turns while it
+    comes up leaves the page where the wheel took it: neither the card's landing nor
+    the focus that follows the answer pulls it back."""
+    page = open_page(browser, serve(TALL_DECK_PAGE))
+    page.emulate_media(reduced_motion="no-preference")
+    page.keyboard.press("m")
+    expect(page.locator("#store-ask")).to_be_focused()
+    page.keyboard.press("1")
+    page.mouse.wheel(0, -3000)
+    open_card(page, "tall-ask")
+    page.wait_for_function(LANDED)
+    # The arrival an answer by key makes waits as long as the card that came up takes
+    # no press, and was timed just after it: once that card takes presses again, a
+    # timer posted then runs behind the arrival.
+    page.wait_for_function(
+        "() => !document.querySelector('lf-deck [data-lf-deck-settling]')"
     )
-    open_card(watching, "store-ask")
+    page.evaluate("() => new Promise((then) => setTimeout(then))")
+    assert page.evaluate("() => scrollY") == 0
+    expect(page.locator("#tall-ask")).not_to_be_focused()
 
 
 DRAFT_DECK_PAGE = leaf_page(
@@ -236,19 +322,23 @@ def test_an_answer_saves_the_open_draft_before_the_card_moves_on(browser, serve)
 
 
 SENTENCE = "Each platform adds a day of smoke testing before the beta ships. "
+TALL_CARD = (
+    '<lf-group id="tall-ask" label="Ship the beta on every platform?">'
+    "<h3>Ship the beta on every platform?</h3>"
+    + "".join(f"<p>{SENTENCE * 3}</p>" for _ in range(4))
+    + '<lf-options id="tall-choice">'
+    '<lf-option id="tall-yes" label="Yes"><strong>Yes</strong></lf-option>'
+    '<lf-option id="tall-no" label="No"><strong>No</strong></lf-option>'
+    "</lf-options></lf-group>"
+)
 TALL_DECK_PAGE = leaf_page(
     "Deck below an opening",
     "<h1>Before the release</h1>"
     + "".join(f"<p>{SENTENCE * 3}</p>" for _ in range(4))
     + '<lf-deck id="deck">'
     + card("store", "Keep Redis?")
-    + '<lf-group id="tall-ask" label="Ship the beta on every platform?">'
-    "<h3>Ship the beta on every platform?</h3>"
-    + "".join(f"<p>{SENTENCE * 3}</p>" for _ in range(4))
-    + '<lf-options id="tall-choice">'
-    '<lf-option id="tall-yes" label="Yes"><strong>Yes</strong></lf-option>'
-    '<lf-option id="tall-no" label="No"><strong>No</strong></lf-option>'
-    "</lf-options></lf-group></lf-deck><p>After the deck.</p>",
+    + TALL_CARD
+    + "</lf-deck><p>After the deck.</p>",
 )
 
 # Whether the open card, landed, stands whole in the room above the panel's top, with
@@ -427,24 +517,67 @@ RECORD_RESIZES = """() => {
 
 def test_the_deck_grows_to_the_end_frame_it_lands_on(browser, serve):
     """The last answer brings up the end frame with its record of the pass, and the
-    deck's height glides to the frame's whole height rather than to an empty frame's
-    and then jumps."""
+    deck's height glides to the frame's whole height, where the frame is taller than the
+    card it follows, rather than to an empty frame's and then jumps."""
     page = open_page(browser, serve(DECK_PAGE))
     page.emulate_media(reduced_motion="no-preference")
     page.evaluate(RECORD_RESIZES)
+    height = (
+        "() => parseFloat(getComputedStyle(document.querySelector('lf-deck')).height)"
+    )
+    held = None
     for name, option in [
         ("store", "store-yes"),
         ("beta", "beta-no"),
         ("notes", "notes-no"),
     ]:
         open_card(page, f"{name}-ask")
+        page.wait_for_function(LANDED)
+        held = page.evaluate(height)
+        page.evaluate("() => { window.lfDeckResizes.length = 0; }")
         answer(page, option)
     expect(page.locator("lf-deck .lf-deck-recap > li")).to_have_count(3)
-    page.wait_for_function(
-        "() => !document.querySelector('lf-deck[data-lf-deck-flying]')"
-    )
-    landed = page.evaluate(
-        "() => parseFloat(getComputedStyle(document.querySelector('lf-deck')).height)"
-    )
+    page.wait_for_function(LANDED)
+    landed = page.evaluate(height)
     resizes = page.evaluate("() => window.lfDeckResizes")
-    assert resizes and abs(resizes[-1] - landed) <= 1, (resizes, landed)
+    assert abs((resizes[-1] if resizes else held) - landed) <= 1, (resizes, landed)
+    frame = page.locator("lf-deck .lf-deck-end").bounding_box()
+    deck = page.locator("lf-deck").bounding_box()
+    assert frame["y"] + frame["height"] <= deck["y"] + deck["height"] + 1
+
+
+def test_as_a_workspace_body_a_tall_card_scrolls_under_the_bar(browser, serve):
+    """As a workspace's body the deck is the box that scrolls, and a card taller than
+    the room scrolls under the bar: read down to its options, the bar still stands at
+    the deck's top, and the options take a press."""
+    context = browser.new_context(viewport={"width": 1100, "height": 560})
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Deck as a workspace",
+                "<header><h1>Before the release</h1></header>"
+                + '<lf-deck id="deck">'
+                + TALL_CARD
+                + card("store", "Keep Redis?")
+                + "</lf-deck>",
+                layout="workspace",
+            )
+        ),
+        context=context,
+    )
+    open_card(page, "tall-ask")
+    page.wait_for_function(LANDED)
+    bar = page.locator("lf-deck .lf-deck-bar")
+    before = bar.bounding_box()["y"]
+    box = page.locator("#tall-ask").bounding_box()
+    page.mouse.move(box["x"] + 40, box["y"] + 80)
+    page.mouse.wheel(0, 2000)
+    page.wait_for_function(
+        "() => { const d = document.querySelector('lf-deck');"
+        " return d.scrollTop > 0 && d.scrollTop >= d.scrollHeight - d.clientHeight - 1; }"
+    )
+    expect(page.locator("#tall-no")).to_be_in_viewport()
+    assert bar.bounding_box()["y"] == before
+    answer(page, "tall-no")
+    open_card(page, "store-ask")

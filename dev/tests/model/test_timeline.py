@@ -3,8 +3,8 @@ line fork, what came of it, and whether a pages follower ran."""
 
 from click.testing import CliRunner
 
-from leaf.event_log import append_event
-from leaf.interaction_log import append_interactions
+from leaf.log.event_log import append_event
+from leaf.log.interaction_log import append_interactions
 from leaf_dev.cli import cli
 
 DROPPED = "the agent spoke in the thread, or a turn joined its round, first"

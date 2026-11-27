@@ -10,6 +10,7 @@ import urllib.request
 from dataclasses import replace
 
 import pytest
+from conftest import hooks_run_this_tree
 from interact_support import comment as open_thread
 from interact_support import (
     owed_answers,
@@ -21,17 +22,17 @@ from interact_support import (
 )
 
 import leaf_website as website_server
-from leaf.event_log import read_events
-from leaf.file_bindings import bind_file
-from leaf.files import revision_path
-from leaf.hosting import LeafHTTPServer
-from leaf.http import page_delivery
-from leaf.registry.storage import load_registry
-from leaf.revision_artifact import capture_artifact
-from leaf.revision_delivery import compose_document
-from leaf.runtime_selection import executing, serving_runtime
-from leaf.served_state import page as served_page
-from leaf.structure import SourceDocument
+from leaf.base.files import revision_path
+from leaf.log.event_log import read_events
+from leaf.pages.hosting import LeafHTTPServer
+from leaf.serving.http import page_delivery
+from leaf.serving.revision_delivery import compose_document
+from leaf.serving.served_state import page as served_page
+from leaf.source.file_bindings import bind_file
+from leaf.source.revision_artifact import capture_artifact
+from leaf.source.runtime_selection import executing, serving_runtime
+from leaf.source.structure import SourceDocument
+from leaf.source.vocabulary import load_registry
 from leaf_dev.commands.journey import _journey as journey
 from leaf_dev.page_fixtures import example_media
 from leaf_dev.website import activation_url
@@ -119,7 +120,9 @@ def test_a_published_document_names_its_page_to_a_crawler(
 def test_a_first_visit_reads_the_names_of_the_files_the_page_binds(page_dir):
     """A first visit reads the state the site publishes until the visitor's container
     answers, so a file navigator lists the page's files from it as from a live page's
-    state, where a capture would list none."""
+    state, where a capture would list none. The file's words stay out of that public
+    state until a published revision shows them, and the data version it names is
+    that of the sources it holds."""
     notes = page_dir / "files" / "notes.md"
     notes.parent.mkdir()
     notes.write_text("Notes.\n")
@@ -129,7 +132,27 @@ def test_a_first_visit_reads_the_names_of_the_files_the_page_binds(page_dir):
     live = website_server.PageStateService(page_dir).page_state()
     assert list(public["files"]) == ["notes"]
     assert public["files"] == live["files"]
+    assert "notes" in live["data"]["sources"]
+    assert "notes" not in public["data"]["sources"]
+    assert public["data"]["version"] != live["data"]["version"]
     assert served_state_error(public, "answer") is None
+
+    index = page_dir / "index.html"
+    index.write_text(
+        index.read_text().replace(
+            "</main>",
+            '<lf-text-document id="notes-doc" source="notes"></lf-text-document></main>',
+        )
+    )
+    unpublished = website_server.initial_state(
+        page_dir, "/example", "example", "release"
+    )
+    assert "notes" not in unpublished["data"]["sources"]
+    assert website_server.activate_source(page_dir).error is None
+    published = website_server.initial_state(page_dir, "/example", "example", "release")
+    assert published["data"]["sources"]["notes"]["value"]["text"] == "Notes.\n"
+    live = website_server.PageStateService(page_dir).page_state()
+    assert published["data"]["version"] == live["data"]["version"]
 
 
 def test_agent_logs_are_structured_and_content_free(capsys):
@@ -406,6 +429,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
     # answered by the host's agent.
     monkeypatch.setenv("LEAF_AGENT", "Claude")
     monkeypatch.setenv("LEAF_SESSION_ID", "authoring-session")
+    hooks_run_this_tree("authoring-session")
     opened = open_thread(published, "--text", "Which plan reads best?")
     assert opened.exit_code == 0, opened.output
     monkeypatch.delenv("LEAF_AGENT")
@@ -528,6 +552,7 @@ def test_a_website_example_uses_the_real_page_server(page_dir, tmp_path, monkeyp
         assert forged.value.code == 400
         monkeypatch.setenv("LEAF_AGENT", "Agent")
         monkeypatch.setenv("LEAF_SESSION_ID", "leaf-website-agent")
+        hooks_run_this_tree("leaf-website-agent")
         monkeypatch.delenv("CLAUDE_CODE_SESSION_ID", raising=False)
         appended, _ = post(
             f"{root}/examples/decision/_leaf/agent/fail",

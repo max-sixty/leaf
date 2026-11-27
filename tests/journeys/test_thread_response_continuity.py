@@ -12,9 +12,9 @@ from render_harness import (
     write,
 )
 
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
+from leaf.source.render_checks import rendered
 
 EDITOR_INSPECTION = """(() => {
   const attach = Element.prototype.attachShadow;
@@ -339,18 +339,15 @@ def test_native_reply_edits_after_semantic_paint_keep_the_first_line(
             consume_moves_below_the_reply(other)
         return
 
-    # A margin card beside its passage holds its reply's foot while the user types in
-    # it, so the line being edited stays and the first line comes down to it; a seat
-    # holds the first line.
-    def held(box):
-        return box["y"] + box["height"] if place == "margin" else box["y"]
-
+    # A seat holds the reply's first line, and so does a margin card beside its
+    # passage while the user types in it: the lines taken away shorten the box from
+    # its foot.
     before = editor.bounding_box()
     for _ in range(4):
         page.keyboard.press("Backspace")
         rendered(page)
         now = editor.bounding_box()
-        assert held(now) == pytest.approx(held(before), abs=0.5), (before, now)
+        assert now["y"] == pytest.approx(before["y"], abs=0.5), (before, now)
     assert now["height"] < before["height"] - 50, (before, now)
     expect(editor).to_have_js_property("value", "First line")
     expect(editor).to_be_focused()
@@ -473,7 +470,7 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
         selector = "lf-diff .lf-page-thread"
     url = serve(authored)
     if place not in ("margin", "panel"):
-        data_model.cmd_data_set(
+        page_data_model.cmd_data_set(
             serve.page_dir,
             "change",
             'diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-return "old"\n+return "new"\n',
@@ -598,7 +595,7 @@ def test_refused_reply_retains_its_live_foot(browser, serve, place):
     else:
         # A card gives the refused turn's room back too, and its field grows to show
         # the words whole: the reply box, and the page after it, move. A margin card
-        # holds its top through a send (`heldEdge`, thread-preview.js), so its reply
+        # holds its top through a send (`keptLine`, thread-preview.js), so its reply
         # box rises into that room while its head row stands still.
         def carried_by_card(problem):
             return problem.code == "moved-without-input" and any(

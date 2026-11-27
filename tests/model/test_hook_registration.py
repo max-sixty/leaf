@@ -10,7 +10,6 @@ import subprocess
 import sys
 
 import pytest
-from conftest import LEAF_COMMAND
 from interact_support import (
     ADMITTING_DEPENDENCIES,
     COMPOSITE_TIMEOUT,
@@ -30,11 +29,12 @@ from interact_support import (
     wait_for,
 )
 
-from leaf import harness as harness_model
-from leaf import leases as leases_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as cleanup_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.commands import session as session_model
+from leaf.records import transaction as transaction_model
 
 # Each harness's own registrations of Leaf's hooks (`harness.hook_harness`); Pi's
 # are its extension's calls (`test_interact_pi.py`).
@@ -55,40 +55,6 @@ def _installed_since(plugins):
     return newer
 
 
-def test_a_bare_command_from_an_installed_copy_runs_only_a_selected_checkout(
-    tmp_path, monkeypatch
-):
-    """A bare `leaf` command from a copy Claude Code installed runs that copy, the
-    one the session loaded, even once Claude Code has installed a newer one, until
-    the session selects a checkout, which it then runs. A hook hands itself off by
-    its payload's session instead (`hooks.main`), and a checkout, which someone
-    chose to run, runs itself."""
-    from leaf import session_runtime
-
-    loaded = _installed_since(tmp_path / "plugins").with_name("0a0a0a0a0a0a")
-    checkout = tmp_path / "checkout" / "bin" / "leaf"
-    checkout.parent.mkdir(parents=True)
-    checkout.write_text("#!/bin/sh\n")
-    checkout.chmod(0o755)
-    ran = []
-    monkeypatch.setattr(
-        session_runtime.os, "execve", lambda path, argv, env: ran.append(argv)
-    )
-    monkeypatch.setattr(session_runtime, "PLUGIN_ROOT", loaded)
-    session = os.environ["CLAUDE_CODE_SESSION_ID"]
-    cleanup_model.ensure_session(session, {})
-    session_runtime.hand_off_command(["page", "state", "p"])
-    assert ran == []
-
-    session_runtime.select_launcher(session, checkout)
-    session_runtime.hand_off_command(["page", "state", "p"])
-    session_runtime.hand_off_command(["hook", "--harness", "claude-code"])
-    assert ran == [[str(checkout.resolve()), "page", "state", "p"]]
-    monkeypatch.setattr(session_runtime, "PLUGIN_ROOT", tmp_path / "another checkout")
-    session_runtime.hand_off_command(["page", "state", "p"])
-    assert len(ran) == 1
-
-
 def test_a_copy_that_lost_its_project_refuses_naming_the_reload(tmp_path):
     """Claude Code may delete an orphaned copy's files while a session still runs
     its launcher. That launcher refuses, naming `/reload-plugins`, rather than run
@@ -107,72 +73,6 @@ def test_a_copy_that_lost_its_project_refuses_naming_the_reload(tmp_path):
     )
     assert (refused.returncode, refused.stdout) == (1, ""), refused.stderr
     assert "has lost its files; run /reload-plugins" in refused.stderr
-
-
-def test_session_selected_runtime_owns_the_whole_native_hook(tmp_path, monkeypatch):
-    """An installed hook preserves stdin and defers lifecycle to the checkout.
-
-    The other executable stands for an independently installed Leaf; it records
-    what crossed the executable boundary instead of importing this test's runtime.
-    A large payload also proves delegation is not bounded by an unwritten pipe.
-    """
-    from leaf.session_runtime import select_launcher
-
-    selected = tmp_path / "checkout with spaces" / "bin" / "leaf"
-    selected.parent.mkdir(parents=True)
-    selected.write_text(
-        f"#!{sys.executable}\n"
-        "import json, os, sys\n"
-        "print(json.dumps({'argv': sys.argv[1:], 'payload': json.load(sys.stdin), "
-        "'host': os.environ.get('LEAF_HOST_LAUNCHER')}))\n"
-        "sys.exit(23)\n"
-    )
-    selected.chmod(0o755)
-    cleanup_model.ensure_session("selected-runtime", {})
-    select_launcher("selected-runtime", selected)
-    before = cleanup_model.session_record("selected-runtime")
-    payload = {
-        "hook_event_name": "UserPromptSubmit",
-        "session_id": "selected-runtime",
-        "tool_input": "a" * 256_000,
-    }
-    monkeypatch.delenv("LEAF_HOST_LAUNCHER", raising=False)
-    result = subprocess.run(
-        [*LEAF_COMMAND, "hook", "--harness", "codex"],
-        input=json.dumps(payload),
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
-    )
-    assert result.returncode == 23, result.stderr
-    assert json.loads(result.stdout) == {
-        "argv": ["hook", "--harness", "codex"],
-        "payload": payload,
-        "host": None,
-    }
-    assert cleanup_model.session_record("selected-runtime") == before
-
-    # A selection whose checkout is gone falls back to the Leaf running, which
-    # refuses whatever page it can't read itself.
-    selected.unlink()
-    fallen_back = subprocess.run(
-        [*LEAF_COMMAND, "hook", "--harness", "codex"],
-        input=json.dumps(payload),
-        capture_output=True,
-        text=True,
-        timeout=STATED_TIMEOUT,
-        check=False,
-    )
-    assert fallen_back.returncode == 0, fallen_back.stderr
-    assert "argv" not in fallen_back.stdout
-
-    # A new generation returns to the installed default.
-    cleanup_model.end_session("selected-runtime")
-    cleanup_model.ensure_session("selected-runtime", {})
-    value = cleanup_model.session_record("selected-runtime")
-    assert value is not None
-    assert "launcher" not in value
 
 
 def _registrations(harness):
@@ -484,9 +384,9 @@ def test_codex_tool_hook_starts_leaf_only_for_a_session_that_claimed_a_page(
     launcher.write_bytes((PLUGIN_ROOT / "bin/leaf").read_bytes())
     launcher.chmod(0o755)
     (project / "pyproject.toml").touch()
-    program = project / "src/leaf/state.py"
+    program = project / "src/leaf/base/state.py"
     program.parent.mkdir(parents=True)
-    program.write_bytes((PLUGIN_ROOT / "src/leaf/state.py").read_bytes())
+    program.write_bytes((PLUGIN_ROOT / "src/leaf/base/state.py").read_bytes())
     interpreter = project / ".venv/bin/python"
     interpreter.parent.mkdir(parents=True)
     interpreter.symlink_to(sys.executable)
@@ -524,7 +424,7 @@ def test_codex_tool_hook_starts_leaf_only_for_a_session_that_claimed_a_page(
     assert run("Stop", session) == {"hook_event_name": "Stop", "session_id": session}
 
     # Claiming a page marks the session for the rest of its generation.
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     assert run("PostToolUse", session) == {
         "hook_event_name": "PostToolUse",
         "session_id": session,
@@ -545,7 +445,7 @@ def test_a_hook_in_a_session_holding_no_page_imports_no_page_reading_or_server(
     page_dir,
 ):
     """A harness runs Leaf's hooks at every turn of every session the plugin is
-    installed in, and most hold no page. Each waits on `import leaf.hooks`, so
+    installed in, and most hold no page. Each waits on `import leaf.commands.hooks`, so
     that import, and a prompt or Stop hook in a session holding nothing, loads
     neither the page servers nor page reading: markup, registry schemas, and
     anchor capture. Run in a fresh interpreter, whose `sys.modules` is the hook's."""
@@ -574,7 +474,7 @@ for event, args, turn_id in cases:
     except SystemExit as error:
         assert error.code == 0, error.code
     if turn_id:
-        from leaf.codex_state import hook_turn
+        from leaf.agents.codex_state import hook_turn
         observed = hook_turn("holds-nothing")
         assert observed["turn"] == turn_id
         assert observed["running"] == (event not in ("Stop", "Interrupt"))
@@ -582,15 +482,15 @@ for event, args, turn_id in cases:
     _, imported = fresh_imports(program)
     assert unlisted_dependencies(imported, EVERY_TURN_DEPENDENCIES) == {}
     page_reading_or_serving = (
-        "leaf.hosting",
-        "leaf.http",
-        "leaf.codex",
-        "leaf.delivery",
-        "leaf.thread",
-        "leaf.hook_transport",
-        "leaf.served_state.page",
-        "leaf.event_contracts",
-        "leaf.anchor_capture",
+        "leaf.pages.hosting",
+        "leaf.serving.http",
+        "leaf.agents.codex",
+        "leaf.agents.delivery",
+        "leaf.agents.thread",
+        "leaf.commands.hook_transport",
+        "leaf.serving.served_state.page",
+        "leaf.records.event_contracts",
+        "leaf.source.anchor_capture",
     )
     assert {
         module: imported[module]
@@ -605,8 +505,14 @@ def test_the_hook_transport_imports_no_page_model():
     transport loads the schema validators, the HTML, Markdown, CSS and script
     parsers and the file watcher only where a hook reads a page, vendors it or
     watches it; each costs tens of milliseconds at every start."""
-    _, imported = fresh_imports("import leaf.hook_transport\n")
+    _, imported = fresh_imports("import leaf.commands.hook_transport\n")
     assert unlisted_dependencies(imported, EVERY_TURN_DEPENDENCIES) == {}
+
+
+# The browser run (`render_gate/page_code.py`), and the Codex transport, whose import
+# registers an exit handler: a step that draws nothing in a browser and asks Codex
+# nothing loads neither.
+UNASKED = ("leaf.pages.render_gate.page_code", "leaf.agents.codex")
 
 
 @pytest.mark.parametrize(
@@ -626,13 +532,20 @@ def test_a_session_holding_a_page_loads_only_the_dependencies_each_step_uses(
     not validated (`layer-registry.md`), so it loads no schema validator. A prompt
     hook delivering the user's comment, and the agent's reply, load the validator to
     match handling clauses and to admit the event, and neither loads the page's
-    source checks, the server or the file watcher."""
+    source checks, the server or the file watcher. None of them asks Codex anything
+    or draws anything in a browser: the reply's HTML runs the message check, which
+    loads the browser run only for markup a browser must judge
+    (`render_gate/messages.py`)."""
     published(claimed)
     hook = ["hook", "--harness", "claude-code"]
     payload = {"hook_event_name": process, "session_id": "s1", "prompt_id": "p1"}
     if process == "Stop":
         _, imported = fresh_imports(leaf_main(*hook, stdin=json.dumps(payload)))
-        assert "leaf.served_state.context" in imported, "the hook read no page"
+        # The work fold loads inside `presence.read_work`, so only a read of the
+        # page's work imports it there.
+        assert imported.get("leaf.records.work_state", "").startswith(
+            "leaf/agents/presence.py:"
+        ), "the hook read no page"
     else:
         asked = append_command(
             claimed,
@@ -647,11 +560,24 @@ def test_a_session_holding_a_page_loads_only_the_dependencies_each_step_uses(
                 response_reference(claimed, asked),
                 "--ephemeral",
                 "--text",
-                "Checking.",
+                "<em>Checking.</em>",
+                "--title",
+                "Check",
             )
         )
         assert asked["id"] in printed, printed
     assert unlisted_dependencies(imported, listed) == {}
+    assert {m: imported[m] for m in UNASKED if m in imported} == {}
+
+
+def test_a_page_check_with_nothing_a_browser_must_judge_loads_no_browser_run(page_dir):
+    """An agent checks its page after each edit. A page that runs no code of its own
+    and places no widget only a browser can judge needs no browser
+    (`browser_judged.needs_browser`), so its check loads none of the browser run, and
+    none of the Codex transport."""
+    printed, imported = fresh_imports(leaf_main("page", "check", str(page_dir)))
+    assert json.loads(printed)["browser"] is None, printed
+    assert {m: imported[m] for m in UNASKED if m in imported} == {}
 
 
 @pytest.mark.parametrize(
@@ -666,8 +592,8 @@ def test_codex_startup_can_claim_its_first_page_without_a_prompt(
     Run its registered startup hooks with no prior lifecycle or claim. Only a
     native transcript naming this chat can establish the first page's owner.
     """
-    from leaf.hooks import cmd_hook
-    from leaf.refusals import Refused
+    from leaf.base.refusals import Refused
+    from leaf.commands.hooks import cmd_hook
 
     sid = "dispatched-chat"
     source = tmp_path / "native.jsonl"
@@ -710,7 +636,7 @@ def test_codex_startup_can_claim_its_first_page_without_a_prompt(
         with pytest.raises(Refused, match="validated native transcript"):
             harness.lifetime()
         return
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         page.take_claim(harness)
     claim = service_model.page_claim(page_dir)
     assert service_model.claim_is_active(claim)

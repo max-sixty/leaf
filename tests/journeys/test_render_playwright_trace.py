@@ -29,17 +29,17 @@ from render_harness import (
     told,
 )
 
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import exporting as exporting_model
-from leaf.render_checks import SERVED_TIMEOUT_MS, rendered, wait_until_ready
+from leaf.log import event_log as events_model
+from leaf.pages import exporting as exporting_model
+from leaf.records import page_data as page_data_model
+from leaf.source.render_checks import SERVED_TIMEOUT_MS, rendered, wait_until_ready
 from leaf_dev.example_data import named_source
 from leaf_dev.page_fixtures import example_media
 
 
 def said_by_marks(scope):
     """Write what each mark under `scope` says when pointed at (its `lfPreview()`,
-    preview.js) into its `data-test-tip`, its name and each line of detail on a line of
+    annotations/preview.js) into its `data-test-tip`, its name and each line of detail on a line of
     its own, so a locator can find a mark by its words. An element whose declaration
     adds nothing now (null), as a caption with no words, is no mark."""
     scope.evaluate(
@@ -148,7 +148,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
         launcher=ROOT / "bin/leaf",
         viewer_url="https://trace.example/release/",
     )
-    data_model.cmd_data_set(directory, "release-trace", record)
+    page_data_model.cmd_data_set(directory, "release-trace", record)
     user = open_page(browser, url)
     resized(user, 1440, 900)
     widget = user.locator("#journey")
@@ -422,7 +422,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     expect(widget.locator(f'[data-lf-datum="{captured}"]')).to_be_visible()
 
     # A replacement of the index for the same recording preserves local navigation.
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         directory,
         "release-trace",
         record | {"viewerUrl": "https://trace.example/updated/"},
@@ -431,7 +431,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     expect(widget.locator(f'[data-lf-datum="{captured}"]')).to_be_visible()
     # A trace stream without its context start exposes that its clock begins
     # at the first saved event, rather than claiming the recording's start.
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         directory,
         "release-trace",
         record
@@ -523,7 +523,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     assert pngs
     user.close()
 
-    data_model.cmd_data_set(directory, "release-trace", record | {"images": pngs})
+    page_data_model.cmd_data_set(directory, "release-trace", record | {"images": pngs})
     user = open_page(browser, url)
     widget = user.locator("#journey")
     timeline = widget.locator(".lf-trace-timeline")
@@ -541,7 +541,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     expect(raster).to_have_js_property("naturalWidth", 390)
 
     user.close()
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         directory, "release-trace", record | {"actions": [], "images": frames}
     )
     user = open_page(browser, url)
@@ -566,7 +566,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     late_frame = max(frames, key=lambda frame: frame["timestamp"])
     assert late_frame["timestamp"] > early_call["endTime"]
     user.close()
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         directory,
         "release-trace",
         record | {"actions": [early_call], "images": [late_frame]},
@@ -591,7 +591,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     # fabricating checkpoint captures or borrowing a future frame.
     fallback_actions = [action | {"phases": {}} for action in record["actions"]]
     user.close()
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         directory,
         "release-trace",
         record | {"actions": fallback_actions, "images": []},
@@ -617,7 +617,7 @@ def test_trace_comments_restore_an_exact_image_and_duplicate_named_element(
     expect(widget.locator(".lf-trace-missing-image")).to_be_visible()
 
     user.close()
-    data_model.cmd_data_set(directory, "release-trace", record)
+    page_data_model.cmd_data_set(directory, "release-trace", record)
     exported = tmp_path / "recording.html"
     exporting_model.cmd_export(directory, exported, None, runtime=True)
     offline = browser.new_page()
@@ -694,7 +694,7 @@ def test_trace_initial_selection_opens_evidence_and_keeps_earlier_empty_stops(
     assert after["tree"]["nodes"], (
         "Navigation completion must supply real review evidence"
     )
-    data_model.cmd_data_set(directory, "navigation-trace", record)
+    page_data_model.cmd_data_set(directory, "navigation-trace", record)
     user = open_page(browser, url)
     widget = user.locator("#journey")
     expect(widget.get_by_role("radiogroup", name="Recording scope")).to_be_hidden()
@@ -766,7 +766,7 @@ def test_trace_initial_selection_opens_evidence_and_keeps_earlier_empty_stops(
     )
     # A trace with no browser page still exposes its real driver-call stops.
     user.close()
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         directory,
         "navigation-trace",
         record | {"pages": [], "actions": [first_call], "images": []},
@@ -796,7 +796,7 @@ def test_trace_initial_selection_opens_evidence_and_keeps_earlier_empty_stops(
         "endTime": 100030,
     }
     user.close()
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         directory,
         "navigation-trace",
         record
@@ -1358,7 +1358,7 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
     first = next(action for action in record["actions"] if action["phases"])
     first["phases"]["before"]["imageId"] = None
     url = serve(source)
-    data_model.cmd_data_set(serve.page_dir, "release-journey", record)
+    page_data_model.cmd_data_set(serve.page_dir, "release-journey", record)
     for touch in (False, True):
         context = browser.new_context(
             viewport={"width": 390 if touch else 1440, "height": 900},
@@ -1670,7 +1670,7 @@ def test_trace_inspection_survives_playback_gaps_and_scope_changes(browser, serv
         assert user.evaluate("inspectionView()") == pytest.approx(before, abs=0.003)
         resized(user, 500 if touch else 1000, 900)
         assert user.evaluate("inspectionView()") == pytest.approx(before, abs=0.003)
-        widget.get_by_role("button", name="Image scale", exact=True).click()
+        widget.get_by_role("button", name=re.compile(r"^Image scale, ")).click()
         widget.get_by_role("button", name="Fit image", exact=True).click()
         rendered(user)
         fitted = user.evaluate("inspectionView()")
@@ -1882,7 +1882,7 @@ def test_trace_dense_moments_keep_the_axis_usable_and_page_scoped(browser, serve
         packages=("playwright",),
         media=media,
     )
-    data_model.cmd_data_set(serve.page_dir, "dense-trace", record)
+    page_data_model.cmd_data_set(serve.page_dir, "dense-trace", record)
     user = open_page(browser, url)
     resized(user, 1440, 900)
     widget = user.locator("#journey")
@@ -2079,7 +2079,7 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
         packages=("playwright",),
         media=media,
     )
-    data_model.cmd_data_set(serve.page_dir, "numbered-trace", record)
+    page_data_model.cmd_data_set(serve.page_dir, "numbered-trace", record)
     user = open_page(browser, url)
     resized(user, 1440, 900)
     widget = user.locator("#journey")
@@ -2114,7 +2114,7 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
     shared, solo = pins.nth(0), pins.nth(1)
     docs_time = (stop_time(record, clicks[0]["phases"]["after"]) - origin) / 1000
     api_time = (stop_time(record, clicks[1]["phases"]["after"]) - origin) / 1000
-    # What a flag says to a resting pointer is its preview (preview.js).
+    # What a flag says to a resting pointer is its preview (annotations/preview.js).
     tip = user.locator("#lf-preview")
     for color_scheme in ("light", "dark"):
         user.emulate_media(color_scheme=color_scheme)
@@ -2122,7 +2122,7 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
         expect(tip).to_be_visible()
         # The flag names its count and each moment's words on a line of its own. The
         # lanes around it leave room above for its first line, so the rest is cut
-        # there, as any preview held to a room is (preview.js, `fit`), and says
+        # there, as any preview held to a room is (annotations/preview.js, `fit`), and says
         # itself whole where the room allows.
         expect(tip.locator(".lf-preview-word")).to_be_visible()
         expect(tip.locator(".lf-preview-word, .lf-preview-detail")).to_have_text(
@@ -2132,7 +2132,7 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
                 f"{labels[1]} · Moment 2 · {docs_time:.3f} s",
             ]
         )
-        # Its face is what is drawn, ink on its ground (preview.js).
+        # Its face is what is drawn, ink on its ground (annotations/preview.js).
         reading = tip.locator(".lf-preview-face").evaluate(
             """node => {
               const canvas = document.createElement('canvas');
@@ -2236,7 +2236,7 @@ def test_trace_numbered_moments_share_a_recording_zero_without_a_zero_stop(
         ),
         packages=("playwright",),
     )
-    data_model.cmd_data_set(serve.page_dir, "boundary-trace", boundary_record)
+    page_data_model.cmd_data_set(serve.page_dir, "boundary-trace", boundary_record)
     user = open_page(browser, boundary_url)
     widget = user.locator("#boundary")
     for width in (1440, 390, 1440):
@@ -2631,7 +2631,7 @@ def test_trace_replaces_captures_without_blank_pixels_or_layout_displacement(
     raster = widget.locator(
         ".lf-trace-image:not(.lf-trace-image-pending) .viewer-canvas img"
     )
-    scale = widget.get_by_role("button", name="Image scale", exact=True)
+    scale = widget.get_by_role("button", name=re.compile(r"^Image scale, "))
     expect(scale).to_have_text("Fit")
     scale.focus()
     scale.press("Enter")
@@ -2792,7 +2792,7 @@ def test_trace_overview_shows_every_row_and_preserves_page_scrolling(browser, se
         user.mouse.wheel(0, 300)
         user.wait_for_function("before => scrollY >= before + 250", arg=before_scroll)
         rendered(user)
-        widget.get_by_role("button", name="Image scale", exact=True).click()
+        widget.get_by_role("button", name=re.compile(r"^Image scale, ")).click()
         actual = widget.get_by_role("button", name="Actual size", exact=True)
         assert actual.evaluate("""button => {
           const r = button.getBoundingClientRect();

@@ -1,5 +1,5 @@
 /* A custom element that is no `LeafElement` is given its state and data from outside
-   (element-integration.js).
+   (host/element-integration.js).
 
    These hold what the host and `widgetState` decide on their own: the `state` a
    reading becomes, when a plain element's bound data is set on it, what an element
@@ -10,12 +10,12 @@
    suite's (tests/browser/test_plain_elements.py). */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { hostDeclaredElements } from "/runtime/element-integration.js";
-import { widgetState } from "/runtime/widget-controller.js";
+import { hostDeclaredElements } from "/runtime/host/element-integration.js";
+import { widgetState } from "/runtime/host/widget-state.js";
 import { failureOf, placesFailure } from "/runtime/lib/failure.js";
-import { adoptRegistry } from "/runtime/registry.js";
-import { acceptData, notifyDataSubscribers } from "/runtime/data.js";
-import { readApplicationPresentation } from "/runtime/semantic-state.js";
+import { adoptRegistry } from "/runtime/state/registry.js";
+import { acceptData, notifyDataSubscribers } from "/runtime/host/data.js";
+import { readApplicationPresentation } from "/runtime/state/semantic-state.js";
 
 let tags = 0;
 
@@ -346,7 +346,7 @@ test("a drawing an element announces by itself holds its region until it is in",
 });
 
 test("an element says its failure with `error`, and `lf-error` on the window tells the user", async () => {
-  const { errorsReading, dismissErrors } = await import("/runtime/errors.js");
+  const { errorsReading, dismissErrors } = await import("/runtime/transport/errors.js");
   const host = document.body.appendChild(document.createElement("section"));
   const part = host
     .attachShadow({ mode: "open" })

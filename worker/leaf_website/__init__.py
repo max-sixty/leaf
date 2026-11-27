@@ -55,7 +55,7 @@ from typing import TYPE_CHECKING, Protocol, TypedDict
 import click
 from starlette.responses import Response
 
-from leaf.codex import (
+from leaf.agents.codex import (
     CarriedTurn,
     abandon_codex_delivery,
     app_server_connect,
@@ -67,42 +67,44 @@ from leaf.codex import (
     private_app_server,
     start_app_server_delivery,
 )
-from leaf.delivery import read_delivery, stream_reply_target
-from leaf.file_bindings import bound_files
-from leaf.files import latest_revision, revision_path
-from leaf.harness import EmbeddedHarness
-from leaf.hosting import LeafHTTPServer
-from leaf.http import PageEndpoint, PostRoute, scope_page_urls
-from leaf.interaction_log import append_interactions
-from leaf.leases import release_lease, take_wait_lease, waiter_lease_path
-from leaf.page_memory import Slot, memo
-from leaf.page_snapshot import capture_page_snapshot
-from leaf.refusals import Refused
-from leaf.registry.storage import layer_metadata, layer_record, selected
-from leaf.revision_artifact import read_revision
-from leaf.revision_delivery import Delivery, runtime_element
-from leaf.revisioning import activate_source
-from leaf.schema import LAYER_TOP_FILES, PAGE_ROUTE_DIRS, REVISION_NAME
-from leaf.served_state.context import read_page
-from leaf.served_state.service import PageStateService
-from leaf.server import preview_metadata
-from leaf.service import (
-    PageTransaction,
-    page_claim,
-    restore_page_claim,
+from leaf.agents.delivery import read_delivery, stream_reply_target
+from leaf.agents.presence import read_work
+from leaf.agents.thread import (
+    fail_answer,
+    release_delivery_reply,
 )
-from leaf.state import (
+from leaf.agents.thread_titles import app_server_title, name_thread
+from leaf.base.files import latest_revision, revision_path
+from leaf.base.harness import EmbeddedHarness
+from leaf.base.leases import release_lease, take_wait_lease, waiter_lease_path
+from leaf.base.page_memory import Slot, memo
+from leaf.base.refusals import Refused
+from leaf.base.schema import LAYER_TOP_FILES, PAGE_ROUTE_DIRS, REVISION_NAME
+from leaf.base.server import preview_metadata
+from leaf.base.service import page_claim
+from leaf.base.state import (
     advance_turn,
     close_session_turn,
     flocked,
     session_lock_path,
     session_record,
 )
-from leaf.thread import (
-    fail_answer,
-    release_delivery_reply,
-)
-from leaf.thread_titles import app_server_title, name_thread
+from leaf.commands.session import set_status
+from leaf.log.event_log import read_events
+from leaf.log.interaction_log import append_interactions
+from leaf.pages.hosting import LeafHTTPServer
+from leaf.pages.page_snapshot import capture_page_snapshot
+from leaf.pages.render_gate.messages import message_check
+from leaf.records.page_data import bound_data
+from leaf.records.revisioning import activate_source
+from leaf.records.transaction import PageTransaction, restore_page_claim
+from leaf.serving.http import PageEndpoint, PostRoute, scope_page_urls
+from leaf.serving.revision_delivery import Delivery, runtime_element
+from leaf.serving.served_state.service import PageStateService
+from leaf.source.file_bindings import bound_files
+from leaf.source.layer import selected_layer
+from leaf.source.registry.storage import layer_metadata, layer_record
+from leaf.source.revision_artifact import read_revision
 
 if TYPE_CHECKING:
     from websockets.sync.client import ClientConnection
@@ -272,7 +274,7 @@ class _Binding(Slot):
 
 def page_binding(page_dir: Path) -> tuple[dict, dict | None]:
     """Read immutable delivery metadata once while this process keeps the page
-    (`leaf.page_memory`), refusing a page at another protocol, as reading its layer
+    (`leaf.base.page_memory`), refusing a page at another protocol, as reading its layer
     record does (`registry.storage.layer_record`)."""
 
     def bind() -> tuple[dict, dict | None]:
@@ -375,7 +377,7 @@ def pending_agent_inputs(page_dir: Path) -> dict[str, str | None]:
         # The owed answers already carry their update's workflow, including its
         # delivery session (`activity.canonical_activity`). Joining a second workflow
         # list would repeat the owner’s reading.
-        obligations = read_page(page_dir, page.events).work.obligations
+        obligations = read_work(page_dir, page.events).obligations
         return {item["input"]: item["delivery_session"] for item in obligations}
 
 
@@ -398,7 +400,7 @@ def next_unaccepted_agent_event(
     asking who to tell.
     """
     with PageTransaction(page_dir) as page:
-        obligations = read_page(page_dir, page.events).work.obligations
+        obligations = read_work(page_dir, page.events).obligations
         return next(
             (
                 item["input"]
@@ -482,6 +484,7 @@ class HostedTurn(CarriedTurn):
             reply_target,
             buffered,
             lifecycle=lifecycle,
+            check=message_check,
         )
         self.harness = harness
         self.delivery_id = delivery_id
@@ -985,7 +988,7 @@ class WebsiteCodexHarness:
                     and claim["id"] == thread_id
                     and claim["turn"] == turn["id"]
                 ):
-                    page.set_status("waiting")
+                    set_status(page, "waiting")
                     advance_turn(thread_id, turn["id"], running=False)
         if activation.error:
             raise ValueError(activation.error)
@@ -1064,7 +1067,7 @@ class WebsiteCodexHarness:
         started = time.monotonic()
         with PageTransaction(page_dir) as page:
             if page.status["state"] == "idle":
-                page.set_status("waiting")
+                set_status(page, "waiting")
         self._hold_waiter(page_dir, thread_id)
         prepared = prepare_codex_delivery(
             page_dir, website_harness(thread_id, process.pid)
@@ -1451,7 +1454,7 @@ class WebsitePageEndpoint(PageEndpoint):
         # container. Say so at the canonical HTTP boundary as the outer Worker does;
         # the local adapter has no Worker in front of it to add the same reading. Each
         # also names the release this image runs, which the tab holds to its
-        # document's (`layer-client.js`).
+        # document's (`transport/layer-client.js`).
         return {
             "Leaf-Session": "active",
             "Leaf-Release": self.release,
@@ -1523,7 +1526,7 @@ class WebsitePageEndpoint(PageEndpoint):
     def _prewarm_agent(self) -> Response:
         started = time.monotonic()
         if (record := layer_record(self.page_dir)) is not None:
-            selected(record, self.page_dir)
+            selected_layer(record, self.page_dir)
         log_agent("layer_prewarm_completed", durationMs=elapsed_ms(started))
         return self._content(204, "application/json", b"")
 
@@ -1613,12 +1616,15 @@ def initial_state(
     """Build the canonical state shared by users before any private mutation."""
     revision = latest_revision(page_dir)
     assert revision is not None
+    latest = read_revision(page_dir, revision)
+    # A file the page grants and no markup shows stays out of the public state.
     captured = capture_page_snapshot(
         page_dir,
-        read_revision(page_dir, revision).document,
+        latest.document,
         revision,
         url=f"/revisions/{revision_path(page_dir, revision).name}",
         process=False,
+        data=bound_data(page_dir, latest.registry, read_events(page_dir)),
     )
     state = PageStateService(
         page_dir,

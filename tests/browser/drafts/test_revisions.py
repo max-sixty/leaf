@@ -39,9 +39,9 @@ from browser.drafts import (
     replace_editing_document,
 )
 from browser.threads import open_panel_thread
-from leaf import event_log as events_model
-from leaf.render_checks import one_frame, rendered, wait_until_ready
-from leaf_dev.browser import PANEL_THREAD
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import one_frame, rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD, text_field
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -134,6 +134,7 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
                 "widget": "draft-ops",
                 "action": "edit",
                 "detail": {"value": text},
+                "answered": True,
             },
         )
     append_command(
@@ -179,7 +180,7 @@ def test_an_untouched_and_an_emptied_reply_follow_live_revisions(browser, serve)
     )
     reply = thread.locator("leaf-text")
     expect(thread).to_be_focused()
-    thread.get_by_role("textbox", name="Reply", exact=True).click()
+    text_field(thread, name="Reply", exact=True).click()
     expect(reply).to_be_focused()
 
     d = serve.page_dir
@@ -195,7 +196,7 @@ def test_an_untouched_and_an_emptied_reply_follow_live_revisions(browser, serve)
     write(reply, "A thought I changed my mind about.")
     write(reply, "")
     # A thread's reply draft is keyed by the name the log's answer does not change —
-    # the attempt the user's own comment opened it with (thread/model.js).
+    # the attempt the user's own comment opened it with (state/thread/model.js).
     assert stored_draft_text(page, f"reply:{sent['attempt']}") == ""
     v3 = v2.replace(
         "A revised short second passage.", "A twice-revised short second passage."
@@ -487,7 +488,7 @@ def test_executable_revision_whose_reply_another_tab_cleared_returns_to_the_entr
     written = stored_draft(page, reply)
     assert written and written["text"] == "Words another tab clears."
     # The reload's document waits until the words are cleared, so it is served the
-    # drafts as they stand then (runtime/drafts.js, `lf-drafts`).
+    # drafts as they stand then (runtime/records/drafts.js, `lf-drafts`).
     held = []
 
     def hold_reload(route):
@@ -808,6 +809,7 @@ def test_saved_widget_words_cannot_dismiss_an_unfinished_comment(
                 "widget": "mutable",
                 "action": "edit",
                 "detail": {"value": value},
+                "answered": bool(value),
             },
         )
 

@@ -26,8 +26,8 @@ from render_harness import (
 from browser.margin import (
     _comment_on,
 )
-from leaf.render_checks import rendered
-from leaf_dev.browser import WINDOWS
+from leaf.source.render_checks import rendered
+from leaf_dev.browser import WINDOWS, text_field
 from leaf_dev.commands.placement import _pin_cases as pin_cases
 from leaf_dev.example_data import named_source
 
@@ -544,7 +544,7 @@ def test_a_pin_on_a_contents_target_stands_at_its_last_part(browser, serve):
     expect(preview).to_be_visible()
     expect(preview.locator(".lf-margin-thread leaf-text")).to_be_focused()
 
-    reply = preview.get_by_role("textbox", name="Reply", exact=True)
+    reply = text_field(preview, name="Reply", exact=True)
     reply.click()
     expect(reply).to_be_focused()
     words = "A reply stays while its display contents subject returns."

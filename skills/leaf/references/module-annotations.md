@@ -50,8 +50,9 @@ thing.
 
 `kind` says what the whole contribution is: `action` by default, or `change`, `comment`,
 `on-me`, `activity` and the margin's other kinds. `read()` may also return `readings`,
-items each with an `id` unique within the contribution and an optional `activate`,
-which the registration's `activateReading(id)` calls.
+items each with an `id` unique within the contribution, the `text` the margin shows
+for it, an optional `kind` from the same list, and an optional `activate`, which the
+registration's `activateReading(id)` calls.
 
 A widget that shows margin entries inside its own content, as the feature gallery does,
 draws its own control as an entry with
@@ -82,7 +83,9 @@ Where marks can't say it, the element states its parts as its `lfParts` property
 object Leaf reads each time it needs the parts. Set it where the widget builds itself,
 behind its first-connection guard. Its `read()` returns the parts drawn
 now as `{id, element, label}`, in place of the marks, and may name an element in the
-visual's shadow root. `reveal(id)` shows a part when someone follows its thread, even if it is
+visual's shadow root. A part may also name `surface`, the descendant of its element
+whose paint Leaf's marks follow, so a part that holds others, as a board's column
+holds its cards, wears its marks on its own frame rather than around each card. `reveal(id)` shows a part when someone follows its thread, even if it is
 visible already, so cancel work that would hide it. `label(id)` names a part in
 Threads, in its margin entry and in Page Map without changing the visual, or returns
 `null`. Each member is optional.
@@ -125,7 +128,7 @@ the visual shows.
 that calls it redraws when it changes. A thread the user just started is there at once;
 only `phase === "ready"` means every saved thread is. A Thread's `turns` are the
 messages a drawing of it shows, in order: its opening message and each later message
-that is not a reaction. `nameOf(thread)` returns its name in words
+but the user's reactions, which a message's `reactions` holds. `nameOf(thread)` returns its name in words
 (`module-reading.md`, "Naming").
 
 Address a Thread by its `key`, which stays the same after the server admits it; its `id`
@@ -162,7 +165,7 @@ threadActions.open(thread.key, { part: "thread" });
 threadActions.reply(thread.key, text);
 threadActions.resolve(thread.key);
 threadActions.reopen(thread.key);
-threadActions.setReaction(thread.key, agentMessage.key, token, true);
+threadActions.setReaction(thread.key, agentMessage.key, emoji, true);
 ```
 
 `open(key, {part, focus, travel, message})` takes the user to the Thread wherever a
@@ -337,9 +340,8 @@ until the widget returns.
 The comment box standing in an outlet the widget returns for itself can offer a second
 send. Set the outlet's `lfHold` to its words, such as `"Send & pause"`, and the box
 shows a button under those words beside Send, which Tab reaches after Send. Its comment
-carries `holds`, naming the widget, so the widget is held while that thread is open:
-its reading's `thread.heldBy` names the thread (`module-state.md`), and resolving the
-thread releases it.
+carries `holds`, naming the widget, so the widget is held while that thread is open,
+and resolving the thread releases it.
 
 `threadSurface` also loads through `portable-api.js`. Without a registered Leaf
 surface, there is nothing to release, and `open` is `null`.

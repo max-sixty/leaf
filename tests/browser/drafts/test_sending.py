@@ -34,6 +34,7 @@ from render_harness import (
     panel_says,
     panel_settled,
     panel_view,
+    press_draft_control,
     round_trip,
     select_words,
     sending,
@@ -46,7 +47,7 @@ from render_harness import (
 )
 
 from browser.threads import PANEL_REPLY, open_panel_thread, seed_panel_threads
-from leaf import event_log as events_model
+from leaf.log import event_log as events_model
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -100,7 +101,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
     sent = "The first save still owns this body."
     draft.locator(".lf-draft-body").dblclick()
     write(draft.locator("leaf-text"), sent)
-    draft_control(page, "save", "draft-ops").click()
+    press_draft_control(page, "save", "draft-ops")
     expect(draft).to_have_attribute("aria-busy", "true")
     assert stored_draft_text(page, "edit:draft-ops") == sent
     expect(draft.locator(".lf-draft-body")).to_have_text(sent)
@@ -136,7 +137,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
             json={"ok": False, "final": True, "error": "refused before append"},
         ),
     )
-    draft_control(page, "save", "draft-ops").click()
+    press_draft_control(page, "save", "draft-ops")
     item = draft.locator(".lf-draft-tools")
     expect(item.get_by_role("status")).to_have_text("Save failed. The edit is kept.")
     expect(editor).to_have_js_property("value", "Keep these unsent words.")
@@ -145,7 +146,7 @@ def test_a_draft_send_owns_the_editor_until_its_response(browser, serve):
 
     write(editor, "Keep the revised unsent words.")
     expect(item.locator(".lf-draft-status")).to_be_empty()
-    item.get_by_role("button", name="Save", exact=True).click()
+    press_draft_control(page, "save", "draft-ops")
     expect(item.get_by_role("status")).to_have_text("Save failed. The edit is kept.")
     page.unroute("**/api/event")
     item.get_by_role("button", name="Retry", exact=True).click()

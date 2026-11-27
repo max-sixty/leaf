@@ -127,8 +127,8 @@ import psutil
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import Page
 
-from leaf.data import source_file
-from leaf.render_checks import OUTSTANDING, wait_until_ready
+from leaf.source.data import PUBLICATION, source_file
+from leaf.source.render_checks import OUTSTANDING, wait_until_ready
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     Arm,
@@ -584,6 +584,8 @@ def pick(g: int, *options: int, revision: int = 1) -> dict:
         "widget": f"o{g}",
         "action": "choose",
         "detail": {"value": [f"o{g}-{i}" for i in options]},
+        # Each ask takes several options, so a pick leaves it open until Done.
+        "answered": False,
     }
 
 
@@ -1322,7 +1324,13 @@ def ask_agent(tab: Tab) -> Goals:
     enough to scroll, so the panel's pinned reply row takes each arriving turn."""
     if not tab.bench.thread:
         created = tab.bench.leaf(
-            "thread", "create", tab.bench.directory, "--text", THREAD_TEXT
+            "thread",
+            "create",
+            "--title",
+            "Bench thread",
+            tab.bench.directory,
+            "--text",
+            THREAD_TEXT,
         )
         tab.bench.thread = json.loads(created)["id"]
         told(tab.page)
@@ -1475,7 +1483,7 @@ def agent_data(tab: Tab) -> float:
     source = tab.target["source"]
     return tab.bench.written(
         "data", "set", tab.bench.directory, source, "--file", tab.target["value"],
-        file=source_file(tab.bench.served.directory, source),
+        file=PUBLICATION.file(source_file(tab.bench.served.directory, source)),
     )  # fmt: skip
 
 
@@ -2660,9 +2668,9 @@ def server_pages(
     begin with a smaller page's, they are activated once, on a page each size copies
     before its values and log are written, so the pages of every size together
     activate each version once."""
-    from leaf.data import cmd_data_set
-    from leaf.revisioning import activate_source
-    from leaf.vendoring import cmd_init
+    from leaf.pages.vendoring import cmd_init
+    from leaf.records.page_data import cmd_data_set
+    from leaf.records.revisioning import activate_source
     from leaf_dev.page_fixtures import DEFAULT_PACKAGES
 
     # The packages the browser's bench builds the same pages with
@@ -2703,9 +2711,9 @@ def write_log(page: Path, commands: list[dict]) -> None:
     cost the square of the log to build one. Admission derives the same fields for
     events that differ only in the ids and numbers they name, so a copy of what it
     made of the first stands for the rest."""
-    from leaf.event_contracts import append_admitted
-    from leaf.event_log import jsonl_line, new_event_id, read_events
-    from leaf.service import PageTransaction
+    from leaf.log.event_log import jsonl_line, new_event_id, read_events
+    from leaf.records.event_contracts import append_admitted
+    from leaf.records.transaction import PageTransaction
 
     admitted: dict[str, tuple[dict, dict]] = {}
     last = {shape(command): index for index, command in enumerate(commands)}
@@ -2813,12 +2821,17 @@ def server_paths(page: Path, events: list[dict]) -> dict[str, Callable[[], objec
     """Each of `SERVER_PATHS` on `page`, whose log `events` built, as a call;
     `append` only where the log holds an event to send again, and `thread` only where
     it opens one."""
-    from leaf.agent_state import cmd_page_state
-    from leaf.delivery import batch_data, deliverable, delivery_reading, freeze_delivery
-    from leaf.event_contracts import append_admitted
-    from leaf.revisioning import activate_source
-    from leaf.served_state.service import PageStateService
-    from leaf.service import PageTransaction
+    from leaf.agents.delivery import (
+        batch_data,
+        deliverable,
+        delivery_reading,
+        freeze_delivery,
+    )
+    from leaf.commands.agent_state import cmd_page_state
+    from leaf.records.event_contracts import append_admitted
+    from leaf.records.revisioning import activate_source
+    from leaf.records.transaction import PageTransaction
+    from leaf.serving.served_state.service import PageStateService
 
     source = page / "index.html"
     authored = source.read_text()
@@ -2886,7 +2899,7 @@ def measure_server(
     appends first, as a click does before its reading, and its versions come after
     every round, since a new one leaves the appended events on an earlier
     revision."""
-    from leaf.event_log import read_events
+    from leaf.log.event_log import read_events
 
     # The pages' claims, deliveries and presence stay out of the machine's own.
     state = directory / "state"

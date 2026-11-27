@@ -6,7 +6,7 @@ from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_harness import scroll_settled, sending, told
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

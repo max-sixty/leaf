@@ -7,5 +7,6 @@
   "monitoring",
   "playwright",
   "timeline",
-  "./docs/package"
+  "./docs/package",
+  "./docs/verdict"
 ]

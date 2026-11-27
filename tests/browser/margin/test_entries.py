@@ -22,6 +22,7 @@ from render_harness import (
     open_threads,
     panel_settled,
     post_event,
+    press_draft_control,
     put_preview_away,
     resized,
     sending,
@@ -32,8 +33,8 @@ from browser.margin import (
     DENSE_SUGGESTIONS_PAGE,
     _comment_on,
 )
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -52,7 +53,7 @@ def _refreshes_restate_no_margin_name(page, population):
     the reading a same-value predicate cannot take, because each leg differs from
     the value before it. Both are records a reader rebuilds from.
 
-    Every row lives in the margin layer, whatever it holds, and `inline-contributions.js`
+    Every row lives in the margin layer, whatever it holds, and `features/inline-contributions.js`
     builds another host in place wherever an offer's target stands in chrome. So
     the watch is rooted at the layer, the Map door, the inline hosts, and the page's
     boxes. The reach is asserted the way the
@@ -1093,7 +1094,7 @@ def test_draw_mode_leaves_page_annotation_controls_usable(browser, serve):
     assert cursor_over(page, edit) != "crosshair"
     edit.click()
     expect(page.locator("#draft leaf-text")).to_be_focused()
-    draft_control(page, "cancel", "draft").click()
+    press_draft_control(page, "cancel", "draft")
     expect(edit).to_be_visible()
     expect(page.locator("html")).to_have_attribute("data-lf-draw-mode", "")
     expect(page.locator(".lf-drawing-pending")).to_have_count(0)
@@ -1143,7 +1144,7 @@ PICTURE_PARTS_PAGE = leaf_page(
     "parts of pictures",
     '<h1 id="t">Parts</h1>'
     + chart_markup("weeks", WEEKS).replace("<lf-chart ", '<lf-chart data-height="220" ')
-    + '<lf-diagram id="flow" parts="all"><pre>\ngraph LR\n'
+    + '<lf-diagram id="flow"><pre>\ngraph LR\n'
     "  S[Start request] --> H[Handle request] --> U[Result]\n</pre></lf-diagram>",
 )
 

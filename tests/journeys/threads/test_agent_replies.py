@@ -9,8 +9,8 @@ from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
 from render_harness import open_page, sending, told
 
-from leaf import event_log as events_model
-from leaf import thread as thread_model
+from leaf.agents import thread as thread_model
+from leaf.log import event_log as events_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

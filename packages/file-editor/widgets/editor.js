@@ -452,7 +452,14 @@ export function createEditor(
     /** @type {string | null | undefined} */
     shownLanguage = null,
     conflict = original,
-    replacing = false;
+    replacing = false,
+    // Where `goToLine` put the caret, until the caret moves or the view scrolls. A
+    // reveal of the caret meanwhile keeps it in the middle of the view: CodeMirror
+    // scrolls once a frame, to the last request, and a link's landing asks to reveal
+    // the caret just after the line is placed, which at the nearest edge left the line
+    // at the editor's foot. Once the view has scrolled, by the centring or the reader,
+    // a reveal, as on a resize, takes the nearest edge and keeps the reader's place.
+    centred = -1;
   const readonlyExtension = () => [
     EditorState.readOnly.of(readonly),
     EditorView.editable.of(!readonly),
@@ -521,7 +528,14 @@ export function createEditor(
             },
           ]),
         ),
+        EditorView.domEventHandlers({
+          scroll() {
+            centred = -1;
+          },
+        }),
         EditorView.updateListener.of((update) => {
+          if (update.selectionSet && update.state.selection.main.head !== centred)
+            centred = -1;
           if (update.docChanged && !replacing) onChange?.(update.state.doc.toString());
         }),
       ],
@@ -575,12 +589,14 @@ export function createEditor(
     else retained = retained.update(spec).state;
   };
   showLanguage(langForPath(filename));
-  const revealCaret = () =>
+  const revealCaret = () => {
+    const head = reading().selection.main.head;
     dispatch({
-      effects: EditorView.scrollIntoView(reading().selection.main.head, {
-        y: "nearest",
+      effects: EditorView.scrollIntoView(head, {
+        y: head === centred ? "center" : "nearest",
       }),
     });
+  };
   const resize =
     original === null
       ? sizeObserver(() => {
@@ -674,6 +690,7 @@ export function createEditor(
     resume(kept, text, name) {
       const next = kept?.state ?? state(text);
       scroll = kept?.scroll ?? { top: 0, left: 0 };
+      centred = -1;
       // The state shown takes this file's language with its other settings, in the one
       // update, since it may hold another file's or none yet.
       const settings = next.update({
@@ -695,10 +712,21 @@ export function createEditor(
     goToLine(number) {
       const doc = reading().doc;
       const { from } = doc.line(Math.min(Math.max(1, number), doc.lines));
+      centred = from;
       dispatch({
         selection: { anchor: from },
         effects: EditorView.scrollIntoView(from, { y: "center" }),
       });
+    },
+    // Whether the caret stands on line `number`, or on the last line where the file is
+    // shorter, as `goToLine` would put it.
+    /** @param {number} number */
+    caretOn(number) {
+      const { doc, selection } = reading();
+      return (
+        doc.lineAt(selection.main.head).number ===
+        Math.min(Math.max(1, number), doc.lines)
+      );
     },
     // Bring the caret into the editor's view, as a landing on the editor does: its room
     // may have shrunk under the caret while the reader stood elsewhere.

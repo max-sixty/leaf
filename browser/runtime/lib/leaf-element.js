@@ -6,9 +6,9 @@
    the class says `static shadow = true`, which draws into an open shadow root.
    `render()` reads whatever it shows: `this.state`, the reading Leaf sets on a widget
    whose tag declares `verbs`, each bound input through the property Leaf sets
-   (element-data.js, "Bound values"), Lit's reactive properties for state the widget
+   (host/element-data.js, "Bound values"), Lit's reactive properties for state the widget
    keeps itself, and any signal-backed reader, such as obligations, reports, work or
-   the time (`ago`, `clockValue`). Every signal `render()` reads synchronously is
+   the time (`clockValue`). Every signal `render()` reads synchronously is
    tracked by Lit's Preact SignalWatcher, so the element draws again when one moves.
 
    What it says to its host, all of it events a plain element could dispatch:
@@ -56,7 +56,7 @@
    undefined and the element draws what its markup and its own properties give it. */
 import { LitElement, render } from "/vendor/lit.js";
 import { SignalWatcher, untracked } from "/vendor/signals-core.js";
-import { COMMANDS, CONNECT, DeferEvent } from "./widget-events.js";
+import { COMMANDS, CONNECT, DeferEvent, sendGesture } from "./widget-events.js";
 import { PendingTaskEvent } from "./pending-task.js";
 import { failSoft, placesFailure } from "./failure.js";
 import { inWindowDocument, once } from "./once.js";
@@ -76,7 +76,7 @@ class UpdateBoundary extends LitElement {
   }
 }
 
-/** @typedef {ReturnType<typeof import("../widget-controller.js").widgetState>} WidgetState */
+/** @import { WidgetState } from "../../types/domain.js" */
 
 export class LeafElement extends SignalWatcher(UpdateBoundary) {
   /** Whether the element draws into an open shadow root of its own. */
@@ -116,9 +116,9 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
    *  holds an empty one once Leaf has set its inputs. Undefined where no host set it:
    *  off a Leaf page, and for a widget the page did not capture, such as one with no
    *  id.
-   *  @returns {WidgetState} */
+   *  @returns {WidgetState | undefined} */
   get state() {
-    return /** @type {WidgetState} */ (this.#state);
+    return this.#state;
   }
   /** @param {WidgetState | undefined} value */
   set state(value) {
@@ -253,14 +253,9 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
     return this.#send("lf-undo", { verb, ...(unit !== undefined && { unit }) });
   }
 
-  /** @param {"lf-action" | "lf-undo"} type @param {Record<string, unknown>} detail
-   *  @returns {Promise<unknown> | null} */
+  /** @param {"lf-action" | "lf-undo"} type @param {Record<string, unknown>} detail */
   #send(type, detail) {
-    const event = /** @type {CustomEvent & {delivery?: Promise<unknown>}} */ (
-      new CustomEvent(type, { bubbles: true, composed: true, detail })
-    );
-    this.dispatchEvent(event);
-    return event.delivery ?? null;
+    return sendGesture(this, type, detail);
   }
 
   /** Hold drawing through a gesture that rewrites the element's nodes, and return the

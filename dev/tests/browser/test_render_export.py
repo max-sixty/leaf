@@ -16,8 +16,8 @@ from render_harness import (
     sending,
 )
 
-from leaf import server as server_model
-from leaf.render_checks import HANDOVER_DEADLINE_MS
+from leaf.base import server as server_model
+from leaf.source.render_checks import HANDOVER_DEADLINE_MS
 
 from ..journeys.test_render_export import (  # noqa: F401
     preview_slot_fixture,
@@ -134,7 +134,7 @@ def test_every_tab_follows_a_runtime_edit(browser, watched_preview):
         # A changed layer replaces the server. An invalid input is now refused
         # before that replacement, so change a valid theme to test recovery.
         replaced.append(True)
-        edit_sheet(runtime / "packages" / "reading" / "defaults.css")
+        edit_sheet(runtime / "packages" / "reading" / "theme.css")
         expect(open_tab.locator("html")).to_have_css(
             "--runtime-edit", "1", timeout=HANDOVER_DEADLINE_MS
         )

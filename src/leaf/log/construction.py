@@ -1,0 +1,295 @@
+"""The construction reading of a thread's markup, derived from the canonical
+state fold.
+
+`leaf page state <page> <message>` prints it for each message that carries markup:
+semantic HTML and its effective inputs, not a second widget renderer. Exact event
+bodies, generated children and placement retain their event authority. Opaque widgets
+expose their source and declared data rather than invented screen text. A page's own
+document has no such reading: its HTML is the active revision file, read beside `page
+state`'s current `state`.
+"""
+
+from copy import deepcopy
+from pathlib import Path
+
+from leaf.log.projection import (
+    AuthoredOrders,
+    StateProjection,
+    attribute_marks,
+    folded_positions,
+    generated_children,
+    markup_value,
+    record_members,
+)
+from leaf.source.data import PUBLICATION, source_file
+from leaf.source.registry.contract import recorded, state_specs, upgraded
+from leaf.source.structure import SourceDocument
+
+
+def event_origin(event: dict) -> dict:
+    return {
+        "kind": event["kind"],
+        "event": event["id"],
+        "seq": event["seq"],
+        "author": event["author"],
+        "revision": event["revision"],
+    }
+
+
+def input_readings(
+    attrs: dict, entry: dict, stored: dict, page_dir: Path, files: dict[str, Path]
+) -> dict:
+    """Read the current value of the source that constructs each input, and the file
+    that changes it: a bound file's own, among `files`, the page's grants
+    (`file_bindings.bound_paths`), else the source's publication."""
+    inputs = {}
+    for name, spec in entry.get("inputs", {}).items():
+        source = attrs.get(spec.get("source"))
+        if source is None:
+            continue
+        reading = stored["sources"].get(source, {})
+        bound = files.get(source)
+        # The widget draws a value only under its input's own contract, as the
+        # browser's reader takes one (`host/data.js`, `dataReader`).
+        drawn = "value" in reading and reading["contract"] == spec["contract"]
+        inputs[name] = {
+            "origin": {
+                "input": name,
+                "source": source,
+                "contract": spec["contract"],
+                "revision": reading.get("revision"),
+                "path": [],
+            },
+            "available": drawn,
+            "edit": {
+                "kind": "data" if bound is None else "file",
+                "page": str(page_dir),
+                "source": source,
+                "file": str(
+                    PUBLICATION.file(source_file(page_dir, source))
+                    if bound is None
+                    else bound
+                ),
+                "binding_attribute": spec["source"],
+            },
+        }
+        if "error" in reading:
+            inputs[name]["error"] = reading["error"]
+        elif "value" in reading and not drawn:
+            inputs[name]["error"] = (
+                f"source {source!r} holds a {reading['contract']!r}, and this input "
+                f"reads {spec['contract']!r}"
+            )
+        if drawn:
+            inputs[name]["value"] = reading["value"]
+            inputs[name]["updated"] = reading["updated"]
+    return inputs
+
+
+def constructed_content(
+    parser: SourceDocument,
+    projection: StateProjection,
+    spoken: dict,
+    registry: dict,
+    stored: dict,
+    page_dir: Path,
+    *,
+    files: dict[str, Path],
+    outcomes: dict,
+    retired: set,
+    thread: str,
+) -> list:
+    """Read structure, effective values, and mutation owners from one snapshot.
+
+    Source attributes remain the construction vocabulary. `authored` appears only
+    where an event in force changes a node, while `state` names that event and the
+    exact declared slot. No value in this reading is an instruction to overwrite
+    another owner's decision. Node locations inherit the enclosing reading's
+    document source; source and vocabulary paths are not repeated per element.
+
+    `projection` folds the whole thread, and its caller constructs many of the
+    thread's messages from it, so a message reads only its own part of the fold,
+    through the projection's indexes by owner and by unit. `outcomes` is the
+    projection's `retirement_outcomes`, which the caller reads once for every
+    message.
+    """
+    roots = deepcopy(parser.authoring.content)
+    by_id: dict[str, dict] = {}
+    # The id of each identified node's nearest identified ancestor.
+    parents = {}
+
+    def prepare(items, parent=None):
+        for node in items:
+            if isinstance(node, str):
+                continue
+            identity = node["attrs"].get("id")
+            node["source"] = {"line": node.pop("line"), "column": node.pop("column")}
+            if identity:
+                by_id[identity] = node
+                parents[identity] = parent
+            node["edit"] = {"kind": "thread", "thread": thread}
+            entry = registry.get(node["tag"], {})
+            if upgraded(registry, node["tag"]):
+                node["vocabulary"] = node["tag"]
+            inputs = input_readings(node["attrs"], entry, stored, page_dir, files)
+            if inputs:
+                node["inputs"] = inputs
+            prepare(node["content"], identity or parent)
+
+    prepare(roots)
+    members = parser.by_id
+    # The owners whose children this message can hold: its own elements, and the
+    # children those create, transitively. No other owner is ever in `by_id`, so
+    # their coordinates list the same children in the same order as the whole fold.
+    authored = set(by_id)
+    owners: set = set()
+    reach = list(authored)
+    while reach:
+        owner = reach.pop()
+        if owner in owners:
+            continue
+        owners.add(owner)
+        reach.extend(
+            coordinate[1]
+            for coordinate, (_event, spec) in projection.desired_by_owner.get(owner, ())
+            if spec.get("creates") and coordinate[1] not in authored
+        )
+    desired = {
+        coordinate: entry
+        for owner in owners
+        for coordinate, entry in projection.desired_by_owner.get(owner, ())
+    }
+    # Created child id → its owner, so a record the owner states reaches the children
+    # other events created as well as the authored ones.
+    created_in = {}
+    for widget, children in generated_children(desired, authored).items():
+        owner = by_id.get(widget)
+        if owner is None:
+            continue
+        for generated in children:
+            identity = generated["id"]
+            created_in[identity] = widget
+            child = {
+                "tag": generated["tag"],
+                "attrs": {"id": identity},
+                "content": [generated["text"]],
+                "source": event_origin(generated["event"]),
+                "edit": {"kind": "thread", "thread": thread},
+            }
+            owner["content"].append(child)
+            by_id[identity] = child
+    # Owner and verb → the position record a move in force places units by.
+    placed = {}
+    ordered = sorted(
+        (
+            (unit, entry)
+            for unit in by_id
+            for entry in projection.desired_by_unit.get(unit, ())
+        ),
+        key=lambda item: item[1][0]["seq"],
+    )
+    for unit, (event, spec) in ordered:
+        owner = by_id[unit]
+        widget = event["widget"]
+        authority = event_origin(event)
+        reading = {
+            "action": event["action"],
+            "detail": event["detail"],
+            "origin": authority,
+        }
+        if record := recorded(spec):
+            reading["construction"] = record
+        owner.setdefault("state", []).append(reading)
+        if not record:
+            continue
+        value = event["detail"].get("value")
+        kind = record["kind"]
+        if kind == "body":
+            owner.setdefault("authored", {})["content"] = owner["content"]
+            owner["content"] = [value]
+        elif kind == "value":
+            owner.setdefault("authored", {}).setdefault("attrs", dict(owner["attrs"]))
+            if value is None:
+                owner["attrs"].pop(record["attr"], None)
+            else:
+                owner["attrs"][record["attr"]] = value
+        elif kind == "position" and event["id"] not in projection.absorbed:
+            owner.setdefault("authored", {})["placement"] = {"parent": parents[unit]}
+            placed[(widget, event["action"])] = record
+
+    # Every attribute-set owner paints its complete state over its current members.
+    # A move can give an unchanged destination baseline a new member to paint.
+    marks = attribute_marks(members, spoken, registry)
+    # Attribute → each owner's members (`record_members`), read once per attribute.
+    named: dict[str, dict[str, set]] = {}
+    for widget, rec in members.items():
+        for verb, spec in state_specs(registry.get(rec["tag"], {})):
+            record = spec.get("record") or {}
+            if record.get("kind") != "attribute":
+                continue
+            held = projection.desired.get((widget, widget, verb))
+            value = (
+                held[0]["detail"]["value"]
+                if held
+                else markup_value(widget, spec, members, marks)
+            )
+            if record["attr"] not in named:
+                named[record["attr"]] = record_members(
+                    record, projection, members, registry
+                )
+            for identity in named[record["attr"]].get(widget, ()):
+                node = by_id[identity]
+                if (record["attr"] in node["attrs"]) == (identity in value):
+                    continue
+                if identity not in created_in:
+                    node.setdefault("authored", {}).setdefault(
+                        "attrs", dict(node["attrs"])
+                    )
+                if identity in value:
+                    node["attrs"][record["attr"]] = None
+                else:
+                    node["attrs"].pop(record["attr"], None)
+                if held:
+                    node["authority"] = event_origin(held[0])
+
+    # Each container lists its units in the fold's order, in the slots its authored
+    # units held and after them.
+    orders = AuthoredOrders(members, registry)
+    for (widget, verb), record in placed.items():
+        order = folded_positions(widget, verb, record, orders, projection)
+        units = {unit for listed in order.values() for unit in listed}
+        for container, listed in order.items():
+            content = by_id[container]["content"]
+            slots = [
+                i
+                for i, node in enumerate(content)
+                if isinstance(node, dict) and node["attrs"].get("id") in units
+            ]
+            nodes = [by_id[unit] for unit in listed]
+            for i, node in zip(slots, nodes, strict=False):
+                content[i] = node
+            content.extend(nodes[len(slots) :])
+            for i in reversed(slots[len(nodes) :]):
+                content.pop(i)
+
+    def visible(items, parent=None):
+        result = []
+        for node in items:
+            if isinstance(node, str):
+                result.append(node)
+                continue
+            if node["attrs"].get("id") in retired:
+                continue
+            entry = registry.get(node["tag"], {})
+            if (
+                parent is not None
+                and entry.get("retired-when")
+                and parent["tag"] in entry.get("owners", [])
+                and outcomes.get(parent["attrs"].get("id")) == entry["retired-when"]
+            ):
+                continue
+            node["content"] = visible(node["content"], node)
+            result.append(node)
+        return result
+
+    return visible(roots)

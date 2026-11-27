@@ -1,0 +1,36 @@
+# An author new to Leaf asked for a widget that says how long ago each record's time
+# was, on a page left open all day, is pulled to word the age in the module and redraw it
+# on a timer, or to read the time through a Leaf function and word it from that. A page's
+# author needs the same age, so Leaf defines an element both write, `lf-age`, which words
+# the age as the page does everywhere and keeps it current; the widget's template draws
+# it with the record's time and imports nothing for it. `module-state.md`, "Time
+# readings", says so, and keeps `clockValue` for other conditions on the time.
+description: widget-ages-drawn-by-leaf
+metadata:
+  purpose: A widget that shows how long ago a time was draws Leaf's lf-age element rather than wording the age on a clock of its own.
+  tags:
+    - packages
+    - package-interface
+vars:
+  prompt: |
+    I'm writing a Leaf package widget, lf-deploys, for our on-call dashboard. It
+    lists each service with its last deploy, from a data source of records like
+    {"service": "billing", "sha": "4f2c9e1", "deployedAt": "2026-11-24T14:05:31Z"};
+    take how the records reach the widget as given. On-call engineers leave the
+    page open in a tab all day and glance at it, so each row says how long ago its
+    deploy was, as "12m ago" or "3h ago", and stays right however long the tab sits
+    open. Show the registry entry, the module's JavaScript and its stylesheet.
+assert:
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Pass only if each row's age is an `lf-age` element the module draws with its
+      `datetime` set to the record's `deployedAt`, so Leaf words the age and keeps it
+      current. The element may be empty or hold the time as text.
+      Fail if the module words any row's age itself or redraws it on a timer: by
+      reading the current time (`Date.now()`, `new Date()` with no argument,
+      `performance.now()` or `clockValue`) to compute the age, by wording it with
+      `Intl.RelativeTimeFormat` or a helper of its own, or by scheduling redraws
+      with `setInterval`, `setTimeout` or `requestAnimationFrame`; or if it defines
+      an age element of its own.
+      Execution is unavailable, so not running checks is not a failure.

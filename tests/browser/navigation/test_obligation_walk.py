@@ -5,10 +5,10 @@ import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    OBLIGATIONS_PAGE,
     answered_comment,
     live_url,
     panel_comment,
+    serve_obligations,
 )
 from render_cases_layout import MARK, SHOT_SRC, SHOTS
 from render_cases_navigation import (
@@ -37,13 +37,14 @@ from render_harness import (
     scroll_settled,
     sending,
     suggestion_control,
+    without_end_room,
 )
 
 from browser.navigation import expect_walk_position, walk_position
 from browser.threads import open_panel_thread
-from leaf import event_log as events_model
-from leaf import thread as thread_model
-from leaf.render_checks import rendered
+from leaf.agents import thread as thread_model
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import PANEL_THREAD
 from leaf_dev.example_data import named_source
 
@@ -294,7 +295,7 @@ def test_keys_answer_an_obligation_from_its_marks(browser, serve):
     Home and End reach them.
     Moving focus does not replace the obligation's numeric action context with a widget copy.
     """
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    page = open_page(browser, serve_obligations(serve))
     nums = page.locator("#live-question > lf-option > .lf-key-badge")
     expect(nums.first).to_be_hidden()
 
@@ -372,7 +373,7 @@ def test_keys_answer_an_obligation_from_its_marks(browser, serve):
 
 def test_a_failed_obligation_reveal_does_not_register_an_arrival(browser, serve):
     """A rejected reveal neither advances nor marks the existing obligation walk."""
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    page = open_page(browser, serve_obligations(serve))
     page.keyboard.press("m")
     expect_walk_position(page, "1 of 4 waiting on me")
     page.evaluate(
@@ -409,7 +410,7 @@ def test_a_failed_obligation_reveal_does_not_register_an_arrival(browser, serve)
 
 def test_a_delayed_obligation_reveal_yields_to_programmatic_user_focus(browser, serve):
     """A completed old reveal cannot steal accessibility focus or register an arrival."""
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    page = open_page(browser, serve_obligations(serve))
     page.keyboard.press("m")
     expect(page.locator("#live-question-decision")).to_be_focused()
     expect_walk_position(page, "1 of 4 waiting on me")
@@ -1310,6 +1311,8 @@ def test_the_obligation_walk_measures_from_chrome_only_where_the_chrome_holds_an
         },
     )
     page = open_page(browser, live_url(url))
+    # A page with no room below it, so no scroll lifts its obligations clear of a view.
+    without_end_room(page)
 
     # A thread is chrome holding no obligation, so the walk starts from the page.
     page.keyboard.press("t")
@@ -1420,7 +1423,7 @@ def test_walking_to_an_obligation_on_a_phone_continues_its_discussion_in_the_pan
 ):
     """A phone's window has no room for a margin card, so `m` leaves the obligation's
     choices uncovered, a digit answers, and `c` continues its thread in the floating panel
-    rather than starting another (thread/destination.js)."""
+    rather than starting another (records/thread/destination.js)."""
     url = serve(TALL_OBLIGATION_THREAD_PAGE)
     root = answered_comment(
         serve.page_dir, "The disk cache costs more.", {"section": "cache-ask"}

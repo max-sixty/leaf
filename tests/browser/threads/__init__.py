@@ -31,12 +31,14 @@ from render_harness import (
     write,
 )
 
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import leases as leases_model
-from leaf import service as service_model
-from leaf.render_checks import rendered
-from leaf_dev.browser import PANEL_THREAD
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.commands import cli as cli_model
+from leaf.commands.session import set_status
+from leaf.records import page_data as page_data_model
+from leaf.records import transaction as transaction_model
+from leaf.source.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 
 # The open thread's reply, the editor standing in the panel's field, and the thread's
 # held news, which the panel stands among its view's controls.
@@ -49,7 +51,7 @@ def thread_row(page, key):
     not the view standing open, and unfolding Resolved for a resolved thread folded
     there; a row the standing list holds in its place is drawn already. Its
     `.lf-row-end` says the thread's state. `key` may be the thread's id: a thread this
-    tab started is keyed by the attempt that sent it (thread/model.js, `threadKey`)."""
+    tab started is keyed by the attempt that sent it (state/thread/model.js, `threadKey`)."""
     key, resolved = page.evaluate(
         """async (id) => {
           const {readThreads} = await window.__lfWidgetApi();
@@ -65,25 +67,6 @@ def thread_row(page, key):
     return row
 
 
-def choose_threads_in_panel(page, on=True):
-    """Have this tab open threads about a passage in the panel, or with `on` false
-    beside their passages, as for a user who chose that on an earlier visit
-    (thread/threads-in-panel.js): the choice stored for the tab and read again, which
-    says nothing in the panel's field, as a reload doesn't. It imports the check API
-    from the page's own entry, so it works on a page the harness doesn't watch, which
-    has no `window.__lfCheckApi` (render_harness.py, the sensors)."""
-    page.evaluate(
-        """async (on) => {
-          const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
-          const api = await import(
-            new URL('runtime/check-api.js', new URL(boot, location.href)).href);
-          api.tabStore.set(api.THREADS_IN_PANEL_KEY, on ? "panel" : null);
-          api.restoreThreadsInPanel();
-        }""",
-        on,
-    )
-
-
 def open_panel_thread(page, thread_id):
     """Open the thread `thread_id` in the panel the way a reader finds it, and return its
     view, standing open: Threads, then its row, among the open threads or under
@@ -91,7 +74,7 @@ def open_panel_thread(page, thread_id):
     for threads (`choose_threads_in_panel`), so the tab makes that choice for one; a
     thread about the whole page opens there by itself. A thread already open there is left
     as it stands. A row is keyed by the thread's key, which for a thread this tab
-    started is the attempt that sent it (thread/model.js, `threadKey`), so the page's
+    started is the attempt that sent it (state/thread/model.js, `threadKey`), so the page's
     own reading finds it."""
     view = page.locator(f'{PANEL_THREAD}[data-lf-thread="{thread_id}"]')
     if view.count():
@@ -189,8 +172,8 @@ def claim_for_codex(page_dir, request):
     lease = leases_model.take_wait_lease(lease_path)
     assert lease
     request.addfinalizer(lease.close)
-    with service_model.PageTransaction(page_dir) as transaction:
-        transaction.set_status("waiting")
+    with transaction_model.PageTransaction(page_dir) as transaction:
+        set_status(transaction, "waiting")
 
 
 STREAM_ATTEMPT = service_model.delivery_reply_attempt("delivery-1")
@@ -199,7 +182,7 @@ STREAM_ATTEMPT = service_model.delivery_reply_attempt("delivery-1")
 def stream_reply(page_dir, root, text):
     """Stand the task's provisional answer to `root` at `text`, as App Server's stream
     writes it from the turn's first notification on."""
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         transaction.set_stream_reply(
             "codex-thread",
             "leaf-turn",
@@ -247,7 +230,7 @@ def long_diff_thread(serve, lead=""):
             "</lf-diff><p>Reading the paragraph after the diff.</p>",
         )
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1,79 +1,79 @@\n"
@@ -427,7 +410,7 @@ def reply_by_keyboard(page, root):
 # Where a node stands against the open panel view's landing band: its scrollport less
 # the scroll padding the focus ring takes.
 IN_LANDING_BAND = """node => {
-  const list = document.querySelector('.lf-fp-view:not([data-lf-leaving])');
+  const list = document.querySelector('.lf-fp-view');
   const shown = list.getBoundingClientRect();
   const style = getComputedStyle(list);
   const band = [shown.top + (parseFloat(style.scrollPaddingTop) || 0),
@@ -587,7 +570,7 @@ def pressed_send_surface(browser, serve, surface):
                 'source="review-patch"></lf-diff>',
             )
         )
-        data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+        page_data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
         page = open_page(browser, url)
         line = page.locator(
             'lf-diff [data-line-type="change-addition"][data-lf-datum=\'["app.py","new",1]\']'

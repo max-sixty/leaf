@@ -1,7 +1,7 @@
 """Prepare installation trees with a compiled kernel.
 
 An install is the tracked tree, which commits no kernel, so it serves the browser
-runtime's source modules (`leaf.runtime_selection.read_runtime`), as does every
+runtime's source modules (`leaf.source.runtime_selection.read_runtime`), as does every
 developer checkout, the suite and the previews. The website's container installs a
 prepared payload (`prepare`, `_build`) instead: the tree with the
 kernel compiled into `dist/kernel/` by `build/runtime-bundle.mjs`, which loads in a
@@ -11,7 +11,7 @@ import the same widget-api entry as the compiled kernel, so their state has one 
 
 The payload layout preserves uv's workspace and each harness's local marketplace
 layout. A prepared tree has no Git metadata, so `leaf-distribution.json` records the
-producer its provenance names (`leaf.layer.payload_provenance`).
+producer its provenance names (`leaf.source.layer.payload_provenance`).
 """
 
 import shutil
@@ -20,9 +20,9 @@ from pathlib import Path
 
 import click
 
-from leaf.layer import payload_provenance
-from leaf.schema import ASSETS, KERNEL
-from leaf.state import PLUGIN_ROOT, write_json
+from leaf.base.schema import ASSETS, KERNEL
+from leaf.base.state import PLUGIN_ROOT, write_json
+from leaf.source.layer import payload_provenance
 from leaf_dev import ROOT
 from leaf_dev.arms import PAYLOAD, extract_payload
 

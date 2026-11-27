@@ -24,7 +24,7 @@ from render_harness import (
     take_browser_errors,
 )
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import slow_cpu
 
 # A field below a box. A key landing in the field grows the box above it, carrying the
@@ -627,6 +627,71 @@ def test_a_permitted_step_permits_nothing_after_it(browser):
     )
     judge_watches()
     consume_browser_errors(page, moved_within("button#act"))
+
+
+# How a card's transcript changes as the card widens and its padding lifts its head,
+# and whether the watch credits that rise.
+RISES = {
+    "a-message-joins": ("log.append(answer)", True),
+    "the-reply-grows": ("log.lastElementChild.append(answer.textContent)", True),
+    "nothing-joins": ("card.style.paddingTop = '120px'", False),
+    "a-hidden-child-joins": (
+        "answer.hidden = true; log.append(answer); card.style.paddingTop = '120px'",
+        False,
+    ),
+    "the-transcript-pads": ("log.style.paddingBottom = '120px'", False),
+    "a-short-message-joins-past-it": (
+        "answer.textContent = 'Yes.'; log.append(answer);"
+        " card.style.paddingTop = '120px'",
+        False,
+    ),
+}
+
+
+@pytest.mark.parametrize("change", list(RISES))
+def test_a_card_standing_on_its_foot_rises_as_it_widens_only_as_far_as_its_transcript_grew(
+    browser, change
+):
+    """A card over its subject stands on its foot (`data-lf-rises`), so the long message
+    that widens it once (`data-lf-widens`) lifts its head in the same frame, carrying
+    its controls up and sideways, whether the message joins its transcript or grows
+    the reply streaming into it. A card whose head rises further than what joined its
+    transcript, as with no message, a hidden one, padding or a short one with padding
+    past it, is reported."""
+    script, credited = RISES[change]
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0"><div data-lf-runtime>'
+            '<div id="card" data-lf-widens data-lf-rises style="position:fixed;'
+            'bottom:40px;right:40px;width:160px">'
+            '<button id="close">Close</button>'
+            '<div id="log" data-lf-reflow="append">'
+            "<p data-lf-append-tail>A short question.</p></div>"
+            "</div></div></body>"
+        )
+    )
+    paint(page)
+    page.evaluate(
+        """script => new Promise((done) => {
+          const answer = document.createElement("p");
+          answer.textContent = "An answer long enough to stand taller than wide. ".repeat(12);
+          card.style.width = "320px";
+          new Function("answer", script)(answer);
+          requestAnimationFrame(() => requestAnimationFrame(done));
+        })""",
+        script,
+    )
+    judge_watches()
+    if not credited:
+        consume_browser_errors(
+            page,
+            lambda problem: (
+                problem.code == "moved-without-input"
+                and ["div#card"] in problem.values["beside"]
+            ),
+        )
 
 
 def test_the_document_moves_what_it_painted_half_parsed_without_a_finding(browser):
@@ -1270,7 +1335,7 @@ def test_append_growth_may_raise_a_port_standing_on_its_foot(browser, fault, pro
     ],
 )
 def test_a_carry_draws_the_way_of_a_step_news_may_take(browser, fault, key, protected):
-    """A box that follows its own layout, as box-motion.js carries a floating box's
+    """A box that follows its own layout, as dom/box-motion.js carries a floating box's
     parts, may draw the step news's append growth takes as travel: a ResizeObserver
     delivery no input owns begins a carry that draws the standing port's head where it
     was and slides it to where its rise puts it, or draws part of the step at once, as
@@ -1318,7 +1383,7 @@ def test_a_carry_draws_the_way_of_a_step_news_may_take(browser, fault, key, prot
               });
               window.carries = carry();
               // Re-timed from where it is drawn before any frame draws it, as
-              // box-motion.js re-times a carry a second delivery reaches.
+              // dom/box-motion.js re-times a carry a second delivery reaches.
               if (fault === 'retimed') {
                 window.carries.forEach((carry) => carry.cancel());
                 window.carries = carry();
@@ -1362,7 +1427,7 @@ def test_a_carry_draws_the_way_of_a_step_news_may_take(browser, fault, key, prot
 def test_a_line_news_adds_rides_only_the_stream_it_joins(browser, rides):
     """News adds a line to a port standing on its foot, which rises to hold it. Carried
     in alone from 60 px below, the new line slides on its own, and fails. Carried with
-    the line already there by the distance the rise moved that one, as box-motion.js
+    the line already there by the distance the rise moved that one, as dom/box-motion.js
     carries a stream's new turn with the turns above it, it rides that line's carry."""
     page = browser.new_page()
     page.goto(
@@ -1414,6 +1479,65 @@ def test_a_line_news_adds_rides_only_the_stream_it_joins(browser, rides):
     else:
         errors = consume_browser_errors(page, {"code": "moved-without-input"})
         assert names_move(errors, "p#news"), errors
+
+
+@pytest.mark.parametrize(
+    "fault, protected",
+    [("", False), ("uncountered", True), ("alone", True)],
+)
+def test_a_stuck_foot_holds_its_line_through_a_carry_of_what_holds_it(
+    browser, fault, protected
+):
+    """News moves a scroller's content up a step, and a carry no input owns draws the
+    content where it was and slides it to where it stands. A box stuck to the
+    scroller's foot inside that content, as a thread's New reply is, has its inset
+    moved against the carry on the same clock, as dom/box-motion.js moves it, so it
+    holds its line on screen and moves nothing. Left to ride the carry, the stuck box
+    travels down and back with no input, and an inset moved with no carry under it
+    moves the box without input; both fail."""
+    page = browser.new_page()
+    page.goto(
+        "data:text/html,"
+        + quote(
+            '<!doctype html><body style="margin:0;font:16px monospace">'
+            "<style>@property --carry { syntax: '<length>+'; inherits: false;"
+            " initial-value: 0px 0px; }</style>"
+            '<section style="position:fixed;bottom:0;left:0;width:360px">'
+            '<div id="port" style="height:200px;overflow:auto;overflow-anchor:none">'
+            '<div id="content"><div id="step" style="height:40px"></div>'
+            '<div style="height:400px"></div>'
+            '<div id="foot" style="position:sticky;bottom:0">'
+            '<button id="press">New reply</button></div></div></div></section>'
+            "</body>"
+        )
+    )
+    paint(page)
+    page.evaluate(
+        """fault => {
+          const options = { duration: 300 };
+          window.carries = [];
+          if (fault !== 'alone') {
+            step.remove();
+            content.style.translate = 'var(--carry)';
+            window.carries.push(content.animate(
+              [{ '--carry': '0px 40px' }, { '--carry': '0px 0px' }], options));
+          }
+          if (fault !== 'uncountered')
+            window.carries.push(foot.animate(
+              [{ bottom: '40px' }, { bottom: '0px' }], options));
+        }""",
+        fault,
+    )
+    page.wait_for_function(
+        "window.carries.every((carry) => carry.playState === 'finished')"
+    )
+    paint(page)
+    judge_watches()
+    if not protected:
+        assert take_browser_errors(page) == []
+    else:
+        errors = consume_browser_errors(page, {"code": "moved-without-input"})
+        assert names_move(errors, "button#press"), errors
 
 
 def test_a_box_s_height_tween_is_no_carry(browser):
@@ -2191,7 +2315,7 @@ def test_each_capable_preparation_keeps_its_own_input_landing(
 def test_a_carry_a_landing_s_own_layout_begins_is_the_input_s_though_news_lands(
     browser, serve
 ):
-    """A box that follows its own layout, as box-motion.js carries a floating box's
+    """A box that follows its own layout, as dom/box-motion.js carries a floating box's
     parts, begins its motion in the ResizeObserver delivery of the frame a preparation's
     landing draws in, after that frame's tick. The motion is the input's though the
     server's reading lands after that delivery and before the next tick, as it can
@@ -2245,6 +2369,102 @@ def test_a_carry_a_landing_s_own_layout_begins_is_the_input_s_though_news_lands(
     rendered(page)
     judge_watches()
     assert page.lf_errors == []
+
+
+@pytest.mark.parametrize("late", [False, True], ids=["in-its-frame", "a-frame-late"])
+def test_a_carry_news_begins_after_it_seals_a_landing_carries_its_step(
+    browser, serve, late
+):
+    """News seals a preparation's landing still open, and its step's carry, begun in a
+    ResizeObserver delivery after it lands, is a carry no input owns, as the carry of
+    an answer arriving while a reply's preparation lands is (dom/box-motion.js). The
+    answer grows a port standing on its foot, and the carry draws the port's head where
+    it was and slides it to where the rise puts it, so the head moves nothing a carry
+    of news's step may not draw. A carry begun a frame late, after a frame has painted
+    the head where the rise puts it, draws it back down and moves it, and fails."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Sealed landing carry",
+                '<button id="press">Press</button>'
+                '<lf-group id="choice-q" label="Which?">'
+                '<lf-options id="choice"><lf-option id="a">A</lf-option></lf-options>'
+                "</lf-group>",
+            )
+        ),
+    )
+    # The runtime's own markers, which an authored page may not wear, as the panel's
+    # standing box wears them.
+    page.evaluate(
+        """stand => document.body.insertAdjacentHTML('beforeend', stand)""",
+        '<section id="stand" data-lf-runtime style="position:fixed;bottom:0;'
+        'left:0;width:360px"><header id="row"><button id="head">Close</button>'
+        '</header><div id="port" data-lf-rises '
+        'style="max-height:300px;overflow:auto;overflow-anchor:none">'
+        '<div id="source" data-lf-reflow="append">'
+        '<p id="old" style="margin:0;height:40px">Already reading.</p></div>'
+        '</div><button id="field">Comment</button></section>',
+    )
+    page.evaluate(
+        """async (late) => {
+      const {PendingTaskEvent} = await window.__lfLibImport('pending-task.js');
+      CSS.registerProperty({
+        name: '--carry', syntax: '<length>+', inherits: false, initialValue: '0px 0px',
+      });
+      const widget = document.querySelector('#choice');
+      const port = document.querySelector('#port');
+      const gate = Promise.withResolvers();
+      window.release = gate.resolve;
+      let height = null;
+      new ResizeObserver(() => {
+        const now = port.getBoundingClientRect().height;
+        const grew = height !== null && now > height;
+        height = now;
+        if (!grew) return;
+        const carry = () => {
+          window.carries = [row, port].map((part) => {
+            part.style.translate = 'var(--carry)';
+            return part.animate(
+              [{'--carry': '0px 40px'}, {'--carry': '0px 0px'}], {duration: 300});
+          });
+        };
+        if (late) requestAnimationFrame(() => requestAnimationFrame(carry));
+        else carry();
+      }).observe(port);
+      document.querySelector('#press').addEventListener('click', () => {
+        widget.querySelector(':scope > .lf-another').dispatchEvent(
+          new PendingTaskEvent(gate.promise));
+      }, {once: true});
+    }""",
+        late,
+    )
+    page.locator("#press").click()
+    rendered(page, facts=("updatesSettled",))
+    judge_watches()
+    assert page.lf_errors == []
+    landing = page.evaluate("""async () => {
+      release();
+      await new Promise((done) => setTimeout(done));
+      const open = window.lfInputRenderingOpen();
+      document.body.setAttribute('data-lf-reading', 'news');
+      const next = document.createElement('p');
+      next.textContent = 'The answer.';
+      next.style.cssText = 'margin:0;height:40px';
+      document.getElementById('source').append(next);
+      return open;
+    }""")
+    assert landing, "the preparation's landing was over before news sealed it"
+    page.wait_for_function(
+        "window.carries?.every((carry) => carry.playState === 'finished')"
+    )
+    rendered(page)
+    judge_watches()
+    if not late:
+        assert take_browser_errors(page) == []
+    else:
+        errors = consume_browser_errors(page, {"code": "moved-without-input"})
+        assert names_move(errors, "button#head"), errors
 
 
 @pytest.mark.parametrize(
@@ -2924,14 +3144,14 @@ def test_a_resize_owns_its_layout_before_its_event_dispatches(browser):
 # bar's slide above it (`news`), or the press beginning that slide, which runs on past
 # news that moves nothing (`press`). The translation arms slide the line itself
 # instead of flowing it: by its margin, or by a registered property its translate
-# reads, as box-motion.js carries a part. `data-retarget` has the news cancel the
-# slide and begin its replacement in the task that adopts the reading, as box-motion.js
+# reads, as dom/box-motion.js carries a part. `data-retarget` has the news cancel the
+# slide and begin its replacement in the task that adopts the reading, as dom/box-motion.js
 # carries a send's ride on through the server's answer: from where it is drawn to the
 # same end (`drawn`) or a farther one (`farther`), or from where it began
 # (`restart`). A translation paints no layout shift, which every passive
 # verdict starts from, so a box no reader reads slides in the window meanwhile, as a
 # panel's controls redrawn by the reading shift. The delivery arms begin the slide
-# where box-motion.js begins a carry, in a ResizeObserver delivery that follows a
+# where dom/box-motion.js begins a carry, in a ResizeObserver delivery that follows a
 # box's layout: the press's own growth, its news landing before the next frame's tick
 # (`delivery`), or the news's growth three frames on (`news-delivery`). The growing box
 # stands after the line, so only the slide moves it.
@@ -3453,7 +3673,7 @@ def test_sampled_native_translation_distinguishes_press_from_news(
 def test_a_carry_a_press_s_own_layout_begins_is_the_press_s_though_news_lands(
     browser, motion
 ):
-    """A box that follows its own layout, as box-motion.js carries a floating box's
+    """A box that follows its own layout, as dom/box-motion.js carries a floating box's
     parts, begins its motion in the ResizeObserver delivery of the frame the press
     draws in, after that frame's tick. The motion is the press's though news lands
     before the next tick, as a send's answer can within a long frame, where the panel's
@@ -4320,7 +4540,8 @@ def test_typing_root_scroll_keeps_a_fixed_field_but_not_its_local_carry(browser,
 # the insets are written changes how the credit is found, not what an extra move is.
 # A popover shown with its anchor as `source` is anchored with no name, its insets an
 # offset from a custom property under a rule leaving them `auto` and a guard rolling
-# every property back, as Leaf's preview is.
+# every property back, as Leaf's preview is. An offset summed from several terms, as a
+# heading's link centers on its first line, follows its anchor as a single one does.
 # Rules disagreeing need the insets in rules, and an important rule over an inline
 # inset needs the inset inline. A transform above the scroller changes the geometry of
 # a credit, so it runs on the cases that move something, and not on those about which
@@ -4329,6 +4550,9 @@ TURNED = "scale(.8) rotate(10deg)"
 ANCHOR_SCROLL_CASES = [
     ("", "inline", "none"),
     ("", "inline", TURNED),
+    ("", "fallbacks", "none"),
+    ("", "offset_sum", "none"),
+    ("anchor_y", "offset_sum", "none"),
     ("", "scoped_rule", "none"),
     ("portal_x", "inline", "none"),
     ("portal_x", "inline", TURNED),
@@ -4351,8 +4575,9 @@ def test_native_anchor_scroll_retains_local_motion_proof(
     browser, fault, declared, transform
 ):
     """A portal following its anchor's scroll is credited whether its insets are
-    written inline or stated in its tree's stylesheet, and whether its anchor's name is
-    unique or repeated under `anchor-scope`; moving either independently still fails.
+    written inline, with or without a fallback, or stated in its tree's stylesheet, and
+    whether its anchor's name is unique or repeated under `anchor-scope`; moving either
+    independently still fails.
     A direct anchor inset that a more specific rule overrides credits nothing, even
     where a later rule in sheet order states it, and neither does an inline one an
     important rule overrides. A popover's implicit anchor, the `source` it was shown
@@ -4361,6 +4586,11 @@ def test_native_anchor_scroll_retains_local_motion_proof(
     field_style = "position:fixed;position-anchor:--target;left:calc(anchor(left) + 100px);top:calc(anchor(top) + 10px)"
     if fault == "declared_unused":
         field_style = "position:fixed;position-anchor:--target;left:100px;top:50px"
+    if declared == "fallbacks":
+        # Floating placement's form, the fallback a far edge's written back from 100%.
+        field_style = "position:fixed;position-anchor:--target;left:calc(anchor(left, 8px) + 100px);top:calc(anchor(top, calc(100% - 300px)) + 10px)"
+    if declared == "offset_sum":
+        field_style = "position:fixed;position-anchor:--target;--a:80px;--b:120px;left:calc(anchor(left) + var(--a) + (var(--b) - var(--a)) / 2);top:calc(anchor(top, -9999px) + var(--a) - var(--b) + 50px)"
     sheet, scope, decoy = "", "", ""
     if declared == "scoped_rule":
         sheet = f"<style>#field {{ {field_style} }}</style>"
@@ -4452,27 +4682,57 @@ CARRIED_ROW = """<!doctype html><body style="margin:0;height:3000px">
 }
 scrollTo(0, 600);
 place();</script>"""
+# The same row, its words in a shadow tree that a document `::part()` rule names,
+# as the runtime names a widget's box from the document (dom/css-anchors.js).
+CARRIED_ROW_IN_PART = CARRIED_ROW.replace(
+    '<p id="anchor" style="position:absolute;top:1000px;left:40px;width:200px;margin:0;anchor-name:--words">Words the row marks</p>',
+    """<style>::part(words){anchor-name:--words}</style><div id="host"></div>
+<script>host.attachShadow({mode:'open'}).innerHTML = '<p part="words" style="position:absolute;top:1000px;left:40px;width:200px;margin:0">Words the row marks</p>';
+var anchor = host.shadowRoot.firstElementChild;</script>""",
+)
+# The document's row and words, beside a shadow tree whose own style gives a box that
+# exposes a part, for styling alone, a private anchor of the same name.
+CARRIED_ROW_BESIDE_PRIVATE = CARRIED_ROW.replace(
+    '<div id="carrier"',
+    '''<div id="host"></div>
+<script>host.attachShadow({mode:'open'}).innerHTML = '<style>p{anchor-name:--words}</style><p part="label">Private words</p>';</script>
+<div id="carrier"''',
+    1,
+)
 
 
 @pytest.mark.parametrize(
-    ("scroll", "fault"),
+    ("scroll", "fault", "tree"),
     [
-        ("step", ""),
-        ("step", "row"),
-        ("twice", ""),
-        ("twice", "row"),
-        ("smooth", ""),
-        ("smooth", "row"),
+        ("step", "", "document"),
+        ("step", "row", "document"),
+        ("twice", "", "document"),
+        ("twice", "row", "document"),
+        ("smooth", "", "document"),
+        ("smooth", "row", "document"),
+        ("step", "", "part"),
+        ("step", "row", "part"),
+        ("twice", "", "part"),
+        ("twice", "row", "part"),
+        ("step", "", "private"),
+        ("step", "row", "private"),
     ],
 )
-def test_a_carried_row_keeps_its_anchor_s_lagging_scroll(browser, scroll, fault):
+def test_a_carried_row_keeps_its_anchor_s_lagging_scroll(browser, scroll, fault, tree):
     """Chrome carries a box anchored to scrolled words a frame after the scroll, so a
     frame callback can read the words moved and the row not yet. A row its script places
     again in that frame, by the same offset from the words, a row whose words scroll
     again before it catches up, and a row through a smooth scroll no input makes, are
-    credited; a row placed elsewhere still fails."""
+    credited, whether the words stand in the document or in a shadow tree the document
+    names through `::part()`, and beside a shadow tree's private anchor of the same name;
+    a row placed elsewhere still fails."""
     page = browser.new_page()
-    page.goto("data:text/html," + quote(CARRIED_ROW))
+    fixture = {
+        "document": CARRIED_ROW,
+        "part": CARRIED_ROW_IN_PART,
+        "private": CARRIED_ROW_BESIDE_PRIVATE,
+    }[tree]
+    page.goto("data:text/html," + quote(fixture))
     paint(page)
     paint(page)
     moved = "5" if fault else "0"
@@ -4946,7 +5206,7 @@ motion.pause();motion.currentTime=150;
 @pytest.mark.parametrize("fault", [False, True])
 def test_a_sticky_inset_moves_its_box_only_within_its_block(browser, fault):
     """A ride carries a scroller's messages while their sticky heads' insets travel
-    against the carry (box-motion.js), so a stuck head holds its line and one short of
+    against the carry (dom/box-motion.js), so a stuck head holds its line and one short of
     it rides with its message. The inset is credited by the head's move within its
     message, not read as an offset that cancels the carry; a head moving the other
     way within its message still fails."""

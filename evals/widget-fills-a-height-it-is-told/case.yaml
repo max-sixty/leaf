@@ -1,0 +1,52 @@
+# An author new to Leaf asked for a widget that grows with its content on a reading page
+# but fills the window, with parts that scroll on their own, when it is a full-window
+# page's body, is pulled to size it from the window (`100vh`, a height media query), to
+# measure its parent in the module, or to test which Layout holds it. None of those can
+# tell a definite height from an indefinite one; the box that knows says so. The
+# workspace Layout sets `--lf-full-height: 1` on a box whose children have a definite
+# height to fill, and the widget keys its filling rules on
+# `@container style(--lf-full-height: 1)` and passes the fact to its own parts.
+# `module-scroll-and-motion.md`, "Reading regions", and `package-themes.md`, "A theme
+# change", say so.
+description: widget-fills-a-height-it-is-told
+metadata:
+  purpose: A widget fills a definite height by Leaf's --lf-full-height fact rather than by viewport units, a measurement or the Layout around it.
+  tags:
+    - packages
+    - layout
+    - package-interface
+vars:
+  prompt: |
+    I'm writing a Leaf package widget, lf-trace-explorer, for looking through a
+    request trace: the tree of spans down the left, and the selected span's
+    attributes on the right. A trace can have 400 spans and a span 80 attributes.
+    On an ordinary reading page both columns take their full height and the page
+    scrolls. Some page authors will make it the whole body of a full-window,
+    dashboard-style page, under that page's header. There it fills the window from
+    the header down to the window's foot, at any window size, and each column
+    scrolls on its own, so the reader can keep a span selected near the top of the
+    tree while reading down its long attribute list. Assume the drawing of the tree
+    and the attribute list already exists. Show the registry entry, the stylesheet,
+    and any JavaScript the sizing needs.
+assert:
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Pass only if the stylesheet keys the filling layout on the fact Leaf's Layout
+      sets for a box given a definite height: the rules that make the widget fill
+      the height and scroll each column stand inside
+      `@container style(--lf-full-height: 1)`, and outside that query the columns
+      take their content's height. The property doesn't inherit, and the query reads
+      the parent of the box a rule styles, so the widget and each box between it and
+      the columns pass the fact down, as with `--lf-full-height: inherit` or an
+      inheriting property of the widget's own. Declaring `--lf-holds-height: 1` on
+      each column that scrolls is right but not required.
+      Fail if nothing passes the fact down to the columns, so their rules never
+      match. Fail if the filling depends on the window or a measurement: viewport units
+      (`vh`, `dvh`, `svh`, `lvh`), an `@media` query on height or width, a height the
+      module measures or computes (`ResizeObserver`, `getBoundingClientRect`,
+      `innerHeight`, `clientHeight`), or a selector or script test for the page or
+      Layout around the widget (such as `.layout-workspace`, a pane's
+      `data-lf-reading-role` above the widget, `:host-context()` or `closest()`).
+      Marks and selectors on boxes the widget draws itself are fine.
+      Execution is unavailable, so not running checks is not a failure.

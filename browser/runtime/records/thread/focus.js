@@ -1,0 +1,273 @@
+/* Focus readings shared by thread paint and commands. */
+import {
+  drawn,
+  focusDestination,
+  holdCurrentLocation,
+  focused,
+  onPress,
+  pressLed,
+} from "../../dom/focus.js";
+import { coarsePointer } from "../../base/pointer.js";
+import { shownBox } from "../../dom/geometry.js";
+import { restrictUserIntent, retainUserIntent } from "../../dom/user-intent.js";
+import { nextRender } from "../../lib/frame-pass.js";
+import { repaint } from "../../dom/repaint.js";
+import { drawnThreadId, threadPart, THREAD } from "./selectors.js";
+import { threadNamed } from "./state.js";
+import { threadKey } from "../../state/thread/model.js";
+import { replyControlDestination, replyIsEditing, replyThreadKey } from "./replies.js";
+import { closestAcross } from "../../lib/shadow-tree.js";
+
+/** @typedef {ReturnType<typeof retainUserIntent>} UserIntent */
+/** @typedef {ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"]} OpenThread */
+/** @typedef {{node: Element, id: string, intent: UserIntent, may: UserIntent, reply: boolean}} CarriedPlace */
+
+// A drawn thread's root is where the user is on it.
+/** @param {Element} thread @param {"move" | "return"} cause */
+export function focusThread(thread, cause) {
+  focusDestination(thread, cause);
+}
+
+// Where opening a thread puts the user: a fine pointer's press puts the caret in its
+// reply, so what they type answers at once, and Escape stands them on the thread
+// (landing.js); a key puts them on the thread, where keys act, and so does a finger,
+// since the keyboard that a box takes would rise over what they opened to read. The user
+// chose this over opening on the thread wherever a press opens it,
+// where `r`, `t` and the other keys act at once and `c` starts a reply.
+// That choice is about clicks. A key that opens a thread in a walk, `t` or Enter on a
+// marker or Next, keeps the user on the thread to walk on. Enter on a row of Threads or
+// On Me keeps the caret in the reply instead, as a press on one does, and the floating
+// panel owns that (`openRow`). It does so because what the user
+// types after picking a row is an answer. Stood on the thread, after `g T` and Enter,
+// "really?" resolves the thread with `r`, moves on and opens the Command reference with
+// `?`, and Escape closes the panel in one press rather than two.
+//
+// A thread moved between its card and the floating panel (`moved`, its key), by Open in
+// panel or Show on page, a press or `p`, opens where the user was in it: in its reply
+// while they are writing there (`replyIsEditing`), which the move carries with its
+// caret, so the words and the editing position go on; else on the thread, where the
+// panel's field shows the move's notice and its press back
+// (records/thread/threads-in-panel.js), which a caret in the reply would cover, and where a
+// second `p` moves it back. Words the user left in the reply stay there for `c`.
+/** @param {{moved?: string}} [options] @returns {"reply" | "thread"} */
+export const openingPart = ({ moved } = {}) => {
+  if (moved !== undefined) return replyIsEditing(moved) ? "reply" : "thread";
+  return pressLed() && !coarsePointer.matches ? "reply" : "thread";
+};
+
+/** @param {Element | null | undefined} thread */
+export const threadReplyInput = (thread) => {
+  const input = thread && threadPart(thread, "reply");
+  return input && shownBox(input).height ? input : null;
+};
+
+// Where in a drawing of a thread a route lands: the thread, its reply box (else the
+// thread), or the message `message` names, else the thread where the drawing gives the
+// message no row of its own, as it gives a later reaction or a step of the agent's
+// work (transcript.js).
+/** @param {Element} thread
+ * @param {{part?: "thread" | "reply" | "message" | null, message: string} | {part?: "thread" | "reply" | null, message?: null}} [options] */
+export function threadFocusDestination(thread, options = {}) {
+  if (options.part === "message")
+    return (
+      thread.querySelector(`.lf-msg[data-lf-event="${CSS.escape(options.message)}"]`) ??
+      thread
+    );
+  return (
+    (options.part === "thread" ? thread : null) ?? threadReplyInput(thread) ?? thread
+  );
+}
+
+// The thread whose root holds focus. A control inside it keeps its own command scope.
+export function focusedThreadTarget() {
+  const active = focused();
+  return active?.matches(THREAD) ? active : null;
+}
+
+// The thread the user is in, wherever it is drawn — the Threads list, the margin card, a
+// seat on the page — with a control inside one standing in it too. Climbing from the
+// inner focus reaches a seat a widget stages in its shadow tree. A walk asks the same of
+// the node its origin was read from (`threadIn`).
+/** @param {Node | null | undefined} node */
+export const threadIn = (node) => closestAcross(node ?? null, THREAD);
+export const heldThread = () => threadIn(focused());
+
+// Its logged id.
+const heldThreadId = () => drawnThreadId(heldThread());
+
+// The thread every painter of current location draws — the page's contour and wash, the margin
+// entry's selection — which is the held thread except across a pointer press. A press
+// moves focus to the page at mousedown, and only the gesture as a whole says where it
+// leaves the user: a press on the thread's own mark lands them back in it at its click.
+// Read from focus alone, the current location blinked off under the hand for the length of every
+// such press. So the thread held at pointerdown stays the current location until the frame after
+// the press ends, when the current location repaint reads focus again. This is current location as drawn,
+// which lags focus across a press; a command acts on the held thread (`heldThreadId`).
+// The press is focus.js's (`onPress`), which ends it every way it can end.
+/** @type {string | null} */
+let pressed = null;
+let release = 0;
+function releasePress() {
+  if (!pressed || release) return;
+  release = nextRender(() => {
+    release = 0;
+    pressed = null;
+    repaint();
+  });
+}
+onPress(
+  /** @param {PointerEvent | MouseEvent} start */ (start) => {
+    if (start.button !== 0) return null;
+    pressed = heldThreadId();
+    return releasePress;
+  },
+);
+
+export const currentLocationThreadId = () => heldThreadId() ?? pressed;
+
+// The intent restricted to the thread `id` still present: every thread takes a reply,
+// a resolved one too, which the reply reopens. A resolved thread takes the user's box
+// along only while a reply is being written in it (`replyIsEditing`): carrying the
+// caret would otherwise open a card that settlement closed again, over a box the user
+// never began in, as the empty box an opening leaves.
+/** @param {string} id @param {UserIntent} intent */
+const mayReplyTo = (id, intent) =>
+  restrictUserIntent(intent, () => {
+    const thread = threadNamed(id);
+    return Boolean(thread && (!thread.resolved || replyIsEditing(threadKey(thread))));
+  });
+// Whether the thread `id` names stands open.
+/** @param {string} id */
+const standsOpen = (id) => {
+  const thread = threadNamed(id);
+  return Boolean(thread && !thread.resolved);
+};
+
+// A pass that redraws threads hands the user on a thread across itself, under
+// the thread's identity. A surface that stops drawing a thread takes what the user was
+// on with it: a widget rebuilding its tree, a thread leaving a widget for the margin
+// because its anchor no longer lands there, or coming back, which closes its margin card
+// and takes its marker away. The thread still stands somewhere, and the user goes on
+// with it there. From its reply box they go on in that box wherever the thread stands,
+// its margin card or Threads put up for it: the same editor, carried with its caret and
+// undo history (replies.js), or where the view there cannot take it, that view's own box
+// with the draft and the caret. From anywhere else on the thread or its marker, holding
+// no words to put up, they go on with it only to a seat the pass drew it in, on the
+// thread itself, since the node they had focused has no like there; otherwise the surface
+// that closed lands them, as it would any user.
+//
+// Read before the pass (`holdThreadPlace`): the node the user is on in a drawn thread,
+// or on a node standing for one, as a margin marker does (`threadAt`), or the one a
+// change took out from under them before the pass began (focus.js, `holdCurrentLocation`). The
+// step it returns runs once the pass has drawn every surface. Where the node is still
+// drawn, they stay on it. Otherwise it lands them through `open`, which puts the thread
+// up where it stands. Typing on in the box during the pass keeps them in it; standing
+// anywhere else, a press on the page included, is a newer word, and so is a surface
+// that landed them itself, as a list carrying its own row does. A node left behind is
+// carried once, to an open thread the reading still holds, and for a reply box also a
+// resolved one with a reply still being edited. Nothing is put up for a thread that is
+// gone, and one that comes back later does not pull the user to it.
+// Replacement resolves through the current route, never another visible mirror of
+// the same draft. Both in-document paint and executable replacement use this admission.
+// `scroll: false` lands the user back in a box they had scrolled away from, moving no
+// scroller to show it.
+//
+// From the pass's start until that step has run, the node is being carried
+// (`carryingThreadPlace`): a surface closing under the user meanwhile, as the margin card
+// does when its thread goes back to a widget, places no one, and the step decides.
+/** @param {string} id @param {OpenThread} open @param {UserIntent} intent
+ * @param {{destination?: (thread: Element) => Element | null, scroll?: boolean}} [options] */
+export async function replyDestination(
+  id,
+  open,
+  intent,
+  { destination = (thread) => threadPart(thread, "reply"), scroll = true } = {},
+) {
+  const mayReply = mayReplyTo(id, intent);
+  if (!mayReply()) return null;
+  const shown = await open(id, { part: "reply", scroll, intent: mayReply });
+  const thread = shown instanceof Element ? closestAcross(shown, THREAD) : null;
+  if (!thread || focused() !== shown || !mayReply()) return null;
+  // The destination may put the user's own row in place of the one `open` landed on
+  // (replies.js, `carry`), and they go on in it.
+  const control = destination(thread);
+  if (!control) return null;
+  if (control !== focused()) mayReply.handoff(() => focusDestination(control, "move"));
+  return focused() === control && mayReply() ? control : null;
+}
+
+// The thread itself, for a user whose node has no like where it now stands. Another
+// owner that put them on a drawn node meanwhile, as a list keeping its rows does, has
+// placed them already, and a travel taking them to the thread lands them itself
+// (features/anchor-travel.js, `travellingTo`), as when a press on a closed file's marker opens
+// the file and the thread leaves the marker for a seat beside its line.
+/** @param {string} id @param {OpenThread} open @param {UserIntent} may
+ * @param {(id: string) => boolean} travellingTo */
+async function threadDestination(id, open, may, travellingTo) {
+  const at = focused();
+  if (travellingTo(id) || (at && at !== document.body && drawn(at))) return null;
+  const shown = await open(id, { part: "thread", intent: may });
+  return shown instanceof Element && focused() === shown && may() ? shown : null;
+}
+
+/** @type {WeakSet<Element>} */
+const carried = new WeakSet();
+/** @type {CarriedPlace | null} */
+let carrying = null;
+// A seat can appear later in the pass, after its former margin card closes. The
+// close must defer its landing while the thread and the user's intent still stand;
+// `may` checks for the new seat only when the pass chooses its destination. A reply
+// goes on in any thread still present, a resolved one included.
+/** @param {Element | null | undefined} node */
+export const carryingThreadPlace = (node) => {
+  const place = carrying;
+  return Boolean(
+    place &&
+    place.node === node &&
+    (place.reply ? place.may() : place.intent() && standsOpen(place.id)),
+  );
+};
+/** @param {OpenThread} open
+ * @param {{threadAt: (node: Element) => string | null, seated: (id: string) => boolean, travellingTo: (id: string) => boolean}} placement */
+export function holdThreadPlace(open, { threadAt, seated, travellingTo }) {
+  carrying = null;
+  const held = holdCurrentLocation();
+  const node = held?.node;
+  if (!node || carried.has(node)) return null;
+  const destination = replyControlDestination(node);
+  // A reply box in any view of its thread, or parked between two (replies.js), names
+  // its thread itself; anything else on a thread the page draws, its margin card or a
+  // seat, or on its margin entry. Threads keeps its own cards' places.
+  const key = destination && replyThreadKey(node);
+  const thread = !destination && closestAcross(node, ".lf-page-thread");
+  const id = key
+    ? threadNamed(key)?.id
+    : thread
+      ? drawnThreadId(thread)
+      : threadAt(node);
+  if (!id) return null;
+  const intent = retainUserIntent({ source: node });
+  // Away from its reply box, where no words of theirs have to be put up, the user goes
+  // on with an open thread only to a seat the pass drew it in (`seated`): the pass opens
+  // no card or panel for them.
+  const may = destination
+    ? mayReplyTo(id, intent)
+    : restrictUserIntent(intent, () => standsOpen(id) && seated(id));
+  const carry = { node, id, intent, may, reply: Boolean(destination) };
+  carrying = carry;
+  return async () => {
+    try {
+      return await held.restore(async () => {
+        carried.add(node);
+        const control = destination
+          ? await replyDestination(id, open, intent, { destination })
+          : await threadDestination(id, open, may, travellingTo);
+        // The row itself came along (replies.js), so it is the user's box still.
+        if (control === node) carried.delete(node);
+        return control;
+      });
+    } finally {
+      if (carrying === carry) carrying = null;
+    }
+  };
+}

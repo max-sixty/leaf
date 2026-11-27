@@ -1,6 +1,6 @@
 """A framed Leaf document reads as visible while its frame shows on screen
-(runtime/frame-visibility.js), whatever its own styles do, and places focus only once
-the user enters it (runtime/focus.js, `canPlaceFocus`)."""
+(runtime/base/frame-visibility.js), whatever its own styles do, and places focus only once
+the user enters it (runtime/dom/focus.js, `canPlaceFocus`)."""
 
 from playwright.sync_api import expect
 from render_harness import leaf_page, open_page
@@ -158,7 +158,7 @@ def test_a_framed_page_moves_nobody_until_the_user_enters_it(browser, serve):
 
     go = page.locator("#go")
     go.evaluate("(go, url) => go.href = url + '#far'", embedded.url)
-    # Travel is the navigation's handler (history.js), so the navigation succeeds once
+    # Travel is the navigation's handler (records/history.js), so the navigation succeeds once
     # travel has landed and put focus wherever it was going to.
     embedded.evaluate("""() => {
       window.travelled = new Promise((resolve) =>

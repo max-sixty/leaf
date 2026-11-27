@@ -273,7 +273,7 @@ def test_fork_replay_hands_the_answer_through_the_arms_leaf(
     # grader through the arm's Leaf.
     import os
 
-    from leaf import clerk, forks
+    from leaf.agents import clerk, forks
     from leaf_dev import ROOT, fork_eval
 
     work = tmp_path / "work"

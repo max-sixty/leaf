@@ -1,0 +1,44 @@
+# An author new to Leaf asked for a widget that changes its layout by the width it gets,
+# wherever a page places it, meets Leaf's facts about the boxes around a widget, such as
+# the page shell's size container `lf-shell` and a sidebar's `--lf-track-beside`, and is
+# pulled to key the switch on one of them, on the window, or on a width the module
+# measures, or to ask Leaf for a name that says the widget's width. Leaf has none, because
+# the platform already answers: a widget's rules depend only on the box it is given, and a
+# size query on its own container gives its width (`package-themes.md`, "A theme change").
+# `module-scroll-and-motion.md`, "Sideways scrollers and container queries", says to make
+# the element a query container and put the conditional rules on its descendants.
+description: widget-switches-on-its-own-width
+metadata:
+  purpose: A widget that switches layout by its width queries a size container of its own rather than the window, the page or a Leaf name.
+  tags:
+    - packages
+    - layout
+    - package-interface
+vars:
+  prompt: |
+    I'm writing a Leaf package widget, lf-metric-diff, that compares a benchmark's
+    metrics before and after a change: a table with a row per metric and columns for
+    the metric's name, its value before, its value after, and the change. Where the
+    widget has less than about 30rem of width the table is unreadable, so there it
+    shows each metric as a small stacked card instead. Page authors put it in the
+    reading column, in the narrow track beside the prose on a sidebar page, in one
+    pane of a split-screen page, and on phones, so the switch has to follow the room
+    the widget itself gets, wherever it is placed. Show the registry entry, the
+    stylesheet and any JavaScript the switch needs.
+assert:
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Pass only if the switch is a CSS container size query on the widget's own box:
+      the stylesheet makes the widget's element, or a box it draws, a size container
+      (`container-type: inline-size` or `size`, or the `container` shorthand), and
+      switches between the table and the cards with an `@container` query on that
+      container's width or inline size.
+      Fail if the switch reads the window (`@media` on width, `innerWidth`,
+      `matchMedia`), the page's own container (`@container lf-shell`), a fact Leaf or
+      a Layout sets about the page around the widget (such as `--lf-track-beside`,
+      `--lf-wide-page` or a Layout's class), or a width the module measures
+      (`ResizeObserver`, `getBoundingClientRect`, `offsetWidth`, `clientWidth`); or
+      if it uses a Leaf property, attribute or function the reply invents or asks
+      Leaf to add for the widget's width.
+      Execution is unavailable, so not running checks is not a failure.

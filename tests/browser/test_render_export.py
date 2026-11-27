@@ -26,13 +26,13 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import exporting as exporting_model
-from leaf import files as files_model
-from leaf import media as media_model
-from leaf.render_checks import HANDOVER_DEADLINE_MS, rendered, wait_until_ready
-from leaf.structure import UTF8_BOM
+from leaf.base import files as files_model
+from leaf.commands import cli as cli_model
+from leaf.pages import exporting as exporting_model
+from leaf.records import page_data as page_data_model
+from leaf.serving import media as media_model
+from leaf.source.render_checks import HANDOVER_DEADLINE_MS, rendered, wait_until_ready
+from leaf.source.structure import UTF8_BOM
 from leaf_dev.example_data import named_source, patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -286,7 +286,9 @@ def test_an_export_draws_the_page_as_it_stands_with_scripts_off(
 ):
     """The default file is the page as the runtime draws it, with no script: a widget
     shows the decision recorded on it and not its stand-in for loading, a suggestion
-    its changed words, an image and a canvas their pixels, and each fold, still
+    its changed words, an image and a canvas their pixels, an age the time its author
+    wrote, or its clock time where they wrote none, since no script is left to keep an
+    age current, and each fold, still
     closed, what it draws once opened. It holds nothing of the conversation, nor where
     the page lives on this machine."""
     image = solid_png(64, 40, (40, 90, 160))
@@ -302,6 +304,8 @@ def test_an_export_draws_the_page_as_it_stands_with_scripts_off(
 <details id="fold"><summary>More</summary><p>Not drawn</p></details>
 <section id="panel" hidden="until-found"><p>Not drawn</p></section>
 <canvas id="plot" width="30" height="20">A red bar</canvas>
+<p>Last ran <lf-age id="ran" datetime="2026-11-20T02:10:00Z">20 Nov, 02:10 UTC</lf-age></p>
+<p>Last passed <lf-age id="passed" datetime="2026-11-20T02:10:00Z"></lf-age></p>
 """,
             head=(
                 "<style>lf-offline-test:not(:defined)::before {content: 'Loading'}</style>"
@@ -356,6 +360,11 @@ plot.fillRect(0, 0, 30, 20);
     assert widget.evaluate("w => getComputedStyle(w, '::before').content") == "none"
     expect(page.locator("#shot")).to_have_js_property("naturalWidth", 64)
     expect(page.locator("img#plot")).to_have_js_property("naturalWidth", 30)
+    expect(page.locator("#ran")).to_have_text("20 Nov, 02:10 UTC")
+    # The clock time, as the platform that drew the file writes it, with its zone, in
+    # the page and in a widget's shadow tree.
+    for age in (page.locator("#passed"), widget.locator("#chosen-at")):
+        expect(age).to_have_text(re.compile(r"2026.*\d:\d\d.* \S+$"))
     expect(page.locator("#fold")).not_to_have_attribute("open", "")
     assert page.locator("#fold p").text_content() == "Drawn on opening"
     expect(page.locator("#panel")).to_have_attribute("hidden", "until-found")
@@ -390,13 +399,13 @@ def test_an_interactive_export_reads_each_source_offline(browser, serve, tmp_pat
         "notes-two": "Second, in the unopened tab ✓\n",
     }
     for source, text in texts.items():
-        data_model.cmd_data_set(serve.page_dir, source, text)
+        page_data_model.cmd_data_set(serve.page_dir, source, text)
     patch = "".join(
         f"diff --git a/{name} b/{name}\n--- a/{name}\n+++ b/{name}\n"
         f'@@ -1 +1 @@\n-return "old"\n+return "{name} new"\n'
         for name in ("app.py", "lib.py")
     )
-    data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(patch))
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", patch_manifest(patch))
     interactive = tmp_path / "data-interactive.html"
     result = CliRunner().invoke(
         cli_model.cli,
@@ -743,7 +752,7 @@ def test_inline_threads_keep_their_words_without_live_controls_in_print(
             '<h1>Review</h1><lf-diff id="patch" source="review-patch"></lf-diff>',
         )
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"

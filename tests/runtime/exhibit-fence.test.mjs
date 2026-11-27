@@ -1,14 +1,14 @@
 /* Mention, not use: a widget strictly inside an element the registry marks `exhibit` is
    quoted. The descriptor staged before upgrade carries the answer, and `quoted` gives
    the same one for an element no descriptor holds. The server reads it off
-   the holder chain (`obligations.quoted_in`); `tests/exhibit_cases.json` holds both runtimes
-   to one set of cases. */
+   the holder chain (`structure.quoted_in`); `tests/exhibit_cases.json` holds
+   both runtimes to one set of cases. */
 import assert from "node:assert/strict";
 import test from "node:test";
 import { readFileSync } from "node:fs";
 
-import { adoptRegistry } from "/runtime/registry.js";
-import { quoted, stageWidgetDescriptors } from "/runtime/widget-descriptors.js";
+import { adoptRegistry } from "/runtime/state/registry.js";
+import { quoted, stageWidgetDescriptors } from "/runtime/records/widget-descriptors.js";
 
 const { registry, cases } = JSON.parse(
   readFileSync(new URL("../exhibit_cases.json", import.meta.url), "utf8"),

@@ -6,7 +6,7 @@ import assert from "node:assert/strict";
 import { readFileSync } from "node:fs";
 import test from "node:test";
 import { parse } from "yaml";
-import { CONTRIBUTION_ENTRY_SCHEMA } from "../../browser/runtime/contribution-model.js";
+import { CONTRIBUTION_ENTRY_SCHEMA } from "../../browser/runtime/base/contribution-model.js";
 
 const rubric = () => {
   const path = new URL(

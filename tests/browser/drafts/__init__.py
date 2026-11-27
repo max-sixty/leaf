@@ -4,10 +4,10 @@ through sending, sharing and revisions, with the helpers their modules share."""
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import (
-    draft_control,
     leaf_page,
     open_latest,
     open_page,
+    press_draft_control,
     round_trip,
     stamp_page,
     told,
@@ -26,8 +26,9 @@ def choose_comment_target(page, selector):
 
 
 def cancel_draft(page, draft_id="draft-ops"):
-    """Discard stands beside Save throughout an engaged draft edit."""
-    draft_control(page, "cancel", draft_id).click()
+    """Discard stands beside Save in an open draft editor, for a pointer that comes
+    to it after typing too."""
+    press_draft_control(page, "cancel", draft_id)
 
 
 # Generated editors carry native editing under their existing durable draft identity.

@@ -40,14 +40,14 @@
  * Crossing the drawing where no point is within reach keeps the reading and its ring,
  * and the next point within reach takes its place. Plot's own tip clears in empty
  * space; this one stays because it can be read: the preview takes no pointer and
- * stands over the drawing (preview.js), so a pointer moving toward it to read it
+ * stands over the drawing (annotations/preview.js), so a pointer moving toward it to read it
  * crosses the drawing's empty space, and clearing there would take the reading away
  * from under the reader's eye.
  *
  * A comment on a point is about the point the reader is on. Leaf's aim and a pointed
  * comment take the point the pointer is on wherever it stands in the drawing: the one
  * its ring is on, or the one it rests on whose reading Escape or a press put away. ⌥
- * alone leaves the reading standing (preview.js). Focus on the chart takes the point
+ * alone leaves the reading standing (annotations/preview.js). Focus on the chart takes the point
  * the ring is on, so the keys reach one too, and the whole chart once Escape has put
  * the ring away, as does ⌥ where no point is within reach or over a legend. The comment
  * names its point by its datum (chart-points.js, `datumOf`). Leaf marks the point on
@@ -216,8 +216,9 @@ customElements.define(
     /** @type {object | null} */
     #declared = null;
     #presses = 0;
-    // The points Leaf has named by id in the drawing showing, each with its point and
-    // the mark drawn at it (`#find`), or null for one the drawing lacks; whether Leaf
+    // The points Leaf or a key's step has named by id in the drawing showing, each with
+    // its point and the mark drawn at it (`#standing`), or null for one the drawing
+    // lacks; whether Leaf
     // has asked for any, in this drawing or before it; the registration Leaf names them
     // through; and whether the next rendering pass tells Leaf they changed.
     /** @type {Map<string, {point: Point, part: Part} | null>} */
@@ -273,7 +274,7 @@ customElements.define(
         // A mouse reads where it moves to, so a drawing that arrives under a still one
         // says nothing; a finger, which lands before it moves, reads where it lands. A
         // finger's press is a new aim even on the point it held last, heard after the
-        // page has put the last hold's preview away (preview.js listens first).
+        // page has put the last hold's preview away (annotations/preview.js listens first).
         this.addEventListener("pointermove", aim, { signal, passive: true });
         this.addEventListener(
           "pointerover",
@@ -516,15 +517,28 @@ customElements.define(
     // Leaf asks, which stays until the next drawing, as one does round a bar a render
     // transform has drawn again (`shapeOf`). Leaf asks for a comment's point each time
     // it places comments, and for the point `c` would comment on, the one the reader is
-    // on, at each key step, which is found without a search of the drawing. So until
-    // the next drawing a ring, unseen until Leaf strokes it, stands round each dot or
-    // vertex the keys or a comment reached.
+    // on, at each key step, which is found without a search of the drawing. A key's
+    // step asks the same of its series' first and last points (`#step`). So
+    // until the next drawing a ring, unseen until Leaf strokes it, stands round each dot
+    // or vertex the keys or a comment reached, and round each end of a series the keys
+    // walked.
     /** @param {string} id */
     #find(id) {
       const reading = this.#reading;
       if (!id.startsWith(POINT)) return null;
       this.#asked = true;
       if (!reading) return null;
+      const datum = id.slice(POINT.length);
+      return this.#standing(reading, id, () =>
+        this.#at && datumOf(this.#at) === datum ? this.#at : datumPoint(reading, datum),
+      );
+    }
+
+    // The part standing at the point an id names in the drawing showing: its shape, or
+    // the ring `#mark` draws round it the first time it is asked for, kept until the
+    // next drawing. `locate` finds the point when nothing is kept for the id yet.
+    /** @param {Reading} reading @param {string} id @param {() => Point | null} locate */
+    #standing(reading, id, locate) {
       let found = this.#marks.get(id);
       // A bar a render transform has drawn again, or joined to other data, is no longer
       // the point's (`shapeOf`), where a ring stays its point's.
@@ -537,11 +551,7 @@ customElements.define(
       )
         found = undefined;
       if (found === undefined) {
-        const datum = id.slice(POINT.length);
-        const point =
-          this.#at && datumOf(this.#at) === datum
-            ? this.#at
-            : datumPoint(reading, datum);
+        const point = locate();
         found = point && { point, part: this.#mark(reading, point, id) };
         this.#marks.set(id, found);
       }
@@ -715,12 +725,13 @@ customElements.define(
     // A key's step is a walk along the reading's series, a new aim wherever it lands; a
     // redraw that keeps the reader on their point is none. It says where it landed, to
     // Leaf's panel (`lf-walk`) and to a listener: the point's words, then its place in
-    // its series. A point stands in the page as its shape, or as the drawing where the
-    // chart draws no shape of the point's own, as a line's or a dot's: the place is
-    // said on that, so it goes with the drawing a redraw replaces, and the series'
-    // first and last points bound the list by theirs. Leaf ends the last step's place
-    // as this step says its own, so a step says nothing of leaving the point before it
-    // (`#choose`).
+    // its series. The place is said on the point's shape, or on the drawing where the
+    // chart draws no shape of the point's own, as for a line's vertex or a dot, so it
+    // goes with the drawing a redraw replaces. The series' first and last points bound
+    // the list by what stands at each: its shape, or the ring `#find` would draw round
+    // it, so the list stands whole in view only when both points do, however much of
+    // the drawing the window holds. Leaf ends the last step's place as this step says
+    // its own, so a step says nothing of leaving the point before it (`#choose`).
     /** @param {Point | null} point */
     #step(point) {
       this.#place = null;
@@ -731,8 +742,9 @@ customElements.define(
       const series = reading.series[point.series] ?? [];
       const [position, total] = [series.indexOf(point) + 1, series.length];
       /** @param {Point | undefined} at */
-      const drawn = (at) => (at && shapeOf(reading, at)) ?? reading.svg;
-      this.#walked = drawn(point);
+      const end = (at) =>
+        at && this.#standing(reading, `${POINT}${datumOf(at)}`, () => at)?.element;
+      this.#walked = shapeOf(reading, point) ?? reading.svg;
       this.#walked.dispatchEvent(
         new CustomEvent("lf-walk", {
           bubbles: true,
@@ -741,7 +753,7 @@ customElements.define(
             noun: "Point",
             position,
             total,
-            list: [drawn(series[0]), drawn(series.at(-1))],
+            list: [end(series[0]), end(series.at(-1))],
           },
         }),
       );
@@ -758,7 +770,7 @@ customElements.define(
     // The pointer or finger left the drawing. A point the keyboard reached stays, and so
     // does one whose preview stands, which the page puts away, and the ring with it
     // (`lf-preview-ended`), once the pointer is on neither the drawing nor the preview, or
-    // at the next touch after a held finger lifts (preview.js); back on the drawing, it
+    // at the next touch after a held finger lifts (annotations/preview.js); back on the drawing, it
     // reads from where it comes. A point no preview has shown yet goes with the pointer.
     #leave() {
       this.#over = false;

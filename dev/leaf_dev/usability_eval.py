@@ -20,14 +20,14 @@ from pathlib import Path
 
 import yaml
 
-from leaf.anchor_capture import capture_anchor
-from leaf.delivery import opened_input_ids
-from leaf.event_log import read_events
-from leaf.harness import ClaudeCodeHarness
-from leaf.registry.kernel import kinds_declaring
-from leaf.service import requires_agent_attention
-from leaf.state import turn_open
-from leaf.structure import SourceDocument
+from leaf.agents.delivery import opened_input_ids
+from leaf.base.harness import ClaudeCodeHarness
+from leaf.base.state import record_name, turn_open
+from leaf.log.event_log import read_events
+from leaf.records.transaction import requires_agent_attention
+from leaf.source.anchor_capture import capture_anchor
+from leaf.source.registry.kernel import kinds_declaring
+from leaf.source.structure import SourceDocument
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     TURN_LIMIT,
@@ -233,9 +233,9 @@ def build_layout_shifts(run: Run, page: Path) -> None:
 
 
 def anchor(html: str, element: str, quote: str) -> dict:
-    """A comment anchor on `quote` inside the element with id `element`, with the
-    context Leaf captures for a selection (`anchor_capture.capture_anchor`)."""
-    return capture_anchor(SourceDocument(html), None, quote, element)
+    """A comment anchor on `quote` inside the element with id `element`, as Leaf
+    captures an agent's (`anchor_capture.capture_anchor`)."""
+    return capture_anchor(SourceDocument(html), None, quote, element)[0]
 
 
 def build_resume(run: Run, page: Path) -> None:
@@ -266,7 +266,7 @@ def build_resume(run: Run, page: Path) -> None:
     admit(run, page, {"kind": "resolve", "parent": rerun})
     admit(run, page, {
         "kind": "action", "revision": 2, "widget": "rollout", "action": "choose",
-        "detail": {'value': ["opt-per-tenant"]},
+        "detail": {'value': ["opt-per-tenant"]}, "answered": True,
     })  # fmt: skip
     admit(run, page, {
         "kind": "comment", "revision": 2,
@@ -307,7 +307,7 @@ def build_constructs(run: Run, page: Path) -> None:
     )
     admit(run, page, {
         "kind": "action", "revision": 1, "widget": "release-note", "action": "edit",
-        "detail": {'value': FIXTURE_INPUTS["constructs"]["draft"]},
+        "detail": {'value': FIXTURE_INPUTS["constructs"]["draft"]}, "answered": True,
     })  # fmt: skip
     run.leaf("data", "set", str(page), "checkout-p95", input_text="231", check=True)
 
@@ -433,7 +433,7 @@ def build_cutover_hidden(run: Run, page: Path) -> None:
 
 
 def reads_on_its_own(run: Run) -> bool:
-    """Whether this arm's page server runs the render pass (`render_gate.handover_pass`),
+    """Whether this arm's page server runs the render pass (`handover_pass`),
     which a base from before it doesn't."""
     kernel = json.loads(
         (run.payload / "browser/runtime/kernel-registry.json").read_text()
@@ -550,7 +550,7 @@ def build_plan_resume(run: Run, page: Path) -> None:
     )  # fmt: skip
     admit(run, page, {
         "kind": "action", "revision": 1, "widget": "first-region", "action": "choose",
-        "detail": {"value": [inputs["choice"]]},
+        "detail": {"value": [inputs["choice"]]}, "answered": True,
     })  # fmt: skip
 
 
@@ -860,7 +860,8 @@ def ignore(directory, names):
     return {
         n
         for n in names
-        if n in ("runtime", "vendor", "widgets", "instructions", "service.json")
+        if n in ("runtime", "vendor", "widgets", "instructions")
+        or record_name(n) == "service.json"
         or n.endswith((".lock", ".js", ".css"))
     }
 

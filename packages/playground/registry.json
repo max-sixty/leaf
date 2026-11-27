@@ -14,10 +14,7 @@
       "required": ["id"]
     },
     "awaits": {
-      "value": "choose",
-      "answered": {
-        "choose": {}
-      }
+      "value": "choose"
     },
     "verbs": {
       "choose": {
@@ -41,8 +38,7 @@
             }
           },
           "required": ["values", "instruction"]
-        },
-        "unit": "widget"
+        }
       },
       "tune": {
         "detail": {
@@ -58,7 +54,6 @@
           },
           "required": ["values"]
         },
-        "unit": "widget",
         "unsent": true
       }
     },

@@ -46,9 +46,9 @@ from render_harness import (
 )
 
 from journeys import detached_threads
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
-from leaf_dev.browser import PANEL_THREAD
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD, text_field
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -183,7 +183,7 @@ def test_a_phone_editor_inside_a_marked_widget_keeps_pointer_entry(browser, serv
     )
     comment = page.locator("#pr-exact-patch .lf-diff-file-comment").first
     comment.click()
-    field = page.get_by_role("textbox", name=re.compile(r"^Comment on .+ · file$"))
+    field = text_field(page, name=re.compile(r"^Comment on .+ · file$"))
     expect(field).to_be_focused()
     page.keyboard.type("Earlier file comment.")
     with sending(page, "the earlier file comment"):
@@ -362,7 +362,7 @@ def test_a_region_capture_draws_live_samples_and_survives_removed_links(browser,
     })""")
     frame = page.locator("#capture-sample iframe").bounding_box()
     # The area takes in the unreadable image above the sample, so the element the
-    # capture draws holds it (`captureRoot`, composing/page-image.js).
+    # capture draws holds it (`captureRoot`, host/page-image.js).
     unreadable = page.locator("#unreadable").bounding_box()
     surface = open_capture_area(page)
     left, top = int(unreadable["x"]) + 1, int(unreadable["y"]) + 1
@@ -404,7 +404,7 @@ def test_a_region_capture_draws_a_turned_sample_as_its_reader_sees_it(browser, s
     """A sample turned a quarter shows down what its window holds across, so an area
     over the top half of its frame takes in its window's start half: the foot corner on
     the left and the top corner on the right. The image draws that half, as the sample
-    draws it (composing/page-image.js)."""
+    draws it (host/page-image.js)."""
     page = open_page(browser, serve(TURNED_SAMPLE_PAGE))
     page.evaluate("document.querySelector('#turned-sample').ready")
     frame = page.locator("#turned-sample iframe").bounding_box()
@@ -722,6 +722,7 @@ def test_a_settlement_in_a_reply_leaves_its_own_anchor_on_the_page(browser, serv
                 "widget": wid,
                 "action": "decide",
                 "detail": {"outcome": "accept"},
+                "answered": True,
             },
         )
         page = open_page(browser, url)

@@ -1,6 +1,6 @@
 /* Whether and where an element shows a box, and `measure`, which waits for one. Any
    document can load it, so a widget on a plain HTML page waits for its room as it does
-   on a Leaf page. Leaf's geometry.js builds its readings of what the page shows on the
+   on a Leaf page. Leaf's dom/geometry.js builds its readings of what the page shows on the
    boxes this module reads. */
 import { skipped } from "./shadow-tree.js";
 import { sizeObserver } from "./frame-pass.js";
@@ -27,8 +27,15 @@ function readContents(node, read) {
 export const contentsRects = (node) =>
   readContents(node, (range) => [...range.getClientRects()]);
 /** @param {Node} node */
-export const contentsBox = (node) =>
+const contentsBox = (node) =>
   readContents(node, (range) => range.getBoundingClientRect());
+
+// What draws something to see without words: a replaced element, or a widget, which is
+// a custom element. Empty boxes and spacers draw nothing, so no place stands on them.
+export const DRAWING = "img, svg, canvas, video, picture, iframe, object, embed";
+/** @param {Element} element */
+export const draws = (element) =>
+  element.matches(DRAWING) || element.localName.includes("-");
 
 // The box an element shows as. An element that generates none of its own — a
 // display: contents wrapper — shows as what its contents paint, so its bounds are
@@ -39,7 +46,7 @@ export const contentsBox = (node) =>
 // No widget in the vocabulary displays as contents, but the wrong answer is the
 // platform's rather than any widget's: a page or a project layer styles any wrapper
 // this way in a line. So the answer is a fact about elements, kept here rather than in
-// one reader, and every reader asks this one function, or geometry.js's `shownBox`
+// one reader, and every reader asks this one function, or dom/geometry.js's `shownBox`
 // built on it, where an element is.
 /** @param {Element} el */
 export function elementBox(el) {

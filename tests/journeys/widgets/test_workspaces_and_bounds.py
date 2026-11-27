@@ -14,6 +14,7 @@ from render_harness import (
     pane_scroll_behavior,
     resized,
     scroll_settled,
+    without_end_room,
 )
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -40,6 +41,9 @@ def test_the_page_end_clears_the_bottom_chrome_around_a_workspace(browser, serve
     resized(page, 1280, 720)
     pane_scroll_behavior(page, page.locator("#workspace-pane"), "flow")
     # The body keeps no room for the panel; the column's own end padding clears it.
+    # The body's room for the last line to rise (layouts.css) would clear it too, so the
+    # page reads without that room.
+    without_end_room(page)
     assert (
         page.evaluate("parseFloat(getComputedStyle(document.body).paddingBottom)") == 0
     )
@@ -90,15 +94,15 @@ def test_a_page_up_in_a_log_a_stream_feeds_leaves_its_end(engine, aim, request, 
     follower that read only the box's offset would take the next entry for a reader
     still at the end, put the log back there and stop the glide, so the press would do
     nothing. The end keeper every box shares lets a box a glide heads back from go
-    (scrolling.js, `followEnd`). Firefox applies a wheel's or PageUp's scroll a frame or
+    (dom/scrolling.js, `followEnd`). Firefox applies a wheel's or PageUp's scroll a frame or
     more after the input, and a keeper's write of the end meanwhile would cancel it, a
-    wheel across as well; the scroll is the reader's from the input (scrolling.js,
+    wheel across as well; the scroll is the reader's from the input (dom/scrolling.js,
     `aimScroll`). PageUp on a link in the log, read as a key the link took, would be
-    left to the keeper (scrolling.js, `scrollsFor`). Each trial aims once in the middle
+    left to the keeper (dom/scrolling.js, `scrollsFor`). Each trial aims once in the middle
     of a stream of an entry every 4ms."""
     if aim != "u":
         # A browser starved of CPU can apply a key's or wheel's scroll after the 80ms
-        # the reader's scroll waits for it to move the page (arrivals.js), so the log
+        # the reader's scroll waits for it to move the page (dom/arrivals.js), so the log
         # keeps its end in a trial: Firefox as late as 800ms after the input, and
         # Chromium in the starved macOS nightly. #6348 tracks a fix in the code or this
         # test that lets these marks go. `u` glides by Leaf's own scroll, which this

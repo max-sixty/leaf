@@ -7,8 +7,8 @@
    wherever it is offered; an icon an action doesn't name marks what something is or
    holds, such as a kind or a state. */
 
-// Built-in margin entry faces use one stroked, currentColor icon vocabulary. Reaction tokens
-// are authored content and may supply emoji; structural Leaf faces keep their line
+// Built-in margin entry faces use one stroked, currentColor icon vocabulary. Reactions
+// are authored content, each its emoji; structural Leaf faces keep their line
 // weight and baseline stable across systems.
 const SEND = '<path d="M8 13V3M4 7l4-4 4 4"/>';
 
@@ -114,7 +114,7 @@ export function iconElement(icon, className = "lf-margin-entry-icon") {
 // Discard throws an editor's unsaved words away, so it wears Undo's U-turn rather than
 // Close's ✕, which keeps them: closing a card leaves an open rewrite's words in its
 // draft, and a draft's other ways out save. A reaction's removal took undo over ✕ for
-// the same reading (the user's choice, anchor-controls.js).
+// the same reading (the user's choice, annotations/anchor-controls.js).
 /** @type {Record<string, {name: string, icon: string}>} */
 export const ACTIONS = {
   accept: { name: "Accept", icon: "check" },
@@ -133,6 +133,9 @@ export const ACTIONS = {
   edit: { name: "Edit", icon: "edit" },
   expand: { name: "Expand", icon: "expand" },
   find: { name: "Find", icon: "search" },
+  // A thread's jumps over its messages (records/thread/thread-card.js, `#jumps`).
+  "first-message": { name: "Go to the first message", icon: "up" },
+  "latest-message": { name: "Go to the latest message", icon: "down" },
   "collapse-all": { name: "Collapse all", icon: "fold" },
   "expand-all": { name: "Expand all", icon: "unfold" },
   fit: { name: "Fit", icon: "fit" },
@@ -145,15 +148,14 @@ export const ACTIONS = {
   // A find bar's steps run up and down its matches, as a browser's do.
   "next-match": { name: "Next match", icon: "down" },
   // The presses the floating panel's field offers at its end, a notice's or the page's
-  // own (floating-panel.js, `pressReading`), in the title case the user asked for.
+  // own (panel/floating-panel.js, `pressReading`), in the title case the user asked for.
   "next-on-me": { name: "Next On Me", icon: "inbox" },
   "next-thread": { name: "Next thread", icon: "next" },
   // A thread's way between Leaf's two places for it, its card beside the passage and the
-  // floating panel (thread/threads-in-panel.js).
+  // floating panel (records/thread/threads-in-panel.js).
   "open-in-panel": { name: "Open in panel", icon: "expand" },
   "open-latest": { name: "Open latest", icon: "next" },
   "resume-writing": { name: "Resume writing", icon: "edit" },
-  "restore-edit": { name: "Restore edit", icon: "undo" },
   "show-annotations": { name: "Show annotations", icon: "locate" },
   "show-changes": { name: "Show changes", icon: "locate" },
   "show-on-page": { name: "Show on page", icon: "locate" },

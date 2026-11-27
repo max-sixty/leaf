@@ -331,9 +331,9 @@
 }
 
 :where(button:not([data-lf-offer], .lf-chrome *)[type="submit"][aria-pressed="true"]) {
-  color: var(--lf-settled-ink);
-  border-color: var(--lf-settled);
-  background: var(--lf-settled-tint);
+  color: var(--lf-ink);
+  border-color: var(--lf-ink-2);
+  background: var(--lf-chip);
 }
 
 /* Region "Face: Field" */

@@ -17,7 +17,7 @@ from render_harness import (
     scroll_settled,
 )
 
-from leaf.render_checks import wait_until_ready
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -50,8 +50,9 @@ def _whole_and_apart(*marks):
 def test_a_control_s_badges_stand_apart_whichever_show(browser, serve, direction):
     """Every badge on a control stays whole beside the others, a two-digit count among
     them: a margin entry's count and unread dot, in the rail and as a pin, and the
-    folded leaf's count, news and error, which are wider together than the leaf, in
-    either direction (`.lf-badges`, controls.css)."""
+    leaf's count, news and error, which are wider together than the leaf, clear inside
+    the panel in its row and on the folded tile's outline, in either direction
+    (`.lf-badges`, controls.css)."""
     source = leaf_page(
         "Badges",
         '<p id="answered">Twelve answers wait here.</p><p id="asked">One question.</p>',
@@ -99,16 +100,65 @@ def test_a_control_s_badges_stand_apart_whichever_show(browser, serve, direction
         )
 
     resized(page, 1440, 900)
-    page.keyboard.press(".")
-    expect(page.locator(".lf-floating-panel")).to_have_attribute("data-lf-rest", "mark")
-    page.evaluate("async () => (await window.__lfCheckApi()).raiseError('Not saved')")
-    panel_settled(page, open=False)
+    # Two errors, so one waits unseen in the menu while the row's field says the other.
+    page.evaluate(
+        """async () => {
+          const api = await window.__lfCheckApi();
+          api.raiseError('Not saved');
+          api.raiseError('Not sent');
+        }"""
+    )
     leaf = page.locator(".lf-fp-leaf > .lf-badges")
-    marks = [leaf.locator(name) for name in (".lf-fp-badge", ".lf-fp-news-dot")]
-    marks.append(leaf.locator(".lf-fp-error-dot"))
-    for mark in marks:
-        expect(mark).to_be_visible()
-    assert _whole_and_apart(*marks)
+    marks = [
+        leaf.locator(name)
+        for name in (".lf-fp-badge", ".lf-fp-news-dot", ".lf-fp-error-dot")
+    ]
+    for rest in ("row", "mark"):
+        if rest == "mark":
+            page.keyboard.press(".")
+        expect(page.locator(".lf-floating-panel")).to_have_attribute(
+            "data-lf-rest", rest
+        )
+        # The fold's motion starts in the frame after the press.
+        rendered(page)
+        panel_settled(page, open=False)
+        for mark in marks:
+            expect(mark).to_be_visible()
+        assert _whole_and_apart(*marks)
+        stands = page.evaluate(_BADGE_STANDING, [m.element_handle() for m in marks])
+        if rest == "row":
+            # In the row the panel's card clips what crosses its edge, so each badge
+            # stands clear inside it, whichever end of the row the leaf stands at.
+            assert all(clear >= 4 - 0.5 for clear in stands["clear"]), stands
+        else:
+            # Folded, each badge is centred on the tile's outline: one at a corner on
+            # its curve, one beside it on the straight edge.
+            assert all(abs(off) <= 1 for off in stands["outline"]), stands
+
+
+# How each of the leaf's badges stands against the panel's card: how far its box
+# stands inside the card's edges (`clear`), and how far the centre of its end, a
+# circle the badge's height across, stands from the card's outline, a rectangle
+# with rounded corners (`outline`, positive outside).
+_BADGE_STANDING = """marks => {
+  const card = document.querySelector('.lf-fp-card');
+  const k = card.getBoundingClientRect();
+  const r = parseFloat(getComputedStyle(card).borderTopLeftRadius);
+  const outline = (x, y) => {
+    const qx = Math.abs(x - (k.left + k.right) / 2) - (k.width / 2 - r);
+    const qy = Math.abs(y - (k.top + k.bottom) / 2) - (k.height / 2 - r);
+    return Math.hypot(Math.max(qx, 0), Math.max(qy, 0)) + Math.min(Math.max(qx, qy), 0) - r;
+  };
+  const clear = [], centres = [];
+  for (const mark of marks) {
+    const b = mark.getBoundingClientRect();
+    clear.push(Math.min(b.left - k.left, k.right - b.right, b.top - k.top, k.bottom - b.bottom));
+    const cap = b.height / 2;
+    const x = b.right - cap < (k.left + k.right) / 2 ? b.left + cap : b.right - cap;
+    centres.push(outline(x, b.top + cap));
+  }
+  return { clear, outline: centres };
+}"""
 
 
 def _dot_places(browser, serve, events, counted):
@@ -364,7 +414,7 @@ def test_sample_browser_boundary_contains_focus_scroll_and_parent_access(
     assert child.locator("#inner-scroll").evaluate("node => node.scrollTop") > 0
 
     # A script's own reveal still does what the browser's does. Leaf hears the call
-    # (runtime/arrivals.js) and doesn't contain it, so it shows its target in the sample
+    # (runtime/dom/arrivals.js) and doesn't contain it, so it shows its target in the sample
     # and, through the sample's frame, in the page around it.
     revealed = child.evaluate("""() => {
       document.querySelector('#child-control').scrollIntoView({behavior: 'instant'});

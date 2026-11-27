@@ -25,13 +25,13 @@ from process.website_server import (
 from process.website_server.test_saved_records import durable_page_store
 
 import leaf_website as website_server
-from leaf.delivery import receive_batch
-from leaf.drafts import read_drafts, write_draft
-from leaf.event_log import read_events
-from leaf.files import revision_path
-from leaf.hosting import LeafHTTPServer
-from leaf.runtime_selection import serving_runtime
-from leaf.service import PageTransaction, acknowledged, unacknowledged
+from leaf.agents.delivery import receive_batch
+from leaf.base.files import revision_path
+from leaf.log.event_log import read_events
+from leaf.pages.hosting import LeafHTTPServer
+from leaf.records.transaction import PageTransaction, acknowledged, unacknowledged
+from leaf.serving.drafts import read_drafts, write_draft
+from leaf.source.runtime_selection import serving_runtime
 
 
 def test_saved_website_record_restores_comments_choices_and_private_revision(
@@ -70,6 +70,7 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
                 "widget": "choice",
                 "action": "choose",
                 "detail": {"value": ["backfill-first"]},
+                "answered": True,
             },
         )
         comment = append_command(
@@ -141,7 +142,7 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
                 sys.executable,
                 "-c",
                 (
-                    "from pathlib import Path; import sys; from leaf.service import PageTransaction; "
+                    "from pathlib import Path; import sys; from leaf.records.transaction import PageTransaction; "
                     "page = PageTransaction(Path(sys.argv[1])); page.__enter__(); page.__exit__(None, None, None)"
                 ),
                 str(private),

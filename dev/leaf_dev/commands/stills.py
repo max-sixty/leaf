@@ -49,6 +49,11 @@ one arm, or in another order, each with its sheet, layers, scope and selector
 (`declaration_changes`): the rule a change added, removed, edited or moved. Where none
 differ, the element inherits the difference or reads it from a custom property.
 
+It also reads each arm's geometry faults (`leaf_dev.geometry`): Leaf's boxes against
+their frames' edges, and in Chromium focus rings cut or covered. A state whose head
+adds a fault the base doesn't have counts as changed, and the report lists each fault
+it adds; faults both arms share are the page's already, and stay out of it.
+
 Capture and comparison failures are reported per state, with tracebacks in its
 directory; the remaining states still run. A state whose input the engine can't run,
 such as any input on the iOS simulator, is such a failure. Only complete pairs enter
@@ -73,11 +78,11 @@ from PIL import Image
 from playwright.sync_api import Page, expect
 from selenium.webdriver.remote.webdriver import WebDriver
 
-from leaf.render_checks import open_render_context, open_render_page
-from leaf.revision_artifact import resource_type
-from leaf.runtime_selection import read_runtime
-from leaf.schema import DEFAULT_PACKAGE
-from leaf_dev import ROOT, gallery
+from leaf.base.schema import DEFAULT_PACKAGE
+from leaf.source.render_checks import open_render_context, open_render_page
+from leaf.source.revision_artifact import resource_type
+from leaf.source.runtime_selection import read_runtime
+from leaf_dev import ROOT, gallery, geometry
 from leaf_dev.arms import base_option, choose_arms, describe, run_directory
 from leaf_dev.browser import (
     Window,
@@ -206,12 +211,12 @@ SCALE = 2
 def capture(state: State, folder: Path, arm: str, visit: Visit) -> None:
     """Screenshot the tab `visit` brought to `state` to `folder/ARM.png`, and read
     into the visit the state's region in the screenshot, if it names one, its
-    elements' styles (`STYLES`).
+    elements' styles (`STYLES`) and its geometry faults (`leaf_dev.geometry`).
 
-    The styles are read before the screenshot. The screenshot's style on the root
-    (`browser.HELD`) changes the root's style, and after a change there Chromium can
-    report an auto margin as 0px though the box stands where it did, as `main`'s did
-    on page-comment-photo in some captures and not others."""
+    The styles and geometry are read before the screenshot. The screenshot's style on
+    the root (`browser.HELD`) changes the root's style, and after a change there
+    Chromium can report an auto margin as 0px though the box stands where it did, as
+    `main`'s did on page-comment-photo in some captures and not others."""
     page = visit.page
     if state.region:
         target = page.locator(state.region)
@@ -233,6 +238,7 @@ def capture(state: State, folder: Path, arm: str, visit: Visit) -> None:
     visit.reading["styles"] = {
         key: reading["faces"][face] for key, face in reading["elements"].items()
     }
+    visit.reading["geometry"] = geometry.read(page, running=state.activated)
     (folder / f"{arm}.png").write_bytes(screenshot(page))
 
 
@@ -548,6 +554,11 @@ def stills(
                         )
                     if lines:
                         (folder / "styles.txt").write_text("\n".join(lines) + "\n")
+                    faults = geometry.added(
+                        found["base"].reading["geometry"],
+                        found["head"].reading["geometry"],
+                    )
+                    difference["faults"] = [geometry.said(f) for f in faults]
                     read[state.name] = difference
                 except Exception as error:
                     failure(state, "comparison", error)
@@ -557,11 +568,17 @@ def stills(
         folder = out / state.name
         if state.name in failed:
             click.echo(f"  failed  {state.name} {'; '.join(failed[state.name])}")
-        elif (difference := read[state.name])["changed"] or difference["styles"]:
+        elif (
+            (difference := read[state.name])["changed"]
+            or difference["styles"]
+            or difference["faults"]
+        ):
             click.echo(
                 f"  changed {state.name}: {difference['changed']} px,"
                 f" {difference['styles']} styles -> {folder}"
             )
+            for fault in difference["faults"]:
+                click.echo(f"    adds {fault}")
         else:
             unchanged += 1
     click.echo(f"{unchanged} of {len(states)} states unchanged")

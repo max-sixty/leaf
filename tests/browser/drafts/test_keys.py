@@ -20,7 +20,7 @@ from render_harness import (
     sending,
 )
 
-from leaf import event_log as events_model
+from leaf.log import event_log as events_model
 from leaf_dev.browser import slow_cpu
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -313,7 +313,7 @@ def reading_keys_walk(page, down, up):
 
     def land(top):
         """Where a glide aimed at `top` rests: every glide's goal is a whole pixel
-        (scrolling.js, `glideTo`), and each press adds its step to that goal."""
+        (dom/scrolling.js, `glideTo`), and each press adds its step to that goal."""
         return math.floor(top + 0.5)
 
     def rests_at(act, expected):

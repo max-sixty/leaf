@@ -4,13 +4,13 @@ import subprocess
 
 from click.testing import CliRunner
 
-from leaf.server import SERVICE
+from leaf.base.server import SERVICE
 from leaf_dev import ROOT
 from leaf_dev.commands.generate import record_types as record_types
 
 
 def test_record_types_follow_schema_changes(tmp_path, monkeypatch):
-    output = tmp_path / "record_types.pyi"
+    output = tmp_path / "record_types.py"
     monkeypatch.setattr(record_types, "OUTPUT", output)
     output.write_text(record_types.generated_types())
     runner = CliRunner()
@@ -34,8 +34,8 @@ def test_generated_fields_are_checked_through_record_reads_and_writes(tmp_path):
     probe.write_text(
         """\
 from pathlib import Path
-from leaf.record_types import ServiceRecord
-from leaf.server import ACCESS, SERVICE, running_server
+from leaf.base.record_types import ServiceRecord
+from leaf.base.server import ACCESS, SERVICE, running_server
 
 def valid(record: ServiceRecord, directory: Path):
     record['enabled'] = False

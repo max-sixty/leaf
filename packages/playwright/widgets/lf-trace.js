@@ -70,7 +70,7 @@
  * stable disclosure, a reading region whose subject is the checkpoint whose tree it
  * shows: the runtime keeps the reader's place in each checkpoint's tree, and returns
  * them to it as the tree opens or the checkpoint returns
- * (reading-regions.js, `showReadingSubject`). Explicit destination navigation opens
+ * (readings/reading-regions.js, `showReadingSubject`). Explicit destination navigation opens
  * the disclosure and lands on its destination instead.
  */
 import {
@@ -364,7 +364,7 @@ export class Trace extends LeafElement {
   #scope = null;
   /** @type {string | null} */
   #selected = null;
-  /** @type {import("../../../browser/runtime/visual-parts.js").VisualPart[]} */
+  /** @type {import("../../../browser/runtime/state/visual-parts.js").VisualPart[]} */
   #inventory = [];
   /** @type {Map<string, TraceTarget>} */
   #targets = new Map();
@@ -943,9 +943,9 @@ export class Trace extends LeafElement {
               (candidate) =>
                 point !== null &&
                 candidate.timestamp <= point.timestamp &&
-                candidate.action.stream === (action?.stream ?? point?.image?.stream) &&
+                candidate.action.stream === (action?.stream ?? point.image?.stream) &&
                 checkpointOf(candidate.action, candidate.phase)?.pageId ===
-                  (pageId ?? point?.image?.pageId) &&
+                  (pageId ?? point.image?.pageId) &&
                 checkpointOf(candidate.action, candidate.phase)?.tree,
             )
             .at(-1);
@@ -1017,7 +1017,7 @@ export class Trace extends LeafElement {
     this.#chosenBookmark = null;
     const point = this.#pointAt(elapsed);
     this.#cursorTime = elapsed;
-    if (point && point.id !== this.#selected) {
+    if (point.id !== this.#selected) {
       this.#selected = point.id;
       this.#draw();
     } else this.#drawTime();
@@ -1405,11 +1405,11 @@ export class Trace extends LeafElement {
 
   /** @param {string} id @param {number | null} [bookmark] */
   #reveal(id, bookmark = null) {
-    this.pause(false);
     const selected = this.#destination(id);
-    if (!selected) return;
     const target = this.#targets.get(id);
-    if (!target) return;
+    // A part this recording doesn't hold still stops playback, drawn as stopped.
+    if (!selected || !target) return this.pause();
+    this.pause(false);
     this.#chosenBookmark = bookmark;
     // Following a point already present in the overview keeps that overview.
     // A page filter changes only when it cannot display the exact destination.
@@ -1501,8 +1501,12 @@ export class Trace extends LeafElement {
     this.#drawInput();
     const percent = `${Math.round((this.#picture?.imageData.ratio ?? 1) * 100)}%`;
     const fitted = !this.#scopeView().image;
-    keepsText(this.#nodes.zoomLabel, fitted ? "Fit" : percent);
-    // What the scale stands at, which its preview says beside its name (preview.js).
+    const shown = fitted ? "Fit" : percent;
+    keepsText(this.#nodes.zoomLabel, shown);
+    // The press is named by what it opens and the scale it shows, so a user who speaks
+    // what they see reaches it (WCAG 2.5.3, Label in Name).
+    keeps(this.#nodes.imageScale, "aria-label", `Image scale, ${shown}`);
+    // What the scale stands at, which its preview says beside its name (annotations/preview.js).
     keeps(
       this.#nodes.imageScale,
       "aria-description",
@@ -1589,7 +1593,7 @@ export class Trace extends LeafElement {
   }
 
   #cancelPicture() {
-    this.#pendingPicture?.resolve?.();
+    this.#pendingPicture?.resolve();
     this.#pendingPicture?.viewer?.destroy();
     this.#pendingPicture?.figure.remove();
     this.#pendingPicture = null;
@@ -1687,7 +1691,7 @@ export class Trace extends LeafElement {
     const preview =
       point !== null &&
       image.timestamp > point.timestamp &&
-      !checkpointOf(point?.action, point?.phase)?.imageId;
+      !checkpointOf(point.action, point.phase)?.imageId;
     if (this.#pictureId === image.id) {
       // A refreshed index keeps the Viewer, but its image belongs to the new
       // delivery, including the origin path drawn from that delivery's array.
@@ -1954,7 +1958,7 @@ export class Trace extends LeafElement {
       this.#inputBadge,
       "title",
       action && relation
-        ? `This image was captured ${relation === "next" ? "at the Action checkpoint, just before the input is sent" : `${relation} the input call`}. ${this.#inputLabel(action)}${action.input?.selector ? ` · ${action.input?.selector}` : ""} · call ${span}. Key-down and hold times are not recorded.`
+        ? `This image was captured ${relation === "next" ? "at the Action checkpoint, just before the input is sent" : `${relation} the input call`}. ${this.#inputLabel(action)}${action.input?.selector ? ` · ${action.input.selector}` : ""} · call ${span}. Key-down and hold times are not recorded.`
         : null,
     );
     // The point marks where the input lands in the shown capture's viewport, which
@@ -1962,11 +1966,7 @@ export class Trace extends LeafElement {
     const coordinate = action?.input?.point;
     const viewport = action?.input?.viewport;
     const visible =
-      coordinate &&
-      viewport &&
-      imageReady &&
-      image.pageId === action.pageId &&
-      this.#picture?.viewed;
+      coordinate && viewport && imageReady && image.pageId === action.pageId;
     this.#inputPoint.toggleAttribute("hidden", !visible);
     if (visible) {
       keeps(this.#inputPoint, "data-lf-x", String(coordinate.x / viewport.width));
@@ -2401,7 +2401,6 @@ export class Trace extends LeafElement {
             <button
               ${offeredAction("word", "lf-trace-image-scale")}
               ${ref(this.#imageScale)}
-              aria-label="Image scale"
               aria-controls=${`${this.id}-image-scale-options`}
               popovertarget=${`${this.id}-image-scale-options`}
               aria-expanded="false"

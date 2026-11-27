@@ -11,13 +11,15 @@
  * Every rule reads the theme's tokens, so an idiom follows the page's palette, faces
  * and density. A theme restyles one through those tokens, or with rules of its own.
  * The user chose that an idiom be a default a theme can replace, so these rules, and
- * drawing.css's, stand in a cascade layer of their own, `lf-idioms`. It comes second
- * in the tier this sheet composes into (`lf-base` in the document, `lf-shadow` in a
- * declared tree), after markup's reading face, because shadow.css imports this sheet
- * after reading.css. Every other rule of the tier, whether a component's, a package's
- * or a theme's, outranks an idiom's whatever its weight, so a rule that dresses an
- * idiom's element weighs only what its purpose needs. An idiom outranks the face, so
- * a numeric cell stands right where the face sets every cell at its start.
+ * drawing.css's, stand in a cascade layer of their own, `lf-idioms`, the first of
+ * the tier this sheet composes into (`lf-base` in the document, above the page's
+ * `base` layer and the theme's tier, `lf-shadow` in a declared tree, after
+ * markup's reading face, because shadow.css imports this sheet after reading.css).
+ * Every other rule of the tier, whether a component's or a package's `defaults.css`,
+ * outranks an idiom's whatever its weight, so a rule that dresses an idiom's element
+ * weighs only what its purpose needs; a theme's `theme.css` doesn't. An idiom outranks
+ * the face, so a numeric cell stands right where the face sets every cell at its
+ * start.
  * At the tier's own rank, an idiom would give way only to a rule in a later sheet at
  * least as heavy as Leaf's selector, such as `dl.lf-facts dt`.
  *
@@ -50,7 +52,7 @@
     box-sizing: border-box;
     max-width: 100%;
     overflow-wrap: break-word;
-    border-radius: var(--lf-chip-r);
+    border-radius: var(--lf-r-s);
     background: var(--lf-chip);
     color: var(--lf-ink-2);
     vertical-align: middle;
@@ -99,7 +101,7 @@
      browser already sets bold, so the eye finds each one in its output. A cut is the
      code's muted ink rather than a sloped line, and the one thing to notice takes the
      tint lf-code gives a line to notice, under the code's own ink, which the browser's
-     yellow and black ignore. The accent's wash is the draft comment's (--lf-mark-pending),
+     yellow and black ignore. The user's wash is the draft comment's (--lf-mark-pending),
      so a mark in it would read as a passage the user is pointing at. Copying the block
      copies what is selected, output included; taking only the commands would need a
      script that rewrites the clipboard, or output the selection cannot reach, which would
@@ -115,14 +117,14 @@
 
   /* A panel groups one working region by its heading and spacing. The content owns any
      frame it needs; a table or log does not need a second card around it. Its name takes
-     the label font (base.css, `.lf-label`). */
+     the label font (elements.css, `.lf-label`). */
   section.lf-panel {
     margin: 18px 0;
     --lf-block-frame: trim;
   }
   section.lf-panel > :is(h2, h3):first-child {
     margin: 0 0 10px;
-    font: var(--lf-font-label);
+    font: var(--lf-font-heading);
     letter-spacing: 0.06em;
     text-transform: uppercase;
     color: var(--lf-muted);

@@ -402,7 +402,6 @@
     "description": "A commentable Playwright recording with action phases, native captured frames and saved accessibility elements.",
     "attributes": {
       "properties": {
-        "source": { "type": "string" },
         "label": {
           "type": "string",
           "minLength": 1

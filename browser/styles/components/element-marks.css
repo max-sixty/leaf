@@ -1,0 +1,428 @@
+/* The marks and the focus band Leaf draws on any element, the author's included, and
+ * the margins a landing keeps round one: where a box's marks stand, the band a visible
+ * focus wears, the Alt aim, the margin trace, a comment's mark, the location and proxy
+ * rings, and the room a landing keeps under the sticky headers and round the ring.
+ * They read no class of Leaf's, so in the document they stand with markup's faces
+ * (markup.css), below the page's `base` layer, where a page's own focus
+ * treatment replaces the band as it replaces the browser's ring. A declared tree reads
+ * them too, as it reads surfaces.css, since a widget's controls there take focus. */
+/* Every box's outline stands where the box says its marks stand (base.css, "Where it
+   stands"), so a ring a carrier draws on its own box stands there without restating
+   it. A box that says nothing keeps the property's initial 0.
+   Every box also states where Leaf's marks on it (below) would stand, whether or not
+   one shows: their gap (`--lf-band-gap`), inside where a clip would cut them
+   (`--lf-flush-at`, below), else the box's `--lf-ring-at`, else a region's gap,
+   or a control's for a box that takes a press; and the room their band takes past the
+   box's edge (`--lf-band-room`). So a surface that stands clear of the marks
+   (dom/geometry.js, `markedBox`) clears them before they show. */
+:where(*) {
+  outline-offset: var(--lf-ring-at, 0px);
+  --lf-band-gap: var(--lf-flush-at, var(--lf-ring-at, var(--lf-focus-region-gap)));
+  --lf-band-room: calc(var(--lf-band-gap) + var(--lf-band-w, var(--lf-focus-ring-w)));
+}
+:where(a[href]),
+:where(button),
+:where(input),
+:where(select),
+:where(textarea),
+:where(summary),
+:where([role]) {
+  --lf-band-gap: var(--lf-flush-at, var(--lf-ring-at, var(--lf-focus-ring-gap)));
+}
+/* A drawing's marks follow the contour of each shape, or stand on the edge of a part
+   that draws none (below), so the room they take past a part is the band at most. */
+:where(svg) :where(:not(foreignObject *)) {
+  --lf-band-room: var(--lf-focus-ring-w);
+}
+/* A visible focus destination wears the layer's band unless its own rule supplies
+   a carrier, or another mark on it carries it: a comment's mark
+   (`[data-lf-projected-mark]`, annotations/visual-mark-paint.js), or the location ring round the decision
+   the user stands in (`[data-lf-projected-location]`, readings/target-paint.js). Each stands where the
+   box says, as this band does. Controls and reading destinations follow browser focus
+   visibility. Current location remains separate, so pointer focus can reveal controls
+   without drawing a ring.
+   A box that says nothing stands its band at a control's gap. At no weight, so a
+   carrier's band wins. Retargeting shadow hosts and a label press's intermediate nodes
+   get no band. */
+:where(
+  [data-lf-focus-visible]:not([data-lf-projected-mark], [data-lf-projected-location])
+) {
+  outline: var(--lf-focus-ring);
+  outline-offset: var(--lf-ring-at, var(--lf-focus-ring-gap));
+}
+/* Every mark on a box is drawn by the box itself, as its outline, or as its border
+   image beside a list marker (below), so it moves with the box through every scroll, transform and layout change in every engine, and passes
+   under what the page stacks over the box as the box's own words do. The Alt aim
+   (`[data-lf-aimed]`), the margin trace (`[data-lf-traced]`), a comment's mark (`data-lf-mark`,
+   annotations/visual-mark-paint.js), the location ring round the decision the user stands in
+   (`[data-lf-projected-location]`) and the proxy ring (`[data-lf-proxied]`) each stand where the
+   box says (`--lf-ring-at`), or where a region's or a control's marks stand when it
+   says nothing. The outline is important, so a rule of the page's or a widget's that
+   sets the box's outline, as one turning off a focus ring does, leaves the mark
+   standing while it shows. Focus alone (`data-lf-mark="focus"`) is the box's focus
+   ring rather than a mark, so it stands at no weight, as the focus floor above does:
+   the box's own focus treatment wins, an author's outline or a carrier's such as a
+   ring overlay. The user chose this: a page's `:focus { outline: none }` or decorative
+   outline leaves a focused commentable box without Leaf's ring, as an author's outline
+   replaces the browser's own focus ring on any control. Focus alone at `!important`
+   fails: it overrides the author's focus outline and a ring overlay's `outline: none`,
+   which draws a second ring outside the overlay's clipping box. */
+:where([data-lf-aimed]),
+:where([data-lf-traced]),
+:where([data-lf-proxied]),
+:where([data-lf-mark]),
+:where([data-lf-projected-location]) {
+  outline: var(--lf-band-w, var(--lf-focus-ring-w)) solid
+    var(--lf-band-ink, var(--lf-ok));
+  outline-offset: var(--lf-band-gap);
+}
+:where([data-lf-aimed]),
+:where([data-lf-traced]),
+:where([data-lf-proxied]),
+:where([data-lf-mark]:not([data-lf-mark="focus"])),
+:where([data-lf-projected-location]) {
+  outline: var(--lf-band-w, var(--lf-focus-ring-w)) solid
+    var(--lf-band-ink, var(--lf-ok)) !important;
+  outline-offset: var(--lf-band-gap) !important;
+}
+/* A box beside a list marker (`[data-lf-beside-marker]`, dom/geometry.js, `markerReach`)
+   reaches its marks over the marker by the list inset, on the side the stamp names,
+   since the browser draws an outside marker beyond the item's box and an outline
+   stands the same distance out on every side. The box draws the band as a border image
+   instead, which stands where the outline would on the other sides and further out on
+   that one. A border image stands outside the box or on its edge, never further in, so
+   the band's room stops at 0. The image takes the place of any border the box draws of
+   its own while the mark shows. Focus alone keeps the outline, so a page's
+   `:focus { outline: none }` still hides it. */
+:where([data-lf-beside-marker="left"]) {
+  --lf-band-reach-left: var(--lf-list-inset);
+}
+:where([data-lf-beside-marker="right"]) {
+  --lf-band-reach-right: var(--lf-list-inset);
+}
+:where([data-lf-beside-marker]):where(
+  [data-lf-aimed],
+  [data-lf-traced],
+  [data-lf-proxied],
+  [data-lf-mark]:not([data-lf-mark="focus"]),
+  [data-lf-projected-location]
+) {
+  --lf-band-room: max(
+    0px,
+    var(--lf-band-gap) + var(--lf-band-w, var(--lf-focus-ring-w))
+  );
+  outline-style: none !important;
+  border-image: linear-gradient(
+      var(--lf-band-ink, var(--lf-ok)),
+      var(--lf-band-ink, var(--lf-ok))
+    )
+    1 / var(--lf-band-w, var(--lf-focus-ring-w)) / var(--lf-band-room)
+    calc(var(--lf-band-room) + var(--lf-band-reach-right)) var(--lf-band-room)
+    calc(var(--lf-band-room) + var(--lf-band-reach-left)) !important;
+}
+/* A box a clip round it would cut its marks on (`[data-lf-flush]`, dom/geometry.js,
+   `clipsMarks`), as a table filling a scroll area or a column at a board's edge, stands
+   them one band inside its edge, ahead of what its kind says (tokens.css, "Where it
+   stands"), and reaches over no list marker beside it, which the clip cuts too. Only
+   while a mark shows, so the box's own outline keeps its place and a stamp left on a
+   box no longer marked does nothing. */
+:where([data-lf-flush]):where(
+  [data-lf-aimed],
+  [data-lf-traced],
+  [data-lf-proxied],
+  [data-lf-mark],
+  [data-lf-projected-location]
+) {
+  --lf-flush-at: var(--lf-focus-ring-inset);
+  --lf-band-reach-left: 0px;
+  --lf-band-reach-right: 0px;
+}
+/* The margin trace takes its own ink, and an action's target alone a quieter line. */
+:where([data-lf-traced]) {
+  --lf-band-ink: var(--lf-target-trace-ink);
+}
+:where([data-lf-mark="action"]:not([data-lf-traced])) {
+  --lf-band-ink: var(--lf-action-target-ink);
+  --lf-band-w: 1px;
+}
+/* Any other mark on the box keeps the user's ink (`--lf-ok`) over those two: the
+   aim, a comment's mark, the proxy or location ring, or the focus ring the box wears,
+   its own or a control's in it. */
+:where(
+  [data-lf-traced]:is(
+    [data-lf-aimed],
+    [data-lf-proxied],
+    [data-lf-projected-location],
+    [data-lf-mark]:not([data-lf-mark="action"]),
+    [data-lf-focus-visible],
+    [data-lf-control-focus-visible]
+  )
+),
+:where(
+  [data-lf-mark="action"]:is(
+    [data-lf-aimed],
+    [data-lf-proxied],
+    [data-lf-projected-location],
+    [data-lf-mark]:not([data-lf-mark="action"]),
+    [data-lf-focus-visible],
+    [data-lf-control-focus-visible]
+  )
+) {
+  --lf-band-ink: var(--lf-ok);
+  --lf-band-w: var(--lf-focus-ring-w);
+}
+/* A forced palette draws marks in its highlight, as it does the focus ring
+   (tokens.css). */
+@media (forced-colors: active) {
+  :where([data-lf-aimed]),
+  :where([data-lf-traced]),
+  :where([data-lf-proxied]),
+  :where([data-lf-mark]),
+  :where([data-lf-projected-location]) {
+    --lf-band-ink: Highlight;
+  }
+}
+/* The aim's veil fills the box and the gap round it, so it and its brackets read as
+   one box. Where the brackets reach over a list marker, the veil reaches with them:
+   one shadow can't stand further out on one side, so it stands half the reach toward
+   the marker and spreads half the reach wider, and the brackets' clip cuts what the
+   wider spread adds above and below (`--lf-band-over`). */
+:where([data-lf-aimed]) {
+  --lf-aim-veil: color-mix(in srgb, var(--lf-ok) 4%, transparent);
+  box-shadow:
+    inset 0 0 0 100vmax var(--lf-aim-veil),
+    var(--lf-aim-veil-shift) 0 0
+      calc(max(0px, var(--lf-band-gap)) + var(--lf-band-over)) var(--lf-aim-veil);
+}
+:where(
+  [data-lf-aimed][data-lf-beside-marker]:not(
+      [data-lf-projected-location],
+      [data-lf-proxied],
+      [data-lf-mark~="focus"],
+      [data-lf-focus-visible],
+      [data-lf-control-focus-visible]
+    )
+) {
+  --lf-band-over: calc((var(--lf-band-reach-left) + var(--lf-band-reach-right)) / 2);
+  --lf-aim-veil-shift: calc(
+    (var(--lf-band-reach-right) - var(--lf-band-reach-left)) / 2
+  );
+}
+/* A gesture's mark is brackets: the box clips the middle of its outline's top and
+   bottom runs, leaving 8px at each end. The clip cuts only the band the mark takes, so
+   outside the box it cuts nothing but what overflows into the band, and inside it, as
+   round a row, it shows what stands behind the box's own edge there. A focused or
+   arrived-at box draws its ring whole, as does a box wearing the ring for a control in
+   it (`--lf-wears-ring`, base.css), such as a choice whose radio holds focus. While
+   the brackets show, the box is a stacking
+   context, so a descendant it lifts stacks inside it, and what overflows into the
+   band's cut neither paints nor takes a press. A box that clips itself keeps its own
+   clip, which cuts the mark as it cuts the box. */
+:where(
+  [data-lf-aimed]:not(
+    [data-lf-projected-location],
+    [data-lf-proxied],
+    [data-lf-mark~="focus"],
+    [data-lf-focus-visible],
+    [data-lf-control-focus-visible]
+  )
+),
+:where(
+  [data-lf-traced]:not(
+    [data-lf-projected-location],
+    [data-lf-proxied],
+    [data-lf-mark~="focus"],
+    [data-lf-focus-visible],
+    [data-lf-control-focus-visible]
+  )
+),
+:where(
+  [data-lf-mark]:not(
+    [data-lf-projected-location],
+    [data-lf-proxied],
+    [data-lf-mark~="focus"],
+    [data-lf-focus-visible],
+    [data-lf-control-focus-visible]
+  )
+) {
+  /* The band's start and end, past any reach over a list marker. The clip's last two
+     cuts take what the aim's veil spreads above and below the band where it reaches
+     over one (`--lf-band-over`), and are empty elsewhere. */
+  --lf-band-from: calc(-1 * var(--lf-band-room) - var(--lf-band-reach-left));
+  --lf-band-to: calc(100% + var(--lf-band-room) + var(--lf-band-reach-right));
+  clip-path: polygon(
+    evenodd,
+    -9999px -9999px,
+    calc(100% + 9999px) -9999px,
+    calc(100% + 9999px) calc(100% + 9999px),
+    -9999px calc(100% + 9999px),
+    -9999px -9999px,
+    calc(var(--lf-band-from) + 8px) calc(-0.5px - var(--lf-band-room)),
+    calc(var(--lf-band-to) - 8px) calc(-0.5px - var(--lf-band-room)),
+    calc(var(--lf-band-to) - 8px)
+      calc(0.5px + var(--lf-band-w, var(--lf-focus-ring-w)) - var(--lf-band-room)),
+    calc(var(--lf-band-from) + 8px)
+      calc(0.5px + var(--lf-band-w, var(--lf-focus-ring-w)) - var(--lf-band-room)),
+    calc(var(--lf-band-from) + 8px) calc(-0.5px - var(--lf-band-room)),
+    -9999px -9999px,
+    calc(var(--lf-band-from) + 8px)
+      calc(
+        100% + var(--lf-band-room) - var(--lf-band-w, var(--lf-focus-ring-w)) - 0.5px
+      ),
+    calc(var(--lf-band-to) - 8px)
+      calc(
+        100% + var(--lf-band-room) - var(--lf-band-w, var(--lf-focus-ring-w)) - 0.5px
+      ),
+    calc(var(--lf-band-to) - 8px) calc(100% + var(--lf-band-room) + 0.5px),
+    calc(var(--lf-band-from) + 8px) calc(100% + var(--lf-band-room) + 0.5px),
+    calc(var(--lf-band-from) + 8px)
+      calc(
+        100% + var(--lf-band-room) - var(--lf-band-w, var(--lf-focus-ring-w)) - 0.5px
+      ),
+    -9999px -9999px,
+    calc(var(--lf-band-from) - 1px)
+      calc(-0.5px - var(--lf-band-room) - var(--lf-band-over)),
+    calc(var(--lf-band-to) + 1px)
+      calc(-0.5px - var(--lf-band-room) - var(--lf-band-over)),
+    calc(var(--lf-band-to) + 1px) calc(-0.5px - var(--lf-band-room)),
+    calc(var(--lf-band-from) - 1px) calc(-0.5px - var(--lf-band-room)),
+    calc(var(--lf-band-from) - 1px)
+      calc(-0.5px - var(--lf-band-room) - var(--lf-band-over)),
+    -9999px -9999px,
+    calc(var(--lf-band-from) - 1px) calc(100% + var(--lf-band-room) + 0.5px),
+    calc(var(--lf-band-to) + 1px) calc(100% + var(--lf-band-room) + 0.5px),
+    calc(var(--lf-band-to) + 1px)
+      calc(100% + var(--lf-band-room) + var(--lf-band-over) + 0.5px),
+    calc(var(--lf-band-from) - 1px)
+      calc(100% + var(--lf-band-room) + var(--lf-band-over) + 0.5px),
+    calc(var(--lf-band-from) - 1px) calc(100% + var(--lf-band-room) + 0.5px),
+    -9999px -9999px
+  );
+}
+/* A drawing's part, a shape or a group of them, takes the mark whole along the
+   contour of each shape it draws, as that shape's stroke, so a diamond's mark follows
+   its sides: no outline, brackets, veil or gap. The stroke is important, as the
+   outline is, so a drawing's own stroke rules leave the mark standing while it shows;
+   its words keep their own.
+   `svg` stands as an ancestor of its own, by which Chromium passes over these rules
+   outside a drawing (browser/AGENTS.md, "A rule costs only the elements it could
+   style"). */
+:where(svg)
+  :where(:not(foreignObject *)):where(
+    [data-lf-aimed],
+    [data-lf-traced],
+    [data-lf-proxied],
+    [data-lf-mark],
+    [data-lf-projected-location]
+  ) {
+  --lf-shape-ink: var(--lf-band-ink, var(--lf-ok));
+  --lf-shape-w: var(--lf-band-w, var(--lf-focus-ring-w));
+  outline-style: none !important;
+  clip-path: none;
+  box-shadow: none;
+}
+:where(svg)
+  :where(:not(foreignObject *)):where(
+    [data-lf-aimed],
+    [data-lf-traced],
+    [data-lf-proxied],
+    [data-lf-mark],
+    [data-lf-projected-location]
+  ):where(path, rect, circle, ellipse, line, polyline, polygon),
+:where(svg)
+  :where(:not(foreignObject *)):where(
+    [data-lf-aimed],
+    [data-lf-traced],
+    [data-lf-proxied],
+    [data-lf-mark],
+    [data-lf-projected-location]
+  )
+  :where(path, rect, circle, ellipse, line, polyline, polygon) {
+  stroke: var(--lf-shape-ink) !important;
+  stroke-width: var(--lf-shape-w) !important;
+  stroke-dasharray: none !important;
+  vector-effect: non-scaling-stroke !important;
+}
+/* A part that draws no shape of its own, such as a chart's axis label or key entry,
+   or a marker it draws by `<use>` from shapes kept in `<defs>`, has no contour to take
+   the mark, so it wears the outline round its box that words wear elsewhere, its words
+   and marker keeping their own paint. Its neighbours in a drawing stand closer than a
+   control's gap, as the next label or dot does in a chart, so the outline stands on
+   its edge (tokens.css, "Where it stands"). */
+:where(svg)
+  :where(:not(foreignObject *)):where(
+    [data-lf-aimed],
+    [data-lf-traced],
+    [data-lf-proxied],
+    [data-lf-mark],
+    [data-lf-projected-location]
+  ):not(path, rect, circle, ellipse, line, polyline, polygon):not(
+    :has(:is(path, rect, circle, ellipse, line, polyline, polygon):not(defs *))
+  ) {
+  --lf-ring-at: 0px;
+  outline-style: solid !important;
+}
+/* A landing clears the sticky headers stacked over what it lands on. Its scroller's
+   `scroll-padding` clears those over the whole scroller (the head room, a page tab
+   strip); this margin clears the rest, those over part of it, such as a framed tab
+   set's strip or a diff's file header: the slot (`--lf-top`, base.css) less what the
+   band covers whole (`--lf-top-covered`). A margin the page gives a box itself
+   replaces this one, which is how a page clears a header of its own (page-layout.md). Content the band covers past, beside a page tab
+   strip rather than under it, keeps no margin. The browser's own scroll to a target
+   reads it, and so does the runtime's landing (readings/landing-scroll.js), as one reading of
+   the same clearance. */
+:where(*) {
+  scroll-margin-top: max(0px, var(--lf-top) - var(--lf-top-covered, var(--lf-top)));
+}
+/* Where the user is wears a ring outside its box, so a scroll that brings the focus
+   into view, the browser's or a landing's (features/anchor-travel.js reads it), keeps the ring's
+   room at the scroller's edge: without it, an item landed at the top of a scrolling
+   pane stands flush with it, the top of its ring cut off under the pane's header rule.
+   On every side, since the ring is: a link Tab brings in from a wide table's end would
+   stand flush with it too.
+   `:focus` makes that room available to the landing before the focus mark paints
+   after the script. At no weight, like the ring. A vendor control holds focus on a node
+   in its own tree, which those selectors don't reach, so the mark's part (dom/focus.js,
+   `markFocus`) brings it there, at a pseudo-element's weight; without it a diff's file
+   filter could stand past its pane's foot, and a code block's Copy past its top. */
+:where(:focus),
+:where([data-lf-focus]),
+::part(lf-focus) {
+  scroll-margin: var(--lf-focus-ring-landing);
+}
+/* A control in a stuck sticky header stands where the header sticks, which its
+   scroller's landing band can count as covered: the root's band starts
+   `--lf-landing-room` below where headers stick. The browser would then scroll
+   toward the control on every focus, and a stuck header never comes out from under
+   the band, so each Tab would creep the page, and a page tab strip, which stands
+   wholly inside the band, would be centred at each key.
+   So the margin is read from the slot. `--lf-top` less what the band covers whole
+   (`--lf-top-covered`, tokens.css) is the headers stacked over the focused box that the
+   band does not count, so a landing clears them. A box in a header that sticks at its
+   top (its sticky rule sets `--lf-head-inset: 0px`) stands at its own slot when stuck, so its margin
+   also takes the band's room back (`--lf-head-inset`, none) and a control focused there
+   counts as shown; anywhere else the margin keeps the focus ring's landing room. A page tab
+   strip, which the band covers whole, comes out negative by its height, so its names
+   count as shown too. */
+:where(:focus),
+:where([data-lf-focus]),
+::part(lf-focus) {
+  scroll-margin-top: calc(
+    var(--lf-top) - var(--lf-top-covered, var(--lf-top)) +
+      var(
+        --lf-head-inset,
+        calc(var(--lf-focus-ring-landing) + var(--lf-landing-room, 0px))
+      ) -
+      var(--lf-landing-room, 0px)
+  );
+}
+/* The unanswered decision the user is in (markHere) wears the location ring
+   (`[data-lf-projected-location]`, surfaces.css). The ring stands outside the decision, so a
+   landing keeps its room at the scroller's edge, as a margin entry's does (controls.css): an obligation
+   landed at the top of a scrolling pane stood flush with it, the top of its ring cut
+   off under the pane's header rule. At no weight, in the theme's tier, so a widget
+   whose box wears the mark keeps a margin of its own, as a deck's card keeps its
+   bar in view above it. */
+:where([data-lf-obligation]) {
+  scroll-margin-block: var(--lf-focus-ring-landing);
+}

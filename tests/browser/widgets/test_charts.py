@@ -32,8 +32,8 @@ from render_harness import (
 
 from browser.threads import open_panel_thread
 from browser.widgets import hear_walks, walks_said
-from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
+from leaf.log import event_log as events_model
+from leaf.source import render_checks as render_checks_model
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -879,6 +879,78 @@ def test_a_chart_s_place_goes_as_the_pointer_takes_the_reader_to_another_point(
     assert "Point 2 of 12" not in panel_says(page), (
         "the panel names the point the keys left the reader on, "
         "with the pointer on another"
+    )
+
+
+def queue_line(chart_id, depths):
+    """A line chart of a queue's depth by hour, one point an hour."""
+    body = f"""{{
+  ariaLabel: "Queue depth by hour",
+  marks: [
+    Plot.line(
+      {depths}.map((depth, hour) => ({{hour, depth}})),
+      {{x: "hour", y: "depth"}},
+    ),
+  ],
+}}"""
+    return chart_markup(chart_id, body)
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_a_line_chart_s_step_says_its_place_while_its_series_runs_past_the_window(
+    engine, request, serve
+):
+    """A key's step on a line chart says its place in Leaf's panel unless the series'
+    first and last points both stand in the window, where the ring on the point shows
+    the place among points the user sees. A line draws no shape of each point's own, so
+    its points, and not the drawing holding them, decide it: on a chart taller than the
+    window, scrolled so its drawing fills the window, the series runs past both edges
+    and a step says "Point 2 of 12", while on a short chart in view it says nothing.
+    The page's clock stands still from the first step on, so no step's moment ends."""
+    source = leaf_page(
+        "line charts",
+        '<h1 id="t">Queues</h1>'
+        + queue_line("short", [3, 9, 14, 22, 30, 41])
+        + '<p id="between">Between the charts.</p>'
+        + queue_line("tall", [3, 5, 8, 12, 17, 23, 30, 38, 47, 57, 68, 80]).replace(
+            '<lf-chart id="tall">', '<lf-chart id="tall" data-height="1600">'
+        ),
+    )
+    page = open_page(clocked(request.getfixturevalue(engine)), serve(source))
+    expect(page.locator("#short svg[role=img]")).to_be_visible()
+    expect(page.locator("#tall svg[role=img]")).to_be_visible()
+    hear_walks(page)
+    drawing = """el => { const r = el.querySelector('svg[role=img]').getBoundingClientRect();
+                         return [r.top, r.bottom, innerHeight]; }"""
+
+    tall = page.locator("#tall")
+    tall.evaluate(
+        """el => { const r = el.querySelector('svg[role=img]').getBoundingClientRect();
+                   scrollBy(0, r.top + r.height / 2 - innerHeight / 2);
+                   el.focus({preventScroll: true}); }"""
+    )
+    top, bottom, height = tall.evaluate(drawing)
+    assert top < 0 and bottom > height, (
+        "the tall chart's drawing doesn't fill the window"
+    )
+    render_checks_model.rendered(page)
+    page.clock.pause_at(datetime.now(UTC) + timedelta(seconds=1))
+    page.keyboard.press("ArrowRight")
+    page.clock.run_for(100)
+    assert walks_said(page)[-1] == "Point 2 of 12"
+    assert "Point 2 of 12" in panel_says(page), (
+        "a step along a series running past the window said no place"
+    )
+
+    short = page.locator("#short")
+    short.evaluate("el => { el.scrollIntoView(); el.focus({preventScroll: true}); }")
+    top, bottom, height = short.evaluate(drawing)
+    assert 0 <= top and bottom <= height, "the short chart isn't whole in the window"
+    page.keyboard.press("ArrowRight")
+    page.clock.run_for(100)
+    assert walks_said(page)[-1] == "Point 2 of 6"
+    assert "Point 2 of" not in panel_says(page), (
+        "a step along a series standing in the window said its place"
     )
 
 
@@ -2322,7 +2394,7 @@ def test_c_on_a_chart_takes_the_keys_point_and_hands_focus_back_to_it(
     page.keyboard.press("Escape")
     expect(composer).to_be_hidden()
     expect(chart).to_be_focused()
-    # A focus handed back previews nothing (preview.js), and the ring stands on the point.
+    # A focus handed back previews nothing (annotations/preview.js), and the ring stands on the point.
     assert chart.evaluate("el => el.lfPreview()?.name") == "week 2"
     expect(chart.locator(".lf-chart-at")).to_be_visible()
 

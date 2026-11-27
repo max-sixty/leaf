@@ -21,11 +21,6 @@
   --lf-danger-ink: light-dark(#8e2440, #ffb0c3);
   --lf-danger-tint: light-dark(#ffe2e9, #4a2433);
 
-  /* A pale count deliberately needs dark digits in both schemes. */
-  --lf-badge-fill: light-dark(#e7cbff, #e1b5f6);
-  --lf-badge-ink: light-dark(#241343, #341a48);
-
-  --lf-code-bg: light-dark(#e3edf5, #1b2a3c);
   --lf-pre-bg: light-dark(#edf4fa, #111e2d);
   --lf-code-chrome: light-dark(#dae7f2, #24354b);
   --lf-code-ink: light-dark(#203e5b, #d9edff);

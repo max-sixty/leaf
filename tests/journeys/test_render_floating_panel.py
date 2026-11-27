@@ -34,8 +34,8 @@ from render_harness import (
 )
 from render_harness import leaf_page as titled_page
 
-from leaf import thread as thread_model
-from leaf.render_checks import wait_until_ready
+from leaf.agents import thread as thread_model
+from leaf.source.render_checks import wait_until_ready
 from leaf_dev import browser as dev_browser
 
 
@@ -85,8 +85,8 @@ from render_harness import (
     undo,
 )
 
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 
 
 def test_nothing_lies_over_a_view_s_foot_but_new_reply(browser, serve):
@@ -115,7 +115,7 @@ def test_nothing_lies_over_a_view_s_foot_but_new_reply(browser, serve):
     page = floating(browser, url)
 
     def at_end(parts, *, gap=False):
-        page.locator(".lf-fp-view:not([data-lf-leaving])").evaluate(
+        page.locator(".lf-fp-view").evaluate(
             "view => view.scrollTop = view.scrollHeight"
         )
         settled(page)
@@ -350,7 +350,7 @@ def test_a_folded_status_keeps_its_reading_until_the_next_exposure(
         identity={"agent": "Codex", "session": "codex-thread"},
     )
     told(page)
-    # The folded leaf's status is its preview (preview.js).
+    # The folded leaf's status is its preview (annotations/preview.js).
     peek = page.locator(PREVIEW)
     leaf = page.locator(".lf-fp-leaf")
     leaf.hover()

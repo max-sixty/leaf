@@ -1,0 +1,61 @@
+# Three changes that each read best in a different view: icons nudged within an
+# unchanged toolbar, a settings page rearranged into columns, and a token rename that
+# should change nothing but recolors two links. Authors who read only that Slider's
+# split can hide a change set `view="pair"` on every pair.
+description: shot-view-fits-the-change
+metadata:
+  purpose: "Source files and media: each before/after pair opens in the view that shows
+    what its reader needs to see."
+  authoring: true
+  tags:
+    - evidence
+vars:
+  prompt: |
+    You are writing a Leaf page for the user about branch toolbar-settings-tokens. Your
+    notes:
+
+    Toolbar icons. The user said every toolbar button looked slightly off. The icons
+    sat 3px below the middle of their labels; they are now centred on the label.
+    Captures at one viewport: captures/toolbar/before.png and
+    captures/toolbar/after.png (1200x420).
+
+    Settings layout. The settings page was one column: Account, Notifications,
+    Billing. It now has a section list on the left, Notifications first, a new Privacy
+    section, and Account and Billing in a second column. Captures:
+    captures/settings/before.png and captures/settings/after.png (1200x820).
+
+    Token rename. The branch renames the color tokens (`--blue-600` to `--accent` and
+    so on) and should change nothing visible; the user wants to know whether it did.
+    On the team dashboard the footer's two links lost their blue, because the footer's
+    rule still names the old `--link` token. You found no other difference. Captures:
+    captures/dashboard/before.png and captures/dashboard/after.png (1200x560).
+
+    Write the Leaf page with a section for each change and its before/after pair.
+assert:
+  - type: llm-rubric
+    metric: view-fits-the-change
+    value: |
+      The page should show three before/after pairs in lf-shot elements: the toolbar
+      icons, the settings layout and the token rename. A pair opens in the view its
+      `view` attribute names, or in slider where it has no `view`. Pass only if the
+      toolbar pair opens in slider, the settings pair opens in pair, and the
+      token-rename pair opens in pixels. Fail if a pair is missing or opens in another
+      view, and name each pair's view in the reason.
+  - type: llm-rubric
+    metric: opening-shows-the-change
+    value: |
+      Judge how two lf-shot pairs open. Focus attributes (`focus-x`, `focus-y`,
+      `focus-width`, `focus-height`) crop every view to that region of the captures,
+      in CSS pixels; with none, the whole 1200px-wide capture shows. If the author
+      cropped or registered new images instead, judge the region those images show.
+
+      Toolbar pair: its changed icons lie between x=64 and x=491 of the capture, and
+      Slider's divider starts halfway across the shown region. It passes if it opens in
+      a view other than slider, or in slider with the shown region's horizontal middle
+      between x=64 and x=491, so the divider crosses the icons. An uncropped slider
+      puts the divider at x=600, right of every icon, and fails.
+
+      Token-rename pair: it passes only if its opening region shows the whole
+      dashboard, so the reader can see that nothing outside the footer changed.
+
+      Name each pair's view and region in the reason.

@@ -9,7 +9,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { projectionOrigins } from "/runtime/projection/model.js";
+import { projectionOrigins } from "/runtime/state/projection/model.js";
 
 const coordinate = (verb) => JSON.stringify(["t-parser", "t-parser", verb]);
 

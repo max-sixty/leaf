@@ -8,7 +8,7 @@
  * working line on a thread's waiting messages, and completions on the session's
  * model, such as a thread's title. Leaf's Python decides each one and what its
  * result means, as instructions the module runs and reports on
- * (`src/leaf/carrier.py`, whose header holds that contract), so a change to Leaf's
+ * (`src/leaf/agents/carrier.py`, whose header holds that contract), so a change to Leaf's
  * forks needs no change here. The module adds what only it sees: the tool calls the
  * main thread is running (`running`), the main thread's last request (`lastStep`)
  * and a main-loop turn's end (`turnEnded`). A subagent the session spawns runs these
@@ -17,9 +17,12 @@
  * Claude Code loads the module from the copy of Leaf the session's process loaded,
  * whose `bin/leaf` its hooks run (`$.plugin.root`, measured at 2.1.305). A
  * `/reload-plugins` that loads another copy retires this instance, which ends its
- * pages follower, and raises session.start on a new instance from that copy; a reload
- * that leaves the copy as it was keeps the instance and its follower (measured at
- * 2.1.330).
+ * pages follower, and raises session.start on a new instance from that copy. In an
+ * interactive session that loads a checkout in place (`--plugin-dir`), a save that
+ * changes this module's code does the same within seconds, with no reload. A change
+ * to any other file, Leaf's Python included, leaves the instance and its follower
+ * running the code they started with, through `/reload-plugins` and
+ * `/reload-plugins --force` too (measured at 2.1.332).
  * It neither watches nor wakes the session: `hooks.json`'s background Stop registration
  * keeps the watch between turns. A watch here would wake with a prompt, which
  * Claude Code drops from an Escape until the user next types, so every wake after
@@ -88,7 +91,7 @@
  * --if-claimed --pages`) prints that list, with the instructions Leaf has for the
  * module, whenever either changes, and exits once the session holds no page; the
  * launcher answers it without starting uv in a session holding none. It is also the
- * session's forks lane (`src/leaf/forks.py`), listing a line fork for each thread
+ * session's forks lane (`src/leaf/agents/forks.py`), listing a line fork for each thread
  * message as it is admitted. The session takes a page only through a `leaf`
  * command, so the
  * module starts the follower as the session starts, after each Bash call that
@@ -143,7 +146,7 @@ type Leaf = {
   };
 };
 
-// An instruction Leaf gives the module (`src/leaf/carrier.py`, whose header holds the
+// An instruction Leaf gives the module (`src/leaf/agents/carrier.py`, whose header holds the
 // contract): its id, unique among the session's; what to run (`do`); the basis the
 // module hands back untouched with each report of it; and the `request` the module
 // passes as it stands to the call `do` names.
@@ -162,7 +165,7 @@ type Listing = { pages: Leaf[]; do: Instruction[] };
 
 // The color the word Leaf wears for where the agent's side of a page stands
 // (`activity.py`), in Claude Code's theme: the tone the page's Leaf panel paints its
-// leaf (`.lf-dot` in chrome.css, `toneOf` in activity-words.js), muted where no
+// leaf (`.lf-dot` in chrome.css, `toneOf` in state/activity-words.js), muted where no
 // session holds the page or the agent closed it.
 function toneOf({ presence, state, reason }: Leaf["activity"]) {
   if (state === "running" || reason === "terminal") return "suggestion";
@@ -173,7 +176,7 @@ function toneOf({ presence, state, reason }: Leaf["activity"]) {
 /** What a line says of the agent's work, in the band's own few words: the agent's
  * sentence while it works, Quiet or Away when it has gone silent, and nothing while
  * it is ready, the usual case, which the tone already says. An All pages row
- * (`leafRow` in activity-words.js) says more, such as when the agent last checked
+ * (`leafRow` in state/activity-words.js) says more, such as when the agent last checked
  * in; this module can't import it, since its graph reaches the page's framework and
  * Lit by the server's absolute paths, which no module loader here resolves. */
 function statusOf({ presence, state, reason, detail }: Leaf["activity"]) {
@@ -344,8 +347,8 @@ function follow($: EngineInterface, session: string) {
   void (async () => {
     let line = "";
     let stderr = "";
-    // Whether it ended to be started again under the Leaf the session's delivery
-    // runs now, which it says by EX_TEMPFAIL, 75 in sysexits.h (`hooks.cmd_pages`).
+    // Whether it ended to be started again from its tree as that tree now stands,
+    // which it says by EX_TEMPFAIL, 75 in sysexits.h (`hooks.cmd_pages`).
     let renewed = false;
     try {
       for await (const chunk of stream) {
@@ -383,8 +386,8 @@ function follow($: EngineInterface, session: string) {
   })();
 }
 
-/** Report to Leaf (`leaf hook --fork`, `carrier.step`) with `payload` and the tool calls
- * the main thread is running, which no fork can see, and what Leaf answers: the
+/** Report to Leaf (`leaf hook --fork`, `hooks.cmd_fork`) with `payload` and the tool
+ * calls the main thread is running, which no fork can see, and what Leaf answers: the
  * instructions to run next (`do`) and a line for the debug log (`log`), or undefined
  * where it printed nothing. */
 async function tellLeaf(
@@ -492,7 +495,7 @@ let endedAgain = false;
 
 /** Tell Leaf that a main-loop turn the model answered has ended, and carry what it
  * answers with, such as the fork its turn-end check asks of the conversation
- * (`src/leaf/clerk.py`, whose header says what it writes and why). It runs off the
+ * (`src/leaf/agents/clerk.py`, whose header says what it writes and why). It runs off the
  * turn's path, one at a time, and a turn that ends while one runs reports once more
  * after it. */
 async function turnEnded($: EngineInterface, session: string) {
@@ -616,7 +619,7 @@ const running = new Map<string, { tool: string; input: Record<string, string> }>
 const NAMED = ["command", "description", "file_path", "pattern", "url", "prompt"];
 
 /** Make the completion `request`, as Leaf wrote it, on the session's own model client
- * (`src/leaf/completions.py`, whose header says how the request reaches the module),
+ * (`src/leaf/agents/completions.py`, whose header says how the request reaches the module),
  * and what it came to: the text or why there is none, with its usage and time. */
 async function complete(
   $: EngineInterface,

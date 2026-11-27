@@ -7,7 +7,7 @@ from render_cases_interaction import SEATED_OBLIGATION_LAYER
 from render_harness import leaf_page, open_page, put_preview_away
 
 from browser.navigation import offered_routes
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

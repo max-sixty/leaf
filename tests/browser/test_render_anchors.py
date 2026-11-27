@@ -18,8 +18,6 @@ from render_cases_interaction import (
     live_url,
 )
 from render_cases_layout import (
-    AIM_SEAM,
-    AIM_SEAM_PAGE,
     MARK,
     SHOT_SRC,
     SHOTS,
@@ -35,7 +33,6 @@ from render_cases_navigation import (
     DRIFT_V1,
     DRIFT_V2,
     EDGE_PAGE,
-    FENCED_CAPTURE_PAGE,
     NATIVE_CONTROL_PAGE,
     TAIL_PAGE,
     THIN_V1,
@@ -57,9 +54,11 @@ from render_harness import (
     SAID_PAGE,
     _traffic,
     available_commands,
+    clocked,
     compare_with,
     comparison_view,
     consume_browser_errors,
+    dwelt,
     expect_open_threads,
     expect_panel_says,
     hold_selection,
@@ -83,15 +82,13 @@ from render_harness import (
     write,
 )
 
-from browser.threads import choose_threads_in_panel, open_panel_thread, thread_row
-from leaf import anchor_capture as anchor_capture_model
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import structure as structure_model
-from leaf.registry import storage as registry_storage
-from leaf.render_checks import evaluate_probe, rendered
-from leaf_dev.browser import PANEL_THREAD
+from browser.threads import open_panel_thread, thread_row
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
+from leaf.source import vocabulary as vocabulary_model
+from leaf.source.render_checks import evaluate_probe, rendered
+from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 from leaf_dev.example_data import named_source, patch_manifest
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -290,97 +287,122 @@ def test_a_widgets_attribute_takes_a_comment_like_any_other_passage(browser, ser
     ) == ["c-backfill"], "the diff read the runtime's own spans as text the base lacked"
 
 
-@pytest.mark.parametrize("revision", [2, 3])
-def test_browser_and_file_captures_stop_at_the_same_widget_fences(
-    browser, serve, revision
-):
-    """Module-only words may sit between authored parts, but they cannot give the
-    browser more context than the mapped revision can confirm.
-
-    Two revisions of the served document: one that changed only the title, so every
-    widget is the one the page was served with, and one that rewrote the milestone
-    itself, so that widget arrives alone into the page and its fence is read off the
-    arriving root rather than off a page it is not yet in.
+# A custom element the page's own script fills with words no file holds.
+DRAWN_WORDS_PAGE = leaf_page(
+    "drawn words",
     """
-    page = open_page(browser, live_url(serve(FENCED_CAPTURE_PAGE)))
-    source = FENCED_CAPTURE_PAGE
-    if revision == 2:
-        source = FENCED_CAPTURE_PAGE.replace("</title>", " revised</title>")
-    else:
-        source = FENCED_CAPTURE_PAGE.replace("week-1", "week-2")
-    stamp_page(serve.page_dir, source, "Refresh the document")
-    wait_for_revision(page, 2)
-    expect(page.locator("#gate-milestone > .lf-column-name")).to_have_count(1)
-    registry = registry_storage.read_page_registry(serve.page_dir).registry
-    cases = [
-        ("#gate-card strong", "Build feeders", "gate-card"),
-        ("#gate-card", "Two classic models.", "gate-card"),
-        ("#after-milestone", "Ready next.", "after-milestone"),
-        # One chip out of a band of them: authored markup, so both readings hold it
-        # for the same reason they hold the title beside it.
-        ("#fence-option > small.lf-tag", "effort: low", "fence-option"),
-    ]
+<h1 id="title">Lanterns</h1>
+<p id="authored">The authored words stand in the file.</p>
+<lantern-note id="drawn"></lantern-note>
+""",
+    head="""<script>
+customElements.define("lantern-note", class extends HTMLElement {
+  connectedCallback() { this.textContent ||= "Lantern words a script draws."; }
+});
+</script>""",
+)
 
-    for index, (selector, quote, section) in enumerate(cases, 1):
-        expected_anchor = anchor_capture_model.capture_anchor(
-            structure_model.SourceDocument(source),
-            registry,
-            quote,
-            section,
+
+def test_a_quote_of_words_a_script_draws_anchors_where_the_page_draws_them(
+    browser, serve
+):
+    """`leaf thread create --quote` stores words the page's own script draws, which no
+    file holds, with a note that the files don't hold them, and the page finds them as
+    it draws them, so the thread marks those words. Words the drawn page doesn't show
+    either leave the thread in Threads, on no passage."""
+    url = serve(DRAWN_WORDS_PAGE)
+
+    def create(quote: str):
+        return CliRunner().invoke(
+            cli_model.cli,
+            [
+                "thread",
+                "create",
+                str(serve.page_dir),
+                "--title",
+                "Lanterns",
+                "--quote",
+                quote,
+                "--text",
+                "Why lanterns?",
+            ],
         )
-        selected = page.evaluate(
-            """([selector, quote]) => {
-                const root = document.querySelector(selector);
-                const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-                let node;
-                while ((node = walker.nextNode())) {
-                    const at = node.data.indexOf(quote);
-                    if (at === -1) continue;
-                    const range = document.createRange();
-                    range.setStart(node, at);
-                    range.setEnd(node, at + quote.length);
-                    const selection = getSelection();
-                    selection.removeAllRanges();
-                    selection.addRange(range);
-                    return selection.toString();
-                }
-                return null;
-            }""",
-            [selector, quote],
+
+    created = create("Lantern words")
+    assert created.exit_code == 0, created.output
+    root = json.loads(created.output)
+    assert root["anchor"] == {"section": None, "quote": "Lantern words"}
+    assert [found["code"] for found in root["findings"]] == ["unplaced-quote"]
+    page = open_page(browser, url)
+    head = thread_head(page, root["id"])
+    expect(head.locator(".lf-thread-quote")).to_have_text("Lantern words")
+    expect(head).not_to_have_attribute("data-lf-detached", "")
+    assert stranded_quotes(page) == []
+
+    unsaid = create("Words no script draws")
+    assert unsaid.exit_code == 0, unsaid.output
+    lost = json.loads(unsaid.output)
+    assert [found["code"] for found in lost["findings"]] == ["unplaced-quote"]
+    expect(thread_head(page, lost["id"])).to_have_attribute("data-lf-detached", "")
+
+
+# A diagram, which shows a thread on a box it didn't draw nowhere, beside a timeline,
+# which shows a thread on an event it didn't draw on the whole timeline.
+DRAWN_PARTS_PAGE = leaf_page(
+    "drawn parts",
+    """
+<h1 id="title">Deploy</h1>
+<lf-diagram id="flow"><pre>flowchart LR
+  build[Build] --&gt; test[Test] --&gt; ship[Ship]</pre></lf-diagram>
+<lf-timeline id="deploy-order" aria-label="Deploy order">
+  <lf-lane label="Build">
+    <lf-event id="deploy-compile" at="0" end="4000" label="Compile"></lf-event>
+  </lf-lane>
+</lf-timeline>
+""",
+)
+
+
+def test_a_part_no_check_has_read_is_checked_on_the_page_as_drawn(serve):
+    """Where no render check has read the version the page shows, as right after a
+    save, `leaf thread create --part` draws the page and reads what each visual draws
+    there. A box the diagram didn't draw is refused, naming the boxes it drew; an event
+    the timeline didn't draw is taken with a note, since the page puts the thread on
+    the whole timeline."""
+    serve(DRAWN_PARTS_PAGE)
+
+    def create(section: str, part: str):
+        return CliRunner().invoke(
+            cli_model.cli,
+            [
+                "thread",
+                "create",
+                str(serve.page_dir),
+                "--title",
+                "Slow step",
+                "--section",
+                section,
+                "--part",
+                part,
+                "--text",
+                "Is this the slow step?",
+            ],
         )
-        assert selected == quote
-        page.dispatch_event("body", "mouseup")
-        open_selected_comment(page)
-        # The field is one element for the page's whole life, so "it is on screen"
-        # says only that some composer is open. This release states the passage the
-        # field took, and the field describes itself by it, so a release the field
-        # never answered fails here naming the passage left selected.
-        expect(page.locator("#lf-composer-quote")).to_have_text(f"“{quote}”")
-        page.locator(".lf-fab-input").click()
-        write(page.locator(".lf-composer leaf-text"), f"fence {index}")
-        # The panel renders the card from state, which can carry the append before
-        # this page's own post comes back. Behind the card alone the log read below
-        # answers with the comment before this one, or with nothing at all. The
-        # same answer settles the draft, so this case's composer is down before the
-        # next case asks for one.
-        with sending(page, f"the fence {index} comment"):
-            page.keyboard.press("ControlOrMeta+Enter")
-        expect_open_threads(page, index)
-        actual_anchor = [
-            event["anchor"]
-            for event in events_model.read_events(serve.page_dir)
-            if event["kind"] == "comment"
-        ][-1]
-        assert actual_anchor == expected_anchor, (
-            f"{selector} captured {actual_anchor}, file captured {expected_anchor}"
-        )
-        # Put the card the send opened away before selecting the next passage. The
-        # thread stands in the page margin over this narrow document, so the case after
-        # it would reach for a composer under that card and press the card instead. The
-        # send landed on the card; leave it for the passage, then let go of both.
-        page.keyboard.press("Escape")
-        page.keyboard.press("Escape")
-        expect(page.locator(".lf-margin-preview")).to_be_hidden()
+
+    refused = create("flow", "node:nope")
+    assert refused.exit_code != 0
+    assert (
+        "§ flow drew no part 'node:nope' when Leaf drew the page just now; it drew"
+        " node:build, node:test, node:ship."
+    ) in refused.output
+
+    taken = create("deploy-order", "event:nope")
+    assert taken.exit_code == 0, taken.output
+    assert [found["text"] for found in json.loads(taken.output)["findings"]] == [
+        "§ deploy-order drew no part 'event:nope' when Leaf drew the page just now,"
+        " so the thread stands on the whole visual until the visual draws that part;"
+        " it drew event:deploy-compile"
+    ]
 
 
 # One sentence two quoted threads discuss, which the agent's next revision rewrites.
@@ -404,6 +426,8 @@ def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
                 "thread",
                 "create",
                 str(serve.page_dir),
+                "--title",
+                "Release wording",
                 "--section",
                 "revised-quotes",
                 "--quote",
@@ -444,75 +468,9 @@ def test_a_revision_preserves_every_open_quoted_thread(browser, serve):
     assert all(event["anchor"] == {"section": "revised-quotes"} for event in moves)
 
 
-SIDEBAR_TRACK_PAGE = leaf_page(
-    "sidebar track quotes",
-    """<header><h1>Release review</h1></header>
-<aside id="track"><div class="layout-track">
-  <section id="verdict"><h2>Verdict</h2><p>Approve, with two follow-ups.</p></section>
-  <section id="owners"><h2>Owners</h2><p>The payments on-call runs the cutover.</p></section>
-</div></aside>
-<div id="body"><p>The canary held its error rate at every step.</p></div>""",
-    layout="sidebar",
-)
-
-
-def test_browser_and_file_captures_agree_on_a_sidebar_tracks_blocks(browser, serve):
-    """Quotes inside one sidebar block and across two agree between the browser
-    and authored file. Native layout keeps the original track children in place;
-    comments still resolve to the same section and passage on either reading."""
-    page = open_page(browser, live_url(serve(SIDEBAR_TRACK_PAGE)))
-    resized(page, 1440, 900)
-    expect(page.locator("#track > .layout-track > #owners")).to_have_count(1)
-    track = page.locator("#track").bounding_box()
-    body = page.locator("#body").bounding_box()
-    assert track["x"] + track["width"] <= body["x"], (track, body)
-    registry = registry_storage.read_page_registry(serve.page_dir).registry
-    cases = [
-        ("#owners p", "payments on-call", "owners", "#owners p", "payments on-call"),
-        ("#verdict p", "two follow-ups.", "track", "#owners h2", "Owners"),
-    ]
-    for index, (start, start_words, section, end, end_words) in enumerate(cases, 1):
-        selected = page.evaluate(
-            """([start, startWords, end, endWords]) => {
-                const text = (selector) => document.querySelector(selector).firstChild;
-                const range = document.createRange();
-                range.setStart(text(start), text(start).data.indexOf(startWords));
-                const last = text(end);
-                range.setEnd(last, last.data.indexOf(endWords) + endWords.length);
-                getSelection().removeAllRanges();
-                getSelection().addRange(range);
-                return getSelection().toString();
-            }""",
-            [start, start_words, end, end_words],
-        )
-        page.dispatch_event("body", "mouseup")
-        open_selected_comment(page)
-        page.locator(".lf-fab-input").click()
-        write(page.locator(".lf-composer leaf-text"), f"track {index}")
-        with sending(page, f"the track {index} comment"):
-            page.keyboard.press("ControlOrMeta+Enter")
-        expect_open_threads(page, index)
-        captured = [
-            event["anchor"]
-            for event in events_model.read_events(serve.page_dir)
-            if event["kind"] == "comment"
-        ][-1]
-        expected = anchor_capture_model.capture_anchor(
-            structure_model.SourceDocument(SIDEBAR_TRACK_PAGE),
-            registry,
-            captured["quote"],
-            section,
-        )
-        assert captured == expected, (selected, captured, expected)
-        page.keyboard.press("Escape")
-        page.keyboard.press("Escape")
-        expect(page.locator(".lf-margin-preview")).to_be_hidden()
-    assert stranded_quotes(page) == []
-
-
 def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve):
     """Neither a pane nor the obligation inside it turns visible prose into separate
-    quotation islands."""
+    quotation islands: a selection across them is one passage of their section."""
     content = """<div id="split">
       <lf-pane id="decision-pane" label="Decision"><lf-group id="decision" label="Which plan should lead?">
         <h2 id="question">Which plan should lead?</h2>
@@ -531,10 +489,6 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve):
     url = live_url(serve(markup))
     page = open_page(browser, url)
     quote = "Release context. Which plan should lead?"
-    registry = registry_storage.read_page_registry(serve.page_dir).registry
-    expected = anchor_capture_model.capture_anchor(
-        structure_model.SourceDocument(markup), registry, quote, "review"
-    )
     page.evaluate(
         """() => {
           const start = document.querySelector('#context').firstChild;
@@ -559,11 +513,19 @@ def test_quotes_cross_preserving_containers_and_remain_attached(browser, serve):
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     ][-1]
-    assert actual == expected
+    assert (actual["section"], actual["quote"]) == ("review", quote), actual
+    assert "detached" not in actual, actual
     page.reload()
     held = thread_head(page, comment_ids(serve.page_dir)[-1])
     expect(held.locator(".lf-thread-quote")).to_have_text(quote)
     expect(held).not_to_have_attribute("data-lf-detached", "")
+    # The reloaded page marks the passage itself, not its section.
+    page.wait_for_function("() => (CSS.highlights.get('lf-mark')?.size ?? 0) > 0")
+    painted = page.evaluate(
+        "() => [...(CSS.highlights.get('lf-mark') ?? [])]"
+        ".map(range => range.toString()).join(' ')"
+    )
+    assert "Release context." in painted and "Which plan should lead?" in painted
 
 
 def test_monitoring_regions_share_one_collaboration_layer(browser, serve):
@@ -1207,7 +1169,7 @@ def test_a_click_on_a_mark_decides_once(browser, serve):
 
 def test_code_copy_enter_leaves_nested_links_usable(browser, serve):
     # The clipped source sits beyond the near observer's 600px scroll margin
-    # (geometry.js, `nearObserver`), so the synchronous first reading and the
+    # (dom/geometry.js, `nearObserver`), so the synchronous first reading and the
     # observer's first record agree it stays out of layout. A nearer source enters
     # layout on that record, before or after presentation as load decides.
     url = live_url(
@@ -1939,7 +1901,7 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
     assert inherited["connected"], inherited
     assert inherited["after"] == ["rgb(161, 35, 69)"] * 3, inherited
 
-    langs = registry_storage.load_registry(serve.page_dir)["$languages"]["names"]
+    langs = vocabulary_model.load_registry(serve.page_dir)["$languages"]["names"]
     samples = [
         'def f(x):\n    """doc\n    <b>&amp;</b>\n    """\n    return f"{x!r}"  # ok\n',
         '# c\ncd x && ls -la | grep "a b" > /dev/null\n',
@@ -2102,7 +2064,8 @@ def test_a_diff_is_colored_by_each_files_own_path(browser, serve):
     numbers = [number for file in files for number in file["numbers"]]
     assert numbers, "the rendered diff has no visible line numbers"
     assert all(
-        number["text"].isdigit()
+        # Old and new numbers, a space apart so they read as two words.
+        number["text"].replace(" ", "").isdigit()
         and number["chrome"]
         and number["generated"]
         and number["label"].startswith("Comment on ")
@@ -2637,7 +2600,7 @@ def test_a_tab_inside_a_shadow_tree_no_stage_watches_still_reaches_current_locat
     browser, serve
 ):
     """A component that makes its own shadow root, as a Web Awesome control does, moves
-    focus between its own controls with no event reaching any root focus.js listens on.
+    focus between its own controls with no event reaching any root dom/focus.js listens on.
     The current location is still read once the key's task ends, so every reader of it
     hears the move as the Tab it was."""
     page = open_page(browser, serve(DIFF_PAGE))
@@ -2830,7 +2793,7 @@ def test_two_comments_on_one_element_both_stay_anchored(browser, serve):
     figure = page.locator("#fig")
     expect(figure).to_have_class(re.compile(r"\blf-mark-el\b"))
     figure.scroll_into_view_if_needed()
-    figure.click()
+    page.locator('[data-lf-margin-for="fig"] .lf-margin-marker').first.click()
     expect(figure).to_have_attribute("data-lf-projected-mark", "")
     expect(figure).to_have_attribute("data-lf-mark", re.compile("."))
     look = figure.evaluate(MARK)
@@ -2861,6 +2824,66 @@ def thread_a_press_opened(page):
     return page.evaluate(f"() => {FOCUSED_THREAD}.innerText")
 
 
+# Two marked lines of one paragraph meeting at a seam the browser puts between two whole
+# pixels: the paragraph stands at a fixed fraction of a pixel and each line is a whole
+# number of pixels tall, so the seam's fraction is the stylesheet's on every machine.
+# Each line is shorter than its font's glyphs, so a point either side of the seam is
+# over a character of the line it is on, where a passage's mark is found
+# (annotations/anchor-paint.js, `markHit`).
+MARK_SEAM_PAGE = leaf_page(
+    "mark seam",
+    """
+<h1 id="t">Mark seam</h1>
+<p id="seam-lines">The line above the seam.<br>The line below the seam.</p>
+""",
+    head="""<style>
+  #seam-lines { position: fixed; top: 300.3px; left: 40px; margin: 0;
+    font-size: 24px; line-height: 16px; white-space: nowrap; }
+</style>""",
+)
+# Where the caret lookup stops answering the upper line and starts answering the lower
+# one, and a point beside that seam whose whole-pixel rounding lands on the other side of
+# it, as `AIM_SEAM` (render_cases_layout.py) finds between two elements.
+MARK_SEAM = """() => {
+  const lines = document.getElementById("seam-lines");
+  const [above, , below] = lines.childNodes;
+  const box = lines.getBoundingClientRect();
+  const x = Math.round(box.left + 40) + 0.5;
+  const at = (y) => {
+    const node = document.caretPositionFromPoint(x, y)?.offsetNode;
+    return node === above ? "above" : node === below ? "below" : null;
+  };
+  let lo = box.top + 1, hi = box.bottom - 1;
+  if (at(lo) !== "above" || at(hi) !== "below") return null;
+  for (let i = 0; i < 40; i++) {
+    const mid = (lo + hi) / 2;
+    if (at(mid) === "above") lo = mid; else hi = mid;
+  }
+  const y = (hi + Math.floor(hi) + 0.5) / 2;
+  return { x, y, at: at(y), rounded: at(Math.round(y)) };
+}"""
+
+
+def mark_each_seam_line(serve):
+    """`MARK_SEAM_PAGE` with a comment on each of its lines."""
+    url = serve(MARK_SEAM_PAGE)
+    for where in ("above", "below"):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": f"About the line {where}.",
+                "anchor": {
+                    "section": "seam-lines",
+                    "quote": f"The line {where} the seam.",
+                },
+            },
+        )
+    return url
+
+
 def test_a_press_on_a_mark_opens_the_thread_under_the_point(browser, serve):
     """The thread the pointer is over and the thread a press opens are one reading of one
     point.
@@ -2873,37 +2896,26 @@ def test_a_press_on_a_mark_opens_the_thread_under_the_point(browser, serve):
     it opens the neighbour's thread.
 
     The seam fixture puts the pointer where the true point and its rounded twin are over
-    different items, and a comment on each makes the disagreement a pair of cards rather
-    than a hit and a miss — so what is asserted is which thread opened, not whether one
-    did. Which item the true point is over follows where in the pixel the seam fell, so
-    the expected card is read off the point rather than named here."""
-    url = serve(AIM_SEAM_PAGE)
-    for ident in ("seam-upper", "seam-lower"):
-        append_carried_log_record(
-            serve.page_dir,
-            {
-                "kind": "comment",
-                "author": "user",
-                "revision": 1,
-                "text": f"About {ident}.",
-                "anchor": {"section": ident},
-            },
-        )
+    different marked lines, and a comment on each makes the disagreement a pair of cards
+    rather than a hit and a miss — so what is asserted is which thread opened, not whether
+    one did. Which line the true point is over follows where in the pixel the seam fell,
+    so the expected card is read off the point rather than named here."""
+    url = mark_each_seam_line(serve)
     page = open_page(browser, url)
     expect_open_threads(page, 2)
-    seam = page.evaluate(AIM_SEAM, ["seam-upper", "seam-lower"])
-    assert seam and {seam["at"], seam["rounded"]} == {"seam-upper", "seam-lower"}, (
+    seam = page.evaluate(MARK_SEAM)
+    assert seam and {seam["at"], seam["rounded"]} == {"above", "below"}, (
         "the fixture no longer straddles a seam — the point and the whole pixel it rounds "
-        "to are not on the two marked elements either side of it, so a press that read either "
+        "to are not on the two marked lines either side of it, so a press that read either "
         f"of them would pass this: {seam}"
     )
 
     page.mouse.move(seam["x"], seam["y"])
     page.mouse.click(seam["x"], seam["y"])
     opened = thread_a_press_opened(page)
-    assert opened and f"About {seam['at']}." in opened, (
-        f"the hover promised the thread on {seam['at']}, and the press at the same point "
-        f"opened: {opened}"
+    assert opened and f"About the line {seam['at']}." in opened, (
+        f"the hover promised the thread on the line {seam['at']}, and the press at the "
+        f"same point opened: {opened}"
     )
 
 
@@ -3057,57 +3069,40 @@ def test_taking_words_inside_a_mark_keeps_them_and_a_press_still_opens_the_threa
     assert opened and "About the retry." in opened, opened
 
 
-def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
+def test_pressing_the_current_mark_keeps_it_marked(browser, serve):
     """A pointer press briefly moves focus from an open thread to the page before its
     click lands back in the thread. Nothing that marks the current location may look
-    deselected in that gap: not the element's contour, which the pointer on the page no
-    longer raises, and not the margin entry's selection.
+    deselected in that gap: not the passage's mark, and not the margin entry's
+    selection.
 
-    So the current location holds across the whole press, every frame from mouse-down until after
-    the click.
+    So the current location holds across the whole press, every frame from mouse-down
+    until after the click.
     """
     url = serve(INLINE_PAGE)
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "text": "About the figure.",
-            "anchor": {"section": "fig"},
-        },
-    )
-    append_carried_log_record(
-        serve.page_dir,
-        {
-            "kind": "comment",
-            "author": "user",
-            "revision": 1,
-            "token": "keep",
-            "anchor": {"section": "fig"},
-        },
-    )
+    quote = "A passage far enough down the page"
+    for said in ({"text": "About the passage."}, {"emoji": "👍"}):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                **said,
+                "anchor": {"section": "q", "quote": quote},
+            },
+        )
     page = open_page(browser, url)
-    figure = page.locator("#fig")
-    figure.scroll_into_view_if_needed()
-    expect(figure).not_to_have_attribute("data-lf-mark", re.compile(".*"))
+    page.locator("#q").scroll_into_view_if_needed()
+    here = "() => (CSS.highlights.get('lf-mark-here')?.size ?? 0) > 0"
+    assert not page.evaluate(here)
 
-    look = """node => { const style = getComputedStyle(node); return {
-      line: style.outlineStyle,
-      drawn: parseFloat(style.outlineWidth) > 0,
-    }; }"""
-
-    box = figure.bounding_box()
-    point = (box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    point = mark_point(page, "lf-mark")
     page.mouse.move(*point)
     page.mouse.click(*point)
     # The compact preview card reveals its reply box on request, so what a press lands on
     # is the thread itself; the paint under test is the same either way.
     assert thread_a_press_opened(page) is not None, "the press opened no thread"
-    expect(figure).to_have_attribute("data-lf-mark", re.compile(r"\bhere\b"))
-    selected = figure.evaluate(look)
-
-    assert selected == {"line": "solid", "drawn": True}
+    page.wait_for_function(here)
     expect(page.locator("[data-lf-target-selected]")).to_have_count(1)
 
     # Every frame of the press and a few after it, read where the user sees them.
@@ -3116,8 +3111,7 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
           window.lfFrames = [];
           const sample = () => {
             window.lfFrames.push({
-              contour: Boolean(document.querySelector(
-                '#fig[data-lf-mark~="here"]')),
+              mark: (CSS.highlights.get('lf-mark-here')?.size ?? 0) > 0,
               entry: document.querySelectorAll('[data-lf-target-selected]').length,
             });
             if (window.lfFrames.length < 400) requestAnimationFrame(sample);
@@ -3135,7 +3129,7 @@ def test_pressing_the_current_element_mark_keeps_its_contour(browser, serve):
         "() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)))"
     )
     frames = page.evaluate("() => window.lfFrames.splice(0)")
-    lost = [frame for frame in frames if not frame["contour"] or frame["entry"] != 1]
+    lost = [frame for frame in frames if not frame["mark"] or frame["entry"] != 1]
     assert not lost, (
         f"the current location blinked during the press: {lost} of {len(frames)} frames"
     )
@@ -3157,36 +3151,25 @@ def test_a_tap_on_a_quote_opens_its_thread(browser, serve):
     The context has a touchscreen because that is the only way to get a gesture with no
     pointermove in it: driving the same point with `page.mouse` records the position on
     the way in and passes whatever the click reads. The seam fixture is reused so the
-    tap's own rounded twin is a different item, and a comment on each makes a wrong
+    tap's own rounded twin is on a different line, and a comment on each makes a wrong
     reading a visible thread rather than a miss."""
-    url = serve(AIM_SEAM_PAGE)
-    for ident in ("seam-upper", "seam-lower"):
-        append_carried_log_record(
-            serve.page_dir,
-            {
-                "kind": "comment",
-                "author": "user",
-                "revision": 1,
-                "text": f"About {ident}.",
-                "anchor": {"section": ident},
-            },
-        )
+    url = mark_each_seam_line(serve)
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, color_scheme="light", has_touch=True
     )
     page = open_page(browser, url, context=context)
     expect_open_threads(page, 2)
-    seam = page.evaluate(AIM_SEAM, ["seam-upper", "seam-lower"])
-    assert seam and {seam["at"], seam["rounded"]} == {"seam-upper", "seam-lower"}, (
+    seam = page.evaluate(MARK_SEAM)
+    assert seam and {seam["at"], seam["rounded"]} == {"above", "below"}, (
         "the fixture no longer straddles a seam — the point and the whole pixel it rounds "
-        "to are not on the two marked elements either side of it, so a tap that read either "
+        "to are not on the two marked lines either side of it, so a tap that read either "
         f"of them would pass this: {seam}"
     )
 
     page.touchscreen.tap(seam["x"], seam["y"])
     opened = thread_a_press_opened(page)
-    assert opened and f"About {seam['at']}." in opened, (
-        f"a tap on the quote for {seam['at']} opened: {opened}"
+    assert opened and f"About the line {seam['at']}." in opened, (
+        f"a tap on the quote of the line {seam['at']} opened: {opened}"
     )
 
 
@@ -3261,10 +3244,6 @@ def test_an_ambiguous_revised_passage_keeps_its_section_until_the_agent_moves_it
     wait_for_revision(page, 2)
     assert stranded_quotes(page) == []
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
-    [transition] = [
-        event for event in events_model.read_events(d) if event["kind"] == "reanchor"
-    ]
-    assert transition["anchor"] == {"section": "drift"}
 
     [root] = [
         event for event in events_model.read_events(d) if event["kind"] == "comment"
@@ -3281,6 +3260,8 @@ def test_an_ambiguous_revised_passage_keeps_its_section_until_the_agent_moves_it
             "drift",
             "--quote",
             revised_passage,
+            "--title",
+            "Drifted passage",
             "--text",
             "I revised this passage and moved the thread onto it.",
         ],
@@ -3350,6 +3331,8 @@ def test_a_removed_subject_keeps_its_thread_open_and_detached(browser, serve):
             "--done",
             response_reference(d, root["id"]),
             "--detach",
+            "--title",
+            "Removed section",
             "--text",
             "I removed the section; this thread no longer has a page target.",
         ],
@@ -3580,10 +3563,6 @@ def test_one_neighbour_is_not_enough_to_identify_a_revised_comment(browser, serv
     wait_for_revision(page, 2)
     assert stranded_quotes(page) == []
     assert page.evaluate("() => CSS.highlights.get('lf-mark')?.size ?? 0") == 0
-    [transition] = [
-        event for event in events_model.read_events(d) if event["kind"] == "reanchor"
-    ]
-    assert transition["anchor"] == {"section": "thin"}
 
 
 def test_a_change_card_reads_across_elements_and_past_astral_text(
@@ -3823,7 +3802,7 @@ def test_a_press_on_a_passage_opens_its_thread_where_it_stands(browser, serve):
     page.mouse.click(*mark_point(page, "lf-mark"))
     expect(page.locator(".lf-page-thread leaf-text")).to_be_focused()
     # A trip waits on the thread refresh before it decides to move, and that same
-    # refresh is what writes this card's placement (`scrollToThread`, anchor-travel.js).
+    # refresh is what writes this card's placement (`scrollToThread`, features/anchor-travel.js).
     # So the card standing where the pass put it is the edge a travel would have been
     # asked for behind; read the page's own position from there rather than from a hold
     # long enough to have covered the wait.
@@ -4073,7 +4052,7 @@ def test_a_manifest_diff_can_comment_on_one_unloaded_file(browser, serve):
         "collapsed></lf-diff>",
     )
     url = serve(authored)
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         {
@@ -4251,7 +4230,7 @@ def test_back_returns_from_a_thread_a_widget_surface_holds(browser, serve, arriv
             f"</lf-diff><section id=far>{filler}</section>",
         )
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         """diff --git a/app.py b/app.py
@@ -4321,7 +4300,7 @@ def test_a_datum_comment_reveals_its_shadow_host_and_outer_tab(browser, serve):
 """,
     )
     url = serve(authored)
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         """diff --git a/app.py b/app.py
@@ -4420,7 +4399,7 @@ def test_a_collapsed_diff_renders_only_opened_files_and_hydrates_comment_travel(
         "collapsed></lf-diff>",
     )
     url = serve(authored)
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         TWO_FILE_MANIFEST,
@@ -4529,8 +4508,8 @@ def test_reaching_a_line_thread_opens_the_closed_file_it_is_about(
             }
         ]
     }
-    data_model.cmd_data_set(serve.page_dir, "earlier-patch", TWO_FILE_MANIFEST)
-    data_model.cmd_data_set(serve.page_dir, "long-patch", long_file)
+    page_data_model.cmd_data_set(serve.page_dir, "earlier-patch", TWO_FILE_MANIFEST)
+    page_data_model.cmd_data_set(serve.page_dir, "long-patch", long_file)
     line = '["long.py","new",280]'
     earlier = {"source": "earlier-patch", "source_revision": "0" * 16}
     for section, datum, anchor in (
@@ -4623,7 +4602,7 @@ def test_a_thread_a_closed_box_hides_stands_its_marker_on_the_box(
             "{ content-visibility: visible; visibility: hidden; }</style>",
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "patch", TWO_FILE_MANIFEST)
+    page_data_model.cmd_data_set(serve.page_dir, "patch", TWO_FILE_MANIFEST)
     for anchor in (
         {"section": "folded"},
         {"section": "unchosen"},
@@ -4713,7 +4692,7 @@ def test_back_while_a_thread_s_file_loads_leaves_the_user_where_back_took_them(
             '<lf-diff id="patch" source="long-patch" collapsed></lf-diff>',
         )
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "long-patch",
         {
@@ -4773,7 +4752,7 @@ def test_a_hunk_step_waiting_on_a_file_leaves_a_user_who_moved_on(browser, serve
             "collapsed></lf-diff>",
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "review-patch", TWO_FILE_MANIFEST)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", TWO_FILE_MANIFEST)
     page = open_page(browser, url, init_script=HOLD_SECOND_FILE)
     page.locator("lf-diff summary").first.click()
     first = page.locator('lf-diff [data-lf-datum=\'["first.py","new",1]\']')
@@ -4826,13 +4805,13 @@ def test_a_diff_tracks_each_write_of_its_source(browser, serve):
             ]
         }
 
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir, "review-patch", manifest("first.py", "old", "first")
     )
     page = open_page(browser, url)
     expect(page.locator("lf-diff summary")).to_contain_text("first.py")
 
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir, "review-patch", manifest("second.py", "old", "second")
     )
     told(page)
@@ -5043,7 +5022,9 @@ new file mode 120000
     )
     url = serve(authored)
     if manifest:
-        data_model.cmd_data_set(serve.page_dir, "native-patch", patch_manifest(source))
+        page_data_model.cmd_data_set(
+            serve.page_dir, "native-patch", patch_manifest(source)
+        )
     context = browser.new_context(
         viewport={"width": 390 if mobile else 1280, "height": 900}, has_touch=mobile
     )
@@ -5278,7 +5259,7 @@ def test_a_passage_staged_into_a_new_shadow_tree_keeps_its_mark(engine, request,
 def test_a_presentation_that_changes_no_mark_builds_none(browser, serve):
     """The anchor paint builds a thread's marks, the index the pointer is found in and
     the highlight painting them only for a presentation that changes a mark: ten that
-    change none build nothing (anchor-paint.js, `paint`)."""
+    change none build nothing (annotations/anchor-paint.js, `paint`)."""
     url = serve(leaf_page("Kept", '<p id="kept">Words a thread is about.</p>'))
     append_carried_log_record(
         serve.page_dir,
@@ -5366,7 +5347,7 @@ def test_a_revision_that_moves_marked_words_moves_where_their_mark_is_found(
     old = page.evaluate(words, stood)
     page.mouse.move(old["left"] - 30, old["top"] - 30)
     page.mouse.move(old["left"] + 4, old["top"] + old["height"] / 2, steps=2)
-    # The hover frame the move queued (anchor-paint.js, `refreshHover`) has painted
+    # The hover frame the move queued (annotations/anchor-paint.js, `refreshHover`) has painted
     # the hand where it found a mark.
     rendered(page)
     expect(page.locator("[data-lf-over-mark]")).to_have_count(0)
@@ -5572,7 +5553,7 @@ def test_a_search_match_running_into_a_shadow_stage_shows_its_start(
 
 
 # What the page hears as it starts that its input clock counts as the user's
-# (document-inputs.js), and where focus lands: startup reopens a saved draft only while
+# (base/document-inputs.js), and where focus lands: startup reopens a saved draft only while
 # neither has moved (`recoverComposer` in leaf.js). Registered before the reload, so its
 # listeners come before the clock's.
 HEARD_AS_IT_STARTS = """(() => {
@@ -5622,9 +5603,9 @@ def test_the_comment_box_comes_back_to_where_its_passage_starts(engine, request,
         """async () => {
           const boot = document.querySelector('script[data-lf-entry]').dataset.lfEntry;
           const load = (path) => import(new URL(path, new URL(boot, location.href)).href);
-          const {saveDraft} = await load('runtime/drafts.js');
-          const {DRAFT_FORMAT} = await load('runtime/kernel-facts.js');
-          const {anchorKey} = await load('runtime/anchor-coordinate.js');
+          const {saveDraft} = await load('runtime/records/drafts.js');
+          const {DRAFT_FORMAT} = await load('runtime/state/kernel-facts.js');
+          const {anchorKey} = await load('runtime/base/anchor-coordinate.js');
           const anchor = {section: 'both', quote: 'match starts here and ends inside'};
           saveDraft('composer:' + anchorKey(anchor), 'My draft words', {
             format: DRAFT_FORMAT, anchor, revision: 1, suggest: false, about: null,
@@ -5704,7 +5685,7 @@ def _changed_page(request, engine, serve):
 
 def _rest_on(page, box):
     """Rest the pointer on a box, from away, and read the hand once the hover frame
-    each move queued (anchor-paint.js, `refreshHover`) has run: once, since a later
+    each move queued (annotations/anchor-paint.js, `refreshHover`) has run: once, since a later
     presentation would find the marks again and hide a fault."""
     page.mouse.move(2, 2)
     rendered(page)
@@ -6102,9 +6083,9 @@ def test_a_section_staged_again_in_a_new_widget_keeps_its_thread(
     engine, request, serve
 ):
     """A script that stages a section in a new widget's shadow tree and then puts the
-    widget in place of the one whose shadow tree held the section moves the section's
-    thread to the new one: the pointer finds the thread's mark on the new section, as
-    reading the page again finds."""
+    widget in place of the one whose shadow tree held the section moves the thread on
+    the section's words to the new one: the pointer finds the thread's mark on the new
+    section's words, as reading the page again finds."""
     url = serve(
         leaf_page(
             "Staged again",
@@ -6121,13 +6102,16 @@ def test_a_section_staged_again_in_a_new_widget_keeps_its_thread(
             "author": "user",
             "revision": 1,
             "text": "About the section?",
-            "anchor": {"section": "inner"},
+            "anchor": {"section": "inner", "quote": "The staged section."},
         },
     )
     page = open_page(request.getfixturevalue(engine), url)
     page.evaluate("() => document.getElementById('late').stage()")
     inner = "() => document.getElementById('late').shadowRoot.getElementById('inner')"
-    page.wait_for_function(f"() => ({inner})()?.classList.contains('lf-mark-el')")
+    page.wait_for_function(
+        f"""() => [...(CSS.highlights.get('lf-mark') ?? [])]
+          .some((range) => range.startContainer.parentElement === ({inner})())"""
+    )
     page.evaluate(
         """async () => {
           const host = document.createElement('lf-late-stage');
@@ -6148,9 +6132,8 @@ def test_words_a_script_sets_in_elements_of_their_own_keep_their_thread(
 ):
     """A script that sets a marked phrase's two words in inline elements of their own,
     with nothing between them, leaves the thread on them: where two inline elements
-    meet is a place a word may end, so the quote "one two" still names them, the pointer
-    finds the mark there, and the file's reading finds them too
-    (tests/quote_cases.json)."""
+    meet is a place a word may end, so the quote "one two" still names them, and the
+    pointer finds the mark there (tests/quote_cases.json)."""
     url = serve(
         leaf_page(
             "Run together",
@@ -6900,15 +6883,16 @@ def test_a_search_match_across_blocks_marks_and_selects_each_piece(
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_an_element_s_mark_is_under_the_pointer_only_over_the_element(
+def test_a_thread_takes_the_pointer_only_on_the_words_its_mark_paints(
     engine, request, serve
 ):
-    """A thread on an element is under the pointer wherever the platform's hit test puts
-    the pointer inside that element, as over an image, which holds no text to find, and
-    nowhere past it, as beside a marked word at a line's end, where the nearest
-    character is still the word's. The mark under the pointer for a press is the one
-    that previews: the image's thread to a pointer resting on it, and in Chromium to a
-    finger holding it."""
+    """The pointer finds a thread only where the page draws its mark
+    (annotations/anchor-paint.js, header). A thread on an element draws nothing on it at
+    rest, so a pointer resting on the element, here an image, shows no hand and no
+    preview, and in Chromium a finger holding it reads nothing; the thread's margin entry
+    previews it. A passage's thread shows both on its words and nowhere past them, as
+    beside a marked word at a line's end, where the nearest character is still the
+    word's."""
     box = (
         "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' "
         "height='80'%3E%3Crect width='160' height='80' fill='%23a55'/%3E%3C/svg%3E"
@@ -6921,33 +6905,41 @@ def test_an_element_s_mark_is_under_the_pointer_only_over_the_element(
             '<p id="line">A short line ending in <strong id="bold">bold</strong></p>',
         )
     )
-    for section in ("pic", "bold"):
+    for anchor in ({"section": "pic"}, {"section": "line", "quote": "bold"}):
         append_carried_log_record(
             serve.page_dir,
             {
                 "kind": "comment",
                 "author": "user",
                 "revision": 1,
-                "text": f"About {section}?",
-                "anchor": {"section": section},
+                "text": f"About {anchor.get('quote', anchor['section'])}?",
+                "anchor": anchor,
             },
         )
     browser = request.getfixturevalue(engine)
-    page = open_page(browser, url)
-    said = page.locator("#lf-preview .lf-preview-word")
+    page = open_page(clocked(browser), url)
+    preview = page.locator("#lf-preview")
+    said = preview.locator(".lf-preview-word")
+    hand = page.locator("[data-lf-over-mark]")
     pic = page.locator("#pic").bounding_box()
     bold = page.locator("#bold").bounding_box()
     middle = bold["y"] + bold["height"] / 2
     page.mouse.move(pic["x"] + 40, pic["y"] + 40)
     page.mouse.move(pic["x"] + 60, pic["y"] + 50, steps=2)
-    expect(page.locator("[data-lf-over-mark]")).to_have_count(1)
-    expect(said).to_have_text("About pic?")
-    page.mouse.move(bold["x"] + bold["width"] + 35, middle, steps=2)
-    expect(page.locator("[data-lf-over-mark]")).to_have_count(0)
-    expect(page.locator("#lf-preview")).to_be_hidden()
+    dwelt(page)
+    expect(hand).to_have_count(0)
+    expect(preview).to_be_hidden()
     page.mouse.move(bold["x"] + bold["width"] / 2, middle, steps=2)
-    expect(page.locator("[data-lf-over-mark]")).to_have_count(1)
+    dwelt(page)
+    expect(hand).to_have_count(1)
     expect(said).to_have_text("About bold?")
+    page.mouse.move(bold["x"] + bold["width"] + 35, middle, steps=2)
+    dwelt(page, "LINGER")
+    expect(hand).to_have_count(0)
+    expect(preview).to_be_hidden()
+    page.locator('[data-lf-margin-for="pic"] > .lf-margin-marker').hover()
+    dwelt(page)
+    expect(said).to_have_text("About pic?")
     if engine != "browser":
         return
     context = browser.new_context(
@@ -6959,5 +6951,6 @@ def test_an_element_s_mark_is_under_the_pointer_only_over_the_element(
     cdp = context.new_cdp_session(touched)
     cdp.send("Input.dispatchTouchEvent", {"type": "touchStart", "touchPoints": [point]})
     long_press(touched, point)
-    expect(touched.locator("#lf-preview .lf-preview-word")).to_have_text("About pic?")
+    rendered(touched)
+    expect(touched.locator("#lf-preview")).to_be_hidden()
     cdp.send("Input.dispatchTouchEvent", {"type": "touchEnd", "touchPoints": []})

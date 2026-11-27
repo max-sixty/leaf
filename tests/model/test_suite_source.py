@@ -5,7 +5,7 @@ browser are read from each module's syntax. Each case reads one module under `te
 so the rules fit the tier every pull request runs, and a change that breaks one is
 refused before it lands rather than by the next nightly run. The suite's deadline
 reaches Leaf's other code that drives a browser through the openers in
-`leaf.render_checks`, so where that code opens its contexts and pages, and the
+`leaf.source.render_checks`, so where that code opens its contexts and pages, and the
 defaults it sets on them, are read here too, from `src/` and `dev/leaf_dev/`.
 """
 
@@ -241,7 +241,7 @@ def test_a_wait_takes_the_suites_deadline(path):
                 f"{named}:{node.lineno} "
                 + ast.unparse(node).split("\n", 1)[0]
                 + " — STATED_TIMEOUT (interact_support.py), or in a browser"
-                " SERVED_TIMEOUT_MS or HANDOVER_DEADLINE_MS (leaf.render_checks),"
+                " SERVED_TIMEOUT_MS or HANDOVER_DEADLINE_MS (leaf.source.render_checks),"
                 " bounds it"
             )
     assert not fixed, "\n".join(fixed)
@@ -280,7 +280,9 @@ def test_the_pages_leaf_opens_take_the_served_deadline():
                 continue
             where = f"{path.relative_to(ROOT)}:{node.lineno} {ast.unparse(node)}"
             if node.func.attr in opens:
-                found.append(f"{where} — an opener in leaf.render_checks opens it")
+                found.append(
+                    f"{where} — an opener in leaf.source.render_checks opens it"
+                )
             elif node.func.attr in defaults and node.args and _literal(node.args[0]):
                 found.append(f"{where} — SERVED_TIMEOUT_MS or a named constant")
     assert not found, "\n".join(sorted(found))

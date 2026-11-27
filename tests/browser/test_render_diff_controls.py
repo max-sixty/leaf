@@ -17,8 +17,8 @@ from render_harness import (
     sending,
 )
 
-from leaf import data as data_model
-from leaf.render_checks import one_frame, rendered, wait_until_ready
+from leaf.records import page_data as page_data_model
+from leaf.source.render_checks import one_frame, rendered, wait_until_ready
 from leaf_dev.example_data import patch_manifest
 
 
@@ -227,7 +227,7 @@ def test_a_patch_that_failed_stays_failed_when_its_diff_returns(browser, serve, 
     )
     url = serve(leaf_page("bad diff", f'<h1 id="t">Bad</h1>\n{diff}'))
     if bound:
-        data_model.cmd_data_set(serve.page_dir, "bad-patch", one + one)
+        page_data_model.cmd_data_set(serve.page_dir, "bad-patch", one + one)
     page = open_page(browser, url)
     expect(page.locator("#d-bad .lf-error")).to_contain_text("repeats file path")
     returned = page.evaluate("""async () => {
@@ -245,7 +245,7 @@ def test_a_patch_that_failed_stays_failed_when_its_diff_returns(browser, serve, 
     errors = consume_browser_errors(page, '<lf-diff id="d-bad"> failed: ')
     assert len(errors) == 1, errors
     if bound:
-        data_model.cmd_data_set(serve.page_dir, "bad-patch", one)
+        page_data_model.cmd_data_set(serve.page_dir, "bad-patch", one)
         expect(page.locator("#d-bad [data-line]").last).to_contain_text("y")
         expect(page.locator("#d-bad .lf-error")).to_have_count(0)
 
@@ -263,7 +263,7 @@ def test_a_patch_resumes_preparation_on_return_and_keeps_its_finished_rows(
     )
     url = serve(leaf_page("Returning diff", diff))
     if bound:
-        data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
+        page_data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
     page = browser.new_page()
     held = []
     page.route("**/vendor/pierre-parser.esm.js", lambda route: held.append(route))
@@ -317,7 +317,7 @@ def test_phone_diff_headers_keep_distinguishing_parent_folder_readable(browser, 
             '<lf-diff id="patch" source="patch-data" collapsed></lf-diff>',
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
+    page_data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
     context = browser.new_context(
         viewport={"width": 360, "height": 800}, has_touch=True, is_mobile=True
     )
@@ -393,7 +393,7 @@ diff --git a/other.md b/other.md
             '<lf-diff id="patch" source="patch-data" collapsed></lf-diff>',
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
+    page_data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
     page = open_page(browser, url)
     held = []
     page.route("**/vendor/syntax/markdown.js", lambda route: held.append(route))
@@ -577,7 +577,7 @@ new mode 100755
         manifest = patch_manifest(patch)
         if name != "valid":
             manifest["files"][0]["patch"] = corruptions[name]
-        data_model.cmd_data_set(serve.page_dir, f"source-{name.lower()}", manifest)
+        page_data_model.cmd_data_set(serve.page_dir, f"source-{name.lower()}", manifest)
     page = open_page(browser, url)
     rendered(page)
     for name in corruptions:
@@ -856,7 +856,7 @@ def test_file_tree_reads_standalone_data_without_a_diff_package(browser, serve):
         ),
         packages=("file-tree",),
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "project",
         {
@@ -873,7 +873,7 @@ def test_file_tree_reads_standalone_data_without_a_diff_package(browser, serve):
     expect(row).to_be_visible()
     row.click()
     expect(row).to_have_attribute("aria-selected", "true")
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "project",
         {
@@ -913,7 +913,7 @@ def test_file_tree_keeps_the_folders_the_reader_closed_when_its_paths_change(
         ),
         packages=("file-tree",),
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "project",
         {"files": [{"path": "src/main.py"}, {"path": "tests/test_main.py"}]},
@@ -924,7 +924,7 @@ def test_file_tree_keeps_the_folders_the_reader_closed_when_its_paths_change(
     expect(src).to_have_attribute("aria-expanded", "true")
     src.click()
     expect(src).to_have_attribute("aria-expanded", "false")
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "project",
         {
@@ -978,9 +978,9 @@ def test_evidence_close_folds_room_but_retires_controls_immediately(
             + "".join(f"-old{i}\n+new{i}\n" for i in range(12))
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "change", content)
+    page_data_model.cmd_data_set(serve.page_dir, "change", content)
     if kind == "call":
-        data_model.cmd_data_set(
+        page_data_model.cmd_data_set(
             serve.page_dir,
             "patch-data",
             patch_manifest(
@@ -1012,7 +1012,9 @@ def test_evidence_close_folds_room_but_retires_controls_immediately(
     def height():
         return details.evaluate("d=>d.getBoundingClientRect().height")
 
-    page.evaluate("scrollTo(0, document.documentElement.scrollHeight)")
+    # The evidence stands at the foot of the window, with the page's end room below it
+    # (layouts.css).
+    page.locator("#after").evaluate("b => b.scrollIntoView({block: 'end'})")
     scroll_settled(page)
     full = height()
     animated = page.evaluate("""() =>

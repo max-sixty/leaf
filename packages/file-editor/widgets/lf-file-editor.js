@@ -18,7 +18,9 @@
  *
  * The editor holds its files as its `files` output, each named by the label the
  * page's server gives it and keyed by its binding, with the open one `current`, so a
- * navigator beside it lists them. A reveal of a binding (`navigateToDatum`, a link to
+ * navigator beside it lists them, and the open file's name and text, as last read or
+ * saved, as its `text` output, so a reading bound to it, such as a Markdown preview,
+ * shows each save (`holdText`). A reveal of a binding (`navigateToDatum`, a link to
  * `#<editor>:<binding>`) opens that file. Which file is open is how this tab looks at
  * the files, not a change to them, so it enters no log; a reload opens the one its
  * address names, else the first. Each file keeps its own text, selection, history and
@@ -39,8 +41,9 @@
  * The editor reads the open file when it connects, when the tab is shown again, when
  * the reader opens it and when the page's state stamps its binding anew
  * (`boundFile().watch`). A read asked for while another request on that file is in
- * flight, or while a failure or conflict holds it, stays owed until a later read or
- * save covers it.
+ * flight, while a conflict holds it, or while a failure holds it with a draft or a
+ * save whose answer was lost, stays owed until a later read or save covers it; a
+ * clean file whose last request failed, as before the page bound it, reads again.
  * Ordinary writes have no status transition. A write pending for one second earns a
  * quiet word in the header's fixed status slot until the newest buffer is
  * acknowledged. A failure and a conflict stand in that same slot, so the editor's top
@@ -125,6 +128,8 @@ customElements.define(
     #open = null;
     /** @type {(() => string | null) | null} */
     #shown = null;
+    /** @type {((line: number) => boolean) | null} */
+    #caretOn = null;
     /** @type {((binding: string) => string | null) | null} */
     #label = null;
 
@@ -165,9 +170,14 @@ customElements.define(
       return this.#open?.(binding, Number(line) || null) ?? null;
     }
 
+    // A key names the editor while it shows the key's file, and, for a line, while
+    // the caret stands on that line, so a link to a line of the open file still asks
+    // for the line to be revealed (`lfRevealDatum`), as on a fresh load of its URL.
     /** @param {string} key */
     lfElementsFor(key) {
-      return this.#shown?.() === key.split(":")[0] ? [this] : [];
+      const [binding = "", line] = key.split(":");
+      if (this.#shown?.() !== binding) return [];
+      return !Number(line) || this.#caretOn?.(Number(line)) ? [this] : [];
     }
 
     /** @param {string} key */
@@ -220,6 +230,7 @@ customElements.define(
       const readOnly = (/** @type {OpenFile} */ of) =>
         of.base === null || !of.api.writable;
       this.#shown = () => file.binding;
+      this.#caretOn = (line) => file.base !== null && editor.caretOn(line);
       this.#label = (binding) => (files.has(binding) ? label(fileFor(binding)) : null);
       // The host's grid gives the comparison half the editing room while it is open.
       const internals = this.attachInternals();
@@ -306,8 +317,15 @@ customElements.define(
         const of = file;
         if (of.busy) return;
         const operation = of.failure;
-        // A failed save with nothing left to write is settled by reading the file.
-        if (operation?.kind === "save" && unsaved(of, operation.replace))
+        // A failed save is settled by reading the file where nothing is left to write,
+        // and where the save may have reached the file, since a second send would
+        // forget the first one's words (`sent`) and take them, found on disk, for a
+        // write from elsewhere.
+        if (
+          operation?.kind === "save" &&
+          of.sent === null &&
+          unsaved(of, operation.replace)
+        )
           void flush(of, operation.replace, returnFrom);
         else void refresh(of, returnFrom);
       };
@@ -412,10 +430,34 @@ customElements.define(
           : null;
         this.dispatchEvent(new Event("change"));
       };
+      // The `text` output: the open file's name, its binding as the key that names it
+      // however the names of the page's files change, and its text as last read or
+      // saved, the version on disk where that differs from the draft's (`latest`), or
+      // `null` until it is read. It changes with each save rather than each key, since
+      // a reading bound to it redraws from the whole text, and a keystroke's work would
+      // otherwise grow with the file.
+      /** @type {{key: string, name: string, text: string} | null} */
+      this.text = null;
+      const holdText = () => {
+        const read = file.latest ?? file.base;
+        const name = label(file);
+        const held = this.text;
+        if (
+          read
+            ? held?.text === read.text &&
+              held.name === name &&
+              held.key === file.binding
+            : held === null
+        )
+          return;
+        this.text = read ? { key: file.binding, name, text: read.text } : null;
+        this.dispatchEvent(new Event("change"));
+      };
       // What follows each draw: the editor's own state, the host's, the menu, the news
       // and the comparison's editor, all of which read the controls the draw made.
       this.#drawn = () => {
         const of = file;
+        holdText();
         const name = label(of);
         editor.setLabel(name);
         editor.readOnly = readOnly(of);
@@ -716,7 +758,11 @@ customElements.define(
       /** @param {OpenFile} of @param {HTMLElement | null} [returnFrom] */
       async function refresh(of, returnFrom = null) {
         if (!connected) return;
-        if (of.busy || ((of.failure || of.latest) && !returnFrom)) {
+        // A failure holds the file only while it holds words a read could set against
+        // the file: a draft, or a save whose answer was lost. A clean editor whose read
+        // failed, as before the page bound its file, reads again.
+        const held = of.failure && (dirty(of) || of.sent !== null);
+        if (of.busy || ((held || of.latest) && !returnFrom)) {
           of.owed = true;
           return;
         }

@@ -45,8 +45,8 @@ from render_harness import (
 from browser.navigation import (
     color_cue_markup,
 )
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -284,7 +284,7 @@ def _point_at(page, passage):
 
 
 def _comment_on(passage, **fields):
-    """The user's comment on a passage's words, or with `token` their reaction to them."""
+    """The user's comment on a passage's words, or with `emoji` their reaction to them."""
     section, quote = passage
     return {
         "kind": "comment",
@@ -867,7 +867,9 @@ def test_a_commented_block_says_so_to_a_screen_user(browser, serve):
     expect(page.locator("#p1")).to_be_in_viewport()
     expect(page.locator("[data-lf-proxied]")).to_have_count(1)
     assert _ring_round(page, "#p1")
-    page.locator("#p1").evaluate("p => { p.style.marginTop = ''; }")
+    page.locator("#p1").evaluate(
+        "p => { p.style.marginTop = ''; scrollTo({top: 0, behavior: 'instant'}); }"
+    )
     note.press("Enter")
     expect(inline1).to_be_focused()
     expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile("."))
@@ -966,7 +968,7 @@ def _ring_round(page, selector):
         and mark["style"] == "solid"
         and not mark["brackets"]
         and mark["offset"] > 0
-        and mark["color"] == token_colour(page, "--lf-accent")
+        and mark["color"] == token_colour(page, "--lf-ok")
     )
 
 
@@ -996,7 +998,7 @@ def test_any_focus_on_a_note_rings_its_block_and_follows_it_redrawn(browser, ser
     assert _ring_round(page, "#p1")
     # From the keys, the block also wears the trace of the note's margin entry, whose
     # grey the ring's accent outranks. The Tab leaves the page, which the runtime reads a
-    # task later (focus.js, the `focusout` reading), and the ring coming off is that
+    # task later (dom/focus.js, the `focusout` reading), and the ring coming off is that
     # reading. Focus back on the note before it is no arrival, since the user never left.
     page.keyboard.press("Tab")
     expect(page.locator("#p1")).not_to_have_attribute("data-lf-proxied", "")
@@ -1106,7 +1108,7 @@ def test_a_note_follows_its_words_into_another_block_while_their_first_stays(
 def test_a_focused_note_rings_its_block_where_the_page_draws_its_own_annotations(
     browser, serve
 ):
-    """The ring a focused note draws round its block is the chrome's own (target-paint.js),
+    """The ring a focused note draws round its block is the chrome's own (readings/target-paint.js),
     not the annotation overlay's, so a page that presents its own annotations, which loads
     no overlay, still shows a sighted screen reader user where they are."""
     url = serve(NOTED_PAGE.replace("<body>", '<body data-annotations="page">', 1))

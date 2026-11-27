@@ -16,7 +16,7 @@ from render_harness import (
     write,
 )
 
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import slow_cpu
 
 

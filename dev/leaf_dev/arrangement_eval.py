@@ -31,15 +31,15 @@ from urllib.parse import urldefrag
 
 import turbohtml
 
-from leaf.delivery import opened_input_ids
-from leaf.event_log import read_events
-from leaf.harness import ClaudeCodeHarness
-from leaf.render_checks import SERVED_TIMEOUT_MS
-from leaf.render_gate import command as render_command_model
-from leaf.service import requires_agent_attention
-from leaf.structure import source_index, splice
-from leaf.thread import successful_replies
-from leaf.user_views import read_user_views
+from leaf.agents.delivery import opened_input_ids
+from leaf.agents.thread import successful_replies
+from leaf.base.harness import ClaudeCodeHarness
+from leaf.log.event_log import read_events
+from leaf.pages.render_gate import command as render_command_model
+from leaf.records.transaction import requires_agent_attention
+from leaf.serving.user_views import read_user_views
+from leaf.source.render_checks import SERVED_TIMEOUT_MS
+from leaf.source.structure import source_index, splice
 from leaf_dev import ROOT, pane_readings, plain_html
 from leaf_dev.arms import (
     JUDGE_MODELS,
@@ -269,7 +269,7 @@ def snapshot(page: Path, destination: Path) -> None:
         shutil.copytree(
             page,
             destination,
-            ignore=shutil.ignore_patterns("service.json", "*.lock"),
+            ignore=shutil.ignore_patterns("service@*.json", "*.lock"),
         )
 
 

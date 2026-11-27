@@ -12,7 +12,7 @@ from render_harness import (
     show_resolved,
 )
 
-from leaf import event_log as events_model
+from leaf.log import event_log as events_model
 
 
 def listed_threads(page):

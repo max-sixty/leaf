@@ -108,9 +108,17 @@ dev = [
   # Draws the edits and placements that move a floating box
   # (`journeys/test_floating_box_motion.py`).
   "hypothesis>=6",
-  # Holds `src/leaf`'s modules to one import order (`.config/importlinter.ini`).
+  # Holds `src/leaf`'s layer packages to one order (`.config/importlinter.ini`).
   "import-linter>=2.17",
 ]
+
+# `uv lock` resolves only releases at least three days old, the window
+# `.github/dependabot.yml` sets for every ecosystem. uv reads a relative
+# `exclude-newer` from 0.9.17, the minimum `README.md` states. An older uv can't parse
+# this table, so it ignores all of it with a warning, a `required-version` here
+# included, and re-resolves the lock without the window.
+[tool.uv]
+exclude-newer = "3 days"
 
 # An install never syncs the members, but uv reads their `pyproject.toml` files to
 # check the lock on every unfrozen run, so a partial copy of the tree that runs
@@ -172,7 +180,7 @@ extra-paths = ["tests"]
 
 # SessionEnd runs before a managed environment exists (bin/leaf), on system Python.
 [tool.ruff.per-file-target-version]
-"src/leaf/state.py" = "py39"
+"src/leaf/base/state.py" = "py39"
 
 # The suite is round trips through a real browser rather than computation, so tests
 # shard independently: every test gets its own tmp_path, XDG homes, and server.
@@ -290,6 +298,8 @@ backfil = "backfil"
 seeked = "seeked"
 # A simulator's device id, as `simctl` and safaridriver name it (leaf_dev/ios_safari.py).
 udid = "udid"
+# A variable in Pele's minified bundle that a seam in build/vendor.mjs names.
+ue = "ue"
 
 [tool.typos.default.extend-identifiers]
 # typos splits the plural of PNG into `PN` + `Gs` and "corrects" it to ONGs.

@@ -1,11 +1,11 @@
 """Commenting with `c`: what a comment lands on, where its box opens, and how its keys
 type and send."""
 
-import json
+import math
 import re
 
 import pytest
-from interact_support import append_carried_log_record
+from interact_support import append_carried_log_record, append_command
 from playwright.sync_api import expect
 from render_cases_interaction import (
     PANEL_PAGE,
@@ -13,18 +13,19 @@ from render_cases_interaction import (
     SEATED_OBLIGATION_WIDGETS,
     panel_comment,
 )
-from render_cases_layout import ring_faults, rings_drawn
 from render_cases_navigation import DISCLOSED_PAGE, NOTED_PAGE, TARGETS_PAGE, _publish
 from render_cases_widgets import SQUEEZED_BOARD_PAGE, WHERE_I_STAND_PAGE
 from render_harness import (
     INLINE_PAGE,
     LONG_PAGE,
     RELEASE_FOCUS,
-    ROOT,
+    WORDS_RECTS,
     draft_control,
     expect_obligations_answered,
+    expect_panel_says,
     field_press,
     gesture_writes,
+    hold_selection,
     leaf_page,
     open_page,
     open_versions,
@@ -47,21 +48,33 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
+from leaf_dev.rings import ring_faults, rings_drawn
 
 pytestmark = pytest.mark.shifts_unsurveyed
+
+
+def words_box(page, selector, words):
+    """The first line box of `words` in `selector`'s text."""
+    return page.locator(selector).evaluate(
+        f"(root, words) => ({WORDS_RECTS})(root, words)[0].toJSON()", words
+    )
+
+
+def word_at(page, selector, word):
+    """The middle of `word` in `selector`, for a real press on it."""
+    box = words_box(page, selector, word)
+    return {"x": box["x"] + box["width"] / 2, "y": box["y"] + box["height"] / 2}
 
 
 def test_reactionless_other_responses_can_turn_the_compact_field_into_a_suggestion(
     browser, serve
 ):
     """A reactionless layer keeps Suggest in the compact response fallback."""
-    registry = json.loads((ROOT / "packages/default/registry.json").read_text())
-    tokens = {name: None for name in registry["$reactions"]["tokens"]}
     page = open_page(
         browser,
-        serve(INLINE_PAGE, layer_registry={"$reactions": {"tokens": tokens}}),
+        serve(INLINE_PAGE, layer_registry={"$reactions": {"emoji": []}}),
     )
     page.locator("#p").click(click_count=3)
     box = page.locator(".lf-fab-input")
@@ -155,7 +168,8 @@ def test_comment_enters_the_selected_passage_s_field_and_takes_its_letters(
     browser, serve
 ):
     """Comment enters a selected passage's field, where letters and `?` are words; once
-    the field closes, the page's own keys answer again."""
+    the field closes, the page's own keys answer again. When search takes the selected
+    words, their field goes too, so a field showing `c` is always where `c` goes."""
     url = serve(TARGETS_PAGE)
     _publish(serve.page_dir, 2, TARGETS_PAGE, "two")
     page = open_page(browser, url)
@@ -179,6 +193,20 @@ def test_comment_enters_the_selected_passage_s_field_and_takes_its_letters(
     field = page.locator(".lf-fab-input")
     expect(page.locator(".lf-fab-bar")).to_be_visible()
     expect(field).not_to_be_focused()
+    # Search takes the browser's selection into its box, and the passage's field goes
+    # with it while search holds focus, so Escape brings the user back to no field.
+    # `g v` restores the selection, and `c` enters its field.
+    selected = page.evaluate("() => getSelection().toString()")
+    page.keyboard.press("/")
+    expect(page.get_by_role("searchbox", name="Search page text")).to_be_focused()
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    page.keyboard.press("g")
+    page.keyboard.press("v")
+    page.wait_for_function(
+        "expected => getSelection().toString() === expected", arg=selected
+    )
     page.keyboard.press("c")
     expect(field).to_be_focused()
     page.keyboard.press("c")
@@ -206,6 +234,224 @@ def test_comment_enters_the_selected_passage_s_field_and_takes_its_letters(
     expect(field).to_be_focused()
     expect(field).to_have_attribute("aria-label", re.compile("figure"))
     page.keyboard.press("Escape")
+
+
+def test_a_passage_s_field_left_for_another_target_shows_no_c(browser, serve):
+    """`c` comments on the target the user stands on, so a passage's field they left for
+    another target no longer shows `c`, and `c` opens the field on that target."""
+    page = open_page(
+        browser,
+        serve(
+            TARGETS_PAGE.replace(
+                "</main>", '<p><a id="later" href="#t">Later</a></p></main>'
+            )
+        ),
+    )
+    box = page.locator("#prose").bounding_box()
+    select(
+        page,
+        (box["x"] + 1, box["y"] + 4),
+        (box["x"] + box["width"] - 1, box["y"] + box["height"] - 4),
+        steps=12,
+    )
+    field = page.locator(".lf-fab-input")
+    expect(field).to_have_attribute("placeholder", "Comment… c")
+    page.keyboard.press("c")
+    expect(field).to_be_focused()
+    page.keyboard.press("Shift+Tab")
+    expect(page.locator("#later")).to_be_focused()
+    expect(field).to_have_attribute("aria-label", re.compile("A paragraph"))
+    expect(field).to_have_attribute("placeholder", "Comment…")
+    page.keyboard.press("c")
+    expect(field).to_be_focused()
+    expect(field).to_have_attribute("aria-label", re.compile("Later"))
+
+
+def test_a_press_that_drops_the_selected_words_takes_c_from_their_field(browser, serve):
+    """A press elsewhere drops the selected words, so their field shows no `c` while the
+    press is held. `c` then comments on the page while nothing is selected, and on the
+    words a drag has reached once it reaches some."""
+    page = open_page(browser, serve(TARGETS_PAGE))
+    prose = page.locator("#prose").bounding_box()
+    caption = page.locator("#fig figcaption").bounding_box()
+    field = page.locator(".lf-fab-input")
+    comment = page.locator('.lf-fp-field leaf-text[name="comment"]')
+    y = caption["y"] + caption["height"] / 2
+
+    def select_prose():
+        select(
+            page,
+            (prose["x"] + 1, prose["y"] + 4),
+            (prose["x"] + prose["width"] - 1, prose["y"] + prose["height"] - 4),
+            steps=12,
+        )
+        expect(field).to_have_attribute("placeholder", "Comment… c")
+        page.mouse.move(caption["x"] + 1, y)
+        page.mouse.down()
+        expect(field).to_have_attribute("placeholder", "Comment…")
+
+    select_prose()
+    page.keyboard.press("c")
+    expect(comment).to_be_focused()
+    page.mouse.up()
+    page.keyboard.press("Escape")
+    expect(comment).not_to_be_focused()
+
+    select_prose()
+    page.mouse.move(caption["x"] + caption["width"] - 1, y, steps=8)
+    page.wait_for_function("() => String(getSelection()).includes('sample')")
+    expect(field).to_have_attribute("placeholder", "Comment…")
+    page.keyboard.press("c")
+    expect(field).to_be_focused()
+    expect(field).to_have_attribute("aria-label", re.compile("sample"))
+    page.mouse.up()
+
+
+def test_a_drag_still_selecting_words_shows_c_on_no_box(browser, serve):
+    """A drag from the space before a selected word, straight back over the word, holds
+    that word again, and its box still stands. `c` comments on whatever the drag then
+    holds, so the box shows no `c` while the drag runs, however far it reaches, and `c`
+    moves the box onto the words held."""
+    page = open_page(browser, serve(TARGETS_PAGE))
+    word = words_box(page, "#prose", "paragraph")
+    y = math.floor(word["y"] + word["height"] / 2)
+    page.mouse.dblclick(word["x"] + word["width"] / 2, y)
+    box = page.locator(".lf-fab-input")
+    expect(box).to_have_attribute("placeholder", "Comment… c")
+    spaced = words_box(page, "#prose", " paragraph")
+    hold_selection(
+        page,
+        (spaced["x"] + 1, y),
+        (word["right"] - 0.25, y),
+        steps=1,
+        frame_the_press=True,
+    )
+    page.wait_for_function("() => String(getSelection()) === ' paragraph'")
+    rendered(page)
+    expect(box).to_be_visible()
+    expect(box).to_have_attribute("aria-label", re.compile(r"“paragraph”"))
+    expect(box).to_have_attribute("placeholder", "Comment…")
+    far = word_at(page, "#prose", "enough")
+    page.mouse.move(far["x"], y, steps=4)
+    page.wait_for_function("() => String(getSelection()).includes('with')")
+    rendered(page)
+    expect(box).to_be_visible()
+    expect(box).to_have_attribute("placeholder", "Comment…")
+    expect(panel_field(page)).not_to_have_attribute(
+        "placeholder", re.compile("Comment… c")
+    )
+    page.keyboard.press("c")
+    expect(box).to_be_focused()
+    expect(box).to_have_attribute("aria-label", re.compile(r"“paragraph with en"))
+    page.mouse.up()
+
+
+def test_a_drag_from_a_lone_space_into_words_takes_c_from_the_page_s_field(
+    browser, serve
+):
+    """A drag holding only the space before a word leaves `c` on the page's field,
+    since `c` can't comment on a space. Once the drag reaches the word, `c` comments on
+    what the drag holds, so the page's field shows no `c`."""
+    page = open_page(browser, serve(TARGETS_PAGE))
+    word = words_box(page, "#prose", "paragraph")
+    y = math.floor(word["y"] + word["height"] / 2)
+    spaced = words_box(page, "#prose", " paragraph")
+    hold_selection(page, (spaced["x"] + 1, y), (word["x"] + 1, y), steps=2)
+    page.wait_for_function("() => String(getSelection()) === ' '")
+    rendered(page)
+    expect_panel_says(page, "Comment… c")
+    page.mouse.move(word["right"] + 1, y, steps=4)
+    page.wait_for_function("() => String(getSelection()) === ' paragraph'")
+    rendered(page)
+    expect(panel_field(page)).not_to_have_attribute(
+        "placeholder", re.compile("Comment… c")
+    )
+    page.keyboard.press("c")
+    box = page.locator(".lf-fab-input")
+    expect(box).to_be_focused()
+    expect(box).to_have_attribute("aria-label", re.compile(r"“paragraph”"))
+    page.mouse.up()
+
+
+def test_a_press_that_drops_restored_words_withdraws_the_panel_s_offer(browser, serve):
+    """`g v` restores words the panel's field then quotes. A press elsewhere drops them,
+    and the field stops quoting them as it does, so `c` comments on the page, which the
+    field then says, rather than on words no longer selected."""
+    page = open_page(browser, serve(TARGETS_PAGE))
+    prose = page.locator("#prose").bounding_box()
+    caption = page.locator("#fig figcaption").bounding_box()
+    select(
+        page,
+        (prose["x"] + 1, prose["y"] + 4),
+        (prose["x"] + prose["width"] - 1, prose["y"] + prose["height"] - 4),
+        steps=12,
+    )
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    page.keyboard.press("g")
+    page.keyboard.press("v")
+    expect_panel_says(page, "A paragraph")
+    page.mouse.move(caption["x"] + 1, caption["y"] + caption["height"] / 2)
+    page.mouse.down()
+    expect_panel_says(page, "A paragraph", says=False)
+    page.keyboard.press("c")
+    expect(page.locator('.lf-fp-field leaf-text[name="comment"]')).to_be_focused()
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    page.mouse.up()
+
+
+def test_a_press_still_selecting_words_offers_none_in_the_panel(browser, serve):
+    """A Shift-press extending words `g v` restored, then dragging back over fewer, is
+    still selecting: the panel's field quotes none of the words meanwhile, though Shift
+    goes up mid-press, and `c` comments on the words selected when it is pressed."""
+    page = open_page(browser, serve(TARGETS_PAGE))
+    word = word_at(page, "#prose", "paragraph")
+    page.mouse.dblclick(word["x"], word["y"])
+    expect(page.locator(".lf-fab-input")).to_have_attribute("placeholder", "Comment… c")
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-fab-bar")).to_be_hidden()
+    page.keyboard.press("g")
+    page.keyboard.press("v")
+    expect_panel_says(page, "paragraph")
+    far = word_at(page, "#prose", "select")
+    page.keyboard.down("Shift")
+    page.mouse.move(far["x"], far["y"])
+    page.mouse.down()
+    page.keyboard.up("Shift")
+    expect_panel_says(page, "paragraph", says=False)
+    near = word_at(page, "#prose", "enough")
+    page.mouse.move(near["x"], near["y"], steps=6)
+    expect_panel_says(page, "words in it", says=False)
+    page.keyboard.press("c")
+    field = page.locator(".lf-fab-input")
+    expect(field).to_be_focused()
+    expect(field).to_have_attribute("aria-label", re.compile(r"“paragraph with en"))
+    page.mouse.up()
+
+
+def test_c_on_the_element_holding_a_drafted_passage_comments_on_the_element(
+    browser, serve
+):
+    """A passage's draft stays with its words when the user stands on the element
+    holding them: the element is a subject of its own, so the passage's field shows no
+    `c`, and `c` comments on the element."""
+    page = open_page(
+        browser,
+        serve(TARGETS_PAGE.replace('<p id="prose">', '<p id="prose" tabindex="0">')),
+    )
+    word = word_at(page, "#prose", "paragraph")
+    page.mouse.dblclick(word["x"], word["y"])
+    field = page.locator(".lf-fab-input")
+    expect(field).to_have_attribute("placeholder", "Comment… c")
+    page.keyboard.press("c")
+    expect(field).to_be_focused()
+    page.keyboard.type("Only this word")
+    page.keyboard.press("Shift+Tab")
+    expect(page.locator("#prose")).to_be_focused()
+    passage = field.get_attribute("aria-label")
+    page.keyboard.press("c")
+    expect(field).to_be_focused()
+    expect(field).not_to_have_attribute("aria-label", passage)
 
 
 def test_submit_shortcuts_activate_the_controls_that_promise_the_action(browser, serve):
@@ -418,10 +664,12 @@ AN_ASK_THEN_READING = leaf_page(
 
 def test_where_c_goes_shows_before_the_press(browser, serve):
     """On a target, the box stands beside it wearing `c`, in the field's own place, so
-    the press moves nothing. Before that, with the ask waiting, the panel's row offers
-    Next On Me and its `m` rather than Comment and `c`. The box at rest goes with the
-    focus that raised it and takes no Escape step: the field's Escape returns to the
-    target, and the target's lets go of everything."""
+    the press moves nothing. It stands over the margin entry it covers, the target's own
+    On Me entry included, though that entry rises at the user's location. Before that,
+    with the ask waiting, the panel's row offers Next On Me and its `m` rather than
+    Comment and `c`. The box at rest goes with the focus that raised it and takes no
+    Escape step: the field's Escape returns to the target, and the target's lets go of
+    everything."""
     page = open_page(browser, serve(AN_ASK_THEN_READING))
     resized(page, *ROOM_IN_THE_MARGIN)
     rest = page.locator(".lf-fab-rest")
@@ -436,6 +684,13 @@ def test_where_c_goes_shows_before_the_press(browser, serve):
     expect(rest.locator("kbd")).to_have_text("c")
     expect(page.locator(".lf-composer[data-lf-open]")).to_have_count(0)
     resting = rest.bounding_box()
+    entry = page.locator('.lf-margin-entry[data-lf-kinds~="on-me"]').bounding_box()
+    met = resting["y"], entry["y"] + entry["height"]
+    assert met[0] < met[1], f"the box {resting} stands clear of the entry {entry}"
+    assert page.evaluate(
+        "([x, y]) => Boolean(document.elementFromPoint(x, y)?.closest('.lf-fab-rest'))",
+        [entry["x"] + entry["width"] / 2, sum(met) / 2],
+    ), "the On Me entry stands over the box"
 
     page.keyboard.press("c")
     field = page.locator(".lf-fab-input")
@@ -451,6 +706,43 @@ def test_where_c_goes_shows_before_the_press(browser, serve):
     page.keyboard.press("Escape")
     expect(page.locator("#route")).not_to_be_focused()
     expect(rest).to_be_hidden()
+
+
+def test_the_box_at_rest_shows_the_words_kept_on_its_target(browser, serve):
+    """A comment put away on a target leaves its words where the empty box says
+    Comment…, upright as the open box writes them and read as the margin reads a draft,
+    before the `c` that opens the box on them. Words longer than the box are cut short
+    before the key, and its preview reads them whole."""
+    page = open_page(browser, serve(AN_ASK_THEN_READING))
+    resized(page, *ROOM_IN_THE_MARGIN)
+    rest = page.locator(".lf-fab-rest")
+    words = rest.locator(".lf-compose-placeholder-words")
+    field = page.locator(".lf-fab-input")
+    typed = (
+        "Take the **left** one, since the right one waits on a lock that the other "
+        "write holds for the whole of its read."
+    )
+    said = typed.replace("**", "")
+    page.keyboard.press("m")
+    page.keyboard.press("c")
+    page.keyboard.type(typed)
+    page.keyboard.press("Escape")
+    expect(page.locator("#route")).to_be_focused()
+    expect(words).to_have_text(said)
+    expect(rest.locator(".lf-compose-placeholder")).to_have_css("font-style", "normal")
+    key = rest.locator("kbd")
+    expect(key).to_have_text("c")
+    assert key.bounding_box()["x"] + key.bounding_box()["width"] <= (
+        rest.bounding_box()["x"] + rest.bounding_box()["width"]
+    )
+    assert words.evaluate("(words) => words.scrollWidth > words.clientWidth")
+
+    rest.hover()
+    expect(page.locator("#lf-preview .lf-preview-detail")).to_have_text(said)
+
+    page.keyboard.press("c")
+    expect(field).to_be_focused()
+    expect(field).to_have_js_property("value", typed)
 
 
 def test_a_press_on_the_box_at_rest_opens_it_beside_its_target(browser, serve):
@@ -538,7 +830,7 @@ def test_the_box_beside_a_tall_target_waits_at_the_window_s_top_through_a_scroll
     its card, and an answer writes the box only where an edge takes it in or lets it
     go, so no write follows the scroll. Scrolled past the target's foot and back, the
     box returns beside the foot while that scroll still moves, a box at rest included,
-    since whether focus is in sight is read at each scroll (user-place.js). A scroll's
+    since whether focus is in sight is read at each scroll (readings/user-place.js). A scroll's
     event comes after the frame that drew it, so the frame in which an edge crosses
     draws the box as the frame before left it, as it does the card."""
     page = open_page(request.getfixturevalue(engine), serve(A_TALL_ASK))
@@ -695,7 +987,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
 <lf-verdict id="shape" asks>Drop-in, and it needs no sealing.</lf-verdict></lf-group>
 <lf-group id="picked-decision" label="Should we keep it?"><h2 id="picked-decision-h">Should we keep it?</h2>
 <lf-options id="picked">
-  <lf-option id="pk-keep" label="Keep it" selected><strong>Keep it</strong> Settled by a pick.</lf-option>
+  <lf-option id="pk-keep" label="Keep it"><strong>Keep it</strong> Settled by a pick.</lf-option>
   <lf-option id="pk-drop" label="Drop it"><strong>Drop it</strong> The alternative.</lf-option>
 </lf-options></lf-group>
 <p id="p2">A passage carrying
@@ -709,6 +1001,18 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
         layer_widgets=SEATED_OBLIGATION_WIDGETS,
     )
     d = serve.page_dir
+    append_command(
+        d,
+        {
+            "kind": "action",
+            "author": "user",
+            "revision": 1,
+            "widget": "picked",
+            "action": "choose",
+            "detail": {"value": ["pk-keep"]},
+            "answered": True,
+        },
+    )
     append_carried_log_record(
         d,
         {
@@ -722,7 +1026,7 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
 
     page = open_page(browser, url)
 
-    # The completion count includes every active obligation: the authored pick is complete;
+    # The completion count includes every active obligation: the logged pick is complete;
     # the seated obligation and suggestion are not.
     expect_obligations_answered(page, "1/3")
     # In On Me the seated obligation is the agent's: the comment in its seat is owed a reply,
@@ -739,9 +1043,11 @@ def test_the_ring_holds_on_a_seat_the_agent_has_still_to_answer(browser, serve):
     show_done(page)
     expect(card("picked")).to_have_attribute("data-lf-list", "done")
     page.locator(".lf-fp-filters button").nth(2).click()
+    # The agent owes the comment a reply, beside the update the logged pick hands it.
     agent_rows = page.locator('.lf-fp-on-item[data-lf-list="agent"]')
-    expect(agent_rows).to_have_count(1)
-    expect(agent_rows).to_contain_text("Steel, unless the sealing is quick?")
+    expect(
+        agent_rows.filter(has_text="Steel, unless the sealing is quick?")
+    ).to_have_count(1)
     page.locator(".lf-fp-close").click()
     panel_settled(page, open=False)
 

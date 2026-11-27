@@ -23,17 +23,17 @@ from interact_support import (
     suggested,
 )
 
-from leaf import cli as cli_model
-from leaf import event_contracts as event_contracts_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import structure as structure_model
-from leaf.events import build_threads
-from leaf.registry import storage as registry_storage
+from leaf.base import files as files_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.log.events import build_threads
+from leaf.records import event_contracts as event_contracts_model
+from leaf.source import structure as structure_model
+from leaf.source import vocabulary as vocabulary_model
 
 
 def declare_part_prefixes(page_dir, *prefixes):
-    """Give the page's diagram part-id prefixes in place of its authored list."""
+    """Give the page's diagram other part-id prefixes than it ships with."""
     declare_on_page(
         page_dir,
         lambda registry: registry["lf-diagram"].update(
@@ -45,11 +45,10 @@ def declare_part_prefixes(page_dir, *prefixes):
 
 
 def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
-    """A picture drawn from data cannot list its parts in markup, so its widget
-    declares their kinds: any id a prefix begins is a part a comment may name, with
-    nothing authored on the element, and one outside them is refused by name."""
+    """A visual's widget declares its parts' kinds rather than its markup listing
+    them: any id a prefix begins is a part a comment may name, and one outside them is
+    refused by name."""
     (page_dir / "index.html").write_text(FLOW_PAGE)
-    declare_part_prefixes(page_dir, "node:")
     published(page_dir)
 
     named = comment(
@@ -66,9 +65,9 @@ def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
     refused = event_contracts_model.visual_anchor_error(
         {"anchor": {"section": "flow", "visual": "edge:B"}},
         {"flow": {"tag": "lf-diagram", "attrs": {"id": "flow"}}},
-        registry_storage.read_page_registry(page_dir).registry,
+        vocabulary_model.read_page_registry(page_dir).registry,
     )
-    assert (refused.code, refused.values["declared"]["prefixes"]) == (
+    assert (refused.code, refused.values["prefixes"]) == (
         "undeclared-visual",
         ["node:"],
     )
@@ -76,7 +75,7 @@ def test_a_visual_admits_the_parts_its_prefixes_begin(page_dir):
         assert event_contracts_model.visual_anchor_error(
             {"anchor": {"section": "flow", "visual": unrenderable}},
             {"flow": {"tag": "lf-diagram", "attrs": {"id": "flow"}}},
-            registry_storage.read_page_registry(page_dir).registry,
+            vocabulary_model.read_page_registry(page_dir).registry,
         ), unrenderable
 
     # The file lists none of these parts, so markup cannot drop one; a declaration
@@ -97,8 +96,7 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
     visual part and releases the old element from version retention."""
     v1 = FLOW_PAGE.replace(
         '<lf-diagram id="flow">',
-        '<p id="old-wording">The retry starts here.</p>'
-        '<lf-diagram id="flow" parts="all">',
+        '<p id="old-wording">The retry starts here.</p><lf-diagram id="flow">',
     )
     (page_dir / "index.html").write_text(v1)
     published(page_dir)
@@ -161,7 +159,7 @@ def test_an_agent_reply_can_move_a_thread_to_its_revised_visual(page_dir):
         {
             "id": root["id"],
             "anchor": current,
-            "title": None,
+            "title": "Agent thread",
             "detached_from": None,
             "rewritten_from": None,
             "resolved": None,
@@ -214,7 +212,7 @@ def test_revising_quotes_reparents_every_open_thread_without_answering_it(page_d
             "author": "user",
             "revision": 1,
             "anchor": roots["Alpha"]["anchor"],
-            "token": "shorten",
+            "emoji": "✂️",
         },
     )
     before = state_json(page_dir)["activity"]["obligations"]
@@ -242,7 +240,6 @@ def test_revising_quotes_reparents_every_open_thread_without_answering_it(page_d
         assert threads[roots[quote]["id"]]["anchor"] == {"section": "labels"}
     assert threads[roots["Unchanged"]["id"]]["anchor"] == roots["Unchanged"]["anchor"]
     assert threads[closed["id"]]["anchor"] == closed["anchor"]
-    assert reaction["id"] not in threads
     assert state["activity"]["obligations"] == before
     events = events_model.read_events(page_dir)
     moves = [e for e in events if e["kind"] == "reanchor"]
@@ -265,9 +262,9 @@ def test_revising_quotes_reparents_every_open_thread_without_answering_it(page_d
     state_json(page_dir)
     assert events_model.read_events(page_dir) == events
 
-    from leaf.events import build_threads
-    from leaf.passages import enclosing_ids
-    from leaf.thread_context import sample_events
+    from leaf.log.events import build_threads
+    from leaf.log.thread_context import sample_events
+    from leaf.source.passages import enclosing_ids
 
     document = structure_model.SourceDocument((page_dir / "index.html").read_text())
     selected = {roots["Alpha"]["id"], roots["Gamma"]["id"]}
@@ -402,13 +399,13 @@ def test_an_agent_reply_can_remove_a_subject_and_detach_its_open_thread(page_dir
     assert (reply["revision"], reply["anchor"]) == (2, None)
     events = events_model.read_events(page_dir)
     stored_reply = next(event for event in events if event["id"] == reply["id"])
-    contract = registry_storage.require_registry(page_dir)["$events"]["kinds"]["reply"]
+    contract = vocabulary_model.require_registry(page_dir)["$events"]["kinds"]["reply"]
     assert event_contracts_model.event_record_error(contract, stored_reply) is None
     assert state_json(page_dir)["threads"] == [
         {
             "id": root["id"],
             "anchor": None,
-            "title": None,
+            "title": "Agent thread",
             "detached_from": root["anchor"],
             "rewritten_from": None,
             "resolved": None,
@@ -511,7 +508,9 @@ def test_withdrawing_a_decision_does_not_veto_an_authored_replacement(page_dir):
     gone = comment(
         page_dir, "--quote", "Refill every feeder each morning", "--text", "x"
     )
-    assert gone.exit_code != 0 and "doesn't say" in gone.output
+    assert gone.exit_code == 0, gone.output
+    [note] = json.loads(gone.output)["findings"]
+    assert (note["code"], note["values"]["found"]) == ("unplaced-quote", 0)
     assert (
         next(
             event
@@ -526,7 +525,7 @@ from interact_support import (
     response_reference,
 )
 
-from leaf import passages as passages_model
+from leaf.source import passages as passages_model
 
 
 def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
@@ -556,6 +555,8 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
+            "--title",
+            "Diagram id clash",
             "--text",
             'See:\n\n<lf-diagram id="q1">\n<pre>\ngraph LR\n  A --> B\n</pre></lf-diagram>',
         ],
@@ -569,6 +570,8 @@ def test_a_comments_widget_markup_shares_one_id_universe_with_replies(page_dir):
             "reply",
             "--done",
             response_reference(page_dir, "c1"),
+            "--title",
+            "Label id clash",
             "--text",
             'See:\n\n<lf-diagram id="thread-label">\n<pre>graph LR\n  A --> B</pre></lf-diagram>',
         ],

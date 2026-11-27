@@ -11,7 +11,7 @@ from typing import TypedDict
 
 import pytest
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND
+from conftest import LEAF_COMMAND, hooks_run_this_tree
 from interact_support import (
     PAGE,
     PAGE_GROUP,
@@ -25,6 +25,7 @@ from interact_support import (
     delivered_ref,
     delivery_through,
     last_deliverable_seq,
+    owed,
     owed_answers,
     page_state,
     publish,
@@ -37,19 +38,23 @@ from interact_support import (
     state_json,
 )
 
-from leaf import cli as cli_model
-from leaf import codex as codex_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import harness as harness_model
-from leaf import revisioning as revisioning_model
-from leaf import service as service_model
-from leaf import state as cleanup_model
-from leaf import thread as thread_model
-from leaf import todos as todos_model
-from leaf.refusals import Refused
-from leaf.thread_context import logged_fragment
+from leaf.agents import codex as codex_model
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.base import files as files_model
+from leaf.base import harness as harness_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.base.refusals import Refused
+from leaf.commands import cli as cli_model
+from leaf.commands import delivery_ack as delivery_ack_model
+from leaf.commands import tasks as tasks_model
+from leaf.log import event_log as events_model
+from leaf.log.events import build_threads, logged_fragment
+from leaf.records import revisioning as revisioning_model
+from leaf.records import todos as todos_model
+from leaf.records import transaction as transaction_model
+from leaf.source.revision_artifact import active_enclosing
 
 
 class ResponseOptions(TypedDict, total=False):
@@ -103,10 +108,52 @@ def test_reply_is_fenced_to_the_exact_current_obligation(page_dir):
             response_reference(page_dir, second["id"]),
             "--text",
             "Used B.",
+            "--title",
+            "Thread title",
         ],
     )
     assert current.exit_code == 0, current.output
     assert events_model.read_events(page_dir)[-1]["responds"] == second["id"]
+
+
+def test_the_agents_reply_names_a_thread_nobody_titled(page_dir):
+    """Every thread has a title. Where nothing titled a user's thread as they posted,
+    as on a page no session claims, the agent's reply is refused without --title,
+    progress or answer, and names the thread with one; a later reply needs none.
+    Leaf's own writes, such as a line fork's working line, owe no title."""
+
+    def titles() -> dict:
+        events = events_model.read_events(page_dir)
+        threads = build_threads(events, active_enclosing(page_dir))
+        return {thread: read["title"] for thread, read in threads.items()}
+
+    asked = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "Which store?"}
+    )
+    reference = response_reference(page_dir, asked)
+    before = events_model.read_events(page_dir)
+    for declared in ("--ephemeral", "--done"):
+        [refused] = command_findings(
+            "thread", "reply", reference, declared, "--text", "Checking."
+        )
+        assert (refused.code, refused.severity) == ("untitled-thread", "error")
+        assert refused.values == {"thread": asked["id"]}
+    assert events_model.read_events(page_dir) == before
+
+    progress = ["--ephemeral", "--text", "Checking.", "--title", "Choosing a store"]
+    assert command_notes("thread", "reply", reference, *progress) == []
+    assert titles() == {asked["id"]: "Choosing a store"}
+    assert (
+        command_notes("thread", "reply", reference, "--done", "--text", "SQLite") == []
+    )
+
+    other = append_carried_log_record(
+        page_dir, {"kind": "comment", "author": "user", "text": "And the cache?"}
+    )
+    thread_model.post_reply(
+        page_dir, {"responds": other["id"]}, "On it.", ephemeral=True
+    )
+    assert titles()[other["id"]] is None
 
 
 def test_a_message_that_asks_by_its_widget_and_its_words_is_told_it_asks_twice(
@@ -122,8 +169,20 @@ def test_a_message_that_asks_by_its_widget_and_its_words_is_told_it_asks_twice(
         {"kind": "comment", "author": "user", "revision": 1, "text": "Which one?"},
     )
     for command, question in (
-        (["thread", "reply", response_reference(page_dir, asked)], QUESTION),
-        (["thread", "create", str(page_dir)], QUESTION.replace("question", "again")),
+        (
+            [
+                "thread",
+                "reply",
+                response_reference(page_dir, asked),
+                "--title",
+                "Thread title",
+            ],
+            QUESTION,
+        ),
+        (
+            ["thread", "create", str(page_dir), "--title", "Agent thread"],
+            QUESTION.replace("question", "again"),
+        ),
     ):
         noted = command_notes(
             *command, "--obligation", "--text", f"Which?\n\n{question}"
@@ -144,9 +203,10 @@ def test_a_message_beside_an_owed_answer_names_a_ref_only_while_its_owner_holds_
         claimed, {"kind": "comment", "author": "user", "text": "why B?"}
     )
     earlier = delivery_through(claimed, last_deliverable_seq(claimed))
-    delivery_model.receive_delivery(earlier)
+    delivery_ack_model.receive_delivery(earlier)
     ref = delivered_ref(claimed, asked["id"])
     reply = ["thread", "reply", str(claimed), asked["id"], "--text", "B"]
+    reply += ["--title", "Why B"]
 
     def owed_note() -> str:
         posted = CliRunner().invoke(cli_model.cli, reply)
@@ -161,7 +221,8 @@ def test_a_message_beside_an_owed_answer_names_a_ref_only_while_its_owner_holds_
     assert f"`leaf thread reply {ref}` answers it" in owed_note()
 
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "s2")
-    assert service_model.claim_page(claimed)
+    hooks_run_this_tree("s2")
+    assert transaction_model.claim_page(claimed)
     noted = owed_note()
     assert ref not in noted
     assert f"`leaf wait {claimed}` delivers for {asked['id']}" in noted
@@ -174,7 +235,7 @@ def test_a_message_beside_an_owed_answer_names_a_ref_only_while_its_owner_holds_
     pickups = len(
         [e for e in events_model.read_events(claimed) if e["kind"] == "pickup"]
     )
-    delivery_model.receive_delivery(earlier)
+    delivery_ack_model.receive_delivery(earlier)
     assert delivered_ref(claimed, asked["id"]) == successor
     assert pickups == len(
         [e for e in events_model.read_events(claimed) if e["kind"] == "pickup"]
@@ -195,7 +256,14 @@ def test_the_first_reply_on_a_revision_notes_what_page_check_advises(page_dir, e
         )
         posted = CliRunner().invoke(
             cli_model.cli,
-            ["thread", "reply", response_reference(page_dir, asked), "--done"]
+            [
+                "thread",
+                "reply",
+                response_reference(page_dir, asked),
+                "--done",
+                "--title",
+                "Thread title",
+            ]
             + ["--text", "Tidied."],
         )
         assert posted.exit_code == 0, posted.output
@@ -247,39 +315,32 @@ def test_response_reference_preserves_page_identity_and_retries(page_dir, tmp_pa
         asked = append_carried_log_record(
             page, {"kind": "comment", "id": "same-id", "author": "user", "text": "Why?"}
         )
-        with service_model.PageTransaction(page) as transaction:
+        with transaction_model.PageTransaction(page) as transaction:
             batches.append(delivery_model.batch_data(page, transaction, [asked]))
     payload = delivery_model.freeze_delivery(batches)
     refs = [batch["events"][0]["answer"]["ref"] for batch in payload["batches"]]
     assert refs[0] != refs[1]
     for page, reference in zip((page_dir, other), refs, strict=True):
-        posted = CliRunner().invoke(
-            cli_model.cli,
-            ["thread", "reply", "--done", reference, "--text", str(page)],
-        )
+        answer = ["thread", "reply", "--done", reference, "--text", str(page)]
+        posted = CliRunner().invoke(cli_model.cli, [*answer, "--title", "Why"])
         assert posted.exit_code == 0, posted.output
-        retry = CliRunner().invoke(
-            cli_model.cli,
-            ["thread", "reply", "--done", reference, "--text", str(page)],
-        )
+        retry = CliRunner().invoke(cli_model.cli, [*answer, "--title", "Why"])
         assert retry.exit_code == 0, retry.output
         assert json.loads(posted.output) == json.loads(retry.output)
-        # Reworded, it is another answer, to an update already answered.
-        [reworded] = command_findings(
-            "thread", "reply", "--done", reference, "--text", "Retried"
+        # Reworded, it is another reply at the thread's newest input, which goes in
+        # and answers nothing new.
+        reworded = CliRunner().invoke(
+            cli_model.cli, ["thread", "reply", "--done", reference, "--text", "Again"]
         )
-        assert reworded.code == "superseded-reply"
+        assert reworded.exit_code == 0, reworded.output
         replies = [
             event
             for event in events_model.read_events(page)
             if event["kind"] == "reply"
         ]
-        assert len(replies) == 1
-        assert (replies[0]["parent"], replies[0]["responds"], replies[0]["text"]) == (
-            "same-id",
-            "same-id",
-            str(page),
-        )
+        assert [
+            (reply["parent"], reply.get("responds"), reply["text"]) for reply in replies
+        ] == [("same-id", "same-id", str(page)), ("same-id", None, "Again")]
 
 
 def test_a_done_answer_after_a_todo_answer_on_one_ref_names_the_open_todo(page_dir):
@@ -294,7 +355,8 @@ def test_a_done_answer_after_a_todo_answer_on_one_ref_names_the_open_todo(page_d
 
     def reply(*flags):
         posted = CliRunner().invoke(
-            cli_model.cli, ["thread", "reply", reference, *flags]
+            cli_model.cli,
+            ["thread", "reply", reference, *flags, "--title", "Thread title"],
         )
         assert posted.exit_code == 0, posted.output
         return json.loads(posted.stdout)
@@ -318,12 +380,11 @@ def test_a_done_answer_after_a_todo_answer_on_one_ref_names_the_open_todo(page_d
 
     assert reply("--done", "--text", "Rebuilt it.") == delivered
     assert events_model.read_events(page_dir) == events
-    # With the to-do ended, another answer to the update is refused.
-    todos_model.cmd_end(page_dir, promise["id"], "done", f"reply {delivered['id']}")
-    [refused] = command_findings(
-        "thread", "reply", reference, "--done", "--text", "Rebuilt it again."
-    )
-    assert refused.code == "superseded-reply"
+    # With the to-do ended, another reply at the reference still goes in, since the
+    # comment is still the thread's newest input, and names no to-do.
+    tasks_model.cmd_end(page_dir, promise["id"], "done", f"reply {delivered['id']}")
+    again = reply("--done", "--text", "Rebuilt it again.")
+    assert "responds" not in again and "findings" not in again
 
 
 def test_response_author_api_covers_markup_question_title_progress_and_anchor(page_dir):
@@ -342,6 +403,8 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
             "--ephemeral",
             "--text",
             "Checking the options.",
+            "--title",
+            "Options",
         ],
     )
     assert progress.exit_code == 0, progress.output
@@ -378,8 +441,6 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
             reference,
             "--text",
             f"Choose here.\n\n{markup}",
-            "--title",
-            "Options",
             "--section",
             "plan",
         ],
@@ -389,7 +450,10 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
     assert [event["kind"] for event in records] == ["reply"]
     assert markup in records[0]["text"]
     assert records[0]["anchor"]["section"] == "plan"
-    assert records[0]["title"] == "Options"
+    threads = build_threads(
+        events_model.read_events(page_dir), active_enclosing(page_dir)
+    )
+    assert threads[asked["id"]]["title"] == "Options"
     selected = append_command(
         page_dir,
         {
@@ -399,6 +463,7 @@ def test_response_author_api_covers_markup_question_title_progress_and_anchor(pa
             "widget": "response-options",
             "action": "choose",
             "detail": {"value": ["response-yes"]},
+            "answered": True,
         },
     )
     # A widget input is answered on the message holding it, not on its own event id.
@@ -509,11 +574,11 @@ def test_response_refuses_stale_replaced_foreign_and_reserved_inputs(
             sys.executable,
             "-c",
             (
-                "from click.testing import CliRunner; from leaf.cli import cli; import sys; "
-                "assert 'leaf.delivery' not in sys.modules; "
+                "from click.testing import CliRunner; from leaf.commands.cli import cli; import sys; "
+                "assert 'leaf.agents.delivery' not in sys.modules; "
                 "result = CliRunner().invoke(cli, ['thread', 'reply', '--help']); "
                 "assert result.exit_code == 0, result.output; "
-                "assert 'leaf.delivery' not in sys.modules"
+                "assert 'leaf.agents.delivery' not in sys.modules"
             ),
         ],
         capture_output=True,
@@ -540,6 +605,7 @@ def test_delegated_response_survives_its_coordinators_end_without_a_competing_cl
     reference = response_reference(page_dir, comment)
     cleanup_model.end_session("coordinator")
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "worker-1")
+    hooks_run_this_tree("worker-1")
     monkeypatch.setenv("LEAF_AGENT", "Indexer")
     result = CliRunner().invoke(
         cli_model.cli,
@@ -550,6 +616,8 @@ def test_delegated_response_survives_its_coordinators_end_without_a_competing_cl
             reference,
             "--text",
             "The queue survives reconnect.",
+            "--title",
+            "Thread title",
         ],
     )
     assert result.exit_code == 0, result.output
@@ -574,7 +642,7 @@ def test_superseded_response_stays_refused_after_successor_ends(claimed):
         },
     )
     reference = response_reference(claimed, comment)
-    with service_model.PageTransaction(claimed) as page:
+    with transaction_model.PageTransaction(claimed) as page:
         page.take_claim(
             harness_model.EmbeddedHarness("successor", "Successor", os.getpid())
         )
@@ -604,7 +672,7 @@ def test_delegated_author_write_survives_same_owner_process_restart(claimed):
     original = service_model.page_claim(claimed)
     assert original is not None
     cleanup_model.ensure_session(original["id"], {"pid": os.getppid()})
-    with service_model.PageTransaction(claimed) as page:
+    with transaction_model.PageTransaction(claimed) as page:
         assert original is not None
         page.take_claim(
             harness_model.EmbeddedHarness(original["id"], "Coordinator", os.getpid())
@@ -642,9 +710,12 @@ def test_response_api_records_failure_without_reopening_thread(page_dir):
             "--ephemeral",
             "--text",
             "Looking into it.",
+            "--title",
+            "Thread title",
         ],
     )
     assert progress.exit_code == 0, progress.output
+    saved = source.read_text()
     source.write_text("<lf-unknown>Unfinished draft</lf-unknown>")
     reply = thread_model.post_response(
         reference, "No answer is coming.", failure="unavailable"
@@ -658,14 +729,31 @@ def test_response_api_records_failure_without_reopening_thread(page_dir):
         delivery_model.current_responses(page_dir, events_model.read_events(page_dir))
         == {}
     )
-    # An answer to the same reference is not a retry of the receipt: it is refused
-    # as an answer to a settled input rather than handed the receipt back.
-    [answered] = command_findings(
-        "thread", "reply", reference, "--done", "--text", "Here it is."
+    assert state_json(page_dir)["queues"]["on_user"][0]["id"] == f"update:{asked['id']}"
+    # A turn that recovers answers at the same reference, the thread's newest input,
+    # and the failure no longer waits on the user.
+    source.write_text(saved)
+    answered = CliRunner().invoke(
+        cli_model.cli, ["thread", "reply", reference, "--done", "--text", "Here it is."]
     )
-    assert answered.code == "superseded-reply"
-    assert [event["id"] for event in events_model.read_events(page_dir)][-1] == (
-        reply["id"]
+    assert answered.exit_code == 0, answered.output
+    assert events_model.read_events(page_dir)[-1]["responds"] == asked["id"]
+    assert state_json(page_dir)["queues"]["on_user"] == []
+    # That answer is the input's, so a second reply there answers nothing new, and a
+    # turn's final at the same reference yields to it.
+    again = CliRunner().invoke(
+        cli_model.cli, ["thread", "reply", reference, "--done", "--text", "Also this."]
+    )
+    assert again.exit_code == 0, again.output
+    assert "responds" not in events_model.read_events(page_dir)[-1]
+    assert (
+        thread_model.post_reply(
+            page_dir,
+            {"parent": asked["id"], "responds": asked["id"]},
+            "Here it is.",
+            settlement=thread_model.ProviderFinal("turn"),
+        )
+        is None
     )
 
 
@@ -714,10 +802,11 @@ def test_progress_draws_formatting_and_holds_no_widget(page_dir):
 def test_a_turns_opening_posts_as_progress_where_it_was_said(page_dir):
     """A provider turn's opening is the agent's progress line, as any harness's first
     line is: once complete it posts once, taking the update in hand, so a message the
-    user sends during the turn follows it, and the answer the turn commits is its
-    final message alone. An opening of several paragraphs posts as the one line
-    progress is, and one whose completion a reconnect missed posts as the next item
-    begins."""
+    user sends during the turn follows it. The turn's final message posts after that
+    message and answers the comment it was written for, a special case of Codex's,
+    and the message the turn never read stays owed. An
+    opening of several paragraphs posts as the one line progress is, and one whose
+    completion a reconnect missed posts as the next item begins."""
     comment, _target, _delivery_id, stream = _reserved_author_response(page_dir)
     fold = codex_model.AppServerEvents("codex-thread", "author-turn")
     opening = {
@@ -767,9 +856,11 @@ def test_a_turns_opening_posts_as_progress_where_it_was_said(page_dir):
         ("user", "And the cost?"),
         ("agent", "Option B, at half the cost."),
     ]
-    progress, _, answer = replies
+    progress, _, final = replies
     assert progress["ephemeral"] and progress["start"]["item"] == comment["id"]
-    assert answer["responds"] in {comment["id"], asked["id"]}
+    assert final["responds"] == comment["id"]
+    [owed_answer] = owed(state_json(page_dir))
+    assert owed_answer["input"] == asked["id"]
 
 
 @pytest.mark.parametrize("rich", ["question", "markup"])
@@ -869,7 +960,7 @@ def test_history_recovery_and_author_retry_survive_owner_process_restart(
     before = cleanup_model.session_record("codex-thread")
     cleanup_model.ensure_session("codex-thread", {"pid": os.getppid()})
     if reacquired:
-        with service_model.PageTransaction(page_dir) as page:
+        with transaction_model.PageTransaction(page_dir) as page:
             page.take_claim(
                 harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
             )
@@ -1008,14 +1099,25 @@ def test_codex_ignores_obsolete_addressed_envelopes_and_recaptures_input(
     prepared = _codex_delivery(page_dir)
     identity = prepared.payload["id"]
     path = codex_model.record_path("codex-thread", identity)
-    record = files_model.read_json(path)
-    if obsolete == "record":
-        record["format"] = "leaf-codex-delivery-v2"
-    else:
-        payload = dict(prepared.payload, format="leaf-delivery-v4")
-        cleanup_model.write_json(delivery_model.delivery_path(identity), payload)
+    record = files_model.read_json(codex_model.RECORD.file(path))
     record.update(state="queued", pending=[0])
-    cleanup_model.write_json(path, record)
+    if obsolete == "record":
+        # The record is one a Leaf of another shape wrote.
+        file = path.with_name(f"{path.stem}@999{path.suffix}")
+        codex_model.RECORD.remove(path)
+        record["format"] = "leaf-codex-delivery/999"
+    else:
+        # The envelope this Leaf's record addresses is one a Leaf of another shape
+        # froze.
+        envelope = delivery_model.delivery_path(identity)
+        delivery_model.DELIVERY.remove(envelope)
+        cleanup_model.write_json(
+            envelope.with_name(f"{envelope.stem}@999{envelope.suffix}"),
+            dict(prepared.payload, format="leaf-delivery/999"),
+        )
+        file = codex_model.RECORD.file(path)
+    cleanup_model.write_json(file, record)
+    held = file.read_bytes()
     assert codex_model.read_record(path) is None
     assert not codex_model.recover_codex_receipt("codex-thread")
     assert acknowledged_through(page_dir) == 0
@@ -1027,7 +1129,8 @@ def test_codex_ignores_obsolete_addressed_envelopes_and_recaptures_input(
     assert fresh.payload["batches"][0]["events"][0]["answer"]["ref"].startswith(
         fresh.payload["id"]
     )
-    assert path.exists()  # another checkout's record is not ours to retire
+    # Another checkout's record is not ours to retire.
+    assert file.read_bytes() == held
 
 
 def test_explicit_rich_reply_is_committed_before_later_invalid_source(page_dir):
@@ -1056,7 +1159,7 @@ def test_committed_answer_survives_a_newer_displayed_reply(page_dir):
         page_dir,
         {"kind": "comment", "author": "user", "revision": 1, "text": "Another thread"},
     )
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         batch = delivery_model.batch_data(page_dir, transaction, [newer])
     payload = delivery_model.freeze_delivery([batch], turn_replies=True)
     new_target = codex_model.stream_reply_target(payload)
@@ -1099,6 +1202,8 @@ def test_a_message_by_id_beside_a_reserved_answer_names_the_addressed_reply(page
             comment["id"],
             "--text",
             "Choosing next.",
+            "--title",
+            "Thread title",
         ],
     )
     assert beside.exit_code == 0, beside.output
@@ -1136,11 +1241,6 @@ def test_explicit_reply_refusal_reaches_its_author_before_commit(page_dir, inval
         if invalid == "source"
         else source + "<!-- edited -->"
     )
-    options = {
-        "source": {},
-        "html": {},
-        "title": {"title": ""},
-    }[invalid]
     before = events_model.read_events(page_dir)
     with pytest.raises(Refused):
         thread_model.post_response(
@@ -1149,7 +1249,7 @@ def test_explicit_reply_refusal_reaches_its_author_before_commit(page_dir, inval
             if invalid == "html"
             else "Invalid",
             identity=identity,
-            **options,
+            title="" if invalid == "title" else None,
         )
     assert events_model.read_events(page_dir) == before
     assert files_model.latest_revision(page_dir) == before_revision
@@ -1180,6 +1280,7 @@ def test_markup_obligation_cannot_be_discharged_by_reply_or_reply_failure(page_d
             "widget": "plan-choice",
             "action": "answer",
             "detail": {},
+            "answered": True,
         },
     )
     reference = response_reference(page_dir, action)
@@ -1194,11 +1295,11 @@ def test_markup_obligation_cannot_be_discharged_by_reply_or_reply_failure(page_d
             thread_model.post_response(reference, "This is not a revision.", **options)
         assert refused_on(refused.value).code == "not-a-reply"
         assert events_model.read_events(page_dir) == before
-    started = todos_model.cmd_start(
+    started = tasks_model.cmd_start(
         page_dir, action["id"], "Recording the selected plan."
     )
     assert started["item"] == action["id"]
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         delivery_model.record_pickup(
             page, [action], phase="failed", failure="turn_failed"
         )
@@ -1221,7 +1322,7 @@ def test_retry_identity_cannot_take_an_open_reply_reservation(
     comment = append_command(
         page_dir, {"kind": "comment", "author": "user", "revision": 1, "text": "Why?"}
     )
-    with service_model.PageTransaction(page_dir) as page:
+    with transaction_model.PageTransaction(page_dir) as page:
         page.take_claim(
             harness_model.EmbeddedHarness("codex-thread", "Codex", os.getpid())
         )
@@ -1260,6 +1361,8 @@ def test_retry_identity_cannot_take_an_open_reply_reservation(
             earlier,
             "--text",
             "Committed by author",
+            "--title",
+            "Thread title",
         ],
     )
     assert authored.exit_code == 0, authored.output
@@ -1283,6 +1386,8 @@ def test_retry_identity_cannot_take_an_open_reply_reservation(
             earlier,
             "--text",
             "Committed by author",
+            "--title",
+            "Thread title",
         ],
     )
     assert retried.exit_code == 0, retried.output
@@ -1333,7 +1438,7 @@ def test_a_final_into_a_thread_the_user_resolved_leaves_it_closed(page_dir, capf
 def test_old_provider_final_yields_to_new_reservation_for_same_input(page_dir, settled):
     comment, _target, _delivery_id, old = _reserved_author_response(page_dir)
     # A later delivery reserves the same captured input under a different attempt.
-    with service_model.PageTransaction(page_dir) as transaction:
+    with transaction_model.PageTransaction(page_dir) as transaction:
         batch = delivery_model.batch_data(page_dir, transaction, [comment])
     payload = delivery_model.freeze_delivery([batch], turn_replies=True)
     new_target = codex_model.stream_reply_target(payload)

@@ -6,9 +6,9 @@ from datetime import datetime
 
 from click.testing import CliRunner
 
-from leaf import event_log
-from leaf.event_log import append_event
-from leaf.interaction_log import append_interactions, client_records
+from leaf.log import event_log
+from leaf.log.event_log import append_event
+from leaf.log.interaction_log import append_interactions, client_records
 from leaf_dev.cli import cli
 
 
@@ -108,7 +108,7 @@ def test_query_keeps_input_identity_and_missing_observations(tmp_path, monkeypat
             responds="third",
             failure="startup_failed",
         ),
-        event("comment", "reaction", 13, author="user", token="keep"),
+        event("comment", "reaction", 13, author="user", emoji="👍"),
         event(
             "pickup",
             "delivery-failed",
@@ -429,7 +429,7 @@ def test_query_joins_one_browser_clock_and_selects_declared_purpose(
             },
         ],
     )
-    monkeypatch.setattr("leaf.interaction_log.now_iso", lambda: at(20))
+    monkeypatch.setattr("leaf.log.interaction_log.now_iso", lambda: at(20))
 
     def row(sequence, type, monotonic_ms, **fields):
         return {

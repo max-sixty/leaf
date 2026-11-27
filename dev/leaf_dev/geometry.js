@@ -1,0 +1,503 @@
+// Leaf's boxes against the frames they stand in (browser/AGENTS.md, "A box inside a
+// frame either meets its edge or stands clear of it"), read in one page as it stands:
+// the in-page half of `leaf_dev.geometry`, whose header says how `leaf-dev stills`
+// compares two arms' readings.
+//
+// A box is an element Leaf draws whose own edge shows: a border, a ground unlike the
+// one behind it, a picture, or a lifted shadow. A gradient is a mark drawn inside a box
+// (a rule, a fade, stripes), not its edge, and a run of words' highlight takes its
+// line's height, so neither makes a box. Leaf draws it where it is Leaf's chrome
+// (`inChrome`), a widget's own control (`uiInside`), the inside of a widget's shadow
+// tree, or wears an `lf-` name no idiom gives an author (`idioms`, the registry's class
+// keys). Three kinds of box stand where something other than Leaf's placement puts
+// them, and are not read: a part of a library's component (a shadow tree whose host is
+// no element of Leaf's), whose own look Leaf keeps (root AGENTS.md, "Use
+// dependencies"); a thumb, inside a slider or scrollbar or moved by a scroll timeline,
+// which the rule lets stand anywhere on its track; and a box in a drawing, which owns
+// its coordinates (`--lf-drawing`).
+//
+// A box's frame is the nearest box around it in the flat tree; one whose nearest box
+// is the author's stands where the author put it, and is not read.
+// A floating box's outline is the one its surface draws, a layer of rings and fills cut
+// to the box (dom/box-motion.js, `.lf-box-ground`), so a box whose border box is a
+// surface's ring is framed by that ring's fill and its rounding. Only the sides both
+// the frame and the box show are read: a frame edged on one side has one edge. For each,
+// and each rounded corner the box stands in, the clearance from the frame's inner edge
+// is measured, around the arc at a corner. A side the box reaches through a scroller
+// that scrolls on that axis moves with the scroll and is not read, and a box that fills
+// its frame on every side is one box with it. A mark centred on the edge, as a count
+// on a control's corner, stands on the frame rather than in it, and is not read either.
+//   near       0 < clearance < --lf-clear: the box nearly meets the edge
+//   round      a round mark (a circle) closer than --lf-clear, meeting it included
+//   overhang   the box crosses the frame's edge where nothing clips it
+//   cut        a clip between the box and its frame, the frame's own included, cuts a
+//              pixel or more off it
+//   rounded    the box meets a straight run of the edge with a rounded corner there
+//
+// Each finding names its kind, the box, its frame, the side and the clearance in CSS
+// pixels, negative where it crosses. The second argument is the page's own check API,
+// which geometry.py imports from the page's entry.
+({ idioms, slack = 0.5 }, { inChrome, uiInside, shownBand }) => {
+  const authored = new Set(idioms);
+
+  const parentOf = (el) =>
+    el.assignedSlot ?? el.parentElement ?? el.getRootNode()?.host ?? null;
+  const ancestors = function* (el) {
+    for (let a = parentOf(el); a && a !== document.documentElement; a = parentOf(a))
+      yield a;
+  };
+  const nearest = (el, selector) => {
+    for (let a = el; a; a = parentOf(a)) if (a.matches?.(selector)) return a;
+    return null;
+  };
+
+  // A computed colour as sRGB channels and alpha, whatever notation the engine
+  // serializes it in (`rgb()`, `color(srgb …)`, `oklab()` from a mix), read back
+  // from a canvas pixel.
+  const pixel = document.createElement("canvas").getContext("2d", {
+    willReadFrequently: true,
+  });
+  const channels = new Map();
+  const rgba = (colour) => {
+    let c = channels.get(colour);
+    if (!c) {
+      pixel.clearRect(0, 0, 1, 1);
+      pixel.fillStyle = "rgba(0, 0, 0, 0)";
+      pixel.fillStyle = colour;
+      pixel.fillRect(0, 0, 1, 1);
+      const [r, g, b, a] = pixel.getImageData(0, 0, 1, 1).data;
+      channels.set(colour, (c = { r, g, b, a: a / 255 }));
+    }
+    return c;
+  };
+  const alpha = (colour) => (!colour || colour === "transparent" ? 0 : rgba(colour).a);
+  // Whether a ground laid over another shows as a colour of its own.
+  const differs = (over, under) => {
+    const o = rgba(over),
+      u = rgba(under);
+    return ["r", "g", "b"].some(
+      (k) => Math.abs(o[k] * o.a + u[k] * (1 - o.a) - u[k]) > 2,
+    );
+  };
+  const style = new Map();
+  const cs = (el) => {
+    let s = style.get(el);
+    if (!s) style.set(el, (s = getComputedStyle(el)));
+    return s;
+  };
+
+  const leafTag = (el) => /^(lf|leaf)-/.test(el.localName);
+  const drawnByLeaf = (el) => {
+    if (inChrome(el) || uiInside(el, null)) return true;
+    const root = el.getRootNode();
+    if (root instanceof ShadowRoot && root.host.localName.includes("-")) return true;
+    if (el.localName.includes("-")) return true;
+    return [...el.classList].some((c) => c.startsWith("lf-") && !authored.has(c));
+  };
+  // A part a library's component draws inside itself, whose look is the library's.
+  const libraryPart = (el) => {
+    const root = el.getRootNode();
+    return root instanceof ShadowRoot && !leafTag(root.host);
+  };
+  // A thumb, which moves along its track as its value changes: inside a slider or a
+  // scrollbar, or moved by a scroll timeline, as an overview's window follows what its
+  // scroller shows.
+  const thumb = (el) => {
+    if (nearest(el, "[role=slider], [role=scrollbar]")) return true;
+    const timeline = cs(el).animationTimeline;
+    return !!timeline && !["auto", "none"].includes(timeline);
+  };
+  const inDrawing = (el) => {
+    const parent = parentOf(el);
+    return !!parent && cs(parent).getPropertyValue("--lf-drawing").trim() === "1";
+  };
+  // A box the top layer lifts out of the boxes it is written in.
+  const lifted = (el) => el.matches(":popover-open, dialog[open]");
+
+  const canvas = (() => {
+    for (const el of [document.body, document.documentElement]) {
+      const bg = el && cs(el).backgroundColor;
+      if (bg && alpha(bg) > 0) return bg;
+    }
+    return "rgb(255, 255, 255)";
+  })();
+  // The ground behind an element: the nearest ground an ancestor paints.
+  const groundBehind = (el) => {
+    for (const a of ancestors(el)) {
+      const bg = cs(a).backgroundColor;
+      if (alpha(bg) > 0) return bg;
+    }
+    return canvas;
+  };
+
+  const SIDES = ["top", "right", "bottom", "left"];
+  const Side = { top: "Top", right: "Right", bottom: "Bottom", left: "Left" };
+  const CORNERS = [
+    ["TopLeft", "top", "left"],
+    ["TopRight", "top", "right"],
+    ["BottomRight", "bottom", "right"],
+    ["BottomLeft", "bottom", "left"],
+  ];
+  const axisOf = (side) => (side === "left" || side === "right" ? "x" : "y");
+  const round1 = (n) => Math.round(n * 10) / 10;
+  const near = (a, b) => Math.abs(a - b) <= 1;
+
+  // Each surface's ring and fill as they stand: the rectangle and rounding each layer
+  // is cut to (`inset(top right bottom left round r)` against the layer's own box). A
+  // collapsed cut, as a surface at rest leaves its moving ring, draws nothing.
+  const cutOf = (layer) => {
+    const m = cs(layer).clipPath.match(/^inset\(([^)]*?)(?:\s+round\s+([^)]*))?\)$/);
+    if (!m || m[1].includes("%")) return null;
+    const [t, r = t, b = t, l = r] = m[1].trim().split(/\s+/).map(parseFloat);
+    const box = layer.getBoundingClientRect();
+    const radii = (m[2] ?? "0").split("/")[0].trim().split(/\s+/).map(parseFloat);
+    const [r1, r2 = r1, r3 = r1, r4 = r2] = radii;
+    return {
+      top: box.top + t,
+      right: box.right - r,
+      bottom: box.bottom - b,
+      left: box.left + l,
+      radii: { TopLeft: r1, TopRight: r2, BottomRight: r3, BottomLeft: r4 },
+    };
+  };
+  const surfaces = [...document.querySelectorAll(".lf-box-ground")]
+    .map((ground) => {
+      const [ring, fill] = ground.children;
+      return ring && fill ? { ring: cutOf(ring), fill: cutOf(fill) } : null;
+    })
+    .filter((s) => s?.ring && s.fill);
+  const surfaceDrawing = (rect) =>
+    surfaces.find(
+      ({ ring }) =>
+        near(ring.left, rect.left) &&
+        near(ring.right, rect.right) &&
+        near(ring.top, rect.top) &&
+        near(ring.bottom, rect.bottom),
+    );
+
+  const border = (s, side) => {
+    const w = parseFloat(s[`border${Side[side]}Width`]) || 0;
+    const shows =
+      w > 0 &&
+      !["none", "hidden"].includes(s[`border${Side[side]}Style`]) &&
+      alpha(s[`border${Side[side]}Color`]) > 0;
+    return { w, shows };
+  };
+  // A shadow that lifts the box or draws its hairline shows its whole edge; a ring's
+  // band (no blur, wider than a hairline) is the focus ring's, read in rings.py.
+  const shadowEdge = (s) =>
+    s.boxShadow !== "none" &&
+    s.boxShadow.split(/,(?![^(]*\))/).some((layer) => {
+      if (/(^|\s)inset(\s|$)/.test(layer)) return false;
+      const lengths = (layer.match(/-?(?:\d*\.)?\d+px/g) || []).map(parseFloat);
+      const colour = layer.replace(/-?(?:\d*\.)?\d+px/g, "").trim();
+      if (alpha(colour) === 0) return false;
+      const [, , blur = 0, spread = 0] = lengths;
+      return blur > 0 || (spread > 0 && spread <= 1);
+    });
+  // Which sides of an element show as an edge, or null where none does.
+  const edges = (el) => {
+    const s = cs(el);
+    if (s.display === "contents") return null;
+    const ground =
+      (alpha(s.backgroundColor) > 0 && differs(s.backgroundColor, groundBehind(el))) ||
+      s.backgroundImage.includes("url(") ||
+      shadowEdge(s) ||
+      !!surfaceDrawing(el.getBoundingClientRect());
+    const shown = {};
+    let any = false;
+    for (const side of SIDES) {
+      shown[side] = ground || border(s, side).shows;
+      any ||= shown[side];
+    }
+    return any ? shown : null;
+  };
+
+  const radius = (s, corner, rect) => {
+    const v = s[`border${corner}Radius`].split(" ")[0];
+    const r = v.endsWith("%")
+      ? (parseFloat(v) / 100) * Math.min(rect.width, rect.height)
+      : parseFloat(v) || 0;
+    return Math.min(r, rect.width / 2, rect.height / 2);
+  };
+  // A frame's inner edge and the rounding of each inner corner: its surface's fill
+  // where a surface draws it, else its padding box and its radii less its border.
+  const inside = (frame) => {
+    const fs = cs(frame);
+    const fr = frame.getBoundingClientRect();
+    const drawn = surfaceDrawing(fr);
+    if (drawn) return drawn.fill;
+    const radii = {};
+    for (const [corner, v, h] of CORNERS)
+      radii[corner] = Math.max(
+        0,
+        radius(fs, corner, fr) - Math.max(border(fs, v).w, border(fs, h).w),
+      );
+    return {
+      top: fr.top + border(fs, "top").w,
+      right: fr.right - border(fs, "right").w,
+      bottom: fr.bottom - border(fs, "bottom").w,
+      left: fr.left + border(fs, "left").w,
+      radii,
+    };
+  };
+
+  const scrollsOn = (a, axis) => {
+    const s = cs(a);
+    const overflow = axis === "x" ? s.overflowX : s.overflowY;
+    if (!["auto", "scroll"].includes(overflow)) return false;
+    return axis === "x"
+      ? a.scrollWidth > a.clientWidth + 1
+      : a.scrollHeight > a.clientHeight + 1;
+  };
+  const clipsOn = (a, axis) => {
+    const s = cs(a);
+    if (/paint|strict|content/.test(s.contain)) return true;
+    return (axis === "x" ? s.overflowX : s.overflowY) !== "visible";
+  };
+  // The box an absolutely placed box hangs off, which with the boxes around it is all
+  // that clips it: a static box it happens to be written inside clips it not at all.
+  const containing = (el) => {
+    for (const a of ancestors(el)) {
+      const t = cs(a);
+      if (
+        t.position !== "static" ||
+        t.transform !== "none" ||
+        t.filter !== "none" ||
+        /paint|layout|strict|content/.test(t.contain)
+      )
+        return a;
+    }
+    return null;
+  };
+  const short = (el) => {
+    const names = [...el.classList].filter((c) => c.startsWith("lf-")).slice(0, 2);
+    return el.localName + names.map((c) => `.${c}`).join("");
+  };
+  const placed = (el) => {
+    const parts = [short(el)];
+    for (const a of ancestors(el)) {
+      if (parts.length >= 3) break;
+      if (
+        [...a.classList].some((c) => c.startsWith("lf-")) ||
+        a.localName.includes("-")
+      )
+        parts.unshift(short(a));
+    }
+    return parts.join(" > ");
+  };
+
+  const all = [];
+  const walk = (root) => {
+    for (const el of root.querySelectorAll("*")) {
+      all.push(el);
+      if (el.shadowRoot) walk(el.shadowRoot);
+    }
+  };
+  walk(document);
+
+  const findings = [];
+  for (const el of all) {
+    if (el instanceof SVGElement && el.localName !== "svg") continue;
+    if (!drawnByLeaf(el)) continue;
+    if (!el.checkVisibility({ opacityProperty: true, visibilityProperty: true }))
+      continue;
+    const s = cs(el);
+    if (s.display === "inline" || el.closest(".lf-box-ground")) continue;
+    if (libraryPart(el) || thumb(el) || inDrawing(el)) continue;
+    if (s.position === "fixed" || lifted(el)) continue;
+    const own = edges(el);
+    if (!own) continue;
+    const rect = el.getBoundingClientRect();
+    if (rect.width < 1 || rect.height < 1) continue;
+
+    const isRound =
+      Math.abs(rect.width - rect.height) <= 1 &&
+      CORNERS.every(([c]) => radius(s, c, rect) >= rect.width / 2 - slack);
+    // The frame: the nearest box around this one. The boxes between say which axes
+    // move with a scroll, and which clip.
+    let frame = null;
+    const between = [];
+    for (const a of ancestors(el)) {
+      if (edges(a)) {
+        frame = a;
+        break;
+      }
+      if (cs(a).position === "fixed" || lifted(a)) break;
+      between.push(a);
+    }
+    if (!frame || !drawnByLeaf(frame) || libraryPart(frame)) continue;
+    const fs = cs(frame);
+    const fshown = edges(frame);
+    const inner = inside(frame);
+    if (
+      rect.right <= inner.left ||
+      rect.left >= inner.right ||
+      rect.bottom <= inner.top ||
+      rect.top >= inner.bottom
+    )
+      continue;
+    const gaps = {
+      top: rect.top - inner.top,
+      right: inner.right - rect.right,
+      bottom: inner.bottom - rect.bottom,
+      left: rect.left - inner.left,
+    };
+    // A box that fills its frame on every side, or stands on the outline its frame's
+    // surface draws, is one box with it.
+    const fr = frame.getBoundingClientRect();
+    const outline = { top: fr.top, right: fr.right, bottom: fr.bottom, left: fr.left };
+    if (
+      SIDES.every((side) => Math.abs(gaps[side]) <= slack) ||
+      SIDES.every((side) => Math.abs(rect[side] - outline[side]) <= slack)
+    )
+      continue;
+    const moving = {
+      x: between.some((a) => scrollsOn(a, "x")),
+      y: between.some((a) => scrollsOn(a, "y")),
+    };
+    const clear =
+      parseFloat(s.getPropertyValue("--lf-clear")) ||
+      parseFloat(fs.getPropertyValue("--lf-clear")) ||
+      4;
+    const report = (kind, side, gap) =>
+      findings.push({
+        kind,
+        side,
+        gap: round1(gap),
+        box: placed(el),
+        frame: placed(frame),
+        at: [rect.left, rect.top, rect.width, rect.height].map(round1),
+      });
+
+    // The boxes that clip this one, from its containing block out to its frame and on
+    // to the first box placed against the window: an absolutely placed box is clipped
+    // only from its containing block out.
+    const clippers = [];
+    const cb = s.position === "absolute" ? containing(el) : null;
+    let reached = !cb;
+    for (const a of [...between, frame, ...ancestors(frame)]) {
+      if (!reached && a !== cb) continue;
+      reached = true;
+      if (clipsOn(a, "x") || clipsOn(a, "y")) {
+        const band = shownBand(a);
+        if (band) clippers.push({ a, band });
+      }
+      if (cs(a).position === "fixed") break;
+    }
+
+    // Cuts: a clip between the box and its frame, the frame's own included.
+    const cut = new Set();
+    for (const { a, band } of clippers) {
+      if (a !== frame && !between.includes(a)) continue;
+      const past = {
+        top: band.top - rect.top,
+        right: rect.right - band.right,
+        bottom: rect.bottom - band.bottom,
+        left: band.left - rect.left,
+      };
+      for (const side of SIDES) {
+        const axis = axisOf(side);
+        if (!own[side] || !clipsOn(a, axis) || scrollsOn(a, axis) || moving[axis])
+          continue;
+        if (past[side] >= 1 - 0.05 && !cut.has(side)) {
+          cut.add(side);
+          report("cut", side, -past[side]);
+        }
+      }
+    }
+
+    // A mark centred on the edge, its middle within a couple of pixels of it, stands
+    // on the frame rather than in it.
+    const seated = (gap, extent) => gap <= 2 - extent / 2;
+    // Corners: the clearance around the frame's inner arc of what shows of the box
+    // where it stands in a rounded corner. A box shows only inside every box that clips
+    // it, each a rectangle rounded at its corners, so it reaches no further into the
+    // corner than the least of them: the box itself, or a clip that rounds the corner
+    // for it, as a pane clipping to its rounding does, whether the clip is the frame,
+    // a box between, or one around the frame.
+    const inCorner = new Set();
+    for (const [corner, v, h] of CORNERS) {
+      if (moving.x || moving.y) continue;
+      const r = inner.radii[corner];
+      if (r < 1 || !fshown[v] || !fshown[h] || !own[v] || !own[h]) continue;
+      const cx = h === "left" ? inner.left + r : inner.right - r;
+      const cy = v === "top" ? inner.top + r : inner.bottom - r;
+      // A shape's rounding centre at this corner, for a rectangle rounded by `rb`.
+      const centre = (box, rb) => [
+        h === "left" ? box.left + rb : box.right - rb,
+        v === "top" ? box.top + rb : box.bottom - rb,
+      ];
+      const rb = isRound ? rect.width / 2 : radius(s, corner, rect);
+      const [bx, by] = centre(rect, rb);
+      const inArc =
+        (h === "left" ? bx <= cx + slack : bx >= cx - slack) &&
+        (v === "top" ? by <= cy + slack : by >= cy - slack);
+      if (!inArc) continue;
+      inCorner.add(corner);
+      // A shape's clearance from the frame's inner edge at this corner. One whose
+      // rounding centre stands beside the arc's, as within the slack, is nearest the
+      // straight edge beside the arc.
+      const clearance = (box, rb) => {
+        const [kx, ky] = centre(box, rb);
+        const besideX = h === "left" ? kx > cx : kx < cx;
+        const besideY = v === "top" ? ky > cy : ky < cy;
+        const edge = (side) =>
+          side === "top"
+            ? box.top - inner.top
+            : side === "right"
+              ? inner.right - box.right
+              : side === "bottom"
+                ? inner.bottom - box.bottom
+                : box.left - inner.left;
+        return besideX || besideY
+          ? Math.min(besideX ? edge(v) : Infinity, besideY ? edge(h) : Infinity)
+          : r - (Math.hypot(cx - kx, cy - ky) + rb);
+      };
+      const gap = Math.max(
+        clearance(rect, rb),
+        ...clippers
+          .filter(({ a }) => clipsOn(a, "x") && clipsOn(a, "y"))
+          .map(({ a, band }) => {
+            const t = cs(a);
+            const rounding = Math.max(
+              0,
+              radius(t, corner, a.getBoundingClientRect()) -
+                Math.max(border(t, v).w, border(t, h).w),
+            );
+            return clearance(
+              band,
+              Math.min(rounding, band.right - band.left, band.bottom - band.top),
+            );
+          }),
+      );
+      if (gap < -slack) {
+        if (!cut.has(v) && !cut.has(h))
+          if (!seated(gap, Math.min(rect.width, rect.height)))
+            report("overhang", corner, gap);
+      } else if (gap < clear - slack && (isRound || gap > slack)) {
+        report(isRound ? "round" : "near", corner, gap);
+      }
+    }
+
+    for (const side of SIDES) {
+      if (!fshown[side] || !own[side] || moving[axisOf(side)]) continue;
+      // A side the box stands in a corner's arc beside is read at the corner.
+      const corners = CORNERS.filter(([, v, h]) => v === side || h === side);
+      if (corners.some(([c]) => inCorner.has(c))) continue;
+      const gap = gaps[side];
+      const extent = axisOf(side) === "x" ? rect.width : rect.height;
+      if (gap < -slack) {
+        if (!cut.has(side) && !seated(gap, extent)) report("overhang", side, gap);
+      } else if (isRound) {
+        if (gap < clear - slack) report("round", side, gap);
+      } else if (gap > slack && gap < clear - slack) {
+        report("near", side, gap);
+      } else if (Math.abs(gap) <= slack) {
+        if (corners.some(([c]) => radius(s, c, rect) > 1)) report("rounded", side, gap);
+      }
+    }
+  }
+
+  return findings;
+};

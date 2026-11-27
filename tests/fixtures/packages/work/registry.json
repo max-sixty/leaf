@@ -102,10 +102,8 @@
     "verbs": {
       "state": {
         "writer": "agent",
-        "unit": "widget",
         "text": true,
         "record": {
-          "kind": "value",
           "attr": "state"
         }
       }
@@ -168,9 +166,7 @@
     "verbs": {
       "status": {
         "writer": "agent",
-        "unit": "widget",
         "record": {
-          "kind": "value",
           "attr": "status"
         }
       }
@@ -179,9 +175,6 @@
   "lf-test-tree": {
     "description": "A stable, commentable address for observed worktree evidence supplied by the harness.",
     "attributes": {
-      "properties": {
-        "source": { "type": "string" }
-      },
       "required": ["id", "source"]
     },
     "content": "empty",
@@ -196,7 +189,7 @@
     "space": "wide"
   },
   "$work": {
-    "description": "The optional Command Hub projection. Each widget names the general role it plays and the attributes that carry that role's state. A goal or worker state attribute is backed by exactly one widget-unit value record in `verbs`, which is also the role's report verb when it declares `writer: \"agent\"`, and its module presents the widgetController reading, so the projection consumes one immutable application epoch rather than rendered attributes. Later packages may add their own tag entries under widgets without teaching Leaf's kernel their names.",
+    "description": "The optional Command Hub projection. Each widget names the general role it plays and the attributes that carry that role's state. A goal or worker state attribute is backed by exactly one widget-unit value record in `verbs`, which is also the role's report verb when it declares `writer: \"agent\"`, and its module presents the widget's `state`, so the projection consumes one immutable application epoch rather than rendered attributes. Later packages may add their own tag entries under widgets without teaching Leaf's kernel their names.",
     "widgets": {
       "lf-test-plan": {
         "role": "scope"

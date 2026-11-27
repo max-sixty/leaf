@@ -75,20 +75,22 @@ from playwright.sync_api import (
 from playwright.sync_api import Error as PlaywrightError
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 
-from leaf import cli as cli_model
-from leaf import files as files_model
-from leaf import hosting as hosting_model
-from leaf import leases as leases_model
-from leaf import presence as presence_model
-from leaf import publishing as publishing_model
-from leaf import render_checks as render_checks_model
-from leaf import schema as schema_model
-from leaf import state as cleanup_model
-from leaf import structure as structure_model
-from leaf.findings import Finding, placed
-from leaf.registry.contract import element_declarations
-from leaf.render_checks import one_frame, rendered, wait_until_ready
-from leaf.render_gate import scheme as render_gate_model
+from leaf.agents import presence as presence_model
+from leaf.base import files as files_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import schema as schema_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.base.findings import Finding, placed
+from leaf.commands import cli as cli_model
+from leaf.pages import hosting as hosting_model
+from leaf.pages.render_gate import scheme as render_gate_model
+from leaf.records import publishing as publishing_model
+from leaf.source import render_checks as render_checks_model
+from leaf.source import structure as structure_model
+from leaf.source.registry.contract import element_declarations
+from leaf.source.render_checks import one_frame, rendered, wait_until_ready
 from leaf_dev import browser as dev_browser
 from leaf_dev.browser import (
     PANEL,
@@ -163,8 +165,8 @@ def shift_watch_source():
     """Bind the sensor to the runtime's control, clipping, scroll-space and
     skipped-content readings."""
     source = (
-        'import { clippingAxes } from "./browser/runtime/rect.js";\n'
-        'import { elementAxes, scrollAxes } from "./browser/runtime/element-axes.js";\n'
+        'import { clippingAxes } from "./browser/runtime/dom/rect.js";\n'
+        'import { elementAxes, scrollAxes } from "./browser/runtime/dom/element-axes.js";\n'
         'import { renderedParent, skipped } from "./browser/runtime/lib/shadow-tree.js";\n'
         + WATCH_PLATFORM_SOURCE.read_text()
         + "\nconst nativePerformance = window.lfWatchPlatform.performance;\n"
@@ -182,7 +184,7 @@ def shift_watch_source():
             (
                 'import { readFileSync } from "node:fs";'
                 'import { buildSync } from "esbuild";'
-                'import { WORKS, PRESSES, CARET_KEYS } from "./browser/runtime/control-selectors.js";'
+                'import { WORKS, PRESSES, CARET_KEYS } from "./browser/runtime/dom/control-selectors.js";'
                 "const vocabulary = `const interactive=${JSON.stringify(WORKS)},"
                 "pressControls=${JSON.stringify(PRESSES)},caretKeys=${JSON.stringify(CARET_KEYS)};\n`;"
                 'const result = buildSync({stdin: {contents: vocabulary + readFileSync(0, "utf8"),'
@@ -743,7 +745,7 @@ def page_registry(page):
 
 def page_declarations(page):
     """The element declarations of this page's registry, which is what the render gate
-    hands every reading that takes declarations (`scheme._render_page`). The registry
+    hands every reading that takes declarations (`version._render_page`). The registry
     also describes HTML elements and selectors, such as `button`, which no reading asks
     after as a widget."""
     return element_declarations(page_registry(page))
@@ -767,7 +769,7 @@ def post_event(page, url, **kwargs):
 class Traffic:
     """One page's trips to the server, as the runtime counts them.
 
-    The runtime keeps the ledger (runtime/traffic.js) and paints it on the root
+    The runtime keeps the ledger (runtime/transport/traffic.js) and paints it on the root
     element as `data-lf-traffic`; this reads it. `sends` counts attempts, so a retry is a
     second send. `pending` is the outbox's own list of attempts with
     no delivery outcome yet, so a failed request stays pending while the outbox retries
@@ -863,11 +865,11 @@ def _until(page, fact, wanted):
 # Each part misses what the others name. A gesture's request failure ends its post but
 # not its delivery, because the outbox keeps the same attempt and retries; `acked` alone
 # would return on that ambiguous edge. A post that skips the outbox — a bookkeeping
-# event such as `read` (delivery.js), the page's own `error` report, a media upload
-# (layer-client.js) — leaves `pending` empty while it is still on the wire; `pending`
+# event such as `read` (host/delivery.js), the page's own `error` report, a media upload
+# (transport/layer-client.js) — leaves `pending` empty while it is still on the wire; `pending`
 # alone returns before the server has it. And the page adopts the server's reading of a
 # gesture after its attempt leaves `pending`, once the frame painting the gesture has
-# drawn (state-application.js), so a read straight after delivery alone finds the
+# drawn (host/state-application.js), so a read straight after delivery alone finds the
 # tab's own copy: a pending thread id, an Undo not yet offered. A test that holds
 # requests on a route must release every one, that report included.
 def answered(reading):
@@ -950,7 +952,7 @@ def back_gesture(page):
 # that dispatches the route here — until the list has it.
 def long_press(page, point):
     """Send what a touch engine sends as a press it holds becomes a long press, a
-    `contextmenu` at the finger, which a held finger reads at (preview.js) and which
+    `contextmenu` at the finger, which a held finger reads at (annotations/preview.js) and which
     Chromium's injected touch never sends. Says whether the page let the platform's menu
     open."""
     return page.evaluate(
@@ -962,10 +964,10 @@ def long_press(page, point):
 
 
 # Design mode's legend, a box on each item the page names while the mode stands
-# (design.js): the mode as the page shows it.
+# (annotations/design.js): the mode as the page shows it.
 DESIGN_LEGEND = ".lf-legend-box"
-# The chrome's root, after `body` (chrome.js), which holds what the runtime states for
-# its own stylesheets, such as the annotation layer hidden (`g H`, annotation-layer.js).
+# The chrome's root, after `body` (base/chrome.js), which holds what the runtime states for
+# its own stylesheets, such as the annotation layer hidden (`g H`, annotations/annotation-layer.js).
 CHROME_ROOT = "html > .lf-chrome"
 
 
@@ -982,7 +984,7 @@ def expect_design_mode(page, on=True):
 def cursor_at(page, x, y):
     """The cursor the user sees at a point of the viewport: the computed cursor of the
     element a press there lands on, through every open shadow tree it crosses, since
-    the runtime paints a cursor on that element and no other (page-geometry.js)."""
+    the runtime paints a cursor on that element and no other (panel/page-geometry.js)."""
     return page.evaluate(
         """([x, y]) => {
           let at = document.elementFromPoint(x, y);
@@ -1084,7 +1086,7 @@ _NOTES_OF = """(holder) => {
 
 def expect_comment_notes(page, holder, count):
     """Wait until the element `holder` (a selector) and the elements inside it name
-    `count` comment notes as their details (anchor-note-view.js)."""
+    `count` comment notes as their details (annotations/anchor-note-view.js)."""
     page.wait_for_function(
         f"([holder, count]) => ({_NOTES_OF})(holder).length === count",
         arg=[holder, count],
@@ -1115,7 +1117,7 @@ def _accessibility(page):
     not the DOM attributes that asked for it."""
     cdp = page.context.new_cdp_session(page)
 
-    def ax(selector=None, *, locator=None, **at):
+    def ax(selector=None, *, locator=None, subtree=False, **at):
         if selector is not None:
             root = cdp.send("DOM.getDocument")["root"]["nodeId"]
             at = cdp.send("DOM.querySelector", {"nodeId": root, "selector": selector})
@@ -1132,9 +1134,34 @@ def _accessibility(page):
                 },
             )
             at = {"objectId": held["result"]["objectId"]}
-        return cdp.send(
+        node = cdp.send(
             "Accessibility.getPartialAXTree", {**at, "fetchRelatives": False}
         )["nodes"][0]
+        if not subtree:
+            return node
+        nodes = {
+            n["nodeId"]: n for n in cdp.send("Accessibility.getFullAXTree")["nodes"]
+        }
+
+        def read(node):
+            children = [
+                reading
+                for child in node.get("childIds", [])
+                if child in nodes
+                for reading in read(nodes[child])
+            ]
+            if node.get("ignored"):
+                return children
+            return [
+                {
+                    "role": node["role"]["value"],
+                    "name": node.get("name", {}).get("value", ""),
+                    "value": node.get("value", {}).get("value", ""),
+                    "children": children,
+                }
+            ]
+
+        return read({**nodes[node["nodeId"]], "ignored": False})[0]
 
     try:
         yield ax
@@ -1142,13 +1169,15 @@ def _accessibility(page):
         cdp.detach()
 
 
-def accessible_node(locator):
-    """What a screen reader is given for the element `locator` names: the node the
-    browser's accessibility tree holds for it, with its `role` and `name`, or `ignored`
-    and the reasons. A role locator can't stand in for it, since Playwright's own
-    reading misses `aria-hidden` on a shadow ancestor of slotted content."""
+def accessible_tree(locator):
+    """What a screen reader is given at and under the element `locator` names: the node
+    the browser's accessibility tree holds for it, as `role`, `name`, `value` and
+    `children`, each child read the same way, with each node the browser ignores
+    replaced by its children. A role locator can't stand in for it, since Playwright's
+    own reading misses `aria-hidden` on a shadow ancestor of slotted content, and reads
+    no value."""
     with _accessibility(locator.page) as ax:
-        return ax(locator=locator)
+        return ax(locator=locator, subtree=True)
 
 
 def accessible_details(page, selector):
@@ -1213,7 +1242,7 @@ def told(page):
 def all_pages_offered(page):
     """Wait until the page offers All pages: another page is live, and this one has
     read the list of them. It reads that list apart from its own state, once a news
-    look names it (live-leaves.js, `hearPages`), so a page that has taken in all its
+    look names it (host/live-leaves.js, `hearPages`), so a page that has taken in all its
     own state may not hold it yet."""
     wait_for_check_api(page, "(api) => api.leavesOffered()")
 
@@ -1271,7 +1300,7 @@ def undo(page):
 
 # Each command the dispatcher would run from the current location, by its id, with the
 # keys that reach it there; a command no key reaches (one only a control presses) lists
-# none. The dispatcher's own reading (keyboard/dispatch.js, `availableCommandRoutes`),
+# none. The dispatcher's own reading (dom/keyboard/dispatch.js, `availableCommandRoutes`),
 # which the leaf's menu greys its rows by too. Evaluating it also leaves the reading on
 # the page as `window.__lfAvailableCommands`, synchronous, for `wait_for_function`, which
 # takes an async predicate's promise as a truthy answer and returns at once.
@@ -1340,7 +1369,7 @@ def fetch_whole_state(route, **fetch):
 
 
 # A tab a test holds stale is stale only while nothing reaches it: a state read brings
-# it the log, and a drafts read the server's drafts (runtime/drafts.js, `hearDrafts`),
+# it the log, and a drafts read the server's drafts (runtime/records/drafts.js, `hearDrafts`),
 # so a stale view the assertions take their time reaching is a race a loaded runner
 # loses. Refusing both reads states it — but
 # only from before the page exists. `page.route` reaches no request already in the
@@ -1416,7 +1445,7 @@ def displayed(page):
 
 def stored_drafts(page) -> dict:
     """The drafts the page's server holds, by context, once this tab has sent it every
-    word it holds (`draftsWaiting`, runtime/drafts.js): what another tab, another
+    word it holds (`draftsWaiting`, runtime/records/drafts.js): what another tab, another
     device or a reload finds, whatever this tab shows. Asked through the context's
     request API, as `told` asks, so page routes and the traffic watcher don't see it."""
     waiting = page.evaluate_handle(
@@ -1671,7 +1700,7 @@ def _judge_frame_watches(frame):
 
 def watched(page, *, java_script_enabled=True):
     """Collect browser problems into one retained list per page, each a record
-    (`leaf/findings.py`) a test reads by its fields.
+    (`leaf/base/findings.py`) a test reads by its fields.
 
     The browser's own reports, taken from Playwright's events as the render gate takes
     them: console warnings and errors, and uncaught exceptions. Firefox's warning that
@@ -1786,8 +1815,8 @@ def watch_sources(shifts: bool) -> str:
           };
           window.__lfWidgetApi = () => entry('runtime/widget-api.js');
           window.__lfCheckApi = () => entry('runtime/check-api.js');
-          window.__lfOverlayApi = () => entry('runtime/annotation-overlay/check-api.js');
-          window.__lfClientApi = () => entry('runtime/layer-client.js');
+          window.__lfOverlayApi = () => entry('runtime/annotations/annotation-overlay/check-api.js');
+          window.__lfClientApi = () => entry('runtime/transport/layer-client.js');
           window.__lfLibImport = name => entry(`runtime/lib/${name}`);
           window.__lfVendorImport = name => entry(`vendor/${name}`);
         })();""",
@@ -2078,9 +2107,9 @@ def panel_field(page):
 
 def field_press(page):
     """The press the panel field's end offers while the field says its words at rest
-    (composing/input.js, `pressAtRest`), the moment's own: a notice's, such as a
+    (annotations/composing/input.js, `pressAtRest`), the moment's own: a notice's, such as a
     Resolve's Next thread, a stance's Close, or the page's own, Open latest or Next On
-    Me (field-readings.js, `end`). Its word is `.lf-compose-press-word`, and the key that
+    Me (panel/field-readings.js, `end`). Its word is `.lf-compose-press-word`, and the key that
     makes it the `kbd` after it."""
     return page.locator(".lf-fp-field .lf-compose-press")
 
@@ -2088,20 +2117,20 @@ def field_press(page):
 def stance_exit(page):
     """The ✕ in the panel's row, before the leaf, that ends the stance standing, such as
     Draw mode or the target picker, named by its `aria-label`, beside the mode chip that
-    names the stance (floating-panel.js, `fieldExit`)."""
+    names the stance (panel/floating-panel.js, `fieldExit`)."""
     return page.locator(".lf-fp-row > .lf-fp-exit")
 
 
 def latest_press(page):
     """Open latest, which the panel field's end offers while the page shows an older version
-    than the latest and no other press stands there (floating-panel.js, `OPEN_LATEST`)."""
+    than the latest and no other press stands there (panel/floating-panel.js, `OPEN_LATEST`)."""
     return field_press(page).filter(has_text="Open latest")
 
 
 def open_latest(page):
     """Run what Open latest at the panel field's end runs, which moves no focus, for a
     test whose caret stands in a box. There the press's keys type letters, so the end
-    shows a keyboard nothing (field-readings.js, `end`), and a finger's press on the
+    shows a keyboard nothing (panel/field-readings.js, `end`), and a finger's press on the
     word it shows alone is the route that keeps the caret where it is."""
     page.evaluate("async () => (await window.__lfCheckApi()).versionPicker.latest()")
 
@@ -2125,8 +2154,14 @@ def panel_settled(page, open=True, view=None):
     `leaves`). The panel stands over the page, so opening or closing a view moves
     nothing else; its own clip and fade are the one motion, finished rather than waited
     out, for the reason `scroll_settled` gives a scroll: a test holding the clock still
-    would otherwise wait forever. An occluded child gets no animation frames, so a
-    native timer polls the same reading there."""
+    would otherwise wait forever. The box's motion starts only in the rendering update
+    after its layout changes, when its size delivery reads the change
+    (dom/box-motion.js), and until that update a motion not yet started looks the same
+    as a finished one. So the wait also holds until the runtime reads the rendering the
+    change started as settled (`updatesSettled`, runtime/base/rendering.js), which
+    takes that update and a quiet one after it. An occluded child gets no animation
+    frames and reads as settled at once, so a native timer polls the same reading
+    there."""
     page.wait_for_function(
         """([open, view]) => {
           const host = document.querySelector('.lf-floating-panel');
@@ -2140,8 +2175,9 @@ def panel_settled(page, open=True, view=None):
           for (const move of moving) move.finish();
           const shown = host.dataset.lfOpen ?? null;
           return (open ? shown !== null && (!view || shown === view) : shown === null)
-            && !host.querySelector('.lf-fp-view[data-lf-leaving]')
-            && [host, ground].every((n) => !finite(n).length);
+            && [host, ground].every((n) => !finite(n).length)
+            && document.querySelector('script[data-lf-entry]')
+              .lfRenderingState().updatesSettled;
         }""",
         arg=[open, view],
         polling=render_checks_model.PROBE_POLL_MS,
@@ -2161,7 +2197,7 @@ def fresh_taps():
     states its own count, but a touch tap takes Chromium's. So two taps a test sends
     back to back near one spot are a double tap wherever the page answers fast
     enough, and the floating panel presses nothing for a run's later press on a
-    control its first press drew there (floating-panel.js, `runOfClicks`): a test that
+    control its first press drew there (panel/floating-panel.js, `runOfClicks`): a test that
     taps the menu open and then the row that opened under the finger would pass only on
     a host slow enough to space them. So each tap through `Locator.tap` or
     `Touchscreen.tap`, the suite's Playwright tap routes, waits until `TAP_RUN_S` has
@@ -2234,7 +2270,7 @@ def show_done(page):
 
 
 # How many open threads the page's reading holds, the number the Threads tab says
-# (thread/model.js, `threadCounts`): those not resolved, a bare reaction being no
+# (state/thread/model.js, `threadCounts`): those not resolved, a bare reaction being no
 # thread; null until the saved inventory has arrived. It leaves the reading as
 # `window.__lfOpenThreads` for a wait to poll.
 OPEN_THREAD_COUNT = """async () => {
@@ -2278,11 +2314,11 @@ def panel_menu(page, at=None, *, touch=False):
     opened over it: a group (`navigate`, `annotate`) or `versions`. Each press is a
     mouse's, or a finger's with `touch`.
 
-    The menu is the On view's first tab (floating-panel.js, `VIEWS.menu`), which
+    The menu is the On view's first tab (panel/floating-panel.js, `VIEWS.menu`), which
     `leaf_dev.browser.open_menu` reaches by the leaf and the Menu tab; a list the menu
     leads to opens as a view over it, whose way back returns to the menu. A row's
-    `data-lf-row` is its key among the page's control rows (page-controls.js). The menu
-    holds the rows it opened with while it stands (floating-panel.js, `holdMenu`), a row
+    `data-lf-row` is its key among the page's control rows (base/page-controls.js). The menu
+    holds the rows it opened with while it stands (panel/floating-panel.js, `holdMenu`), a row
     news took away staying disabled and one news offered waiting for the next opening,
     so a reading of it is a reading of the moment it opened. A mouse's press on a leaf
     that opens the menu leaves the user in the menu's search."""
@@ -2350,7 +2386,7 @@ def expect_panel_offers(page, key, *, offered=True, at=None):
 def selection_field(page):
     """Return the page comment's box in the panel's field while it offers the words
     selected on the page: its placeholder quotes them, and a press on it comments on
-    them (floating-panel.js, `selectedWords`). Nothing matches while no words are
+    them (panel/floating-panel.js, `selectedWords`). Nothing matches while no words are
     offered, so the locator reads as hidden then."""
     return page.locator(
         '.lf-fp-field leaf-text[name="comment"][data-lf-says="selection"]'
@@ -2361,7 +2397,7 @@ def page_comment(page):
     """Return the page comment's box in the panel's field, focused.
 
     The field writes a page comment while no view stands open over it
-    (floating-panel.js, `pageEditor`); a send opens the new thread's view there, the
+    (panel/floating-panel.js, `pageEditor`); a send opens the new thread's view there, the
     field becoming its reply, so this puts an open view away first, and unfolds a panel
     folded to the leaf."""
     host = page.locator(PANEL)
@@ -2402,7 +2438,7 @@ def expect_error_waits_in_menu(page, message, *, press=None, run=False):
     Errors, with the leaf's dot marking it unseen, and to offer the press named `press`
     there, or none; the menu is put away again, by that press where `run` is set.
 
-    That is where an error waits that the panel's field cannot say (errors.js): one
+    That is where an error waits that the panel's field cannot say (transport/errors.js): one
     about a box outside the panel, such as a passage's composer, or about nothing while
     the field holds words."""
     expect(page.locator(".lf-fp-leaf .lf-fp-error-dot")).to_be_visible()
@@ -2876,7 +2912,7 @@ def clocked(browser):
 
 
 def dwelt(page, *timers):
-    """Wait until the preview timers `timers` (`PREVIEW_TIMERS` in runtime/preview.js:
+    """Wait until the preview timers `timers` (`PREVIEW_TIMERS` in runtime/annotations/preview.js:
     `DWELL` by default, `WARM`, `HOLD`) have run one after another and what they
     decided has drawn, whatever the machine's speed: the repaints that set them, then
     the page's clock run forward by their sum as the page's runtime states them, then
@@ -2956,7 +2992,11 @@ def live_leaf(tmp_path, monkeypatch):
         waiters.append(leases_model.take_wait_lease(lease_path))
         # Use the durable server's maintenance loop: the row remains canonical
         # even while no browser has visited this neighboring page.
-        url = hosting_model.start_server(d, persistent=True, harness=None).url
+        holder = service_model.page_claim(d)
+        assert holder is not None
+        url = hosting_model.start_server(
+            d, persistent=True, harness=harness_model.claim_harness(holder)
+        ).url
         served.append(d)
         # The address is announced before the row producer starts. All pages can
         # discover this neighbour only after that producer publishes its first row.
@@ -3029,6 +3069,21 @@ def draft_control(scope, key: str, draft_id: str, *, visible=True):
     )
 
 
+def press_draft_control(scope, key: str, draft_id: str):
+    """Press a draft's toolbar control as a pointer reaches it: the pointer comes to the
+    control and rests there, which brings back a toolbar typing put away and gives it
+    its presses (draft.css), and then presses."""
+    page = getattr(scope, "page", scope)
+    control = draft_control(scope, key, draft_id)
+    control.scroll_into_view_if_needed()
+    box = control.bounding_box()
+    page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    expect(scope.locator(f'lf-draft[id="{draft_id}"] .lf-draft-tools')).to_have_css(
+        "pointer-events", "auto"
+    )
+    control.click()
+
+
 def suggestion_control(scope, suggestion_id: str, key=None, *, visible=True):
     """The suggestion `suggestion_id`'s margin entry `key` (accept, reject, undo), or
     all of its entries."""
@@ -3072,7 +3127,7 @@ def command_reference_rows(page, heading):
 
 
 # The page shell's box on screen: where the document's room starts and ends. The runtime
-# reads the same edge as `shellRight` (geometry.js). This is the suite's one spelling of it, read off the DOM
+# reads the same edge as `shellRight` (dom/geometry.js). This is the suite's one spelling of it, read off the DOM
 # rather than through that function, so a test comparing it with a region's box compares
 # two independent readings. An expression, so a larger evaluate can embed it and take it in
 # the same pass as what it is compared against.
@@ -3129,7 +3184,7 @@ WORDS_RECTS = (
 )
 
 # Put the user nowhere, with the next Tab starting at the top of the document: the
-# runtime's own let-go (focus.js, `releaseFocus`). Body holds no stop of its own, so
+# runtime's own let-go (dom/focus.js, `releaseFocus`). Body holds no stop of its own, so
 # `document.body.focus()` moves nothing on a page whose root does not scroll.
 # Each field's closed shadow root, so a test can read inside it.
 EDITOR_ROOTS = """
@@ -3196,22 +3251,22 @@ def fills_the_window(page, block, fills):
 LANDING_TOP = "(await window.__lfCheckApi()).landingBand(document.scrollingElement).top"
 
 
-# The one preview standing over the page (runtime/preview.js).
+# The one preview standing over the page (runtime/annotations/preview.js).
 PREVIEW = "#lf-preview"
 
 
 def tab_onto(target):
     """Step onto `target` with the keyboard, as the user does: Shift+Tab off it and Tab
-    back. Focus moved by Tab shows the target's preview (preview.js) whatever input came
+    back. Focus moved by Tab shows the target's preview (annotations/preview.js) whatever input came
     before; a script's focus shows it only where the browser shows that focus
     (`:focus-visible`).
 
     Shift+Tab steps off the target only where the user can see it: a key pressed while
     focus stands where the user can't see it lets go of that focus first
-    (keyboard/controller.js). A script's focus doesn't scroll a target the window
+    (panel/page-keys/controller.js). A script's focus doesn't scroll a target the window
     already holds, which may stand under the floating panel's row at the window's foot,
     so the helper then brings the target clear of the panel with Leaf's own landing
-    (landing-scroll.js, `scrollIntoView`), as a Tab's arrival does. That landing moves
+    (readings/landing-scroll.js, `scrollIntoView`), as a Tab's arrival does. That landing moves
     nothing where the user already sees the target."""
     target.focus()
     target.evaluate(
@@ -3226,7 +3281,7 @@ def tab_onto(target):
 def put_preview_away(page):
     """Press Escape as its first step, which puts away the preview standing over the
     page and does nothing else, so the next Escape takes the step it stood in front of
-    (preview.js; keyboard/AGENTS.md, "Escape"). Fails unless one stood and it went."""
+    (annotations/preview.js; dom/keyboard/AGENTS.md, "Escape"). Fails unless one stood and it went."""
     preview = page.locator(PREVIEW)
     expect(preview).to_be_visible()
     page.keyboard.press("Escape")
@@ -3234,7 +3289,7 @@ def put_preview_away(page):
 
 
 def expect_preview_words(target, words):
-    """Wait until `target`'s own preview declaration (`lfPreview`, runtime/preview.js)
+    """Wait until `target`'s own preview declaration (`lfPreview`, runtime/annotations/preview.js)
     says `words` as its name or a line of its detail, the whole line for a string or a
     match for a pattern: the words a pointer, the keyboard or a finger read there, read
     without showing them."""
@@ -3251,7 +3306,7 @@ def expect_preview_words(target, words):
 
 
 def preview_parts(target, route="pointer"):
-    """What `target`'s preview shows a pointer resting on it (runtime/preview.js), or
+    """What `target`'s preview shows a pointer resting on it (runtime/annotations/preview.js), or
     with `route="focus"` the keyboard stepping onto it: its name, then each line of
     detail, as the face draws them, key chips left out: of a list, the items it
     shows and the words for the rest. The pointer leaves it again after and waits
@@ -3263,7 +3318,7 @@ def preview_parts(target, route="pointer"):
         tab_onto(target)
     else:
         # From somewhere else: a pointer already resting where the target now stands
-        # reads nothing there until it moves (preview.js).
+        # reads nothing there until it moves (annotations/preview.js).
         page.mouse.move(2, 2)
         target.hover()
     expect(tip).to_be_visible()
@@ -3284,6 +3339,14 @@ def preview_text(target):
     """The words `target`'s preview shows a resting pointer, as its face's
     `textContent` reads them where no key chip stands beside its name."""
     return "".join(preview_parts(target))
+
+
+def without_end_room(page):
+    """Take away the room a column or sidebar page keeps below its last line
+    (layouts.css), so the page ends where its content does, as one with no Layout
+    does. A test whose subject is what happens where no scroll is left, a destination
+    at the page's foot or content leaving below that clamps the page, needs it."""
+    page.add_style_tag(content="body { --lf-end-room: 0px !important; }")
 
 
 def resized(page, width, height):
@@ -3530,6 +3593,27 @@ window.SpeechRecognition = class {
 """
 
 
+def word_point(locator, word):
+    """The middle of `word` where the browser drew it, first inside `locator`, so a
+    gesture lands on letters rather than on blank space in a block's box. Text that
+    draws no box, such as a `<style>`'s, holds no such word."""
+    return locator.evaluate(
+        """(node, sought) => {
+      const walker = document.createTreeWalker(node, NodeFilter.SHOW_TEXT);
+      const range = document.createRange();
+      for (let word; (word = walker.nextNode()); ) {
+        const start = word.data.indexOf(sought);
+        if (start < 0) continue;
+        range.setStart(word, start); range.setEnd(word, start + sought.length);
+        const box = range.getBoundingClientRect();
+        if (box.width) return {x: box.left + box.width / 2, y: box.top + box.height / 2};
+      }
+      throw new Error(`no drawn ${sought}`);
+    }""",
+        word,
+    )
+
+
 def write(box, text):
     """Replace a text box's words the way typing them would, as `fill` does.
 
@@ -3647,7 +3731,7 @@ def gesture_writes(page, by, scroller="document.scrollingElement", sample=None):
 
     The test drives the frames, rather than a smooth `scrollBy`, so a slow host draws
     as many as a fast one. The runtime ends a scroll at each write's own `scrollend`,
-    so the gesture holds the box as the runtime's own glide does (arrivals.js,
+    so the gesture holds the box as the runtime's own glide does (dom/arrivals.js,
     `holdScroll`) and lets its scroll end once, after the last frame."""
     page.mouse.move(2, 300)
     rendered(page)
@@ -3750,7 +3834,7 @@ def still_page(browser, url, width=1200):
     return open_page(browser, url, context=context)
 
 
-# Two of the page's timer ticks (`TICK_MS`, state-feed.js), advanced explicitly so a
+# Two of the page's timer ticks (`TICK_MS`, host/state-feed.js), advanced explicitly so a
 # slow machine still executes the callbacks the reading covers.
 REST_SECONDS = 5
 
@@ -3780,7 +3864,7 @@ def left_alone(page):
     page.mouse.move(2, 300)
     deadline = time.monotonic() + render_checks_model.SERVED_TIMEOUT_MS / 1000
     # A passing notice stands in the panel's empty field or in the leaf's peek
-    # (notifications.js).
+    # (transport/notifications.js).
     notice = (
         ".lf-floating-panel :is([data-lf-says='notice'], .lf-fp-peek[data-lf-shown])"
     )

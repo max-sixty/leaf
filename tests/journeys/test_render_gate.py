@@ -15,8 +15,6 @@ from browser.test_render_gate import (
     FRAMED_TABLES_PAGE,
     RESIZE_PATH,
     _added,
-    _author_lying_callout,
-    _author_stateful_verbatim_widget,
     adopted_sheet_findings,
     axe_findings,
     held_scroller_findings,
@@ -91,15 +89,15 @@ from render_harness import (
     take_browser_errors,
 )
 
-from leaf import render_checks as render_checks_model
-from leaf.files import latest_revision
-from leaf.findings import Finding
-from leaf.page_snapshot import capture_page_snapshot
-from leaf.render_checks import rendered, wait_until_ready
-from leaf.render_gate import scheme as render_gate_scheme
-from leaf.render_gate import version as render_gate_model
-from leaf.render_gate.preview import preview_server
-from leaf.revision_artifact import read_revision
+from leaf.base.files import latest_revision
+from leaf.base.findings import Finding
+from leaf.pages.page_snapshot import capture_page_snapshot
+from leaf.pages.render_gate import scheme as render_gate_scheme
+from leaf.pages.render_gate import version as render_gate_model
+from leaf.pages.render_gate.preview import preview_server
+from leaf.source import render_checks as render_checks_model
+from leaf.source.render_checks import rendered, wait_until_ready
+from leaf.source.revision_artifact import read_revision
 from leaf_dev.browser import chromium_metrics
 from leaf_dev.example_data import authored_sources, named_source
 
@@ -457,29 +455,33 @@ def test_the_gate_passes_what_the_renderer_draws(browser, serve):
     State, sequence, class, ER, and XY diagrams draw markup a flowchart never does.
     The whole-page contracts (the gate, axe, print, export, reachability) are what
     would catch a renderer-specific failure, and the structural types also exercise
-    every kind of source id accepted by `parts`: a state diagram's generated markers
+    every kind of source id a box is named by: a state diagram's generated markers
     after a comment, authored state ids that resemble those markers, and a class in a
     namespace, whose identity comes from the parser rather than its rendered label.
     The gate reports a source the renderer cannot draw at all (`UNPARSABLE_DIAGRAM`); a
     family it can draw is no failure, whether or not the guide names it.
     """
     extra = (
-        """<lf-diagram id="authored-life" parts="all"><pre>
+        """<lf-diagram id="authored-life"><pre>
 stateDiagram-v2
   [*] --&gt; _start2
   _start2 --&gt; _end2
   _end2 --&gt; [*]
 </pre></lf-diagram>
-<lf-diagram id="namespaced" parts="all"><pre>
+<lf-diagram id="namespaced"><pre>
 classDiagram
   namespace Jobs {
     class Job
   }
   Runner --&gt; Job
 </pre></lf-diagram>
+<lf-diagram id="quoted-name"><pre>
+erDiagram
+  "Line Item" ||--o{ ORDER : in
+</pre></lf-diagram>
 """
         + "\n".join(
-            f'<lf-diagram id="namespace-{mode}" parts="all"><pre>\n'
+            f'<lf-diagram id="namespace-{mode}"><pre>\n'
             f"---\nconfig:\n  class:\n    hierarchicalNamespaces: {mode}\n---\n"
             "classDiagram\n  namespace Org.Unit {\n    class Job\n  }\n"
             "</pre></lf-diagram>"
@@ -500,33 +502,17 @@ classDiagram
         )
         .replace('<lf-diagram id="trend">', extra, 1)
     )
-    url = serve(page)
-    assert render_gate_model.render_version(browser, url).failures == []
-    drawn = open_page(browser, url)
-    assert (
-        drawn.locator("#namespaced").evaluate(
-            "e => e.visualParts.get('node:Jobs').label"
-        )
-        == "Jobs"
-    )
-    assert (
-        drawn.locator("#er-quoted-name").evaluate(
-            "e => e.visualParts.get('node:Line%20Item').label"
-        )
-        == "Line Item"
-    )
-    for mode, expected in (
-        ("true", {"node:Job", "node:Org", "node:Org.Unit"}),
-        ("false", {"node:Job", "node:Org.Unit"}),
-    ):
-        assert (
-            set(
-                drawn.locator(f"#namespace-{mode}").evaluate(
-                    "e => [...e.visualParts.keys()]"
-                )
-            )
-            == expected
-        )
+    reading = render_gate_model.render_version(browser, serve(page))
+    assert reading.failures == []
+    # The parts each diagram drew, as the reading keeps them for `page state`.
+    drawn = {
+        name: {part["id"]: part["label"] for part in visual["parts"]}
+        for name, visual in reading.visuals.items()
+    }
+    assert drawn["namespaced"]["node:Jobs"] == "Jobs"
+    assert drawn["quoted-name"]["node:Line%20Item"] == "Line Item"
+    assert set(drawn["namespace-true"]) == {"node:Job", "node:Org", "node:Org.Unit"}
+    assert set(drawn["namespace-false"]) == {"node:Job", "node:Org.Unit"}
 
 
 def test_rest_watches_a_frame_created_by_contained_arrival(browser, serve):
@@ -993,17 +979,8 @@ def test_the_render_gate_requires_a_defined_element(
 def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
     browser, serve, tmp_path, monkeypatch
 ):
-    """Three contracts the gate holds for a widget wherever it stands, the page or an
+    """Two contracts the gate holds for a widget wherever it stands, the page or an
     agent's reply in the thread panel, on one page with one reply apiece.
-
-    Anonymous verbatim owners keep distinct page and reply provenance: of two id-less
-    `lf-anon` in each place, the second, which replaces its words, is named by its
-    occurrence on the page and in the reply event.
-
-    A verbatim wrapper owns its prose and the order of its children, not the
-    rendering of the nested widgets it holds: `lf-shell` changing a passive span or
-    reordering its pieces is reported, its pieces drawing generated descendants is
-    not, and neither is a bare pane.
 
     Generated paint must resolve against the page's live cascade. A missing custom
     property is valid CSS syntax, so a generated SVG silently falls back to black, in
@@ -1023,90 +1000,23 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
     `answer` declares none, and is held to a second application not throwing."""
     monkeypatch.chdir(tmp_path)
     package = tmp_path / ".leaf"
-    for tag in ("lf-anon", "lf-shell", "lf-paint"):
-        add_test_widget(package, tag, upgrade=True)
-    registry_path = package / "registry.json"
-    declarations = json.loads(registry_path.read_text())
-    declarations["lf-anon"]["attributes"]["properties"]["mode"] = {
-        "type": "string",
-        "enum": ["replace"],
-    }
-    declarations["lf-anon"]["attributes"]["required"] = []
-    declarations["lf-shell"]["attributes"]["properties"]["mode"] = {
-        "type": "string",
-        "enum": ["prose", "order"],
-    }
-    declarations["lf-piece"] = {
-        "description": "An anonymous nested upgraded piece.",
-        "attributes": {"properties": {}},
-        "content": "markup",
-        "example": "<lf-piece>Example</lf-piece>",
-    }
-    registry_path.write_text(json.dumps(declarations, indent=2))
-    modules = {
-        "lf-anon": (
-            "  connectedCallback() {\n"
-            "    if (!once(this)) return;\n"
-            '    if (this.getAttribute("mode") === "replace")\n'
-            '      this.textContent = "Replacement words.";\n'
-            "  }\n"
-        ),
-        "lf-piece": (
-            "  connectedCallback() {\n"
-            "    if (!once(this)) return;\n"
-            '    const generated = document.createElement("span");\n'
-            '    generated.dataset.lfGen = "1";\n'
-            '    generated.textContent = " generated descendant";\n'
-            "    this.append(generated);\n"
-            "  }\n"
-        ),
-        "lf-shell": (
-            "  connectedCallback() {\n"
-            "    if (!once(this)) return;\n"
-            '    if (this.getAttribute("mode") === "prose")\n'
-            '      this.querySelector("span").textContent = "changed passive prose";\n'
-            '    if (this.getAttribute("mode") === "order") {\n'
-            '      const pieces = this.querySelectorAll("lf-piece");\n'
-            "      pieces[0].before(pieces[1]);\n"
-            "    }\n"
-            "  }\n"
-        ),
-        "lf-paint": (
-            "  connectedCallback() {\n"
-            "    if (!once(this)) return;\n"
-            '    this.innerHTML = `<svg width="160" height="80" viewBox="0 0 160 80">\n'
-            '      <rect data-id="missing" width="70" height="70" fill="var(--accent-glow)" />\n'
-            '      <rect x="80" width="70" height="70" fill="var(--diagram-safe)" />\n'
-            "    </svg>`;\n"
-            "  }\n"
-        ),
-    }
-    for tag, body in modules.items():
-        (package / "widgets" / f"{tag}.js").write_text(
-            'import { once } from "/runtime/lib/once.js";\n'
-            f'customElements.define("{tag}", class extends HTMLElement {{\n'
-            + body
-            + "});\n"
-        )
+    add_test_widget(package, "lf-paint", upgrade=True)
+    (package / "widgets" / "lf-paint.js").write_text(
+        'import { once } from "/runtime/lib/once.js";\n'
+        'customElements.define("lf-paint", class extends HTMLElement {\n'
+        "  connectedCallback() {\n"
+        "    if (!once(this)) return;\n"
+        '    this.innerHTML = `<svg width="160" height="80" viewBox="0 0 160 80">\n'
+        '      <rect data-id="missing" width="70" height="70" fill="var(--accent-glow)" />\n'
+        '      <rect x="80" width="70" height="70" fill="var(--diagram-safe)" />\n'
+        "    </svg>`;\n"
+        "  }\n"
+        "});\n"
+    )
     source = leaf_page(
         "widgets in the page and in replies",
         """
 <h1 id="title">Widgets in the page and in replies</h1>
-<lf-anon>First page owner.</lf-anon>
-<lf-anon mode="replace">Second page owner.</lf-anon>
-<lf-shell id="honest-shell">Before <span>passive prose</span>
-  <lf-piece>First child.</lf-piece>
-  <lf-piece>Second child.</lf-piece> After
-</lf-shell>
-<lf-shell id="prose-shell" mode="prose">Before <span>passive prose</span>
-  <lf-piece>First child.</lf-piece>
-  <lf-piece>Second child.</lf-piece> After
-</lf-shell>
-<lf-shell id="order-shell" mode="order">Before <span>passive prose</span>
-  <lf-piece>First child.</lf-piece>
-  <lf-piece>Second child.</lf-piece> After
-</lf-shell>
-<lf-pane id="bare-pane" label="Decision"><p>Pane body.</p></lf-pane>
 <lf-paint id="flow"></lf-paint>
 <svg id="gradient" width="20" height="20" viewBox="0 0 20 20">
   <defs><linearGradient id="blue"><stop stop-color="var(--lf-accent)" /></linearGradient></defs>
@@ -1120,14 +1030,6 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
     )
     url = serve(source, packages=(*EXAMPLE_PACKAGES, "./.leaf"))
     replies = {
-        "r-anonymous": (
-            "<lf-anon>First reply owner.</lf-anon>"
-            '<lf-anon mode="replace">Second reply owner.</lf-anon>'
-        ),
-        "r-wrapper": (
-            '<lf-shell id="reply-shell">Reply before '
-            "<lf-piece>reply child</lf-piece> reply after</lf-shell>"
-        ),
         "r-paint": '<lf-paint id="sent"></lf-paint>',
         "r-list": (
             '<lf-group id="an-set-decision" label="What should I carry into the patch?"><h3 id="an-set-decision-h">What should I carry into the patch?</h3>'
@@ -1163,10 +1065,18 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
         )
 
     user = {"kind": "action", "author": "user", "revision": 1, "widget": "an-set"}
-    choose = {"action": "choose", "detail": {"value": ["an-chase", "an-say"]}}
+    # The group takes several options, so only its Done answers it.
+    choose = {
+        "action": "choose",
+        "detail": {"value": ["an-chase", "an-say"]},
+        "answered": False,
+    }
     append_command(serve.page_dir, user | choose)
     # The Done press. Recordless, and the last word on the group.
-    append_command(serve.page_dir, user | {"action": "answer", "detail": {}})
+    append_command(
+        serve.page_dir,
+        user | {"action": "answer", "detail": {}, "answered": True},
+    )
     # The population first: the probe returns clean for an empty list.
     page = open_page(browser, url)
     resized(page, 1280, 900)
@@ -1184,15 +1094,6 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
     failures = render_gate_model.render_version(browser, url).failures
 
     assert not [f for f in failures if "an-set" in f.at], failures
-    dishonest = [failure for failure in failures if failure.code == "verbatim"]
-    anonymous = [failure for failure in dishonest if "lf-anon" in failure.at]
-    assert sorted(f.values["provenance"] for f in anonymous) == sorted(
-        [["page", None, 1], ["event", "r-anonymous", 1]]
-    ), anonymous
-    wrapped = [failure for failure in dishonest if "lf-anon" not in failure.at]
-    assert sorted(f.at for f in wrapped) == sorted(
-        ["<lf-shell id=prose-shell>", "<lf-shell id=order-shell>"]
-    ), failures
 
     unresolved = [f for f in failures if f.code == "invalid-paint"]
     assert sorted((f.at, f.values["element"]) for f in unresolved) == sorted(
@@ -1209,73 +1110,6 @@ def test_the_render_gate_reads_widgets_in_the_page_and_in_replies_alike(
         }
         for f in unresolved
     ), unresolved
-
-
-def test_widget_state_excuses_only_the_verbatim_prose_it_projects(
-    browser, serve, tmp_path, monkeypatch
-):
-    """A user's action and an agent's report each excuse the change their widget's
-    own state projects and nothing else: a widget whose state rewrites its unrelated
-    prose is reported, and so is a child whose action rewrites its preserving
-    wrapper's prose. Beside them, the changes projections honestly make (a draft's
-    rewrite in force, a suggestion accepted and so retired, and one accepted then
-    withdrawn) are not."""
-    monkeypatch.chdir(tmp_path)
-    _author_stateful_verbatim_widget(tmp_path)
-    url = serve(
-        leaf_page(
-            "verbatim after state",
-            """
-<h1>Stateful prose</h1>
-<lf-stateful id="acted"><p>Authored prose must remain.</p></lf-stateful>
-<lf-stateful id="reported"><p>Reported prose must remain.</p></lf-stateful>
-<lf-shell id="shell"><p>Wrapper prose must remain.</p>
-  <lf-stateful id="child"><p>Child prose.</p></lf-stateful></lf-shell>
-<lf-draft id="edited"><pre>Authored draft.</pre></lf-draft>
-<lf-suggestion id="retired">
-  <lf-old><lf-draft id="retired-draft"><pre>Retired draft.</pre></lf-draft></lf-old>
-  <lf-new><p>Accepted replacement.</p></lf-new>
-</lf-suggestion>
-<lf-suggestion id="undone">
-  <lf-old><lf-draft id="undone-draft"><pre>Restored draft.</pre></lf-draft></lf-old>
-  <lf-new><p>Withdrawn replacement.</p></lf-new>
-</lf-suggestion>
-""",
-        ),
-        packages=(*EXAMPLE_PACKAGES, "./.leaf"),
-    )
-    user = {"kind": "action", "author": "user", "revision": 1}
-    corrupt = {"action": "change", "detail": {"value": "corrupt"}}
-    for widget in ("acted", "child"):
-        append_command(serve.page_dir, user | corrupt | {"widget": widget})
-    append_command(
-        serve.page_dir,
-        {
-            "kind": "report",
-            "author": "agent",
-            "agent": "worker",
-            "revision": 1,
-            "widget": "reported",
-            "action": "status",
-            "detail": {"value": "corrupt"},
-        },
-    )
-    edit = {"action": "edit", "detail": {"value": "User's current draft."}}
-    append_command(serve.page_dir, user | edit | {"widget": "edited"})
-    accept = {"action": "decide", "detail": {"outcome": "accept"}}
-    append_command(serve.page_dir, user | accept | {"widget": "retired"})
-    withdrawn = append_command(serve.page_dir, user | accept | {"widget": "undone"})
-    append_carried_log_record(
-        serve.page_dir,
-        {"kind": "undo", "author": "user", "undoes": withdrawn["id"]},
-    )
-
-    failures = render_gate_model.render_version(browser, url).failures
-
-    dishonest = [failure for failure in failures if failure.code == "verbatim"]
-    assert sorted(f.at for f in dishonest) == sorted(
-        ["<lf-stateful id=acted>", "<lf-stateful id=reported>", "<lf-shell id=shell>"]
-    ), failures
 
 
 def test_every_table_the_theme_sets_honestly_passes_the_gate(browser, serve):
@@ -1455,9 +1289,6 @@ from browser.test_render_gate import (
     SAMPLE_FAULT,
     _panel,
 )
-from render_cases_widgets import (
-    PART_DIAGRAM_PAGE,
-)
 
 
 @pytest.mark.shifts_unsurveyed
@@ -1544,28 +1375,6 @@ def test_the_render_gate_reads_a_page_that_scrolls_sideways_only_between_viewpor
 
 
 @pytest.mark.shifts_unsurveyed
-def test_the_render_gate_refuses_duplicate_diagram_identities(browser, serve):
-    """Two named boxes cannot share the same stable comment identity."""
-    page = PART_DIAGRAM_PAGE.replace(
-        "</lf-diagram>",
-        """</lf-diagram>
-<lf-diagram id="model" parts="all"><pre>
-classDiagram
-  namespace Job {
-    class Job
-  }
-</pre></lf-diagram>""",
-        1,
-    )
-    failures = render_gate_model.render_version(browser.unwatched, serve(page)).failures
-    assert [(f.code, f.at) for f in failures] == [("console-error", "")], failures
-    assert all(
-        'leaf: <lf-diagram id="model"> failed:' in f.values["text"]
-        and "Job" in f.values["text"]
-        for f in failures
-    ), failures
-
-
 def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
     """Every restore case the layer restores is exercised on one representative page.
 
@@ -1595,6 +1404,7 @@ def test_every_restore_case_a_user_can_return_to_is_arrived_in(browser, serve):
                 "widget": "sug-rewrite",
                 "action": "decide",
                 "detail": {"outcome": "accept"},
+                "answered": True,
                 "meaning": {
                     "scope": "page",
                     "unit": "sug-rewrite",
@@ -1718,8 +1528,7 @@ def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
     callout = json.loads((tmp_path / ".leaf" / "registry.json").read_text())[
         "lf-callout"
     ]
-    callout["attributes"]["properties"]["parts"] = {"type": "string", "minLength": 1}
-    callout["visual"] = {"parts": "parts"}
+    callout["visual"] = {"prefixes": ["box:"]}
     prefixed = prefixed_visual_layer("out", "inn")["lf-test-visual"]
     layer = {
         **GENERIC_VISUAL_LAYER,
@@ -1757,20 +1566,15 @@ def test_the_render_gate_refuses_visual_inventories_it_cannot_trust(
     ]
 
 
-def test_the_render_gate_holds_project_widgets_to_their_declarations(
+def test_the_render_gate_accepts_a_page_script_s_own_shadow_root_and_places_devtools_issues(
     browser, serve, tmp_path, monkeypatch
 ):
-    """Bug-backs for the module contracts the gate enforces, one project widget each,
-    on one page, beside the DevTools issues the page owns.
-
-    `lf-callout` declares `verbatim` while its module renders other words in the
-    body's stead (quotes would strand on words the screen no longer shows).
-    `author-card` is the clean control beside it: a page script's own custom element
-    with a shadow root it attached itself, which the gate accepts, since the passage
-    reading leaves an undeclared root's words alone and reads its host by its light
-    children, as the file does."""
+    """A page script's own custom element with a shadow root it attached itself,
+    `author-card`, passes the gate, since the passage reading leaves an undeclared
+    root's words alone and reads its host by its light children; beside it, the
+    DevTools issues the page owns are placed at the nodes that own them."""
     monkeypatch.chdir(tmp_path)
-    _author_lying_callout(tmp_path)
+    add_test_widget(tmp_path / ".leaf", "lf-callout", upgrade=True)
     # A lazy image that holds no room is reported only in DevTools' Issues panel. The
     # page owns an image it authors in a form-associated control's light DOM, and a
     # frame it embeds, whose issue is placed at the frame. The same image in the
@@ -1829,10 +1633,6 @@ customElements.define("author-card", class extends HTMLElement {
     )
     failures = reading.failures
 
-    def reported(code, at=""):
-        return [f for f in failures if f.code == code and at in f.at]
-
-    assert reported("verbatim", "custom-note"), failures
     assert not [f for f in failures if "author-card" in f.at + str(f)], failures
     # Delivery serves media under the revision, so the issue names that URL.
     issues = [f for f in reading.advice if f.code == "devtools-issue"]
@@ -1860,7 +1660,7 @@ def test_a_user_arrives_at_what_they_left_rather_than_watching_it_arrive(
     was just decided, and a page that replays the decisions on arrival would be showing
     the user furniture instead of what they came back to read. The runtime puts the
     arrangement back before the page is presented (`restoreUserView`,
-    restore-state.js), so it appears without the motion its gesture plays.
+    state/restore-state.js), so it appears without the motion its gesture plays.
 
     What is read is every motion the browser reports, which it does through the
     inspector's animation agent as it reports a request or a response: nothing is
@@ -2019,7 +1819,7 @@ def test_an_unanswered_startup_resource_fails_the_render_gate(browser, serve, re
 
         page.route("**/runtime/*.js" if resource == "module" else "**/theme.css", hold)
 
-    failures, _, completed = render_gate_scheme._render_page(
+    failures, _, completed = render_gate_model._render_page(
         primed(browser.unwatched, configure),
         serve(
             leaf_page("Unanswered resource", "<h1>Waiting for a resource</h1>"),

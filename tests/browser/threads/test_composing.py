@@ -37,9 +37,10 @@ from browser.threads import (
     thread_row,
     to_window_foot,
 )
-from leaf import cli as cli_model
-from leaf import event_log as events_model
-from leaf.render_checks import one_frame, rendered, wait_for_probe
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import one_frame, rendered, wait_for_probe
+from leaf_dev.browser import text_field
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -132,7 +133,7 @@ def test_a_refused_reply_folds_away_and_its_words_return_whole(browser, serve, s
             "node => node.getBoundingClientRect().height + 0.5 >= node.naturalBlockSize"
         )
 
-    # A margin card follows the send with its own motion (box-motion.js), which ends
+    # A margin card follows the send with its own motion (dom/box-motion.js), which ends
     # before the card is read where it stands.
     wait_for_probe(page, "restingIn", ".lf-margin-preview")
     route = held.pop()
@@ -322,7 +323,7 @@ def test_contextual_messages_share_text_spacing_through_send_and_reopen(
     with sending(page, "the opening comment"):
         page.keyboard.press("ControlOrMeta+Enter")
     preview = page.locator(".lf-margin-preview")
-    reply = preview.get_by_role("textbox", name="Reply", exact=True)
+    reply = text_field(preview, name="Reply", exact=True)
     write(reply, text)
     with sending(page, "the follow-up reply"):
         page.keyboard.press("ControlOrMeta+Enter")
@@ -338,7 +339,7 @@ def test_contextual_messages_share_text_spacing_through_send_and_reopen(
             )
     rendered(page)
     # The user scrolls back to the first message, which ends the send's hold on the
-    # transcript's end (thread/reply-landing.js, `keepThreadLanding`).
+    # transcript's end (records/thread/reply-landing.js, `keepThreadLanding`).
     transcript = preview.locator(".lf-thread-transcript")
     transcript.hover()
     page.mouse.wheel(0, -2000)
@@ -424,7 +425,7 @@ def test_sending_flashes_only_the_new_message(browser, serve, surface):
             # Something can cover either edge of the message. The scrollport can clip
             # its top, and for the 300 ms that the send's box tween carries the reply
             # box down from where it stood, the reply box covers its foot
-            # (runtime/box-motion.js). So sample the ground at the middle of the
+            # (runtime/dom/box-motion.js). So sample the ground at the middle of the
             # sticky header's row and of the words' row, at an x clear of the words
             # and the controls: a card beside its passage rises as one piece on a
             # send, which leaves the pointer on the new message's Copy, lit in its

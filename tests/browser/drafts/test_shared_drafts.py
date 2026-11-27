@@ -15,7 +15,6 @@ from render_harness import (
     CutOff,
     _traffic,
     _until,
-    draft_control,
     drafts_on_server,
     expect_panel_says,
     expect_preview_words,
@@ -26,6 +25,7 @@ from render_harness import (
     open_page,
     open_threads,
     page_comment,
+    press_draft_control,
     refuse,
     resized,
     restarting,
@@ -44,8 +44,9 @@ from browser.drafts import (
     cancel_draft,
     choose_comment_target,
 )
-from leaf import event_log as events_model
-from leaf.findings import Finding
+from leaf.base.findings import Finding
+from leaf.log import event_log as events_model
+from leaf.serving.drafts import DRAFTS
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -129,9 +130,9 @@ def test_one_shared_draft_edit_appends_one_action_across_tabs(browser, serve, on
 
     held = []
     first.route("**/api/event", lambda route: held.append(route))
-    draft_control(first, "save", "draft-ops").click()
+    press_draft_control(first, "save", "draft-ops")
     holding(first, held, 1, "the first draft edit")
-    draft_control(second, "save", "draft-ops").click()
+    press_draft_control(second, "save", "draft-ops")
     round_trip(second)
 
     held[0].continue_()
@@ -986,7 +987,7 @@ def test_words_typed_on_a_reload_stand_over_a_resend_landing_after_a_rewrite(
     )
     holding(page, says["resent Kept"], 1, "the resend")
     refuse(sends[0])
-    (serve.page_dir / "drafts.json").unlink()
+    DRAFTS.file(serve.page_dir / "drafts.json").unlink()
     page.unroute("**/api/drafts")
     for route in reads:
         route.continue_()
@@ -1119,7 +1120,7 @@ def test_a_tab_gives_its_words_to_a_store_that_replaced_its_own(browser, serve):
     typed = "Words the first store held."
     write(page_comment(page), typed)
     assert stored_draft_text(page, "general") == typed
-    (serve.page_dir / "drafts.json").unlink()
+    DRAFTS.file(serve.page_dir / "drafts.json").unlink()
     wait_for(
         lambda: stored_draft_text(page, "general"),
         lambda text: text == typed,
@@ -1141,7 +1142,7 @@ def test_a_reload_into_a_replaced_store_keeps_its_words_beside_another_device_s(
     assert stored_draft_text(page, "general") == typed
     # No look tells the page of the new store before it reloads.
     page.route("**/api/news", refuse)
-    (serve.page_dir / "drafts.json").unlink()
+    DRAFTS.file(serve.page_dir / "drafts.json").unlink()
     elsewhere = "Words another device wrote into the new store."
     write_draft_elsewhere(page, "general", elsewhere)
     with restarting(page):
@@ -1179,7 +1180,7 @@ def test_a_reload_gives_a_replaced_store_its_words_with_a_write_or_two_each(
     page.route("**/api/draft", lambda route: writes.append(route))
     write(box, "Held, and waiting")
     holding(page, writes, 1, "the write still waiting")
-    (serve.page_dir / "drafts.json").unlink()
+    DRAFTS.file(serve.page_dir / "drafts.json").unlink()
     refuse(writes[0])
     page.unroute("**/api/draft")
     posts = []

@@ -1,7 +1,7 @@
 /* An anonymous report consumer keeps clock and report identity tests independent
  * of the Atlas example's composition. */
 import { html, noChange } from "/vendor/lit.js";
-import { ago, readReports, readWork } from "/runtime/widget-api.js";
+import { readReports, readWork } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { keeps } from "/runtime/lib/keeps.js";
 customElements.define(
@@ -32,7 +32,7 @@ customElements.define(
       return html`<span class="lf-state">${state}</span>
         ${current?.text ? html`<span class="lf-doing">${current.text}</span>` : ""}
         ${quiet ? html`<span class="lf-cold">quiet</span>` : ""}
-        <span class="lf-heard">last heard ${ago(heard)}</span>`;
+        <span class="lf-heard">last heard <lf-age datetime=${heard}></lf-age></span>`;
     }
   },
 );

@@ -31,11 +31,12 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import cli as cli_model
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import state as cleanup_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.base import state as cleanup_model
+from leaf.commands import cli as cli_model
+from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
+from leaf.source import data as data_model
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.browser import scroll_settled
 from leaf_dev.example_data import patch_manifest
 
@@ -69,11 +70,15 @@ def test_page_state_and_browser_share_the_decision_and_bound_sources(browser, se
         'label="Reviewed"></lf-text-document>',
     )
     url = live_url(serve(authored))
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir, "reviewed-instructions", "Reviewed instructions.\n"
     )
-    data_model.cmd_data_set(serve.page_dir, "instructions", "Earlier instructions.\n")
-    data_model.cmd_data_set(serve.page_dir, "instructions", "Current instructions.\n")
+    page_data_model.cmd_data_set(
+        serve.page_dir, "instructions", "Earlier instructions.\n"
+    )
+    page_data_model.cmd_data_set(
+        serve.page_dir, "instructions", "Current instructions.\n"
+    )
     page = open_page(browser, url)
     suggestion_control(page, "change", "accept").click()
     round_trip(page)
@@ -93,7 +98,10 @@ def test_page_state_and_browser_share_the_decision_and_bound_sources(browser, se
         assert consumer["widget"] == identity
         stored = data_model.source_file(serve.page_dir, source)
         assert stored == serve.page_dir / inspection["data"]["dir"] / f"{source}.json"
-        assert json.loads(stored.read_text())["value"] == value
+        assert (
+            json.loads(data_model.PUBLICATION.file(stored).read_text())["value"]
+            == value
+        )
         widget = page.locator(f"#{identity}")
         expect(widget.locator("code")).to_have_text(value)
         rendered = widget.locator("[data-lf-origin]").evaluate(
@@ -106,7 +114,9 @@ def test_page_state_and_browser_share_the_decision_and_bound_sources(browser, se
     expect(page.locator("#reviewed figcaption")).to_have_text("Reviewed")
     expect(page.locator("#current figcaption")).to_have_text("instructions")
 
-    data_model.cmd_data_set(serve.page_dir, "instructions", "Moved instructions.\n")
+    page_data_model.cmd_data_set(
+        serve.page_dir, "instructions", "Moved instructions.\n"
+    )
     told(page)
     expect(page.locator("#current code")).to_have_text("Moved instructions.\n")
     for selector, source, text in (
@@ -161,7 +171,7 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
         "diff": {"files": 4, "additions": 86, "deletions": 19, "commits": 3},
         "checks": {"Browser contract": "running", "Unit suite": "passed"},
     }
-    data_model.cmd_data_set(serve.page_dir, "pr-1842", record)
+    page_data_model.cmd_data_set(serve.page_dir, "pr-1842", record)
     page = open_page(browser, url)
     widget = page.locator("#reviewed-pr")
     card = widget.locator(":scope > .pr-brief")
@@ -254,7 +264,7 @@ def test_pr_review_package_keeps_the_authors_brief_distinct_and_stable(browser, 
         "diff": {"files": 5, "additions": 91, "deletions": 19, "commits": 4},
         "checks": {"Browser contract": "passed", "Unit suite": "passed"},
     }
-    data_model.cmd_data_set(serve.page_dir, "pr-1842", changed)
+    page_data_model.cmd_data_set(serve.page_dir, "pr-1842", changed)
     told(page)
     expect(
         card.locator("dt", has_text="Files").locator("xpath=following-sibling::dd[1]")
@@ -287,7 +297,7 @@ def test_pr_review_observed_age_refreshes_without_a_data_change(browser, serve):
         authored,
         packages=(ROOT / "examples/pr-walkthrough.page",),
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "pr-1842",
         {
@@ -349,7 +359,7 @@ def test_pr_review_disconnect_during_markdown_load_is_safe(browser, serve):
         authored,
         packages=(ROOT / "examples/pr-walkthrough.page",),
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "pr-1842",
         {
@@ -424,8 +434,8 @@ def test_native_call_diff_json_keeps_spaced_paths_and_exact_patch_destinations(
     )
     capture = json.loads((ROOT / "tests/fixtures/calldiff-spaces.json").read_text())
     patch = json.loads((ROOT / "tests/fixtures/calldiff-spaces.patch.json").read_text())
-    data_model.cmd_data_set(serve.page_dir, "calls-data", capture)
-    data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
+    page_data_model.cmd_data_set(serve.page_dir, "calls-data", capture)
+    page_data_model.cmd_data_set(serve.page_dir, "patch-data", patch)
     page = open_page(browser, url)
     widget = page.locator("#calls")
     expect(widget.locator(".lf-call-summary")).to_have_text(
@@ -486,13 +496,13 @@ def test_missing_call_location_keeps_the_reader_at_the_source(browser, serve, to
         ),
         packages=("diff",),
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
         "@@ -8 +8 @@\n-before()\n+after()\n",
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "calls-data",
         call_diff(
@@ -554,13 +564,13 @@ def test_diff_coordinates_keep_identity_separate_from_source_navigation(browser,
         ),
         packages=("diff",),
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
         "@@ -5,4 +8,4 @@\n shifted()\n-removed()\n+added()\n next()\n last()\n",
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "calls-data",
         call_diff(
@@ -646,13 +656,13 @@ def test_diff_coordinates_keep_identity_separate_from_source_navigation(browser,
 
     # Different exact context identities may share one old-side number in admitted
     # overlapping hunks. A source request must not choose among them by row order.
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"
         "@@ -5 +8 @@\n same()\n@@ -5 +20 @@\n same()\n",
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "calls-data",
         call_diff(call_node("same()", "app.py", 5, status="removed")),
@@ -682,7 +692,7 @@ def test_a_comment_on_words_across_diff_lines_stays_on_them(browser, serve):
         ),
         packages=("diff",),
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
         "diff --git a/AGENTS.md b/AGENTS.md\n--- a/AGENTS.md\n+++ b/AGENTS.md\n"
@@ -761,8 +771,8 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser,
         "diff --git a/a.py b/a.py\nnew file mode 100644\n"
         "--- /dev/null\n+++ b/a.py\n@@ -0,0 +1 @@\n+new_a()\n"
     )
-    data_model.cmd_data_set(serve.page_dir, "patch-data", patch_manifest(patch))
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(serve.page_dir, "patch-data", patch_manifest(patch))
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "calls-data",
         call_diff(
@@ -811,7 +821,7 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser,
         .replace("rename from b.py", "rename from legacy/very/long/original.py")
         .replace("--- a/b.py", "--- a/legacy/very/long/original.py")
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
         patch_manifest(long_preimage),
@@ -826,7 +836,7 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser,
         .replace("rename from b.py", "rename from a.py")
         .replace("--- a/b.py", "--- a/a.py")
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
         patch_manifest(ambiguous),
@@ -869,7 +879,7 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser,
         "@@ -1,2 +1,2 @@\n context()\n-removed_a()\n+changed_a()\n"
     )
     for copy_patch in (original + copied("b.py"), copied("b.py") + copied("c.py")):
-        data_model.cmd_data_set(
+        page_data_model.cmd_data_set(
             serve.page_dir,
             "patch-data",
             patch_manifest(copy_patch),
@@ -894,7 +904,7 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser,
         expect(page.locator("#lf-composer-quote")).to_contain_text("§ b.py · file")
         page.keyboard.press("Escape")
 
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
         patch_manifest(copied("b.py")),
@@ -929,7 +939,9 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
     second = call_node("Limiter.second(self)", "gateway/limits.py", 20)
 
     def capture(*roots):
-        data_model.cmd_data_set(serve.page_dir, "request-call-diff", call_diff(*roots))
+        page_data_model.cmd_data_set(
+            serve.page_dir, "request-call-diff", call_diff(*roots)
+        )
 
     capture(first, dict(second, children=calls))
     page = open_page(browser, url)
@@ -1072,7 +1084,7 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
             layout="sidebar",
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "document", "Original source words.")
+    page_data_model.cmd_data_set(serve.page_dir, "document", "Original source words.")
     original_revision = source_revision(serve.page_dir, "document")
     page = open_page(browser, url)
     resized(page, 1024, 900)
@@ -1106,7 +1118,9 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     )
     original_bar = page.locator(".lf-fab-bar").bounding_box()
 
-    data_model.cmd_data_set(serve.page_dir, "document", "Replacement source words.")
+    page_data_model.cmd_data_set(
+        serve.page_dir, "document", "Replacement source words."
+    )
     told(page)
     expect(page.locator("#source code")).to_have_text("Replacement source words.")
     expect(draft).to_be_focused()
@@ -1147,7 +1161,11 @@ def test_a_source_replacement_preserves_the_focused_draft_and_its_original_ancho
     }
     if quote_anchor:
         # The document's own words around the quote, its caption here, are its context.
-        expected_anchor |= {"quote": "Original source words.", "prefix": "document"}
+        expected_anchor |= {
+            "quote": "Original source words.",
+            "prefix": "document",
+            "suffix": "",
+        }
     assert comment["anchor"] == expected_anchor
     if quote_anchor:
         # Its words are gone, so the thread stands nowhere on the page, and its head
@@ -1209,7 +1227,7 @@ def test_a_large_diff_filters_and_navigates_lazy_files(browser, serve):
             for path in ("src/first.py", "src/second file.py", "tests/third.py")
         ]
     }
-    data_model.cmd_data_set(serve.page_dir, "review-patch", manifest)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", manifest)
     page = open_page(browser, url)
     diff = page.locator("#patch")
     progress = diff.locator(".lf-diff-progress")
@@ -1225,7 +1243,7 @@ def test_a_large_diff_filters_and_navigates_lazy_files(browser, serve):
         .replace("@@ -1 +1 @@", "@@ -1 +1,2 @@")
         .replace('+return "new"', '+return "new"\n+return "newer"')
     )
-    data_model.cmd_data_set(serve.page_dir, "review-patch", refreshed)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", refreshed)
     refreshed_revision = source_revision(serve.page_dir, "review-patch")
     told(page)
     summaries.nth(1).click()
@@ -1363,7 +1381,7 @@ def test_datum_travel_resolves_the_destination_after_reveal(browser, serve):
         ),
         packages=("diff",),
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "calls-data",
         call_diff(
@@ -1375,7 +1393,7 @@ def test_datum_travel_resolves_the_destination_after_reveal(browser, serve):
             )
         ),
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n"

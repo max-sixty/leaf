@@ -5,7 +5,7 @@ panel says in passing and what a listener hears after each press.
 
 The panel's field has one seat for words that pass: a notice, a walk's position, the
 Go-to filter's word, and where the user stands before the agent's status
-(floating-panel.js, `fieldReading`). Each of those answers a press, so the survey reads
+(panel/floating-panel.js, `fieldReading`). Each of those answers a press, so the survey reads
 them press by press. On each page of `PAGES`, or each `--page`, it presses every page
 command a key reaches at rest, twice, since a second press walks on or toggles back;
 runs `JOURNEYS`, the sequences whose later presses mean something only after the first,
@@ -113,7 +113,7 @@ WALK_KEYS = ("ArrowDown", "ArrowRight", "End")
 TAB_STOPS = 150
 
 # How long a press is given to paint before the seat is read, in real time, and how far
-# the page's clock then runs past a notice's moment (notifications.js, `NOTICE_MS`).
+# the page's clock then runs past a notice's moment (transport/notifications.js, `NOTICE_MS`).
 SETTLE_MS = 300
 LATER_MS = 4500
 

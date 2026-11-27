@@ -19,13 +19,14 @@ from interact_support import (
 )
 from websockets.exceptions import WebSocketException
 
-from leaf import event_log, inference
-from leaf.hosting import TemporaryPageServer
-from leaf.http import PageEndpoint
-from leaf.json_block import json_block
-from leaf.page_snapshot import capture_page_snapshot
-from leaf.refusals import Refused
-from leaf.revision_artifact import read_revision
+from leaf.agents import inference
+from leaf.base.json_block import json_block
+from leaf.base.refusals import Refused
+from leaf.log import event_log
+from leaf.pages.hosting import TemporaryPageServer
+from leaf.pages.page_snapshot import capture_page_snapshot
+from leaf.serving.http import PageEndpoint
+from leaf.source.revision_artifact import read_revision
 from leaf_dev.claude_code_module import claude_code_module
 
 SCHEMA = {

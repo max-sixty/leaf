@@ -27,24 +27,25 @@ import click
 from PIL import Image
 from playwright.sync_api import Page
 
-from leaf import inference, thread_titles
-from leaf.delivery import freeze_delivery, receive_held
-from leaf.harness import detached_environment, session_harness
-from leaf.hook_transport import read_plans
-from leaf.hosting import claim_and_start, cmd_stop
-from leaf.interaction_log import read_interactions
-from leaf.projection import AuthoredOrders, folded_positions
-from leaf.publishing import cmd_stamp
-from leaf.render_checks import wait_until_ready
-from leaf.render_gate.scheme import rendered_revision
-from leaf.served_state.context import read_page
-from leaf.served_state.page import read_served_page
-from leaf.service import PageTransaction
-from leaf.session import cmd_waiting
-from leaf.state import session_record
-from leaf.thread import post_reply
-from leaf.todos import cmd_start
-from leaf.vendoring import cmd_init
+from leaf.agents import inference, thread_titles
+from leaf.agents.delivery import freeze_delivery, receive_held
+from leaf.agents.thread import post_reply
+from leaf.base.harness import detached_environment, session_harness
+from leaf.base.leases import mark_root
+from leaf.base.state import PLUGIN_ROOT, session_record
+from leaf.commands.hook_transport import read_plans
+from leaf.commands.session import cmd_waiting
+from leaf.commands.tasks import cmd_start
+from leaf.log.interaction_log import read_interactions
+from leaf.log.projection import AuthoredOrders, folded_positions
+from leaf.pages.hosting import claim_and_start, cmd_stop
+from leaf.pages.render_gate.scheme import rendered_revision
+from leaf.pages.vendoring import cmd_init
+from leaf.records.publishing import cmd_stamp
+from leaf.records.transaction import PageTransaction
+from leaf.serving.served_state.context import read_page
+from leaf.serving.served_state.page import read_served_page
+from leaf.source.render_checks import wait_until_ready
 from leaf_dev import LEAF_COMMAND
 from leaf_dev.arms import PageClient
 from leaf_dev.browser import (
@@ -493,16 +494,21 @@ def shoot_stills(browser, url: str, page_dir: Path, into: Path) -> None:
 
 @contextmanager
 def demo_session(scratch: Path):
-    """Own the recorder's state and delivery loop, independently of its invoking agent."""
+    """Own the recorder's state and delivery loop, independently of its invoking agent.
+
+    The recorder's session is one whose hooks run this checkout, as its first hook
+    would record (`leases.mark_root`), so this Leaf acts for it."""
     previous = os.environ.copy()
+    session = f"leaf-demo-{uuid4()}"
     recording_environment = detached_environment(None) | {
         "XDG_STATE_HOME": str(scratch / "state"),
-        "CLAUDE_CODE_SESSION_ID": f"leaf-demo-{uuid4()}",
+        "CLAUDE_CODE_SESSION_ID": session,
         "CLAUDE_PID": str(os.getpid()),
         "LEAF_AGENT": "Claude",
     }
     os.environ.clear()
     os.environ.update(recording_environment)
+    mark_root(session, PLUGIN_ROOT)
     try:
         yield
     finally:

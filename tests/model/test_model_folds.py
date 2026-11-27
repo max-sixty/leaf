@@ -14,7 +14,7 @@ import model_folds as model
 import pytest
 from interact_support import page_packages, served_obligations, served_todos
 
-from leaf import standing as standing_model
+from leaf.base import standing as standing_model
 
 HUB = model.leaf_page(
     "command hub",
@@ -171,12 +171,12 @@ def test_a_message_taken_back_keeps_no_rewrite_of_it():
         pytest.param(
             (
                 {"kind": "reply", "parent": "e1", "text": "And the docs?"},
-                {"kind": "reply", "parent": "e2", "token": "keep"},
+                {"kind": "reply", "parent": "e2", "emoji": "👍"},
                 {
                     "kind": "reply",
                     **AGENT,
                     "parent": "e3",
-                    "responds": "e2",
+                    "responds": "e3",
                     "text": ".",
                 },
                 {"kind": "undo", "undoes": "e3"},
@@ -290,7 +290,13 @@ def test_a_reply_taken_back_reopens_nothing():
         {"kind": "reply", **AGENT, "parent": "e1", "responds": "e1", "text": "Done."},
         {"kind": "resolve", "parent": "e1"},
         {"kind": "reply", "parent": "e2", "text": "One more thing."},
-        {"kind": "reply", "parent": "e4", "token": "keep"},
+        {
+            "kind": "reply",
+            **AGENT,
+            "parent": "e4",
+            "text": "Noted.",
+            "unannounced": True,
+        },
         {"kind": "undo", "undoes": "e4"},
     )
     state = model.reading(HUB, log)
@@ -508,13 +514,15 @@ def test_a_step_toward_no_owed_answer_ends_with_the_turn_that_wrote_it():
     assert ends(line, ended) == {"e3": None}
 
 
-def test_a_reaction_or_another_thread_s_message_ends_no_step():
+def test_the_agent_s_emoji_ends_a_step_and_another_thread_s_message_none():
+    """The agent's emoji is its next message, so it ends the step before it and is
+    unread as words are; a message in another thread ends nothing here."""
     agent = {"author": "agent", "agent": "Codex", "session": "session-1"}
     reply = {"kind": "reply", **agent, "parent": "e1"}
     messages = (
         {"kind": "comment", "text": "Check the schedule."},
         {**reply, "text": "Checking mounts.", "ephemeral": True},
-        {**reply, "token": "keep"},
+        {**reply, "emoji": "👍"},
         {
             **reply,
             "text": "Connection failed.",
@@ -527,13 +535,13 @@ def test_a_reaction_or_another_thread_s_message_ends_no_step():
     )
     pending = model.threads(model.reading(HUB, messages))["e1"]
     # The failure hands the update back to the user, so no turn holds the retry up.
-    assert progress_ends(pending) == {"e2": "e4", "e5": None}
-    assert pending["unread"] == {"e4": "e4"}
+    assert progress_ends(pending) == {"e2": "e3", "e5": None}
+    assert pending["unread"] == {"e3": "e3", "e4": "e4"}
 
     completed = (*messages, {**reply, "text": "Both mounts fit."})
     thread = model.threads(model.reading(HUB, completed))["e1"]
-    assert thread["unread"] == {"e4": "e4", "e8": "e8"}
-    assert progress_ends(thread) == {"e2": "e4", "e5": "e8"}
+    assert thread["unread"] == {"e3": "e3", "e4": "e4", "e8": "e8"}
+    assert progress_ends(thread) == {"e2": "e3", "e5": "e8"}
 
     revised = model.threads(
         model.reading(
@@ -545,7 +553,7 @@ def test_a_reaction_or_another_thread_s_message_ends_no_step():
             ),
         )
     )["e1"]
-    assert revised["unread"] == {"e4": "e4", "e8": "e10"}
+    assert revised["unread"] == {"e3": "e3", "e4": "e4", "e8": "e10"}
 
 
 def test_a_decision_on_any_message_settles_the_thread_it_belongs_to():
@@ -695,8 +703,8 @@ def test_gesture_sequence_keeps_surviving_edits_and_durable_retractions():
 
 
 def test_questions_settle_one_by_one():
-    """Each question in a thread waits on the user until a message or settling
-    reaction after it answers it, or a resolve after it ends it; the thread's head
+    """Each question in a thread waits on the user until a message of theirs after it
+    answers it, words or a reaction, or a resolve after it ends it; the thread's head
     marks the latest."""
     events = []
 
@@ -713,16 +721,12 @@ def test_questions_settle_one_by_one():
         "message:first",
         "message:second",
     ]
-    state = add("reply", "reaction", "user", parent="second", token="keep")
-    assert [item["id"] for item in served_obligations(state)["user"]] == [
-        "message:first"
-    ]
-    assert served_obligations(state)["all"][1]["answer"]["event"]["id"] == "reaction"
-    state = add("reply", "answer", "user", parent="first", text="Route A")
+    # A reaction is the user's next message, so it answers every question before it.
+    state = add("reply", "reaction", "user", parent="second", emoji="👍")
+    assert served_obligations(state)["user"] == []
     first, second = served_obligations(state)["all"]
-    assert standing_model.answered(first)
-    assert first["answer"]["value"] == {"text": "Route A"}
-    assert standing_model.answered(second)
+    assert standing_model.answered(first) and standing_model.answered(second)
+    assert first["answer"]["value"] == {"emoji": "👍"}
     assert second["answer"]["event"]["id"] == "reaction"
     # A resolve ends the questions asked before it, and a reopening brings back
     # none of them; taking the resolve back does.
@@ -747,7 +751,7 @@ def test_questions_settle_one_by_one():
 
 def test_thread_widget_obligation_attention_comes_from_its_widget_without_a_prose_task():
     """Thread widgets have no independent thread seat: their user and unanswered
-    lists agree, and later prose or reactions cannot retire the widget obligation."""
+    lists agree, and later prose cannot retire the widget obligation."""
     events = [
         {
             "kind": "comment",
@@ -756,7 +760,6 @@ def test_thread_widget_obligation_attention_comes_from_its_widget_without_a_pros
             + '<lf-options id="routes"><lf-option id="route-a">A</lf-option><lf-option id="route-b">B</lf-option></lf-options>',
         },
         {"kind": "reply", "author": "agent", "parent": "e1", "text": "Still checking."},
-        {"kind": "reply", "parent": "e1", "token": "keep"},
     ]
     state = model.reading(HUB, events)
     thread = model.threads(state)["e1"]
@@ -771,6 +774,7 @@ def test_thread_widget_obligation_attention_comes_from_its_widget_without_a_pros
             "widget": "routes",
             "action": "choose",
             "detail": {"value": ["route-a"]},
+            "answered": True,
         }
     )
     state = model.reading(HUB, events)
@@ -834,6 +838,7 @@ def test_an_answer_sends_a_held_reading_only_what_changed():
         "widget": "pick",
         "action": "choose",
         "detail": {"value": ["one"]},
+        "answered": True,
         "attempt": "tail-pick-attempt-01",
     }
 
@@ -935,7 +940,7 @@ def test_a_data_write_sends_a_held_reading_only_the_source_it_wrote():
 def test_an_answer_to_a_reading_the_server_does_not_remember_is_whole():
     """A key the server never named, or named so many readings ago that it has
     forgotten it, gets the whole answer (`served_state.tail.REMEMBERED`)."""
-    from leaf.served_state.tail import REMEMBERED
+    from leaf.serving.served_state.tail import REMEMBERED
 
     page = model.leaf_page("Tail", '<p id="p">One.</p>')
     log = [{"kind": "comment", "text": "Why?"}]
@@ -953,8 +958,8 @@ def test_a_pages_memory_keeps_the_readings_its_tabs_hold(tmp_path, monkeypatch):
     answers, such as a live sample's or another page's on a multiplexed server, never
     push out the reading another page's tab holds. A page whose memory the process
     dropped answers whole, and patches again from that answer."""
-    from leaf import page_memory
-    from leaf.served_state import tail
+    from leaf.base import page_memory
+    from leaf.serving.served_state import tail
 
     monkeypatch.setattr(tail, "REMEMBERED", 1)
     html = model.leaf_page("Tail", '<p id="p">One.</p>')
@@ -979,7 +984,7 @@ def test_a_pages_memory_keeps_the_readings_its_tabs_hold(tmp_path, monkeypatch):
 
 
 def test_revision_labels_name_each_draft_after_the_newest_earlier_stamp():
-    from leaf.files import revision_labels
+    from leaf.base.files import revision_labels
 
     events = [
         {"kind": "note", "revision": 2, "version": 1},

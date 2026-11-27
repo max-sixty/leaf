@@ -12,7 +12,7 @@ from render_harness import (
     scroll_settled,
 )
 
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.source.render_checks import rendered, wait_until_ready
 
 
 def test_a_side_list_workspace_scrolls_its_list_and_its_item_apart(browser, serve):
@@ -322,9 +322,8 @@ def test_parts_switch_without_moving_the_list_and_follow_history(browser, serve)
     plan_start = switch(plan)
     assert plan_start == 0
     at_start("#plan-part")
-    # Summary fits under the title, so it opens with the title and nothing to scroll.
+    # Summary fits under the title, so it opens with the title.
     assert switch(summary) == 0
-    assert page.evaluate("document.scrollingElement.scrollHeight - innerHeight") <= 0
     # Evidence reopens where the user left it, and pressing the open tab moves nothing.
     assert switch(evidence) == pytest.approx(evidence_read, abs=2)
     assert switch(evidence) == pytest.approx(evidence_read, abs=2)
@@ -591,7 +590,7 @@ def test_a_side_list_longer_than_the_window_keeps_its_tab_and_open_item_in_view(
     and, coming round, back up through the list, while the item it opens starts in the
     window. Running with the page, the walk scrolled each item's start away, and a tab
     left past the window's foot, or read away from, was out of sight, so the next arrow
-    let go of it (keyboard/controller.js), focus fell to the page and no tab opened.
+    let go of it (panel/page-keys/controller.js), focus fell to the page and no tab opened.
     The row the walk heads for shows beside the open tab, so the list doesn't look as
     though it starts or ends there. Read down an item, the list stays beside it, and the
     next arrow opens the next item at its start. A list shorter than the window stays

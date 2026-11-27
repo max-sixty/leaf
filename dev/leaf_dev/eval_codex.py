@@ -20,7 +20,7 @@ from pathlib import Path
 
 from websockets.exceptions import ConnectionClosed
 
-from leaf.codex import private_app_server
+from leaf.agents.codex import private_app_server
 from leaf_dev.codex_task import Task, trust_plugin_hooks
 
 

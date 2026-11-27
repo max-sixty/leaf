@@ -145,7 +145,9 @@ Choose the Layout after the content: `layout-column` supports a sequence of view
 including wide diagrams and comparisons; `layout-sidebar` keeps context beside a
 working region; `layout-workspace` lets the user work within one screen. A Layout is a
 class on `main`. `page-layout.md` owns their geometry, custom arrangements, bounds,
-tiles, and pages with tabs or parts.
+tiles, and pages with tabs or parts. Use a workspace when the page's whole task
+happens in one view whose height changes as the user works, such as a stack of cards
+taken one at a time. When that view is part of a report, keep it in the report's flow.
 
 A dashboard the reader glances at keeps its working state in the first window, since
 a glance doesn't scroll.
@@ -218,7 +220,7 @@ controls in it keep the browser's look, as on a page that selects no theme
 Restyle the whole page through the theme's tokens on `:root` rather than rules on
 `body`, so Leaf's widgets, threads and panel follow the page. Three colours carry a
 palette: `--lf-paper` for the ground, `--lf-ink` for text and `--lf-accent` for
-links and focus. Leaf steps the neutral colours of every surface from the first two,
+links. Leaf steps the neutral colours of every surface from the first two,
 and the page's own rules read them too: `--lf-card`, `--lf-field`, `--lf-muted`,
 `--lf-rule` and `--lf-border`. The faces are `--lf-serif` for prose, `--lf-sans` for
 labels and controls and `--lf-mono` for code, and `--lf-r` sets every corner
@@ -323,6 +325,10 @@ formula. Leaf typesets the LaTeX in the surrounding text's size and colour,
 `page check --render` reports a formula it can't read, and a comment quotes a formula
 by its LaTeX.
 
+Show quoted text as a reader of its language reads it, whoever wrote the text and
+whoever it is for: code and data coloured, Markdown rendered, and only text in no
+language, such as a log, literal and uncoloured.
+
 Show source snippets as `<pre><code class="language-javascript">…</code></pre>`, and
 put the same block inside a code excerpt with numbered lines for a walkthrough. Name
 the actual language from `$languages.names` or a bundled grammar's alias, such as
@@ -335,13 +341,16 @@ it working when you reformat it. Quote source verbatim when quoting it.
 Data in a language Leaf colours, such as JSON a tool returned, goes in a code block
 named for its language, even beside plain samples, with its values exact, `…` included,
 and laid out so the reader can pick out each field and compare values down a column.
-Text in no such language, such as a log or a message as an agent receives it, stays
-literal and uncoloured.
+A code block wraps lines longer than the column's 80 or so characters, which breaks the
+indentation the reader follows. Give a block with longer lines `data-width="wide"`
+(`page-layout.md`, "Bounds and widths").
 
-Readers read Markdown rendered, so show a passage of Markdown you quote, such as a rule
-from a doc or a pull request's description, in a text document that previews it, with
-its exact Markdown a tab away (`authoring-evidence.md`, "Source files and media").
-Where Markdown syntax is itself the subject, show it literally in `<pre><code>`.
+Show Markdown you quote, such as a rule from a doc, a pull request's description or a
+prompt an agent receives, in a text document that previews it, with its exact Markdown
+a tab away (`authoring-evidence.md`, "Source files and media"). The preview draws
+tags in the text as HTML, so show text whose own tags carry its meaning, such as a
+prompt's `<example>` blocks, as its source alone, coloured as Markdown. Where Markdown
+syntax is itself the subject, show it literally in `<pre><code>`.
 
 For a custom horizontal scroll area, set `overflow-x: auto` and add
 `class="lf-scroll"` to that same box. Leaf contains its positioned descendants and

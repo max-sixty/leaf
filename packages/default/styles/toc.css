@@ -3,7 +3,7 @@
  * track standing beside the body with room for words, it is an open outline. In a
  * document's sidebar narrowed to the map's spine (layouts.css), it is a reading map:
  * each section's marker stands at the section's place on the document's scale
- * (`--lf-toc-at`, lf-toc.js), and the accent lens on the spine shows the band
+ * (`--lf-toc-at`, lf-toc.js), and the lens on the spine shows the band
  * currently in view. Crowded labels bend that scale just enough to stay distinct, and a
  * route too long for its labels leaves its deepest levels off the map; markers, labels,
  * and lens share the fitted positions. At rest the map shows its spine, markers and
@@ -38,9 +38,11 @@ lf-toc {
   display: block;
   margin: var(--lf-sp-4) 0 30px;
 }
-/* The closed native toggle has the same box before its outline arrives. */
+/* The closed native toggle has the same box before its outline arrives: the toggle's
+   face (`.lf-label`) and padding (below). */
 lf-toc:empty {
-  min-block-size: max(calc(var(--lf-t-6) * 1.3 + 14px), var(--lf-aim-floor));
+  font: var(--lf-font-heading);
+  min-block-size: max(calc(1lh + 14px), var(--lf-aim-floor));
 }
 lf-toc[data-lf-toc-empty] {
   display: none;
@@ -149,11 +151,11 @@ lf-toc a[data-lf-focus] {
   color: var(--lf-accent);
 }
 /* A section's mark (toc-view.js) says it holds an On Me item, in the user's turn's
- * colour, or else an open thread, in a thread's (tokens.css, at `--lf-turn`); its link's
+ * colour, or else an open thread, in a thread's (tokens.css, "Leaf's own marks"); its link's
  * preview counts both. It is a small ring of its colour. An On Me item's ring also
  * stands in a soft disc of its colour (`--lf-toc-halo`), so what waits on the user
  * differs from a thread by its shape as well as its colour, which some readers can't
- * tell apart at this size (tokens.css, at `--lf-turn`); the user chose this over discs
+ * tell apart at this size (tokens.css, "Leaf's own marks"); the user chose this over discs
  * on both. The rule, the lens and a changed stretch meet every
  * mark flush, as they meet a plain marker. Rejected: a hairline of paper round each
  * mark, which cut the rule short on both sides of it. The outline draws the ring on its
@@ -163,7 +165,7 @@ lf-toc a[data-lf-focus] {
  * stretch of the rule wears the change's colour, as its bar in the margin does
  * (chrome.css), and a mark stands over it. The stretch is a change mark, so hiding
  * annotations (`g H`) hides it, as it hides that bar: the map reads the chrome's root
- * (`data-lf-annotations-hidden`, annotation-layer.js) through `:root:has()`, which
+ * (`data-lf-annotations-hidden`, annotations/annotation-layer.js) through `:root:has()`, which
  * restyles the stretches alone. Out of the words, no mark reads as part of
  * them, and out of flow, none moves a row. They take no
  * presses: the link is the only thing to press. Rejected: a dash after the words read
@@ -190,13 +192,13 @@ lf-toc .lf-toc-mark {
   pointer-events: none;
 }
 lf-toc [data-lf-toc-mark="thread"] {
-  --lf-toc-mark: var(--lf-thread);
+  --lf-toc-mark: var(--lf-accent);
   --lf-toc-halo: none;
 }
 /* Mixed in oklab, which keeps the mark's hue: oklch takes the short way round the hue
    circle to the paper's yellow, which turned the accent's halo green. */
 lf-toc [data-lf-toc-mark="on-me"] {
-  --lf-toc-mark: var(--lf-turn);
+  --lf-toc-mark: var(--lf-ok);
   --lf-toc-halo: 0 0 0 3.5px
     color-mix(in oklab, var(--lf-toc-mark) 38%, var(--lf-paper));
 }
@@ -212,7 +214,7 @@ lf-toc
   inset-inline-start: calc(-2px - var(--lf-sp-3) - var(--lf-toc-indent));
   width: 3px;
   border-radius: 1.5px;
-  background: var(--lf-change);
+  background: var(--lf-muted);
 }
 :root:has(> .lf-chrome[data-lf-annotations-hidden])
   lf-toc
@@ -262,8 +264,9 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
  * pointer and draws its spine, markers and marks; its labels keep their own measure
  * past it, toward the body, faded out and taking no pointer until it reveals them.
  * Pointing at the map, focus inside it or the go-to sequence reveals them over the
- * page. The track sticks, so the map stays beside the reading as the document
- * scrolls, to its sidebar's end (layouts.css, `--lf-track-end-room`). The map fills
+ * page. The track stands fixed in the window where the sidebar spans the page, and
+ * sticks elsewhere, so the map stands still beside the reading from the page's top to
+ * its end (layouts.css, `--lf-sidebar-spans-page`). The map fills
  * the stuck track (`--lf-track-room`, layouts.css), less the track's focus room, and
  * knows nothing of the floating panel: how far the track reaches is the Layout's to
  * settle, as the user decided. Rejected: the map running on past the track's end
@@ -333,7 +336,7 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
       width: var(--lf-toc-spine-width);
       height: 1px;
       transform-origin: top;
-      background: var(--lf-accent);
+      background: var(--lf-ok);
     }
     /* Each marker is a point at its section's place on the map (`--lf-toc-at`,
        lf-toc.js), which draws its ring and, for a changed section, its stretch of the
@@ -381,9 +384,9 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
     /* A filled marker is one disc, so its fill runs under its stroke, which would
        otherwise leave a seam between them. */
     lf-toc .lf-toc-marker[data-lf-current]::before {
-      background-color: var(--lf-accent);
+      background-color: var(--lf-ok);
       background-clip: border-box;
-      border-color: var(--lf-accent);
+      border-color: var(--lf-ok);
     }
     /* The labels stand in one layer over the spine, apart from the markers, so the map
      * reveals them, with the paper behind them, as one fade of one box. The layer covers
@@ -395,7 +398,10 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
      * inherits it: switching it would restyle each label, those off the map too, and
      * the reveal would cost more on a route of five hundred sections than of ten
      * (`data-lf-toc-shown` marks the labels on the map, toc-view.js). Each label stands
-     * at its marker's place, hanging half a line above it. Rejected: a clip path holding
+     * at its marker's place, hanging half a line above it. Go-to shows the labels at once
+     * rather than fading them in: it reads which controls show once the frame arming paints
+     * is drawn, and a fade begun that frame still stands at opacity 0, so the labels would
+     * get no hint. They still fade out as Go-to ends. Rejected: a clip path holding
      * the resting map to its track. Returning at once, it cut every label at the track
      * while the part inside faded; held until the fade ended, it kept the page's words
      * from the pointer through the fade. */
@@ -423,6 +429,7 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
     @scope (body[data-lf-go-to-active] lf-toc) {
       :scope:is(lf-toc) .lf-toc-labels {
         opacity: 1;
+        transition: none;
       }
       :scope:is(lf-toc) .lf-toc-labels::before,
       :scope:is(lf-toc) .lf-toc-labels a[data-lf-toc-shown] {
@@ -463,7 +470,7 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
     }
     /* The spine is the map's rule, and its markers stand on it, so a section's mark is
        its marker, which shows at rest too: a ring of the mark's colour, where a
-       subsection's point grows to such a ring. Where you are keeps its accent fill,
+       subsection's point grows to such a ring. Where you are keeps its fill in your ink,
        inside the disc for an On Me item. A changed section's stretch of the spine runs
        from its marker to the next one, under the lens, so the lens still shows the part
        in view. Its caps run half its width past each marker, as the outline's run past
@@ -490,7 +497,7 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
       width: 3px;
       height: calc(var(--lf-toc-reach, 0px) + 3px);
       border-radius: 1.5px;
-      background: var(--lf-change);
+      background: var(--lf-muted);
     }
     lf-toc
       :is(.lf-toc-start a, li a[aria-current="location"]):not(:hover, [data-lf-focus]) {

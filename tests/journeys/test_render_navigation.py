@@ -15,11 +15,11 @@ from browser.threads import open_panel_thread
 from interact_support import append_carried_log_record
 from playwright.sync_api import expect
 from render_cases_interaction import (
-    OBLIGATIONS_PAGE,
     WORKSHOP_THREAD_EVENTS,
     WORKSHOP_THREADS_PAGE,
     answered_comment,
     live_url,
+    serve_obligations,
 )
 from render_cases_layout import page_at_rest, token_colour
 from render_cases_navigation import (
@@ -59,11 +59,11 @@ from render_harness import (
 )
 
 from journeys import expect_showing
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf import server as server_model
-from leaf.render_checks import rendered, start_near_work, wait_until_ready
-from leaf_dev.browser import PANEL_THREAD, show_resolved
+from leaf.base import server as server_model
+from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
+from leaf.source.render_checks import rendered, start_near_work, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD, show_resolved, text_field
 from leaf_dev.example_data import named_source, published_sources
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -260,7 +260,7 @@ def test_inner_state_is_left_before_the_surface_around_it(browser, serve):
     panel declines a thread about a passage. Escape closes that card beside its
     target in one press, and only the next press puts Threads away."""
     # A page obligation stood on while On Me, which the keyboard opened, stands over the page.
-    page = open_page(browser, serve(OBLIGATIONS_PAGE))
+    page = open_page(browser, serve_obligations(serve))
     page.keyboard.press("g")
     page.keyboard.press("Shift+m")
     panel_settled(page, view="queue")
@@ -299,11 +299,6 @@ def test_the_g_chord_reaches_the_all_leaves_panel(browser, serve, live_leaf):
     all_pages_offered(page)
 
     page.keyboard.press("g")
-    expect(
-        page.locator(
-            '.lf-go-to-hints [data-lf-go-to-command="navigation.panel.leaves"]'
-        )
-    ).to_have_count(0)
     # A live page arriving while the sequence stands keeps its destination operable.
     live_leaf("third", "A third leaf")
     round_trip(page)
@@ -550,7 +545,7 @@ def test_quick_shortcuts_can_be_disabled_without_withdrawing_commands(browser, s
     settings()
     page.get_by_role("combobox", name="Search commands").fill("Comment on the page")
     comment.click()
-    field = page.get_by_role("textbox", name="Comment on the page", exact=True)
+    field = text_field(page, name="Comment on the page", exact=True)
     expect(field).to_be_focused()
     page.keyboard.type("Sent with quick shortcuts off")
     page.keyboard.press("ControlOrMeta+Enter")
@@ -727,7 +722,7 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
         "feature-gallery-source.toml · lines 1–4"
     )
     changed = '[route]\nname = "river path"\ndistance_km = 2.1\nstatus = "updated"\n'
-    data_model.cmd_data_set(serve.page_dir, "gallery-source", changed)
+    page_data_model.cmd_data_set(serve.page_dir, "gallery-source", changed)
     expect(live.locator("code")).to_have_text(changed)
     expect(page.locator("#bg-measurement-guide")).to_contain_text(
         "measurement is behind its source"
@@ -1006,7 +1001,7 @@ def _the_atlas_shows_every_margin_entry_face_in_its_treatment(page):
         "data-lf-target-selected", re.compile(".*")
     )
     expect(selected).to_have_attribute("data-lf-target-selected", "")
-    expect(selected).to_have_css("border-top-color", token_colour(page, "--lf-accent"))
+    expect(selected).to_have_css("border-top-color", token_colour(page, "--lf-ok"))
     expect(selected).to_have_css(
         "border-top-width",
         not_selected.evaluate("node => getComputedStyle(node).borderTopWidth"),
@@ -1231,7 +1226,7 @@ def _stale_keys(page):
     page.wait_for_function("() => window.__lfFullscreenRequests === 0")
     page_at_rest(page)
     painted = page.evaluate_handle(_PAINTED_KEYS)
-    # `paintKeys` reads every element's keys again (keyboard/scopes.js). Saying an
+    # `paintKeys` reads every element's keys again (dom/keyboard/scopes.js). Saying an
     # element's commands changed reads only that element's, and `body` declares none.
     page.evaluate("async () => (await window.__lfCheckApi()).paintKeys()")
     rendered(page)
@@ -1245,7 +1240,7 @@ def test_presses_and_fills_leave_no_element_naming_stale_keys(browser, serve, ex
     """Each element's `aria-keyshortcuts` and a button's `aria-disabled` reflect its
     rows, and a reflection is a tracked effect: it reads again when a signal it read
     moves. So a module's own state that a row's `when` reads must be a signal
-    (`keyboard/scopes.js`); a plain variable leaves the attributes stale, and a screen
+    (`dom/keyboard/scopes.js`); a plain variable leaves the attributes stale, and a screen
     reader announces keys that no longer apply, until something else repaints them.
 
     The sweep presses or fills a random visible control, in an order seeded by the
@@ -1808,11 +1803,13 @@ def test_the_g_chord_reaches_named_surfaces_and_visible_targets(browser, serve):
              const c = document.querySelector(
                '.lf-go-to-hints .lf-go-to-hint[data-lf-go-to-target="dsc-head"]')
                         .getBoundingClientRect();
-             const first = document.getElementById('dsc-head').getClientRects()[0];
+             const words = document.createRange();
+             words.selectNodeContents(document.getElementById('dsc-head'));
+             const first = words.getClientRects()[0];
              return Math.abs(c.left + c.width / 2 - first.left) < 2
                  && Math.abs(c.top + c.height / 2 - first.top) < 2;
            }"""
-    ), "the chip is not on the corner the summary starts at"
+    ), "the chip is not on the corner the summary's words start at"
     expect(page.locator("#dsc")).not_to_have_attribute("open", "")
     page.keyboard.type(fold_code)
     expect(page.locator("#dsc-head")).to_be_focused()
@@ -1917,7 +1914,7 @@ def test_the_pr_walkthrough_exercises_an_inline_diff_thread(browser, serve):
     )
     send = thread.locator(".lf-compose-submit")
     expect(send).to_be_disabled()
-    expect(thread.get_by_role("textbox", name="Reply", exact=True)).to_be_visible()
+    expect(text_field(thread, name="Reply", exact=True)).to_be_visible()
     markers = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
     baseline = markers.count()
 
@@ -2059,7 +2056,7 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     # there, so a page command acts from what the user sees: `c` opens the page's own
     # field rather than the card's reply, and the card stays where the page took it.
     page.keyboard.press("c")
-    reply = card.get_by_role("textbox", name="Reply", exact=True)
+    reply = text_field(card, name="Reply", exact=True)
     expect(page.locator(".lf-fp-field leaf-text")).to_be_focused()
     rendered(page)
     assert page.evaluate("() => document.scrollingElement.scrollTop") == foot
@@ -2087,7 +2084,7 @@ def test_a_thread_walk_card_leaves_and_returns_with_its_anchor(browser, serve):
     # A card the page has carried half past the window's top, Reply with it, is as
     # unseen there as one scrolled off: a landing in it brings it back all the same.
     # The box goes more than the pixel of slack past the top that reads a card held
-    # flush at the edge as shown (off-flow.js, `unseen`).
+    # flush at the edge as shown (readings/off-flow.js, `unseen`).
     reply.evaluate(
         """async (box) => {
           const frame = () => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));

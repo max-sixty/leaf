@@ -7,11 +7,18 @@ import re
 
 from interact_support import shipped_sheets
 
-from leaf.schema import ASSETS, BUNDLED_PACKAGES
-from leaf.state import PLUGIN_ROOT
-from leaf.structure import AUTHORED_CLASSES
+from leaf.base.schema import ASSETS, BUNDLED_PACKAGES
+from leaf.base.state import PLUGIN_ROOT
+from leaf_dev.styling_names import (
+    CLASS,
+    NAME,
+    code,
+    documented,
+    leaf_names,
+    public_names,
+    sources,
+)
 
-REFERENCES = PLUGIN_ROOT / "skills/leaf/references"
 # A dependency's own properties, which Leaf sets or reads under the dependency's names.
 DEPENDENCY = (
     "--wa-",
@@ -23,45 +30,14 @@ DEPENDENCY = (
     "--divider-width",
     "--handle-size",
 )
-NAME = re.compile(r"(?<![\w-])--[a-z][a-z0-9]*(?:-[a-z0-9]+)*(?![\w-])")
 DECLARED = re.compile(
     r"(?<![\w-])(--[A-Za-z0-9_-]+)\s*:|@property\s+(--[A-Za-z0-9_-]+)"
 )
-# An `lf-` word, as a selector, a module or a reference writes a class.
-CLASS = re.compile(r"(?<![\w/-])lf-[a-z0-9]+(?:-[a-z0-9]+)*(?![\w-])")
 COMMENT = re.compile(r"/\*.*?\*/", re.S)
-# A stylesheet's or a module's comments, which name properties without using them.
-CODE_COMMENT = re.compile(r"/\*.*?\*/|(?<![:\"'`])//[^\n]*", re.S)
 
 
 def declared(text):
     return {a or b for a, b in DECLARED.findall(COMMENT.sub("", text))}
-
-
-def documented():
-    """Every custom property a reference names."""
-    return {
-        name
-        for path in REFERENCES.glob("*.md")
-        for name in NAME.findall(path.read_text())
-        if name.startswith("--lf-")
-    }
-
-
-def sources(*roots):
-    """Each sheet and module under `roots`, vendored bundles aside."""
-    return [
-        path
-        for root in roots
-        for path in sorted(root.rglob("*"))
-        if path.suffix in {".css", ".js", ".py"} and "vendor" not in path.parts
-    ]
-
-
-def code(source):
-    """The names a sheet or a module uses: its text, less its comments."""
-    text = source.read_text()
-    return text if source.suffix == ".py" else CODE_COMMENT.sub("", text)
 
 
 def test_every_property_leaf_declares_is_named_as_leaf_s():
@@ -87,7 +63,7 @@ def test_what_leaf_teaches_reads_only_the_tokens_its_references_name():
     and the packages' instructions, and copies what those read. Each `--lf-` property
     they read or set is one a reference names, or one the page declares for itself, so
     nothing an author copies is a name Leaf may change without notice."""
-    public = documented()
+    public = documented(PLUGIN_ROOT)
     assert {"--lf-paper", "--lf-ink", "--lf-accent", "--lf-muted"} <= public, (
         "this reading has stopped finding the references' tokens"
     )
@@ -140,28 +116,11 @@ def test_a_bundled_package_names_only_the_names_of_leaf_s_its_references_declare
     class one a kernel idiom lets a page write. Any other name of Leaf's can change in
     any update, and a package that reads it then draws wrong with no error its author
     sees."""
-    kernel = sources(ASSETS, PLUGIN_ROOT / "src/leaf")
-    properties = {
-        name
-        for source in kernel
-        for name in NAME.findall(code(source))
-        if name.startswith("--lf-")
-    }
-    classes = {
-        name
-        for sheet in kernel
-        if sheet.suffix == ".css"
-        for name in re.findall(rf"\.({CLASS.pattern})", code(sheet))
-    }
+    properties, classes = leaf_names(PLUGIN_ROOT)
     assert {"--lf-ink", "--lf-top"} <= properties and {"lf-ui", "lf-rows"} <= classes, (
         "this reading has stopped finding Leaf's own names"
     )
-    public = documented() | AUTHORED_CLASSES
-    public |= {
-        name
-        for path in REFERENCES.glob("*.md")
-        for name in CLASS.findall(path.read_text())
-    }
+    public = public_names(PLUGIN_ROOT)
     leaned = [
         (source.relative_to(PLUGIN_ROOT), name)
         for source in sources(BUNDLED_PACKAGES)
@@ -196,5 +155,33 @@ def test_every_token_a_reference_names_is_one_leaf_uses():
         for source in sources(ASSETS, BUNDLED_PACKAGES, PLUGIN_ROOT / "src/leaf")
         for name in NAME.findall(code(source))
     }
-    unused = sorted(documented() - used)
+    unused = sorted(documented(PLUGIN_ROOT) - used)
     assert not unused, f"the references name properties Leaf never uses: {unused}"
+
+
+def test_no_token_is_only_another_name_for_one():
+    """Each token a theme sets stands for something a theme author would set apart
+    from every other token, so a token whose value is another token's, with no scope
+    restating it, is a second name for one setting: every reader could read the token
+    it names, as a mark of the agent's reads `--lf-accent` rather than a token of its
+    own. A token another scope restates, as a surface restates `--lf-ground`, is a
+    setting of its own."""
+    tokens = COMMENT.sub("", (ASSETS / "styles/tokens.css").read_text())
+    aliases = re.findall(
+        r"(?<![\w-])(--lf-[\w-]+)\s*:\s*var\((--lf-[\w-]+)\)\s*;", tokens
+    )
+    assert aliases, "this reading has stopped finding tokens.css's declarations"
+    sheets = [COMMENT.sub("", sheet.read_text()) for sheet in shipped_sheets()]
+    only_names = sorted(
+        f"{name}: var({target})"
+        for name, target in aliases
+        if sum(
+            len(re.findall(rf"(?<![\w-]){re.escape(name)}\s*:", sheet))
+            for sheet in sheets
+        )
+        == 1
+    )
+    assert not only_names, (
+        "these tokens are only another name for the token they read, and no scope "
+        "restates them; read the token they name instead:\n  " + "\n  ".join(only_names)
+    )

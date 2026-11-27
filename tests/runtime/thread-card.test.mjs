@@ -1,8 +1,8 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { effect } from "/runtime/framework.js";
-import { ThreadView } from "/runtime/thread/thread-card.js";
-import { commandDeclarationsWithin } from "/runtime/keyboard/scopes.js";
+import { effect } from "/vendor/signals-core.js";
+import { ThreadView } from "/runtime/records/thread/thread-card.js";
+import { commandDeclarationsWithin } from "/runtime/dom/keyboard/scopes.js";
 
 // Every card draws its reply box; this stands in for the box's input wiring, which
 // composing-input.test.mjs covers.
@@ -14,20 +14,23 @@ const wireInput = () =>
     cancelDictation() {},
   });
 
+/** A card's model with no messages, named `name`. */
+const cardModel = (name = "A thread") => ({
+  key: "card-presentation",
+  id: "card-presentation",
+  name,
+  surface: "margin",
+  messages: [],
+  summaries: [],
+  todos: [],
+  working: null,
+  news: null,
+  settlement: { kind: "resolve", label: "Resolve", word: "Resolve" },
+  source: { id: "card-presentation", anchor: null, root: {} },
+});
+
 test("a thread card's output updates its commands without invalidating its presenter", () => {
-  const model = {
-    key: "card-presentation",
-    id: "card-presentation",
-    name: "A thread",
-    surface: "margin",
-    messages: [],
-    summaries: [],
-    todos: [],
-    working: null,
-    news: null,
-    settlement: { kind: "resolve", label: "Resolve", word: "Resolve" },
-    source: { id: "card-presentation", anchor: null, root: {} },
-  };
+  const model = cardModel();
   const view = new ThreadView({ reply: { wireInput }, reaction: {} }, model);
   let paints = 0;
   const stopPaint = effect(() => {
@@ -61,8 +64,31 @@ test("a thread card's output updates its commands without invalidating its prese
   }
 });
 
+test("a thread card names its thread by the opening of its name, not its whole first message", () => {
+  // An untitled thread's name is its first message, which the card reads next.
+  const opening =
+    "The CLI exiting does not mean its background children have stopped. They could " +
+    "still replace an output while we read it. Make an empty sandbox a precondition.";
+  for (const [name, said] of [
+    ["Sandbox export", "Thread, Sandbox export"],
+    [opening, "Thread, The CLI exiting does not mean its background children have…"],
+  ]) {
+    const view = new ThreadView(
+      { reply: { wireInput }, reaction: {} },
+      cardModel(name),
+    );
+    try {
+      view.present(cardModel(name));
+      assert.equal(view.node.getAttribute("role"), "group");
+      assert.equal(view.node.getAttribute("aria-label"), said);
+    } finally {
+      view.dispose();
+    }
+  }
+});
+
 test("a primary reply forwards the field's live hint and accessible name callbacks", async () => {
-  const { createReplyView } = await import("/runtime/thread/replies.js");
+  const { createReplyView } = await import("/runtime/records/thread/replies.js");
   const hintParts = () => ["Waiting on the agent"];
   const hintLead = () => ["Reply"];
   const accessibleName = () => "Reply to this thread";
@@ -89,7 +115,7 @@ test("a primary reply forwards the field's live hint and accessible name callbac
 
 test("a thread preview registers its keyboard routes before any conversation is selected", async () => {
   const { createThreadPreview } =
-    await import("/runtime/annotation-overlay/thread-preview.js");
+    await import("/runtime/annotations/annotation-overlay/thread-preview.js");
   const preview = createThreadPreview({
     inventory: {
       targetFor: () => null,

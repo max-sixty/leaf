@@ -6,9 +6,9 @@ import re
 import tinycss2
 from interact_support import shipped_sheets
 
-from leaf.schema import ASSETS
-from leaf.state import PLUGIN_ROOT
-from leaf.structure import AUTHORED_CLASSES
+from leaf.base.schema import ASSETS
+from leaf.base.state import PLUGIN_ROOT
+from leaf.source.structure import AUTHORED_CLASSES
 
 # Declarations that make a face, and what a rule of the interface may write for each
 # without naming a font: inheriting its holder's, a weight for a run that keeps its

@@ -1,0 +1,44 @@
+# A widget that also runs on a page without Leaf imports only portable-api.js and the
+# library, so it has no `says()`, `named()` or `motion`. Asked for buttons that show
+# the words of authored paragraphs, an author is pulled toward loading widget-api.js
+# wherever Leaf's page marker stands and reading `textContent` elsewhere, and toward
+# `element.animate` for the fade. On a Leaf page an authored part can hold a quiet word
+# Leaf wrote, and an animation plays before the page is presented. module-authoring.md,
+# "A widget that also runs off Leaf", says what the widget does in place of the three.
+description: widget-runs-off-leaf
+metadata:
+  purpose: A widget written to run off Leaf too reads no authored words with textContent and animates in its stylesheet, importing nothing that needs Leaf.
+  tags:
+    - packages
+    - package-interface
+vars:
+  prompt: |
+    I'm writing a Leaf package widget, lf-poll. The same module also has to run on
+    our plain docs site, which doesn't run Leaf. The author writes each option
+    inside it as a paragraph, and the widget draws a row of buttons, one per
+    option, each labelled with its paragraph's words, so nobody writes the words
+    twice. When the user picks one, the widget records the pick, and the picked
+    option's paragraph fades in below the row. Show the registry entry, one
+    authored occurrence, the module's JavaScript and its stylesheet.
+assert:
+  - type: llm-rubric
+    metric: judgment
+    value: |
+      Pass only if all of these hold:
+      - the module imports nothing from /runtime/widget-api.js, by a static import
+        or a dynamic `import()`: its imports, if it has any, are
+        /runtime/portable-api.js, modules under /runtime/lib/ and /vendor/ bundles;
+      - no button's label is the whole `textContent` or `innerText` of an element the
+        author wrote, or a copy of all its nodes: the label comes from an attribute
+        the author wrote, or from a reading or copy of the paragraph that leaves out
+        each element marked `data-lf-gen`, the mark on words Leaf or a widget
+        generated;
+      - the fade is a CSS `transition` or `animation` the stylesheet declares, which
+        a style or attribute the module writes may start; the module calls neither
+        `element.animate` nor `motion()`.
+      Fail if the module imports `says`, `named` or `motion`, calls `.animate(`, or
+      labels a button with an authored paragraph's whole `textContent` or with a
+      copy of its nodes that keeps an element marked `data-lf-gen`. A paragraph the
+      module makes the button itself, as with `role="button"` on it, is labelled by
+      its whole content, which fails too.
+      Execution is unavailable, so not running checks is not a failure.

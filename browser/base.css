@@ -105,22 +105,6 @@
    offer/said declaration is fixed where the label is created, not by naming its widget
    in print CSS. */
 
-/* The chrome's root stands after `body` (leaf.js), a stacking context at the largest
-   z-index there is. A box the page writes can at most tie with it, and a tie paints in
-   tree order, where nothing in `body` follows it; so it paints over every page box,
-   whatever stacking contexts the page makes, and the page rises over Leaf only through
-   the top layer (the ladder, styles/tokens.css). Its box is empty at the origin and
-   takes no room; Leaf positions its surfaces against the document or the viewport. It
-   inherits from the root, as `body` does, so what the two share is declared there
-   (`:root`, below). */
-:root > .lf-chrome {
-  position: absolute;
-  inset: 0 auto auto 0;
-  z-index: 2147483647;
-  width: 0;
-  height: 0;
-}
-
 :root {
   /* The root and body are important against the page's own rules (body, below): Leaf's
      document-anchored paint takes the initial containing block as its origin, so neither
@@ -128,29 +112,6 @@
   position: static !important;
 }
 
-/* Leaf's own surfaces wear markup's reading face (styles/components/reading.css) on
-   every page, whatever look the page takes: the chrome, and each control Leaf builds
-   into a page. */
-:where(.lf-chrome),
-:where(.lf-ui) {
-  --lf-reading-face: 1;
-}
-/* A list of facts on a surface Leaf draws for its interface, the chrome (`.lf-ui`, as
-   About's counts) or a popover a control opens (`.lf-popover`, as a capture's details),
-   keeps the facts idiom's layout (styles/components/idioms.css) at the surface's
-   density: its labels take the interface's small font, as the surface's other labels
-   do, and the list the reading face's spacing. They don't share an ancestor class, so
-   the rule names both. It outranks the idiom's rules at any weight (idioms.css), and
-   weighs less than the frame's edge trims (reading.css), so they still take a first
-   or last list's margin. */
-:where(.lf-ui) dl.lf-facts,
-:where(.lf-popover) dl.lf-facts {
-  margin-block: 10px;
-}
-:where(.lf-ui) dl.lf-facts dt,
-:where(.lf-popover) dl.lf-facts dt {
-  font: var(--lf-font-small);
-}
 /* ---------- elements ---------- */
 
 /* A box that draws an inset shows it twice — above what it holds and below it — and what
@@ -186,7 +147,7 @@
  * user can actually see — so a settled option would keep a paragraph's margin under its
  * last paragraph and a block change over its first, in exactly the widgets that build
  * the most chrome.
- * The generated markers are the same pair the anchor pass reads (`GENERATED`, passages.js),
+ * The generated markers are the same pair the anchor pass reads (`GENERATED`, readings/passages.js),
  * because it is the same question: which of these words are the page's. That also
  * dissolves the sample's two arrangements into one, its "quoted ·" note being a
  * generated child on a live page and a pseudo-element on a page carrying no script.
@@ -243,7 +204,7 @@
 /* A box that wears the focus ring for a control inside it, as its face, says so in the
  * rule that rings it: a playground's choice rings its radio and words together, a
  * joined option group's row rings its pick. A landing then shows that box with the
- * control's ring room (focus.js, `ringBox`): measuring the radio left the face's ring
+ * control's ring room (dom/focus.js, `ringBox`): measuring the radio left the face's ring
  * cut at its pane's foot. It does not inherit, so the control inside answers for
  * itself. */
 @property --lf-wears-ring {
@@ -252,7 +213,7 @@
   initial-value: 0;
 }
 /* A control whose focus a box around it shows, as a choice rings its radio, names that
- * box with a selector, and focus.js marks the nearest box around it that matches:
+ * box with a selector, and dom/focus.js marks the nearest box around it that matches:
  * `data-lf-control-focus` while the control holds focus, and
  * `data-lf-control-focus-visible` while that focus is visible. The box's rules read
  * those marks rather than asking with `:has()` where focus is, which made every focus
@@ -279,7 +240,7 @@
  * time ⌥ aimed at it. The gap is a length, so a box's edge stated as `0` reaches the
  * brackets' `calc` as `0px`: untyped, a unitless 0 there is a number, the clip is
  * invalid and the mark draws whole. The room is a length too, so a script reads it in
- * pixels (geometry.js, `markedBox`). */
+ * pixels (dom/geometry.js, `markedBox`). */
 @property --lf-band-gap {
   syntax: "<length>";
   inherits: false;
@@ -297,6 +258,14 @@
   syntax: "<length>";
   inherits: false;
   initial-value: 0px;
+}
+/* Where a mark stands while a clip round its box would cut it outside
+ * (element-marks.css, `[data-lf-flush]`), ahead of where the box says; set only while
+ * that stamp is in force, which is how the runtime tells (dom/geometry.js,
+ * `clipsMarks`). It doesn't inherit, so a box inside a stamped one answers for itself. */
+@property --lf-flush-at {
+  syntax: "*";
+  inherits: false;
 }
 @property --lf-band-from {
   syntax: "*";
@@ -335,7 +304,7 @@
  * not become a containing block, and the head's room pads it, which the live body's
  * minimum (below) fills the window with only at border-box. It is the shell, the
  * inline-size container a narrow column and a widget's `100cqi` ask (`lf-shell`,
- * page-layout.js). */
+ * panel/page-layout.js). */
 body {
   position: static !important;
   box-sizing: border-box !important;
@@ -354,22 +323,21 @@ body {
 :root {
   overflow-wrap: break-word;
 }
-/* The two lengths the root's landing band at the window's foot is made of, which the
- * floating panel reads resolved as it states the band (floating-panel.js,
- * `followBox`): the foot's room with the landing room past it, and the gap a landing
- * keeps above the panel's box with the landing room past that. They change only with
- * the theme's tokens, never as the panel moves. Read on the root alone. */
-@property --lf-foot-band {
-  syntax: "<length>+";
+/* The room the root's landings keep above the chrome standing at the window's foot
+ * (dom/geometry.js, `footCover`): the gap a landing keeps above the panel's box with the
+ * landing room past it. `none` where nothing states it, as on an export. Read on the
+ * root alone. */
+@property --lf-landing-foot {
+  syntax: "<length> | none";
   inherits: false;
-  initial-value: 0px 0px;
+  initial-value: none;
 }
-/* The top edge of the root's landing band, which Leaf's landings read (geometry.js,
+/* The top edge of the root's landing band, which Leaf's landings read (dom/geometry.js,
  * `landingInsets`) and the root's `scroll-padding-top` hands to the browser. Stated
  * apart from that padding so a floating editor can take it from the browser's own caret
- * reveal alone (html[data-lf-live], below) while every landing still clears the chrome,
- * as the floating panel states the foot's edge (`followBox`). Read on the root alone,
- * so it does not inherit, and `none` where nothing states it, as on an export. */
+ * reveal alone (html[data-lf-live], below) while every landing still clears the chrome.
+ * Read on the root alone, so it does not inherit, and `none` where nothing states it,
+ * as on an export. */
 @property --lf-landing-top {
   syntax: "<length> | none";
   inherits: false;
@@ -393,20 +361,13 @@ body {
     height: 100%;
     overflow-y: scroll;
     /* A sticky header over the whole root, a page tab strip, adds its stated height as
-     * `--lf-root-headers` (root-headers.js). The root's band is Leaf's alone, so a
+     * `--lf-root-headers` (dom/root-headers.js). The root's band is Leaf's alone, so a
      * page's own `scroll-padding-top`, written for its header, adds nothing: a page
      * clears its own header with its targets' `scroll-margin-top`, which replaces the
      * margin every box reads from the slot (surfaces.css). */
     --lf-landing-top: calc(var(--lf-top-covered) + var(--lf-landing-room));
     scroll-padding-top: var(--lf-landing-top) !important;
-    /* The floating panel states the root's landing band at the window's foot as its box
-     * changes height (floating-panel.js, `followBox`), from these. It states it to
-     * Leaf's landings alone (geometry.js, `landingBand`): as the root's
-     * `scroll-padding-bottom` it would hold every reveal the browser makes above a band
-     * across the whole window, and scroll the page under a box stuck beside the panel to
-     * bring the box out of it. */
-    --lf-foot-band: calc(var(--lf-foot-room) + var(--lf-landing-room))
-      calc(var(--lf-floating-gap) + var(--lf-landing-room));
+    --lf-landing-foot: calc(var(--lf-floating-gap) + var(--lf-landing-room));
     /* Floating editors stand above the chrome that this padding clears. Chromium and
      * WebKit reveal a caret in a box anchored to the page by scrolling the page, which
      * carries the box, and apply the padding to it, moving the document beneath an
@@ -416,8 +377,8 @@ body {
      * anchor stops that reveal short of the page, and WebKit applies no `scroll-margin`
      * to a caret's reveal and reveals typing the page takes in `beforeinput` too, so the
      * root's padding is the one thing both engines read that keeps it still. Only
-     * the browser reads it: Leaf's landings read the band stated above and the one the
-     * panel states (geometry.js, `landingInsets`), so one made while such an editor
+     * the browser reads it: Leaf's landings read the band stated above
+     * (dom/geometry.js, `landingInsets`), so one made while such an editor
      * holds focus, as Resume writing's is, still clears the chrome.
      *
      * The zero still reads `--lf-landing-top`: on Leaf's pages in Chromium 156, the root
@@ -452,7 +413,7 @@ body {
     overflow-y: auto;
   }
   /* A block sample stands in its containing page, and its frame takes the body's
-   * height (runtime/sample.js). So the body keeps to its content rather than filling the
+   * height (runtime/host/sample.js). So the body keeps to its content rather than filling the
    * frame, which would hold the frame at its tallest, nothing scrolls inside, and a
    * wheel reaches the containing page. The page's rhythm is set for a window; a block
    * takes a block's. The frame is the sample's window, and it holds the sample's
@@ -480,13 +441,12 @@ body {
  * remains authoritative across component styling.
  *
  * Importance reverses layer order, so an important declaration in an earlier layer
- * wins. This anonymous layer sits early in lf-base, which only lf-reset precedes, so
- * these declarations outrank every later layer and every unlayered stylesheet
- * declaration without reserving a named layer custom CSS could append to. What ranks
- * higher is what comes earlier: lf-reset, markup's reading face
- * (lf-base.lf-reading-face, reading.css), Leaf's idioms (lf-base.lf-idioms, idioms.css)
- * and Web Awesome's tokens (lf-base.lf-vendor), which state nothing important; and
- * inline importance.
+ * wins. This anonymous layer sits early in lf-theme, which only the page's `reset` and
+ * lf-reset precede, so these declarations outrank every later layer, the page's and
+ * Leaf's tiers above them, and every unlayered stylesheet declaration without reserving
+ * a named layer custom CSS could append to. What ranks higher is what comes earlier: the
+ * page's `reset`, lf-reset, markup's reading face (lf-theme.lf-reading-face, reading.css) and Web Awesome's
+ * tokens (lf-theme.lf-vendor), which state nothing important; and inline importance.
  *
  * The same rank makes `hidden` hide whatever display another rule states for the
  * element, which the UA's own rule loses to, so no rule restores it per selector.
@@ -525,7 +485,7 @@ body {
   }
 }
 /* The room a text field keeps at the end of its lines for the action standing in its
-   trailing corner (composing/text-field.js). Typed, so a reading resolves to a length. */
+   trailing corner (annotations/composing/text-field.js). Typed, so a reading resolves to a length. */
 @property --lf-field-end-room {
   syntax: "<length>";
   inherits: true;
@@ -537,7 +497,7 @@ body {
   initial-value: 0px;
 }
 /* A floating box's translation and clips paint together rather than advancing
-   independently on the compositor (runtime/box-motion.js). */
+   independently on the compositor (runtime/dom/box-motion.js). */
 @property --lf-box-carry {
   syntax: "<length>+ | none";
   inherits: false;
@@ -551,7 +511,7 @@ body {
 /* How far across and down from their places a text field draws its words, how much
    of its box it cuts them to from each side, and how much farther the words after a
    change are drawn, while an owner's tween carries them with the field's edges
-   (composing/text-field.js, runtime/box-motion.js). At rest all are `none`, which leaves
+   (annotations/composing/text-field.js, runtime/dom/box-motion.js). At rest all are `none`, which leaves
    the words untransformed and uncut. */
 @property --lf-field-carry {
   syntax: "<length>+ | none";
@@ -586,7 +546,7 @@ main {
  * padding, layouts.css). The runtime marks each declared scroll surface it finds
  * scrolling, whoever made it scroll: a box with the page's `scroll` class or the
  * runtime's and modules' `data-lf-scroll`, which every reading region's body wears
- * (reach.js, `paintSlot`). The mark restarts the slot ([data-lf-scrolls],
+ * (dom/reach.js, `paintSlot`). The mark restarts the slot ([data-lf-scrolls],
  * state.css). Each value it changes is one everything in the box inherits, so a box
  * that holds thousands of elements states the whole restart beside its overflow and
  * the mark changes nothing there (a text document's listing). The runtime reads no
@@ -612,14 +572,14 @@ main {
  * headers over a whole scroller through its `scroll-padding` and one over part of it
  * through the `scroll-margin` every box reads from the slot (surfaces.css), and the
  * runtime's reading of what is on
- * screen takes the value at each element (geometry.js, `headerInset`). Registered so
+ * screen takes the value at each element (dom/geometry.js, `headerInset`). Registered so
  * that reading is a length. */
 @property --lf-top {
   syntax: "<length>";
   inherits: true;
   initial-value: 0px;
 }
-/* Lengths a script reads (box-motion.js reads a floating box's lift to cut its
+/* Lengths a script reads (dom/box-motion.js reads a floating box's lift to cut its
  * surface; margin-layout.js reads the rail's hang), registered so it gets resolved
  * pixels whatever units the theme writes them in. */
 @property --lf-raise-1-drop {
@@ -673,7 +633,7 @@ main {
 }
 /* The same for a box sticking at its scroller's foot: what it stands over takes its
  * height and offset as `--lf-bottom`, and the runtime's reading of what is on screen
- * leaves that band out too (geometry.js, `footerInset`). A long open thread's reply
+ * leaves that band out too (dom/geometry.js, `footerInset`). A long open thread's reply
  * row is one (chrome.css). No box restarts it. Nothing inside what a footer stands
  * over carries a footer of its own, and the slot's other reader, the landing margin of
  * every box in that thread's content (chrome.css), is read on a box that scrolls too:
@@ -803,12 +763,22 @@ main {
  * beside the container or past the window, where the page would scroll sideways,
  * which the render gate refuses. Leaf's icons are not the page's media: they take
  * their size from the icon rule (controls.css), which this one would outrank,
- * unsizing a 16px icon's height. */
+ * unsizing a 16px icon's height. An image sized by its `height` alone keeps that
+ * height, as a README's logo does on GitHub, rather than drawing at the size of its
+ * file. */
 img,
 svg:where(:not([data-lf-icon])),
 video {
   max-width: 100%;
+}
+img:where(:not([height]:not([width]))),
+svg:where(:not([data-lf-icon])),
+video {
   height: auto;
+}
+/* Where its container is narrower, such an image draws whole within the height. */
+img:where([height]:not([width])) {
+  object-fit: contain;
 }
 /* An image's width and height attributes already hold its box open before it loads,
  * but Chrome flags a lazy image as unsized unless a stylesheet gives its height or
@@ -820,325 +790,4 @@ video {
  * ratio it maps, which yields to the loaded image. */
 img {
   aspect-ratio: attr(width type(<number>)) / attr(height type(<number>));
-}
-/* The label font: small capitals in the UI sans that name a region, ranking below every
-   heading they stand among. A pane's name takes it, and so does each label a widget or
-   the chrome draws, by wearing `.lf-label`; a wearer keeps only where it stands, and a
-   label that can't wear the class, a generated or authored one, states these four
-   declarations itself. A group of a list's rows is named by the list's group heading
-   instead (controls.css, `.lf-rows-head`), whose author's capitals these would mangle. */
-.lf-label,
-:where([data-lf-reading-role="pane"]) > header > :is(h2, h3, h4, h5, h6) {
-  font: var(--lf-font-label);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: var(--lf-muted);
-}
-
-/* lf-suggestion / lf-old / lf-new: a proposed change to content the user has seen. The
- * wrapper takes the form its content takes — inline among the words for a change of a
- * phrase, block around the slots for one of whole paragraphs — so a suggestion sits
- * mid-sentence or wraps whole sections without disturbing either flow, and either way
- * the change is one box. The slots carry the marks. A decision is the end of the matter
- * visually: the settled slot loses every mark and reads as ordinary prose, and a
- * suggestion with nothing left to show disappears.
- *
- * Rejected: no box at all (display: contents), which is this same reading of
- * "follow the content" with the box left out — and a box is what anything asking where
- * the change is has to have. An element generating none measures (0,0) at the document's
- * origin, which is not a degenerate answer but a wrong one, naming the top of the page:
- * the ring has nothing to hang on, the obligation walk's travel centres the document,
- * and a container's edge rule reaches past the wrapper to the slots. The widget still
- * prepends a span to itself for its controls to anchor from, since what a widget
- * builds for itself is what it can rely on, and which form this wrapper takes is a
- * stylesheet's to say — a layer restyling it boxless would take the controls off the
- * page altogether (see lf-suggestion.js). A wrapper that draws nothing still has to be
- * somewhere.
- *
- * Having a box also puts the wrapper in front of the render gate's floors, and the
- * width floor is written for widgets that reserve a region. This one's box is its
- * content's in both forms, words included — a one-word swap is ~30px and correct — so
- * the declaration names `inline`, the key that names whose floor is whose. */
-lf-suggestion {
-  display: inline;
-}
-lf-old,
-lf-new {
-  border-radius: var(--lf-r-s);
-  padding: 0 3px;
-}
-/* --lf-ink-2, not --lf-muted: the strike and the tint already say retired, and muted on
- * the del tint reads 4.31:1 at body size — under the 4.5 the contrast sweep holds
- * every user-facing word to. */
-lf-old {
-  background: var(--lf-del-tint);
-  color: var(--lf-ink-2);
-  text-decoration: line-through;
-  text-decoration-color: var(--lf-danger);
-}
-lf-new {
-  background: var(--lf-add-tint);
-}
-/* The words that moved, deepened against the slot's own tint: the module's ranges
- * through the highlight registry (lf-suggestion.js #emphasize), so no node is
- * wrapped. Layout-free
- * properties only, which is all ::highlight() may carry. Each rule names its slot,
- * whose text is all these ranges paint (AGENTS.md, "Runtime ownership"). */
-lf-old::highlight(lf-sug-del),
-lf-old *::highlight(lf-sug-del) {
-  background-color: color-mix(in srgb, var(--lf-danger) 30%, transparent);
-}
-lf-new::highlight(lf-sug-ins),
-lf-new *::highlight(lf-sug-ins) {
-  background-color: color-mix(in srgb, var(--lf-ok) 26%, transparent);
-}
-/* Which form a slot takes is asked of the platform's own closed set, inverted: any
- * child that is not phrasing content makes the slot a block. Enumerating the block
- * side would name every shipped widget in the integrated layer — the closed list the
- * norms forbid, silently inline for a project-layer widget staged in a slot, whose
- * fold then drops it in the frame of the press. Phrasing is the list that cannot
- * grow: a custom element is never in it, so a block widget from any layer is covered
- * unnamed. The marker at the end corrects the inversion's one wrong answer: an inline
- * widget is a custom element too. Which widgets those are is the registry's to say
- * (`inline`) and a stylesheet cannot read it, so delivery paints the declaration
- * where a selector can reach it (data-lf-inline, `mark_declared`).
- * Rejected: a list of widget names here, which the layer that most needs the answer,
- * a project's own, could never be given. What a tag list buys that the marker does
- * not is the page that never runs the runtime: unpainted, an inline widget in a slot
- * reads as block there. No shipped script-free page stages one, and the price of
- * keeping that case is the closed list itself.
- *
- * The content-shape test stays in :where() so this default is as easy to override
- * as the slots' ordinary tag rules. Semantic retirement belongs to state.css.
- *
- * The platform half is HTML's phrasing-content set quoted whole, `link` and `meta`
- * included, which no slot will ever hold and which render nothing if one does. CSS
- * cannot derive the category, so the selector keeps the literal, and
- * `build/registry.test.mjs` holds it to the kernel's `$passages.phrasing`, which the
- * runtime reads for the same question about where a line of words runs. The browser
- * tests exercise the marker half through an inline Gloss in a suggestion slot.
- *
- * The block form's room is above the slot rather than around it, so a run of changes
- * reads as a stack. Room on one side costs the pair nothing, the gap between two slots
- * and between two suggestions being the second one's either way. Nor does it cost the
- * prose around a change: collapsing takes the larger of this 10px and the 13px a
- * paragraph reserves, so room on the other side would be room no user sees.
- *
- * Both slots take the block form together, the wrapper being what asks the question:
- * what the user is deciding is one change, not two halves with their own layouts.
- * Where each slot answers for itself, a paragraph replaced by a phrase renders as a
- * full-width struck field with a three-word pill under it.
- *
- * The padding then frames what the slot holds, so the slot says so: a block change is a
- * whole paragraph in a tinted field. */
-lf-suggestion:has(
-  > :is(lf-old, lf-new)
-    > :not(
-      a,
-      abbr,
-      area,
-      audio,
-      b,
-      bdi,
-      bdo,
-      br,
-      button,
-      canvas,
-      cite,
-      code,
-      data,
-      datalist,
-      del,
-      dfn,
-      em,
-      embed,
-      i,
-      iframe,
-      img,
-      input,
-      ins,
-      kbd,
-      label,
-      link,
-      map,
-      mark,
-      math,
-      meta,
-      meter,
-      noscript,
-      object,
-      output,
-      picture,
-      progress,
-      q,
-      ruby,
-      s,
-      samp,
-      script,
-      select,
-      slot,
-      small,
-      span,
-      strong,
-      sub,
-      sup,
-      svg,
-      template,
-      textarea,
-      time,
-      u,
-      var,
-      video,
-      wbr,
-      :where([data-lf-inline])
-    )
-) {
-  display: block;
-  & > :is(lf-old, lf-new) {
-    display: block;
-    /* A framed box that starts or ends the slot, such as an options group, stands
-       clear of the tint's edge (`--lf-clear`) rather than nearly meeting it. */
-    padding: var(--lf-clear) 10px;
-    margin-top: 10px;
-    --lf-block-frame: 1;
-    transition: padding var(--lf-motion-fold) ease;
-  }
-}
-/* Decided: the surviving slot is plain prose, the other one gone. The retired one is
- * folded away by the widget rather than dropped in a frame (lf-suggestion.js). A block
- * survivor gives up its padding over the same span: its 10px is the sentence the user is
- * looking at stepping sideways, which is the jerk the fold is there to remove, only
- * smaller. The transition is declared on the block slot rather than on the decided
- * state, because a transition is read from the state the element is leaving; the shared
- * reduced-motion guard in shadow.css takes it with everything else.
- *
- * An inline survivor gives up its 3px in the frame the decision lands. Its width is
- * what the margin seats the suggestion's pin by, and an inline box resizing over a
- * transition tells no observer, so the pin was seated mid-fold and the next unrelated
- * layout pass, such as an agent's comment arriving, moved it a few pixels with no
- * input. The other route, following the transition frame by frame, slid the pin beside
- * the control just pressed, which browser/AGENTS.md, "The page holds still under the
- * user's aim", forbids. Settling at once moves the words
- * by the padding as part of the gesture, and the pin takes its final seat once.
- *
- * Padding alone. The tint going is paint, which a state change may do freely, and a
- * transitioned background is the thing the option group's own comment above warns
- * about: the tokens themselves move when the user's system flips to dark, so every
- * slot on the page would animate from one palette to the other for a change nobody
- * made. */
-lf-suggestion[data-lf-state] > :is(lf-old, lf-new) {
-  background: none;
-  color: inherit;
-  text-decoration: none;
-}
-/* The retiring slot keeps its ordinary inset until native fold motion gives it
-   back; restyling it first would change the fold's intrinsic starting box. */
-lf-suggestion[data-lf-state] > :is(lf-old, lf-new):not([data-lf-retired]) {
-  padding: 0;
-}
-
-/* A pane is one task region: an optional header, one body element, an optional footer,
- * with no generated wrappers. It is whatever element declares `reading-role:
- * pane`, whose role delivery paints into the served document (`data-lf-reading-role`),
- * so the first paint lays it out before any script runs. The rows are `auto 1fr auto`,
- * because a grid row's minimum is its content's: a body that scrolls contributes
- * nothing and the row takes what the header and footer leave, while a body that doesn't
- * holds the row at its full height. Whether a body scrolls is the stylesheet's: the
- * workspace Layout scrolls pane bodies where it fills the window (layouts.css), and
- * `reading-regions.js` reads which box scrolls from the result.
- *
- * A widget that composes regions out of boxes it generates, such as a playground's
- * controls beside its preview, marks them with the same role and takes these same
- * rules, so no package keeps a copy of them. They are the kernel's rather than the
- * default package's for that reason: a package's rules name its own widgets, and these
- * reach every package's.
- *
- * The grammar (the rows, and which child stands in which) holds over what a widget
- * declares for itself, such as a board's block margin and minimum width when the board
- * is a pane's body, so it stands in the Layouts tier above every package (layouts.css)
- * rather than here, where a widget's own root rule (`lf-board { … }`) could outrank
- * it. The look (frame, paper, padding, the
- * header's font) is a default inside :where(), so a package that draws its generated
- * pane another way does so with one class rather than by outranking the attribute. */
-/* A pane's body is a keyboard stop of its own where it scrolls with nothing in it to
- * Tab to (reach.js), and the layer's ring stands outside the box it names. A held pane
- * stands flush with the scrollport of the workspace body holding it, so that ring lost
- * its right and bottom sides to the scrollport's edge and ran over the header's rule.
- * The pane is the body's ring frame instead (surfaces.css, `.lf-ring-frame`), drawing
- * the ring inset on a later box sharing the body's grid cell: an outline on the body
- * itself paints under whatever positioned content scrolls across its edges. */
-[data-lf-reading-role="pane"]::after {
-  position: static;
-  grid-row: 2;
-  grid-column: 1;
-  z-index: 1;
-}
-/* The pane role's box: a grid of header, body and footer, whose rows the grammar
- * (layouts.css) places. It stands with the base its widget's rules share, so a widget
- * that hides one of its panes, or a page, outranks it with an ordinary rule. */
-[data-lf-reading-role="pane"] {
-  display: grid;
-  grid-template-rows: auto 1fr auto;
-  grid-template-columns: minmax(0, 1fr);
-  min-width: 0;
-  --lf-block-frame: 1;
-}
-/* The frame clips to its rounding, so a body, header or footer that paints its own
- * ground to the pane's edges, as a file tree or an editor does, takes the frame's
- * corners. Clip, not hidden: a hidden box is a scroll container, which would take the
- * sticky boxes inside a body that doesn't scroll off the window. */
-:where([data-lf-reading-role="pane"]) {
-  border: 1px solid var(--lf-rule);
-  border-radius: var(--lf-r);
-  --lf-ground: var(--lf-paper);
-  background: var(--lf-ground);
-  overflow: clip;
-}
-:where([data-lf-reading-role="pane"]) > header {
-  padding: var(--lf-pane-bar-pad);
-  border-bottom: 1px solid var(--lf-rule);
-  font: var(--lf-font-title);
-  --lf-block-frame: 1;
-}
-/* A pane is a region of a workspace, so its name takes the label font (`.lf-label`):
- * small capitals that rank below the page's title and the pane's own headings, where a
- * bare h2 drew the region's label larger than anything it held. */
-:where([data-lf-reading-role="pane"]) > header > :is(h2, h3, h4, h5, h6) {
-  margin: 0;
-}
-:where([data-lf-reading-role="pane"]) > footer {
-  padding: var(--lf-pane-bar-pad);
-  border-top: 1px solid var(--lf-rule);
-  --lf-block-frame: 1;
-}
-/* A named group (`reading-role: group`) is a block that draws nothing of its own: its
- * label is data, and what it holds, any heading included, is the author's. It is a
- * region, where a question asked inside it stands, so its marks stand at a region's gap
- * (tokens.css, "Where it stands"). It states the gap because its `role="group"` would
- * otherwise put them at a control's (surfaces.css). */
-:where([data-lf-reading-role="group"]) {
-  display: block;
-  --lf-ring-at: var(--lf-focus-region-gap);
-}
-/* A framed box that holds authored content is an inline-size container, so a widget
- * inside it that caps its minimum at `100cqi` is capped by the box rather than the page:
- * a board in a pane scrolls its columns inside the pane instead of running out of it. A
- * framed box contains its own exhibits, so being a container changes only what a
- * widget measures against itself. The default package
- * makes its card a container for the same reason; its sample is a table, which
- * containment skips, so it states `--lf-box-cap` for what it holds instead. The package
- * also makes a boxed tab set's panel a container; a page tab's panel is the page's own
- * flow, which an exhibit breaks out through, so it is not one. A container takes no
- * width from what it holds, so a framed box placed where its width would come from its
- * content (an auto flex basis, a `fit-content` track) is only as wide as its other
- * parts there; the page gives it a width. */
-/* The body's top inset is named because a body that scrolls on its own holds a sticking
- * box that far below its scrollport's edge, where the rows it scrolls still show above
- * the box; the workspace hands the inset back through `--lf-top` (layouts.css). A package
- * that pads a pane body another way sets `--lf-pane-top` with it. */
-:where([data-lf-reading-role="pane"]) > :not(header, footer) {
-  --lf-pane-top: var(--lf-pane-inset);
-  padding: var(--lf-pane-top) var(--lf-pane-inset) var(--lf-pane-inset);
-  container-type: inline-size;
-  --lf-block-frame: 1;
 }

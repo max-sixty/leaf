@@ -136,7 +136,8 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
             expect(choice).to_have_attribute("aria-disabled", "true")
             expect(choice).to_have_attribute("aria-checked", "true")
     # Both source and prepared installations reject the same private override.
-    replacement = custom / "runtime/context.js"
+    replacement = custom / "runtime/state/context.js"
+    replacement.parent.mkdir()
     replacement.write_text("export const privateState = {};\n")
     for runtime in (ROOT, install):
         refused = subprocess.run(
@@ -148,4 +149,7 @@ def test_prepared_install_authors_custom_packages_and_exports_without_builds(
             check=False,
         )
         assert refused.returncode != 0
-        assert "replaces private kernel modules: runtime/context.js" in refused.stdout
+        assert (
+            "replaces private kernel modules: runtime/state/context.js"
+            in refused.stdout
+        )

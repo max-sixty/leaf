@@ -17,14 +17,14 @@ to put to the maintainer, with what the feature costs beside it.
   record this Leaf reads. A record at another shape, an older Leaf's or a newer
   one's, counts as none, where `page init` would refuse the newer one.
 - **Commands**: each command a person ran, by key or by press, from the `command`
-  observations a tab writes (`browser/runtime/interaction-log.js`), with the sessions
+  observations a tab writes (`browser/runtime/transport/interaction-log.js`), with the sessions
   and pages it ran in. A session whose browser calls itself headless is a check or a
   probe driving the page, not a person, and is left out. Only commands that ran are
   listed: the runtime registers them as each page's widgets load, so no file lists
   them all. A widget that registers a command per element, as `lf-options` does per
   option, shows as one row ending `-*`.
 - **`leaf` commands**: each command the CLI declares, with the runs agents made
-  against a page (`leaf.interaction_log.record_command`). A command that names no
+  against a page (`leaf.log.interaction_log.record_command`). A command that names no
   page, such as `leaf wait` over a session's pages, records nothing.
 
 `--since` bounds the observations and `leaf` commands by host time; widgets and
@@ -39,10 +39,10 @@ from pathlib import Path
 
 import click
 
-from leaf.interaction_log import interaction_time, read_interactions
-from leaf.registry.contract import is_element_name
-from leaf.registry.storage import layer_packages
-from leaf.state import state_home
+from leaf.base.state import state_home
+from leaf.log.interaction_log import interaction_time, read_interactions
+from leaf.source.registry.contract import is_element_name
+from leaf.source.registry.storage import layer_packages
 from leaf_dev.docs import registries
 
 
@@ -68,7 +68,7 @@ def declared_widgets() -> dict[str, str]:
 
 def declared_leaf_commands() -> list[str]:
     """Every command `leaf` shows in its help, as an agent types it."""
-    from leaf.cli import cli
+    from leaf.commands.cli import cli
 
     def walk(group: click.Group, prefix: str) -> list[str]:
         names = []

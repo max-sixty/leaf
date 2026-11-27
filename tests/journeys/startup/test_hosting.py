@@ -22,8 +22,8 @@ from render_harness import (
     watched,
 )
 
-from leaf import server as server_model
-from leaf.render_checks import rendered, start_near_work, wait_until_ready
+from leaf.base import server as server_model
+from leaf.source.render_checks import rendered, start_near_work, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -113,7 +113,7 @@ def test_a_chart_in_a_sample_off_screen_waits_for_the_reader_and_a_check_shows_i
     """In Chromium a sample's page gets no rendering while its frame is off screen, so
     a chart in a sample out of view draws only once its frame shows. The page reads as
     ready without it: at once for a window sample, and for a block sample once the
-    deadline on its height passes (sample.js, `SIZING_MS`). A check that reads every
+    deadline on its height passes (host/sample.js, `SIZING_MS`). A check that reads every
     document the page can show brings each such frame into view, a sample's own
     samples included, waits for its chart, and puts back every box it scrolled,
     leaving nothing to move after it returns. One a scroll can't show, as in a box

@@ -17,7 +17,7 @@ from render_harness import (
     write,
 )
 
-from leaf.render_checks import evaluate_probe, rendered
+from leaf.source.render_checks import evaluate_probe, rendered
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -353,7 +353,7 @@ def test_a_code_block_wraps_its_lines_whatever_holds_it(browser, serve, subtests
 
 
 def test_a_wrapped_row_hangs_from_its_line_s_indent_behind_a_mark(browser, serve):
-    """Each line of a code block stands in a box of its own (code-lines.js), so the
+    """Each line of a code block stands in a box of its own (readings/code-lines.js), so the
     rows a long line wraps onto start two columns past that line's own indent, and the
     first of those columns holds a mark on each of them, which a line that fits never
     shows (reading.css, `pre`). The boxes change no text: the block reads, selects and
@@ -948,8 +948,10 @@ def test_a_theme_draws_its_code_in_the_scheme_it_names(request, serve, engine):
     assert evaluate_probe(page, "unreadSyntax") == []
 
 
+# A framework's reset in the layer Tailwind keeps it in, beside the author's own base
+# rules.
 RESET = (
-    "@layer reset { *, ::before, ::after { margin: 0; padding: 0; border: 0 solid; }"
+    "@layer base { *, ::before, ::after { margin: 0; padding: 0; border: 0 solid; }"
     " button, input { background: transparent; border-radius: 0; font: inherit;"
     " color: inherit; } }"
 )

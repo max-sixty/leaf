@@ -1,4 +1,4 @@
-"""A heading the page gives an address offers a link to it (heading-links.js)."""
+"""A heading the page gives an address offers a link to it (records/heading-links.js)."""
 
 import re
 

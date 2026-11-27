@@ -41,10 +41,10 @@ from render_harness import (
     reported_browser_errors,
 )
 
-from leaf import render_checks as render_checks_model
-from leaf import user_views
-from leaf.render_gate.command import PIN_VARIABLE
-from leaf.render_gate.page_code import run_page_code
+from leaf.pages.render_gate.command import PIN_VARIABLE
+from leaf.pages.render_gate.page_code import run_page_code
+from leaf.serving import user_views
+from leaf.source import render_checks as render_checks_model
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -160,6 +160,7 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
             "widget": "ship",
             "action": "choose",
             "detail": {"value": ["ship-now"]},
+            "answered": True,
         },
     )
     append_carried_log_record(
@@ -553,8 +554,8 @@ from render_harness import (
     primed,
 )
 
-from leaf import event_log as events_model
-from leaf.render_gate import version as render_gate_model
+from leaf.log import event_log as events_model
+from leaf.pages.render_gate import version as render_gate_model
 
 
 @pytest.mark.shifts_unsurveyed
@@ -567,7 +568,7 @@ def test_render_reads_widget_chrome_where_it_stands(
     comment on it, and got nothing back — twice, months apart, on the same page. The
     heading was the page's word in a row its author had marked as the runtime's, and
     `.lf-ui` is a look rather than a permission, so the class alone can't be the answer:
-    the declaration goes on the label (control-labels.js), and an undeclared word under chrome is
+    the declaration goes on the label (dom/control-labels.js), and an undeclared word under chrome is
     reported. It is about a word the user was shown, so the check asks that first: a
     word the browser reads out and the page never paints is hidden with [hidden], the
     silence available in every root, and the same word shown is still reported. A
@@ -719,6 +720,8 @@ def test_a_widget_that_fails_in_a_message_is_refused_where_a_browser_draws_it(
                 "thread",
                 "create",
                 str(d),
+                "--title",
+                "Chart check",
                 "--text",
                 'See this.\n\n<lf-chart id="t-bad">\n<pre>\n{ marks: [ }\n</pre></lf-chart>',
             ],
@@ -845,12 +848,18 @@ def test_a_shot_compares_its_frames_with_a_direct_divider(browser, serve):
     expect(comparison).to_have_attribute("position", "0")
     comparison.evaluate("node => { node.position = 50; }")
     view = page.locator("lf-shot").get_by_role("radio", name="Slider", exact=True)
-    # A second finger does not replace the primary contact's input destination.
+    # A second finger does not replace the primary contact's input destination. It
+    # lands on the handle, since Web Awesome drags the divider to wherever a press
+    # starts.
     view.focus()
-    handle.evaluate("""handle => handle.dispatchEvent(new PointerEvent('pointerdown', {
-      bubbles: true, composed: true, pointerId: 98, pointerType: 'touch',
-      isPrimary: false, button: 0
-    }))""")
+    handle.evaluate("""handle => {
+      const box = handle.getBoundingClientRect();
+      handle.dispatchEvent(new PointerEvent('pointerdown', {
+        bubbles: true, composed: true, pointerId: 98, pointerType: 'touch',
+        isPrimary: false, button: 0,
+        clientX: box.left + box.width / 2, clientY: box.top + box.height / 2,
+      }));
+    }""")
     expect(view).to_be_focused()
     handle.click()
     expect(handle).to_be_focused()

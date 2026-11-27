@@ -1,6 +1,8 @@
 /* A document owns one text and its source/preview readings. The text is its `value`,
  * which Leaf sets from a bound source or widget output, or from the `<pre>` the page
- * wrote when the markup binds neither (element-data.js, "Bound values"). Optional
+ * wrote when the markup binds neither (host/element-data.js, "Bound values"). A value
+ * may name its file beside the text, which the caption shows and the readings' identity
+ * carries (`mark`). Optional
  * previews compose the ordinary lf-tabs switcher, so keyboard, reveal, and tab
  * memory have the same owner as authored views. Each reading has its own bounded
  * viewport, which keeps its scroll place independent, and switching keeps the page
@@ -9,11 +11,12 @@
  * that bound, and its Source tab takes the same height (`holdSource`). A document
  * drawn on its Source tab, as after a reload, has not drawn its preview, so its Source
  * tab keeps the box the page first painted, the written source's, and switching to
- * the preview then takes the preview's height. Where the Source tab's height cuts the
- * source, a press shows every line (`cut`), as a quote's label opens a thread's whole
- * quote: a reflow the reader asks for. The cut box doesn't scroll, so the press is the
- * one way to the rest, and stays at the box's foot rather than scrolling off with the
- * lines.
+ * the preview then takes the preview's height. Where the bound cuts the preview, or the
+ * Source tab's height cuts the source, a press shows the whole document in both tabs
+ * (`cuts`), as a quote's label opens a thread's whole quote: a reflow the reader asks
+ * for. A cut box doesn't scroll, so the press is the one way to the rest, and stays at
+ * the box's foot rather than scrolling off with the text. An author sets where the cut
+ * falls with `--lf-bound`.
  * The source reading is a numbered listing of plain rows, one a line (`listing`), so
  * every document's whole text stands in the page for find-in-page, selection, copy
  * and comments, in a tab nobody has opened too; held back until its tab opened, a
@@ -25,9 +28,15 @@
  * with a span for each token and a gutter cell for each number, a page of large
  * documents would take seconds and gigabytes to show the one in view. The Markdown
  * preview renders a file,
- * whose soft line breaks are spaces, so a paragraph wraps to the preview's width. The
- * source and Markdown renderers reconcile unchanged text across source updates, the
- * source only in the rows a new text changes (`rewrite`). HTML lives in a separate
+ * whose soft line breaks are spaces, so a paragraph wraps to the preview's width. A new
+ * text rewrites only the source rows it changes (`rewrite`) and the preview's text it
+ * changes, so code and formulas it leaves stay as drawn (`preparePreview`).
+ * A double-click on a word in the Markdown preview of the file an editor holds puts the
+ * editor's caret at the start of that word's line in the file (`editAtLine`), as a
+ * double-click on VS Code's preview does (the user's decision). Its second press
+ * selects no word, so in that preview a reader selects words to comment on by
+ * dragging. The reader reaches the same caret in the editor itself, so the
+ * double-click needs no keyboard or touch route of its own. HTML lives in a separate
  * frame so its styles and scripts cannot access Leaf’s document. Source provenance is
  * stamped with its text before awaiting the frame's presentation. */
 import { nothing } from "/vendor/lit.js";
@@ -39,12 +48,21 @@ import {
   focusDestination,
   afterPresentation,
   pageLinks,
+  dressCode,
+  aimedAt,
+  navigateToDatum,
+  boundFile,
 } from "/runtime/widget-api.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { failSoft } from "/runtime/lib/failure.js";
 import { offer, offerAction } from "/runtime/lib/controls.js";
 import { sizeObserver, nextFrame } from "/runtime/lib/frame-pass.js";
-import { loadMarkdown, renderMarkdown } from "/runtime/lib/markdown.js";
+import { plainPress } from "/runtime/lib/keys.js";
+import {
+  loadMarkdown,
+  markdownFileFragment,
+  markdownSourceOffset,
+} from "/runtime/lib/markdown.js";
 import { MAX_EDIT_LENGTH } from "/runtime/lib/text-alignment.js";
 import { keeps, keepsText, layoutPx } from "/runtime/lib/keeps.js";
 import {
@@ -55,18 +73,115 @@ import {
 import { textWidth } from "/runtime/lib/text-width.js";
 import { diffArrays } from "/vendor/jsdiff.esm.js";
 
+/** @typedef {import("../../../browser/types/contract.js").DataTextDocument} DocumentValue */
+
 // A Markdown preview of text written in the page, whose rendering sets the box both
 // tabs share (text-document.css).
 const WRITTEN = '[preview="markdown"]:not([source], [for])';
 
-// Each reading shows the same document whatever text its source holds, so its key is
-// also its identity (projection/data.js). A comment on a passage then follows the
-// passage's words across replacements, and stays marked while they still stand.
-/** @param {HTMLElement} node @param {string} key */
-const mark = (node, key) => {
-  keeps(node, "data-lf-datum", key);
-  keeps(node, "data-lf-identity", key);
+// A fragment's words, as a heading's address spells them (`headingSlugs`).
+/** @param {string} fragment */
+const slugWords = (fragment) => {
+  try {
+    return decodeURIComponent(fragment);
+  } catch {
+    return fragment;
+  }
 };
+
+// A node of a rendering as its markup, the same for nodes that draw the same.
+/** @param {Node} node */
+const drawnMarkup = (node) =>
+  node instanceof Element ? node.outerHTML : `${node.nodeType}:${node.textContent}`;
+
+// The key a place of the Markdown preview takes before its name (`lfElementsFor`).
+const PLACE = "preview:";
+
+// Each reading shows the same document whatever text its source holds, so its key is
+// also its identity (records/projection/data.js), with the file's where the value names
+// one, since one document can show several files in turn, as an editor's open file. A
+// comment on a passage then follows the passage's words across replacements, stays
+// marked while they still stand, and stays with the file it was made on.
+/** @param {HTMLElement} node @param {string} key @param {string | null} file */
+const mark = (node, key, file) => {
+  keeps(node, "data-lf-datum", key);
+  keeps(node, "data-lf-identity", file ? `${key}:${file}` : key);
+};
+
+// A heading's address in a file, as GitHub writes it for a link from the file to the
+// heading: its words lowercased, without punctuation, each space a hyphen, and a count
+// after an address an earlier heading took (github-slugger).
+/** @param {Iterable<Element>} headings @returns {Map<string, Element>} */
+function headingSlugs(headings) {
+  /** @type {Map<string, Element>} */
+  const slugs = new Map();
+  /** @type {Map<string, number>} */
+  const taken = new Map();
+  for (const heading of headings) {
+    const base = heading.textContent
+      .toLowerCase()
+      .replace(
+        /[^\p{Letter}\p{Mark}\p{Decimal_Number}\p{Letter_Number}\p{Connector_Punctuation} -]/gu,
+        "",
+      )
+      .replace(/ /g, "-");
+    let slug = base;
+    while (taken.has(slug)) {
+      const count = (taken.get(base) ?? 0) + 1;
+      taken.set(base, count);
+      slug = `${base}-${count}`;
+    }
+    taken.set(slug, 0);
+    slugs.set(slug, heading);
+  }
+  return slugs;
+}
+
+// The file a value names: its stable key where it gives one, else its name.
+/** @param {DocumentValue | null} value */
+const fileOf = (value) =>
+  typeof value === "string" ? null : (value?.key ?? value?.name ?? null);
+
+// The candidates of a `srcset`, each its URL and its size, as `640w` or `2x`: a URL runs
+// to HTML's whitespace, and a comma it ends with, or the first after its size, ends the
+// candidate (HTML's "parse a srcset attribute").
+/** @param {string} srcset @returns {[string, string][]} */
+function srcsetCandidates(srcset) {
+  /** @type {[string, string][]} */
+  const candidates = [];
+  let at = 0;
+  while (at < srcset.length) {
+    const start = srcset.slice(at).search(/[^\t\n\f\r ,]/);
+    if (start < 0) break;
+    at += start;
+    const end = at + srcset.slice(at).search(/[\t\n\f\r ]|$/);
+    const url = srcset.slice(at, end);
+    at = end;
+    if (url.endsWith(",")) {
+      candidates.push([url.replace(/,+$/, ""), ""]);
+      continue;
+    }
+    const comma = srcset.indexOf(",", at);
+    const stop = comma < 0 ? srcset.length : comma;
+    candidates.push([url, srcset.slice(at, stop).trim()]);
+    at = stop + 1;
+  }
+  return candidates;
+}
+
+// The places in a Markdown file a link of the file can name, as GitHub's rendering
+// answers it: each heading by its address (`headingSlugs`), and each element the file
+// names by `id` or `name`, as `<a name="top">`, by that name (`data-lf-place`), which
+// the preview carries rather than give the page the file's ids (`preparePreview`).
+/** @param {ParentNode} root */
+function filePlaces(root) {
+  const places = headingSlugs(root.querySelectorAll("h1, h2, h3, h4, h5, h6"));
+  for (const element of root.querySelectorAll("[data-lf-place]")) {
+    const name = element.getAttribute("data-lf-place") ?? "";
+    if (!places.has(name)) places.set(name, element);
+  }
+  return places;
+}
 
 // Rows per run: several times the lines a document's box shows, so the runs in view
 // are cheap to draw and colour, and a megabyte of text makes about 150 runs.
@@ -419,7 +534,7 @@ function lineColumns(code) {
   let width = 0;
   let characters = 0;
   for (const row of rows) {
-    const text = row.textContent?.replace(/\r?\n$/, "") ?? "";
+    const text = row.textContent.replace(/\r?\n$/, "");
     if (text.length < 8 || text.includes("\t")) continue;
     if (row.getBoundingClientRect().height > line * 1.5) continue;
     range.selectNodeContents(row);
@@ -494,7 +609,9 @@ function sizeRuns(code, text, starts, { columns, tab }, drawn, only) {
   const forgetting = resized.filter(
     ([run]) =>
       drawn?.has(run) &&
-      run.firstElementChild?.checkVisibility({ contentVisibilityAuto: true }) === false,
+      run.firstElementChild?.checkVisibility({
+        contentVisibilityAuto: true,
+      }) === false,
   );
   for (const [run, lines] of forgetting) {
     drawn?.delete(run);
@@ -770,12 +887,12 @@ class RunColours {
 
 // First draws the page doesn't show, as in a closed tab, made once it has presented, one
 // a task in the order their updates asked (`show`). Until a document draws, a comment on
-// its data stands on the document (anchor-resolution.js).
-/** @type {{doc: TextDocument, value: string | null, rendering: number}[]} */
+// its data stands on the document (readings/anchor-resolution.js).
+/** @type {{doc: TextDocument, value: DocumentValue | null, rendering: number}[]} */
 const drawingLater = [];
 /** @type {Promise<void> | null} */
 let drawingAfterPresentation = null;
-/** @param {TextDocument} doc @param {string | null} value @param {number} rendering */
+/** @param {TextDocument} doc @param {DocumentValue | null} value @param {number} rendering */
 function drawLater(doc, value, rendering) {
   drawingLater.push({ doc, value, rendering });
   drawingAfterPresentation ??= afterPresentation(async () => {
@@ -790,6 +907,20 @@ function drawLater(doc, value, rendering) {
 
 class TextDocument extends LeafElement {
   rendering = 0;
+  // A key names a reading's datum (`mark`), or, after `preview:`, a heading of the
+  // Markdown preview by its address in the file (`headingSlugs`), so a heading's
+  // address never takes a datum's.
+  /** @param {string} key @returns {Element[]} */
+  lfElementsFor(key) {
+    const preview = this.view?.preview;
+    if (key.startsWith(PLACE)) {
+      if (!(preview instanceof HTMLDivElement)) return [];
+      const place = filePlaces(preview).get(key.slice(PLACE.length));
+      return place ? [place] : [];
+    }
+    const datum = this.querySelector(`[data-lf-datum="${CSS.escape(key)}"]`);
+    return datum ? [datum] : [];
+  }
   // The language the text is coloured in (`codeLanguage`), read at setup while the
   // written `<pre>` that may name it stands: the first draw replaces the `<pre>`, and a
   // revision that names another language brings a new element. Only a document naming
@@ -833,10 +964,12 @@ class TextDocument extends LeafElement {
       this.measureCut();
     });
   });
-  // A written preview's Source tab, which shows what the preview's height holds, and
-  // the press that shows the rest where that height cuts the source.
-  /** @type {{panel: HTMLElement, box: HTMLElement, press: HTMLButtonElement} | null} */
-  cut = null;
+  // A written preview's two tabs, each with the press that shows the whole document
+  // where its height cuts its text: the bound for the preview, and the preview's
+  // height for the source.
+  /** @typedef {{panel: HTMLElement, box: HTMLElement, press: HTMLButtonElement}} Cut */
+  /** @type {{preview: Cut, source: Cut} | null} */
+  cuts = null;
   // The Source tab takes the preview's height once the preview has shown, so switching
   // to it moves nothing below the document. A closed tab skips its contents' layout
   // (`hidden="until-found"`), so the height is read while the preview shows, after
@@ -848,8 +981,8 @@ class TextDocument extends LeafElement {
   holdSource(firstBox = null) {
     const preview = this.view?.preview;
     const tab = preview?.parentElement;
-    if (!this.cut || !preview || !tab) return;
-    const { panel } = this.cut;
+    if (!this.cuts || !preview || !tab) return;
+    const { panel } = this.cuts.source;
     let measured;
     if (!tab.hidden) measured = preview.getBoundingClientRect().height;
     else if (firstBox !== null)
@@ -860,16 +993,19 @@ class TextDocument extends LeafElement {
     else return;
     panel.style.setProperty("--lf-preview-block", layoutPx(measured));
   }
-  // The press shows only while the box cuts lines off, as a thread's quote label does.
+  // The press shows only while the box cuts lines off, as a thread's quote label does,
+  // and not where it scrolls to them instead, as it does filling a pane
+  // (text-document.css).
   measureCut() {
-    if (!this.cut) return;
-    const { panel, box } = this.cut;
-    box.toggleAttribute(
-      "hidden",
-      panel.hasAttribute("hidden") ||
-        panel.hasAttribute("data-lf-all") ||
-        panel.scrollHeight <= panel.clientHeight + 1,
-    );
+    if (!this.cuts) return;
+    for (const { panel, box } of Object.values(this.cuts))
+      box.toggleAttribute(
+        "hidden",
+        panel.hasAttribute("hidden") ||
+          panel.hasAttribute("data-lf-all") ||
+          panel.scrollHeight <= panel.clientHeight + 1 ||
+          !/^(hidden|clip)$/.test(getComputedStyle(panel).overflowY),
+      );
   }
   // The runs the browser has drawn since they last forgot a height (`sizeRuns`).
   drawn = new WeakSet();
@@ -960,7 +1096,7 @@ class TextDocument extends LeafElement {
         if (!(target instanceof Element)) return;
         if (!skipped) this.drawn.add(target);
         const code = this.sourceView?.code;
-        if (target.parentElement !== code || !code) return;
+        if (target.parentElement !== code) return;
         // A run reported skipped while it stands in view stays shown, read off the
         // boxes as `list` reads them. As a tab opens again, Chromium reports the runs
         // in view skipped before it draws them, and its report that they draw can
@@ -973,7 +1109,7 @@ class TextDocument extends LeafElement {
       },
       { capture: true },
     );
-    /** @type {string | null} */
+    /** @type {DocumentValue | null} */
     this.value = null;
   }
 
@@ -1006,11 +1142,197 @@ class TextDocument extends LeafElement {
     return result;
   }
 
-  /** @param {string | null} value @param {boolean} [presented] whether this draw waited for the page to present */
+  // The markup each block of the Markdown preview was drawn from (`preparePreview`).
+  /** @type {WeakMap<Node, string>} */
+  drawnFrom = new WeakMap();
+  // The value the Markdown preview draws, set in the task that draws it, so a gesture
+  // on the preview reads the text it shows though a newer value is still drawing.
+  /** @type {DocumentValue | null} */
+  previewed = null;
+  // Whether the latest first click on the Markdown preview went to a link or control in
+  // it, which a double-click there must not begin with (`editAtLine`).
+  clickedControl = false;
+
+  // The words a plain primary press on the Markdown preview lands on, as a caret in
+  // their text, with the file the preview draws, when `for` names the widget holding
+  // the file. Null for a press on a link, a control or a picture, and for a preview
+  // bound otherwise.
+  /** @param {MouseEvent} event */
+  wordsAt(event) {
+    const value = this.previewed;
+    const preview = this.view?.preview;
+    if (
+      typeof value !== "object" ||
+      !value?.key ||
+      !preview ||
+      !plainPress(event) ||
+      !this.hasAttribute("for") ||
+      aimedAt(event, preview) !== preview
+    )
+      return null;
+    const caret = document.caretPositionFromPoint(event.clientX, event.clientY);
+    return caret?.offsetNode instanceof Text
+      ? { key: value.key, name: value.name, text: value.text, preview, caret }
+      : null;
+  }
+
+  // Puts the editor's caret at the start of the double-clicked word's line in the
+  // file. The dialect's alignment of rendered words to source finds the word in the
+  // file (`markdownSourceOffset`), reading the file's HTML as the preview draws it
+  // (`markdownFileFragment`), and the widget `for` names reveals `<key>:<line>`,
+  // as the file editor does for a link to that line (lf-file-editor.js,
+  // `lfRevealDatum`). The widget is assumed to answer such a key: the file editor is
+  // the one widget whose `text-document` value names a file by `key`. A double-click
+  // whose first click followed a link acts no further, though the link scrolled other
+  // words under its second press.
+  /** @param {MouseEvent} event */
+  editAtLine(event) {
+    const words = this.clickedControl ? null : this.wordsAt(event);
+    const offset =
+      words &&
+      markdownSourceOffset(
+        words.preview,
+        words.text,
+        words.caret.offsetNode,
+        words.caret.offset,
+        true,
+      );
+    if (!words || offset === null) return;
+    const line = words.text.slice(0, offset).split(/\r\n|\r|\n/).length;
+    void navigateToDatum(this, "for", `${words.key}:${line}`, {
+      missing: `${words.name} is no longer available.`,
+    });
+  }
+
+  // The Markdown preview's next children. A block whose markup is unchanged stands as a
+  // copy of the block already drawn for it, its code coloured and formulas typeset
+  // (`dressCode`); a changed block is dressed before it stands, so the reconciliation
+  // keeps every node the text leaves as it was, and any selection in it, and the
+  // dressing costs only what the text changed. A first draw stands undressed, and
+  // `show` dresses it in place. The file reads with its HTML (`markdownFileFragment`),
+  // and as GitHub's rendering of the file answers them, a
+  // link the file makes to one of its own places names that place in the preview
+  // (`filePlaces`), and a picture or a file it names by a path is the one beside the
+  // file, where the page binds the file (`boundFile`). A link to another file opens
+  // it in a new tab, as a link that leaves the page does (`pageLinks`). Any other
+  // fragment names the page's own place. A fold the text changed inside stays as the
+  // reader left it.
+  /** @param {string} source @param {string | null} file @param {string | null} binding @param {number} rendering */
+  async preparePreview(source, file, binding, rendering) {
+    const content = await markdownFileFragment(source, pageLinks);
+    for (const element of content.querySelectorAll("[id], a[name]")) {
+      const name = element.getAttribute("id") ?? element.getAttribute("name") ?? "";
+      element.removeAttribute("id");
+      if (element.localName === "a") element.removeAttribute("name");
+      element.setAttribute("data-lf-place", name);
+    }
+    const places = filePlaces(content);
+    for (const link of content.querySelectorAll('a[href^="#"]')) {
+      const name = (link.getAttribute("href") ?? "").slice(1);
+      if (this.id && name && places.has(slugWords(name)))
+        link.setAttribute("href", `#${this.id}:${PLACE}${name}`);
+    }
+    const files = binding ? boundFile(binding) : null;
+    if (files) {
+      // A reference with no scheme or root of its own, as `docs/guide.md` or
+      // `../logo.svg`, names a file by its path from the bound file's folder.
+      /** @param {string | null} reference */
+      const beside = (reference) => {
+        if (reference === null || URL.parse(reference) || /^[/?#]/.test(reference))
+          return null;
+        const path = reference.split(/[?#]/)[0];
+        if (!path) return null;
+        try {
+          return files.beside(decodeURIComponent(path));
+        } catch {
+          return files.beside(path);
+        }
+      };
+      for (const link of content.querySelectorAll("a[href]:not([href^='#'])")) {
+        const href = beside(link.getAttribute("href"));
+        if (!href) continue;
+        link.setAttribute("href", href);
+        link.setAttribute("target", "_blank");
+      }
+      for (const image of content.querySelectorAll("img[src]")) {
+        const src = beside(image.getAttribute("src"));
+        if (src) image.setAttribute("src", src);
+      }
+      for (const option of content.querySelectorAll("img[srcset], source[srcset]"))
+        option.setAttribute(
+          "srcset",
+          srcsetCandidates(option.getAttribute("srcset") ?? "")
+            .map(([url, size]) => [beside(url) ?? url, size].filter(Boolean).join(" "))
+            .join(", "),
+        );
+    }
+    const fresh = [...content.childNodes];
+    const markups = fresh.map(drawnMarkup);
+    const drawn = this.view?.preview;
+    // Another file draws afresh, its folds as it writes them.
+    if (
+      !(drawn instanceof HTMLDivElement) ||
+      !drawn.hasChildNodes() ||
+      fileOf(this.previewed) !== file
+    )
+      return { nodes: fresh, markups };
+    /** @type {Map<string, ChildNode[]>} */
+    const standing = new Map();
+    for (const node of drawn.childNodes) {
+      const markup = this.drawnFrom.get(node);
+      if (markup === undefined) continue;
+      const nodes = standing.get(markup);
+      if (nodes) nodes.push(node);
+      else standing.set(markup, [node]);
+    }
+    /** @type {Map<string, number>} */
+    const taken = new Map();
+    const nodes = fresh.map((node, at) => {
+      const markup = markups[at] ?? "";
+      const count = taken.get(markup) ?? 0;
+      taken.set(markup, count + 1);
+      return standing.get(markup)?.[count]?.cloneNode(true) ?? node;
+    });
+    // A fold stays as the reader left it where the text changed inside it: it takes
+    // the state of the fold drawn with the same summary, the first of them for the
+    // first, since a block the text changed is drawn afresh.
+    /** @type {Map<string, HTMLDetailsElement[]>} */
+    const shown = new Map();
+    for (const fold of drawn.querySelectorAll("details")) {
+      const summary = fold.querySelector(":scope > summary")?.textContent ?? "";
+      const folds = shown.get(summary);
+      if (folds) folds.push(fold);
+      else shown.set(summary, [fold]);
+    }
+    for (const node of nodes)
+      if (node instanceof Element)
+        for (const fold of [
+          ...(node.localName === "details" ? [node] : []),
+          ...node.querySelectorAll("details"),
+        ]) {
+          const summary = fold.querySelector(":scope > summary")?.textContent ?? "";
+          const was = shown.get(summary)?.shift();
+          if (was) fold.toggleAttribute("open", was.open);
+        }
+    await Promise.all(
+      nodes
+        .filter((node, at) => node === fresh[at] && node instanceof Element)
+        .map((node) => dressCode(/** @type {Element} */ (node))),
+    );
+    return rendering === this.rendering ? { nodes, markups } : null;
+  }
+
+  /** @param {DocumentValue | null} value @param {boolean} [presented] whether this draw waited for the page to present */
   async show(value, presented = false) {
     const rendering = this.rendering + 1;
     this.rendering = rendering;
-    const source = value ?? "";
+    const source = typeof value === "string" ? value : (value?.text ?? "");
+    const name = typeof value === "string" ? null : (value?.name ?? null);
+    // The file's identity: its stable key where the value gives one, else its name.
+    const file = fileOf(value);
+    // The binding of a file the page binds, which a bound file's value and its
+    // editor's name by `key`.
+    const binding = typeof value === "string" ? null : (value?.key ?? null);
     const preview = this.getAttribute("preview");
     try {
       if (preview) await import("./lf-tabs.js");
@@ -1031,6 +1353,13 @@ class TextDocument extends LeafElement {
         this.listed = this.checkVisibility();
         if (!this.listed && !presented) return drawLater(this, value, rendering);
       }
+      // The Markdown preview's next children, prepared before this draw writes
+      // anything, so the source rows, the preview and the marks naming their revision
+      // change together in one task (`preparePreview`).
+      const blocks =
+        preview === "markdown"
+          ? await this.preparePreview(source, file, binding, rendering)
+          : null;
       if (rendering !== this.rendering || !this.isConnected) return;
       const next = lines(source);
       const { text } = next;
@@ -1040,7 +1369,11 @@ class TextDocument extends LeafElement {
           ? new RunColours(language, (error) => {
               if (this.isConnected)
                 this.dispatchEvent(
-                  new ErrorEvent("error", { error, bubbles: true, composed: true }),
+                  new ErrorEvent("error", {
+                    error,
+                    bubbles: true,
+                    composed: true,
+                  }),
                 );
             })
           : null;
@@ -1048,12 +1381,19 @@ class TextDocument extends LeafElement {
       const view = (this.view ??= this.build(preview));
       const label =
         this.getAttribute("label") ??
+        name ??
         this.getAttribute("source") ??
         this.getAttribute("for");
       keepsText(view.caption, value == null ? `${label} · no data` : label);
+      // An HTML preview's frame is named by the same label, the file's name included.
+      if (view.preview instanceof HTMLIFrameElement)
+        keeps(view.preview, "title", `${label} preview`);
       const previous = this.lines;
       this.lines = next;
-      if (this.cut) keepsText(this.cut.press, `Show all ${text.length} lines`);
+      // Both presses show the same document, so they say the same: how long it is.
+      if (this.cuts)
+        for (const { press } of Object.values(this.cuts))
+          keepsText(press, `Show all ${text.length} lines`);
       // The first line the new text changes, past the end where it changes none.
       let from = 0;
       if (!this.sourceView) {
@@ -1071,8 +1411,9 @@ class TextDocument extends LeafElement {
         ).observe(code);
         this.sizes.observe(view.listing);
         this.sizes.observe(code);
-        if (this.cut && view.preview) {
-          this.sizes.observe(this.cut.panel);
+        if (this.cuts && view.preview) {
+          this.sizes.observe(this.cuts.preview.panel);
+          this.sizes.observe(this.cuts.source.panel);
           this.sizes.observe(view.preview);
         }
       } else {
@@ -1107,10 +1448,12 @@ class TextDocument extends LeafElement {
       }
       let loaded = this.frameLoaded;
       const previewNode = view.preview;
-      if (previewNode instanceof HTMLDivElement) {
-        const template = document.createElement("template");
-        template.innerHTML = renderMarkdown(source, pageLinks, false);
-        setRenderedChildren(previewNode, template.content.childNodes);
+      if (previewNode instanceof HTMLDivElement && blocks) {
+        setRenderedChildren(previewNode, blocks.nodes);
+        previewNode.childNodes.forEach((node, at) =>
+          this.drawnFrom.set(node, blocks.markups[at] ?? ""),
+        );
+        this.previewed = value;
       } else if (
         previewNode instanceof HTMLIFrameElement &&
         (!previewNode.isConnected ||
@@ -1131,26 +1474,32 @@ class TextDocument extends LeafElement {
           previewNode.srcdoc = source;
       }
       const firstBox =
-        this.cut && !view.figure.isConnected
+        this.cuts && !view.figure.isConnected
           ? this.getBoundingClientRect().height
           : null;
       setChildren(this, [view.figure]);
+      // The preview's code is coloured and its formulas typeset, as a Markdown body's
+      // are, once it stands in the page, whose face decides its colour.
+      const dressed =
+        previewNode instanceof HTMLDivElement ? dressCode(previewNode) : null;
       this.showLone();
       if (this.listed) this.refit();
       // Reports the draw: marks its text's items for whoever hosts the widget, in the
       // turn that announces them (`drawn`), so on a Leaf page comments on them anchor to
       // the document's data.
       if (view.preview) {
-        mark(this.sourceView.pre, "source");
-        mark(view.preview, "preview");
-      } else mark(view.figure, "document");
+        mark(this.sourceView.pre, "source", file);
+        mark(view.preview, "preview", file);
+      } else mark(view.figure, "document", file);
       this.dispatchEvent(new CustomEvent("drawn", { detail: { value } }));
       if (loaded) await loaded;
       if (rendering !== this.rendering || !this.isConnected) return;
       this.classList.toggle("lf-rendered", true);
       // Measured once drawn, since until then the host wears the source face
-      // (reading.css).
+      // (reading.css), and before the dressing lands, in the task that drew the
+      // document, so a reload on the Source tab moves nothing.
       this.holdSource(firstBox);
+      await dressed;
     } catch (error) {
       if (rendering !== this.rendering || !this.isConnected) return;
       failSoft(this, error, source);
@@ -1189,25 +1538,61 @@ class TextDocument extends LeafElement {
         ? document.createElement("iframe")
         : document.createElement("div");
     drawn.className = "lf-text-document-preview";
-    if (drawn instanceof HTMLIFrameElement) {
-      drawn.title = `${this.getAttribute("label") ?? this.getAttribute("source") ?? this.getAttribute("for")} preview`;
+    if (drawn instanceof HTMLIFrameElement)
       drawn.setAttribute("sandbox", "allow-scripts");
+    else {
+      // A first click is read as it descends, since a link's own handler may stop it.
+      // `aimedAt` answers null for a click on selected words, where a double-click may
+      // also begin.
+      drawn.addEventListener(
+        "click",
+        (event) => {
+          if (event.detail !== 1) return;
+          const aim = aimedAt(event, drawn);
+          this.clickedControl = aim !== null && aim !== drawn;
+        },
+        { capture: true },
+      );
+      // A double-click's second press selects no word, which would stand selected in
+      // the preview as the editor takes the caret.
+      drawn.addEventListener("mousedown", (event) => {
+        if (event.detail > 1 && !this.clickedControl && this.wordsAt(event))
+          event.preventDefault();
+      });
+      drawn.addEventListener("dblclick", (event) => this.editAtLine(event));
     }
     rendered.append(drawn);
     literal.append(listing);
     if (this.matches(WRITTEN)) {
-      const box = offer("div", "lf-text-document-cut");
-      box.hidden = true;
-      const press = offerAction("inline", "lf-text-document-more", "");
-      // The press goes once it has shown the lines, so focus moves to the listing.
-      press.addEventListener("click", () => {
-        literal.toggleAttribute("data-lf-all", true);
-        box.toggleAttribute("hidden", true);
-        if (this.sourceView) focusDestination(this.sourceView.pre, "return");
-      });
-      box.append(press);
-      literal.append(box);
-      this.cut = { panel: literal, box, press };
+      /** @param {HTMLElement} panel @returns {Cut} */
+      const cut = (panel) => {
+        const box = offer("div", "lf-text-document-cut");
+        box.hidden = true;
+        const press = offerAction("inline", "lf-text-document-more", "");
+        box.append(press);
+        panel.append(box);
+        return { panel, box, press };
+      };
+      const cuts = (this.cuts = { preview: cut(rendered), source: cut(literal) });
+      // Either press shows the whole document in both tabs and goes, so focus moves to
+      // the text it showed.
+      /** @param {() => HTMLElement | undefined} shown */
+      const whole = (shown) => () => {
+        for (const { panel, box } of Object.values(cuts)) {
+          panel.toggleAttribute("data-lf-all", true);
+          box.toggleAttribute("hidden", true);
+        }
+        const text = shown();
+        if (text) focusDestination(text, "return");
+      };
+      cuts.preview.press.addEventListener(
+        "click",
+        whole(() => rendered),
+      );
+      cuts.source.press.addEventListener(
+        "click",
+        whole(() => this.sourceView?.pre),
+      );
     }
     tabs.append(rendered, literal);
     figure.append(tabs);

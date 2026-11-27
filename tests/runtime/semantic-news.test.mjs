@@ -8,7 +8,7 @@ import {
   observeSemanticNews,
   semanticNewsNotice,
   semanticNewsReading,
-} from "/runtime/semantic-news.js";
+} from "/runtime/host/semantic-news.js";
 import { servedThread, servedWorkflow } from "../served.mjs";
 
 // `unread: false` leaves a message out of its thread's server `unread` reading: read
@@ -206,7 +206,7 @@ test("current content versions and admitted messages determine arrivals", () => 
           attempt: "pending",
           unread: false,
         }),
-        message("reaction", { token: "agree", unread: false }),
+        message("reaction", { emoji: "👍", unread: false }),
         message("failed-reply", { failure: "turn_failed" }),
       ]),
     ],
@@ -590,7 +590,7 @@ test("news is ordered by when each message last moved", () => {
 
 test("held producer batches preserve interrupted news and merge later arrivals", async (t) => {
   const { NOTICE_MS, answerStep, notice, noticeReading, liveEl } =
-    await import("/runtime/notifications.js");
+    await import("/runtime/transport/notifications.js");
   t.mock.timers.enable({ apis: ["setTimeout"] });
   t.after(() => window.happyDOM.cancelAsync());
   const announcements = [];
@@ -683,8 +683,9 @@ test("a reading's news gives the leaf one moment, its most pressing", () => {
 });
 
 test("a notice of the user's own command, and an error about no field, each give the leaf a moment", async (t) => {
-  const { notice, gestureReading } = await import("/runtime/notifications.js");
-  const { dismissErrors, raiseError } = await import("/runtime/errors.js");
+  const { notice, gestureReading } =
+    await import("/runtime/transport/notifications.js");
+  const { dismissErrors, raiseError } = await import("/runtime/transport/errors.js");
   t.mock.timers.enable({ apis: ["setTimeout"] });
   t.after(() => window.happyDOM.cancelAsync());
   const moments = [];

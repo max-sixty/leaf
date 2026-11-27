@@ -6,12 +6,7 @@ from interact_support import append_carried_log_record
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
 from playwright.sync_api import expect
 from render_cases_interaction import PANEL_PAGE, panel_comment
-from render_cases_layout import (
-    PANEL_DIFF_MARKUP,
-    current_location_ring,
-    rings_drawn,
-    serious_axe_violations,
-)
+from render_cases_layout import PANEL_DIFF_MARKUP, serious_axe_violations
 from render_cases_widgets import SCROLLED, SCROLLING_DIAGRAM_PAGE
 from render_harness import (
     LONG_PAGE,
@@ -35,10 +30,11 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import event_log as events_model
-from leaf.render_checks import rendered
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import rendered
 from leaf_dev.browser import open_on_me
 from leaf_dev.example_data import named_source
+from leaf_dev.rings import current_location_ring, rings_drawn
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -72,7 +68,7 @@ def test_the_keyboard_reference_is_a_modal_tab_loop_and_returns_to_its_door(
         if arrivals == 2:
             break
     assert arrivals == 2, "Tab never came back round to the reference's first stop"
-    # Tab reads Close's preview, which the first Escape puts away (keyboard/AGENTS.md,
+    # Tab reads Close's preview, which the first Escape puts away (dom/keyboard/AGENTS.md,
     # "Escape"); the next closes the reference.
     put_preview_away(page)
     page.keyboard.press("Escape")
@@ -155,7 +151,7 @@ def test_show_from_on_me_lands_in_the_card_it_opens(browser, serve):
     page = open_page(browser, serve(named_source("ship-review")))
     open_on_me(page)
     card = page.locator(f"{panel_view('queue')} .lf-fp-on-item").filter(
-        has_text="The vendor release is the only schedule"
+        has_text="Blocking on the vendor's fix"
     )
     card.locator(".lf-fp-show").click()
     preview = page.locator(".lf-margin-preview")
@@ -832,7 +828,7 @@ def test_a_reaction_withdrawal_does_not_take_back_a_newer_place(
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "keep",
+            "emoji": "👍",
             "anchor": {"section": "first-control"},
         },
     )

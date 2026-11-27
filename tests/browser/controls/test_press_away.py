@@ -1,5 +1,5 @@
 """A press away from a surface puts it away: one begun and completed outside it, as the
-platform judges its own light dismissal (focus.js, `onPressAway`). Every surface that
+platform judges its own light dismissal (dom/focus.js, `onPressAway`). Every surface that
 goes on a press elsewhere is held to that one press, so a drag between it and the page
 leaves it standing, a finger's tap away and a mouse's click away both put it away, a
 finger scrolling the page does not, and Escape, its keyboard route, puts it away too."""
@@ -18,7 +18,7 @@ from render_harness import (
 
 from browser.drafts.test_reply_sessions import open_reply
 from browser.margin.test_pins import FOLDING_PAGE
-from leaf import event_log as events_model
+from leaf.log import event_log as events_model
 from leaf_dev.browser import open_on_me
 
 PHONE = {
@@ -75,7 +75,7 @@ def test_a_press_away_puts_the_panel_s_view_away(browser, serve):
     outside = centre(page.locator("h1"))
     open_on_me(page)
     panel_settled(page, view="queue")
-    view = page.locator(".lf-fp-view:not([data-lf-leaving])")
+    view = page.locator(".lf-fp-view")
     # A drag that ends in the view, as a selection overshooting into it does, began on
     # the page but did not end there.
     drag(page, outside, centre(view))
@@ -104,13 +104,13 @@ def test_a_press_away_takes_back_a_reaction_s_offered_remove(browser, serve):
             "kind": "comment",
             "author": "user",
             "revision": 1,
-            "token": "keep",
+            "emoji": "👍",
             "anchor": {"section": "how-store"},
         },
     )
     page = open_page(browser, url)
-    mark = page.get_by_role("button", name="keep reaction actions", exact=True)
-    remove = page.locator('[aria-label="Undo keep reaction"]:visible')
+    mark = page.get_by_role("button", name="👍 reaction actions", exact=True)
+    remove = page.locator('[aria-label="Undo 👍 reaction"]:visible')
     outside = centre(page.locator("h1"))
     mark.click()
     expect(remove).to_be_visible()

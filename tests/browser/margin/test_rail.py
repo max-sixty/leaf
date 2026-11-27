@@ -26,7 +26,7 @@ from browser.margin import (
     _comment_on,
     put_card_away,
 )
-from leaf.render_checks import rendered
+from leaf.source.render_checks import rendered
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -72,7 +72,7 @@ def test_the_rail_stands_where_the_room_beside_the_column_holds_it(
     entries widen the rail, so each pointer flips at its own width: the column's box
     (720 and 2 x 24 of padding) and a rail on each side. The sweep walks down through
     that width and reads where the markers stand. A margin card stands on a window with
-    that room and nowhere else (content-layout.js, `windowHoldsRail`), so a column
+    that room and nowhere else (readings/content-layout.js, `windowHoldsRail`), so a column
     page's card and its rail come and go together."""
     context = browser.new_context(
         viewport={"width": 1200, "height": 900}, has_touch=touch
@@ -456,7 +456,7 @@ def test_tab_enters_the_rail_at_the_row_the_window_shows(request, serve, engine)
     )
     gap = '<div style="height: 6000px"></div>'
     # The page's last stop stands fixed in the window, so it is in view at every scroll
-    # and Tab moves on from it rather than from what the reader sees (keyboard/AGENTS.md,
+    # and Tab moves on from it rather than from what the reader sees (dom/keyboard/AGENTS.md,
     # "Scope resolution").
     body = (
         f'<h1>Rail way in</h1>{near}{gap}<p id="far">The far finding.</p>{gap}'

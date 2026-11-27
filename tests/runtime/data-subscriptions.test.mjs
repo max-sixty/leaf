@@ -3,11 +3,11 @@
    browser journeys; these cases exercise the publisher and its real DOM owners. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { adoptRegistry } from "/runtime/registry.js";
-import { acceptData, notifyDataSubscribers } from "/runtime/data.js";
+import { adoptRegistry } from "/runtime/state/registry.js";
+import { acceptData, notifyDataSubscribers } from "/runtime/host/data.js";
 import { nothing, html } from "/vendor/lit.js";
 import { LeafElement } from "/runtime/lib/leaf-element.js";
-import "/runtime/element-integration.js";
+import "/runtime/host/element-integration.js";
 
 let fixtureSequence = 0;
 async function scene() {
@@ -88,7 +88,7 @@ async function feed(
 
 test("a widget reads its own binding, captured at its first read", async () => {
   await scene();
-  const { runtime } = await import("/runtime/context.js");
+  const { runtime } = await import("/runtime/state/context.js");
   const current = [];
   const bound = await feed((value) => current.push(value?.[0].value ?? null));
   bound.remove();
@@ -118,7 +118,7 @@ test("a widget reads its own binding, captured at its first read", async () => {
 
 test("a Lit renderer follows conditional clock reads and its owner lifetime", async () => {
   await scene();
-  const { clockValue, tickClock } = await import("/runtime/presence.js");
+  const { clockValue, tickClock } = await import("/runtime/state/presence.js");
   let clock = 0;
   let calls = 0;
   let trackClock = false;
@@ -184,8 +184,8 @@ test("a Lit renderer follows conditional clock reads and its owner lifetime", as
 test("a superseded async data render cannot stamp the newer version", async () => {
   await scene();
   const result = await (async () => {
-    const { acceptData, notifyDataSubscribers } = await import("/runtime/data.js");
-    const { runtime } = await import("/runtime/context.js");
+    const { acceptData, notifyDataSubscribers } = await import("/runtime/host/data.js");
+    const { runtime } = await import("/runtime/state/context.js");
     const taken = 1;
     const releases = new Map();
     const widget = await feed((rows) => {
@@ -232,7 +232,7 @@ test("a superseded async data render cannot stamp the newer version", async () =
 
 test("an unchanged source waits for its inflight drawing", async () => {
   await scene();
-  const { runtime } = await import("/runtime/context.js");
+  const { runtime } = await import("/runtime/state/context.js");
   let release;
   let calls = 0;
   const widget = await feed(() => {
@@ -305,9 +305,9 @@ test("a return redraws delivered data after interrupted or completed drawing", a
 test("data readiness does not wait for an unrelated widget region", async () => {
   await scene();
   const result = await (async () => {
-    const { notifyDataSubscribers } = await import("/runtime/data.js");
+    const { notifyDataSubscribers } = await import("/runtime/host/data.js");
     const { attachApplicationPresentation } =
-      await import("/runtime/semantic-state.js");
+      await import("/runtime/state/semantic-state.js");
     const unrelated = attachApplicationPresentation("widget:unrelated:render");
     const held = unrelated.present();
     let ready = false;
@@ -341,7 +341,6 @@ function outputScene(draw) {
       inputs: {
         rows: { reference: "for", contract: "rows", property: "value" },
       },
-      refers: { for: {} },
     },
   });
   customElements.define(
@@ -371,7 +370,7 @@ const holdRows = (producer, rows) => {
 };
 
 test("an output's readers follow the element under their bound id, in their own document", async () => {
-  const { dataReader } = await import("/runtime/data.js");
+  const { dataReader } = await import("/runtime/host/data.js");
   const readings = new Map();
   const { producerTag, consumerTag } = outputScene((element, value) => {
     const history = readings.get(element.id) ?? [];
@@ -457,6 +456,28 @@ test("an output's readers follow the element under their bound id, in their own 
   document.querySelector("main").append(late);
   await settleOutput();
   assert.deepEqual(readings.get("late").at(-1), { rows: ["held"] });
+  document.body.replaceChildren();
+  await settleOutput();
+});
+
+test("a reader that read before its producer's class was defined reads what the class holds", async () => {
+  const readings = [];
+  const { producerTag, consumerTag } = outputScene((element, value) =>
+    readings.push(value),
+  );
+  document.body.innerHTML = `<main><${producerTag} id="feed"></${producerTag}><${consumerTag} for="feed"></${consumerTag}></main>`;
+  await settleOutput();
+  assert.deepEqual(readings, [null]);
+  // The class holds a value from its construction and says no `change` for it, as a
+  // form control says none for its first value.
+  customElements.define(
+    producerTag,
+    class extends HTMLElement {
+      rows = { rows: ["held"] };
+    },
+  );
+  await settleOutput();
+  assert.deepEqual(readings, [null, { rows: ["held"] }]);
   document.body.replaceChildren();
   await settleOutput();
 });

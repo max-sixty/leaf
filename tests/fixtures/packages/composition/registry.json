@@ -4,7 +4,6 @@
     "attributes": { "required": ["id"] },
     "verbs": {
       "review": {
-        "unit": "widget",
         "detail": {
           "properties": { "outcome": { "enum": ["pass", "fail"] } },
           "required": ["outcome"]

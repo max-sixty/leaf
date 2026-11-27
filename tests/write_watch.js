@@ -27,7 +27,7 @@
   // A step with neither id nor class is followed by its parent, and the last step in a
   // shadow tree by `#shadow-root` and the tree's host, so `div.cm-line` in a
   // `leaf-text#field` is `["div.cm-line", "#shadow-root", "leaf-text#field"]`.
-  // Findings carry the steps; `leaf/findings.py` writes their words.
+  // Findings carry the steps; `leaf/base/findings.py` writes their words.
   const place = (node) => {
     const element = node.nodeType === 1;
     const step = element
@@ -308,7 +308,7 @@
       : record.target.data;
   // Writes that take a value away and put it back for a reason of their own, by the
   // values they passed through. An arrival lends an element a tab stop to move where the
-  // next Tab starts, and gives it back on the blur (focus.js, `lendStop`), at once where
+  // next Tab starts, and gives it back on the blur (dom/focus.js, `lendStop`), at once where
   // the element will not take the focus. And the margin shows a withheld row for the
   // moment it takes to measure where the row would stand, which a row withheld as
   // `display: none` cannot answer, and withholds it again where that is outside what
@@ -514,11 +514,11 @@
   // scripts made it; one the test makes through Playwright's evaluate is the test's
   // setup. A smooth write moves the box later, so only an instant one is judged.
   //
-  // On a Leaf page every write passes through the runtime's hearing of it (arrivals.js,
+  // On a Leaf page every write passes through the runtime's hearing of it (dom/arrivals.js,
   // `heardWrite`), the test's own included, and the runtime's own through their door
   // past it (`unheardWrite`). Neither frame made the write, so neither is one of the
   // page's.
-  const HEARING = /\b(?:un)?heardWrite\b.*\bruntime\/arrivals\.js:/;
+  const HEARING = /\b(?:un)?heardWrite\b.*\bruntime\/dom\/arrivals\.js:/;
   const pageFrames = () =>
     new Error().stack
       .split("\n")
@@ -536,10 +536,10 @@
   // Scroll writes that move nothing on purpose, as `EXPECTED` lists DOM writes:
   // CodeMirror's measure puts back the scroll its height map anchors, which the browser
   // clamps at the editor's end, and a landing or a glide stops a scroll the browser
-  // drives, which this watch can't see (arrivals.js, `stopWhereItStands`).
+  // drives, which this watch can't see (dom/arrivals.js, `stopWhereItStands`).
   const EXPECTED_SCROLLS = [
     (by) => by[0].includes("vendor/codemirror."),
-    (by) => /^stopWhereItStands\b.*\bruntime\/arrivals\.js:/.test(by[0]),
+    (by) => /^stopWhereItStands\b.*\bruntime\/dom\/arrivals\.js:/.test(by[0]),
   ];
   // Run one scroll write to `box`, `options` saying how it moves.
   const scrollWrite = (box, how, options, write) => {

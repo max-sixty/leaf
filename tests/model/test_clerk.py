@@ -6,18 +6,18 @@ import json
 import pytest
 from interact_support import DRAFTED, PAGE, append_carried_log_record, edit
 
-from leaf import clerk as clerk_model
-from leaf import event_log as events_model
-from leaf import harness as harness_model
-from leaf import hooks as hooks_model
-from leaf import state as state_model
-from leaf import todos as todos_model
-from leaf.agent_state import cmd_page_state
-from leaf.files import require_revision
-from leaf.interaction_log import read_interactions
-from leaf.refusals import Refused
-from leaf.registry.kernel import title_limit
-from leaf.revisioning import activate_source
+from leaf.agents import clerk as clerk_model
+from leaf.base import harness as harness_model
+from leaf.base import state as state_model
+from leaf.base.files import require_revision
+from leaf.base.refusals import Refused
+from leaf.commands import hooks as hooks_model
+from leaf.commands import tasks as tasks_model
+from leaf.commands.agent_state import cmd_page_state
+from leaf.log import event_log as events_model
+from leaf.log.interaction_log import read_interactions
+from leaf.records.revisioning import activate_source
+from leaf.source.registry.kernel import title_limit
 
 
 def hook(capsys, event: str, prompt_id: str = "p1") -> str:
@@ -30,9 +30,12 @@ def hook(capsys, event: str, prompt_id: str = "p1") -> str:
 
 
 def asked() -> dict:
-    question = clerk_model.question("s1")
-    assert question is not None
-    return question
+    """The turn-end check's question as the hooks module gets it at a turn's end
+    (`hooks.cmd_fork`), with the turn its fork reads (`clerk.basis`)."""
+    answer = hooks_model.cmd_fork({"session_id": "s1", "turn_end": True})
+    assert answer is not None
+    [check] = answer["do"]
+    return {"prompt": check["request"]["prompt"], "basis": clerk_model.basis("s1")}
 
 
 def reply(page, *titles: str, passage: str = "", again: str = "", choice="") -> str:
@@ -211,11 +214,13 @@ def test_a_question_asked_again_reopens_its_thread_under_its_id(claimed, capsys)
     ]
 
 
-def test_an_ask_about_a_passage_stands_on_it_or_else_on_the_page(claimed, capsys):
-    """An ask about one passage opens its thread on the page's words the fork names,
-    as `thread create --quote` would. Words the page doesn't show leave the ask on the
-    page as a whole rather than unasked, since the fork has no next attempt, and the
-    agent hears where each went."""
+def test_an_ask_about_a_passage_quotes_it_and_says_where_the_files_miss(
+    claimed, capsys
+):
+    """An ask about one passage opens its thread quoting the page's words the fork
+    names, as `thread create --quote` would, and is asked whether or not the page's
+    files hold them. The agent hears what Leaf noted of words its reading of the files
+    doesn't find once, which the page shows in Threads unless it draws them once."""
     page = claimed.resolve()
     hook(capsys, "UserPromptSubmit")
     basis = asked()["basis"]
@@ -223,14 +228,16 @@ def test_an_ask_about_a_passage_stands_on_it_or_else_on_the_page(claimed, capsys
     answer["asks"][0]["passage"] = "The cutoff lives in"
     answer["asks"][1]["passage"] = "the retry budget"
     wrote = clerk_model.take_answer("s1", json.dumps(answer), basis)["wrote"]
-    assert [record.get("anchor", {}).get("quote") for record in wrote] == [
+    assert [record["anchor"]["quote"] for record in wrote] == [
         "The cutoff lives in",
-        None,
+        "the retry budget",
     ]
     assert all(record["obligation"] for record in wrote)
     context = hook(capsys, "PostToolBatch")
-    assert f'in a new thread on the words "The cutoff lives in" in {page},' in context
-    assert f'"The retry budget" On Me, in a new thread on {page} as a whole,' in context
+    assert f'in a new thread quoting "The cutoff lives in" in {page},' in context
+    assert f'in a new thread quoting "the retry budget" in {page},' in context
+    assert context.count("Leaf's reading of the page's files finds") == 1
+    assert "finds 'the retry budget' nowhere" in context
 
 
 def test_an_ask_with_listable_answers_is_a_choice_the_user_presses(claimed, capsys):
@@ -364,6 +371,67 @@ def test_a_question_asked_again_with_listable_answers_is_a_choice_in_its_thread(
         f"On Me again, with your message {again['id']} in the thread of {question} "
         f"on {page}, which reopens the thread if it was closed:"
     ) in hook(capsys, "PostToolBatch")
+
+
+def test_a_choice_the_user_answered_with_a_question_stays_asked(claimed, capsys):
+    """The user answers a choice with a question of their own, which hands the
+    choice to the agent until it answers them, so On Me lists nothing. The next fork
+    sees the choice as still open, which keeps it from asking the choice again when
+    the agent restates it in chat. An ask that names the choice anyway posts nothing:
+    the agent hears that the thread waits on its reply. The user's question is
+    theirs, not one the page asked them, so the fork never sees it among the
+    questions it may ask again."""
+    page = claimed.resolve()
+    hook(capsys, "UserPromptSubmit")
+    [first] = clerk_model.take_answer(
+        "s1", reply(page, "LRU or TTL", choice=caches()), asked()["basis"]
+    )["wrote"]
+    asked_back = append_carried_log_record(
+        claimed,
+        {
+            "kind": "reply",
+            "author": "user",
+            "parent": first["id"],
+            "text": "How stale can a result get?",
+        },
+    )
+    hook(capsys, "PostToolBatch")
+    prompt = asked()["prompt"]
+    assert "On Me, what the page lists as waiting on the user:\n(none)" in prompt
+    assert (
+        "ask none of these again:\n- decision in the agent's message in \"LRU or "
+        'TTL": LRU or TTL: which would you like?' in prompt
+    )
+    answer = reply(
+        page, "LRU or TTL", again=f"message:{first['id']}", choice=caches("again")
+    )
+    assert clerk_model.take_answer("s1", answer, asked()["basis"])["wrote"] == []
+    context = hook(capsys, "PostToolBatch")
+    assert (
+        f"in the thread of message:{first['id']} on {page}, but that thread waits on "
+        "your reply" in context
+    )
+    assert "leaf thread reply" in context
+
+    append_carried_log_record(
+        claimed,
+        {
+            "kind": "reply",
+            "author": "agent",
+            "agent": "Claude",
+            "session": "s1",
+            "parent": first["id"],
+            "responds": asked_back["id"],
+            "text": "Up to 41 minutes with LRU, five with TTL.",
+        },
+    )
+    prompt = asked()["prompt"]
+    assert (
+        "On Me, what the page lists as waiting on the user:\n- decision in the "
+        'agent\'s message in "LRU or TTL"' in prompt
+    )
+    assert "ask none of these again" not in prompt
+    assert asked_back["id"] not in prompt
 
 
 @pytest.mark.parametrize("words", [False, True], ids=["choice", "words"])
@@ -500,8 +568,8 @@ def test_the_fork_is_asked_the_skills_account_of_the_check(claimed, capsys):
     them each item the agent has started with its line, which tells the fork what the
     page shows under way."""
     hook(capsys, "UserPromptSubmit")
-    todo = todos_model.cmd_create(claimed, "page", "Revise the plan")
-    todos_model.cmd_start(claimed, todo["id"], "revising the plan")
+    todo = tasks_model.cmd_create(claimed, "page", "Revise the plan")
+    tasks_model.cmd_start(claimed, todo["id"], "revising the plan")
     prompt = asked()["prompt"]
     assert clerk_model.REFERENCE.read_text().strip() in prompt
     # The asks follow the guidance the agent reads, each paragraph sent whole.
@@ -571,7 +639,7 @@ def test_a_finding_only_the_agent_can_act_on_wakes_the_idle_session(
     monkeypatch.setattr(
         harness_model.ClaudeCodeHarness,
         "nudge",
-        lambda harness, page: nudged.append(clerk_model.waking("s1")) or True,
+        lambda harness, page, quoted: nudged.append(clerk_model.waking("s1")) or True,
     )
     page = claimed.resolve()
     hook(capsys, "UserPromptSubmit")

@@ -10,7 +10,7 @@ from browser.controls import (
     RING_NEW_STOP,
     SAMPLE_STARTUP_FAILURE,
 )
-from browser.threads import choose_threads_in_panel, open_panel_thread
+from browser.threads import open_panel_thread
 from browser_sources import browser_function
 from interact_support import (
     append_carried_log_record,
@@ -29,9 +29,6 @@ from render_cases_layout import (
     displaced,
     overlapped_words,
     page_at_rest,
-    ring_faults,
-    ring_rules,
-    rings_drawn,
     serious_axe_violations,
 )
 from render_cases_navigation import (
@@ -74,13 +71,17 @@ from render_harness import (
     write,
 )
 
-from leaf import event_log as events_model
-from leaf import hosting as hosting_model
-from leaf import presence as presence_model
-from leaf.render_checks import rendered, start_near_work, wait_until_ready
-from leaf.schema import SERVICE_FILE
-from leaf_dev.browser import PANEL_THREAD
+from leaf.agents import presence as presence_model
+from leaf.base import harness as harness_model
+from leaf.base import service as service_model
+from leaf.base.schema import SERVICE_FILE
+from leaf.base.server import SERVICE
+from leaf.log import event_log as events_model
+from leaf.pages import hosting as hosting_model
+from leaf.source.render_checks import rendered, start_near_work, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 from leaf_dev.example_data import named_source
+from leaf_dev.rings import ring_faults, ring_rules, ring_script, rings_drawn
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -301,7 +302,7 @@ RING_CASES = (
                 (".lf-draft-edit", "lf-draft[data-lf-control-focus-visible]"),
             ),
             # A picture's response proxy, which a screen reader reaches from the
-            # picture, rings the picture (details-shelf.js).
+            # picture, rings the picture (features/details-shelf.js).
             "heat-loss": ((".lf-visual-action", "[data-lf-proxied]"),),
             # The rail's working density, where a choice's gap is narrowest beside the
             # next face, and a candidate's radio in its card: each is the page's own
@@ -601,7 +602,7 @@ def open_panel_thread_holding(page, selector):
 RING_FOCUS_START = RELEASE_FOCUS
 
 
-SEEN_STOP = browser_function("focus_rings.js", "seenStop", using="control_name.js")
+SEEN_STOP = ring_script("seenStop")
 
 
 # Both readings of a Tab's landing in one round trip: whether the stop is new, and for a
@@ -629,8 +630,7 @@ def seen_stop(page, seen=...):
 def _tab_walk(page, stem):
     """Walk the page's whole ordinary Tab order and name every stop that shows nothing
     of where the keyboard is, and every ring a stop leaves cut or covered
-    (`ring_faults`). A ring that stays lit across stops, such as a decision's for the
-    control the user reached inside it, is named once."""
+    (`ring_faults`). A ring that stays lit across stops is named once."""
     page.evaluate("() => { window.__lfSeen = new WeakSet(); }")
     page.evaluate(RELEASE_FOCUS)
     unindicated, faults, faulted = [], [], set()
@@ -1531,7 +1531,7 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                     # runtime's own disclosure route, so the surface a sample needs is
                     # derived from where it sits rather than from a page's tab order.
                     # `reveal` takes the intent its caller's gesture retained, and
-                    # has no default (runtime/user-intent.js). This arrangement is
+                    # has no default (runtime/dom/user-intent.js). This arrangement is
                     # not a user's delayed work that a later input may supersede —
                     # it is the test saying what the page must show next — so the
                     # intent it hands over is the one that always holds.
@@ -1544,11 +1544,11 @@ def test_each_sampled_focus_ring_is_shown_whole_in_its_surface(
                     rendered(page)
                     # A key press makes the focus that follows keyboard focus. Shift
                     # moves nothing: a Tab could stand in the panel's field, whose
-                    # caret starts writing there (floating-panel.js, `writing`).
+                    # caret starts writing there (panel/floating-panel.js, `writing`).
                     page.keyboard.press("Shift")
                     target.focus()
                     # A note on the details shelf is reached from the element that
-                    # names it (details-shelf.js), never by Tab, and is focused here as
+                    # names it (features/details-shelf.js), never by Tab, and is focused here as
                     # a screen reader moving to it would focus it.
                     assert target.evaluate(
                         "node => node.tabIndex >= 0"
@@ -1737,7 +1737,7 @@ def test_all_pages_takes_the_keyboard(browser, serve, live_leaf, one_user):
     opens it, up and down step between its links and clamp at the ends, Home and End
     reach the ends, Enter opens the focused one in its own tab, and Esc gives that press
     back — the user is returned to the reading place they pressed `g L` from. The walk
-    shows the row's preview, which the first Escape puts away (preview.js)."""
+    shows the row's preview, which the first Escape puts away (annotations/preview.js)."""
     live_leaf("second", "A second leaf")
     other_url, _ = live_leaf("other", "The other leaf")
     page = open_page(browser, serve(LONG_PAGE), context=one_user)
@@ -2594,10 +2594,12 @@ def test_a_leaf_served_at_a_new_address_keeps_its_row_and_focus(
     # The recovery a taken port's refusal names: with the service record deleted, the
     # restarted server derives its address again, and binds past the port still taken.
     hosting_model.cmd_stop(other_dir)
-    (other_dir / SERVICE_FILE).unlink()
+    SERVICE.file(other_dir / SERVICE_FILE).unlink()
     with socket.create_server(("127.0.0.1", urlsplit(old_url).port)):
         new_url = hosting_model.start_server(
-            other_dir, persistent=True, harness=None
+            other_dir,
+            persistent=True,
+            harness=harness_model.claim_harness(service_model.page_claim(other_dir)),
         ).url.split("?")[0]
     assert urlsplit(new_url).port != urlsplit(old_url).port
     wait_for(

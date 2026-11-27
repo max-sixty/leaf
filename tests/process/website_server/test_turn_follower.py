@@ -18,13 +18,15 @@ from interact_support import (
 from interact_support import append_carried_log_record as append_event
 
 import leaf_website as website_server
-from leaf import codex as leaf_codex
-from leaf.codex import AppServerRequestRejected
-from leaf.delivery import response_addresses
-from leaf.event_log import read_events
-from leaf.interaction_log import read_interactions
-from leaf.state import session_record
-from leaf.thread import post_reply
+from leaf.agents import codex as leaf_codex
+from leaf.agents.codex import AppServerRequestRejected
+from leaf.agents.delivery import response_addresses
+from leaf.agents.thread import post_reply
+from leaf.base.state import session_record
+from leaf.commands.session import set_status
+from leaf.log.event_log import read_events
+from leaf.log.interaction_log import read_interactions
+from leaf.pages.render_gate.messages import message_check
 from process.website_server import (
     accept_in_turn,
     hosted_follower,
@@ -447,8 +449,8 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
     committed = []
 
     class ReplyStream:
-        def __init__(self, session, turn, delivery, target):
-            streamed.append((session, turn, delivery, dict(target)))
+        def __init__(self, session, turn, delivery, target, check):
+            streamed.append((session, turn, delivery, dict(target), check))
 
         def update(self, update):
             message = update.get("message") if update is not None else None
@@ -493,6 +495,7 @@ def test_the_starting_connection_projects_codex_activity(page_dir, monkeypatch, 
             "initial-turn",
             prepared.payload["id"],
             address,
+            message_check,
         ),
         ("Deployment verified.", True),
     ]
@@ -733,7 +736,7 @@ def test_a_reply_that_cannot_be_written_still_closes_its_website_turn(
     def unopenable(*_args):
         raise OSError("the page could not be opened")
 
-    monkeypatch.setattr("leaf.codex.AppServerReplyStream._set_state", unopenable)
+    monkeypatch.setattr("leaf.agents.codex.AppServerReplyStream._set_state", unopenable)
     with pytest.raises(OSError, match="could not be opened"):
         turn.commit({"id": "app-server-turn", "status": "completed", "items": []})
 
@@ -761,7 +764,7 @@ def test_a_finished_website_turn_does_not_overwrite_an_agent_reply(page_dir):
         identity={"agent": "Agent", "session": "leaf-website-agent"},
     )
     with website_server.PageTransaction(page_dir) as page:
-        page.set_status("waiting")
+        set_status(page, "waiting")
     before = read_events(page_dir)
 
     website_server.WebsiteCodexHarness("codex")._finish_turn(
@@ -819,7 +822,7 @@ def test_an_old_website_completion_does_not_close_the_new_leaf_turn(page_dir):
 
 
 def test_hosted_completion_cannot_borrow_a_reused_session_generation(page_dir):
-    from leaf.state import end_session, prompt_turn
+    from leaf.base.state import end_session, prompt_turn
 
     append_event(
         page_dir, {"kind": "comment", "author": "user", "text": "An old request"}
@@ -833,7 +836,7 @@ def test_hosted_completion_cannot_borrow_a_reused_session_generation(page_dir):
     prompt_turn("hosted-thread", "same-turn")
     with website_server.PageTransaction(page_dir) as page:
         page.take_claim(website_server.website_harness("hosted-thread", os.getpid()))
-        page.set_status("waiting")
+        set_status(page, "waiting")
     leaf_codex.set_stream_activity(
         "hosted-thread",
         "same-turn",

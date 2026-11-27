@@ -7,14 +7,15 @@ import {
   strongestWorkflow,
   threadAttention,
   workflowWord,
-} from "../../browser/runtime/thread/workflow.js";
+} from "../../browser/runtime/records/thread/workflow.js";
 import {
   deleted,
   foldThreads,
+  reactionsAt,
   readThreadRecords,
-} from "../../browser/runtime/thread/model.js";
-import { isTurnEvent, turnMessage } from "../../browser/runtime/pending/model.js";
-import { threadReading } from "../../browser/runtime/thread/thread-card.js";
+} from "../../browser/runtime/state/thread/model.js";
+import { isTurnEvent, turnMessage } from "../../browser/runtime/state/pending/model.js";
+import { threadReading } from "../../browser/runtime/records/thread/thread-card.js";
 import { servedReading, servedThread, servedWorkflow } from "../served.mjs";
 
 // The user's turns, which `events.exchange` and `events.turn_message` read off the log
@@ -57,7 +58,7 @@ const workflow = (id, standing, changes = {}) =>
     ...standing,
     ...changes,
   });
-// A send this tab has not delivered (`application.js`, `localWorkflow`), or with
+// A send this tab has not delivered (`host/application.js`, `localWorkflow`), or with
 // `refused` one the server refused.
 const local = (id, { refused = false, ...changes } = {}) => ({
   ...workflow(id, refused ? { ...HANDED_BACK, seen: false } : SENT, changes),
@@ -318,6 +319,11 @@ test("a thread an open to-do holds waits on the agent in the to-do's words", () 
     word: { text: "Still to do", voice: "agent" },
     workflow: null,
   });
+  // One the agent named its work waiting on says so until a start takes it up.
+  assert.deepEqual(attention(todo({ waiting_on: "Whose Words" })).word, {
+    text: "Waiting on Whose Words",
+    voice: "agent",
+  });
   assert.deepEqual(attention(todo({ state: "running" })).word, {
     text: "On it",
     voice: "agent",
@@ -389,7 +395,7 @@ test("a thread the user is still sending waits on that send", () => {
     ts: "2026-09-22T10:00:00Z",
   };
   const [thread] = foldThreads([], [root]);
-  // The fold names the record the send publishes (`application.js`, `localUpdates`),
+  // The fold names the record the send publishes (`host/application.js`, `localUpdates`),
   // which the thread's reading then stands by.
   assert.equal(thread.attention, sending.obligation);
   const publishes = owed(sending);
@@ -473,7 +479,7 @@ test("taking back an answered reaction keeps its place as the log's answer will"
   const place = (message) => ({
     id: message.id,
     text: message.text,
-    token: message.token,
+    emoji: message.emoji,
     was: message.withdrawn?.was,
     deleted: deleted(message),
   });
@@ -484,9 +490,12 @@ test("taking back an answered reaction keeps its place as the log's answer will"
       { kind: "undo", undoes: "e1" },
     ],
   );
+  // The 👍 on the agent's message is a chip, which the agent's answer stands on.
   assert.deepEqual(folded.msgs.map(place), [
-    { id: "e1", text: "", token: undefined, was: "change", deleted: true },
-    { id: "e2", text: "Which part?", token: undefined, was: undefined, deleted: false },
+    { id: "e1", text: "", emoji: undefined, was: "❌", deleted: true },
+    { id: "e2", text: "Which part?", emoji: undefined, was: undefined, deleted: false },
+    { id: "e3", text: "", emoji: undefined, was: "👍", deleted: true },
+    { id: "e4", text: "Keeping it.", emoji: undefined, was: undefined, deleted: false },
   ]);
   assert.deepEqual(folded.msgs.map(place), taken.msgs.map(place));
   assert.deepEqual(place(folded.root), place(taken.root));
@@ -539,7 +548,7 @@ test("the press leaves a sent message's place Deleted, as the log's answer does 
 test("a mark alone on the page comes off in the press, and a place the log kept stays", () => {
   const [holding] = servedReading("a reaction holding a to-do").threads;
   const [held] = servedReading("a reaction holding a to-do taken back").threads;
-  assert.equal(held.root.withdrawn?.was, "change");
+  assert.equal(held.root.withdrawn?.was, "❌");
   // The press takes the mark off; the log's answer brings back the place a to-do keeps.
   assert.deepEqual(foldThreads([holding], [{ kind: "undo", undoes: "e1" }]), []);
   // The log's place stays through the next gesture, whatever else stood on it.
@@ -550,7 +559,7 @@ test("a mark alone on the page comes off in the press, and a place the log kept 
   const { withdrawn: _, ...said } = held.root;
   const marked = {
     ...held,
-    msgs: [...held.msgs, { ...said, id: "mark", parent: "e1", token: "keep" }],
+    msgs: [...held.msgs, { ...said, id: "mark", parent: "e1", emoji: "👍" }],
   };
   assert.deepEqual(
     foldThreads([marked], [{ kind: "undo", undoes: "mark" }]).map(({ msgs }) =>
@@ -632,7 +641,7 @@ test("pending thread gestures fold in the order the user made them, as the log w
     ts: "now",
   };
   const reply = { ...rewrite, id: "pending:reply", kind: "reply", parent: "question" };
-  const keep = { ...reply, id: "pending:keep", text: undefined, token: "keep" };
+  const keep = { ...reply, id: "pending:keep", text: undefined, emoji: "👍" };
   const undo = { id: "pending:undo", kind: "undo", author: "user", undoes: "kept" };
   const resolve = { kind: "resolve", parent: "root", author: "user" };
   const unresolve = { ...resolve, kind: "unresolve" };
@@ -645,12 +654,12 @@ test("pending thread gestures fold in the order the user made them, as the log w
   for (const gesture of [reply, rewrite, keep, undo, resolve, unresolve])
     assert.equal(fold({ attention: asks }, gesture).attention, asks, gesture.id);
   // A resolve after a turn closes the thread the turn reopened, and a turn after a
-  // resolve reopens it; a reaction is no turn, so it leaves a resolve in force.
+  // resolve reopens it, a reaction as words do.
   const closed = { author: "user", pending: true };
   const resolved = { resolved: { id: "closed", kind: "resolve", author: "user" } };
   assert.deepEqual(fold({}, rewrite, resolve).resolved, closed);
   assert.equal(fold(resolved, resolve, reply).resolved, null);
-  assert.deepEqual(fold({}, resolve, keep).resolved, closed);
+  assert.equal(fold({}, resolve, keep).resolved, null);
   assert.equal(fold(resolved, unresolve).resolved, null);
   // Taking back the resolve that closed the thread reopens it; taking back anything
   // else leaves it closed.
@@ -685,4 +694,28 @@ test("a thread this tab opened carries every field a served thread does", () => 
     Object.keys(opened).sort(),
     Object.keys(servedThread([root])).sort(),
   );
+});
+
+test("a reaction on a passage stays the user's to take back once the agent answers it", () => {
+  // The picker reads the reactions in force on its anchor, so pressing one again takes it
+  // back whatever has been said since, until the thread is resolved.
+  const anchor = { section: "plan", quote: "Ship dark" };
+  const root = { id: "r", kind: "comment", author: "user", emoji: "✂️", anchor };
+  const answer = { id: "a", kind: "reply", author: "agent", parent: "r", text: "Cut." };
+  /** @param {object[]} msgs @param {object | null} resolved */
+  const thread = (msgs, resolved = null, opened = root) => ({
+    id: "r",
+    root: opened,
+    msgs,
+    anchor,
+    resolved,
+  });
+  assert.deepEqual(reactionsAt([thread([root])], anchor), [root]);
+  assert.deepEqual(reactionsAt([thread([root, answer])], anchor), [root]);
+  assert.deepEqual(
+    reactionsAt([thread([root, answer], { author: "user" })], anchor),
+    [],
+  );
+  const words = { ...root, emoji: undefined, text: "Why?" };
+  assert.deepEqual(reactionsAt([thread([words], null, words)], anchor), []);
 });

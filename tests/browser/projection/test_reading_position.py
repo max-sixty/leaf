@@ -33,7 +33,7 @@ from render_harness import (
     wait_for_revision,
 )
 
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.source.render_checks import rendered, wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -1022,7 +1022,7 @@ second line of the notes document, also long enough to quote as a place
     moved = page.evaluate(
         """async () => {
           const entry = new URL(document.querySelector("script[data-lf-entry]").dataset.lfEntry, location.href);
-          const R = await import(new URL("runtime/reading-place.js", entry).href);
+          const R = await import(new URL("runtime/readings/reading-place.js", entry).href);
           const chart = document.getElementById("chart");
           scrollTo(0, chart.getBoundingClientRect().top + scrollY + 100);
           await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r)));

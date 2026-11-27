@@ -4,7 +4,8 @@ the suite's sessions, and the demo recording's own (`commands/site/demo.py`)."""
 import threading
 from contextlib import contextmanager
 
-from leaf import carrier, completions
+from leaf.agents import completions
+from leaf.commands.hooks import cmd_fork
 
 
 @contextmanager
@@ -13,8 +14,8 @@ def claude_code_module(session: str, reply: str | dict):
     `tests/process/test_interact_claude_code_module.py` holds to the same: run each
     completion Leaf lists for `session` (`completions.listed`) as the text `reply`, or
     the failure it names (`{"failed": …}`), with the model's usage of 300 tokens in and
-    12 out, and report it as the module does (`carrier.step`), yielding the requests it
-    took, each with its `id` and `request`."""
+    12 out, and report it as the module does (`hooks.cmd_fork`), yielding the requests
+    it took, each with its `id` and `request`."""
     asked = []
     done = threading.Event()
     answered = reply if isinstance(reply, dict) else {"text": reply}
@@ -30,9 +31,9 @@ def claude_code_module(session: str, reply: str | dict):
                         "request": instruction["request"],
                     }
                 )
-                carrier.step(
-                    session,
+                cmd_fork(
                     {
+                        "session_id": session,
                         "done": instruction["id"],
                         "do": instruction["do"],
                         "basis": instruction["basis"],

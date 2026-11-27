@@ -36,7 +36,6 @@ from browser.threads import (
     THIRTY_LINES,
     append_agent_reply,
     append_user_reply,
-    choose_threads_in_panel,
     clear_of_the_panel,
     long_diff_thread,
     open_panel_thread,
@@ -45,10 +44,10 @@ from browser.threads import (
     summarize_thread,
     to_window_foot,
 )
-from leaf import data as data_model
-from leaf import event_log as events_model
-from leaf.render_checks import rendered, wait_until_ready
-from leaf_dev.browser import PANEL_THREAD
+from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
+from leaf.source.render_checks import rendered, wait_until_ready
+from leaf_dev.browser import PANEL_THREAD, choose_threads_in_panel
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -71,7 +70,7 @@ def records_page(serve):
     url = live_url(
         serve(leaf_page("Cases", REVIEW), packages=(*EXAMPLE_PACKAGES, RECORDS))
     )
-    data_model.cmd_data_set(serve.page_dir, "run", RECORDS_RUN)
+    page_data_model.cmd_data_set(serve.page_dir, "run", RECORDS_RUN)
     return url
 
 
@@ -140,7 +139,7 @@ def test_a_resolution_from_elsewhere_moves_nothing_after_a_diff_thread(browser, 
             '</lf-diff><p id="after">Reading the paragraph after the diff.</p>',
         )
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n"
@@ -400,7 +399,7 @@ def seated_thread(
                 f'source="review-patch"></lf-diff>{SEAT_FILLER}',
             ).replace("<body>", f'<body data-annotations="{annotations}">', 1)
         )
-        data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+        page_data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
         anchor = {
             "section": "patch",
             "datum": line,
@@ -562,7 +561,7 @@ def test_an_edit_above_the_paragraph_read_holds_it_with_the_reply_box_scrolled_a
     box = thread.locator(":scope > .lf-thread-reply leaf-text")
     box.scroll_into_view_if_needed()
     write(box, "Half a thought")
-    # The edit reveals its caret in the editor's next frame (editor-view.js), so the
+    # The edit reveals its caret in the editor's next frame (annotations/editor-view.js), so the
     # scroll away waits for it: made before it, the reveal brings the box back.
     rendered(page)
     read = thread.locator(".lf-msg p", has_text="The second paragraph")
@@ -762,7 +761,7 @@ def test_a_reply_box_whose_thread_leaves_the_diff_takes_the_user_to_its_card(
           }), true);
         }"""
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir, "review-patch", SEAT_DIFF + "@@ -9 +9 @@\n-old = 1\n+new = 1\n"
     )
     told(page)
@@ -809,7 +808,7 @@ def test_a_reply_box_whose_thread_returns_to_the_diff_takes_the_user_back(
     box = inline.locator(":scope > .lf-thread-reply leaf-text")
     box.scroll_into_view_if_needed()
     write(box, "Half a thought")
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir, "review-patch", SEAT_DIFF + "@@ -9 +9 @@\n-old = 1\n+new = 1\n"
     )
     told(page)
@@ -819,7 +818,7 @@ def test_a_reply_box_whose_thread_returns_to_the_diff_takes_the_user_back(
     page.keyboard.type(" more")
     reply.evaluate("box => box.setSelectionRange(4, 4)")
     watch_blurs(reply)
-    data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
     told(page)
     expect(card).to_be_hidden()
     expect(box).to_be_focused()
@@ -857,7 +856,7 @@ def test_a_reply_dictated_on_the_diff_keeps_listening_as_its_thread_moves(
       results: [[{ transcript: words }]],
     })"""
     page.evaluate(heard, "Half a")
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir, "review-patch", SEAT_DIFF + "@@ -9 +9 @@\n-old = 1\n+new = 1\n"
     )
     told(page)
@@ -866,7 +865,7 @@ def test_a_reply_dictated_on_the_diff_keeps_listening_as_its_thread_moves(
     expect(reply).to_be_focused()
     page.evaluate(heard, "Half a thought")
     expect(reply).to_have_js_property("value", "Half a thought")
-    data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
     told(page)
     box = row.locator("leaf-text")
     expect(box).to_be_focused()
@@ -891,7 +890,7 @@ def test_a_reply_box_left_by_tab_returns_to_the_diff_with_its_history(
     box = inline.locator(":scope > .lf-thread-reply leaf-text")
     box.scroll_into_view_if_needed()
     write(box, "Half a thought")
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir, "review-patch", SEAT_DIFF + "@@ -9 +9 @@\n-old = 1\n+new = 1\n"
     )
     told(page)
@@ -914,7 +913,7 @@ def test_a_reply_box_left_by_tab_returns_to_the_diff_with_its_history(
         page.keyboard.press("Enter")
         expect(preview).to_be_hidden()
     expect(reply).not_to_be_focused()
-    data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
     told(page)
     expect(shown).to_be_hidden()
     expect(box).to_have_js_property("value", "Half a thought more")
@@ -989,7 +988,7 @@ def test_a_rewrite_of_a_folded_message_in_a_diff_seat_comes_back_there(browser, 
 def test_resume_writing_a_reply_its_seat_still_draws_leaves_a_way_back(browser, serve):
     """Resume writing takes the user from where they read to the reply they left in a
     diff line's seat, though the seat stayed drawn all the while, and Back takes them
-    back to where they read, as every trip Resume writing makes does (drafts.js,
+    back to where they read, as every trip Resume writing makes does (records/drafts.js,
     `createWritingResume`)."""
     url, root = seated_thread(serve, "diff", 2)
     page = open_page(browser, url)
@@ -1027,7 +1026,7 @@ def test_a_user_on_a_thread_returning_to_the_diff_goes_with_it(
     page = open_page(browser, url)
     resized(page, 1440, 900)
     inline = page.locator(f'lf-diff .lf-page-thread[data-lf-thread="{root}"]')
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir, "review-patch", SEAT_DIFF + "@@ -9 +9 @@\n-old = 1\n+new = 1\n"
     )
     told(page)
@@ -1044,7 +1043,7 @@ def test_a_user_on_a_thread_returning_to_the_diff_goes_with_it(
         expect(marker).to_be_visible()
         marker.focus()
         expect(marker).to_be_focused()
-    data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
     told(page)
     expect(inline).to_have_count(1)
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
@@ -1181,7 +1180,7 @@ def _seat_manifest(patch):
 def _refused_file(serve, page):
     """The file's next patch describes another file, so its error box takes the place
     of the lines it had."""
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         _seat_manifest(SEAT_DIFF.replace("app.py", "other.py")),
@@ -1194,7 +1193,7 @@ def _refused_file(serve, page):
 
 
 def _refused_patch(serve, page):
-    data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF + SEAT_DIFF)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF + SEAT_DIFF)
     told(page)
     reported_browser_errors(
         page, 'leaf: <lf-diff id="patch"> failed: unified diff repeats file path app.py'
@@ -1208,7 +1207,9 @@ def _refused_patch(serve, page):
         SEAT_DIFF.replace('+return "new"', '+return "newer"'),
         SEAT_DIFF.replace("app.py", "other.py"),
         _refused_file,
-        lambda serve, page: data_model.cmd_data_clear(serve.page_dir, "review-patch"),
+        lambda serve, page: page_data_model.cmd_data_clear(
+            serve.page_dir, "review-patch"
+        ),
         _refused_patch,
     ],
     ids=[
@@ -1236,7 +1237,7 @@ def test_a_comment_being_written_on_a_diff_line_stays_in_hand_across_a_new_patch
             f'source="review-patch"></lf-diff>{SEAT_FILLER}',
         )
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "review-patch",
         _seat_manifest(SEAT_DIFF) if change is _refused_file else SEAT_DIFF,
@@ -1261,7 +1262,7 @@ def test_a_comment_being_written_on_a_diff_line_stays_in_hand_across_a_new_patch
     if callable(change):
         change(serve, page)
     else:
-        data_model.cmd_data_set(serve.page_dir, "review-patch", change)
+        page_data_model.cmd_data_set(serve.page_dir, "review-patch", change)
     told(page)
     expect(page.locator("lf-diff .lf-diff-thread-outlet")).to_have_count(0)
     expect(box).to_be_focused()
@@ -1303,7 +1304,7 @@ def test_a_comment_being_written_on_a_diff_file_stays_the_same_editor_across_a_n
             f'source="review-patch"></lf-diff>{SEAT_FILLER}',
         )
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir, "review-patch", _files_manifest("app.py", "lib.py")
     )
     page = open_page(browser, url)
@@ -1318,10 +1319,12 @@ def test_a_comment_being_written_on_a_diff_file_stays_the_same_editor_across_a_n
     selection = box.evaluate("node => [node.selectionStart, node.selectionEnd]")
     watch_blurs(box)
     if change == "source-cleared":
-        data_model.cmd_data_clear(serve.page_dir, "review-patch")
+        page_data_model.cmd_data_clear(serve.page_dir, "review-patch")
     else:
         paths = ("lib.py", "app.py") if change == "files-reordered" else ("app.py",)
-        data_model.cmd_data_set(serve.page_dir, "review-patch", _files_manifest(*paths))
+        page_data_model.cmd_data_set(
+            serve.page_dir, "review-patch", _files_manifest(*paths)
+        )
     told(page)
     expect(seated).to_have_count(0)
     expect(box).to_be_focused()
@@ -1359,7 +1362,7 @@ def test_a_comment_being_written_on_a_kept_datum_keeps_its_seat_as_its_data_reor
     page.keyboard.press("Shift+ArrowLeft")
     selection = field.evaluate("node => [node.selectionStart, node.selectionEnd]")
     watch_blurs(field)
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir, "run", {"cases": RECORDS_RUN["cases"][::-1]}
     )
     told(page)
@@ -1395,7 +1398,7 @@ def test_a_comment_being_written_on_a_kept_datum_keeps_its_seat_under_the_panel_
         ),
         packages=(*EXAMPLE_PACKAGES, RECORDS),
     )
-    data_model.cmd_data_set(serve.page_dir, "run", RECORDS_RUN)
+    page_data_model.cmd_data_set(serve.page_dir, "run", RECORDS_RUN)
     page = open_page(browser, url)
     resized(page, 390, 760)
     case = page.locator("#review .test-case:not([hidden])")
@@ -1431,7 +1434,7 @@ def test_a_comment_being_written_on_a_kept_datum_keeps_its_seat_under_the_panel_
         }"""
     )
     title = "The run list keeps its return route"
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "run",
         {
@@ -1462,7 +1465,7 @@ def test_the_comment_box_keeps_the_user_typing_as_it_takes_its_seat_again(
             f"</lf-diff>{SEAT_FILLER}",
         )
     )
-    data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+    page_data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
     page = open_page(browser, url)
     if not native_move:
         page.evaluate("() => { Element.prototype.moveBefore = undefined; }")
@@ -1538,7 +1541,7 @@ def test_a_box_written_in_a_widget_taken_off_the_page_keeps_its_words_and_the_us
                 f'source="review-patch"></lf-diff>{SEAT_FILLER}',
             )
         )
-        data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
+        page_data_model.cmd_data_set(serve.page_dir, "review-patch", SEAT_DIFF)
         page = open_page(request.getfixturevalue(engine), url)
         resized(page, 1440, 900)
         line = page.locator(

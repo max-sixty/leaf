@@ -39,12 +39,12 @@ from render_harness import (
 
 from browser.widgets import PLAYGROUND_PAGE, expect_accept_all
 from journeys import first_thread_head
-from leaf import data as data_model
-from leaf import delivery as delivery_model
-from leaf import event_log as events_model
-from leaf import service as service_model
-from leaf import thread as thread_model
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.agents import delivery as delivery_model
+from leaf.agents import thread as thread_model
+from leaf.log import event_log as events_model
+from leaf.records import page_data as page_data_model
+from leaf.records import transaction as transaction_model
+from leaf.source.render_checks import rendered, wait_until_ready
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -262,7 +262,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     page = open_page(browser, serve(column))
     resized(page, 1200, 900)
     # Scrolled past the header with the list still in sight, since a key at a tab
-    # scrolled out of sight lets go of it (keyboard/controller.js). Short of the
+    # scrolled out of sight lets go of it (panel/page-keys/controller.js). Short of the
     # panel's top, so a switch that scrolled to the panel or the page's top would show.
     page.get_by_role("tab", name="Ticket b", exact=True).focus()
     page.evaluate("""() => {
@@ -778,7 +778,7 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     )
 
     # Map travel keeps the user oriented rather than teleporting. The glide runs for a
-    # fixed time (scrolling.js, `SCROLL_MS`), so a starved runner whose next frame comes
+    # fixed time (dom/scrolling.js, `SCROLL_MS`), so a starved runner whose next frame comes
     # after it ends shows a jump; holding the frame clock steps it a frame's length per
     # frame, so the frames sampled show the same glide on any host.
     page.evaluate("document.scrollingElement.scrollTo({top: 0, behavior: 'instant'})")
@@ -1187,7 +1187,7 @@ def test_a_narrow_rename_header_reserves_basenames_before_folders(
         ),
         packages=("diff",),
     )
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "patch-data",
         f"diff --git a/{previous} b/{path}\nsimilarity index 50%\n"
@@ -1306,7 +1306,7 @@ def test_focus_reactions_keep_a_projected_data_target(browser, serve, destinatio
     reaction = next(
         event
         for event in reversed(events_model.read_events(serve.page_dir))
-        if event["kind"] == "comment" and event.get("token")
+        if event["kind"] == "comment" and event.get("emoji")
     )
     assert reaction["anchor"]["section"] == owner
     assert reaction["anchor"]["datum"] == datum
@@ -1424,7 +1424,7 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
         for event in events_model.read_events(serve.page_dir)
         if event["id"] == action["id"]
     )
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(
             transaction,
             [logged_action],
@@ -1432,7 +1432,7 @@ def test_notification_configuration_becomes_a_commentable_local_artifact(
             turn="create-artifact",
         )
     with (
-        service_model.PageTransaction(serve.page_dir) as receipt_page,
+        transaction_model.PageTransaction(serve.page_dir) as receipt_page,
         delivery_model.receive_batch(
             receipt_page,
             {"events": [{"seq": logged_action["seq"], "id": logged_action["id"]}]},
@@ -1504,7 +1504,7 @@ body { font-family: system-ui, sans-serif; }
     assert "notification-configuration" in result_source
     assert "layout-workspace" not in result_source
     assert 'notification-artifact" hidden' not in result_source
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "notification-artifact",
         artifact.read_text(encoding="utf-8"),
@@ -1565,7 +1565,7 @@ body { font-family: system-ui, sans-serif; }
         if event["id"] == comment["id"]
     )
 
-    with service_model.PageTransaction(serve.page_dir) as transaction:
+    with transaction_model.PageTransaction(serve.page_dir) as transaction:
         delivery_model.record_pickup(
             transaction,
             [logged_comment],
@@ -1573,7 +1573,7 @@ body { font-family: system-ui, sans-serif; }
             turn="refine-artifact",
         )
     with (
-        service_model.PageTransaction(serve.page_dir) as receipt_page,
+        transaction_model.PageTransaction(serve.page_dir) as receipt_page,
         delivery_model.receive_batch(
             receipt_page,
             {"events": [{"seq": logged_comment["seq"], "id": logged_comment["id"]}]},
@@ -1587,7 +1587,7 @@ body { font-family: system-ui, sans-serif; }
         "</article>",
     )
     artifact.write_text(second_artifact, encoding="utf-8")
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "notification-artifact",
         artifact.read_text(encoding="utf-8"),

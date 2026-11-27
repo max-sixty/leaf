@@ -59,8 +59,8 @@
  * In a thread the existing reply box already owns those words, so Enter from a mark
  * continues into that box. Every `multiple` group grows a Done press: each toggle
  * reaches the agent as it lands, so the press is the one statement that the set is
- * whole, posted as an `answer` action and held as the obligation's closing condition
- * (`awaits.answered`). Answered is paint on the press, never a wider word. A
+ * whole, posted as an `answer` action, and the group says its question is answered
+ * while that answer stands (`static answered`). Answered is paint on the press, never a wider word. A
  * second press withdraws that answer through the widget's exact undo, reopening the
  * obligation; the set can still change after either press, and each toggle reaches the
  * agent.
@@ -108,7 +108,15 @@
  * quoting gates the action channel and not presentation.
  *
  * Authored children stay in place, as their author wrote them. An option the user
- * adds shows its words as inline Markdown (`OptionAddition`). */
+ * adds shows its words as inline Markdown (`OptionAddition`).
+ *
+ * Only this module records the pick. Another widget that shows it, as a board card
+ * does, reads the group's `choice` output and asks for a pick with the invoker command
+ * `--choose` (the registry's `choice` contract). Each option answers with its `value`,
+ * or its id where it has none, as an `<option>` answers with its text. The group
+ * records the asked pick under the words the sending button says, so Undo names the
+ * gesture the user made, and refuses a value two options carry, since that would pick
+ * one of them for the user. An exhibit takes no pick, so it refuses every request. */
 import { OptionAddition } from "./lf-options-addition.js";
 import { SettledOptions } from "./lf-options-settled.js";
 import { nothing } from "/vendor/lit.js";
@@ -139,6 +147,10 @@ import { closestAcross } from "/runtime/lib/shadow-tree.js";
 /** @param {Element} option */
 const label = (option) => option.getAttribute("label")?.trim() || named(option);
 
+// The value an option answers with in the group's `choice`: its `value`, else its id.
+/** @param {Element} option */
+const optionValue = (option) => option.getAttribute("value") || option.id;
+
 // The option the page advises is `recommended`, and the group says so wherever the
 // option is answered away from its card.
 /** @param {Element} option */
@@ -163,7 +175,7 @@ function choiceIds(value) {
   return ids;
 }
 
-/** @param {import("../../../browser/runtime/widget-controller.js").WidgetReading["state"] | null | undefined} state */
+/** @param {import("../../../browser/runtime/host/widget-controller.js").WidgetReading["state"] | null | undefined} state */
 function additions(state) {
   const added = state?.add;
   if (!added) return [];
@@ -176,7 +188,7 @@ function additions(state) {
   });
 }
 
-/** @param {import("../../../browser/runtime/widget-controller.js").WidgetReading["state"] | null | undefined} state */
+/** @param {import("../../../browser/runtime/host/widget-controller.js").WidgetReading["state"] | null | undefined} state */
 function isAnswered(state) {
   const answer = state?.answer;
   return answer && "action" in answer ? Boolean(answer.action) : false;
@@ -215,6 +227,25 @@ customElements.define(
         ].join(", ") || "No options selected"
       );
     }
+
+    // Whether the group's question is answered, which Leaf asks after each of its
+    // gestures (`module-state.md`, "Declared widget state"): Done pressed where the
+    // group takes several options, otherwise a pick the user made. Each reads only the
+    // user's acts in force, never a selection only the markup holds, so a pick the
+    // version writes in answers nothing, as the server reads it.
+    /** @param {import("../../../browser/runtime/host/widget-controller.js").WidgetReading["state"]} state @param {Element} group */
+    static answered(state, group) {
+      if (group.hasAttribute("multiple")) return isAnswered(state);
+      const choose = state.choose;
+      return Boolean(
+        choose && "action" in choose && choose.action && choiceIds(choose.value).length,
+      );
+    }
+
+    // The `choice` output, said with `change` each time it moves.
+    /** @type {{value: string, options: {value: string, label: string}[], disabled: boolean} | null} */
+    choice = null;
+    #choiceSaid = "null";
 
     /** @type {OptionAddition | undefined} */
     #additionOwner;
@@ -295,6 +326,10 @@ customElements.define(
       if (this.hasAttribute("settled")) {
         this.#settled = new SettledOptions(this, { label });
       }
+      this.addEventListener("command", (event) => {
+        const { command, source } = /** @type {CommandEvent} */ (event);
+        if (command === "--choose" && !this.#choose(source)) event.preventDefault();
+      });
       if (!this.#choosable) return;
       this.addEventListener("click", (e) => {
         // A click ending a drag-select belongs to the selection rather than the option.
@@ -306,10 +341,12 @@ customElements.define(
         // working the case — flipping a shot, opening a disclosure, following a link —
         // rather than choosing between the options. `aimedAt` is the whole of that
         // question, and what it cannot answer is which of the controls in here this
-        // module put there: the mark is the pick's own control, and the digit stands in
-        // the column beside it, so a press on either is aimed at this option after all.
+        // module put there: the mark is the pick's own control, so a press on it is
+        // aimed at this option after all. The digit takes no pointer, and the mark
+        // stands under it on a card and reaches over it on a row (options.css), so a
+        // press on the digit lands on the mark.
         const at = aimedAt(e, option);
-        if (at !== option && !at?.matches(".lf-pick, .lf-key-badge")) return;
+        if (at !== option && !at?.matches(".lf-pick")) return;
         if (!this.#available("choose")) return;
         e.preventDefault();
         const was = this.#picked();
@@ -328,6 +365,49 @@ customElements.define(
             : `Dropped “${name}”`;
         this.#dispatch("choose", this.#addition.detailFor(next), null, said);
       });
+    }
+
+    // Record the pick a `--choose` asks for: the one option whose value the sending
+    // button's `value` names, or the empty pick for the empty string, named by the words
+    // the button says. False where the group takes no such pick.
+    /** @param {Element | null} source */
+    #choose(source) {
+      if (
+        !(source instanceof HTMLButtonElement) ||
+        !this.choice ||
+        this.choice.disabled
+      )
+        return false;
+      const next = new Set(
+        [...this.#options()].filter((option) => optionValue(option) === source.value),
+      );
+      if (next.size !== (source.value ? 1 : 0)) return false;
+      this.#addition.remember(next);
+      const words = source.textContent?.trim() ?? "";
+      return Boolean(
+        this.#dispatch("choose", this.#addition.detailFor(next), null, words),
+      );
+    }
+
+    /** @param {ReadonlySet<string>} picked */
+    #holdChoice(picked) {
+      const options = [...this.#options()];
+      const [only, other] = new Set(
+        options.filter((option) => picked.has(option.id)).map(optionValue),
+      );
+      const choice = {
+        value: other === undefined ? (only ?? "") : "",
+        options: options.map((option) => ({
+          value: optionValue(option),
+          label: label(option) || option.id,
+        })),
+        disabled: !this.#available("choose"),
+      };
+      const said = JSON.stringify(choice);
+      if (said === this.#choiceSaid) return;
+      this.#choiceSaid = said;
+      this.choice = choice;
+      this.dispatchEvent(new Event("change"));
     }
 
     /** @param {string} verb */
@@ -421,7 +501,7 @@ customElements.define(
         keeps(mark, "aria-disabled", !available);
         keeps(mark, "tabindex", available ? 0 : -1);
       }
-      this.#addition?.refresh();
+      this.#addition.refresh();
       this.#syncDone();
     }
 
@@ -441,7 +521,7 @@ customElements.define(
     // numbered commands; the obligation view forwards those same declarations.
     #keys() {
       const marks = this.#marks();
-      /** @type {import("/runtime/keyboard/bindings.js").Command[]} */
+      /** @type {import("/runtime/dom/keyboard/bindings.js").Command[]} */
       const answerRows = [];
       for (const { option, mark } of marks) {
         // The widget declares the number and its local face; the shared keyboard
@@ -585,9 +665,9 @@ customElements.define(
       // for.
       mark.lfPreview = () => false;
       this.#controls.set(option, mark);
-      // First, so the row form's table puts it in the cell before the words. A card
-      // places its mark out of flow in the header and cannot see this, so one insertion
-      // serves both forms and the theme states each form's placement.
+      // First, before the option's words. Both forms place the mark out of flow, a card
+      // in its header and a row in its leading column, so one insertion serves both and
+      // the theme states each form's placement.
       // The mark stands where the user starts reading the label, not at the line's
       // end, which in a full-width group is ~620px from the words it answers for.
       option.prepend(mark);
@@ -654,6 +734,7 @@ customElements.define(
       this.#addition.render(added, this.#done?.host ?? null);
       this.#syncChoice(detail);
       this.#refreshAvailability();
+      this.#holdChoice(new Set(detail.value));
       return nothing;
     }
   },

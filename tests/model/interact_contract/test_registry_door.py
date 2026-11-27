@@ -19,15 +19,14 @@ from interact_support import (
     check_findings,
     element_declaration,
     found,
-    queue_board_registry,
     registry_refusal,
 )
 
-from leaf.registry import contract as registry_contract
-from leaf.registry import schema as registry_schema
-from leaf.registry import validation as registry_validation
-from leaf.registry.storage import read_page_registry
-from leaf.schema import DATA_CONTRACT_NAME, DATA_SOURCE_NAME, ELEMENT_ID
+from leaf.base.schema import DATA_CONTRACT_NAME, DATA_SOURCE_NAME, ELEMENT_ID
+from leaf.source.registry import contract as registry_contract
+from leaf.source.registry import schema as registry_schema
+from leaf.source.registry import validation as registry_validation
+from leaf.source.vocabulary import read_page_registry
 from model.interact_contract import declare_vocabulary, vocabulary
 
 
@@ -233,7 +232,7 @@ def test_check_refuses_malformed_registry_extensions(page_dir, key, value):
         # Only an agent verb declares `text`.
         (_user_verb_text, "invalid-declaration", {}),
         # The user answers their own obligation; the agent's news never does.
-        (_agent_verb_answers, "awaits-verbs", {}),
+        (_agent_verb_answers, "awaits-value", {}),
         (_body_record_with_prose, "body-content", {}),
         (_body_record_with_nested_widget, "body-nested", {}),
     ],
@@ -588,6 +587,7 @@ def test_registry_cross_entry_checks_wait_for_every_entry_to_validate(page_dir):
     [
         ("lf-options", "verbs", None),
         ("lf-note", "shadow", True),
+        ("lf-card", "inputs", None),
     ],
 )
 def test_runtime_features_require_a_module(page_dir, tag, key, fallback):
@@ -757,23 +757,9 @@ def test_a_deciding_verb_without_outcomes_is_reported_by_each_reader(page_dir):
             {"key": "exhibit", "attr": "id", "value": "NOT-VALID"},
         ),
         (
-            "lf-options",
-            "awaits",
-            {"answered": {"answer": {"when": {"batch": [True]}}}},
-            "predicate-attribute",
-            {"key": "awaits", "attr": "batch"},
-        ),
-        (
-            "lf-options",
-            "awaits",
-            {"answered": {"submit": {}}},
-            "awaits-verbs",
-            {"verbs": ["submit"]},
-        ),
-        (
             "lf-suggestion",
             "awaits",
-            {"answered": {"decide": {}}, "all": "approve"},
+            {"all": "approve"},
             "awaits-blanket",
             {"outcome": "approve"},
         ),
@@ -792,14 +778,10 @@ def test_check_holds_predicates_to_presence_or_declared_attribute_values(
     """Booleans test attribute presence; strings must be values the widget can hold.
 
     A predicate naming an impossible value silently omits the widget from every
-    consumer. An undeclared answering verb leaves its obligation open forever."""
+    consumer."""
     registry = vocabulary(page_dir)
     if key == "awaits":
-        declaration = {
-            "value": next(iter(registry[tag]["verbs"])),
-            "answered": {"choose": {}},
-            **declaration,
-        }
+        declaration = {"value": next(iter(registry[tag]["verbs"])), **declaration}
     registry[tag][key] = declaration
     declare_vocabulary(page_dir, registry)
 
@@ -811,45 +793,19 @@ def test_check_holds_predicates_to_presence_or_declared_attribute_values(
         assert found(findings, code, f"<{tag}>", **values), findings
 
 
-def test_a_local_obligation_declares_its_answered_condition(page_dir):
+def test_a_local_obligation_names_the_verb_that_answers_it(page_dir):
+    """`awaits` needs its `value`, and one that names none is refused for that."""
     registry = vocabulary(page_dir)
-    registry["lf-test-task"]["awaits"] = {"value": "answer"}
+    registry["lf-options"]["awaits"] = {"when": {"settled": [False]}}
     declare_vocabulary(page_dir, registry)
 
     status, findings = check_findings(page_dir)
 
     assert status != 0
     [refused] = found(
-        findings, "invalid-declaration", "<lf-test-task>", keyword="required"
+        findings, "invalid-declaration", "<lf-options>", keyword="required"
     )
-    assert "answered" in refused.values["reason"]
-
-
-def test_a_part_scoped_answering_verb_needs_an_empty_condition(page_dir):
-    """A part record does not answer its whole obligation merely by being in force."""
-    registry = queue_board_registry(vocabulary(page_dir))
-    registry["lf-board"]["awaits"]["answered"]["move"].pop("empty")
-
-    finding = registry_refusal(
-        lambda: registry_validation.validate_registry(registry, "test registry")
-    )
-    assert found([finding], "answering-part", "<lf-board>", verb="move")
-
-
-def test_every_member_reads_a_member_verb_that_records_no_position(page_dir):
-    """A move's answer is where the cards stand (`empty`), not that each card moved,
-    so `every` on a position verb would read one widget two ways."""
-    registry = queue_board_registry(vocabulary(page_dir))
-    registry["lf-board"]["awaits"]["answered"]["move"] = {
-        "every": {"member": "lf-card"}
-    }
-
-    finding = registry_refusal(
-        lambda: registry_validation.validate_registry(registry, "test registry")
-    )
-    assert found(
-        [finding], "answering-every", "<lf-board>", verb="move", member="lf-card"
-    )
+    assert "'value'" in refused.values["reason"]
 
 
 def test_check_refuses_a_reference_naming_an_attribute_the_widget_has_not_got(
@@ -909,7 +865,6 @@ def test_an_asking_instance_needs_the_id_its_declaration_leaves_optional(page_di
         "awaits": {
             "when": {"open": [True]},
             "value": "answer",
-            "answered": {"answer": {}},
         },
         "verbs": {"answer": {"detail": {}, "unit": "widget"}},
     }
@@ -961,14 +916,3 @@ def test_uri_format_checks_absolute_urls_with_browser_syntax():
         "http://exa%mple.org/",
     ):
         assert not validator.is_valid(value), value
-
-
-def test_server_awaits_names_the_verbs_that_answer_it(page_dir):
-    registry = vocabulary(page_dir)
-    registry["lf-suggestion"]["awaits"]["answered"] = {"missing": {}}
-    declare_vocabulary(page_dir, registry)
-
-    status, findings = check_findings(page_dir)
-
-    assert status == 1
-    assert found(findings, "awaits-verbs", "<lf-suggestion>", verbs=["missing"])

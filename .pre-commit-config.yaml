@@ -10,6 +10,8 @@ repos:
       - id: end-of-file-fixer
         exclude: *verbatim
       - id: check-yaml
+        # pnpm writes its lockfile as two documents: pnpm itself, then the dependencies.
+        args: [--allow-multiple-documents]
       - id: check-json
       - id: check-toml
       - id: mixed-line-ending
@@ -68,7 +70,7 @@ repos:
         entry: uv run ty check
         pass_filenames: false
         files: '(\.(py|pyi)$|(^|/)pyproject\.toml$|^uv\.lock$)'
-      # Whole-graph check, in the order `.config/importlinter.ini` keeps; files only
+      # Whole-graph check, in the package order `.config/importlinter.ini` keeps; files only
       # wakes it.
       - id: import-linter
         name: import-linter
@@ -81,7 +83,8 @@ repos:
         name: dependency-cruiser
         language: node
         additional_dependencies: [dependency-cruiser@18.3.1]
-        entry: depcruise --config .config/dependency-cruiser.mjs --output-type err browser/runtime
+        entry: >-
+          depcruise --config .config/dependency-cruiser.mjs --output-type err browser/runtime
         pass_filenames: false
         files: ^(browser/(leaf\.js|runtime/.*\.js)|\.config/dependency-cruiser\.mjs)$
       # JavaScript's vulture: the modules, exports and types nothing reads, and

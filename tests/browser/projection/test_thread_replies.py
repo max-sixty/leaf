@@ -19,6 +19,7 @@ from render_harness import (
     http_error_console,
     open_page,
     post_event,
+    press_draft_control,
     refuse,
     round_trip,
     stamp_page,
@@ -29,8 +30,8 @@ from render_harness import (
 )
 
 from browser.threads import open_panel_thread
-from leaf import event_log as events_model
-from leaf.render_checks import one_frame
+from leaf.log import event_log as events_model
+from leaf.source.render_checks import one_frame
 from leaf_dev.browser import PANEL_THREAD
 
 pytestmark = pytest.mark.shifts_unsurveyed
@@ -202,6 +203,9 @@ customElements.define('lf-delayed-body', class extends LeafElement {
             "action": "edit",
             "detail": {"value": "User's exact words.\n"},
             "revision": 1,
+            # A draft asks, so its act says whether it answers; the asynchronous body
+            # asks nothing, and admission refuses the word there.
+            **({} if asynchronous else {"answered": True}),
         },
     )
     assert response.ok, response.text()
@@ -309,7 +313,7 @@ def test_crossed_responses_wait_for_the_same_thread_widget_module(browser, serve
     )
     draft_control(page, "edit", "crossed-draft").click()
     write(widget.locator("leaf-text"), "A user's exact words.\n")
-    draft_control(page, "save", "crossed-draft").click()
+    press_draft_control(page, "save", "crossed-draft")
     round_trip(page)
     assert body.text_content() == "A user's exact words.\n"
     # The thread opened with the caret in its reply, which keeps ⌘Z for its words.
@@ -365,6 +369,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
             "widget": "rp-live",
             "action": "choose",
             "detail": {"value": ["rp-shim"]},
+            "answered": True,
         },
     )
     page = open_page(browser, live_url(url))

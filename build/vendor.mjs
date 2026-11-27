@@ -126,22 +126,19 @@ const bindTo = (filter, target) => ({
  * Each bundle, by name. A row's `out` is its first output, which names the bundle's
  * license notices. Rows give esbuild either `entry`, a module's source, or their own
  * entry points, and may add `adapt`ations, esbuild options, and a `place` for an
- * output committed outside the build's directory. A `copy` row takes a published
- * file as it stands instead, and may `finish` it.
+ * output committed outside the build's directory, and name in `inlined` the packages
+ * a prebuilt input carries inside it, which no input names (`bundledPackages`). A
+ * `copy` row takes a published file as it stands instead, and may `finish` it.
  */
 const bundles = {
   // Browser-native DOM rasterization, loaded only when capturing a page region.
-  //
-  // Leaf captures without `reconcile` (`runtime/composing/page-image.js` says why), and
-  // SnapDOM then warns on the console that text may wrap differently. The capture's own
-  // `warnings` keep that notice; the console copy would read as a page problem.
   //
   // SnapDOM sends a resource's cookies when its origin is `location.origin`, which is
   // the URL's origin rather than the document's. In a live sample's sandboxed child the
   // document's origin is opaque, so every request is cross-origin and Leaf's server
   // answers it `Access-Control-Allow-Origin: *`, which a credentialed request may not
   // read: the child's own icon.svg mask failed with a CORS error in every capture.
-  // Compare with the document's origin, `self.origin`, instead (SnapDOM 3.3.7).
+  // Compare with the document's origin, `self.origin`, instead.
   snapdom: () => ({
     out: `${assets}/vendor/snapdom.esm.js`,
     entryPoints: [input("entries/snapdom/entry.mjs")],
@@ -150,15 +147,10 @@ const bundles = {
         file: /@zumer\/snapdom\/dist\/snapdom\.mjs$/,
         edit: (source) =>
           seam(
-            seam(
-              source,
-              'y.origin===location.origin?"include":"omit"',
-              'y.origin===self.origin?"include":"omit"',
-              "SnapDOM credentials origin",
-            ),
-            'O.warnedReconcile||(O.warnedReconcile=!0,console.warn("[SnapDOM] Some text may wrap differently in the capture. Pass { reconcile: true } to fix it (about 2x slower)."))',
-            "O.warnedReconcile=!0",
-            "SnapDOM reconcile console warning",
+            source,
+            '.origin===location.origin?"include":"omit"',
+            '.origin===self.origin?"include":"omit"',
+            "SnapDOM credentials origin",
           ),
       },
     ],
@@ -194,6 +186,16 @@ const bundles = {
           ),
       },
     ],
+  }),
+
+  // Effect and Effect UI, the component model widgets and Leaf's own chrome draw
+  // with (runtime/effect-widget.js). One module, so a page runs one Effect runtime.
+  "effect-ui": () => ({
+    out: `${assets}/vendor/effect-ui.js`,
+    entryPoints: [input("entries/effect-ui/entry.mjs")],
+    banner: {
+      js: `/*! effect ${version("effect")} and @effect/ui ${version("@effect/ui")} — MIT — https://github.com/Effect-TS/ui */`,
+    },
   }),
 
   // One lazy Markdown parser bundle, including its task-list extension.
@@ -333,37 +335,47 @@ const bundles = {
             // tags its tokenizer recognizes; other characters stay in its text buffer
             // and the SVG builder escapes them. Breaks are handled before this scan.
             [
-              "if(b||o_.has(m)){c+=u[0].length;continue}",
-              "if(b){c+=u[0].length;continue}",
+              "if(y||aT.has(m)){c+=d[0].length;continue}",
+              "if(y){c+=d[0].length;continue}",
               "Pele literal unsupported label tags",
+            ],
+            // Pele measures labels on an OffscreenCanvas where one exists. Firefox's
+            // resolves `system-ui`, Leaf's sans, to another face than the page draws
+            // in, so at 12px "admits it, reads the whole log" measured 144px where the
+            // page draws it 166px, and labels ran past their boxes. A canvas the
+            // document makes measures in the page's own fonts, in every engine.
+            [
+              'if(e.OffscreenCanvas)return new e.OffscreenCanvas(1,1).getContext("2d");if(e.document)return e.document.createElement("canvas").getContext("2d")',
+              'if(e.document)return e.document.createElement("canvas").getContext("2d");if(e.OffscreenCanvas)return new e.OffscreenCanvas(1,1).getContext("2d")',
+              "Pele text measurer",
             ],
             // Pele's flowchart renderers write an edge's classes on its group, but
             // its converters replace the authored classes with fixed ones, and an
             // edge label's group takes none. Carry the authored classes to both, as
             // a node's reach its group, so page CSS can mark an edge in theme tokens.
             [
-              'classes:"edge-thickness-normal edge-pattern-solid flowchart-link",arrowTypeStart:"none"',
-              'classes:"edge-thickness-normal edge-pattern-solid flowchart-link "+y.classes.join(" "),arrowTypeStart:"none"',
+              'minlen:b.length,classes:"edge-thickness-normal edge-pattern-solid flowchart-link",arrowTypeStart:"none"',
+              'minlen:b.length,classes:"edge-thickness-normal edge-pattern-solid flowchart-link "+b.classes.join(" "),arrowTypeStart:"none"',
               "Pele edge classes",
             ],
             [
-              'classes:A.stroke==="invisible"?"":"edge-thickness-normal edge-pattern-solid flowchart-link",',
-              'classes:(A.stroke==="invisible"?"":"edge-thickness-normal edge-pattern-solid flowchart-link ")+A.classes.join(" "),',
+              'classes:x.stroke==="invisible"?"":"edge-thickness-normal edge-pattern-solid flowchart-link",',
+              'classes:(x.stroke==="invisible"?"":"edge-thickness-normal edge-pattern-solid flowchart-link ")+x.classes.join(" "),',
               "Pele edge classes",
             ],
             [
-              'function rn(e,t,n,r,o,s){let a=t.width+8,i=t.height;return`<g class="pele-edge-label" data-id',
-              'function rn(e,t,n,r,o,s,cl=""){let a=t.width+8,i=t.height;return`<g class="pele-edge-label${cl}" data-id',
+              'function ln(e,t,n,r,i,s){let a=t.width+8,o=t.height;return`<g class="pele-edge-label" data-id',
+              'function ln(e,t,n,r,i,s,cl=""){let a=t.width+8,o=t.height;return`<g class="pele-edge-label${cl}" data-id',
               "Pele edge label classes",
             ],
             [
-              'rn(Y.id,G,Q,v,z?.text??"",p)',
-              'rn(Y.id,G,Q,v,z?.text??"",p,Z)',
+              'ln(ne.id,q,J,te,se?.text??"",h)',
+              'ln(ne.id,q,J,te,se?.text??"",h,ue)',
               "Pele edge label classes",
             ],
             [
-              'rn(Y.id,G,Q,v,se?.text??"",b)',
-              'rn(Y.id,G,Q,v,se?.text??"",b,_t(Y.classes.replace(/edge-thickness-normal|edge-pattern-solid|flowchart-link/g,"")))',
+              'ln(ne.id,q,J,te,k?.text??"",y)',
+              'ln(ne.id,q,J,te,k?.text??"",y,Nt(ne.classes.replace(/edge-thickness-normal|edge-pattern-solid|flowchart-link/g,"")))',
               "Pele edge label classes",
             ],
           ].reduce((text, edit) => seam(text, ...edit), source),
@@ -409,7 +421,7 @@ const bundles = {
       // in one. A fixed box whose containing block is an ancestor, as a transform or
       // paint containment makes one, has that ancestor for its `offsetParent` and
       // moves with that ancestor's scrollers, so the walk passes it. Walking on from
-      // the chrome, which stands after `body` (runtime/chrome.js), the walk would reach
+      // the chrome, which stands after `body` (runtime/base/chrome.js), the walk would reach
       // the root, whose own box moves up as the page scrolls: a press whose pointer
       // drifted a pixel would read the pointer as far below that box and scroll the
       // page to its end. Ending the walk at the root would give these editors the
@@ -520,7 +532,7 @@ const bundles = {
   }),
 
   // Temml typesets the LaTeX in a page's `<code class="language-math">` as MathML the
-  // browser draws itself (`runtime/formulas.js`). Its sheet travels in the module as
+  // browser draws itself (`runtime/readings/formulas.js`). Its sheet travels in the module as
   // text, as PhotoSwipe's does, so only a page that shows a formula loads it, and the
   // font that sheet names for primes and script capitals travels inside the sheet, so
   // an export needs no file beside the module.
@@ -545,6 +557,14 @@ const bundles = {
     ],
   }),
 
+  // DOMPurify takes the script out of the HTML a Markdown file's preview draws
+  // (`markdownFileFragment` in runtime/lib/markdown.js), which loads it only for a file
+  // that holds HTML.
+  dompurify: () => ({
+    out: `${assets}/vendor/purify.esm.js`,
+    entryPoints: [input("entries/dompurify/entry.mjs")],
+  }),
+
   // Bundle only jsdiff's array comparison for the core browser runtime.
   jsdiff: () => ({
     out: `${assets}/vendor/jsdiff.esm.js`,
@@ -561,7 +581,7 @@ const bundles = {
   }),
 
   // Observable Plot, which lf-chart hands a page's author. Nothing published is
-  // loadable as it stands: `src/index.js` imports d3 by bare specifier,
+  // loadable as it stands: `dist/plot.js` imports d3 by bare specifier,
   // `dist/plot.umd.min.js` reads a `d3` global the page would have to load first, and
   // a CDN's prebuilt ESM (jsdelivr's `+esm`) is smaller only because it imports d3
   // from a second URL, while the layer loads nothing from the network so a chart
@@ -571,20 +591,31 @@ const bundles = {
   // Plot goes in, since an author writes the chart in Plot's own API.
   //
   // Which channels a tip says, how its `format` words each, and the lines it says
-  // them in are decided inside the tip mark's module, by functions it doesn't export.
-  // The chart's preview says a point by those decisions, so the module exports them
-  // (`tipSources` and `tipRows` in the entry), each line naming the channel it says.
-  // The installed module already carries the `src/marks/tip.js` hunk of
-  // `@observablehq__plot@0.6.17.patch`, Plot 0.6.18's fix for observablehq/plot#2237
-  // (#2239): a tip leaves out every channel whose values are all literal, not only
-  // colours, so a symbol channel naming its symbols says no "[object Object]". The
-  // hunk goes away with the upgrade to 0.6.18 or later.
+  // them in are decided inside Plot's tip mark, by functions Plot doesn't export.
+  // The chart's preview says a point by those decisions, so Plot's published module,
+  // `dist/plot.js`, exports them (`tipSources` and `tipRows` in the entry), each line
+  // naming the channel it says.
+  //
+  // `build/@observablehq__plot.patch` has Plot's pointer pool rank only the pointers
+  // that picked something. Unpatched, a pointer or facet that picks nothing outranks a
+  // pick farther than its 40px reach, so a faceted chart with `tip: "x"` shows no tip,
+  // and lf-chart's pick (chart-points.js `nearest`) no longer matches Plot's. The hunk
+  // goes once Plot ships the fix (observablehq/plot#2475).
   plot: () => ({
     out: `${packageVendor("default")}/plot.esm.js`,
     entryPoints: [input("entries/plot/entry.mjs")],
+    // Plot's, d3-array's and d3-delaunay's published modules carry these inside them.
+    inlined: [
+      "binary-search-bounds",
+      "delaunator",
+      "internmap",
+      "interval-tree-1d",
+      "isoformat",
+      "robust-predicates",
+    ],
     adapt: [
       {
-        file: /@observablehq\/plot\/src\/marks\/tip\.js$/,
+        file: /@observablehq\/plot\/dist\/plot\.js$/,
         edit: (source) =>
           seam(
             seam(
@@ -852,15 +883,15 @@ const bundles = {
           ),
       },
       {
-        file: /webawesome\/dist\/chunks\/chunk\.ZAVDMBWV\.js$/,
+        file: /webawesome\/dist\/chunks\/chunk\.M22PYPNQ\.js$/,
         edit: patchTransitions,
       },
       // A radio group's arrow moves focus to the next radio in its row, which the user
-      // already sees. Leaf places focus without scrolling (focus.js, `focusDestination`),
+      // already sees. Leaf places focus without scrolling (dom/focus.js, `focusDestination`),
       // and the focused-control landing margin made the native scroll move the chooser
       // under the arrow wherever a landing had left it at the window's top edge.
       {
-        file: /webawesome\/dist\/chunks\/chunk\.7YHRZ7G7\.js$/,
+        file: /webawesome\/dist\/chunks\/chunk\.G4XPRTJE\.js$/,
         edit: (source) =>
           seam(
             seam(
@@ -893,6 +924,7 @@ async function bundle(spec) {
     typeEntry: _typeEntry,
     finish = (source) => source,
     adapt: adaptations = [],
+    inlined = [],
     place = {},
     plugins = [],
     ...options
@@ -938,7 +970,7 @@ async function bundle(spec) {
       const name = path.relative(root, file.path).split(path.sep).join("/");
       outputs.set(place[name] ?? name, Buffer.from(file.contents));
     }
-    packages = bundledPackages(result.metafile, root);
+    packages = bundledPackages(result.metafile, root, inlined);
   }
   for (const [name, bytes] of outputs)
     if (name.endsWith(".js")) checkModule(bytes.toString(), name);
@@ -959,8 +991,8 @@ async function bundle(spec) {
  * read here so that identifying a block loads no grammar. Both come from this build,
  * which a page's grammars need anyway, so the browser doesn't read `$languages.names`
  * itself. `page check` reads the names too, as the one line of JSON
- * `syntaxLanguageNames` is written on (`leaf.validation.markup.COLOURED_LANGUAGES`).
- * Beside them stands the shipped extension table, which `language-paths.js` starts
+ * `syntaxLanguageNames` is written on (`leaf.records.markup_checks.markup.COLOURED_LANGUAGES`).
+ * Beside them stands the shipped extension table, which `base/language-paths.js` starts
  * from until a page installs its composed one.
  */
 async function syntaxLoaders() {

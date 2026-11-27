@@ -3,11 +3,15 @@
 # no to an action ("Shall I open the PR?"), which the user could answer with a press
 # were the reply to carry lf-options. A handling that sends every user move to
 # --obligation and names the widget route only as an aside can keep every open
-# question in words. The envelopes are the real delivery's shape with the handling at
-# the commit that adds this case; a handling change is scored by regenerating them
-# with each wording. A handling that only names `lf-options` can lead agents to markup
+# question in words. A handling that only names `lf-options` can lead agents to markup
 # that `leaf thread reply` refuses, lacking ids, so the handling gives the markup's
-# shape.
+# shape. The envelopes are the real delivery's shape with the handling the kernel
+# registry gives at 43fed2e7e172; a handling change is scored by regenerating them
+# with each wording. At that commit the default context fails `said-once` in 3 of 3
+# runs on Claude Code and passes its other metrics: the reply lists each option's
+# facts above cards that hold only titles, since the delivered handling names
+# `lf-options` but leaves what the text and each card hold to threads.md, "Ask for a
+# pick", which this case's agent doesn't reread.
 description: thread-choice-takes-a-press
 metadata:
   purpose:
@@ -28,7 +32,7 @@ vars:
 
     ```json
     {
-     "format": "leaf-delivery/52",
+     "format": "leaf-delivery/59",
      "id": "42e90c8c",
      "created_at": 1793492930.0903082,
      "acknowledge": null,
@@ -58,8 +62,8 @@ vars:
        ],
        "handling": {
         "h1": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.",
-        "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed, in a sentence or two, linking the section that shows it. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn. `--done` when it leaves nobody a move.",
-        "h3": "Your reply renders as Markdown in a narrow column: give each point its own short paragraph or list item, link a page section as `[its name](#section-id)`, and fence code or markup."
+        "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn, with `--waiting-on \"<what>\"` where it can't start until something you don't control happens. `--done` when it leaves nobody a move.",
+        "h3": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply."
        },
        "events": [
         {
@@ -167,7 +171,7 @@ variants:
 
         ```json
         {
-         "format": "leaf-delivery/52",
+         "format": "leaf-delivery/59",
          "id": "d97658bb",
          "created_at": 1793492930.747287,
          "acknowledge": null,
@@ -197,8 +201,8 @@ variants:
            ],
            "handling": {
             "h1": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.",
-            "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed, in a sentence or two, linking the section that shows it. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn. `--done` when it leaves nobody a move.",
-            "h3": "Your reply renders as Markdown in a narrow column: give each point its own short paragraph or list item, link a page section as `[its name](#section-id)`, and fence code or markup."
+            "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn, with `--waiting-on \"<what>\"` where it can't start until something you don't control happens. `--done` when it leaves nobody a move.",
+            "h3": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply."
            },
            "events": [
             {
@@ -275,7 +279,7 @@ variants:
 
         ```json
         {
-         "format": "leaf-delivery/52",
+         "format": "leaf-delivery/59",
          "id": "42e90c8c",
          "created_at": 1793492930.0903082,
          "acknowledge": null,
@@ -305,8 +309,8 @@ variants:
            ],
            "handling": {
             "h1": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.",
-            "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed, in a sentence or two, linking the section that shows it. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn. `--done` when it leaves nobody a move.",
-            "h3": "Your reply renders as Markdown in a narrow column: give each point its own short paragraph or list item, link a page section as `[its name](#section-id)`, and fence code or markup."
+            "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn, with `--waiting-on \"<what>\"` where it can't start until something you don't control happens. `--done` when it leaves nobody a move.",
+            "h3": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply."
            },
            "events": [
             {
@@ -362,3 +366,213 @@ variants:
           words. Fail if it carries a widget whose options are target values that
           nothing in the exercise supplies, such as an `lf-options` of guessed
           latencies, or if nothing puts the question on the user's list.
+  # An option whose title names who acts, as holding a change for the user's review
+  # does, can slip into the user's voice ("Hold it for my review") beside text and
+  # cards in the agent's ("I merge it once CI passes"), so one "I" names two people.
+  merge-or-hold:
+    metadata:
+      purpose: An option that names who acts speaks as the agent, as the reply's text does.
+    vars:
+      prompt: |
+        You are a Claude Code session using Leaf, three hours into a page with the user at
+        /Users/max/.local/state/leaf/pages/export-retries. It reports a change you made:
+        exports that hit a rate limit now retry with backoff. Pull request #412
+        (https://github.com/acme/exporter/pull/412) holds it.
+
+        Leaf's prompt hook handed you this complete inline delivery:
+
+        ```json
+        {
+         "format": "leaf-delivery/59",
+         "id": "c41d9a07",
+         "created_at": 1793492930.747287,
+         "acknowledge": null,
+         "batches": [
+          {
+           "page": "/Users/max/.local/state/leaf/pages/export-retries",
+           "claim": null,
+           "through_seq": 2,
+           "threads": [
+            {
+             "id": "5b1e07d2",
+             "title": null,
+             "anchor": {
+              "section": "checks"
+             },
+             "detached_from": null,
+             "rewritten_from": null,
+             "resolved": null,
+             "elided": {
+              "messages": 0,
+              "actions": 0
+             },
+             "messages": [],
+             "summaries": [],
+             "actions": []
+            }
+           ],
+           "handling": {
+            "h1": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.",
+            "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn, with `--waiting-on \"<what>\"` where it can't start until something you don't control happens. `--done` when it leaves nobody a move.",
+            "h3": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply."
+           },
+           "events": [
+            {
+             "kind": "comment",
+             "author": "user",
+             "revision": 1,
+             "attention": true,
+             "text": "what's left before this lands?",
+             "anchor": {
+              "section": "checks"
+             },
+             "id": "5b1e07d2",
+             "ts": "2026-10-31T17:28:50.744-07:00",
+             "seq": 2,
+             "subject": {
+              "kind": "thread",
+              "id": "5b1e07d2"
+             },
+             "threads": [
+              "5b1e07d2"
+             ],
+             "handling": [
+              "h1",
+              "h2",
+              "h3"
+             ],
+             "answer": {
+              "kind": "reply",
+              "parent": "5b1e07d2",
+              "responds": "5b1e07d2",
+              "ref": "c41d9a07:0:5b1e07d2",
+              "writer": "agent"
+             }
+            }
+           ]
+          }
+         ]
+        }
+        ```
+
+        #412's CI is green and the review bot approved it. Its diff is 280 lines, which the
+        user hasn't read. The user's standing instructions say to merge a pull request only
+        once they say so. You'd merge it now, since the page's checks section already shows
+        the retries working, but the user may want to read the diff first.
+
+        The page and services are unreachable in this exercise. Write out the command you would
+        run to answer the user's comment, with the full text of the reply and any markup, then
+        end your answer.
+    assert:
+      - &one-voice
+        type: llm-rubric
+        metric: one-voice
+        value: |
+          The reply is the agent's message to the user, and its text speaks as the agent.
+          Pass only if the reply asks with options the user presses, and every option
+          speaks the same way in its own words, its title, `label` and card text alike:
+          "I", "me" and "my" mean the agent, and "you" and "your" mean the user. Words an
+          option quotes, such as a sentence for the user's README, keep their writer's
+          voice. Fail if the reply asks without options, or if any option's own words
+          speak as the user, such as "Hold it for my review", "Keep my wording" or "Yes,
+          you can merge it" in answer to "Shall I merge it?".
+      - *markup-accepted
+  # The same slip where the options weigh the user's own words against a suggestion,
+  # as "Keep my wording" beside a card that says "I'd push it".
+  own-wording:
+    metadata:
+      purpose: Where the options weigh the user's own words, a title still speaks as the agent.
+    vars:
+      prompt: |
+        You are a Claude Code session using Leaf, three hours into a page with the user at
+        /Users/max/.local/state/leaf/pages/readme-draft. It is a draft of the README for
+        compactor, the user's open-source tool, which the user writes and you edit.
+
+        Leaf's prompt hook handed you this complete inline delivery:
+
+        ```json
+        {
+         "format": "leaf-delivery/59",
+         "id": "7e20b4d9",
+         "created_at": 1793492930.747287,
+         "acknowledge": null,
+         "batches": [
+          {
+           "page": "/Users/max/.local/state/leaf/pages/readme-draft",
+           "claim": null,
+           "through_seq": 2,
+           "threads": [
+            {
+             "id": "a8f3c51e",
+             "title": null,
+             "anchor": {
+              "section": "opening"
+             },
+             "detached_from": null,
+             "rewritten_from": null,
+             "resolved": null,
+             "elided": {
+              "messages": 0,
+              "actions": 0
+             },
+             "messages": [],
+             "summaries": [],
+             "actions": []
+            }
+           ],
+           "handling": {
+            "h1": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.",
+            "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn, with `--waiting-on \"<what>\"` where it can't start until something you don't control happens. `--done` when it leaves nobody a move.",
+            "h3": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply."
+           },
+           "events": [
+            {
+             "kind": "comment",
+             "author": "user",
+             "revision": 1,
+             "attention": true,
+             "text": "I rewrote the second paragraph of the opening, have a look",
+             "anchor": {
+              "section": "opening"
+             },
+             "id": "a8f3c51e",
+             "ts": "2026-10-31T17:28:50.744-07:00",
+             "seq": 2,
+             "subject": {
+              "kind": "thread",
+              "id": "a8f3c51e"
+             },
+             "threads": [
+              "a8f3c51e"
+             ],
+             "handling": [
+              "h1",
+              "h2",
+              "h3"
+             ],
+             "answer": {
+              "kind": "reply",
+              "parent": "a8f3c51e",
+              "responds": "a8f3c51e",
+              "ref": "7e20b4d9:0:a8f3c51e",
+              "writer": "agent"
+             }
+            }
+           ]
+          }
+         ]
+        }
+        ```
+
+        The user's new paragraph reads: "By compacting after the end of the turn (and before
+        the cache expires), compacting costs very little." It says "compacting" twice. You'd
+        suggest "Because it runs after a turn ends and before the cache expires, compacting
+        costs very little." The user may well prefer their own wording, so you want their
+        pick before changing it.
+
+        The page and services are unreachable in this exercise. Write out the command you would
+        run to answer the user's comment, with the full text of the reply and any markup, then
+        end your answer.
+    assert:
+      - *one-voice
+      - *markup-accepted

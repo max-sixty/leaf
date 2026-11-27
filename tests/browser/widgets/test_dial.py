@@ -16,7 +16,7 @@ from render_harness import (
     resized,
 )
 
-from leaf.render_checks import one_frame
+from leaf.source.render_checks import one_frame
 from leaf_dev.example_data import named_source
 
 pytestmark = pytest.mark.shifts_unsurveyed

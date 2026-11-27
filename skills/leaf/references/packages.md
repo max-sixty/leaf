@@ -12,6 +12,8 @@ This file covers what every package follows and how to declare a widget.
 [package-themes.md](package-themes.md) covers packages that change the theme, and
 [package-data.md](package-data.md) the state a widget records, references between
 widgets, and external data.
+[module-authoring.md, "The interface"](module-authoring.md#the-interface) maps each
+kind of thing a package leans on Leaf for to the reference that describes it.
 
 ## Package reach
 
@@ -65,7 +67,8 @@ Every package uses this layout, and every file is optional:
 ```text
 package/
 ├── registry.json       element declarations and shared $ declarations
-├── defaults.css        defaults: its widgets', and a theme's element rules
+├── theme.css           a theme's rules for the page's own content
+├── defaults.css        defaults for what Leaf draws, its widgets' among them
 ├── widget-shadow.css   widget defaults also loaded in their shadow trees
 ├── overrides.css       page-wide rules that outrank every package's defaults
 ├── chrome.css          rules restyling Leaf's panel, thread cards and comment box
@@ -95,14 +98,15 @@ adding a widget does not change its theme styling.
 
 | Sheet               | Document                           | Declared shadow trees                 | A page without Leaf |
 | ------------------- | ---------------------------------- | ------------------------------------- | ------------------- |
+| `theme.css`         | `lf-theme`                         | A thread's transcript, in `lf-shadow` | —                   |
 | `defaults.css`      | `lf-base`                          | A thread's transcript, in `lf-shadow` | `lf-base`           |
 | `widget-shadow.css` | `lf-base`                          | `lf-shadow`                           | `lf-base`           |
 | `overrides.css`     | Page-wide in `lf-overrides`        | —                                     | —                   |
 | `chrome.css`        | Leaf's chrome, above its own rules | —                                     | —                   |
 
 A widget can seat a thread in its shadow tree, as a diff does a line's, so a declared
-shadow tree takes `defaults.css` within `@scope (.lf-thread-transcript)`, in `lf-shadow`
-after its `widget-shadow.css`, as it follows that sheet in the document: a message's
+shadow tree takes `theme.css` and `defaults.css` within `@scope (.lf-thread-transcript)`,
+in `lf-shadow` after its `widget-shadow.css`, as they follow that sheet in the document: a message's
 markup wears the same look there as in the document, and the widget's own elements take
 none of it.
 
@@ -117,21 +121,18 @@ own unlayered CSS outranks them and restyles its widgets by restating a token su
 text colour of its own sets `--lf-paper` and `--lf-ink` to them, from which the
 widgets' neutral colours step (`package-themes.md`, "Theme tokens").
 
-Defaults, a widget's own and a theme's element rules and idioms, go in `defaults.css`,
-below Layouts; overrides, in `overrides.css`, rank above them. Leaf orders
-the cascade layers `lf-reset`, `lf-base`, `lf-layouts`, `lf-shadow`, `lf-overrides`,
-`lf-state`. A shared shadow sheet precedes its document-only sheet; later selected
-packages win ties. The page's own CSS is unlayered above these normal rules, and so
-is every cascade layer the page names, except `reset`, which Leaf ranks
-below its own so a page's reset leaves Leaf's widgets and chrome their faces
-(`page-layout.md`, "Page CSS and Leaf's controls"). Layouts
-do not reach inside shadow trees. A theme's rules, like the page's own, reach the
-controls widgets build (`page-layout.md`, "Page CSS and Leaf's controls"). Being
-layered, they also outrank the layered faces of the controls in Leaf's panel and thread
-cards, so a theme's element rules name the content they style, such as `body button`,
-which reaches the page and none of Leaf's panel or threads, since those stand after
-`body`. Use public inputs and selectors to customise a widget rather than
-`!important` or inline overrides.
+Leaf ranks a rule by whose element it styles. A theme's rules for the page's own
+content go in `theme.css`, in `lf-theme`, below the page's `base` layer.
+Defaults for what Leaf draws, a widget's own and a theme's for an idiom, go in
+`defaults.css`, in `lf-base`; `overrides.css` ranks above them and the Layouts. The
+document orders the page's `reset`, `lf-reset`, `lf-theme`, the page's `base`,
+`lf-base`, `lf-layouts`, `lf-overrides`, `lf-state`, then the page's other layers and
+unlayered rules (`page-layout.md`, "Page CSS and Leaf's controls"). A shadow tree orders `lf-reset`, `lf-base`, `lf-layouts`,
+`lf-shadow`, `lf-overrides`, `lf-state`; Layouts don't reach inside it. A shared
+shadow sheet precedes its document-only sheet; later selected packages win ties. A
+package's `defaults.css` and `overrides.css` reach the controls in Leaf's panel and
+thread cards too, so a rule there names what it styles, such as `body button`. Use
+public inputs and selectors to customise a widget, not `!important` or inline styles.
 
 A package's sheet can be split into files: `@import "./styles/tabs.css";`, optionally
 with `layer(name)`, names a file inside the package, and composition puts that file's
@@ -167,12 +168,12 @@ control.
 
 Custom properties come in four kinds:
 
-| Kind                | Owner and supported use                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
-| ------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| Theme tokens        | Page authors and themes set them on the root, or on a subtree, and a page's or package's rules read them: colours, faces, type, spacing, corners and page geometry, listed in `package-themes.md`, "Theme tokens". Markup's reading face is the declaration `--lf-reading-face: 1` (`package-themes.md`, "A page's theme"). A value Leaf steps from another token is computed on the root, so setting the token on a subtree doesn't change a stepped value it inherits. |
-| Layout declarations | The box that allocates space sets `--lf-full-height`, `--lf-density`, `--lf-block-frame` and `--lf-holds-edge`, as `package-themes.md`, "A theme change", describes.                                                                                                                                                                                                                                                                                                     |
-| Runtime outputs     | Leaf writes values such as `--lf-root-headers` and anchor geometry. Read them; don't set them.                                                                                                                                                                                                                                                                                                                                                                           |
-| Vendor bridges      | An adapter maps Leaf inputs to a dependency's properties, such as `--diffs-*` and `--plot-background`. Change the Leaf input, not each use.                                                                                                                                                                                                                                                                                                                              |
+| Kind                 | Owner and supported use                                                                                                                                                                                                                                                                                                                                                                                                                                                  |
+| -------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Theme tokens         | Page authors and themes set them on the root, or on a subtree, and a page's or package's rules read them: colours, faces, type, spacing, corners and page geometry, listed in `package-themes.md`, "Theme tokens". Markup's reading face is the declaration `--lf-reading-face: 1` (`package-themes.md`, "A page's theme"). A value Leaf steps from another token is computed on the root, so setting the token on a subtree doesn't change a stepped value it inherits. |
+| Facts about a box    | The box that allocates space sets them for what it holds, and a rule inside reads them: `--lf-full-height` and `--lf-density`, as `package-themes.md`, "A theme change", describes, and a Layout's facts below. Leaf also writes values it measures, such as `--lf-root-headers` and anchor geometry. Read those; don't set them.                                                                                                                                        |
+| Declarations to Leaf | A rule sets them on its own box for Leaf to read, such as `--lf-block-frame` and `--lf-holds-edge`, as `package-themes.md`, "A theme change", describes.                                                                                                                                                                                                                                                                                                                 |
+| Vendor bridges       | An adapter maps Leaf inputs to a dependency's properties, such as `--diffs-*` and `--plot-background`. Change the Leaf input, not each use.                                                                                                                                                                                                                                                                                                                              |
 
 A Layout declares further facts about the boxes it arranges. A rule reads one with a
 style query on a container of the element it styles, or with `var()` where it is a
@@ -284,8 +285,7 @@ takes (`leaf page vocabulary PAGE | jq '."$keys"'`); `$verbs` defines the member
 for its kind that depends on the element is its `lfWord()`. So does a rule about the
 widget's markup that no declared fact states: the module checks it as it draws and
 reports a breach with an `error` event
-([module-authoring.md, "Upgrade"](module-authoring.md#upgrade)), as a board reports a
-card whose `shows` names a widget with no answer. Every declaration has
+([module-authoring.md, "Upgrade"](module-authoring.md#upgrade)). Every declaration has
 a `description` saying what the widget is for and when to use it, and a valid
 `example`. The optional `instructions` gives the choices and obligations
 of using it; a package's shared author instructions own guidance spanning its widgets.
@@ -303,11 +303,12 @@ A tag that stands only inside another widget, as `lf-option` does inside `lf-opt
 is declared like any other and lists the tags that may hold it in `owners`; the holder
 declares `content: members`, and the tag's `example` writes it inside a holder.
 
-`verbatim: true` says the upgraded element still shows its authored words, with its
-nested widgets in authored order, so users can quote those words; the render check
-refuses a page where they changed. Declare it on a wrapper round authored content, and
-leave it off a widget whose module rewrites or reorders what it holds. Whatever the
-module adds to a verbatim widget stands inside a box of controls the library built
+`verbatim: true` says the upgraded element still shows its authored words where they
+stand, so a comment can quote across them as across any prose. Declare it on a wrapper
+round authored content, and leave it off a widget whose module rewrites or reorders
+what it holds: a comment's quote then stays inside one of its authored children, which
+keeps it on its words when the module moves them. Whatever the module adds to a
+verbatim widget stands inside a box of controls the library built
 (`module-controls.md`), with no words marked `data-lf-said`, which would make them the
 page's (`module-plain-elements.md`, "Words it writes").
 
@@ -321,31 +322,33 @@ both out of each. An attribute schema may write `"additionalProperties": true` t
 attributes it doesn't name, as a widget that passes them to an inner element does. A
 `detail` schema that writes any other value for either keyword is refused. A
 declaration with nothing to say about its element's attributes leaves `attributes` out,
-and the element then takes only an optional `id`. The attributes any element takes
-(`class`, `style`, `title`, `lang`, `dir`, `aria-*` and the page's own `data-*`) stand
-outside the schema unless it names one.
+and the element then takes only the attributes composition writes for it, such as an
+optional `id`. The attributes any element takes (`class`, `style`, `title`, `lang`,
+`dir`, `aria-*` and the page's own `data-*`) stand outside the schema unless it names
+one.
 
 Every element takes an `id`. Composition writes it into the merged registry as a string,
 so a declaration leaves `id` out of `properties` and says only whether the element
-requires one, by listing `id` in `required`.
+requires one, by listing `id` in `required`. Composition writes the attributes an input
+binds by into `properties` too, as the registry's `$keys.inputs` defines.
 
 Leaf owns the grammar of each name it looks up: an element's `id`, an input's source
-attribute (`inputs`) and a verb's `contract` attribute. Declare each of the last two as
-`{"type": "string"}`; composition writes each one's `pattern` into the merged registry,
-replacing any the declaration gives. A `refers` attribute needs no pattern either, since
-`page check` requires its value to name an element the page holds.
+attribute (`inputs`) and a verb's `contract` attribute. Declare a verb's `contract`
+attribute as `{"type": "string"}`; composition writes each name's `pattern` into the
+merged registry, replacing any the declaration gives. A `refers` attribute needs no
+pattern either, since `page check` requires its value to name an element the page holds.
 
 The shipped declarations are the worked examples. For the keys that change a widget's
 role on the page:
 
-| Fact           | Shipped example                                                                      |
-| -------------- | ------------------------------------------------------------------------------------ |
-| `reading-role` | `lf-pane`                                                                            |
-| `visual`       | `lf-shot` declares `whole`, `lf-chart` `prefixes`, `lf-diagram` in `diagram` `parts` |
-| `bound`        | `lf-activity`                                                                        |
-| `height`       | `lf-chart`                                                                           |
-| `history`      | `lf-activity`                                                                        |
-| `views`        | `lf-tabs`                                                                            |
+| Fact           | Shipped example                                   |
+| -------------- | ------------------------------------------------- |
+| `reading-role` | `lf-pane`                                         |
+| `visual`       | `lf-shot` declares `whole`, `lf-chart` `prefixes` |
+| `bound`        | `lf-activity`                                     |
+| `height`       | `lf-chart`                                        |
+| `history`      | `lf-activity`                                     |
+| `views`        | `lf-tabs`                                         |
 
 A CSS-only widget is a registry entry and a theme rule; one with behavior adds a module
 at `widgets/<tag>.js`, following [module-authoring.md](module-authoring.md). The file's

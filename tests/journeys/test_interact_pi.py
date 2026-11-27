@@ -16,10 +16,10 @@ from process.test_interact_pi import (  # noqa: F401 (fixtures)
     start_pi_fixture,
 )
 
-from leaf import event_log as events_model
-from leaf import leases as leases_model
-from leaf import service as service_model
-from leaf import state as cleanup_model
+from leaf.base import leases as leases_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.log import event_log as events_model
 
 
 @pytest.mark.parametrize(("role", "cancelled"), [("custom", False), ("user", True)])
@@ -200,7 +200,7 @@ from interact_support import (
     write_record,
 )
 
-from leaf import server as server_model
+from leaf.base import server as server_model
 
 
 def test_the_pi_watch_restarts_a_session_server_that_died(page_dir, pi):

@@ -119,7 +119,7 @@ accessible App Server.
 
 An idle desktop chat that a window of the app has opened takes Leaf input as a turn
 the app starts, through the router the app's own clients share
-(`src/leaf/codex_desktop.py`). Any other desktop chat, such as one not opened since
+(`src/leaf/agents/codex_desktop.py`). Any other desktop chat, such as one not opened since
 the app last launched, still takes it through `codex queue` as a `<leaf-delivery>`
 user message. The background `threads/wake/<id>` deep link removes the external
 queue's polling delay, but checks for queued input before resuming and supplies no

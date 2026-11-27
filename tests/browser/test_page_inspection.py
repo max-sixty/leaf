@@ -15,7 +15,7 @@ from render_harness import (
     wait_for_revision,
 )
 
-# A sample's frame takes its child page's height (sample.js), and the leaf's menu
+# A sample's frame takes its child page's height (host/sample.js), and the leaf's menu
 # opens inside that frame, so a child a few lines tall leaves the menu a sliver of a
 # view with About this page out of reach. The child takes the room the menu needs.
 MENU_ROOM = '<div style="height:24rem"></div>'

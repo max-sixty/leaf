@@ -18,7 +18,7 @@
 import assert from "node:assert/strict";
 import { beforeEach, test } from "node:test";
 
-import { fragmentKey, fragmentUrl } from "/runtime/anchor-coordinate.js";
+import { fragmentKey, fragmentUrl } from "/runtime/base/anchor-coordinate.js";
 import {
   addressedElements,
   addressedFocus,
@@ -31,13 +31,13 @@ import {
   revealAddressed,
   visualPartLabel,
   visualParts,
-} from "/runtime/anchor-resolution.js";
-import { targetElement } from "/runtime/resolved-target.js";
-import { registry } from "/runtime/registry.js";
-import { visualPartProblems } from "/runtime/visual-parts.js";
+} from "/runtime/readings/anchor-resolution.js";
+import { targetElement } from "/runtime/readings/resolved-target.js";
+import { registry } from "/runtime/state/registry.js";
+import { visualPartProblems } from "/runtime/state/visual-parts.js";
 import { layoutChanged } from "/runtime/lib/widget-events.js";
-import { kept } from "/runtime/kept.js";
-import { focusDestination, handBack } from "/runtime/focus.js";
+import { kept } from "/runtime/state/kept.js";
+import { focusDestination, handBack } from "/runtime/dom/focus.js";
 
 beforeEach(() => {
   for (const tag of Object.keys(registry)) delete registry[tag];
@@ -110,19 +110,6 @@ test("a lazy widget answers with its hydration", () => {
 
   assert.equal(revealAddressed(source, "row-7"), hydrated);
   assert.deepEqual(asked, ["row-7"]);
-});
-
-test("an opted-in complete inventory derives targets while omission keeps the whole visual", () => {
-  document.body.innerHTML = "<main></main>";
-  registry["lf-film"].visual = { parts: "parts" };
-  const source = film();
-  source.setAttribute("parts", "all");
-  document.querySelector("main").append(source);
-  assert.deepEqual(frame(source, "one"), ["one"]);
-  revealAddressed(source, "frame:two");
-  assert.deepEqual(frame(source, "two"), ["two"]);
-  source.removeAttribute("parts");
-  assert.deepEqual(frame(source, "two"), []);
 });
 
 test("travel settles a visible part before a pending replacement can retire it", async () => {

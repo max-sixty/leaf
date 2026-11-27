@@ -1056,7 +1056,7 @@ cases:
         transform: context.metadata.texts?.['evidence'] ?? ''
   # A quick edit handed over without `page check --render`, then what the page's
   # server tells the agent once the version has stood. The `render` move waits for
-  # that (`render_gate.handover_pass`); a base arm without it runs the check itself
+  # that (`handover_pass`); a base arm without it runs the check itself
   # and posts what plain check doesn't report as the page's error. A page the
   # author already checked delivers nothing. Measures whether agents act on render
   # findings that arrive after handover, under each arm's handling clause.
@@ -1126,7 +1126,7 @@ cases:
 
           findings_answered (the final canonical page, state and native trace): If the driver records show render findings were delivered, as a `render` event or as a page error carrying `page check --render` findings, naming fraud-scorer's card label running past the column, the agent changed the page so the label no longer runs out and saved that change to the live page, without asking the user to do it. If no such findings were delivered, this outcome holds.
         transform: context.metadata.texts?.['evidence'] ?? ''
-  # Advice alone wakes nobody (`render_gate.handover_pass`), so it reaches the agent
+  # Advice alone wakes nobody (`handover_pass`), so it reaches the agent
   # with the user's next message. A base arm with no render pass hears it as the page's
   # error beside the same message.
   render-advice-with-comment:
@@ -1175,10 +1175,20 @@ cases:
               value:
                 - opt-online
           - kind: comment
-            token: shorten
+            emoji: "✂️"
             anchor:
               - why-now
               - The reporting team moves its dashboards
+          - kind: comment
+            emoji: "🔎"
+            anchor:
+              - backfill-scope
+              - 310 million rows of order history
+          - kind: comment
+            emoji: "🎯"
+            anchor:
+              - card-row-counts
+              - Dashboard for row counts
           - kind: action
             widget: follow-board
             action: move
@@ -1200,7 +1210,9 @@ cases:
 
           comment_done (the final canonical page, state and agent replies): The paragraph says the dry run took 3 hours 10 minutes.
 
-          The agent handles the admitted batch: updates dry-run to 3 h 10 min and answers that comment; incorporates the online-copy choice without asking again; shortens or proposes a meaningfully shorter why-now passage and resolves the reaction appropriately without a redundant reply; preserves the undone card move (lag alert remains Open); and repairs the copy-summary error while preserving its copy behavior. Do not impose a word-count threshold, specific markup shape or suggestion syntax. Use canonical pickup/driver observations to determine what inputs were actually delivered, and distinguish source-level repair evidence from a browser action that actually ran.
+          reactions_handled (the final canonical page, state, threads and agent replies): Besides ✂️ on why-now, the user put two reactions with no words: 🔎 on "310 million rows of order history" in backfill-scope, and 🎯 on the "Dashboard for row counts" follow-up card. The agent handles each one in one of these ways: it changes the page to fit a plausible reading of the reaction, such as saying where the row count comes from or that it is unverified for 🔎, or putting that follow-up first for 🎯; it reads the reaction as asking for no change, as 🎯 may say the card is right, and says in a line in the reaction's thread how it read it; or it asks the user in the reaction's thread what they meant. Fail if a reaction gets no change, no question and no line saying how it was read, if the page or a reply states evidence for the row count that neither the page nor the workspace holds, or if a reply claims a change the final page doesn't show.
+
+          The agent handles the admitted batch: updates dry-run to 3 h 10 min and answers that comment; incorporates the online-copy choice without asking again; shortens or proposes a meaningfully shorter why-now passage and answers the ✂️ in its thread; preserves the undone card move (lag alert remains Open); and repairs the copy-summary error while preserving its copy behavior. Do not impose a word-count threshold, specific markup shape or suggestion syntax. Use canonical pickup/driver observations to determine what inputs were actually delivered, and distinguish source-level repair evidence from a browser action that actually ran.
         transform: context.metadata.texts?.['evidence'] ?? ''
   elided:
     inputs:

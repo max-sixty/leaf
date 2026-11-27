@@ -15,7 +15,6 @@ from render_cases_interaction import (
     executable_revision,
     live_url,
 )
-from render_cases_layout import current_location_ring, rings_drawn
 from render_harness import (
     PANEL,
     PREVIEW,
@@ -58,10 +57,11 @@ from browser.margin import (
     put_card_away,
     seeded_thread,
 )
-from leaf import event_log as events_model
-from leaf import render_checks as render_checks_model
-from leaf.render_checks import rendered
-from leaf_dev.browser import PANEL_THREAD
+from leaf.log import event_log as events_model
+from leaf.source import render_checks as render_checks_model
+from leaf.source.render_checks import rendered
+from leaf_dev.browser import PANEL_THREAD, text_field
+from leaf_dev.rings import current_location_ring, rings_drawn
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -114,7 +114,7 @@ def test_a_spilled_thread_opens_the_full_thread_without_a_hidden_anchor(browser,
     thread = page.locator(
         f'.lf-margin-preview .lf-page-thread[data-lf-thread="{thread_id}"]'
     )
-    # A press on its row opens it as a press on its marker does (thread/focus.js).
+    # A press on its row opens it as a press on its marker does (records/thread/focus.js).
     expect(thread.locator("leaf-text")).to_be_focused()
     expect(thread).to_contain_text(COMMENT_ON_SUGGESTION["text"])
     expect(page.locator(PANEL)).not_to_have_attribute("data-lf-open", re.compile(""))
@@ -169,7 +169,7 @@ def test_page_map_opens_a_thread_anchored_to_a_drawn_zero_area_svg_line(browser,
 
 @pytest.mark.parametrize("how", ["press", "key"])
 def test_a_page_map_row_opens_a_thread_where_every_opening_does(browser, serve, how):
-    """A route that names no part lands where opening a thread does (thread/focus.js,
+    """A route that names no part lands where opening a thread does (records/thread/focus.js,
     `openingPart`): a press on a Page Map row in the thread's reply, and a key on the
     thread, where keys act."""
     comment = {
@@ -446,9 +446,7 @@ def test_a_thread_in_view_opens_and_leaves_the_tab_strip(browser, serve):
     left = strip.evaluate("s => (s.scrollLeft = s.scrollWidth, s.scrollLeft)")
     assert left > 0, "the strip fits, so it proves nothing"
     assert open_where_the_user_stands(page, "open-words") is True
-    expect(
-        page.locator(".lf-fp-view:not([data-lf-leaving]) .lf-page-thread")
-    ).to_be_visible()
+    expect(page.locator(".lf-fp-view .lf-page-thread")).to_be_visible()
     expect(page.locator(".lf-margin-preview")).to_be_hidden()
     assert strip.evaluate("s => s.scrollLeft") == left
 
@@ -464,7 +462,7 @@ def test_show_on_page_on_a_phone_lands_on_the_thread_s_marker(browser, serve):
     resized(page, 390, 844)
     marker = page.locator('[data-lf-margin-for="open-words"] .lf-margin-marker')
     marker.click()
-    view = page.locator(".lf-fp-view:not([data-lf-leaving])")
+    view = page.locator(".lf-fp-view")
     expect(view.locator(".lf-page-thread")).to_be_visible()
     page.locator(".lf-fp-on-page").click()
     expect(view).to_have_count(0)
@@ -661,7 +659,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(resolve.locator('svg[data-lf-icon="check"]')).to_have_count(1)
     expect(close).to_have_text("")
     expect(resolve).to_have_text("")
-    reply = preview.get_by_role("textbox", name="Reply", exact=True)
+    reply = text_field(preview, name="Reply", exact=True)
     expect(reply).to_be_visible()
     geometry = preview.evaluate(
         """preview => {
@@ -696,7 +694,7 @@ def test_the_margin_groups_meanings_at_one_destination_without_moving_the_page(
     expect(reply).to_be_focused()
     page.locator("h1").click()
     expect(preview).to_be_hidden()
-    # A click opens the thread in its reply (thread/focus.js).
+    # A click opens the thread in its reply (records/thread/focus.js).
     marker.click()
     expect(reply).to_be_visible()
     expect(reply).to_be_focused()
@@ -820,7 +818,7 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser,
     Escape stands the user on the thread, where `c` writes in the reply again, and Send
     answers the thread with Threads left shut. With Threads open in the panel, Enter on
     the marker opens the card on the thread, beside the passage: a key's opening stands
-    the user where keys act (thread/focus.js, `openingPart`), and the panel shows a
+    the user where keys act (records/thread/focus.js, `openingPart`), and the panel shows a
     passage's thread only where the page draws it nowhere.
 
     Where the card stands belongs to the placement tests beside this one; what a send
@@ -875,7 +873,7 @@ def test_a_thread_can_be_answered_in_the_margin_without_opening_threads(browser,
 def test_a_finger_opens_a_card_on_its_thread(browser, serve):
     """A finger reads what it opened first, so its tap stands it on the thread, whose box
     raises no keyboard, on a window with room for a card as in the panel's view
-    (thread/focus.js, `openingPart`)."""
+    (records/thread/focus.js, `openingPart`)."""
     context = browser.new_context(
         viewport={"width": 1400, "height": 844}, has_touch=True, is_mobile=True
     )
@@ -928,8 +926,20 @@ def test_a_card_opens_on_its_first_unread_reply(browser, serve):
     # Each unread reply says New in its head, which a screen reader reads with it.
     expect(transcript.locator(".lf-msg-new")).to_have_count(2)
     expect(first.locator(".lf-msg-head")).to_contain_text("New")
+    # Its dot hangs in the gutter before the name, centred between the card's edge and
+    # the name, so it touches neither.
+    gaps = """msg => {
+      const dot = msg.querySelector('.lf-msg-new').getBoundingClientRect();
+      const card = msg.closest('.lf-margin-preview-card');
+      const edge = card.getBoundingClientRect().left + card.clientLeft;
+      const name = msg.querySelector('.lf-msg-head > b').getBoundingClientRect();
+      return [dot.left - edge, name.left - dot.right];
+    }"""
+    edge_gap, name_gap = first.evaluate(gaps)
+    assert edge_gap > 0 and abs(edge_gap - name_gap) <= 1, (edge_gap, name_gap)
 
-    # Partway down the long reply, its head has stuck with New in it.
+    # Partway down the long reply, its head has stuck with New in it, the dot where
+    # it stood.
     transcript.hover()
     page.mouse.wheel(0, 240)
     page.wait_for_function(
@@ -938,6 +948,7 @@ def test_a_card_opens_on_its_first_unread_reply(browser, serve):
     tag = first.locator(".lf-msg-new").bounding_box()
     top = transcript.evaluate("list => list.getBoundingClientRect().top")
     assert top - 1 <= tag["y"] <= top + 30, (tag, top)
+    assert first.evaluate(gaps) == [edge_gap, name_gap]
 
     for _ in range(40):
         if transcript.evaluate(
@@ -1006,7 +1017,7 @@ def test_a_new_anchored_comment_keeps_the_users_thread_view(
     assert preview_box["x"] + preview_box["width"] <= width, preview_box
     # The send leaves the user on its card.
     expect(thread).to_be_focused()
-    press_visible(page, thread.get_by_role("textbox", name="Reply", exact=True))
+    press_visible(page, text_field(thread, name="Reply", exact=True))
     expect(thread.locator("leaf-text")).to_be_focused()
     page.keyboard.type("the next thought")
     expect(thread.locator("leaf-text")).to_have_js_property("value", "the next thought")

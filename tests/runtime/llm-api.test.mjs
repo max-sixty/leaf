@@ -10,8 +10,8 @@ canonical.href = "https://leaf.test/pages/feed/";
 document.head.append(canonical);
 // A canonical page also posts diagnostic interactions outside the tested request.
 globalThis.fetch = async () => new Response(null, { status: 204 });
-const { generate } = await import("/runtime/llm-api.js");
-const { applicationState } = await import("/runtime/semantic-state.js");
+const { generate } = await import("/runtime/host/llm-api.js");
+const { applicationState } = await import("/runtime/state/semantic-state.js");
 
 test("generation returns the host answer at the page's address without publishing state", async (t) => {
   applicationState.identify(1, null, true);

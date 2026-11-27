@@ -8,6 +8,7 @@ import subprocess
 import sys
 
 import pytest
+from conftest import hooks_run_this_tree
 from interact_support import (
     PLUGIN_ROOT,
     STATED_TIMEOUT,
@@ -17,17 +18,17 @@ from interact_support import (
     serving,
 )
 
-from leaf import codex as codex_model
-from leaf import event_log as events_model
-from leaf import files as files_model
-from leaf import harness as harness_model
-from leaf import hooks as hooks_model
-from leaf import leases as leases_model
-from leaf import server as server_model
-from leaf import service as service_model
-from leaf import session as session_model
-from leaf import state as cleanup_model
-from leaf import vendoring as vendoring_model
+from leaf.agents import codex as codex_model
+from leaf.base import harness as harness_model
+from leaf.base import leases as leases_model
+from leaf.base import server as server_model
+from leaf.base import service as service_model
+from leaf.base import state as cleanup_model
+from leaf.commands import hooks as hooks_model
+from leaf.commands import session as session_model
+from leaf.log import event_log as events_model
+from leaf.pages import vendoring as vendoring_model
+from leaf.records import transaction as transaction_model
 
 
 def test_a_restarted_session_cannot_reopen_a_dead_claims_turn(
@@ -37,9 +38,10 @@ def test_a_restarted_session_cannot_reopen_a_dead_claims_turn(
     old = record_claim(page_dir, id="reused", pid=dead_pid, turn="old-turn")
     assert not service_model.claim_is_active(old)
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "reused")
+    hooks_run_this_tree("reused")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
 
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     renewed = service_model.page_claim(page_dir)
     assert renewed is not None
     assert renewed["id"] == "reused"
@@ -55,10 +57,14 @@ def test_a_session_keeps_its_files_only_while_something_can_read_them(page_dir):
     process holds, and then nothing."""
 
     def files(session):
+        """The session's files, each by its suffix, a record's under the name its
+        readers give it (`state.record_name`)."""
         key = cleanup_model.session_file(session, cleanup_model.SESSION_SUFFIX).stem
         return sorted(
-            path.name.removeprefix(f"{key}.")
-            for path in cleanup_model.session_file(session, "").parent.glob(f"{key}.*")
+            cleanup_model.record_name(path.name).removeprefix(f"{key}.")
+            for path in cleanup_model.session_file(session, "").parent.glob(
+                f"{key}[.@]*"
+            )
         )
 
     cleanup_model.end_harness_instance("never-used-leaf")
@@ -160,9 +166,10 @@ def test_session_lifecycle_is_shared_without_rewriting_page_claims(
     capsys.readouterr()
     sibling = tmp_path / "sibling"
     vendoring_model.cmd_init(sibling)
-    service_model.claim_page(sibling)
+    transaction_model.claim_page(sibling)
     before = {
-        page: service_model.claim_path(page).read_bytes() for page in (claimed, sibling)
+        page: service_model.CLAIM.file(service_model.claim_path(page)).read_bytes()
+        for page in (claimed, sibling)
     }
     claims = [service_model.page_claim(page) for page in before]
     assert all(claim is not None for claim in claims)
@@ -178,7 +185,8 @@ def test_session_lifecycle_is_shared_without_rewriting_page_claims(
     claims = [service_model.page_claim(page) for page in before]
     assert all(claim is not None and claim["turn_closed"] for claim in claims)
     assert {
-        page: service_model.claim_path(page).read_bytes() for page in before
+        page: service_model.CLAIM.file(service_model.claim_path(page)).read_bytes()
+        for page in before
     } == before
     cleanup_model.end_session("s1")
     assert not any(
@@ -192,13 +200,16 @@ def test_session_lifecycle_is_shared_without_rewriting_page_claims(
             "turn_id": "resumed-turn",
         },
     )
-    service_model.claim_page(sibling)
+    transaction_model.claim_page(sibling)
     assert service_model.claim_is_active(service_model.page_claim(sibling))
     claim_record_4 = service_model.page_claim(sibling)
     assert claim_record_4 is not None
     assert claim_record_4["turn"] == "resumed-turn"
     assert not service_model.claim_is_active(service_model.page_claim(claimed))
-    assert service_model.claim_path(claimed).read_bytes() == before[claimed]
+    assert (
+        service_model.CLAIM.file(service_model.claim_path(claimed)).read_bytes()
+        == before[claimed]
+    )
     capsys.readouterr()
 
 
@@ -208,12 +219,12 @@ def test_cold_session_end_does_not_wait_for_a_page_transaction(claimed):
     The transaction stays held for the whole run, so a SessionEnd that waited on it
     would never return: the suite's hang bound tells the two apart without timing
     the hook on a busy machine."""
-    with service_model.PageTransaction(claimed):
+    with transaction_model.PageTransaction(claimed):
         done = subprocess.run(
             [
                 sys.executable,
                 "-S",
-                str(PLUGIN_ROOT / "src/leaf/state.py"),
+                str(PLUGIN_ROOT / "src/leaf/base/state.py"),
             ],
             input=json.dumps({"hook_event_name": "SessionEnd", "session_id": "s1"}),
             text=True,
@@ -255,24 +266,27 @@ def test_a_stale_stop_cannot_plan_or_continue_a_newer_turn(claimed, capsys):
 def test_claim_rollback_tracks_acquisition_independently_of_turn(claimed):
     previous = service_model.page_claim(claimed)
     harness = harness_model.session_harness()
-    with service_model.PageTransaction(claimed) as page:
-        _, expected = page.take_claim(harness)
+    with transaction_model.PageTransaction(claimed) as page:
+        expected = page.take_claim(harness)
         cleanup_model.prompt_turn("s1", "provider")
-        page.restore_claim(expected, previous)
+        page.restore_claim(expected)
         assert previous is not None
         assert page.claim["acquisition"] == previous["acquisition"]
-        _, first = page.take_claim(harness)
-        _, successor = page.take_claim(harness)
-        assert first["acquisition"] != successor["acquisition"]
-        page.restore_claim(first, previous)
-        assert page.claim["acquisition"] == successor["acquisition"]
-        incompatible = {
-            key: value for key, value in successor.items() if key != "acquisition"
-        }
-        cleanup_model.write_json(service_model.claim_path(claimed), incompatible)
-        page.restore_claim(successor, previous)
+        first = page.take_claim(harness)
+        successor = page.take_claim(harness)
+        assert first.claim["acquisition"] != successor.claim["acquisition"]
+        page.restore_claim(first)
+        assert page.claim["acquisition"] == successor.claim["acquisition"]
+        # A Leaf of another claim shape replaced the claim, which this Leaf reads
+        # none of and leaves as it was.
+        path = service_model.claim_path(claimed)
+        other = path.with_name(f"{path.stem}@999{path.suffix}")
+        service_model.CLAIM.remove(path)
+        cleanup_model.write_json(other, {**successor.claim, "format": "leaf-claim/999"})
+        held = other.read_bytes()
+        page.restore_claim(successor)
         assert page.claim is None
-        assert files_model.read_json(service_model.claim_path(claimed)) == incompatible
+        assert other.read_bytes() == held
 
 
 def test_provider_observation_cannot_replace_a_newer_prompt(claimed):
@@ -320,8 +334,9 @@ def test_first_claim_enriches_prompt_provenance_without_replacing_it(
         assert before is not None
         assert before["generation"] != old["generation"]
     monkeypatch.setenv("CLAUDE_CODE_SESSION_ID", "before-claim")
+    hooks_run_this_tree("before-claim")
     monkeypatch.setenv("CLAUDE_PID", str(os.getpid()))
-    assert service_model.claim_page(page_dir)
+    assert transaction_model.claim_page(page_dir)
     after = cleanup_model.session_record("before-claim")
     assert after is not None
     assert (after["generation"], after["turn"], after["provider"]) == (

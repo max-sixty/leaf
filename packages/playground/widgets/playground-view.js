@@ -414,7 +414,7 @@ export function createPlayground(host) {
     );
   const instructionId = `${host.id}-instruction`;
   const submitLabel =
-    pageSubmit?.textContent?.trim() ||
+    pageSubmit?.textContent.trim() ||
     host.getAttribute("submit-label") ||
     "Use these settings";
   // The submission says what pressing it does: send the working values, or withdraw
@@ -565,10 +565,11 @@ export function createPlayground(host) {
         shown.set(name, value);
         each.write(value);
       }
-      if (instruction === null) {
-        for (const { slot, name } of slots)
-          keepsText(slot, words(/** @type {FieldValue} */ (next[name] ?? null), ", "));
-      } else {
+      for (const { slot, name } of slots)
+        keepsText(slot, words(/** @type {FieldValue} */ (next[name] ?? null), ", "));
+      // A script's instruction takes the place of the output's words, readings
+      // included; a reading anywhere else in the playground stays and follows its field.
+      if (instruction !== null) {
         if (!output.hasAttribute("data-lf-gen")) {
           output.replaceChildren();
           keeps(output, "data-lf-gen", "1");

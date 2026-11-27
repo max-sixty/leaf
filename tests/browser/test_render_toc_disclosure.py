@@ -8,7 +8,7 @@ from playwright.sync_api import expect
 from render_cases_interaction import live_url
 from render_harness import leaf_page, open_page, resized, rgb_pixels, told
 
-from leaf.render_checks import rendered, wait_until_ready
+from leaf.source.render_checks import rendered, wait_until_ready
 
 
 @pytest.mark.parametrize("initially_open", [False, True])

@@ -20,9 +20,9 @@ from render_harness import (
 )
 
 from browser.startup import _hold_startup
-from leaf import data as data_model
-from leaf import user_views as user_views_model
-from leaf.render_checks import wait_until_ready
+from leaf.records import page_data as page_data_model
+from leaf.serving import user_views as user_views_model
+from leaf.source.render_checks import wait_until_ready
 
 pytestmark = pytest.mark.shifts_unsurveyed
 
@@ -75,9 +75,9 @@ def test_the_document_is_readable_before_runtime_at_its_authored_position(
         assert page.locator("body > main").bounding_box()["y"] == pytest.approx(
             0, abs=1
         )
-        assert page.locator("body").bounding_box()["height"] == pytest.approx(
-            900, abs=1
-        )
+        # The body fills the window at least, past which its end keeps room for the
+        # last line to rise (layouts.css).
+        assert page.locator("body").bounding_box()["height"] >= 900 - 1
     finally:
         for route in boot:
             route.continue_()
@@ -191,7 +191,7 @@ def test_a_projected_external_link_wears_the_mark_its_href_earns(browser, serve)
     expect(links.first).to_have_attribute("rel", "author")
     api = page.locator('[data-lf-datum="api"] a')
 
-    data_model.cmd_data_set(
+    page_data_model.cmd_data_set(
         serve.page_dir,
         "deployments",
         [

@@ -14,12 +14,12 @@ from render_harness import (
     write,
 )
 
-from leaf import event_endpoint as endpoint_model
-from leaf import event_log as events_model
-from leaf import hosting as hosting_model
-from leaf import revisioning as revisioning_model
-from leaf import vendoring as vendoring_model
-from leaf.registry.storage import layer_packages
+from leaf.log import event_log as events_model
+from leaf.pages import hosting as hosting_model
+from leaf.pages import vendoring as vendoring_model
+from leaf.records import revisioning as revisioning_model
+from leaf.serving import event_endpoint as endpoint_model
+from leaf.source.registry.storage import layer_packages
 
 pytestmark = pytest.mark.shifts_unsurveyed
 

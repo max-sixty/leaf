@@ -111,10 +111,12 @@
  * adds shows its words as inline Markdown (`OptionAddition`).
  *
  * Only this module records the pick. Another widget that shows it, as a board card
- * does, reads the group's `choice` output and asks for a pick with `--choose` (the
- * registry's `choice` contract). The group records the asked pick under the asker's
- * words, so Undo names the gesture the user made, and refuses a value several options
- * carry, since that would pick one of them for the user. */
+ * does, reads the group's `choice` output and asks for a pick with the invoker command
+ * `--choose` (the registry's `choice` contract). Each option answers with its `value`,
+ * or its id where it has none, as an `<option>` answers with its text. The group
+ * records the asked pick under the words the sending button says, so Undo names the
+ * gesture the user made, and refuses a value two options carry, since that would pick
+ * one of them for the user. An exhibit takes no pick, so it refuses every request. */
 import { OptionAddition } from "./lf-options-addition.js";
 import { SettledOptions } from "./lf-options-settled.js";
 import { nothing } from "/vendor/lit.js";
@@ -144,6 +146,10 @@ import { closestAcross } from "/runtime/lib/shadow-tree.js";
 // option with neither is to say "Settled" rather than name an id nobody wrote.
 /** @param {Element} option */
 const label = (option) => option.getAttribute("label")?.trim() || named(option);
+
+// The value an option answers with in the group's `choice`: its `value`, else its id.
+/** @param {Element} option */
+const optionValue = (option) => option.getAttribute("value") || option.id;
 
 // The option the page advises is `recommended`, and the group says so wherever the
 // option is answered away from its card.
@@ -223,7 +229,7 @@ customElements.define(
     }
 
     // The `choice` output, said with `change` each time it moves.
-    /** @type {{value: string, values: string[], disabled: boolean} | null} */
+    /** @type {{value: string, options: {value: string, label: string}[], disabled: boolean} | null} */
     choice = null;
     #choiceSaid = "null";
 
@@ -306,6 +312,10 @@ customElements.define(
       if (this.hasAttribute("settled")) {
         this.#settled = new SettledOptions(this, { label });
       }
+      this.addEventListener("command", (event) => {
+        const { command, source } = /** @type {CommandEvent} */ (event);
+        if (command === "--choose" && !this.#choose(source)) event.preventDefault();
+      });
       if (!this.#choosable) return;
       this.addEventListener("click", (e) => {
         // A click ending a drag-select belongs to the selection rather than the option.
@@ -341,38 +351,25 @@ customElements.define(
             : `Dropped “${name}”`;
         this.#dispatch("choose", this.#addition.detailFor(next), null, said);
       });
-      this.addEventListener("command", (event) => {
-        const { command, source } = /** @type {CommandEvent} */ (event);
-        if (command === "--choose" && !this.#choose(source)) event.preventDefault();
-      });
     }
 
-    // Record the pick a `--choose` asks for, or answer false where the group takes none.
+    // Record the pick a `--choose` asks for: the one option whose value the sending
+    // button's `value` names, or the empty pick for the empty string, named by the words
+    // the button says. False where the group takes no such pick.
     /** @param {Element | null} source */
     #choose(source) {
-      /** @type {{value?: unknown, says?: unknown}} */
-      let asked;
-      try {
-        asked =
-          JSON.parse(source instanceof HTMLButtonElement ? source.value : "") ?? {};
-      } catch {
-        return false;
-      }
-      const { value, says } = asked;
-      // The group takes what the `choice` it holds offers, so the two can't disagree.
-      const { choice } = this;
       if (
-        !choice ||
-        choice.disabled ||
-        choice.values.filter((offered) => offered === value).length !== 1
+        !(source instanceof HTMLButtonElement) ||
+        !this.choice ||
+        this.choice.disabled
       )
         return false;
-      // The empty string offers the empty pick, which no option's `value` can be.
       const next = new Set(
-        [...this.#options()].filter((option) => option.getAttribute("value") === value),
+        [...this.#options()].filter((option) => optionValue(option) === source.value),
       );
-      const words = typeof says === "string" ? says : "";
+      if (next.size !== (source.value ? 1 : 0)) return false;
       this.#addition.remember(next);
+      const words = source.textContent?.trim() ?? "";
       return Boolean(
         this.#dispatch("choose", this.#addition.detailFor(next), null, words),
       );
@@ -382,16 +379,14 @@ customElements.define(
     #holdChoice(picked) {
       const options = [...this.#options()];
       const [only, other] = new Set(
-        options
-          .filter((option) => picked.has(option.id))
-          .map((option) => option.getAttribute("value") ?? ""),
+        options.filter((option) => picked.has(option.id)).map(optionValue),
       );
       const choice = {
         value: other === undefined ? (only ?? "") : "",
-        values: [
-          "",
-          ...options.flatMap((option) => option.getAttribute("value") ?? []),
-        ],
+        options: options.map((option) => ({
+          value: optionValue(option),
+          label: label(option) || option.id,
+        })),
         disabled: !this.#available("choose"),
       };
       const said = JSON.stringify(choice);

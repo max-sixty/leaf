@@ -4,13 +4,31 @@
    in the column the pick names and asks the widget for a pick (lf-board.js), so the
    card only asks its board to draw again. The class exists so that Leaf drives the
    card, since Leaf sets nothing on an element whose class isn't defined; every card is
-   driven, whether or not it has `shows`. */
+   driven, whether or not it has `shows`.
+
+   The card's `owner` is the widget its binding reads: the element `elementById` names
+   from the card under the id `shows` held as the card arrived, which is the producer
+   Leaf reads the binding from whenever there is one (host/data.js). So a drop asks the
+   widget whose `choice` the card shows, and a card whose binding finds no widget shows
+   no choice and can't be moved. */
+import { elementById } from "/runtime/widget-api.js";
 
 customElements.define(
   "lf-card",
   class extends HTMLElement {
     /** @type {unknown} */
     #choice = null;
+    // The id the binding reads, which markup owns from the card's arrival.
+    /** @type {string | null | undefined} */
+    #shows;
+
+    connectedCallback() {
+      if (this.#shows === undefined) this.#shows = this.getAttribute("shows") || null;
+    }
+
+    get owner() {
+      return this.#shows ? elementById(this.#shows, this) : null;
+    }
 
     get choice() {
       return this.#choice;

@@ -84,7 +84,6 @@ export { boundFile } from "./host/file-api.js";
 export { generate } from "./host/llm-api.js";
 export { connection } from "./host/http-api.js";
 export { draft } from "./records/drafts.js";
-export { layerFact } from "./state/registry.js";
 export { backgroundFlash, motion } from "./dom/motion.js";
 // A package's routes past presentation all declare the arrival, so a widget cannot
 // defer without the page knowing: `afterPresentation` waits for presentation and

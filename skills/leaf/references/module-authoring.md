@@ -85,7 +85,6 @@ In [module-reading.md](module-reading.md):
 - "Reading the page": `says`, `named` and `phrasing` read an element's words, and
   `elementById` finds the element an address names.
 - "Naming": `nameOf`, `titledElement` and `anchorLabel`.
-- "Reading declarations": `layerFact` reads the registry.
 - "Following a reference": `navigateToDatum` takes the user to a part of another
   widget.
 - "Markdown": `pageLinks`.

@@ -39,7 +39,7 @@ declaration alone decides, such as hiding a suggestion's `lf-old` once it is acc
 
 A widget reads and records only its own state. Nothing tells it when Leaf sets
 another element's `state` again, so a widget that follows another reads that widget's
-output and asks it for a change with a command
+output and asks it for a change with an invoker command
 ([package-data.md, "Widgets working together"](package-data.md#widgets-working-together)).
 
 `says`, in an `lf-action` event's `detail`, names the gesture in the widget's words,

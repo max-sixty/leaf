@@ -3,7 +3,7 @@
  * composition holds to each tag's declaration (`registry.validation.validate_work_roles`),
  * so this reader takes the entries as given. It owns progress, assignments, report age
  * and stopped-work meaning independently of how a dashboard composes those facts. */
-import { declarationFor, layerFact, registry } from "../state/registry.js";
+import { declarationFor, registry } from "../state/registry.js";
 import { readPart } from "../state/semantic-state.js";
 import { hasObligationSource } from "../state/obligations/source.js";
 import { obligationsByRegion } from "../records/obligations/place.js";
@@ -28,7 +28,7 @@ import { addressableName } from "../readings/addressable-names.js";
  *   own one; and each goal's `stopped`, which a parent's reads again.
  */
 /** @returns {Record<string, WorkRole>} */
-const widgets = () => layerFact("$work")?.widgets ?? {};
+const widgets = () => registry.$work?.widgets ?? {};
 
 /** @overload @param {Element | null | undefined} element @param {"goal"} role @returns {GoalRole | null} */
 /** @overload @param {Element | null | undefined} element @param {"worker"} role @returns {WorkerRole | null} */

@@ -78,15 +78,6 @@ link preview counts a thread about any of them.
 
 `anchorLabel(anchor, about)` names a comment's anchor as Threads does.
 
-### Reading declarations
-
-Read the registry rather than repeating it. `layerFact(name)` returns the registry's
-entry under a name, as the package's `registry.json` spells it: a widget's declaration
-under its tag, each fact under its own name, as `layerFact(element.localName)?.awaits`
-reads a widget's `awaits`, or a frozen layer-wide `$` declaration, such as
-`$reactions`. A plain HTML tag, such as `table`, can have an entry of authoring
-guidance, so read the fact you need rather than whether an entry exists.
-
 ### Following a reference
 
 Reach another widget through an attribute declared in `refers`

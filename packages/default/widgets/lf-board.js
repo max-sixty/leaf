@@ -23,34 +23,32 @@
  * A card with `shows` is the board's view of another widget's pick, such as a
  * proposal's answer in its own section, and the pick stays that widget's. The card binds
  * the widget's `choice` output (lf-card.js), so the board draws the card in the column
- * whose `value` the choice names, the first column without one where it names none or
- * no column holds it, and a pick there, an undo, a refusal and a revision's retraction
- * move the card with no state of the board's own. Dropping it in another column asks
- * the widget to pick that column's value with `--choose`, which the widget records as
- * its own pick under the card's words, or refuses; either way the board then draws the
- * card where the choice the widget holds puts it. A column takes the card only where
- * `--choose` would take its value, a value the choice's `values` lists once, since a
- * value several options carry doesn't say which the user picks. A card no other column
- * takes has its grip disabled. A card with `shows` keeps its authored order, and the
- * arrows only change its column: an order of the board's own would be a second fact
- * placed among columns the choice decides.
+ * whose `value` the pick names, or in the first column without a `value` where the
+ * pick names none or no column holds it. A pick there, an undo, a refusal and a
+ * revision's retraction move the card with no state of the board's own. Dropping the
+ * card in another column asks its owner, the widget whose choice it shows, to pick
+ * that column's value with the invoker command `--choose`, from a button whose words
+ * name the move, so Undo names it. The owner records the pick as its own or refuses
+ * it, and either way the board then draws the card where the owner's choice puts it. A
+ * column without a `value` asks for the empty pick. A column with one takes the card
+ * only where one option carries that value, since a value two options carry doesn't
+ * say which the user picks. A card no other column takes has its grip disabled. The
+ * arrows only change a shown card's column: an order of the board's own would be a
+ * second fact placed among columns the choice decides.
  *
  * The user chose this over the board reading the widget's state and recording the
  * widget's own verb, which tied the board to each widget's verbs, record kinds and
- * members, and needed a package function that reads any widget's state. An Answer record, or a value on the question's group, would move the answer
- * off the widget that owns its words, options and obligation.
+ * members, and needed a package function that reads any widget's state. An Answer
+ * record, or a value on the question's group, would move the answer off the widget
+ * that owns its words, options and obligation.
  *
  * `page check` and message admission refuse a `shows` naming a widget that holds no
- * `choice`, through the card's input, so the board never meets one. The user chose that
- * refusal over the board reporting a bad `shows` as it draws, since a contract-bound
- * input gives it without a registry map of the widgets a card may show. The append
- * door admits a board move of a card with `shows`, so the board never sends its own
- * move for one (#movable, #send) and, once the choice has arrived, draws it by its
- * choice whatever the board's move state holds.
- * Where the choice offers no value but the empty one, no pick puts the card in a column
- * with a `value`, and the board reports it to the author as the page's error
- * (#reportUnshown). Nothing draws a message before the user opens its thread, so there
- * the user meets such a card before the author hears of it.
+ * `choice`, through the card's input. The user chose that refusal over the board
+ * reporting a bad `shows` as it draws, since a contract-bound input gives it without a
+ * registry map of the widgets a card may show. The append door admits a board move of
+ * a card with `shows`, so the board never sends its own move for one (#movable, #send)
+ * and, once the choice has arrived, draws it by its choice whatever the board's move
+ * state holds.
  *
  * The board also says what it is non-visually: columns are labeled lists and
  * cards their items (#structure), and each grip is named for the column its
@@ -68,7 +66,6 @@
 import Sortable from "/vendor/sortable.esm.js";
 import { nothing } from "/vendor/lit.js";
 import {
-  elementById,
   move,
   motion,
   scrollerFor,
@@ -86,7 +83,7 @@ import { byRank, rankAt } from "/runtime/lib/rank.js";
 const VALUE = "value";
 
 /** A `choice` value, as the registry's `$data.contracts` declares it.
- * @typedef {{value: string, values: string[], disabled: boolean}} Choice */
+ * @typedef {{value: string, options: {value: string, label: string}[], disabled: boolean}} Choice */
 
 // The id a card's `shows` names, or null for a card that shows no choice: one without
 // the attribute, or with it empty.
@@ -99,10 +96,10 @@ const showsId = (card) => card.getAttribute("shows") || null;
 const choiceOf = (card) =>
   (showsId(card) && /** @type {{choice?: Choice | null}} */ (card).choice) || null;
 
-// Whether `--choose` takes `value`: the one entry of the choice's values naming it.
+// Whether `--choose` takes `value`: the empty pick, or the one option carrying it.
 /** @param {Choice} choice @param {string} value */
 const takes = (choice, value) =>
-  choice.values.filter((offered) => offered === value).length === 1;
+  !value || choice.options.filter((option) => option.value === value).length === 1;
 
 customElements.define(
   "lf-board",
@@ -122,10 +119,6 @@ customElements.define(
     // The user's hold through the gesture, settled as the card is put down.
     /** @type {PromiseWithResolvers<void> | null} */
     #held = null;
-    // The fault last reported for each card, so the author hears of it once rather
-    // than at every draw.
-    /** @type {WeakMap<Element, string>} */
-    #reported = new WeakMap();
 
     setup() {
       this.toggleAttribute("data-lf-scroll", true);
@@ -728,17 +721,17 @@ customElements.define(
       this.#finishGesture();
     }
 
-    // Ask the widget a card shows to pick `value`, naming the move in `says`. The request
-    // is sent from a button the board makes and keeps out of the page, whose `value`
-    // carries the argument, so the widget reads it as it would a press of its own
-    // (`package-data.md`, "Asking another widget to act").
+    // Ask the card's owner to pick `value`, from a button the board makes and keeps out
+    // of the page, whose words name the move (`package-data.md`, "Asking another widget
+    // to act").
     /** @param {Element} card @param {string} value @param {string} says */
     #ask(card, value, says) {
-      elementById(showsId(card) ?? "", card)?.dispatchEvent(
+      /** @type {{owner?: Element | null}} */ (card).owner?.dispatchEvent(
         new CommandEvent("command", {
           command: "--choose",
           source: Object.assign(document.createElement("button"), {
-            value: JSON.stringify({ value, says }),
+            value,
+            textContent: says,
           }),
           cancelable: true,
         }),
@@ -862,41 +855,12 @@ customElements.define(
     render() {
       // A quoted board is an exhibit with no reading: the theme draws it as authored.
       if (!this.state) return nothing;
-      this.#reportUnshown();
       this.#arrange(this.#placement());
       // The columns a card showing a choice offers follow the choice, which may arrive
       // after the board has set up and move no card.
       this.#names();
       this.#paintAvailability();
       return nothing;
-    }
-
-    // Tell the author of each card showing a choice that offers no value but the empty
-    // one, so that no pick puts the card in a column with a `value`, which neither
-    // `page check` nor the page says.
-    #reportUnshown() {
-      for (const card of this.#allCards()) {
-        const choice = choiceOf(card);
-        const id = showsId(card);
-        const fault =
-          choice && !choice.values.some(Boolean)
-            ? `shows="${id}" names <${elementById(id ?? "", card)?.localName}>, whose ` +
-              `choice offers no \`${VALUE}\`, so no pick puts the card in a column; ` +
-              `give each of its options the \`${VALUE}\` of the column its pick ` +
-              "belongs in"
-            : null;
-        if (fault === null) this.#reported.delete(card);
-        else if (this.#reported.get(card) !== fault) {
-          this.#reported.set(card, fault);
-          card.dispatchEvent(
-            new ErrorEvent("error", {
-              error: new Error(fault),
-              bubbles: true,
-              composed: true,
-            }),
-          );
-        }
-      }
     }
 
     get #position() {

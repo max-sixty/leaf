@@ -20,7 +20,6 @@ from render_harness import (
     http_error_console,
     leaf_page,
     open_page,
-    reported_browser_errors,
     resized,
     scroll_settled,
     sending,
@@ -985,6 +984,34 @@ def test_a_card_offers_the_columns_its_choice_takes_once_the_choice_arrives(
         ).to_have_js_property("hidden", not offered)
 
 
+def test_a_drop_asks_the_widget_whose_choice_the_card_shows(browser, serve):
+    """The card's binding names both the choice it shows and the widget its drop asks.
+    Markup owns the binding from the card's arrival, so a script that rewrites `shows`
+    afterwards sends the drop nowhere else."""
+    source = ANSWERS_BOARD_PAGE.replace(
+        '<lf-board id="plan">',
+        '<lf-group id="other-section" label="Keep the other rail?">'
+        '<h2 id="other-section-h">Keep the other rail?</h2><lf-options id="other">'
+        '<lf-option id="other-next" value="next">Next</lf-option>'
+        '<lf-option id="other-later" value="later">Later</lf-option>'
+        '</lf-options></lf-group><lf-board id="plan">',
+    )
+    page = open_page(browser, live_url(serve(source)))
+    expect(page.locator("#col-later > #card-rail")).to_have_count(1)
+    page.evaluate("document.getElementById('card-rail').setAttribute('shows', 'other')")
+
+    with sending(page, "the drop"):
+        page.locator("#card-rail .lf-grip").focus()
+        for press in ("Enter", "ArrowLeft", "Enter"):
+            page.keyboard.press(press)
+    expect(page.locator("#col-next > #card-rail")).to_have_count(1)
+    assert [
+        (event["widget"], event["action"], event["detail"])
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "action"
+    ] == [("rail", "choose", {"value": ["rail-next"]})]
+
+
 def test_a_card_with_shows_never_stands_by_a_board_move(browser, serve):
     """The append door admits a board move of a card with `shows`, which the board's
     module never sends. Such a move in the log leaves the card in the column its
@@ -1047,15 +1074,15 @@ def test_an_answer_naming_no_one_column_stands_with_the_undecided(browser, serve
     expect(page.locator("#col-open > #card-pager")).to_have_count(1)
 
 
-def test_the_board_reports_a_card_whose_question_gives_its_options_no_value(
-    browser, serve
-):
-    """Options that carry no `value` can put a card in no column, so the board tells
-    the author. A card whose `shows` is empty shows no answer, and is the board's own
-    to move."""
+def test_an_option_without_a_value_answers_with_its_id(browser, serve):
+    """An option that carries no `value` answers with its id, so a column whose `value`
+    is that id holds the card while the option is picked, and a drop there picks it. A
+    card whose `shows` is empty shows no answer, and is the board's own to move."""
     source = (
         ANSWERS_BOARD_PAGE.replace(' value="next">Next<', ">Next<")
         .replace(' value="later" selected>Later<', " selected>Later<")
+        .replace('label="Next" value="next"', 'label="Next" value="rail-next"')
+        .replace('label="Later" value="later"', 'label="Later" value="rail-later"')
         .replace(
             '<lf-column id="col-open" label="Undecided"></lf-column>',
             '<lf-column id="col-open" label="Undecided">'
@@ -1063,13 +1090,16 @@ def test_the_board_reports_a_card_whose_question_gives_its_options_no_value(
             "<strong>Own</strong></lf-card></lf-column>",
         )
     )
-    assert source.count(" value=") == 2
+    assert source.count(' value="rail-') == 2
     page = open_page(browser, live_url(serve(source)))
-    reported_browser_errors(
-        page,
-        '<lf-card id="card-rail"> failed: shows="rail" names <lf-options>, whose'
-        " choice offers no `value`",
-    )
+    expect(page.locator("#col-later > #card-rail")).to_have_count(1)
+
+    with sending(page, "the drop"):
+        page.locator("#card-rail .lf-grip").focus()
+        for press in ("Enter", "ArrowLeft", "Enter"):
+            page.keyboard.press(press)
+    expect(page.locator("#col-next > #card-rail")).to_have_count(1)
+    expect(page.locator("#rail-next")).to_have_attribute("selected", "")
 
     with sending(page, "the move"):
         page.locator("#card-own .lf-grip").focus()
@@ -1077,10 +1107,10 @@ def test_the_board_reports_a_card_whose_question_gives_its_options_no_value(
             page.keyboard.press(press)
     expect(page.locator("#col-next > #card-own")).to_have_count(1)
     assert [
-        (event["widget"], event["action"], event["detail"]["unit"])
+        (event["widget"], event["action"], event["detail"].get("unit"))
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "action"
-    ] == [("plan", "move", "card-own")]
+    ] == [("rail", "choose", None), ("plan", "move", "card-own")]
 
 
 def centre(locator):

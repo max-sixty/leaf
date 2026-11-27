@@ -2,18 +2,29 @@
   "$data": {
     "contracts": {
       "choice": {
-        "description": "A pick among choices that carry values, shaped like a `<select>`'s. `value` is the value every picked choice carries, or the empty string where the pick is empty, or its choices carry different values or none. `values` lists the value of each choice in order, the empty string standing for the empty pick where the widget offers one; a choice that carries no value is left out, and a value two choices carry is listed twice. `disabled` is true while the user can't change the pick.",
+        "description": "A pick among options, shaped like a `<select>`'s. `value` is the value of the picked option, the one value every picked option carries where the pick holds several, and the empty string where the pick is empty or its options carry different values. `options` lists each option in order, with the `value` it answers with and the `label` that names it. `disabled` is true while the user can't change the pick.",
         "instructions": {
-          "producer": "Take the invoker command `--choose`, whose button's `value` is JSON text: `{\"value\": V, \"says\": WORDS}`, `says` optional. Where `disabled` is false and `values` lists V once, make the pick the choice carrying V, or the empty pick for the empty string, and record it as the user's change, named by WORDS where given. Refuse any other request with `preventDefault()`: a V that two choices carry doesn't say which the user picks. Set `choice` and say `change` before the command's listener returns, and again after every other change to the pick."
+          "producer": "Take the invoker command `--choose`, whose button's `value` is an option's value, or the empty string for the empty pick. Where `disabled` is false and exactly one option carries that value, make the pick that option, or empty it, and record it as the user's change, named by the button's words. Refuse any other request with `preventDefault()`: a value two options carry doesn't say which the user picks. Set `choice` and say `change` before the command's listener returns, and whenever else the published value changes."
         },
         "schema": {
           "type": "object",
           "properties": {
             "value": { "type": "string" },
-            "values": { "type": "array", "items": { "type": "string" } },
+            "options": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "value": { "type": "string", "minLength": 1 },
+                  "label": { "type": "string" }
+                },
+                "required": ["value", "label"],
+                "additionalProperties": false
+              }
+            },
             "disabled": { "type": "boolean" }
           },
-          "required": ["value", "values", "disabled"],
+          "required": ["value", "options", "disabled"],
           "additionalProperties": false
         }
       },
@@ -64,6 +75,9 @@
       },
       "text-document": {
         "description": "UTF-8 text from a file or a selected line range: the text, or the text with the file's `name` where one document shows several files in turn, such as the one an editor has open, a `key` that names the file however its name changes, and an opaque `revision` naming the version of the file the text is, such as the one a save to a file the page binds names.",
+        "instructions": {
+          "producer": "Where the value names its file by `key`, reveal the address `<key>:<line>`, which `navigateToDatum` or a link to `#<id>:<key>:<line>` asks for: show that file with the caret at the start of its 1-based line, and `<key>` alone shows the file."
+        },
         "schema": {
           "type": ["string", "object"],
           "properties": {
@@ -203,7 +217,7 @@
     "example": "<lf-group id=\"cache-q\" label=\"Which cache should the importer use?\">\n  <h3>Which cache should the importer use?</h3>\n  <p>Both hold a day of results; only Redis survives a restart.</p>\n  <lf-options id=\"cache\">\n    <lf-option id=\"cache-memory\" label=\"In memory\"><strong>In memory</strong> Nothing new to run.</lf-option>\n    <lf-option id=\"cache-redis\" label=\"Redis\" recommended><strong>Redis</strong> One more service, and no cold start after a deploy.</lf-option>\n  </lf-options>\n</lf-group>"
   },
   "lf-options": {
-    "description": "Alternatives the user can choose individually or as a set to answer a question. It holds its pick as its `choice` output and takes `--choose`, which picks the one option carrying the value a request names, as the `choice` contract says.",
+    "description": "Alternatives the user can choose individually or as a set to answer a question.",
     "attributes": {
       "properties": {
         "multiple": {
@@ -304,7 +318,7 @@
     "refers": {
       "for": {}
     },
-    "instructions": "Word, label and illustrate the alternatives as `references/authoring-on-me.md` says. A card's `label` is its name wherever Leaf names it, such as On Me, and the card draws none of it: show its title in its own HTML, a leading `<strong>`. Write in the option any consequence the title or chips leave unstated, with pictures in block HTML, such as `svg.lf-drawing`. A `.lf-facts` list as a direct child of a card with a `label` floats right as a narrow column where the option is wide enough, so the options' figures line up. A compact option has no `label`: its words are its label. Mark the option you advise `recommended`, which draws its badge. Give your reason for the recommendation in prose beside the options, such as the question's paragraph, so each card states only what choosing it does. `selected` records the user's pick. Use `$restated` to withdraw that pick and ask again. A `for` target must stay useful whatever is decided, and does not supply the option's words. `value` names what the option answers wherever a view shows the options' answer, such as a board column (read the `lf-board` instructions for the composition)."
+    "instructions": "Word, label and illustrate the alternatives as `references/authoring-on-me.md` says. A card's `label` is its name wherever Leaf names it, such as On Me, and the card draws none of it: show its title in its own HTML, a leading `<strong>`. Write in the option any consequence the title or chips leave unstated, with pictures in block HTML, such as `svg.lf-drawing`. A `.lf-facts` list as a direct child of a card with a `label` floats right as a narrow column where the option is wide enough, so the options' figures line up. A compact option has no `label`: its words are its label. Mark the option you advise `recommended`, which draws its badge. Give your reason for the recommendation in prose beside the options, such as the question's paragraph, so each card states only what choosing it does. `selected` records the user's pick. Use `$restated` to withdraw that pick and ask again. A `for` target must stay useful whatever is decided, and does not supply the option's words. `value` names what the option answers wherever a view shows the options' answer, such as a board column, and the option answers with its id where it has none (read the `lf-board` instructions for the composition)."
   },
   "lf-code": {
     "description": "A source-code excerpt with syntax coloring, highlighted lines, line-anchored remarks, and a mark on the lines another widget is at.",
@@ -414,7 +428,7 @@
         }
       }
     },
-    "instructions": "Use a board to show grouped work and status. When the user must make decisions, give them explicit controls or `lf-options` rather than relying on moving cards. When revising, place each card in the column and rank `state` gives it (`$verbs` defines ranks), unless the revision retracts that move by marking the card, not the board, `restated` (`authoring-revisions.md`, \"Honor user state\").\n\n## One answer in its question and on a board\n\nFor this composition, read the `lf-options` and `lf-option` instructions too.\n\nWhen the user answers proposals beside their cases and also needs every answer in one\nview to compare or rearrange, keep each answer in its question's `lf-options` and add a\nboard whose cards show those answers, rather than asking twice. Give each option a\n`value` naming the answer it gives, in words every question shares, and the board one\ncolumn per value with that `value`, plus one column without a value for proposals not\nyet answered or answered in the user's own words. Each card's `shows` names its\nquestion's `lf-options`, and the card appears in the column matching that pick's value:\n\n```html\n<lf-group id=\"rail-q\" label=\"Keep the rail?\">\n  <h2>Keep the rail?</h2>\n  <p>…the case for the rail…</p>\n  <lf-options id=\"rail-choice\">\n    <lf-option id=\"rail-next\" value=\"next\">Next</lf-option>\n    <lf-option id=\"rail-later\" value=\"later\">Later</lf-option>\n  </lf-options>\n</lf-group>\n<!-- … the other proposals' questions … -->\n<lf-board id=\"plan\">\n  <lf-column id=\"plan-open\" label=\"Undecided\">\n    <lf-card id=\"plan-rail\" label=\"Keep the rail\" shows=\"rail-choice\"><strong>Keep the rail</strong></lf-card>\n  </lf-column>\n  <lf-column id=\"plan-next\" label=\"Next\" value=\"next\"></lf-column>\n  <lf-column id=\"plan-later\" label=\"Later\" value=\"later\"></lf-column>\n</lf-board>\n```\n\nA drop on the board answers through the `lf-options`, so the page holds one answer,\nwhich Undo and `restated` take back in both views. Options of one question may share\na `value`: a pick of any of them puts the card in that value's column. The user can't\nmove the card into that column on the board, since a drop wouldn't say which option\nthey pick; they pick in the question. When a revision writes the user's\npick into the `lf-options`, move the card to that pick's column too. A card that shows an answer\nkeeps the order you wrote it in; where the order within a column is itself the user's\ncall, ask for it as its own question.",
+    "instructions": "Use a board to show grouped work and status. When the user must make decisions, give them explicit controls or `lf-options` rather than relying on moving cards. When revising, place each card in the column and rank `state` gives it (`$verbs` defines ranks), unless the revision retracts that move by marking the card, not the board, `restated` (`authoring-revisions.md`, \"Honor user state\").\n\n## One answer in its question and on a board\n\nFor this composition, read the `lf-options` and `lf-option` instructions too.\n\nWhen the user answers proposals beside their cases and also needs every answer in one\nview to compare or rearrange, keep each answer in its question's `lf-options` and add a\nboard whose cards show those answers, rather than asking twice. Give each option a\n`value` naming the answer it gives, in words every question shares, since an option\nwithout one answers with its id, and the board one column per value with that `value`, plus one column without a value for proposals not\nyet answered or answered in the user's own words. Each card's `shows` names its\nquestion's `lf-options`, and the card appears in the column matching that pick's value:\n\n```html\n<lf-group id=\"rail-q\" label=\"Keep the rail?\">\n  <h2>Keep the rail?</h2>\n  <p>…the case for the rail…</p>\n  <lf-options id=\"rail-choice\">\n    <lf-option id=\"rail-next\" value=\"next\">Next</lf-option>\n    <lf-option id=\"rail-later\" value=\"later\">Later</lf-option>\n  </lf-options>\n</lf-group>\n<!-- … the other proposals' questions … -->\n<lf-board id=\"plan\">\n  <lf-column id=\"plan-open\" label=\"Undecided\">\n    <lf-card id=\"plan-rail\" label=\"Keep the rail\" shows=\"rail-choice\"><strong>Keep the rail</strong></lf-card>\n  </lf-column>\n  <lf-column id=\"plan-next\" label=\"Next\" value=\"next\"></lf-column>\n  <lf-column id=\"plan-later\" label=\"Later\" value=\"later\"></lf-column>\n</lf-board>\n```\n\nA drop on the board answers through the `lf-options`, so the page holds one answer,\nwhich Undo and `restated` take back in both views. Options of one question may share\na `value`: a pick of any of them puts the card in that value's column. The user can't\nmove the card into that column on the board, since a drop wouldn't say which option\nthey pick; they pick in the question. When a revision writes the user's\npick into the `lf-options`, move the card to that pick's column too. A card that shows an answer\nkeeps the order you wrote it in; where the order within a column is itself the user's\ncall, ask for it as its own question.",
     "example": "<lf-board id=\"feeder-board\">\n  <lf-column id=\"col-todo\" label=\"To do\">\n    <lf-card id=\"card-heater\" label=\"Heated perch\"><strong>Heated perch</strong> Wire the south feeder.</lf-card>\n    <lf-card id=\"card-baffle\" label=\"Squirrel baffle\"><strong>Squirrel baffle</strong></lf-card>\n  </lf-column>\n  <lf-column id=\"col-doing\" label=\"Doing\">\n    <lf-card id=\"card-camera\" label=\"Camera mount\"><strong>Camera mount</strong></lf-card>\n  </lf-column>\n  <lf-column id=\"col-done\" label=\"Done\"></lf-column>\n</lf-board>"
   },
   "lf-column": {
@@ -436,7 +450,7 @@
     },
     "content": "members",
     "owners": ["lf-board"],
-    "instructions": "Write a label that names the column on its own. Use tone when landing here carries a status judgment, such as blocked, needing review, or done; otherwise leave it neutral. On a board whose cards show answers, `value` names the answer the column holds, and a column without one holds the answers that name none."
+    "instructions": "Write a label that names the column on its own. Use tone when landing here carries a status judgment, such as blocked, needing review, or done; otherwise leave it neutral. On a board whose cards show answers, `value` names the answer the column holds, an option's `value` or, for an option without one, its id; a column without a `value` holds the answers no column names."
   },
   "lf-card": {
     "description": "One board card whose identity and comments survive user moves.",
@@ -453,10 +467,11 @@
       "required": ["id"]
     },
     "owners": ["lf-column"],
+    "verbatim": true,
     "inputs": {
       "choice": { "contract": "choice", "reference": "shows", "property": "choice" }
     },
-    "instructions": "Give the card its name in `label`, which names it wherever Leaf does, such as when the user moves it, and its title and prose as content, the title a leading `<strong>`: the card draws none of its label. Keep its id stable across moves. Use `$restated` to withdraw the user's moves. `shows` makes the card a view of a decision widget's answer: it stands in the column whose `value` that answer names, and moving it changes the answer (read the `lf-board` instructions for the composition). Name a widget in the card's own page or message that holds its pick as a `choice`, as an `lf-options` does; `page check`, and the check of a message that holds the card, refuse any other. Where none of that widget's choices carries a `value`, the card can stand only in a column that has no `value`, and the board reports it as it draws: `page check --render` shows that report for a page, and nothing shows it for a message before the user opens its thread."
+    "instructions": "Give the card its name in `label`, which names it wherever Leaf does, such as when the user moves it, and its title and prose as content, the title a leading `<strong>`: the card draws none of its label. Keep its id stable across moves. Use `$restated` to withdraw the user's moves. `shows` makes the card a view of a decision widget's answer: it stands in the column whose `value` that answer names, and moving it changes the answer (read the `lf-board` instructions for the composition). Name a widget in the card's own page or message that holds its pick as a `choice`, as an `lf-options` does; `page check`, and the check of a message that holds the card, refuse any other."
   },
   "lf-tabs": {
     "description": "Several views shown one at a time: page navigation, a tabbed box, or a queue beside its open item.",

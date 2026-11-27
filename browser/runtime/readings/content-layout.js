@@ -1,3 +1,4 @@
+// Compiled from content-layout.ts by build/typescript.mjs; edit that file.
 /* CSS owns the document's flow, wrapping sidebars and exhibit containment. This
  * document owner reads the sticky header height shared with landing geometry and
  * notifies annotation geometry after the document's native layout has changed. */
@@ -15,15 +16,11 @@ import { PAGE_PAINT_ATTRIBUTE } from "../base/page-paint.js";
 import { inChrome } from "../base/ui-marks.js";
 
 let documentLayoutOpen = false;
-/** @type {((changed: boolean) => unknown) | null | undefined} */
 let readFinished = null;
 let pending = 0;
 let lastRead = -1;
-/** @type {ReturnType<typeof sizeObserver> | null} */
 let headSizes = null;
-/** @type {Element | null} */
 let watchedHead = null;
-/** @type {boolean | null} */
 let railAvailable = null;
 function readDocumentLayout() {
   const { changed } = readDocumentHeaders();
@@ -46,7 +43,6 @@ function readDocumentLayout() {
     repaintPage();
   }
 }
-/** @param {number} time */
 function readFrame(time) {
   pending = 0;
   if (time === lastRead) {
@@ -62,7 +58,6 @@ export function scheduleDocumentLayout() {
 export function settleDocumentLayout() {
   if (documentLayoutOpen) readDocumentLayout();
 }
-/** @param {{onRead?: (changed: boolean) => unknown}} options */
 export function openDocumentLayout({ onRead }) {
   readFinished = onRead;
   documentLayoutOpen = true;
@@ -71,8 +66,7 @@ export function openDocumentLayout({ onRead }) {
   document.addEventListener(
     "toggle",
     (event) => {
-      if (!inChrome(/** @type {Node | null} */ (event.target)))
-        scheduleDocumentLayout();
+      if (!inChrome(event.target)) scheduleDocumentLayout();
     },
     { capture: true },
   );
@@ -85,13 +79,9 @@ export function openDocumentLayout({ onRead }) {
 // starts at that box's content edge and runs the measure, or the content box where it
 // is narrower. A sidebar's body may hold it; otherwise a custom page's actual box is
 // its reading region. The declaration keeps this independent of Layout classes.
-/** @param {Element} node */
 export const proseMeasure = (node) =>
   parseFloat(getComputedStyle(node).getPropertyValue("--lf-prose-measure")) || 0;
-/** @typedef {ReturnType<typeof carriedBox>} ProseBox */
-/** @overload @param {Element} main @returns {ProseBox} */
-/** @overload @param {Element | null | undefined} [main] @returns {ProseBox | null} */
-/** @param {Element | null | undefined} [main] @returns {ProseBox | null} */
+
 export function proseRect(main = layoutBox()) {
   if (!main) return null;
   const holder = [main, ...main.children].find((node) => proseMeasure(node) > 0);
@@ -99,7 +89,6 @@ export function proseRect(main = layoutBox()) {
   const style = getComputedStyle(holder);
   const frame = elementFrame(holder);
   if (!frame) return holder.getBoundingClientRect();
-  /** @param {"Left" | "Right"} side */
   const edge = (side) =>
     parseFloat(style[`border${side}Width`]) + parseFloat(style[`padding${side}`]);
   const width = Math.min(
@@ -115,7 +104,6 @@ export function proseRect(main = layoutBox()) {
     bottom: frame.height,
   });
 }
-/** @param {Element | null} [main] */
 export const railStands = (main = layoutBox()) => {
   if (
     !main ||

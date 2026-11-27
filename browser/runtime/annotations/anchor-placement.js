@@ -1,3 +1,4 @@
+// Compiled from anchor-placement.ts by build/typescript.mjs; edit that file.
 /* Current document targets for conversations and mechanical composition.
 
    Each read resolves durable anchors and pointed rows before selected presentation:
@@ -72,12 +73,9 @@ import { tick } from "../state/version-signal.js";
 import { version as keptVersion } from "../state/kept.js";
 import { inChrome } from "../base/ui-marks.js";
 
-/** @typedef {import("../../types/domain.js").Anchor} Anchor */
-/** @import { Thread, ResolvedTarget, Placement, PlacementReading, ThreadDraft } from "../records/thread/placement.js" */
 // Whether two readings of a passage stand in the same text, segment by segment: a
 // revision or a script that writes words ahead of it keeps its ranges, which move with
 // the words, but not where it stands.
-/** @param {readonly import("../readings/passages.js").Segment[]} a @param {readonly import("../readings/passages.js").Segment[]} b */
 const sameSegments = (a, b) =>
   a.length === b.length &&
   a.every((segment, at) => {
@@ -89,7 +87,6 @@ const sameSegments = (a, b) =>
       segment.end === other.end
     );
   });
-/** @param {Partial<Placement> | undefined} a @param {Partial<Placement> | undefined} b */
 const samePlacement = (a, b) =>
   a?.kind === b?.kind &&
   (a?.kind !== "passage" ||
@@ -111,7 +108,6 @@ const samePlacement = (a, b) =>
 // The message of these threads that keeps the element an anchor names, if any. An anchor
 // captured detached names no passage the user selected, so finding its element's message
 // identifies nothing and it stays detached.
-/** @param {Anchor} anchor @param {readonly Thread[]} threads */
 function heldIn(anchor, threads) {
   const held =
     anchor.section && !anchor.detached ? messageHolding(anchor.section) : null;
@@ -124,7 +120,6 @@ function heldIn(anchor, threads) {
 // A range over each of a passage's segments, which the anchor paint paints: the last
 // reading's own where they still stand where this reading resolved the passage, so a
 // reading that moves nothing keeps the ranges the anchor paint painted and indexed.
-/** @param {ResolvedTarget | null | undefined} was @param {readonly import("../readings/passages.js").Segment[]} segments */
 function liveRanges(was, segments) {
   const ranges = was?.kind === "passage" ? was.ranges : undefined;
   const stand =
@@ -148,17 +143,12 @@ const DRAFT = "\u0000draft";
 // The key a saved comment draft's placement is kept under beside the threads', its
 // context after this prefix, which no thread's id starts with.
 const SAVED = "\u0000saved:";
-/** @typedef {{threads: readonly string[], pending: boolean}} Placed */
 
 export function createAnchorPlacement() {
-  /** @type {Map<string, Placement>} */
   const placed = new Map();
   const version = signal(0);
-  /** @type {ReturnType<typeof resolveAnchor>} */
   let pendingPlaced = null;
-  /** @type {Anchor | null} */
   let pendingAnchor = null;
-  /** @type {Map<string, Thread>} */
   let names = new Map();
   // The threads the last reading placed: all of them, by id, by each quote their anchors
   // name and by each section, the draft's anchor among them (`DRAFT`); for each text
@@ -166,17 +156,11 @@ export function createAnchorPlacement() {
   // ids changed since placement last read them (`stale`), and which ids and which
   // elements' own ids; the threads placed again whose hearers are still to hear it; and
   // those who hear which threads were.
-  /** @type {readonly Thread[]} */
   let threads = [];
-  /** @type {Map<string, Thread>} */
   let byId = new Map();
-  /** @type {Map<string, Anchor>} */
   let savedAnchors = new Map();
-  /** @type {Map<string, Set<string>>} */
   let byQuote = new Map();
-  /** @type {Map<string, Set<string>>} */
   let bySection = new Map();
-  /** @type {Map<Node, Set<string>>} */
   const inNode = new Map();
   let stale = false;
   // The version of the page's index of quotes placement last read changes up to.
@@ -188,15 +172,10 @@ export function createAnchorPlacement() {
   // placement while drawing hears as one reading `placedAt` does, moves only when those
   // who hear are told, which for a read inside a script waits until after it (`settle`).
   const placements = keptVersion(() => settle(false));
-  /** @type {Set<string>} */
   const renamedIds = new Set();
-  /** @type {Set<Element>} */
   const renamedElements = new Set();
-  /** @type {Set<string>} */
   const unheard = new Set();
-  /** @type {Set<(placed: Placed) => void>} */
   const hearers = new Set();
-  /** @param {string} id @param {ResolvedTarget | null | undefined} placement @param {boolean} on */
   const note = (id, placement, on) => {
     if (placement?.kind !== "passage") return;
     for (const { node } of placement.segments) {
@@ -207,7 +186,6 @@ export function createAnchorPlacement() {
       else inNode.delete(node);
     }
   };
-  /** @param {Map<string, Set<string>>} map @param {string} key @param {string} id */
   const file = (map, key, id) => map.set(key, (map.get(key) ?? new Set()).add(id));
   // Any change to the page's words may have moved a quote's words, put a second copy of
   // them anywhere, or put back words a quote lost, and a change to the page's ids may
@@ -231,8 +209,6 @@ export function createAnchorPlacement() {
   // holding the element it names where the page doesn't hold it, and over its passage
   // the ranges `was` had where they still stand; a pointed row (`placePoints`) is a
   // presentation's to give.
-  /** @param {Anchor} anchor @param {Placement | undefined} was
-   * @param {boolean} [keepsPoint] @returns {Placement | undefined} */
   function place(anchor, was, keepsPoint = false) {
     const found = resolveAnchor(anchor);
     const held = found && !inChrome(found.place) ? null : heldIn(anchor, threads);
@@ -255,7 +231,6 @@ export function createAnchorPlacement() {
   // The draft's anchor as it resolves now, a passage over the ranges `was` had where
   // they still stand, as a thread's is (`place`), so the anchor paint marks the draft's
   // words from ranges a reading that moves nothing keeps, as it marks a thread's.
-  /** @param {ReturnType<typeof resolveAnchor>} was */
   function placePending(was) {
     const resolved = pendingAnchor ? resolveAnchor(pendingAnchor) : null;
     if (resolved?.kind === "passage")
@@ -263,8 +238,6 @@ export function createAnchorPlacement() {
     return resolved;
   }
 
-  /** @param {{threads: readonly Thread[], draft: ThreadDraft, actionAnchor: Anchor | null,
-   * saved: readonly {context: string, anchor: Anchor}[]}} options @returns {PlacementReading | null} */
   function read({ threads: all, draft, actionAnchor, saved }) {
     if (!anchoringIsReady()) return null;
     catchUpWords();
@@ -282,8 +255,8 @@ export function createAnchorPlacement() {
     bySection = new Map();
     pendingAnchor = draft.open ? draft.anchor : null;
     for (const [id, anchor] of [
-      ...all.map((thread) => /** @type {const} */ ([thread.id, thread.anchor])),
-      /** @type {const} */ ([DRAFT, pendingAnchor]),
+      ...all.map((thread) => [thread.id, thread.anchor]),
+      [DRAFT, pendingAnchor],
       ...savedAnchors,
     ]) {
       if (anchor?.quote) file(byQuote, anchor.quote, id);
@@ -353,12 +326,10 @@ export function createAnchorPlacement() {
   // hit test, which reads the marks they paint next; after the script, where the reader
   // is a view reading placement as it draws (`placedAt`), so a draw changes nothing
   // another draw has read.
-  /** @param {boolean} [heardNow] */
   function settle(heardNow = true) {
     catchUpWords();
     if (stale && anchoringIsReady()) {
       stale = false;
-      /** @type {Set<string>} */
       const ids = new Set();
       const changed = quotesChanged(seen);
       seen = changed.version;
@@ -413,19 +384,18 @@ export function createAnchorPlacement() {
   return Object.freeze({
     read,
     settle,
-    /** @param {(placed: Placed) => void} hear */
     hearPlaced: (hear) => {
       hearers.add(hear);
       return () => void hearers.delete(hear);
     },
-    placedAt: (/** @type {string | null | undefined} */ id) => {
+    placedAt: (id) => {
       settle(false);
       version.value;
       placements.read();
       return id == null ? undefined : placed.get(names.get(id)?.id ?? id);
     },
     // Where the saved comment draft with this context stands, placed as a thread is.
-    savedAt: (/** @type {string} */ context) => {
+    savedAt: (context) => {
       settle(false);
       version.value;
       placements.read();

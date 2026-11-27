@@ -1,3 +1,4 @@
+// Compiled from surface-handles.ts by build/typescript.mjs; edit that file.
 /* Access to host-registered thread surfaces, without importing the page that seats
    threads. The placement owner in surfaces.js holds each registration's lifetime;
    widgets can keep a handle before registration or across departure and return.
@@ -11,18 +12,15 @@ import { signal } from "/vendor/signals-core.js";
 import { tick } from "../../state/version-signal.js";
 
 // The placement owner writes the registrations; accessors read this same directory.
-/** @type {Map<Element, import("./surfaces.js").Registration>} */
 export const registrations = new Map();
 const registrationVersion = signal(0);
 
-/** @param {Element} owner @param {import("./surfaces.js").Registration | null} registration */
 export function setRegistration(owner, registration) {
   if (registration) registrations.set(owner, registration);
   else registrations.delete(owner);
   tick(registrationVersion);
 }
 
-/** @param {import("./surfaces.js").Registration} registration */
 export function updateSurface(registration) {
   if (registration.reconcileQueued) return;
   registration.reconcileQueued = true;
@@ -37,7 +35,6 @@ export function updateSurface(registration) {
 // open and nothing to release. A widget whose seats changed says so as it says any
 // change in what it holds, with `lf-layout`, which asks for a thread pass
 // (annotations/anchor-controls.js).
-/** @param {Element} owner */
 export const threadSurface = (owner) =>
   Object.freeze({
     get open() {
@@ -49,7 +46,6 @@ export const threadSurface = (owner) =>
     // to outlet, leaves the widget's outlet under `node` now, for where the next
     // commit would put it once `node` is gone, so the removal cannot take the user's
     // editor with it.
-    /** @param {Node} node */
     release(node) {
       const registration = registrations.get(owner);
       if (!registration) return;

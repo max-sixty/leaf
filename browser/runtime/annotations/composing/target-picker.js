@@ -1,3 +1,4 @@
+// Compiled from target-picker.ts by build/typescript.mjs; edit that file.
 /* This module owns the target picker and whole-page text search. Its transient hints,
  * search marks, and status are synchronous Lit projections over native controller state. */
 import { selectEnds } from "../../dom/native-selection.js";
@@ -90,7 +91,6 @@ pageSearchStatus.append(pageSearchWords);
 // count they move, the walk's one control for a finger and a mouse. A press leaves focus
 // in the field, so a phone's keyboard stays up and the next letter still edits the query.
 // Tab is their key, so they are no stop of its own.
-/** @param {"previous-match" | "next-match"} action */
 const matchStep = (action) => {
   const control = offerAction("symbol", "lf-page-search-step", undefined, { action });
   control.tabIndex = -1;
@@ -102,7 +102,6 @@ const nextMatchControl = matchStep("next-match");
 const pageSearchControls = [pageSearchStatus, previousMatchControl, nextMatchControl];
 const noMatches = "No matches";
 const searching = "Searching";
-/** @param {number} position @param {number} total */
 // Where the user stands among the matches, as every walk says it.
 const searchCount = (position, total) => `${position} of ${total}`;
 
@@ -137,26 +136,11 @@ const searchCount = (position, total) => `${position} of ${total}`;
 // the page after a direct `/`, or the visible hints after `s` then `/`. The interaction keeps
 // `?` available and claims the rest of the page's keyboard while it stands.
 
-/** @typedef {import("../../readings/passages.js").Segment[]} Match
- * @typedef {ReturnType<typeof keyBadgePlacement>} PlacementReading
- * @typedef {ReturnType<typeof keyBadgePlacement>["visibleBounds"] extends (...args: never[]) => infer T ? NonNullable<T> : never} VisibleBox
- * @typedef {import("../../readings/anchor-resolution.js").AimTarget} PickerTarget
- * @typedef {Object} TargetPickerOptions
- * @property {ReturnType<typeof import("../../features/anchor-travel.js").createAnchorTravel>["scrollToPassage"]} scrollToPassage
- * @property {(target: PickerTarget) => unknown} commentOnTarget
- * @property {() => unknown} updateFab
- * @property {() => boolean} pointerModeActive
- * @property {() => PickerTarget[]} readTargets
- * @property {() => unknown} armChanged
- * @property {(reading: {input: typeof pageSearchInput, controls: readonly HTMLElement[], open: boolean}) => unknown} searchInPanel
- */
 // A letter or digit, which a word runs on through.
 const WORD = /[\p{L}\p{N}]/u;
 // Words ended as a sentence, where they don't end in a stop or an ellipsis of their own.
-/** @param {string} words */
 const sentence = (words) => (/[.!?…]$/u.test(words) ? words : `${words}.`);
 
-/** @param {TargetPickerOptions} options */
 export function createTargetPicker({
   scrollToPassage,
   commentOnTarget,
@@ -177,9 +161,7 @@ export function createTargetPicker({
   // The search's matches are a signal because the walk's rows read them for the arrows'
   // availability, which follows the signals it reads (dom/keyboard/scopes.js): a query
   // that arrives with no key, as a paste does, offers the arrows all the same.
-  /** @type {import("@preact/signals-core").Signal<Match[]>} */
   const matches = signal([]);
-  /** @type {number | null} */
   let matchesIn = null; // the page reading `matches` were found in (`pageReadingVersion`)
   let matchesFor = ""; // the query they match
   let active = -1;
@@ -191,7 +173,6 @@ export function createTargetPicker({
   // finds the rest, a signal as it starts and ends: with the first match, all the arrows'
   // availability reads (`searchStands`). A step or a choice takes matches at once until
   // it can be answered as it would be with every match in (`settle`).
-  /** @type {import("@preact/signals-core").Signal<Iterator<Match | null> | null>} */
   const pending = signal(null);
   // Whether a step or a choice has a search to answer it: one with matches in, or one
   // still finding them, which `settle` finishes. A change to the page starts the search
@@ -200,12 +181,10 @@ export function createTargetPicker({
   // Where the search lands once it can tell: the match the search stood on before the
   // page changed, found again, else the match at its index; for a new query, the first
   // match at or below the top of the window, else the first. `show` brings it into view.
-  /** @type {{was: Match | null, index: number, show: boolean} | null} */
   let landing = null;
   // How long a slice searches before the page may draw.
   const SLICE_MS = 8;
   let searchReturnsToHints = false;
-  /** @type {{query: string, index: number} | null} */
   let repeatedSearch = null;
   const matchNodeId = objectIds();
 
@@ -216,7 +195,6 @@ export function createTargetPicker({
   // by what carries the words (readings/target-paint-geometry.js, `paintSet`), so no scroll
   // writes it.
   const marks = paintSet(markRoot);
-  /** @type {Map<number, HTMLElement>} */
   const markBoxes = new Map();
 
   // One reading of the room the user has, shared by every member of a pass: the clips
@@ -226,9 +204,7 @@ export function createTargetPicker({
   // Chromium retains geometry for descendants suppressed by a closed disclosure. Ask
   // visibility before geometry so those descendants cost no box reads. A display: contents
   // addressable has no box of its own and stays eligible through a visible child.
-  /** @param {PickerTarget} target */
   const hintElement = (target) => target.controlElement ?? target.element;
-  /** @param {PickerTarget} target @param {PlacementReading} reading */
   const targetBounds = (target, reading) =>
     union(
       (target.controlFaces ?? [hintElement(target)])
@@ -237,7 +213,6 @@ export function createTargetPicker({
           rect && reading.exposes(face, rect) ? [rect] : [],
         ),
     );
-  /** @param {PickerTarget} target */
   const targetShown = (target) => {
     const element = hintElement(target);
     return visibleTargetParts(element).length > 0;
@@ -245,7 +220,6 @@ export function createTargetPicker({
 
   // The first part of a match's lines the user can see, each piece clipped by what
   // clips its own block.
-  /** @param {Match} segments @param {PlacementReading} reading */
   function firstShown(segments, reading) {
     for (const { segment, block, lines } of segmentPieces(segments)) {
       const holder = segment.node.parentElement;
@@ -261,7 +235,6 @@ export function createTargetPicker({
     return null;
   }
 
-  /** @param {import("../../base/box.js").Box} a @param {import("../../base/box.js").Box} b */
   const sameVisibleBox = (a, b) =>
     Math.abs(a.left - b.left) < 0.5 &&
     Math.abs(a.top - b.top) < 0.5 &&
@@ -277,11 +250,7 @@ export function createTargetPicker({
         ...target,
         rect: targetBounds(target, reading),
       }))
-      .filter(
-        /** @returns {target is PickerTarget & {rect: NonNullable<ReturnType<typeof targetBounds>>}} */ (
-          target,
-        ) => target.rect !== null,
-      )
+      .filter((target) => target.rect !== null)
       .sort((a, b) => a.rect.top - b.rect.top || a.rect.left - b.rect.left);
     // Direct aiming chooses the innermost stable addressable under the pointer. When an
     // ancestor and descendant paint the same visible box, naming both would offer two
@@ -306,7 +275,6 @@ export function createTargetPicker({
   // hints' field offers and take it away again.
   // The picker's opener is the control the user was on as it opened (dom/focus.js,
   // `openLayer`); a close that restores hands them back to it as it closes.
-  /** @param {boolean} on @param {boolean} [restore] @param {"hints" | "search"} [mode] */
   function setTargetPicker(on, restore = false, mode = "hints") {
     if (on && (!anchoringIsReady() || (mode === "hints" && !canChoose()))) return;
     if (on) {
@@ -319,7 +287,6 @@ export function createTargetPicker({
     const opener = openerOf(pageSearchInput);
     closeLayer(() => paintTargetPicker(on, mode), landing && (() => handBack(opener)));
   }
-  /** @param {boolean} on @param {"hints" | "search"} mode */
   function paintTargetPicker(on, mode) {
     if (on) clearMatches();
     searchReturnsToHints = false;
@@ -361,10 +328,8 @@ export function createTargetPicker({
     landing = null;
   }
   // Whether a step from match `at` goes back past the first while the search runs.
-  /** @param {number} at @param {import("../../dom/keyboard/bindings.js").Step} direction */
   const stillFinding = (at, direction) =>
     pending.value !== null && direction < 0 && at === 0;
-  /** @param {boolean} on */
   function setPageSearch(on) {
     pickerMode.value = on ? "search" : "hints";
     presentSearchField();
@@ -392,7 +357,6 @@ export function createTargetPicker({
     searchReturnsToHints = fromHints;
   }
 
-  /** @param {Match} segments @param {PlacementReading} [reading] */
   function matchRect(segments, reading = room()) {
     return firstShown(segments, reading);
   }
@@ -422,7 +386,6 @@ export function createTargetPicker({
     render(html`${status}`, pageSearchWords);
   }
 
-  /** @param {Match} left @param {Match} right */
   function sameMatch(left, right) {
     return (
       left.length === right.length &&
@@ -435,7 +398,6 @@ export function createTargetPicker({
     );
   }
 
-  /** @param {string} query @param {Match} segments */
   function matchIdentity(query, segments) {
     const parts = segments.map(
       ({ node, start, end }) => `${matchNodeId(node)}:${start}:${end}`,
@@ -443,7 +405,6 @@ export function createTargetPicker({
     return `${query}\u0000${parts.join(",")}`;
   }
 
-  /** @param {Match} segments */
   function matchIsRangeable(segments) {
     return (
       segments.length > 0 &&
@@ -454,7 +415,6 @@ export function createTargetPicker({
     );
   }
 
-  /** @param {Match} segments */
   function selectionIs(segments) {
     const selection = getSelection();
     if (
@@ -474,7 +434,6 @@ export function createTargetPicker({
     );
   }
 
-  /** @param {string} query */
   function matchWalkPosition(query) {
     const selected = matches.value[active];
     if (!query || !selected || !matchIsRangeable(selected)) return null;
@@ -491,8 +450,6 @@ export function createTargetPicker({
 
   // Starts a search for `query`, landing as `to` says, or nowhere without it, and takes
   // its first slice.
-  /** @param {string} query @param {{ was: Match | null, index: number, show: boolean } | null} to
-   * @returns {void} */
   function find(query, to) {
     matchesIn = pageReadingVersion();
     matchesFor = query;
@@ -518,7 +475,6 @@ export function createTargetPicker({
   // One slice of the standing search, and the next asked for while it stands. The count
   // is drawn each slice, and the page after the first, where the search lands and where
   // it ends.
-  /** @param {boolean} [first] @returns {void} */
   function findMore(first = false) {
     const search = pending.value;
     if (search && pageReadingVersion() !== matchesIn) {
@@ -538,9 +494,8 @@ export function createTargetPicker({
 
   // Takes the standing search's matches until `enough` holds of them or the clock passes
   // `until`, landing it as soon as a match tells where; whether it landed.
-  /** @param {(found: Match[]) => boolean} enough @param {number} until */
   function take(enough, until) {
-    const search = /** @type {Iterator<Match | null>} */ (pending.value);
+    const search = pending.value;
     const found = matches.value;
     const from = found.length;
     for (let next = search.next(); ; next = search.next()) {
@@ -569,7 +524,6 @@ export function createTargetPicker({
   }
   // Whether the search lands on `match`: the match it stood on, found again, or for a
   // new query the first at or below the top of the window.
-  /** @param {Match} match @param {Match | null} was */
   const landsOn = (match, was) =>
     was ? sameMatch(match, was) : segmentsBox(match).bottom > 0;
 
@@ -579,11 +533,9 @@ export function createTargetPicker({
   // step after a match revealed a closed tab waits for the match it stood on. A step
   // back past the first match is the one step whose match comes last, so while the
   // search runs it stays put (`stillFinding`) rather than wait for all of it.
-  /** @param {(found: Match[]) => boolean} [more] */
   function settle(more = () => true) {
     if (pending.value && pageReadingVersion() !== matchesIn) restart();
     else refreshMatches();
-    /** @param {Match[]} found */
     const enough = (found) => (active >= 0 || !landing) && more(found);
     if (!pending.value || enough(matches.value)) return;
     take(enough, Infinity);
@@ -625,7 +577,6 @@ export function createTargetPicker({
     scrollToPassage(segments, "instant");
   }
 
-  /** @param {import("../../dom/keyboard/bindings.js").Step} direction */
   function moveMatch(direction) {
     settle((found) => direction < 0 || active + 1 < found.length);
     const found = matches.value;
@@ -649,7 +600,6 @@ export function createTargetPicker({
   // joins its neighbours with no space put between, so it reads back as the word; one
   // at a text node's edge is parted by a space, as words in separate nodes most often
   // are.
-  /** @param {Match} segments */
   function matchDescription(segments) {
     const { before, after } = contextAround(
       readingHolding(segments[0]?.node ?? document.body),
@@ -657,10 +607,7 @@ export function createTargetPicker({
     );
     const first = segments[0];
     const last = segments.at(-1);
-    const inWord = /** @param {string | undefined} a @param {string | undefined} b */ (
-      a,
-      b,
-    ) => Boolean(a && b && WORD.test(a) && WORD.test(b));
+    const inWord = (a, b) => Boolean(a && b && WORD.test(a) && WORD.test(b));
     const joinsBefore =
       first && inWord(first.node.data[first.start - 1], first.node.data[first.start]);
     const joinsAfter =
@@ -669,7 +616,6 @@ export function createTargetPicker({
     return `${before ? `…${before}${joinsBefore ? "" : " "}` : ""}${phrase}${after ? `${joinsAfter ? "" : " "}${after}…` : ""}`;
   }
 
-  /** @param {PickerTarget} candidate */
   function chooseTarget(candidate) {
     const target = captured(candidate);
     closeTargetPicker();
@@ -691,7 +637,6 @@ export function createTargetPicker({
     announce(() => `${match} ${saying([REPEAT_PAGE_SEARCH, ...commentRows()])}`);
   }
 
-  /** @param {Match} segments @param {string} query */
   function landOnMatch(segments, query) {
     releaseFocus();
     const first = segments[0];
@@ -706,7 +651,6 @@ export function createTargetPicker({
   // landed on, as where the selection that should hold it holds other words.
   const matchPlace = () => walkPositionLabel("Match", active + 1, matches.value.length);
 
-  /** @param {import("../../dom/keyboard/bindings.js").Step} direction */
   function repeatSearch(direction) {
     const repetition = repeatedSearch;
     if (!repetition) return;
@@ -743,7 +687,6 @@ export function createTargetPicker({
     announce("Target picker closed.");
   }
 
-  /** @param {{className: string, hintCode: string, sequence: ReturnType<typeof keySequenceModel>}} model */
   const hintTemplate = (model) =>
     html`<span class=${model.className} data-lf-hint-code=${model.hintCode}
       >${keySequenceTemplate(model.sequence)}</span
@@ -751,7 +694,6 @@ export function createTargetPicker({
 
   // The picker's hints and the open search's marks are two faces in one layer, and only
   // one of them stands at a time: search covers the map that opened it.
-  /** @type {import("../../readings/key-badges/hints.js").HintSessionOptions<ReturnType<typeof visibleTargets>[number], {key: number, className: string, hintCode: string, sequence: ReturnType<typeof keySequenceModel>} >} */
   const hintOptions = {
     layer: hintRoot,
     read: visibleTargets,
@@ -823,7 +765,6 @@ export function createTargetPicker({
     hints.paint();
   }
 
-  /** @type {import("../../dom/keyboard/bindings.js").Command} */
   const PAGE_SEARCH = {
     id: "page.search.open",
     // A finger can select words it can see, but not find them elsewhere on a long page.
@@ -835,7 +776,6 @@ export function createTargetPicker({
     run: openPageSearch,
   };
 
-  /** @type {import("../../dom/keyboard/bindings.js").Command} */
   const REPEAT_PAGE_SEARCH = {
     id: "page.search.repeat",
     touch: false,
@@ -868,7 +808,6 @@ export function createTargetPicker({
   // as a step of its own (`TARGETING_LETTER`), so the way out's words, key and press
   // always end what they name.
   const lettersTyped = () => !pageSearchOpen() && Boolean(hints.prefix());
-  /** @type {import("../../dom/keyboard/bindings.js").Command} */
   const TARGETING_LETTER = {
     id: "targeting.letter.back",
     keys: ["Escape"],
@@ -877,7 +816,6 @@ export function createTargetPicker({
     when: lettersTyped,
     run: () => hints.backOneLetter(),
   };
-  /** @type {import("../../dom/keyboard/bindings.js").Command} */
   const TARGETING_BACK = {
     id: "targeting.back",
     keys: () => (lettersTyped() ? [] : ["Escape"]),
@@ -893,11 +831,9 @@ export function createTargetPicker({
     run: back,
   };
 
-  /** @param {string} binding */
   const targetingClaims = (binding) =>
     allButCommandReference(binding) && !bindings(PAGE_SEARCH).includes(binding);
 
-  /** @type {import("../../dom/keyboard/bindings.js").Command} */
   const TARGET_HINT_TYPE = {
     id: "target.picker.hint.type",
     touch: false,
@@ -909,7 +845,6 @@ export function createTargetPicker({
     runKey: hints.type,
   };
 
-  /** @type {import("../../dom/keyboard/bindings.js").Scope} */
   const TARGET_PICKER_SCOPE = {
     title: "In the target picker",
     says: "Select",
@@ -942,7 +877,6 @@ export function createTargetPicker({
       scope === ELEMENTS ? [] : scope.rows.filter((row) => row.id === "comment.create"),
     );
 
-  /** @type {import("../../dom/keyboard/bindings.js").Scope} */
   const PAGE_SEARCH_SCOPE = {
     title: "In page search",
     escape: "inner",
@@ -1002,7 +936,6 @@ export function createTargetPicker({
   // match only through the block holding its words, so a control painted over them
   // keeps its own.
   let pressOnMatch = false;
-  /** @param {MouseEvent} ev */
   function onMarkedMatch(ev) {
     if (!pageSearchOpen() || ev.button !== 0) return false;
     refreshMatches();
@@ -1015,7 +948,6 @@ export function createTargetPicker({
         block && path.includes(block) && lines.some((rect) => holds(rect, x, y)),
     );
   }
-  /** @param {MouseEvent} ev */
   function pressMatch(ev) {
     if (ev.type === "mousedown") pressOnMatch = onMarkedMatch(ev);
     if (!pressOnMatch) return;
@@ -1031,7 +963,6 @@ export function createTargetPicker({
     // render is ready before a search gesture asks for focus (including on a phone).
     presentSearchField();
     pageSearchInput.addEventListener("input", search);
-    /** @type {readonly ("mousedown" | "mouseup" | "click")[]} */
     const mouseEvents = ["mousedown", "mouseup", "click"];
     for (const type of mouseEvents) document.addEventListener(type, pressMatch, true);
     hints.mount();

@@ -1,3 +1,4 @@
+// Compiled from semantic-news.ts by build/typescript.mjs; edit that file.
 /* Meaningful news from complete, accepted page readings.
 
    The server owns thread content, user obligations and response conditions. This
@@ -31,20 +32,12 @@ import { agentSays, leafSays } from "../base/voice.js";
 import { counted, excerptWords } from "../lib/words.js";
 import { NOTHING_ON_ME } from "../state/queues.js";
 
-/** @import { ObligationNews, SemanticNews } from "../../types/domain.js" */
-/** @typedef {ReturnType<typeof semanticNewsReading>} NewsReading
- * @typedef {{content: Set<string>, failures: Set<string>, obligations: Set<string>,
- * obligationEpisodes: Map<string, number>, onMe: number}} ObservedNews
- */
-
-/** @param {{attempt?: string | null, id?: string | null}} record */
 const identity = (record) => record.attempt ?? record.id;
 
 // News reads the shown revision's view: the one the page just presented, whose On Me list
 // the floating panel counts. While an activation waits (a gesture defers it, or
 // the document is a pinned version), an obligation the active revision adds is not on this
 // page yet; it becomes news when a revision holding it is presented.
-/** @param {ReturnType<typeof import("../state/semantic-state.js").readApplication>} root */
 export function semanticNewsReading(root) {
   const view = root.effective.view;
   if (!view) throw new Error("The shown page has no browser reading");
@@ -61,7 +54,6 @@ export function semanticNewsReading(root) {
 // Unread agent content in the threads that announce it, oldest first. A failure reply
 // is unread content too, but its news is the failed response's, announced from its
 // workflow.
-/** @param {NewsReading["thread"]} threadView */
 function unreadContent(threadView) {
   return threadView.threads
     .filter(announces)
@@ -78,9 +70,7 @@ function unreadContent(threadView) {
 // What the page asks of the user, with the agent message that holds each, if any. An
 // update handed back to them is news through its failed response (`responseFailures`),
 // not a second time as an obligation.
-/** @param {NewsReading["obligations"]} items */
 function userObligations(items) {
-  /** @type {Map<string, Pick<ObligationNews, "source" | "thread" | "message">>} */
   const held = new Map();
   for (const item of items) {
     if (item.next_actor !== "user" || item.source.kind === "update") continue;
@@ -95,9 +85,7 @@ function userObligations(items) {
   return held;
 }
 
-/** @param {NewsReading["workflows"]} workflows */
 function responseFailures(workflows) {
-  /** @type {Map<string, {key: string, kind: "failed" | "interrupted", input: string, thread: string | null, seq: number}>} */
   const failures = new Map();
   for (const workflow of workflows) {
     if (
@@ -120,7 +108,6 @@ function responseFailures(workflows) {
   return failures;
 }
 
-/** @param {ObservedNews | null} prior @param {NewsReading} reading */
 export function observeSemanticNews(prior, reading) {
   const content = unreadContent(reading.thread);
   const obligations = userObligations(reading.obligations);
@@ -133,7 +120,6 @@ export function observeSemanticNews(prior, reading) {
     obligationEpisodes: new Map(prior?.obligationEpisodes),
     onMe: reading.onMe,
   };
-  /** @type {SemanticNews[]} */
   const news = [];
 
   for (const { thread, message, version } of content) {
@@ -183,34 +169,28 @@ export function observeSemanticNews(prior, reading) {
 // A waiting status-line notice drops assertions that the latest successfully
 // presented reading has since superseded. In particular,
 // an answer can replace a failure while the user's own command holds the line.
-/** @param {readonly SemanticNews[]} news @param {NewsReading} reading @param {ObservedNews} observed @returns {SemanticNews[]} */
 export function currentSemanticNews(news, reading, observed) {
   const versions = new Set(unreadContent(reading.thread).map(({ version }) => version));
   const obligations = userObligations(reading.obligations);
   const failures = responseFailures(reading.workflows);
-  return news.flatMap(
-    /** @returns {SemanticNews[]} */ (item) => {
-      if (item.kind === "agent_content")
-        return versions.has(item.version) ? [item] : [];
-      if (item.kind === "response_failure") {
-        const current = failures.get(item.key.slice("response:".length));
-        return current ? [{ ...item, condition: current.kind }] : [];
-      }
-      if (item.kind === "on_me_empty") return reading.onMe === 0 ? [item] : [];
-      return obligations.has(item.sourceKey) &&
-        item.episode === observed.obligationEpisodes.get(item.sourceKey)
-        ? [item]
-        : [];
-    },
-  );
+  return news.flatMap((item) => {
+    if (item.kind === "agent_content") return versions.has(item.version) ? [item] : [];
+    if (item.kind === "response_failure") {
+      const current = failures.get(item.key.slice("response:".length));
+      return current ? [{ ...item, condition: current.kind }] : [];
+    }
+    if (item.kind === "on_me_empty") return reading.onMe === 0 ? [item] : [];
+    return obligations.has(item.sourceKey) &&
+      item.episode === observed.obligationEpisodes.get(item.sourceKey)
+      ? [item]
+      : [];
+  });
 }
 
 // The one moment the panel's leaf answers a reading's news with (transport/notifications.js,
 // `gesture`), as it arrives: On Me emptying, else something new on it, which may come
 // with the agent's words that ask it, else those words. A failed response moves
 // nothing.
-/** @param {readonly SemanticNews[]} news
- * @returns {import("../transport/notifications.js").Moment | null} */
 export function newsMoment(news) {
   if (news.some((item) => item.kind === "on_me_empty")) return "on-me-empty";
   if (news.some((item) => item.kind === "user_obligation")) return "new-on-me";
@@ -218,7 +198,6 @@ export function newsMoment(news) {
   return null;
 }
 
-/** @param {readonly SemanticNews[]} older @param {readonly SemanticNews[]} newer */
 export function combineSemanticNews(older, newer) {
   return [...new Map([...older, ...newer].map((item) => [item.key, item])).values()];
 }
@@ -232,12 +211,10 @@ export function combineSemanticNews(older, newer) {
 // italic (glossary.md, "Reader-facing words"): what became of an answer, the counts, and
 // what else is new on the user's list by the list's name.
 const MESSAGE_WORDS = 60;
-/** @param {readonly SemanticNews[]} news */
 export function semanticNewsNotice(news) {
   const content = news.filter((item) => item.kind === "agent_content");
   const failures = news.filter((item) => item.kind === "response_failure");
   let obligations = news.filter((item) => item.kind === "user_obligation");
-  /** @type {import("../base/voice.js").Said[][]} */
   const clauses = [];
 
   const single = content.length === 1 ? content[0] : null;

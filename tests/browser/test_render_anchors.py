@@ -1951,13 +1951,13 @@ def test_shell_commands_share_colors_in_plain_code_widgets_and_diffs(browser, se
           const bad = [];
           for (const lang of langs) {
             try {
-              const file = parsePatchFiles(source, undefined, true)[0].files[0];
+              const file = parsePatchFiles(source, { throwOnError: true })[0].files[0];
               file.lang = lang;
               const renderer = new DiffHunksRenderer({
                 theme: themeName, diffStyle: 'unified', useTokenTransformer: false,
               });
               const rendered = await renderer.asyncRender(file);
-              const html = renderHTML(rendered.unifiedContentAST);
+              const html = renderHTML(rendered.columns.unified.map((row) => row.content));
               if (!html.includes('new')) bad.push([lang, 'rendered no source']);
             } catch (error) {
               bad.push([lang, String(error)]);

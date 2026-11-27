@@ -1,0 +1,245 @@
+/* This module owns registry loading, pre-upgrade passage fences, dynamic widget
+ * imports, and initial presentation. */
+import { isElement } from "../lib/shadow-tree.js";
+
+import {
+  paintDeclaredWords,
+  watchNativeContent,
+  watchQuietWords,
+} from "./declared-words.js";
+import { watchCodeBlocks } from "./code-copy.js";
+import { watchHeadingLinks } from "./heading-links.js";
+import { watchRootHeaders } from "../dom/root-headers.js";
+import { reachScrollers } from "../dom/reach.js";
+import { adoptRegistry, registry, tagsDeclaring, upgrades } from "../state/registry.js";
+import { loadShadowRules } from "../dom/shadow.js";
+import { revealLayer, sameLayer } from "../transport/layer-client.js";
+import {
+  applicationState,
+  attachApplicationPresentation,
+  readApplication,
+  whenApplicationPresented,
+  whenWidgetsPresented,
+} from "../state/semantic-state.js";
+import { rememberAuthoredParents, stageAuthoredStates } from "./projection/authored.js";
+import { bindWidgetDescriptors, stageWidgetDescriptors } from "./widget-descriptors.js";
+import { fencePassageParts } from "../readings/passages.js";
+import {
+  offlineInteractive,
+  runtimeModule,
+  runtimeResource,
+} from "../state/context.js";
+import { loadDeclaredMarkdown, formatDeclaredMarkdown } from "./page-markdown.js";
+import { widgetImports } from "../state/widget-imports.js";
+
+/* Registry loading and the one initial widget-upgrade lifecycle.
+
+   A page loads what it uses. `importWidgetModules` is the one import-on-demand door: it takes
+   the markup about to be upgraded, imports each declared tag standing in it once per
+   tab. Shared dependency preparation loads shadow rules where the scope
+   holds or declares creation of a `shadow` widget, alongside any declared Markdown parser. Three
+   boundaries introduce markup and all three use it — startup with the document, a
+   version activation with the incoming authored body, and the state application with the
+   markup an agent's reply carries, ahead of the panel building a body. Each of them
+   names the tags it needs, so nothing imports on a mutation after the element is already
+   connected. A module whose own payload is large (`lf-diff`'s renderer) imports it on
+   first render for the same reason. `missingUpgrades` therefore reports the page's own
+   widgets; that a declared module exists at all stays `package check`'s. An offline
+   export embeds only the widget modules these boundaries can ask for
+   (`_module_urls` in `exporting.py`), so a new boundary is one it has to read too.
+
+   Preloading a revision leaves its authored document intact; only copied arrival nodes
+   are formatted, after typed initial values and descriptors are captured and before
+   connection. Startup and thread messages format after their own source capture.
+
+   Required widget imports reject through the startup or activation boundary; a missing
+   module cannot count as a completed upgrade. */
+// An opaque widget and its original direct children fence passage capture. Record them
+// before upgrades move or replace nodes.
+const rememberedPassageRoots = new WeakSet();
+
+type Scope = Document | DocumentFragment | Element;
+
+// Root-inclusive, like every reading of arriving markup: when a live revision brings a
+// single widget, the scope is that widget.
+const within = (scope: Scope, selector: string) => [
+  ...(isElement(scope) && scope.matches(selector) ? [scope] : []),
+  ...scope.querySelectorAll(selector),
+];
+
+export function rememberPassageParts(
+  scope: Scope = document,
+  original: (node: Element) => Element = (node) => node,
+) {
+  for (const tag of tagsDeclaring((entry, tag) => upgrades(tag) && !entry.verbatim))
+    for (const root of within(scope, tag)) {
+      const live = original(root);
+      if (rememberedPassageRoots.has(live)) continue;
+      rememberedPassageRoots.add(live);
+      fencePassageParts(live, [...root.children].map(original));
+    }
+}
+
+// The one import-on-demand door: a page loads the modules its own markup uses and no
+// others. The vocabulary is the layer's and the page is one document in it, so
+// importing every declared tag would make every page pay for the whole layer.
+//
+// Three boundaries can bring a tag into the document and all three ask here: startup,
+// a version activation, and the panel's instantiation of the markup an agent
+// message carries. Each of them holds the markup it is about to upgrade, so each can
+// name what it needs; a MutationObserver could only import after the element was
+// already connected, which is the one order the startup contract forbids.
+//
+// Native ESM imports share the module's loading and evaluation across callers.
+// Rejections reach startup and activation, which must not present markup whose
+// required module is absent.
+const registryUrl = () => runtimeResource("/registry.json");
+const widgetUrl = (tag: string) =>
+  offlineInteractive
+    ? runtimeModule(`/widgets/${tag}.js`)
+    : runtimeResource(`/widgets/${tag}.js`);
+
+async function loadWidgetDependencies(scope: Scope) {
+  // Before the modules import, because a widget's first render asks for these rules and
+  // an async stage would put every `shadow` widget's look a fetch behind its own
+  // nodes. The creating module imports its child's constructor; its declaration brings
+  // the child's shared rules in before even the first child exists. The rules are read
+  // once for the tab however many scopes ask.
+  await Promise.all([
+    loadDeclaredMarkdown(scope),
+    ...(widgetImports(scope, registry).shadow ? [loadShadowRules()] : []),
+  ]);
+}
+
+async function importWidgetModules(scope: Scope) {
+  const required = widgetImports(scope, registry);
+  await Promise.all(required.modules.map((tag) => import(widgetUrl(tag))));
+}
+
+// Source-only preparation must not consume authored body records. Live revisions
+// import ahead of activation, then format their copied arrivals after typed capture.
+export async function preloadWidgets(scope: Scope) {
+  await loadWidgetDependencies(scope);
+  await importWidgetModules(scope);
+}
+
+// Startup and thread-message presentation may consume their captured markup. Format
+// before module imports can synchronously connect an already-present custom element.
+export async function importWidgets(scope: Scope) {
+  await loadWidgetDependencies(scope);
+  formatDeclaredMarkdown(scope);
+  await importWidgetModules(scope);
+}
+
+// The upgrade lifecycle for the whole authored body, at startup: read it while it is
+// still what its author wrote, import what its tags declare, and paint its declared words.
+async function installDocument(scope: Element) {
+  const presentation = attachApplicationPresentation("document:installation");
+  try {
+    watchNativeContent();
+    watchQuietWords();
+    watchCodeBlocks();
+    watchHeadingLinks();
+    watchRootHeaders();
+    await importWidgets(scope);
+    await settle(presentation, scope, [scope], whenApplicationPresented);
+  } finally {
+    presentation.disconnect();
+  }
+}
+
+// The same lifecycle for a revision patched into the document a user is in.
+// What arrives is scattered through the page rather than being one subtree, so each step
+// takes the nodes it applies to. The pre-upgrade readings belong to each arrival, before
+// insertion hands a widget's children to its controller, so `patch` makes them as it goes
+// and answers with the roots it brought. Dressing the page instead of those would
+// re-tokenize a code block no revision touched and hand its spans back as new nodes,
+// which is the user's own page rebuilt under them. Modules are asked for earlier still,
+// off the arriving document, so the install spends nothing on a fetch.
+//
+// A patch runs inside the state turn that brought the revision, and that answer may
+// carry more than the revision: a data replacement for a widget the revision left
+// in place reaches that widget only after the turn adopts the answer. So the patch
+// waits for the widgets it brought and for its own dressing, never for the whole
+// application — that wait would be on a renderer whose turn cannot come until this one
+// returns, and a page that stops there has stopped answering with nothing said.
+export async function patchDocument<T extends { roots: Element[]; widgets: string[] }>(
+  scope: Element,
+  patch: () => T,
+) {
+  const presentation = attachApplicationPresentation("document:patch");
+  try {
+    const { roots, widgets, ...result } = patch();
+    await settle(presentation, scope, roots, () => whenWidgetsPresented(widgets));
+    return result;
+  } finally {
+    presentation.disconnect();
+  }
+}
+
+// What arriving markup owes the document once it stands in it: the dressing passes over
+// each root, then the reading that is of the document rather than of the markup: where
+// the keyboard can reach. Authored state was already captured from source markup
+// before any module could turn that input into presentation. `presented` is the wait
+// each caller owes: the whole application at startup, the widgets it brought for a patch.
+async function settle(
+  presentation: ReturnType<typeof attachApplicationPresentation>,
+  scope: Element,
+  arrived: Element[],
+  presented: () => Promise<unknown>,
+) {
+  const painted = Promise.all(arrived.map(paintDeclaredWords));
+  const presenting = presentation.present();
+  presenting.resolve(painted);
+  await presenting.ready;
+  await presented();
+  reachScrollers(scope);
+}
+
+/** The authored document as the page first stood, and the live node each of its
+ * nodes became (features/version.js, `InitialDocument`). */
+export async function prepareDocument(captured: {
+  source: Element | null;
+  pairs: { require: (node: Element) => Element };
+}) {
+  // A revision asset, whose headers may be cached from an earlier release
+  // (`admitResponse`). The initial state read answers for the server, and the
+  // registry's own `$layer` for its layer.
+  const response = await fetch(registryUrl());
+  if (!response.ok)
+    throw new Error(`leaf: registry failed to load (${response.status})`);
+  adoptRegistry(await response.json());
+  if (!sameLayer(registry.$layer.generation)) return false;
+  const scope = captured.source;
+  if (!scope) throw new Error("The initial document has no authored root");
+  const original = (node: Element) => captured.pairs.require(node);
+  rememberPassageParts(scope, original);
+  rememberAuthoredParents(scope, null, original);
+  const descriptors = stageWidgetDescriptors(scope);
+  const authored = stageAuthoredStates(scope);
+  const prior = readApplication().document;
+  applicationState.captureDocument({
+    ...prior,
+    registry: { ...registry },
+    authored: new Map([...prior.authored, ...authored]),
+    descriptors: new Map([...prior.descriptors, ...descriptors.descriptors]),
+  });
+  bindWidgetDescriptors(
+    descriptors.bindings.map(({ element, descriptor }) => ({
+      element: original(element),
+      descriptor,
+    })),
+  );
+  return true;
+}
+
+export async function upgradeWidgets({
+  buildReactionBar,
+}: {
+  buildReactionBar: () => void;
+}) {
+  revealLayer();
+  buildReactionBar();
+  await installDocument(document.body);
+  return true;
+}

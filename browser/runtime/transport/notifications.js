@@ -1,3 +1,4 @@
+// Compiled from notifications.ts by build/typescript.mjs; edit that file.
 /* Notices and announcements.
 
    News arriving without the user's send gesture may show a notice but does not move
@@ -57,17 +58,6 @@ import { leafSays, wordsText } from "../base/voice.js";
 import { onUserInput } from "../dom/focus.js";
 import { saying } from "../dom/keyboard/control-keys.js";
 
-/** @typedef {import("../base/voice.js").Words} Words
- * @typedef {import("../../types/domain.js").SemanticNews} SemanticNews
- * @typedef {"notice" | "walk" | "error" | "pickup" | "version" | "reply" | "new-on-me" | "on-me-empty"} Moment
- * @typedef {{key: "semantic-news", value: readonly SemanticNews[],
- * combine: (older: readonly SemanticNews[], newer: readonly SemanticNews[]) => readonly SemanticNews[],
- * format: (value: readonly SemanticNews[]) => Words}} SemanticBackground
- * @typedef {SemanticBackground | {key: "text", value: Words, stands: (() => boolean) | null,
- * press: NoticePress | null}} Background
- * @typedef {{action: string, command: string | null, run?: () => unknown, stands: () => boolean}} NoticePress
- */
-
 export const liveEl = el("div", "lf-ui lf-live");
 liveEl.setAttribute("aria-live", "polite");
 
@@ -82,9 +72,7 @@ let noticeTimer = 0;
 let holding = false;
 // Ends the watch on what the standing notice says (`showNotice`).
 let stopWatching = () => {};
-/** @type {Background | null} */
 let showingBackground = null;
-/** @type {Background[]} */
 const waitingBackground = [];
 let userContext = false;
 // What the seat says, whether it shows, the press it offers, or null: the action it
@@ -92,7 +80,6 @@ let userContext = false;
 // can, as `{action, keys, run, stands}`; and whether it is news, which answers
 // no gesture of the user's. Errors are no notices: they go through errors.js, which
 // keeps them until they are dealt with.
-/** @type {import("@preact/signals-core").Signal<Readonly<{message: Words, visible: boolean, press: NoticePress | null, about: string | null, news: boolean}>>} */
 const noticePresentation = signal(
   Object.freeze({
     message: "",
@@ -106,10 +93,8 @@ const noticePresentation = signal(
 export const noticeReading = () => noticePresentation.value;
 
 // The latest moment the leaf answers, with its ordinal among them (`beat`).
-/** @type {import("@preact/signals-core").Signal<Readonly<{moment: Moment | null, beat: number}>>} */
 const gestures = signal(Object.freeze({ moment: null, beat: 0 }));
 export const gestureReading = () => gestures.value;
-/** @param {Moment} moment */
 export function gesture(moment) {
   gestures.value = Object.freeze({ moment, beat: gestures.peek().beat + 1 });
 }
@@ -119,19 +104,15 @@ const noticeVisible = () => noticePresentation.peek().visible;
 // relays the agent's words too is given as parts, each said by whoever says it
 // (host/semantic-news.js), which the seat draws apart and the live region hears as one line
 // (base/voice.js).
-/** @param {Words} message */
 export const noticeWords = (message) =>
   typeof message === "string" ? [leafSays(message)] : message;
 
 // The reading changes in the gesture's task. Its seat paints visible news immediately
 // and coalesces a withdrawal until the script ends, so replacing a notice paints once.
-/** @param {Words} message @param {boolean} visible @param {NoticePress | null} [press]
- * @param {string | null} [about] @param {boolean} [news] */
 const presentNotice = (message, visible, press = null, about = null, news = false) => {
   noticePresentation.value = Object.freeze({ message, visible, press, about, news });
 };
 
-/** @param {Words | (() => Words)} msg */
 export function announce(msg) {
   // Removing and restoring the text node makes repeated identical announcements a
   // fresh live-region change, including when two arrivals' delays overlap. Words read
@@ -162,8 +143,6 @@ addEventListener(ANNOUNCE, ({ detail }) =>
 // draws it where it was made; the live region alone hears it (host/application.js,
 // `named`). A notice offering a press (`press`) has the field's end say that press's
 // word and key, where the page's own press stands at rest.
-/** @param {Words} msg @param {Background | null} background @param {NoticePress | null} [press]
- * @param {(() => boolean) | null} [stands] @param {string | null} [about] @param {boolean} [holds] */
 function showNotice(
   msg,
   background = null,
@@ -229,7 +208,6 @@ onUserInput((event) => {
 // A producer may retire a deferred assertion before it reaches the seat, as news whose
 // words no longer hold has. Skip it without spending a visible interval, then take the
 // next queued group.
-/** @param {Background | undefined} entry */
 function showBackground(entry) {
   while (entry) {
     const message = entry.key === "text" ? entry.value : entry.format(entry.value);
@@ -244,8 +222,6 @@ function showBackground(entry) {
   return false;
 }
 
-/** @param {Words} message @param {(() => boolean) | null} stands
- * @param {NoticePress | null} press @returns {Background} */
 const textBackground = (message, stands, press) => ({
   key: "text",
   value: message,
@@ -256,7 +232,6 @@ const textBackground = (message, stands, press) => ({
 // The producer supplies what makes two deferred notices one piece of news. An
 // interrupted displayed entry is older than anything already waiting under its key;
 // ordinary new arrivals are newer. One pending entry per key bounds the backlog.
-/** @param {Background} entry */
 function queueBackground(entry, front = false) {
   const waiting = waitingBackground.find((waiting) => waiting.key === entry.key);
   if (waiting) {
@@ -281,9 +256,6 @@ function queueBackground(entry, front = false) {
 // offering a press stands while its press does too. `about` names the fact where the
 // user stands that the notice reports a change to (the header). `holds` keeps a notice
 // past its time until the user's next input, as one with a press stays (above).
-/** @param {Words} msg @param {{background?: boolean, announce?: boolean, group?: SemanticBackground | null,
- * press?: NoticePress | null, stands?: (() => boolean) | null, about?: string | null,
- * holds?: boolean}} options */
 export function notice(
   msg,
   {
@@ -344,7 +316,6 @@ export function answerStep() {
 
 // Persistent command context outranks background news and pauses its visible interval.
 // A foreground notice may still replace the context briefly, then the context returns.
-/** @param {boolean} active */
 export function setNoticeContext(active) {
   userContext = active;
   if (active && showingBackground) yieldNotice();

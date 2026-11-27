@@ -1,3 +1,4 @@
+// Compiled from margin-model.ts by build/typescript.mjs; edit that file.
 /* What each margin cluster shows, chosen from values the browser captured.
 
    `marginEntry` takes a target's margin contributions and the readings Leaf generated
@@ -34,40 +35,6 @@ import {
 import { threadAttention } from "../records/thread/workflow.js";
 import { leafSays, wordsText } from "../base/voice.js";
 
-/** @typedef {import("../base/contribution-model.js").ContributionModel} Offer
- * @typedef {import("../base/contribution-model.js").OwnedEntry} RecordEntry
- * @typedef {import("../base/contribution-model.js").ContributionKind} Kind
- * @typedef {import("../base/contribution-model.js").ContributionState} State
- * @typedef {import("../base/contribution-model.js").KindFace} KindFace
- * @typedef {import("../../types/domain.js").Workflow} Workflow
- * @typedef {{word: import("../base/voice.js").Words, reason: string}} UserAttention
- * @typedef {{id: string, text: string, owner?: string, marker?: boolean,
- * represents?: boolean, workflowFace?: KindFace & {state?: State}, workflowReceipt?: Workflow | null,
- * carriesWorkflow?: boolean, state?: State, label?: string | null, subject?: string,
- * userAttention?: UserAttention | null, unread?: number, context?: import("../base/voice.js").Words | null,
- * mapContext?: import("../base/voice.js").Words | null, words?: import("../base/voice.js").Words, atWork?: boolean,
- * cardOpen?: boolean, draft?: string}} AnnotationBase
- * @typedef {AnnotationBase & {kind: "comment", marker?: true, thread: import("../records/thread/workflow.js").ThreadRecord}} ThreadItem
- * @typedef {ThreadItem | (AnnotationBase & {kind: Exclude<Kind, "comment">, thread?: never}) | (AnnotationBase & {kind: "comment", marker: false, owner: string, thread?: never})} AnnotationItem
- */
-/** @template {Offer} [O=Offer]
- * @typedef {{key: string, targetId: string, title: string, offers: readonly O[],
- * items: readonly AnnotationItem[], workflowReceipt?: Workflow | null, atWork?: boolean}} MarginGroup
- */
-/** @typedef {{key: string, kind: "comment", items: readonly [ThreadItem, ...ThreadItem[]], text: string}} ThreadChoice
- * @typedef {ThreadChoice | {key: string, kind: Exclude<Kind, "comment">, items: readonly [AnnotationItem, ...AnnotationItem[]], text: string}} ReadingChoice
- * @typedef {{key: string, owner: string, receipt: Workflow}} WorkflowCarrier
- */
-/** @template {Offer} [O=Offer]
- * @typedef {MarginGroup<O> & {controls: readonly Control<O>[], afterControls: readonly Control<O>[],
- * choices: readonly ReadingChoice[], state: State, hasMarginHost: boolean, workflowCarrier: WorkflowCarrier | null}} MarginEntry
- */
-/** @template {Offer} [O=Offer]
- * @typedef {{cluster: MarginEntry<O> | null, kind: "contribution", offered: O,
- * record: RecordEntry, receipt: Workflow | null | undefined}} Control
- */
-/** @typedef {{expandedKey?: string | null, expandedOwner?: string | null, forcedInlineKey?: string | null, folded?: boolean}} ProjectionOptions */
-
 const RESTING_MARGIN_ENTRY_BUDGET = 2;
 // The options toggle uses the shared kind face when folded; each face retains identity.
 const TOGGLE = Object.freeze({ action: "more", label: "More options" });
@@ -75,7 +42,6 @@ const EXPANDED_MARGIN_ENTRY_BUDGET = 6;
 
 // A contributed native control represents its owner's generated reading. Complete
 // views retain owned readings only while that owner supplies no visible control.
-/** @template {Offer} O @param {MarginEntry<O>} entry */
 export function annotationItems(entry) {
   const represented = new Set(
     entry.offers.flatMap(({ reading }) =>
@@ -85,7 +51,6 @@ export function annotationItems(entry) {
   return entry.items.filter((item) => !item.owner || !represented.has(item.owner));
 }
 
-/** @template {Offer} O @param {MarginEntry<O>} entry */
 const noticeItems = (entry) =>
   entry.offers.flatMap((offered) => {
     const notice = offered.reading.notice;
@@ -96,7 +61,6 @@ const noticeItems = (entry) =>
 // outranks an open interaction; the ordinary idle state never forces peers open.
 // Generated acknowledgment readings are settled server facts, so only a face that
 // explicitly declares an interaction state joins this axis.
-/** @param {Pick<MarginGroup, "offers" | "items">} entry */
 const deriveEntryState = (entry) => {
   const states = [
     ...entry.offers.map(contributionState),
@@ -111,20 +75,16 @@ const deriveEntryState = (entry) => {
 };
 // Every state but idle keeps the cluster open, so the reading is the absence of idle
 // rather than a second list of states beside the grammar's.
-/** @template {Offer} O @param {MarginEntry<O>} entry */
 const entryState = (entry) => entry.state;
-/** @template {Offer} O @param {MarginEntry<O>} entry */
 export const entryEngaged = (entry) => entry.state !== "idle";
 
 // A target's agent work rides on its primary control (`workflowCarrier`); every other
 // control shows the receipt its contribution gave it. Each control item carries the
 // receipt this rule gives it, and every seat that shows the control paints that one.
-/** @param {WorkflowCarrier | null} carrier @param {RecordEntry} record */
 const controlReceipt = (carrier, record) =>
   carrier?.key === record.key && carrier.owner === record.owner
     ? carrier.receipt
     : record.workflowReceipt;
-/** @template {Offer} O @param {O} offered @param {RecordEntry} record @param {WorkflowCarrier | null} carrier @param {MarginEntry<O> | null} [cluster] @returns {Readonly<Control<O>>} */
 const contributionItem = (offered, record, carrier, cluster = null) =>
   Object.freeze({
     cluster,
@@ -133,7 +93,6 @@ const contributionItem = (offered, record, carrier, cluster = null) =>
     record,
     receipt: controlReceipt(carrier, record),
   });
-/** @template {Offer} O @param {readonly O[]} offers */
 const visibleRecords = (offers) =>
   offers.flatMap((offered) =>
     offered.reading.entries
@@ -142,20 +101,13 @@ const visibleRecords = (offers) =>
   );
 // Every control a target offers, before and after it alike, in canonical order, each
 // with its receipt. The Page Map lists a target's controls so.
-/** @template {Offer} O @param {MarginEntry<O>} entry */
 export const entryControls = (entry) =>
   [...entry.controls, ...entry.afterControls].sort(compareContributionEntryRecords);
-/** @template {Offer} O @param {MarginEntry<O>} entry */
 export const choosePrimary = (entry) => entry.controls[0] ?? null;
-/** @template {Offer} O @param {MarginEntry<O>} entry */
 export const entryHasMarginHost = (entry) => entry.hasMarginHost;
-/** @param {Pick<MarginGroup, "key">} entry @param {ReadingChoice} choice */
 export const readingKey = (entry, choice) => JSON.stringify([entry.key, choice.key]);
-/** @param {readonly AnnotationItem[]} items @returns {readonly ReadingChoice[]} */
 const deriveReadingChoices = (items) => {
-  /** @type {ThreadItem[]} */
   const threadList = [];
-  /** @type {ReadingChoice[]} */
   const choices = [];
   for (const item of items) {
     if (item.marker === false) continue;
@@ -192,18 +144,13 @@ const deriveReadingChoices = (items) => {
       ),
   );
 };
-/** @template {Offer} O @param {MarginEntry<O>} entry */
 export const readingChoices = (entry) => entry.choices;
-/** @template {Offer} O @param {MarginEntry<O>} entry */
 export const primaryReading = (entry) => readingChoices(entry)[0] ?? null;
-/** @template {Offer} O @param {MarginEntry<O>} entry */
 export const threadReading = (entry) =>
   readingChoices(entry).find((choice) => choice.kind === "comment") ?? null;
-/** @template {Offer} O @param {MarginEntry<O>} entry @param {Control<O> | null} primaryControl */
 const secondaryReadings = (entry, primaryControl) =>
   readingChoices(entry).slice(primaryControl ? 0 : 1);
 
-/** @template {Offer} O @param {MarginEntry<O>} entry @param {Control<O> | null} primary */
 export const secondaryCount = (entry, primary) =>
   secondaryReadings(entry, primary).length +
   entry.controls.length -
@@ -212,14 +159,12 @@ export const secondaryCount = (entry, primary) =>
 // One peer is not overflow. It costs the same second entry as `…`, but the peer says
 // what it does and is immediately usable. Ellipsis earns its place only from the third
 // margin entry onward.
-/** @template {Offer} O @param {MarginEntry<O>} entry @param {Control<O> | null} primary */
 export const optionsOffered = (entry, primary) =>
   secondaryCount(entry, primary) > RESTING_MARGIN_ENTRY_BUDGET - 1;
 
 // The words a reading's control shows: its kind's word, plural for several items, or
 // the one item's own label where it has one (an item's question). Accessible names keep
 // the kind's word and say the subject beside it.
-/** @param {ReadingChoice | null | undefined} choice */
 export function readingLabel(choice) {
   const face = readingFace(choice);
   const items = choice?.items ?? [];
@@ -227,7 +172,6 @@ export function readingLabel(choice) {
   return items[0]?.label || face.label;
 }
 
-/** @template {Offer} O @param {MarginEntry<O>} entry */
 export function markerFace(entry) {
   const kinds = kindsIn(entry, { markerOnly: true });
   const choice = primaryReading(entry);
@@ -243,7 +187,6 @@ export function markerFace(entry) {
   };
 }
 
-/** @param {ReadingChoice | null | undefined} choice */
 export function readingFace(choice) {
   return (
     (choice?.items.length === 1 && choice.items[0].workflowFace) ||
@@ -252,7 +195,6 @@ export function readingFace(choice) {
   );
 }
 
-/** @param {ReadingChoice | null | undefined} choice */
 export function readingState(choice) {
   return (
     (choice?.items ?? [])
@@ -264,13 +206,11 @@ export function readingState(choice) {
   );
 }
 
-/** @param {KindFace} face */
 export const readingBehavior = (face) => (face.indication ? "status" : "disclosure");
 
 // Each member already carries canonical Thread attention. An aggregate keeps a concrete
 // obligation ahead of a resend; it never re-derives attention from turns or
 // workflow stages.
-/** @param {readonly AnnotationItem[]} items */
 const userAttention = (items) => {
   let first = null;
   for (const item of items) {
@@ -281,11 +221,9 @@ const userAttention = (items) => {
   }
   return first;
 };
-/** @param {readonly AnnotationItem[]} items */
 export const awaitingUser = (items) => Boolean(userAttention(items));
 // Agent messages the user has not taken in, across every thread a reading
 // carries: each Thread's canonical `unread`, summed rather than re-derived.
-/** @param {readonly AnnotationItem[]} items */
 export const unreadIn = (items) =>
   items.reduce((sum, item) => sum + (item.unread ?? 0), 0);
 
@@ -296,7 +234,6 @@ export const unreadIn = (items) =>
 // and its line, the thread's word wherever no such receipt says it, else how many of
 // its messages the user has not read. A blocked receipt, such as a response
 // that failed, paints no progress (`progressFace`), so the line says its word.
-/** @param {import("../records/thread/workflow.js").ThreadRecord} thread @param {string} agent */
 export function threadMarks(thread, agent) {
   const attention = threadAttention(thread, agent);
   const onUser = attention?.turn === "user";
@@ -324,7 +261,6 @@ export function threadMarks(thread, agent) {
 // A reading of one item says that item's own line, as a thread's says its word or its
 // unread count (`threadMarks`); an aggregate says the turn it owes the user, else what
 // its threads hold unread. Each line is said by whoever says it (base/voice.js).
-/** @param {ReadingChoice | null | undefined} choice */
 export function readingContext(choice) {
   const items = choice?.items ?? [];
   const attention = userAttention(items);
@@ -337,7 +273,6 @@ export function readingContext(choice) {
 // The line a reading's name says too: a thread's, which is its word or what it holds
 // unread (`threadMarks`), and an aggregate's turn or unread count. Another reading's
 // line, such as a change's offer, is said by its control.
-/** @param {ReadingChoice | null | undefined} choice */
 export const spokenContext = (choice) => {
   const items = choice?.items ?? [];
   return choice?.kind === "comment" || awaitingUser(items) || unreadIn(items)
@@ -345,9 +280,7 @@ export const spokenContext = (choice) => {
     : null;
 };
 
-/** @param {MarginGroup} entry @param {{markerOnly?: boolean}} [options] */
 function kindsIn(entry, { markerOnly = false } = {}) {
-  /** @type {Map<Kind, number>} */
   const counts = new Map();
   for (const item of entry.items) {
     if (!markerOnly || item.marker !== false)
@@ -356,7 +289,6 @@ function kindsIn(entry, { markerOnly = false } = {}) {
   return [...counts].map(([kind, count]) => ({ kind, count, ...KINDS[kind] }));
 }
 
-/** @template {Offer} O @param {MarginEntry<O>} entry @param {ReadingChoice} choice */
 const readingItem = (entry, choice) =>
   Object.freeze({
     kind: "reading",
@@ -365,8 +297,6 @@ const readingItem = (entry, choice) =>
     choice,
   });
 
-/** @template {Offer} O @param {MarginEntry<O>} entry @param {Control<O> | null} primary @param {O | null} [focusedOffer]
- * @returns {(Control<O> | {kind: "reading", key: string, entry: MarginEntry<O>, choice: ReadingChoice})[]} */
 function optionItems(entry, primary, focusedOffer = null) {
   if (focusedOffer) {
     return focusedOffer.reading.entries
@@ -384,7 +314,6 @@ function optionItems(entry, primary, focusedOffer = null) {
   ];
 }
 
-/** @template {Offer} O @param {MarginEntry<O>} entry @param {Control<O> | null} primary @param {boolean} optionsOpen @param {O | null} [focusedOffer] @param {string | null} [forcedInlineKey] @param {boolean} [folded] */
 function optionGroupProjection(
   entry,
   primary,
@@ -437,7 +366,6 @@ function optionGroupProjection(
   });
 }
 
-/** @template {Offer} O @param {MarginEntry<O>} entry @param {string | null | undefined} expandedKey @param {string | null | undefined} expandedOwner */
 export const focusedOfferOf = (entry, expandedKey, expandedOwner) =>
   expandedKey === entry.key && expandedOwner
     ? (entry.offers.find((offered) => offered.key === expandedOwner) ?? null)
@@ -447,7 +375,6 @@ export const focusedOfferOf = (entry, expandedKey, expandedOwner) =>
 // more control, a peer or More, and nothing else, so folding it trades exactly one of
 // them for the toggle. A cluster that shows a reading or a notice, or is engaged, keeps
 // its face, since what it shows there is what the user returns to.
-/** @template {Offer} O @param {MarginEntry<O>} entry @param {ProjectionOptions} [options] */
 export function canFold(entry, { expandedKey = null, expandedOwner = null } = {}) {
   if (focusedOfferOf(entry, expandedKey, expandedOwner)) return false;
   const primary = choosePrimary(entry);
@@ -460,7 +387,6 @@ export function canFold(entry, { expandedKey = null, expandedOwner = null } = {}
   );
 }
 
-/** @template {Offer} O @param {MarginEntry<O>} entry @param {ProjectionOptions} [options] */
 export function clusterProjection(
   entry,
   {
@@ -517,7 +443,6 @@ export function clusterProjection(
 
 // Inputs are captured by the browser adapter. DOM targets, registrations, and activation
 // callbacks stay there; an entry owns only values.
-/** @template {Offer} O @param {MarginGroup<O>} group @returns {Readonly<MarginEntry<O>>} */
 export function marginEntry(group) {
   const represented = group.items.some(
     (item) => item.marker === false && item.represents,
@@ -548,7 +473,6 @@ export function marginEntry(group) {
           receipt,
         })
       : null;
-  /** @param {{offered: O, record: RecordEntry}[]} records */
   const controlsFrom = (records) =>
     records.map(({ offered, record }) =>
       contributionItem(offered, record, workflowCarrier),

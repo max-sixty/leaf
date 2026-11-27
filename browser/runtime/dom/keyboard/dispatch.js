@@ -1,3 +1,4 @@
+// Compiled from dispatch.ts by build/typescript.mjs; edit that file.
 /* The dispatcher: which scope answers a press, what it owes the platform, and the one
    unwind step Escape takes.
 
@@ -121,21 +122,11 @@ import {
   excludedByInert,
 } from "../../lib/shadow-tree.js";
 
-/** @typedef {import("./bindings.js").Command} Command
- * @typedef {import("./bindings.js").CommandEntry} CommandEntry
- * @typedef {import("./bindings.js").CommandReference} CommandReference
- * @typedef {import("./bindings.js").Scope & {escapeBoundary?: boolean, activation?: ((binding: string) => boolean) | null}} Scope
- * @typedef {{id: string, row: Command, entry: CommandEntry, binding: string | undefined, run: () => unknown, native: boolean}} Invocation
- * @typedef {ReturnType<typeof shadow>} Nearer
- * @typedef {{row: Command, binding: string | undefined, entry: CommandEntry}} MatchedCommand
- */
-
 // The two questions a scope answers, named apart because the surfaces ask them apart: the
 // reference lists a scope the page *has* and filters its rows by liveness only where the user
 // is in it, while the dispatcher wants both at once. Spelled `!x || x()`
 // in three places before, which is a rule written three times and named nowhere.
 const pageHas = scopeAvailable;
-/** @param {{at?: Scope["at"], root?: Scope["root"], el?: Element}} scope */
 export const userIn = (scope) => {
   // Native modality excludes everything below its layer floor. An explicitly inert
   // subtree can also stand inside that floor,
@@ -152,7 +143,6 @@ export const userIn = (scope) => {
 // was the one place it was not true. The sequence is what made it bite: its `when` reaches the
 // decisions fold and then every link on the page, once per keydown, from the first keystroke of
 // the first comment.
-/** @param {Scope} scope */
 const currentLocation = (scope) => userIn(scope) && pageHas(scope);
 /** The stances the user is in, innermost first, each with its way out (register.js,
  * `stances`). */
@@ -161,7 +151,6 @@ export const standingStances = () =>
 /** The stance the user is in, innermost, with its way out, or null. */
 export const innermostStance = () =>
   stances().find(({ scope }) => currentLocation(scope)) ?? null;
-/** @param {(binding: string) => boolean} claims @returns {Scope} */
 const nativeBoundary = (claims) => ({
   get rows() {
     const reference = universalCommandReference();
@@ -171,15 +160,11 @@ const nativeBoundary = (claims) => ({
   escapeBoundary: true,
 });
 const MODAL_BOUNDARY = nativeBoundary(EVERYTHING);
-const POPOVER_BOUNDARY = nativeBoundary(
-  /** @param {string} binding */ (binding) => binding === "Escape",
-);
-/** @param {{root?: Scope["root"], el?: Element}} scope */
+const POPOVER_BOUNDARY = nativeBoundary((binding) => binding === "Escape");
 const scopeRoot = (scope) => {
   const declared = scope.root ?? scope.el ?? document;
   return typeof declared === "function" ? declared() : declared;
 };
-/** @param {Scope} scope @param {Element | null} active */
 const innerEscape = (scope, active) => scope.escape === "inner" || scope.el === active;
 // Every scope the user is in, innermost first. The whole list: what a nearer
 // scope takes out of reach is the walk's own business, and both walkers say it the same
@@ -189,10 +174,8 @@ const innerEscape = (scope, active) => scope.escape === "inner" || scope.el === 
 //
 // How far a node sits above the user, or -1 where it is not above them at all. The
 // document is above every user, at the top of the walk.
-/** @param {Node | null | undefined} node @param {Element | null} active */
 const above = (node, active) => {
   let depth = 0;
-  /** @type {Node | null} */
   let up = active;
   for (; up; up = composedParentNode(up)) {
     if (up === node) return depth;
@@ -209,7 +192,6 @@ const above = (node, active) => {
 // — and the steps rooted outside that surface keep the register's order behind them.
 //
 // One reading of each root, because a root may be a thunk over the whole ladder.
-/** @param {Scope[]} scopes @param {Element | null} active */
 const escapeOrder = (scopes, active) => {
   const boundaryAt = scopes.findIndex((scope) => scope.escapeBoundary);
   const end = boundaryAt < 0 ? scopes.length : boundaryAt;
@@ -222,7 +204,6 @@ const escapeOrder = (scopes, active) => {
       return { scope, root, depth: above(root, active) };
     });
   // Keep each root with the scope whose thunk produced it.
-  /** @type {Node | null} */
   let surface = null;
   for (const { root, depth } of outer) {
     if (depth < 1 || root === document) continue;
@@ -241,7 +222,6 @@ const escapeOrder = (scopes, active) => {
   ];
 };
 
-/** @param {string | null} [binding] @returns {Scope[]} */
 export function stack(binding = null) {
   const active = focused();
   const elementStack = scopesFor(active);
@@ -276,7 +256,6 @@ export function stack(binding = null) {
     if (typing && TYPING.includes(scope)) return [];
     return scope;
   });
-  /** @param {Scope[]} scopes */
   const ordered = (scopes) => {
     const activeScopes = scopes.filter(currentLocation);
     return binding === "Escape" ? escapeOrder(activeScopes, active) : activeScopes;
@@ -288,22 +267,17 @@ export function stack(binding = null) {
   const visible = modal ? layers.slice(layers.indexOf(modal)) : layers;
   // The newest native modal is the one boundary the browser makes inert behind it.
   const floor = modal?.root ?? null;
-  /** @param {Scope} scope */
   const aboveFloor = (scope) => !floor || renderedUnder(scopeRoot(scope), floor);
   const top = visible.at(-1) ?? null;
   // The topmost layer also holds the focused control and explicitly inner modes: they
   // stand above the browser's light-dismiss boundary whatever their own root is.
-  /** @param {Scope} scope */
   const foreground = (scope) =>
     elementStack.includes(scope) ||
     scopeRoot(scope) === active ||
     innerEscape(scope, active);
-  /** @type {Scope[]} */
   const parts = [];
   let pool = expanded;
-  /** @param {(scope: Scope) => boolean} keep */
   const take = (keep) => {
-    /** @type {Scope[]} */
     const rest = [];
     for (const scope of pool) (keep(scope) ? parts : rest).push(scope);
     pool = rest;
@@ -343,26 +317,20 @@ export function stack(binding = null) {
 // asks about the row and its scope where it has them, and an ancestor's implemented
 // binding that activation took owns nothing further out: a link's Follow still names the
 // press under a container's Enter.
-/** @param {Command} row */
 const ownsLeafInvocation = (row) =>
   Boolean(row.run || row.runKey) ||
   [row, ...commandRoutes(row)].some((part) => part.control != null) ||
   commandRoutes(row).some((route) => routedCommand(route));
-/** @param {Command} row @param {Scope} scope @param {Element | Document | null} control */
 const runsElsewhere = (row, scope, control) => {
   if (!scope.contextual && scopeRoot(scope) === control) return false;
   const controls = [row, ...commandRoutes(row)].map((part) => word(part.control));
   if (controls.some((each) => each === control)) return false;
   return ownsLeafInvocation(row) || controls.some((each) => each != null);
 };
-/** @param {boolean} [quick] */
 const shadow = (quick = quickShortcuts()) => {
-  /** @type {((binding: string) => boolean)[]} */
   const claims = [];
-  /** @type {{claims: (binding: string) => boolean, control: Element | Document | null} | null} */
   let activation = null;
   return {
-    /** @param {[binding: string] | [binding: string, row: Command, scope: Scope]} request */
     takes: (...request) => {
       const binding = request[0];
       return (
@@ -373,7 +341,6 @@ const shadow = (quick = quickShortcuts()) => {
           runsElsewhere(request[1], request[2], activation.control))
       );
     },
-    /** @param {Scope} scope */
     past: (scope) => {
       if (scope.claims) claims.push(scope.claims);
       if (scope.activation)
@@ -399,10 +366,8 @@ const shadow = (quick = quickShortcuts()) => {
 // an intrinsic key press. The source scope need not be where focus stands: that is the
 // point of an ancestor projection such as an obligation.
 // The press comes from where the user stands as the invocation runs.
-/** @param {Command} row @param {() => unknown} run */
 const landing = (row, run) => () => runLanding(row, run, focused());
 
-/** @param {CommandReference | null} reference @returns {Invocation | null} */
 function referencedInvocation(reference) {
   if (!reference) return null;
   const current = referencedCommandEntry(reference);
@@ -421,7 +386,6 @@ function referencedInvocation(reference) {
     : null;
 }
 
-/** @param {Command} row @param {string | undefined} binding @param {Pick<CommandEntry, "id"> | null | undefined} command @param {Element | null} [recovered] @returns {Invocation | null} */
 function invocationFor(row, binding, command, recovered = null) {
   if (!command || !live(row)) return null;
   const current = commandEntries(row, binding === undefined ? [] : [binding]).find(
@@ -445,7 +409,6 @@ function invocationFor(row, binding, command, recovered = null) {
 }
 
 // `title` names a step the row took in place of its `run`, as a close request's `keep`.
-/** @param {Invocation} invocation @param {string | null} [title] */
 function announceInvocation(invocation, title = null) {
   const { row, entry } = invocation;
   const route = entry.route;
@@ -464,7 +427,6 @@ function announceInvocation(invocation, title = null) {
   );
 }
 
-/** @param {MatchedCommand} command */
 function invokeCommand(command) {
   const invocation = invocationFor(command.row, command.binding, command.entry);
   if (!invocation) return false;
@@ -476,7 +438,6 @@ function invokeCommand(command) {
 // Reference invocation names a command directly, so another row on the same key does not
 // hide it; a nearer claim still does. Resolve Escape claims once through its semantic
 // scope order, then let every row in the outer walk read the same result.
-/** @param {string} binding */
 function unclaimedScopes(binding) {
   const unclaimed = new Set();
   const nearer = shadow();
@@ -492,7 +453,6 @@ function unclaimedScopes(binding) {
 // an ordinary declined key. Startup capture and real dispatch share every scope,
 // claim, contribution, and native-control check.
 const INPUT_PENDING = Symbol("command input pending");
-/** @param {KeyboardEvent} ev @returns {Invocation | typeof INPUT_PENDING | null} */
 function resolveKey(ev) {
   const recovered = recoveredLabelFocus(ev);
   const nearer = shadow();
@@ -522,13 +482,11 @@ function resolveKey(ev) {
   }
   return null;
 }
-/** @param {KeyboardEvent} ev */
 export const keyReady = (ev) => placeHandedBack() && resolveKey(ev) !== INPUT_PENDING;
 // What a press of `binding` would do now, resolved as the press itself would be with no
 // key behind it, or null: the one reading of whether a key works where the user is.
 // Escape's is what the platform's close request asks for (close-requests.js), and
 // taking it goes through the row's `keep` where it declares one (bindings.js).
-/** @param {string} binding @returns {Invocation | null} */
 const invocationNow = (binding) => {
   const { key, mods } = parsed(binding);
   const matched = resolveKey(
@@ -548,7 +506,6 @@ export const escapeInvocation = () => invocationNow("Escape");
 export const escapeTakesAStep = () => Boolean(escapeInvocation());
 /** Whether pressing `binding` now would run `row`: what an announcement asks of each key
  * it names (control-keys.js, `saying`). */
-/** @param {string} binding @param {Command} row */
 export const pressRuns = (binding, row) => invocationNow(binding)?.row === row;
 export function answerCloseRequest() {
   const matched = escapeInvocation();
@@ -566,7 +523,6 @@ export function answerCloseRequest() {
 // `waits`, and once after them with `waiting`, for that row alone (panel/page-keys/controller.js).
 // The stack answers with the same row both times, so the read that is not the row's own
 // runs nothing, and no row further out takes its place.
-/** @param {KeyboardEvent} ev @param {boolean} [waiting] */
 export function dispatchKey(ev, waiting = false) {
   const matched = resolveKey(ev);
   if (!matched || matched === INPUT_PENDING) return false;
@@ -585,7 +541,6 @@ export function dispatchKey(ev, waiting = false) {
 // shadowing as a key press.
 // A deliberately disabled shortcut leaves its command unbound and executable;
 // nearer key claims still constrain every shortcut that remains enabled.
-/** @param {Command} row @param {Scope} scope @param {Nearer} nearer @param {Set<object>} unclaimedEscape @param {boolean} commands @param {boolean} [quick] */
 const reachableBindings = (
   row,
   scope,
@@ -602,7 +557,6 @@ const reachableBindings = (
         : !nearer.takes(binding, row, scope),
   );
 // The command the reference runs for `id` (`executeCommand`).
-/** @param {string} id @returns {MatchedCommand | null} */
 function commandFor(id) {
   const unclaimedEscape = unclaimedScopes("Escape");
   const nearer = shadow();
@@ -624,7 +578,6 @@ function commandFor(id) {
 // a binding of a row in the user's scopes that declares one of `ids`, pressed as
 // `pressRuns` presses it. Asked by command id rather than by row, so the asking surface
 // holds no reference into another scope's declaration.
-/** @param {Iterable<string>} ids */
 export function activeCommandBinding(ids) {
   const wanted = new Set(ids);
   for (const scope of stack())
@@ -643,12 +596,10 @@ export function activeCommandBinding(ids) {
 // intrinsic key and an obligation alias can share a command id while only one is shadowed.
 // The reference is a modal scope and shadows the page once it opens, so callers take
 // this snapshot before opening it.
-/** @param {{commands?: boolean, quick?: boolean}} [options] */
 export function availableCommandRoutes({
   commands = false,
   quick = quickShortcuts(),
 } = {}) {
-  /** @type {Map<Command, Set<string | undefined>>} */
   const routes = new Map();
   const unclaimedEscape = unclaimedScopes("Escape");
   const nearer = shadow(quick);
@@ -682,7 +633,6 @@ export function availableCommandRoutes({
 // A control standing in for a press (panel/page-keys/touch-controls.js) makes that press itself: the
 // binding names which of a routed row's results it is, and a nearer claim on the key is
 // about the key, not the command.
-/** @param {{id: string, row: Command, binding?: string | undefined}} press */
 export function invokePress({ id, row, binding }) {
   const invocation = invocationFor(row, binding, { id });
   if (!invocation) return false;
@@ -694,7 +644,6 @@ export function invokePress({ id, row, binding }) {
 // presses do (panel/floating-panel.js, `pressReading`): the command's row by its id or by one
 // of its routes', made as a press of that route's key, so it acts wherever the caret
 // stands, as a menu row or a touch control does, where the key would be a letter typed.
-/** @param {string} id */
 export function pressCommand(id) {
   for (const scope of pageScopes())
     if (typeof scope !== "symbol")
@@ -705,7 +654,6 @@ export function pressCommand(id) {
       }
   return false;
 }
-/** @param {string} id */
 export function executeCommand(id) {
   const command = commandFor(id);
   if (!command) return false;

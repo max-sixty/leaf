@@ -1,3 +1,4 @@
+// Compiled from widget-state.ts by build/typescript.mjs; edit that file.
 /* A widget's reading as Leaf hands it to the widget's element: the immutable `state`
    Leaf sets on it (`widgetState`), the Undo each of its units offers
    (`undoCandidates`), and what the widget says of its obligation as that state stands
@@ -8,9 +9,6 @@ import { registry } from "../state/registry.js";
 import { widgetStatic } from "../records/obligations/answer.js";
 import { reportFailure } from "../lib/failure.js";
 
-/** @typedef {ReturnType<ReturnType<typeof applicationState.selectWidget>["read"]>} WidgetReading */
-
-/** @template T @param {T} value @returns {T} */
 export const immutable = (value) => {
   if (value !== null && typeof value === "object" && !Object.isFrozen(value)) {
     for (const child of Object.values(value)) immutable(child);
@@ -21,10 +19,8 @@ export const immutable = (value) => {
 
 // Each unit of a verb whose action in force the user may take back, with the Undo
 // candidate that takes it back.
-/** @param {WidgetReading["actions"][string] | undefined} action */
 export const undoCandidates = (action) => {
   const undo = new Map(action?.undo.map((event) => [event.id, event]));
-  /** @type {Map<string, WidgetReading["actions"][string]["undo"][number]>} */
   const units = new Map();
   for (const { unit, event } of action?.inForce ?? []) {
     const candidate = undo.get(event.id);
@@ -39,7 +35,6 @@ export const undoCandidates = (action) => {
 // has one to give (`unavailable`), and whether `lf-undo` would take back the action in
 // force (`undoable`), which a verb holding a state for each unit says on each unit. A
 // verb the agent writes reads as one the user may neither act on nor take back.
-/** @param {WidgetReading} reading @returns {import("../../types/domain.js").WidgetState} */
 export const widgetState = ({ state, actions }) =>
   immutable(
     Object.fromEntries(
@@ -82,7 +77,6 @@ export const widgetState = ({ state, actions }) =>
 // kind where no captured descriptor does, as for an undo of an action in a message
 // nobody has drawn. A widget that asks always says, and one that asks nothing says
 // nothing.
-/** @param {string} widget @param {string | null} tag @returns {boolean | undefined} */
 export function widgetAnswered(widget, tag) {
   const root = readApplication();
   const descriptor = root.document.descriptors.get(widget);
@@ -97,7 +91,7 @@ export function widgetAnswered(widget, tag) {
   // there is to say from.
   const state = descriptor
     ? widgetState(applicationState.selectWidget(descriptor).read())
-    : /** @type {import("../../types/domain.js").WidgetState} */ (folded?.state ?? {});
+    : (folded?.state ?? {});
   if (!own.element) {
     console.error(
       `leaf: <${kind} id="${widget}"> has no markup to say its answer from`,

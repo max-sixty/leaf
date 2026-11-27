@@ -1,4 +1,4 @@
-// @ts-check
+// Compiled from exception.ts by build/typescript.mjs; edit that file.
 /** Exception summaries, diagnostic traces, and records crossing sample ports.
  * Each public reader protects its complete operation: a thrown value can itself
  * throw while read, converted to text, or inspected through native operations.
@@ -6,7 +6,6 @@
  */
 const UNREADABLE = "Could not read the error";
 
-/** @template T @param {() => T} read @param {T} unreadable @returns {T} */
 function readException(read, unreadable) {
   try {
     return read();
@@ -15,7 +14,6 @@ function readException(read, unreadable) {
   }
 }
 
-/** @param {unknown} reason */
 function exceptionFields(reason) {
   if (reason === null || (typeof reason !== "object" && typeof reason !== "function"))
     return {
@@ -39,8 +37,7 @@ function exceptionFields(reason) {
 }
 
 /** A thrown value in one line, for a failure the page shows: its message, or its name
- * where it has no message, with the members of an `AggregateError` listed after it.
- * @param {unknown} reason @returns {string} */
+ * where it has no message, with the members of an `AggregateError` listed after it. */
 export function describeFailure(reason) {
   return readException(() => {
     const fields = exceptionFields(reason);
@@ -52,8 +49,7 @@ export function describeFailure(reason) {
 }
 
 /** A thrown value's `{name, message, stack}` as plain data, which a message port
- * carries where it would refuse the value itself.
- * @param {unknown} reason */
+ * carries where it would refuse the value itself. */
 export function exceptionRecord(reason) {
   return readException(
     () => {
@@ -69,8 +65,7 @@ export function exceptionRecord(reason) {
 }
 
 /** A thrown value as an `Error`: itself where it is one, else an object that is one
- * and carries the value's record, with no stack the value didn't have.
- * @param {unknown} reason @returns {Error} */
+ * and carries the value's record, with no stack the value didn't have. */
 export function exceptionError(reason) {
   return readException(
     () =>
@@ -83,8 +78,7 @@ export function exceptionError(reason) {
 
 /** A thrown value's whole evidence, for a log or a report: its name and message, its
  * stack, each member of an `AggregateError` and each cause behind it, under a first
- * line of `context` and its one-line description where `context` is given.
- * @param {unknown} reason @param {string} [context] @returns {string} */
+ * line of `context` and its one-line description where `context` is given. */
 export function exceptionText(reason, context = "") {
   return readException(
     () => {

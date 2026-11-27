@@ -1,3 +1,4 @@
+// Compiled from obligation-tally.ts by build/typescript.mjs; edit that file.
 /* How many of a set of obligations are still open and whose turn each is, in the words
    `lf-tally` shows and `lf-deck`'s bar repeats, so no two widgets count one queue
    differently. `tally` takes the obligation records Leaf serves, the page's or a
@@ -16,7 +17,6 @@
    beside a disabled Next On Me once the last one went to the agent. The words name no total:
    "4 of 5 to answer" beside the deck's cards read as the fifth card's position. */
 
-/** @param {readonly Pick<import("../../types/contract.js").ServedObligation, "state" | "next_actor">[]} held */
 export function tally(held) {
   const open = held.filter((item) => item.state !== "done");
   return {
@@ -28,7 +28,6 @@ export function tally(held) {
 }
 
 // The count's words, or that none is open.
-/** @param {{[K in keyof ReturnType<typeof tally>]: number | string}} count @param {string} agent */
 export function tallyWords({ onUser, onAgent, open, total }, agent) {
   if (!total) return "Nothing to answer";
   if (onUser && onAgent) return `${onUser} left to answer · ${onAgent} on ${agent}`;

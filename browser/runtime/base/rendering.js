@@ -1,4 +1,4 @@
-// @ts-check
+// Compiled from rendering.ts by build/typescript.mjs; edit that file.
 /* Leaf's settled reading of the page's rendering, as structured renderingState for
    chrome and geometry.
    updatesSettled says no queued update is waiting and the last update produced no
@@ -96,23 +96,15 @@ import {
 import { enqueueWork, runWork } from "../lib/queued-work.js";
 import { frameVisibility, onFrameVisibility } from "./frame-visibility.js";
 
-/** @import {Work} from "../lib/queued-work.js" */
-/** @typedef {Work<[], unknown>} ScriptWork */
-/** @typedef {"begin" | "settle" | "cancel"} PreparationPhase */
-/** @typedef {(phase: PreparationPhase, identity: Readonly<object>) => void} PreparationObserver */
-
 // A counted observer delivered since the last check.
 let heard = false;
 let quiet = false;
 let checking = false;
 let preparations = 0;
 
-/** @type {Set<PreparationObserver>} */
 const preparationObservers = new Set();
 
-/** Observe each finite preparation's begin and terminal settle or cancel.
- * @param {PreparationObserver} observer
- */
+/** Observe each finite preparation's begin and terminal settle or cancel. */
 export function observePreparations(observer) {
   preparationObservers.add(observer);
   return () => preparationObservers.delete(observer);
@@ -128,7 +120,7 @@ export function holdRendering() {
   const observers = [...preparationObservers];
   for (const observer of observers) observer("begin", identity);
   let released = false;
-  return (/** @type {Exclude<PreparationPhase, "begin">} */ phase = "settle") => {
+  return (phase = "settle") => {
     if (released) return;
     released = true;
     preparations--;
@@ -148,15 +140,11 @@ observeRenderingWork((work) => {
 });
 
 /** Continuous mechanical motion, such as a playing film, does not hold resting
- * proof open. Its owner cancels this browser frame when stopped or retired.
- * @param {FrameRequestCallback} callback
- */
+ * proof open. Its owner cancels this browser frame when stopped or retired. */
 export const nextAnimation = (callback) => requestAnimationFrame(callback);
-/** @param {number} id */
 export const cancelAnimation = (id) => cancelAnimationFrame(id);
 
 // Those waiting for the frame asked for when they asked to paint (`afterOwedFrame`).
-/** @type {(() => void)[]} */
 let owedFrame = [];
 function paintedOwed() {
   const waiting = owedFrame;
@@ -165,8 +153,7 @@ function paintedOwed() {
 }
 
 /** Resolve once the frame the page has asked for has painted, or at once where it has
- * asked for none or draws no frames.
- * @returns {Promise<void>} */
+ * asked for none or draws no frames. */
 export function afterOwedFrame() {
   if (!callbacksPending() || !rendered()) return Promise.resolve();
   // A callback asked for now joins the pass the waiting callbacks run in, and a task
@@ -180,7 +167,6 @@ document.addEventListener("visibilitychange", () => {
   if (!rendered()) paintedOwed();
 });
 
-/** @type {Map<() => unknown, ScriptWork>} */
 const owedThisScript = new Map();
 function settleScript() {
   // A callback asked for while the others run is visited too: a Map's iteration reaches
@@ -194,7 +180,6 @@ function settleScript() {
     }
   }
 }
-/** @param {() => unknown} callback */
 export function afterScript(callback) {
   if (!owedThisScript.size) queueMicrotask(settleScript);
   if (!owedThisScript.has(callback))
@@ -246,23 +231,18 @@ function check() {
 // Those waiting for the rendering begun when they asked to settle (`afterSettling`),
 // each with the last preparation begun before it asked; the preparations not yet
 // released, by the order they began in.
-/** @type {{settled: () => void, since: number}[]} */
 let settling = [];
 let begun = 0;
-/** @type {Set<number>} */
 const pending = new Set();
 const owed = () => {};
 
 /** Call `settled` once the rendering that work begun now sets going has settled: a
-    counted update runs after this moment, then one is quiet, and every finite
-    preparation begun since has landed. A preparation already waiting is someone
-    else's. A gesture's rendering is the work its input sets going until then, its
-    answers to that input included, such as a widget preparing what a disclosure the
-    reader opened shows. Returns a function that withdraws the wait, which a page whose
-    rendering never quiets would otherwise hold for as long as the page stays open.
- * @param {() => void} settled
- * @returns {() => void}
- */
+ *     counted update runs after this moment, then one is quiet, and every finite
+ *     preparation begun since has landed. A preparation already waiting is someone
+ *     else's. A gesture's rendering is the work its input sets going until then, its
+ *     answers to that input included, such as a widget preparing what a disclosure the
+ *     reader opened shows. Returns a function that withdraws the wait, which a page whose
+ *     rendering never quiets would otherwise hold for as long as the page stays open. */
 export function afterSettling(settled) {
   const waiter = { settled, since: begun };
   settling.push(waiter);

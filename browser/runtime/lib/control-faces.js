@@ -1,3 +1,4 @@
+// Compiled from control-faces.ts by build/typescript.mjs; edit that file.
 /* The canonical face for each control role, shared by DOM writers and pure templates.
 
    Leaf's controls come from a closed set of roles, and each role wears one face
@@ -129,7 +130,6 @@ const ACTION_FACES = {
 // The classes of `role`'s face, then `className`, which places the press: for a Lit
 // template that writes a press's whole `class` itself. A press built by its role
 // (controls.js) wears these already.
-/** @param {LeafActionRole} role */
 export function actionClass(role, className = "") {
   const face = ACTION_FACES[role];
   if (!face)

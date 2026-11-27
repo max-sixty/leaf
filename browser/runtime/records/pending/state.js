@@ -1,4 +1,4 @@
-// @ts-check
+// Compiled from state.ts by build/typescript.mjs; edit that file.
 /* The promises behind each event the browser is sending to the server.
 
    `applicationState` holds every unresolved event, in order, and where each stands.
@@ -8,34 +8,18 @@
    resolves only in `present`, when the receipt is presented. */
 import { applicationState, readApplication } from "../../state/semantic-state.js";
 
-/** @typedef {import("../../../types/domain.js").Event} Event */
-/** @typedef {import("../../../types/domain.js").PendingCommand} PendingCommand */
-/** @typedef {import("../../../types/domain.js").Command} Command */
-/** @typedef {NonNullable<ReturnType<typeof applicationState.entry>>} Entry */
-/** @typedef {{
- * event: Command, admitted: Event | null,
- * answer: Promise<Event | null>, read: Promise<Event>,
- * resolve: (value: Event | null) => void, resolveRead: (value: Event) => void,
- * }} DeliveryHandle */
-
-/** @param {{newAttempt: () => string, enqueue: (event: Command) => unknown}} options */
 export function createPendingLedger({ newAttempt, enqueue }) {
-  /** @type {Map<string, DeliveryHandle>} */
   const handles = new Map();
   const snapshot = () => readApplication().unresolved;
   const sending = () => readApplication().effective.sending;
 
   return {
-    /** @param {PendingCommand} event */
     enqueue(event) {
       const attempted = { ...event, attempt: event.attempt || newAttempt() };
       if (applicationState.entry(attempted.attempt)) return null;
-      /** @type {PromiseWithResolvers<Event | null>} */
       const { promise: answer, resolve } = Promise.withResolvers();
-      /** @type {PromiseWithResolvers<Event>} */
       const { promise: read, resolve: resolveRead } = Promise.withResolvers();
       const current = () => applicationState.entry(attempted.attempt);
-      /** @type {DeliveryHandle} */
       const handle = {
         get event() {
           return current()?.event ?? attempted;
@@ -61,11 +45,9 @@ export function createPendingLedger({ newAttempt, enqueue }) {
       return attempt ? handles.get(attempt) : null;
     },
     releasable: () => applicationState.releasable(),
-    /** @param {readonly Pick<Entry, "event">[]} entries */
     release: (entries) =>
       applicationState.release(new Set(entries.map((entry) => entry.event.attempt))),
-    /** The gestures refused with `entry`, each answered null here.
-     * @param {DeliveryHandle} entry @returns {{attempt: string, answer: Promise<Event | null>}[]} */
+    /** The gestures refused with `entry`, each answered null here. */
     refuse(entry) {
       return applicationState.refuse(entry.event.attempt).flatMap((attempt) => {
         const handle = handles.get(attempt);
@@ -73,19 +55,16 @@ export function createPendingLedger({ newAttempt, enqueue }) {
         return handle ? [{ attempt, answer: handle.answer }] : [];
       });
     },
-    /** @param {DeliveryHandle} entry @param {Event} event */
     accept(entry, event) {
       applicationState.accept(entry.event.attempt, event);
     },
     // A document pass drawing these logged events has run; each that carries an
     // attempt is that gesture's receipt.
-    /** @param {readonly Event[]} events */
     present(events) {
       applicationState.present(events);
       for (const event of events)
         if (event.attempt) handles.get(event.attempt)?.resolveRead(event);
     },
-    /** @param {DeliveryHandle} entry */
     nameEvents(entry) {
       return applicationState.nameEvents(entry.event.attempt);
     },

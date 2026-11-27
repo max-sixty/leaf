@@ -1,3 +1,4 @@
+// Compiled from page-paint.ts by build/typescript.mjs; edit that file.
 /* Import-free vocabulary of runtime-painted attributes, and the readers of the
    readiness stamps. Readers of a paint name do not start presentation, import widgets
    or reach transport through its writers. */

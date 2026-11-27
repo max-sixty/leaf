@@ -1,3 +1,4 @@
+// Compiled from syntax.ts by build/typescript.mjs; edit that file.
 /* The page's own code blocks, coloured by syntax-tokens.js, with failures reported
    to the page. Portable base/language-paths.js owns a filename's language reading. */
 import { reportPageError } from "../transport/layer-client.js";
@@ -24,7 +25,6 @@ export const DATA_BODY = `:is(${DATA_CONTENT.map(
 // Tokens are cut at the text nodes' boundaries, so authored elements keep their
 // identity, attributes and listeners. A <br> supplies a line break absent from
 // textContent; leave those blocks alone rather than tokenize a different source.
-/** @param {Element} code */
 export const colourableAs = (code) => {
   if (code.matches(`${DATA_BODY} > code`) || code.querySelector("br")) return undefined;
   return codeLanguage(code);
@@ -32,7 +32,6 @@ export const colourableAs = (code) => {
 // Whether an element wears the reading face (reading.css). Only an element in the
 // document has a face to read: one not yet placed is a surface Leaf is building, such
 // as a message, and all of those wear the face.
-/** @param {Element} element */
 export const wearsReadingFace = (element) =>
   !element.isConnected ||
   getComputedStyle(element).getPropertyValue("--lf-reading-face").trim() === "1";
@@ -44,18 +43,13 @@ export const wearsReadingFace = (element) =>
 // block that doesn't wear it, as on a page that takes no theme, keeps the colours its
 // page gives it. A page that supplies its own token palette turns off the reading face,
 // as for its other personally themed content.
-/** @param {Element} code */
 export const colouredAs = (code) =>
   wearsReadingFace(code) ? colourableAs(code) : undefined;
 // Partition the whole-source token stream over text nodes and our earlier token
 // spans. Authored elements are traversed, never replaced; a token crossing one is
 // cut into pieces with the same style. Equal pieces keep their nodes on a repaint.
-/** @param {Element} code
- * @param {Parameters<typeof synNodes>[0]} tokens */
 function colourText(code, tokens) {
-  /** @type {(Text | Element)[]} */
   const nodes = [];
-  /** @param {Node} parent */
   const collect = (parent) => {
     for (const node of parent.childNodes) {
       if (
@@ -71,12 +65,9 @@ function colourText(code, tokens) {
   let offset = 0;
   for (const node of nodes) {
     let remaining = node.textContent.length;
-    /** @type {Parameters<typeof synNodes>[0][number][]} */
     const pieces = [];
     while (remaining) {
-      const token = /** @type {Parameters<typeof synNodes>[0][number]} */ (
-        tokens[index]
-      );
+      const token = tokens[index];
       const length = Math.min(remaining, token.text.length - offset);
       if (length)
         pieces.push({
@@ -101,9 +92,7 @@ function colourText(code, tokens) {
 // write the same spans over the ones the first pass wrote. So the pass in flight
 // answers for the block as it stands when its tokens land, not as it stood when it
 // asked: text or a language that changed meanwhile is tokenized again.
-/** @type {WeakSet<Element>} */
 const tokenizing = new WeakSet();
-/** @param {Document | DocumentFragment | Element} root */
 export async function highlightBlocks(root) {
   const blocks = [];
   // The root counts, like every other dressing pass: a revision that rewrote a block's

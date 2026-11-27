@@ -5348,7 +5348,8 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
     page presents and hands them to the dispatcher's owner. The sample bootstrap's
     other listener enters its browsing context on trusted input without answering a
     key; the same listener handles pointer input. base/document-inputs.js records inputs
-    from the document's first script. dom/focus.js reads keys as the end of a label press
+    from the document's first script. base/field-keys.js stops a field's keys at the field
+    once its readers have seen them, and answers none. dom/focus.js reads keys as the end of a label press
     and as a Tab's step; neither answers a command. Any key but Escape puts away the
     preview a pointer reads and goes on to its command, and off a served page, where the
     register holds no page scopes, the listener takes the preview's Escape step
@@ -5382,6 +5383,7 @@ def test_the_register_is_the_only_way_a_key_enters_the_runtime():
         "block-controls.js": 1,
         "preview.js": 1,
         "role-button-press.js": 1,
+        "field-keys.js": 1,
     }, (
         f"the runtime's keydown listeners changed: {listed}. A key belongs in the "
         "register (keys(el, title, rows)), which is what lets a surface promise it."

@@ -1,3 +1,4 @@
+// Compiled from focus.ts by build/typescript.mjs; edit that file.
 /* Focus readings shared by thread paint and commands. */
 import {
   drawn,
@@ -18,12 +19,7 @@ import { threadKey } from "../../state/thread/model.js";
 import { replyControlDestination, replyIsEditing, replyThreadKey } from "./replies.js";
 import { closestAcross } from "../../lib/shadow-tree.js";
 
-/** @typedef {ReturnType<typeof retainUserIntent>} UserIntent */
-/** @typedef {ReturnType<typeof import("./destination.js").createThreadDestinations>["openPageThread"]} OpenThread */
-/** @typedef {{node: Element, id: string, intent: UserIntent, may: UserIntent, reply: boolean}} CarriedPlace */
-
 // A drawn thread's root is where the user is on it.
-/** @param {Element} thread @param {"move" | "return"} cause */
 export function focusThread(thread, cause) {
   focusDestination(thread, cause);
 }
@@ -49,13 +45,11 @@ export function focusThread(thread, cause) {
 // panel's field shows the move's notice and its press back
 // (records/thread/threads-in-panel.js), which a caret in the reply would cover, and where a
 // second `p` moves it back. Words the user left in the reply stay there for `c`.
-/** @param {{moved?: string}} [options] @returns {"reply" | "thread"} */
 export const openingPart = ({ moved } = {}) => {
   if (moved !== undefined) return replyIsEditing(moved) ? "reply" : "thread";
   return pressLed() && !coarsePointer.matches ? "reply" : "thread";
 };
 
-/** @param {Element | null | undefined} thread */
 export const threadReplyInput = (thread) => {
   const input = thread && threadPart(thread, "reply");
   return input && shownBox(input).height ? input : null;
@@ -65,8 +59,6 @@ export const threadReplyInput = (thread) => {
 // thread), or the message `message` names, else the thread where the drawing gives the
 // message no row of its own, as it gives a later reaction or a step of the agent's
 // work (transcript.js).
-/** @param {Element} thread
- * @param {{part?: "thread" | "reply" | "message" | null, message: string} | {part?: "thread" | "reply" | null, message?: null}} [options] */
 export function threadFocusDestination(thread, options = {}) {
   if (options.part === "message")
     return (
@@ -88,7 +80,6 @@ export function focusedThreadTarget() {
 // seat on the page — with a control inside one standing in it too. Climbing from the
 // inner focus reaches a seat a widget stages in its shadow tree. A walk asks the same of
 // the node its origin was read from (`threadIn`).
-/** @param {Node | null | undefined} node */
 export const threadIn = (node) => closestAcross(node ?? null, THREAD);
 export const heldThread = () => threadIn(focused());
 
@@ -104,7 +95,6 @@ const heldThreadId = () => drawnThreadId(heldThread());
 // the press ends, when the current location repaint reads focus again. This is current location as drawn,
 // which lags focus across a press; a command acts on the held thread (`heldThreadId`).
 // The press is focus.js's (`onPress`), which ends it every way it can end.
-/** @type {string | null} */
 let pressed = null;
 let release = 0;
 function releasePress() {
@@ -115,13 +105,11 @@ function releasePress() {
     repaint();
   });
 }
-onPress(
-  /** @param {PointerEvent | MouseEvent} start */ (start) => {
-    if (start.button !== 0) return null;
-    pressed = heldThreadId();
-    return releasePress;
-  },
-);
+onPress((start) => {
+  if (start.button !== 0) return null;
+  pressed = heldThreadId();
+  return releasePress;
+});
 
 export const currentLocationThreadId = () => heldThreadId() ?? pressed;
 
@@ -130,14 +118,12 @@ export const currentLocationThreadId = () => heldThreadId() ?? pressed;
 // along only while a reply is being written in it (`replyIsEditing`): carrying the
 // caret would otherwise open a card that settlement closed again, over a box the user
 // never began in, as the empty box an opening leaves.
-/** @param {string} id @param {UserIntent} intent */
 const mayReplyTo = (id, intent) =>
   restrictUserIntent(intent, () => {
     const thread = threadNamed(id);
     return Boolean(thread && (!thread.resolved || replyIsEditing(threadKey(thread))));
   });
 // Whether the thread `id` names stands open.
-/** @param {string} id */
 const standsOpen = (id) => {
   const thread = threadNamed(id);
   return Boolean(thread && !thread.resolved);
@@ -175,8 +161,6 @@ const standsOpen = (id) => {
 // From the pass's start until that step has run, the node is being carried
 // (`carryingThreadPlace`): a surface closing under the user meanwhile, as the margin card
 // does when its thread goes back to a widget, places no one, and the step decides.
-/** @param {string} id @param {OpenThread} open @param {UserIntent} intent
- * @param {{destination?: (thread: Element) => Element | null, scroll?: boolean}} [options] */
 export async function replyDestination(
   id,
   open,
@@ -201,8 +185,6 @@ export async function replyDestination(
 // placed them already, and a travel taking them to the thread lands them itself
 // (features/anchor-travel.js, `travellingTo`), as when a press on a closed file's marker opens
 // the file and the thread leaves the marker for a seat beside its line.
-/** @param {string} id @param {OpenThread} open @param {UserIntent} may
- * @param {(id: string) => boolean} travellingTo */
 async function threadDestination(id, open, may, travellingTo) {
   const at = focused();
   if (travellingTo(id) || (at && at !== document.body && drawn(at))) return null;
@@ -210,15 +192,12 @@ async function threadDestination(id, open, may, travellingTo) {
   return shown instanceof Element && focused() === shown && may() ? shown : null;
 }
 
-/** @type {WeakSet<Element>} */
 const carried = new WeakSet();
-/** @type {CarriedPlace | null} */
 let carrying = null;
 // A seat can appear later in the pass, after its former margin card closes. The
 // close must defer its landing while the thread and the user's intent still stand;
 // `may` checks for the new seat only when the pass chooses its destination. A reply
 // goes on in any thread still present, a resolved one included.
-/** @param {Element | null | undefined} node */
 export const carryingThreadPlace = (node) => {
   const place = carrying;
   return Boolean(
@@ -227,8 +206,6 @@ export const carryingThreadPlace = (node) => {
     (place.reply ? place.may() : place.intent() && standsOpen(place.id)),
   );
 };
-/** @param {OpenThread} open
- * @param {{threadAt: (node: Element) => string | null, seated: (id: string) => boolean, travellingTo: (id: string) => boolean}} placement */
 export function holdThreadPlace(open, { threadAt, seated, travellingTo }) {
   carrying = null;
   const held = holdCurrentLocation();

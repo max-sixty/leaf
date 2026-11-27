@@ -1,3 +1,4 @@
+// Compiled from layer-client.ts by build/typescript.mjs; edit that file.
 /* The delivery gate, the event and media doors, the page's JSON requests, and the
    page's error channel to the agent.
 
@@ -101,7 +102,6 @@ export function reloadDocument() {
 }
 
 let layerReloading = false;
-/** @param {string} message */
 function reloadNow(message) {
   if (layerReloading) return;
   layerReloading = true;
@@ -117,7 +117,6 @@ function reloadNow(message) {
 // notice: raised once, it stands until an answer from this delivery is admitted.
 let asking = false;
 const holdWaiting = holdingError();
-/** @param {string} message */
 function reloadDelivery(message) {
   if (layerReloading || asking) return;
   asking = true;
@@ -141,13 +140,11 @@ function reloadDelivery(message) {
 
 // Whether an answer comes from a server running this document's runtime. A website
 // release names its runtime, so neither side names one there.
-/** @param {Response} response */
 const sameRuntime = (response) => {
   const served = response.headers.get("Leaf-Runtime");
   return !runtimeIdentity || !served || served === runtimeIdentity;
 };
 
-/** @param {HeadersInit} [headers] */
 export function layerHeaders(headers) {
   const result = new Headers({
     ...(layerGeneration && { "Leaf-Layer": layerGeneration }),
@@ -161,19 +158,6 @@ export function layerHeaders(headers) {
   return result;
 }
 
-/** @typedef {import("../../types/contract.js").ServedState & {
- * active: NonNullable<import("../../types/contract.js").ServedState["active"]>,
- * browser: NonNullable<import("../../types/contract.js").ServedState["browser"]>
- * }} WholeAnswer
- * @typedef {WholeAnswer | import("../../types/contract.js").ServedTail} StateAnswer
- * @typedef {Omit<WholeAnswer, "data"> & {
- * data: {version: string, sources: Record<string, import("../../types/domain.js").SourceReading>}
- * }} CompletedState
- * @typedef {{
- * data: {version: string | null, sources: Record<string, import("../../types/domain.js").SourceReading>},
- * state: CompletedState | null
- * }} Held */
-
 // A state request names what the tab holds, and the answer leaves that out for its
 // reader to restore from the same holding (http.py, `sent`). An answer to a request
 // naming the reading the tab adopted, by its `browser.basis.key`, may carry only the
@@ -182,33 +166,19 @@ export function layerHeaders(headers) {
 // the tab names leaves out its sources, since data moves only when an agent sets it.
 // A newer reading can be adopted while a request is out, so its reader captures the
 // holding before asking and completes the answer from that.
-/** @returns {Held} */
 export const heldReading = () => ({ data: runtime.data, state: runtime.state });
-/** @param {Held} held */
 export const heldHeaders = ({ data, state }) => ({
   ...(data.version !== null && { "Leaf-Data-Version": data.version }),
   ...(state?.browser.basis.key && { "Leaf-Held-Basis": state.browser.basis.key }),
 });
-
-/** @typedef {import("../../types/contract.js").ServedChange} Change */
-/** @typedef {Record<string, unknown> | unknown[]} Container */
 
 // The list a change names, from the held one: the items it sent and those it changed in
 // their places, those it moved or added after the item it pairs each with, in the
 // list's order, and the rest where they were (`served_state/tail.py`). A changed item
 // is the held one with its own changes applied, so what they leave alone in it, such
 // as each message of a thread one reply joined, keeps its identity too.
-/** @param {readonly unknown[]} held @param {Extract<Change, {by: unknown}>} change */
 function changedList(held, { by, items = [], changed = [], dropped = [], after = [] }) {
-  /** @param {unknown} item */
-  const name = (item) =>
-    /** @type {string} */ (
-      by === "self"
-        ? item
-        : by === "id"
-          ? /** @type {{id: string}} */ (item).id
-          : /** @type {{event: {id: string}}} */ (item).event.id
-    );
+  const name = (item) => (by === "self" ? item : by === "id" ? item.id : item.event.id);
   const sent = new Map(items.map((item) => [name(item), item]));
   const kept = new Map(held.map((item) => [name(item), item]));
   for (const [key, patch] of changed) sent.set(key, patched(kept.get(key), patch));
@@ -216,9 +186,7 @@ function changedList(held, { by, items = [], changed = [], dropped = [], after =
   // Each item `after` places is the one item now right after the one it names, so the
   // list is the held items that stay, each followed by the run placed after it.
   const next = new Map(after.map(([key, before]) => [before, key]));
-  /** @type {string[]} */
   const order = [];
-  /** @param {string | null} key */
   const run = (key) => {
     for (let at = next.get(key); at !== undefined; at = next.get(at)) order.push(at);
   };
@@ -234,44 +202,33 @@ function changedList(held, { by, items = [], changed = [], dropped = [], after =
 // The held reading with each change applied in turn. Only the objects and lists on a
 // change's path are copied, so every record the changes leave alone is the very one the
 // held reading had, which is what lets the publisher and the folds after it skip it.
-/** @template T @param {T} reading @param {readonly Change[]} patch @returns {T} */
 function patched(reading, patch) {
-  /** @type {Set<unknown>} */
   const copies = new Set();
-  /** @param {unknown} value @returns {Container} */
   const copy = (value) => {
-    if (copies.has(value)) return /** @type {Container} */ (value);
-    const owned = Array.isArray(value)
-      ? [...value]
-      : { .../** @type {Record<string, unknown>} */ (value) };
+    if (copies.has(value)) return value;
+    const owned = Array.isArray(value) ? [...value] : { ...value };
     copies.add(owned);
     return owned;
   };
-  const root = /** @type {Record<string, unknown>} */ (copy(reading));
+  const root = copy(reading);
   for (const change of patch) {
-    const key = /** @type {string} */ (change.at.at(-1));
+    const key = change.at.at(-1);
     let parent = root;
     for (const step of change.at.slice(0, -1)) {
-      const owned = /** @type {Record<string, unknown>} */ (copy(parent[step]));
+      const owned = copy(parent[step]);
       defineOwn(parent, step, owned);
       parent = owned;
     }
-    if ("by" in change)
-      defineOwn(
-        parent,
-        key,
-        changedList(/** @type {unknown[]} */ (parent[key]), change),
-      );
+    if ("by" in change) defineOwn(parent, key, changedList(parent[key], change));
     else if ("value" in change) defineOwn(parent, key, change.value);
     else delete parent[key];
   }
-  return /** @type {T} */ (root);
+  return root;
 }
 
 // The whole answer: for an answer carrying the changes since the reading its request
 // named, that reading with them applied, which is exactly the answer the server would
 // have sent whole; else the answer, with the sources of the data it named restored.
-/** @param {StateAnswer} answer @param {Held} held @returns {CompletedState} */
 export function completeState(answer, held) {
   if (!("since" in answer)) {
     const sources = answer.data.sources ?? held.data.sources;
@@ -293,10 +250,11 @@ export class LayerRefused extends Error {}
 
 /** The structured HTTP failure produced by requestJson, including a file conflict. */
 export class RequestError extends Error {
-  /** @param {string} message
-   * @param {{status: number; body: string; cause?: unknown;
-   *   current?: import("../../types/contract.js").ServedFileSnapshot | undefined;
-   *   said?: string | undefined}} details */
+  status;
+  body;
+  current;
+  said;
+
   constructor(message, { status, body, cause, current, said }) {
     super(message, { cause });
     this.status = status;
@@ -312,16 +270,12 @@ export class RequestError extends Error {
 // `error`, or `<what>: HTTP <status>`, carrying the status, the raw body and, for a file
 // the server holds newer than the draft, its `current`. Whether to send it again is the
 // caller's.
-/** The server owns the response contract named by each endpoint caller.
- * @template T @param {string} url @param {RequestInit} init @param {string} what
- * @returns {Promise<T>} */
+/** The server owns the response contract named by each endpoint caller. */
 export async function requestJson(url, init, what) {
   const response = await fetch(url, { ...init, headers: layerHeaders(init.headers) });
   if (!admitResponse(response))
     throw new LayerRefused(`Leaf's layer changed while requesting ${what}`);
   const text = await response.text();
-  /** @param {string} message @param {unknown} cause
-   * @param {Pick<ConstructorParameters<typeof RequestError>[1], "current" | "said">} [details] */
   const failed = (message, cause, details = {}) =>
     new RequestError(message, {
       status: response.status,
@@ -342,7 +296,6 @@ export async function requestJson(url, init, what) {
     }
   // `said` is the server's own words for the refusal, where it gave any.
   if (!response.ok) {
-    /** @type {import("../../types/contract.js").ServedRefusal | import("../../types/contract.js").ServedStaleFile | null} */
     const refusal = answer;
     throw failed(refusal?.error ?? `${what}: HTTP ${response.status}`, undefined, {
       current: refusal && "current" in refusal ? refusal.current : undefined,
@@ -352,7 +305,6 @@ export async function requestJson(url, init, what) {
   return answer;
 }
 
-/** @param {string} generation */
 export function sameLayer(generation) {
   if (generation === layerGeneration) return true;
   // Say what is about to happen before it happens. The user is looking at a page
@@ -362,16 +314,13 @@ export function sameLayer(generation) {
   return false;
 }
 
-/** @param {Response} response */
 export const admitResponse = (response) => admitted(response, true);
 
 // An answer about another revision than the document's, such as the reading of an
 // older version a comparison asks `/api/view` for, speaks that revision's layer. Only
 // the runtime and release of the server answering are held to the document's.
-/** @param {Response} response */
 export const admitReading = (response) => admitted(response, false);
 
-/** @param {Response} response @param {boolean} ofThisLayer */
 function admitted(response, ofThisLayer) {
   observeSession(response);
   observeKey(response);
@@ -407,7 +356,6 @@ const sessionChannel =
     ? new window.BroadcastChannel(`leaf-session:${release}:${pageUrl("")}`)
     : null;
 
-/** @param {boolean} broadcast */
 function activateSession(broadcast) {
   const activated = sessionMode !== "active";
   sessionMode = "active";
@@ -427,7 +375,6 @@ sessionChannel?.addEventListener("message", (event) => {
 // it.
 let agentStopped = false;
 
-/** @param {Response} response */
 function observeSession(response) {
   const reference = response.headers.get("Leaf-Session-Reference");
   if (reference !== null && /^\d{12}$/.test(reference))
@@ -449,12 +396,10 @@ export const writeLaunchesAgent = () => agentStopped;
 // the printed link is opened in any tab of this browser, since that sets the cookie its
 // next request carries.
 const KEY_REFUSED = 401;
-/** @param {Response} response */
 function observeKey(response) {
   runtime.keyRefused = response.status === KEY_REFUSED;
 }
 
-/** @type {PromiseWithResolvers<void>} */
 const { promise: layerReady, resolve: layerRevealed } = Promise.withResolvers();
 // Once the layer is known, an event goes out in the task that sends it: awaiting the
 // settled promise would put the request behind every microtask queued before it, such
@@ -480,8 +425,6 @@ const KEEPALIVE_BYTES = 60_000;
 // and the trip ends once its body is read, decoded or not, so `acked` counts a post
 // whose answer the page holds, as `heard` does a read's. A `503`'s plain-text body says
 // nothing the page reads, so its trip ends with its headers.
-/** @param {import("../../types/contract.js").BrowserCommand} event
- * @returns {Promise<{response: Response, decoded: {answer: any} | {error: unknown}} | null>} */
 export const postEvent = async (event, held = heldReading()) => {
   if (offlineInteractive)
     throw new Error("no agent or server is available in an interactive export");
@@ -525,7 +468,6 @@ export const postEvent = async (event, held = heldReading()) => {
     // names the link that ends it.
     if (response.status === KEY_REFUSED)
       throw new Error("the server refused this page's key");
-    /** @type {{answer: any} | {error: unknown}} */
     const decoded =
       response.status === 503
         ? { error: "503" }
@@ -543,13 +485,11 @@ export const postEvent = async (event, held = heldReading()) => {
 // The raw body keeps binary data out of JSON and the append-only log; the server
 // derives the served extension and returns the canonical page-relative path. Like an
 // event POST, this request waits for a known layer and accounts for its whole trip.
-/** @param {Blob} file */
 export const uploadMedia = async (file) => {
   if (offlineInteractive)
     throw new Error("no agent or server is available in an interactive export");
   await layerReady;
   countTraffic("sends");
-  /** @type {import("../../types/contract.js").ServedMediaAnswer} */
   let answer;
   try {
     answer = await requestJson(
@@ -582,7 +522,6 @@ export const uploadMedia = async (file) => {
 const reportedReasons = new WeakSet();
 const reportedPrimitives = new Set();
 const reportedErrors = new Set();
-/** @param {unknown} reason @param {string} [context] */
 export function reportPageError(reason, context = "") {
   if (typeof reason === "object" && reason !== null) reportedReasons.add(reason);
   else reportedPrimitives.add(String(reason));
@@ -608,7 +547,6 @@ export function reportPageError(reason, context = "") {
 // shares one exception among owners, as a cached rejected load does among its widgets,
 // reports through reportPageError, once per owner. A primitive reason has no identity,
 // so its text stands for it.
-/** @param {unknown} reason @param {string} [context] */
 export function reportCarried(reason, context = "") {
   const reported =
     typeof reason === "object" && reason !== null
@@ -618,7 +556,7 @@ export function reportCarried(reason, context = "") {
 }
 
 // Any `error` event that reaches the window, a package's plain `Event` among them.
-window.addEventListener("error", (/** @type {Event & Partial<ErrorEvent>} */ e) => {
+window.addEventListener("error", (e) => {
   // A widget's own failure, which it shows where it stands and dispatches
   // (`reportFailure`, lib/failure.js), named for the widget it happened in.
   const failure = failureOf(e);

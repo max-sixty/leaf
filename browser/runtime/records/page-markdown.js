@@ -1,3 +1,4 @@
+// Compiled from page-markdown.ts by build/typescript.mjs; edit that file.
 /* Markdown on a Leaf page: how the page writes the links and pictures the library's
    dialect renders (lib/markdown.js), and the passes that render the words the composed
    registry declares Markdown. The dialect itself reads nothing of the page's. */
@@ -19,8 +20,7 @@ import { dataBody } from "../lib/data-body.js";
  * (media.js, `scopedMediaUrl`), and its picture is a press that opens the media viewer.
  * Markdown can't say where a link opens, so a link that leaves the page opens in a new
  * tab, and the page, and the thread the reader followed the link from, stay open where
- * they were.
- * @type {import("../lib/markdown.js").MarkdownLinks} */
+ * they were. */
 export const pageLinks = {
   link: (href) =>
     isCanonicalMediaUrl(href)
@@ -47,16 +47,13 @@ export const pageLinks = {
 };
 
 // A declaration whose data body is Markdown words (`content: markdown`).
-/** @param {import("../../types/contract.js").WidgetDeclaration} entry */
 const wordsAreMarkdown = (entry) => entry.content === "markdown";
 
 // A Markdown body (`content: markdown`) is the layer's to render, so a package
 // declaration cannot make file-side passages read words the browser leaves as raw
 // Markdown.
-/** @param {Element | Document | DocumentFragment} scope */
 export async function loadDeclaredMarkdown(scope) {
   if (!declaredElements(scope, wordsAreMarkdown).length) return;
-  /** @type {unknown} */
   let failure;
   if (!(await loadMarkdown((error) => (failure = error))))
     throw new Error(
@@ -71,7 +68,6 @@ export async function loadDeclaredMarkdown(scope) {
 // this step is synchronous. The server's first paint of a body (`data-lf-prepaint`)
 // stamps the source it rendered, as `paintMarkdown` does, but its rendering writes none
 // of the page's links, so the stamp doesn't spare that body its paint.
-/** @param {Element | Document | DocumentFragment} scope */
 export function formatDeclaredMarkdown(scope) {
   const elements = declaredElements(scope, wordsAreMarkdown);
   if (!elements.length) return;

@@ -1,4 +1,4 @@
-// @ts-check
+// Compiled from voice.ts by build/typescript.mjs; edit that file.
 /* Who says each word a seat shows about the work (glossary.md, "Reader-facing words").
 
    Every such word is said by the agent or by Leaf, and each speaker has one face on
@@ -28,26 +28,19 @@ export const COMMENT_HINT = "Comment…";
 export const REPLY_HINT = "Reply…";
 export const REOPEN_HINT = "Reply to reopen…";
 
-/** @typedef {"agent" | "leaf"} Voice */
-/** A word said, and who says it.
- * @typedef {{ readonly text: string, readonly voice: Voice }} Said */
-/** What a seat shows: the interface's own words, one part said, or a run of either.
- * @typedef {string | Said | readonly (string | Said)[]} Words */
+/** A word said, and who says it. */
 
-/** @param {Voice} voice @param {string} text @returns {Said} */
+/** What a seat shows: the interface's own words, one part said, or a run of either. */
+
 export const saidBy = (voice, text) => Object.freeze({ text, voice });
-/** @param {string} text */
 export const agentSays = (text) => saidBy("agent", text);
-/** @param {string} text */
 export const leafSays = (text) => saidBy("leaf", text);
 
-/** @param {Words} words @returns {readonly (string | Said)[]} */
 const runOf = (words) =>
   typeof words === "string" || "voice" in words ? [words] : words;
 
 /** The words as one line reads them, for a title, the live region or a native
- * placeholder.
- * @param {Words} words */
+ * placeholder. */
 export const wordsText = (words) =>
   runOf(words)
     .map((part) => (typeof part === "string" ? part : part.text))
@@ -55,8 +48,7 @@ export const wordsText = (words) =>
 
 /** The one voice every word of a run is said in, which a seat that holds a single
  * face, such as the field's native placeholder, wears whole; null where the run mixes
- * voices or holds the interface's own words.
- * @param {Words} words @returns {Voice | null} */
+ * voices or holds the interface's own words. */
 export function voiceOf(words) {
   const voices = new Set(
     runOf(words)
@@ -69,10 +61,8 @@ export function voiceOf(words) {
 
 /** The run's lines, split where a part is a line break ("\n"), as a change's account
  * stands over what its version was saved after (features/change-provenance.js), for a seat that
- * draws each line as its own.
- * @param {Words} words @returns {(string | Said)[][]} */
+ * draws each line as its own. */
 export function linesOf(words) {
-  /** @type {(string | Said)[][]} */
   const lines = [[]];
   for (const part of runOf(words))
     if (part === "\n") lines.push([]);
@@ -80,8 +70,7 @@ export function linesOf(words) {
   return lines;
 }
 
-/** The words in their speakers' faces.
- * @param {Words} words */
+/** The words in their speakers' faces. */
 export const voiced = (words) =>
   runOf(words).map((part) =>
     typeof part === "string"

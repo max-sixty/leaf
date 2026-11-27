@@ -110,26 +110,44 @@
     (node instanceof Element &&
       (node.localName === "select" || node.getAttribute("role") === "option"));
   // The state a reload carries for a control and puts back (records/carry.js; prepaint.js,
-  // `handingOn`), each where the control holds it: the words in a text box or in an
-  // input other than a file input, whose value only the browser sets; the tick of a
-  // checkbox or radio; and whether a disclosure is open.
-  const holdsValue = (node: Element): node is HTMLElement & { value: string } =>
-    node instanceof HTMLElement &&
-    (node.matches(textBox) ||
-      (node instanceof HTMLInputElement && node.type !== "file"));
+  // `handingOn`), each where the control holds it: whether a disclosure is open; the
+  // tick of a checkbox or radio; the values of the options chosen in a select, several
+  // where it takes `multiple`; and the words in a text box or in an input other than a
+  // file input, whose value only the browser sets.
   const holdsTick = (node: Element): node is HTMLInputElement =>
     node instanceof HTMLInputElement &&
     (node.type === "checkbox" || node.type === "radio");
-  const holdsOpen: DocumentInputs["holdsOpen"] = (node) =>
-    node instanceof HTMLDetailsElement;
+  const holdsValue = (node: Element): node is HTMLElement & { value: string } =>
+    node instanceof HTMLElement &&
+    (node.matches(textBox) ||
+      (node instanceof HTMLInputElement && node.type !== "file" && !holdsTick(node)));
+  const controlState: DocumentInputs["controlState"] = (node) => {
+    if (node instanceof HTMLDetailsElement) return { open: node.open };
+    if (node instanceof HTMLSelectElement)
+      return { chosen: [...node.selectedOptions].map((option) => option.value) };
+    if (holdsTick(node)) return { checked: node.checked };
+    if (holdsValue(node)) return { value: node.value };
+    return null;
+  };
+  // A select takes back the chosen options it still has. Where it has none of them, as
+  // after a revision that took the chosen option away, it keeps what it shows.
+  const putControlState: DocumentInputs["putControlState"] = (node, state) => {
+    if (node instanceof HTMLDetailsElement && "open" in state) node.open = state.open;
+    else if (node instanceof HTMLSelectElement && "chosen" in state) {
+      const chosen = new Set(state.chosen);
+      const options = [...node.options];
+      if (chosen.size && !options.some((option) => chosen.has(option.value))) return;
+      for (const option of options) option.selected = chosen.has(option.value);
+    } else if (holdsTick(node) && "checked" in state) node.checked = state.checked;
+    else if (holdsValue(node) && "value" in state) node.value = state.value;
+  };
   const state: DocumentInputs = {
     textField,
     textBox,
     typesText,
     takesLetters,
-    holdsValue,
-    holdsTick,
-    holdsOpen,
+    controlState,
+    putControlState,
     get count() {
       return inputs;
     },

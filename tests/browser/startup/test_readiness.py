@@ -739,6 +739,33 @@ def test_a_value_typed_into_the_page_rides_two_reloads_in_a_row(browser, serve):
     expect(page.locator("#slow")).to_be_checked()
 
 
+def test_the_options_chosen_in_a_select_ride_a_reload(browser, serve):
+    """The option the user chose in the page's own select, and the several they chose
+    in a select that takes many, come back after a reload Leaf asks for, as the words
+    they typed beside them do. The form asks the browser to keep no value of its own,
+    so only Leaf's carry can."""
+    url = serve(
+        leaf_page(
+            "Restarted",
+            '<h1>Form</h1><form autocomplete="off">'
+            '<p><label>Name <input id="who"></label></p>'
+            '<p><label>Plan <select id="plan"><option>Starter</option>'
+            "<option>Team</option><option>Scale</option></select></label></p>"
+            '<p><label>Days <select id="days" multiple><option>Mon</option>'
+            "<option selected>Tue</option><option>Wed</option></select></label></p>"
+            "</form>",
+        )
+    )
+    page = open_page(browser, live_url(url))
+    page.locator("#who").fill("Ada")
+    page.locator("#plan").select_option("Team")
+    page.locator("#days").select_option(["Mon", "Wed"])
+    restart_under_another_runtime(page, serve)
+    expect(page.locator("#who")).to_have_value("Ada")
+    expect(page.locator("#plan")).to_have_value("Team")
+    expect(page.locator("#days")).to_have_values(["Mon", "Wed"])
+
+
 def test_a_value_a_page_script_writes_yields_to_the_one_the_reload_carries(
     browser, serve
 ):
@@ -887,7 +914,10 @@ SHOW_AS = """(state) => {
 def carried_values(page):
     """The values the tab's stored handoff carries, by control id."""
     stored = page.evaluate(STORED_HANDOFF) or {}
-    return {record["id"]: record.get("value") for record in stored.get("carry", [])}
+    return {
+        record["id"]: record.get("state", {}).get("value")
+        for record in stored.get("carry", [])
+    }
 
 
 def reload_before_leaf_starts(page, serve, meanwhile, by_leaf=True):

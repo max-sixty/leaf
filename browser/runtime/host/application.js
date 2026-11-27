@@ -22,6 +22,7 @@ import { readObligations } from "../records/obligations/place.js";
 import { watchPendingTraffic } from "../transport/traffic.js";
 import { createCommandDispatch } from "../records/pending/dispatch.js";
 import { widgetAnswered } from "./widget-state.js";
+import { setMounted } from "./mounted.js";
 import { createDelivery, deliverBookkeeping } from "./delivery.js";
 import { keepRefusedWords } from "../records/drafts.js";
 import { createProjectionPresentation } from "../records/projection/presentation.js";
@@ -128,6 +129,7 @@ export function mountApplication(dependencies) {
   if (application) throw new Error("Leaf application mounted twice");
   const mounted = createApplication(dependencies);
   application = mounted;
+  setMounted({ navigateToDatum, obligationActions, threadActions });
   return mounted;
 }
 

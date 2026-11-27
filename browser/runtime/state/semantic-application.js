@@ -774,7 +774,6 @@ const onUserRank = (item) => (item.kind === "update" ? 1 : 0);
 /** @template M @typedef {M extends ReadonlyMap<unknown, infer V> ? V : never} MapValue */
 /**
  * @typedef {{
- *   readonly classified: readonly MapValue<RootProjection["classified"]>[];
  *   readonly desired: readonly MapValue<RootProjection["actions"]>[];
  *   readonly undo: readonly NonNullable<
  *     SemanticRoot["effective"]["view"]
@@ -805,13 +804,9 @@ function widgetIndex(root) {
   /** @param {string} widget */
   const group = (widget) => {
     let entries = byWidget.get(widget);
-    if (!entries)
-      byWidget.set(widget, (entries = { classified: [], desired: [], undo: [] }));
+    if (!entries) byWidget.set(widget, (entries = { desired: [], undo: [] }));
     return entries;
   };
-  for (const entry of projection.classified.values())
-    if (!entry.terminal && entry.e.kind === "action")
-      group(entry.e.widget).classified.push(entry);
   for (const entry of projection.actions.values())
     group(entry.e.widget).desired.push(entry);
   for (const { event } of root.effective.view?.undo ?? [])
@@ -831,7 +826,7 @@ function widgetIndex(root) {
 }
 
 /** @type {WidgetEntries} */
-const NO_ENTRIES = { classified: [], desired: [], undo: [] };
+const NO_ENTRIES = { desired: [], undo: [] };
 
 // The parts of the root any widget's reading draws from (`widgetInputs`).
 /** @param {SemanticRoot} root @param {WidgetIndex} index */
@@ -840,7 +835,6 @@ const widgetParts = (root, index) => ({
   states: root.document.registry.$states,
   widgets: root.effective.widgets,
   memberships: root.effective.memberships,
-  authored: root.document.authored,
   hostAvailable: root.effective.hostAvailable,
   ready: root.phase === "ready",
   index,
@@ -857,7 +851,6 @@ function widgetInputs(parts, { id, tag }) {
     states: parts.states[tag],
     current: parts.widgets.get(id),
     memberships: parts.memberships.get(id),
-    authored: parts.authored.get(id),
     hostAvailable: parts.hostAvailable,
     ready: parts.ready,
     entries: parts.index.byWidget.get(id) ?? NO_ENTRIES,
@@ -876,10 +869,6 @@ function widgetReading(inputs, descriptor) {
   // document capture is adopted. An id shared with the outgoing node must not lend the
   // replacement its old semantic state during that preparation window.
   const current = currentDescriptor ? inputs.current : undefined;
-  const authored = currentDescriptor ? inputs.authored?.state : undefined;
-  const classified = inputs.entries.classified.toSorted(
-    (left, right) => (left.e.seq ?? 0) - (right.e.seq ?? 0),
-  );
   const actionSpecs = descriptor.declaration.verbs ?? {};
   const states = inputs.states ?? {};
   const desired = inputs.entries.desired;
@@ -901,7 +890,6 @@ function widgetReading(inputs, descriptor) {
             inputs.ready &&
             !descriptor.quoted,
           unavailable: inputs.hostAvailable ? null : "no agent or server is available",
-          history: classified.filter(({ e }) => e.action === verb).map(({ e }) => e),
           inForce: desired
             .filter(({ e }) => e.action === verb)
             .map(({ e, unit, value }) => ({ event: e, unit, value })),
@@ -911,20 +899,10 @@ function widgetReading(inputs, descriptor) {
         },
       ]),
   );
-
-  const provenanceEntries = current?.entries ?? [];
-  const provenance = Object.fromEntries(
-    provenanceEntries.map(({ e, unit, value }) => [
-      `${e.action}:${unit}`,
-      { event: e, unit, value },
-    ]),
-  );
   return {
-    authored: authored ?? {},
     state: current?.state ?? {},
     memberships: currentDescriptor ? (inputs.memberships ?? {}) : {},
     thread: { heldBy: inputs.heldBy },
-    provenance,
     actions,
   };
 }

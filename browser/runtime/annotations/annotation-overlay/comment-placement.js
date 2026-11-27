@@ -647,7 +647,7 @@ export const attachedEdge = (side) => (side === "top" ? "foot" : "top");
 export function commentPlacement() {
   /** @type {Side | null} */
   let side = null;
-  /** @type {{unanchored: boolean, boundary: BoundaryKey, left: number, right: number} | null} */
+  /** @type {{unanchored: boolean, boundary: BoundaryKey, width: number} | null} */
   let input = null;
   /** @type {AdoptedFrame | null} */
   let pending = null;
@@ -1106,8 +1106,7 @@ export function commentPlacement() {
       const key = {
         unanchored,
         boundary: boundary.key,
-        left: extent.left,
-        right: extent.right,
+        width: extent.right - extent.left,
       };
       const frame = pending;
       pending = null;
@@ -1138,8 +1137,7 @@ export function commentPlacement() {
         input &&
         (key.unanchored !== input.unanchored ||
           !sameBoundary(key.boundary, input.boundary) ||
-          Math.abs(key.left - input.left) > 0.5 ||
-          Math.abs(key.right - input.right) > 0.5)
+          Math.abs(key.width - input.width) > 0.5)
       ) {
         forget();
       } else if (!input && opened) {

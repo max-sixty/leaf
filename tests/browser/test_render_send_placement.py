@@ -2671,6 +2671,52 @@ def test_a_box_under_right_to_left_words_stands_at_their_first_word(browser, ser
     assert box["right"] == pytest.approx(selected["right"], abs=1), (box, selected)
 
 
+def test_a_box_beside_words_that_start_in_a_padded_element_stands_at_their_line(
+    browser, serve
+):
+    """A selection that starts across a whole padded element attaches to its first
+    word's line, not to the element's padding above it, so a box beside it stands level
+    with the words."""
+    rest = "and the rest of the paragraph runs on past the chip. " * 6
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Chip",
+                '<p id="prose"><span style="display:inline-block;padding:36px 48px">'
+                f"First words</span> {rest}</p>",
+            )
+        ),
+    )
+    resized(page, 1700, 800)
+    words = page.evaluate(
+        """() => {
+          const prose = document.querySelector('#prose');
+          const chip = prose.firstElementChild.firstChild;
+          const range = document.createRange();
+          range.setStart(prose, 0);
+          range.setEnd(prose.lastChild, 30);
+          getSelection().removeAllRanges();
+          getSelection().addRange(range);
+          const first = document.createRange();
+          first.setStart(chip, 0);
+          first.setEnd(chip, 1);
+          return first.getBoundingClientRect().toJSON();
+        }"""
+    )
+    page.keyboard.press("c")
+    expect(page.locator(".lf-fab-input")).to_be_visible()
+    rendered(page)
+    box = page.locator(".lf-fab-bar")
+    rect = page.evaluate(RECT, ".lf-fab-bar")
+    side = SIDES[box.get_attribute("data-lf-placement")]
+    assert side == "right", side
+    assert (
+        stands(side, rect, words, page.evaluate(RECT, "#prose"))
+        == "level with the words"
+    ), (rect, words)
+
+
 def test_a_comment_keeps_its_measure_when_its_passage_scrolls_away(browser, serve):
     page = open_page(
         browser,

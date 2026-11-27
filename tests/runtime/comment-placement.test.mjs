@@ -728,10 +728,11 @@ test("a surface under words near a line's end crosses a sideways scroll with the
   const platform = windowPlatform(() => ({ width: 320, height: 120 }));
   // floating.js's own middleware, reduced to the width the landing reads.
   const held = { name: "held", fn: ({ rects }) => ({ data: rects.floating }) };
-  const wide = block(40, 1240, 500, 700);
   const box = commentPlacement();
-  // Words starting at `column`, in a log a sideways scroll moves them in.
-  const place = async (column) => {
+  // Words starting at `column`, in a log starting at `left` that a sideways scroll
+  // moves them in, or that moves with them where a box around it scrolls.
+  const place = async (column, left = 40) => {
+    const wide = block(left, 1240, 500, 700);
     const seat = box.choose({
       clear: wide,
       room: paragraph,
@@ -764,6 +765,8 @@ test("a surface under words near a line's end crosses a sideways scroll with the
   assert.equal(await place(900), 772);
   // Scrolled back, it returns to where it stood.
   assert.equal(await place(1100), 972);
+  // A box around the log scrolling it 200px left carries the box the same 200px.
+  assert.equal(await place(900, -160), 772);
 });
 
 test("the card Send opens holds the edge its comment box held", async () => {

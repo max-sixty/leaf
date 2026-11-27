@@ -567,6 +567,14 @@ summary {
   /* The widest a news notice beside a message head's words stands, a primary
      reader's, in a message head or a part, so the head keeps its author and time. */
   --lf-news-width: 5rem;
+  /* The room a margin card's transcript keeps inside the card's edges, at its sides
+     and under the card's head line: what the card's padding and border leave inside
+     the card's own ring (annotation-chrome.css, at `--lf-transcript-room`). */
+  --lf-transcript-edge-room: calc(var(--lf-thread-frame) - var(--lf-focus-ring-w));
+  /* How far a margin card's first message stands below the card's top: its head line
+     and that room under it. Beside its passage, the card stands that message, not its
+     top, level with the passage (annotation-overlay/comment-placement.js, `cardLine`). */
+  --lf-card-line: calc(var(--lf-msg-head-height) + var(--lf-transcript-edge-room));
 }
 .lf-thread-transcript {
   min-width: 0;

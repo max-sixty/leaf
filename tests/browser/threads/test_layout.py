@@ -27,6 +27,7 @@ from render_harness import (
     scroll_settled,
     select_words,
     sending,
+    told,
     write,
 )
 
@@ -35,10 +36,12 @@ from browser.threads import (
     LANDING_WORDS,
     _shadow_tree_widget,
     append_agent_reply,
+    claim_for_codex,
     long_diff_thread,
     open_panel_thread,
     paste_image,
 )
+from leaf.agents import thread as thread_model
 from leaf.source.render_checks import one_frame, rendered
 from leaf_dev.browser import PANEL_THREAD
 
@@ -116,6 +119,50 @@ def test_thread_actions_share_consistently_sized_message_headers(
             geometry
         )
         assert geometry["bodyLeft"] == geometry["headLeft"], geometry
+
+
+def test_a_card_s_messages_stay_put_while_its_title_comes(browser, serve, request):
+    """A card's head line holds its presses whether or not its thread has a title, so
+    the placeholder that shows while an agent names the thread, and the title once it
+    lands, take that line without moving the card or the messages under it."""
+    url = serve(PANEL_PAGE)
+    root = panel_comment(
+        serve.page_dir, "Is the workshop room accessible?", {"section": "h-how"}
+    )
+    page = open_page(browser, url)
+    resized(page, 1440, 900)
+    page.locator('[data-lf-margin-for="h-how"] .lf-margin-marker').click()
+    card = page.locator(".lf-margin-preview")
+    heading = card.locator(".lf-margin-thread-title")
+    expect(heading).to_be_hidden()
+    rendered(page)
+
+    def where():
+        return card.evaluate(
+            """card => {
+              const top = (selector) =>
+                card.querySelector(selector).getBoundingClientRect().top;
+              return {card: top('.lf-margin-thread'), head: top('.lf-msg-head'),
+                      words: top('.lf-msg-text')};
+            }"""
+        )
+
+    untitled = where()
+    claim_for_codex(serve.page_dir, request)
+    told(page)
+    expect(heading.locator(".lf-thread-name-pending")).to_be_visible()
+    rendered(page)
+    assert where() == pytest.approx(untitled, abs=0.5), "the placeholder moved it"
+    append_carried_log_record(
+        serve.page_dir,
+        thread_model.title_event(
+            root, "Workshop access", {"agent": "Codex", "session": "codex-thread"}
+        ),
+    )
+    told(page)
+    expect(heading).to_have_text("Workshop access")
+    rendered(page)
+    assert where() == pytest.approx(untitled, abs=0.5), "the title moved it"
 
 
 def test_a_later_message_copies_its_markdown_from_the_card_s_edge(browser, serve):

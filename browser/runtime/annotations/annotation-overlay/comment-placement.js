@@ -553,6 +553,11 @@ const rootLength = (name) =>
   parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
 export const cardMinimum = () => rootLength("--lf-thread-card-min");
 export const cardMeasure = () => rootLength("--lf-thread-card");
+// How far a card's first message stands below its top (`--lf-card-line`,
+// surfaces.css). Beside its passage the card stands that message level with the
+// passage's row (`place-beside`), and a comment box, whose frame reserves the same
+// line, stands where its card will.
+const cardLine = () => rootLength("--lf-card-line");
 // Where `size-width` widens a card by its text: a block of words wider than it is tall
 // reads at a glance at the least width; a taller one reads as a column, which the
 // measure's lines halve. The shape needs no constant, so it follows the card's width
@@ -1021,7 +1026,7 @@ export function commentPlacement() {
         }
         return {
           mainAxis,
-          crossAxis: across ? 0 : (row - COMMENT_GAP - box.top) / scale.y,
+          crossAxis: across ? 0 : (row - COMMENT_GAP - box.top) / scale.y - cardLine(),
         };
       }),
       holding,

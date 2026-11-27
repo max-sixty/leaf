@@ -612,6 +612,12 @@ main {
   inherits: true;
   initial-value: 0px;
 }
+/* Registered so placement reads it as a length (comment-placement.js, `cardLine`). */
+@property --lf-card-line {
+  syntax: "<length>";
+  inherits: true;
+  initial-value: 0px;
+}
 @property --lf-rail-hang {
   syntax: "<length>";
   inherits: true;

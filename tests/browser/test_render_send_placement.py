@@ -245,11 +245,21 @@ RECT = """(selector) => {
 }"""
 
 
-def stands(side, rect, words, block):
-    """Whether a box on `side` stands where that side puts it: beside the block, its
-    top level with the words' line; or under or over the block, clear of it."""
+def card_line(page):
+    """How far a card's first message stands below the card's top (`--lf-card-line`),
+    the line a comment box's frame reserves above where that message will stand."""
+    return page.evaluate(
+        "parseFloat(getComputedStyle(document.documentElement)"
+        ".getPropertyValue('--lf-card-line'))"
+    )
+
+
+def stands(side, rect, words, block, line):
+    """Whether a box or card on `side` stands where that side puts it: beside the
+    block, its first message, `line` below its top, level with the words' line; or
+    under or over the block, clear of it."""
     if side in ("right", "left"):
-        off = rect["top"] - words["top"]
+        off = rect["top"] + line - words["top"]
         if abs(off) <= STILL:
             return "level with the words"
         return f"{distance(off)} {'under' if off > 0 else 'over'} the words"
@@ -391,7 +401,7 @@ def sent(browser, serve, name, shots):
 
     def standing(side, rect):
         if touch_room is None:
-            return stands(side, rect, words, block)
+            return stands(side, rect, words, block, card_line(page))
         assert side in ("above", "below"), side
         gap = (
             block["top"] - rect["bottom"]
@@ -2673,8 +2683,8 @@ def test_a_box_beside_words_that_start_in_a_padded_element_stands_at_their_line(
     browser, serve
 ):
     """A selection that starts across a whole padded element attaches to its first
-    word's line, not to the element's padding above it, so a box beside it stands level
-    with the words."""
+    word's line, not to the element's padding above it, so a box beside it stands
+    where its card's first message will, level with the words."""
     rest = "and the rest of the paragraph runs on past the chip. " * 6
     page = open_page(
         browser,
@@ -2710,7 +2720,7 @@ def test_a_box_beside_words_that_start_in_a_padded_element_stands_at_their_line(
     side = SIDES[box.get_attribute("data-lf-placement")]
     assert side == "right", side
     assert (
-        stands(side, rect, words, page.evaluate(RECT, "#prose"))
+        stands(side, rect, words, page.evaluate(RECT, "#prose"), card_line(page))
         == "level with the words"
     ), (rect, words)
 

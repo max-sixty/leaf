@@ -3,10 +3,7 @@
 The document and log remain the authority. A server publishes their canonical
 activity fold to state-home rows/<page-key>.json, together with its title, its
 working directory and the user's counts its Leaf panel marks (On Me, open threads,
-threads with unread words), which neighbors and Leaf's Claude Code band show. A
-server for no session that a session's shell started names that session
-(`started_in`), whose band lists the page as it lists the pages the session holds
-(`hooks.cmd_pages`). The record is bound to service.server_id, so another server
+threads with unread words), which neighbors and Leaf's Claude Code band show. The record is bound to service.server_id, so another server
 incarnation cannot inherit it; the server lease decides whether any row exists.
 Deleting every row only hides neighbors until their next maintenance look. No
 server removes its own row, since a server can die without a last word; the reader
@@ -52,11 +49,10 @@ from leaf.source.page_inputs import page_reading
 class RowPublisher:
     """The serving process's held input key and last delivered compact row."""
 
-    def __init__(self, page_dir: Path, server_id: str, started_in: str | None = None):
+    def __init__(self, page_dir: Path, server_id: str):
         self.page_dir = page_dir
         self.memory = memory_of(page_dir)
         self.server_id = server_id
-        self.started_in = started_in
         self.service = PageStateService(page_dir)
         self.reading = None
         self.live = None
@@ -116,7 +112,6 @@ class RowPublisher:
                     "page": str(self.page_dir),
                     "page_key": page_key(self.page_dir),
                     "server_id": self.server_id,
-                    "started_in": self.started_in,
                     "row": row,
                 },
             )

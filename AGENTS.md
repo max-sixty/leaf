@@ -284,8 +284,8 @@ and the page's packages into the page's layer.
   describes.
 - `notes/`: research, and plans for large work in progress or for a design not yet
   built. Work being built on a branch keeps its contract in its own code, not in a
-  note; to show that work to the user, preview a Leaf page whose source is a file in
-  `.tmp/`. When a design lands, its contract moves beside the code or into a
+  note; to show that work to the user, serve them a Leaf page whose source is a file
+  in `.tmp/` (`/developing-leaf`, "Run `leaf`"). When a design lands, its contract moves beside the code or into a
   reference, and its note is deleted. `notes/TODO.md` lists the biggest current
   challenges and says how to query the backlog, which is the GitHub issues labelled
   `backlog`.

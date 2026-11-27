@@ -346,20 +346,13 @@ SHOWN_FIELDS = ("page_key", "url", "title", "on_user", "threads", "activity")
 
 
 def cmd_pages(payload: dict) -> None:
-    """Print the session's live pages (`presence.live_leaves`) and the instructions
-    Leaf has for its hooks module (`carrier.py`), as one JSON object,
-    `{"pages": [...], "do": [...]}`, then again each time either changes, until the
-    session has no page. The module draws the pages beside the prompt and runs each
-    instruction once: a completion each page server asks of the session
-    (`completions.listed`) and a line fork for each round of the user's that awaits
-    the agent's working line (`forks.look`).
-
-    The session's pages are those it holds and those a Leaf that doesn't run it,
-    such as a checkout's `bin/leaf`, serves for no session from its shell
-    (`presence.started_in`), which that Leaf's own `leaf wait` hears. Such a page
-    may be at another protocol, so the follower lists it and does nothing else
-    there: it runs no line fork for it, notes nothing in it and watches none of its
-    files.
+    """Print the live pages the payload's session holds (`presence.live_leaves`)
+    and the instructions Leaf has for its hooks module (`carrier.py`), as one JSON
+    object, `{"pages": [...], "do": [...]}`, then again each time either changes,
+    until the session holds no page. The module draws the pages beside the prompt
+    and runs each instruction once: a completion each page server asks of the
+    session (`completions.listed`) and a line fork for each round of the user's that
+    awaits the agent's working line (`forks.look`).
 
     Read the pages every presence interval: a dead server leaves its row behind, so
     native notifications cannot replace this timer. It waits on the session's
@@ -393,14 +386,13 @@ def cmd_pages(payload: dict) -> None:
     # module loaded in this process (`ClaudeCodeHarness.unloaded_module`).
     if (pid := ClaudeCodeHarness.process_pid()) is not None:
         mark_module(sid, pid)
-    from leaf.agents.presence import PRESENCE_CACHE_S, live_leaves, started_in
-
-    if not owned_pages(sid) and not started_in(sid):
+    if not owned_pages(sid):
         print(json.dumps({"pages": [], "do": []}), flush=True)
         return
 
     from leaf.agents.completions import listed as completions_listed
     from leaf.agents.completions import watch
+    from leaf.agents.presence import PRESENCE_CACHE_S, live_leaves
     from leaf.log.file_changes import FileChanges, page_changes, wait
 
     queued = watch(sid)
@@ -422,8 +414,7 @@ def cmd_pages(payload: dict) -> None:
             held = {page.resolve() for page in owned_pages(sid)}
             record_follower(sorted(held - noted), sid)
             noted |= held
-            followed = held | started_in(sid)
-            leaves = live_leaves(followed) if followed else []
+            leaves = live_leaves(held) if held else []
             # Each page's subscription lives in its memory, which the process
             # keeps only for its most recent pages unless held.
             _memories = [memory_of(page) for page in held] if forking else []
@@ -463,7 +454,7 @@ def cmd_pages(payload: dict) -> None:
                 if listed != shown:
                     print(listed, flush=True)
                     shown = listed
-                if not followed:
+                if not held:
                     return
                 wait(marks, max(0.0, presence_due - time.monotonic()))
                 if time.monotonic() >= presence_due:

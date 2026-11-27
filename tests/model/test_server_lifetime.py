@@ -20,7 +20,7 @@ from types import SimpleNamespace
 
 import pytest
 from click.testing import CliRunner
-from conftest import LEAF_COMMAND, hooks_run_leaf, hooks_run_this_tree
+from conftest import LEAF_COMMAND, hooks_run_this_tree
 from interact_support import (
     STATED_TIMEOUT,
     append_carried_log_record,
@@ -740,24 +740,6 @@ def test_server_run_persistent_refuses_to_adopt_a_session_server(page_dir):
     )
     assert result.exit_code != 0
     assert "server stop" in result.output
-
-
-def test_server_run_from_a_shell_another_leaf_runs_names_the_session(
-    page_dir, tmp_path, monkeypatch
-):
-    """`leaf server run` from a session's shell whose hooks run another Leaf serves
-    for no session, in this process, and hands its row the session, which the band
-    of that session then lists (`hooks.cmd_pages`)."""
-    session = os.environ["CLAUDE_CODE_SESSION_ID"]
-    hooks_run_leaf(session, tmp_path / "installed")
-    served = []
-    monkeypatch.setattr(
-        hosting_model, "cmd_serve", lambda *_args, **options: served.append(options)
-    )
-    result = CliRunner().invoke(cli_model.cli, ["server", "run", str(page_dir)])
-    assert result.exit_code == 0, result.output
-    [options] = served
-    assert (options["harness"], options["started_in"]) == (None, session)
 
 
 # A server a Leaf of another `SERVICE` shape started: it holds the serving lease

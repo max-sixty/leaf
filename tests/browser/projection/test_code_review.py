@@ -915,8 +915,9 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser,
 
 
 def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
-    """A capture that reorders the roots moves the group the user is located in, and one
-    that reorders a root's calls moves the row: either way they stay on its location."""
+    """A capture that reorders the roots moves the group the user is located in, one that
+    reorders a root's calls moves the row, and one that moves a call under another root
+    moves the row there: each way they stay on its location."""
     url = serve(
         leaf_page(
             "call diff order",
@@ -968,7 +969,8 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
     expect(row).to_be_focused()
 
     # A row a capture moves under another root is drawn afresh there, in that root's
-    # fold: a folded root keeps the reader's fold.
+    # fold: a folded root keeps the reader's fold, and the user on the row goes with it
+    # into an open one.
     first_work = call_node("work()", "app.py", 1)
     second_work = call_node("work()", "app.py", 20)
     third_work = call_node("work()", "app.py", 60)
@@ -995,14 +997,20 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
     expect(groups.nth(1)).not_to_have_attribute("open", "")
     groups.nth(1).locator(":scope > summary").click()
     expect(location).to_be_visible()
+    location.focus()
     capture(
         call_node("work()", "app.py", 30),
         call_node("work()", "app.py", 40, children=[shared]),
         dict(third_work, children=[unfocused]),
     )
     told(page)
+    expect(
+        location.locator("xpath=ancestor::details/preceding-sibling::*[1]").locator(
+            ".lf-call-location"
+        )
+    ).to_have_text("app.py:40")
     expect(location).to_be_visible()
-    location.focus()
+    expect(location).to_be_focused()
 
     # Native callee keys do not identify persistent invocation instances. Source
     # replacements honestly mark the original comment as earlier data.

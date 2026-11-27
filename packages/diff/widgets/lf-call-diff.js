@@ -20,11 +20,12 @@
  * roots the reader folded, by root key, so a capture that keeps a root keeps its fold.
  * Rows are keyed by call within their root, so a row the next capture keeps under the
  * same root keeps its nodes, and the selection or focus on it. A row a capture moves
- * under another root is drawn afresh there, in that root's fold, and focus on it is
- * lost: Effect UI keys children within one parent, and carrying focus across would
- * be a mechanism of its own for a rare path. After each commit the root says the value
- * it drew (`drawn`, host/element-data.js), so Leaf stamps the rows' datum marks with
- * that value's snapshot. */
+ * under another root is a new node there, in that root's fold, since Effect UI keys
+ * children within one parent. Focus on the row follows it by its datum key while that
+ * fold is open; in a folded root, focus lands on the nearest row still drawn
+ * (effect-widget.js). After each commit the root says the value it drew (`drawn`,
+ * host/element-data.js), so Leaf stamps the rows' datum marks with that value's
+ * snapshot. */
 import {
   Component,
   Effect,

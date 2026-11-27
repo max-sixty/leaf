@@ -633,8 +633,9 @@
      - A box packed edge to edge with others, such as a list's row or a table's cell, a
        box padded inside a frame it fills, one whose clip leaves no room outside it, or
        one of Leaf's word and symbol presses, which Leaf seats on frames' edges and in
-       their corners (controls.css, `.lf-btn` and `.lf-icon-action`): one band inside
-       its edge, at --lf-focus-ring-inset. A box that clips a mark standing
+       their corners (controls.css, `.lf-btn` and `.lf-icon-action`), or the frame of a
+       field Leaf's controls are built from, which fills the row it is seated in
+       (webawesome.css): one band inside its edge, at --lf-focus-ring-inset. A box that clips a mark standing
        outside its target cuts it, as it cuts the target. A box the page's layout leaves
        less room round than a region's gap, as a full-height workspace's body
        (layouts.css), stands its marks at a control's gap: inside, they would run over

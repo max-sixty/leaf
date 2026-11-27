@@ -261,7 +261,7 @@ def test_a_forced_inline_thread_keeps_its_control_reachable_on_a_crowded_cluster
     text_thread, crowded_thread = _seed_card_threads(serve.page_dir)
     page = open_page(browser, url)
     page.emulate_media(reduced_motion="reduce")
-    resized(page, 1838, 900)
+    resized(page, 1680, 900)
     page.evaluate(RELEASE_FOCUS)
 
     _open_thread(page, "thread-text", text_thread)

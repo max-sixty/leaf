@@ -281,10 +281,10 @@ function placeOf(event) {
 // back: a comment's words, and its drawing, to its passage's draft or the page's, with
 // the reply box of the thread it opened (`under`); a reply's to its thread's reply box;
 // a rewrite's to the message's rewrite, written over the words taking it back restores.
-// Null for a reaction, a deletion, whose words come back on the message, and every
-// gesture that wrote none.
+// A reaction that opened a thread writes no words, so it brings only that reply box's.
+// Null for a deletion, whose words come back on the message, and every other gesture
+// that wrote none.
 function writtenIn(event) {
-  if (event.emoji) return null;
   const text = event.text ?? "";
   switch (event.kind) {
     case "comment": {

@@ -1230,8 +1230,11 @@ export function giveBackWords(
   const own =
     current && (current.text || field(current.payload, "drawing")) ? current : null;
   const reply = under === null ? null : activeDraftRecord(under);
-  const words = [text, reply?.text, own?.text].filter(Boolean).join("\n\n");
   const drawing = field(payload, "drawing");
+  // Giving back nothing, as a reaction with no reply begun under it does, leaves the
+  // draft and Resume writing as they stand.
+  if (!text && !reply?.text && !drawing) return;
+  const words = [text, reply?.text, own?.text].filter(Boolean).join("\n\n");
   const kept = !own
     ? payload
     : drawing && !field(own.payload, "drawing")

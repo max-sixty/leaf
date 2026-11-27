@@ -1,13 +1,20 @@
 # Committed bundles
 
 This directory builds every browser file Leaf commits but doesn't write by hand: the
-third-party bundles and stylesheets, the runtime's table of the bundles' grammars, and
-the floating panel's row a served document stands from its first paint
-(`panel-row.mjs`). Installation, page init and export use the committed files and never
-run a compiler, and package authors write native JavaScript with no build. It also
-holds the kernel compiler (`runtime-bundle.mjs`), which only a prepared installation
-runs, so the tree commits no kernel and a runtime edit needs no rebuild, but for one to
-the panel's row, which reaches the first paint once `pnpm run build:browser` draws it.
+third-party bundles and stylesheets, the runtime's table of the bundles' grammars, the
+floating panel's row a served document stands from its first paint (`panel-row.mjs`),
+and the JavaScript each TypeScript module of the runtime and the bundled packages
+compiles to (`typescript.mjs`). Installation, page init and export use the committed
+files and never run a compiler, and package authors write native JavaScript with no
+build. It also holds the kernel compiler (`runtime-bundle.mjs`), which only a prepared
+installation runs, so the tree commits no kernel.
+
+A TypeScript module's edit reaches pages, tests and the kernel once
+`node build/typescript.mjs` writes its `.js`; the pre-commit hook runs it too, and the
+`.js` is never edited by hand. The first line of a compiled `.js` names its source,
+which tells it from a hand-written one. eslint, knip and dependency-cruiser read the
+compiled `.js`, so fix what they report on it in the `.ts`. A panel-row edit reaches the first paint once
+`pnpm run build:browser` draws it.
 
 `browser/build.mjs` is the one builder, and its header lists every output and the
 script that writes it. `pnpm run build:browser` type-checks and writes them all;

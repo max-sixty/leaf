@@ -373,10 +373,13 @@ local-directory marketplace also copies a checkout's `.venv`. Nothing is built a
 install time: installing, authoring pages, writing custom packages and exporting
 need no browser build or npm.
 
-Pages run the browser runtime's source modules from the install that serves them, so
-a runtime change needs no build. The exception is the floating panel's row: the
-build writes a static copy of the row, which a page shows at first paint, so a
-change to the row needs `pnpm run build:browser` (`build/AGENTS.md`). Only a
+Pages run the browser runtime's modules from the install that serves them, as the
+tree holds them. A module Leaf's maintainers write in TypeScript is served as the
+JavaScript the tree commits beside it, so an edit to the `.ts` reaches pages once
+`node build/typescript.mjs` writes that file, which the pre-commit hook also does
+(`build/AGENTS.md`). The floating panel's row is the other built input: the build
+writes a static copy of the row, which a page shows at first paint, so a change to
+the row needs `pnpm run build:browser`. Only a
 prepared installation, such as the website's container, compiles the source modules
 into one bundle, the kernel (`build/runtime-bundle.mjs`,
 `leaf.source.runtime_selection.read_runtime`).

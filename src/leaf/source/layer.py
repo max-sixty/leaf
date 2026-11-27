@@ -173,6 +173,13 @@ def checked_inputs(inputs: list[Path]) -> list[Path]:
     return roots
 
 
+def composed(path: Path) -> bool:
+    """Whether a layer composes `path`. A TypeScript module is a maintainer's source,
+    and the layer serves the JavaScript the build compiles beside it
+    (build/typescript.mjs), so a page neither loads nor copies the source."""
+    return path.suffix != ".ts"
+
+
 def input_paths(inputs: list[Path]) -> list[Path]:
     """Every path the layer inputs read, each symlink resolved to its target:
     each input's root and its `_input_entries`."""
@@ -211,7 +218,13 @@ def _input_entries(root: Path) -> Iterator[Path]:
         yield directory
         if directory.is_dir():
             yield from sorted(
-                directory.iterdir() if sub == INSTRUCTIONS_DIR else directory.rglob("*")
+                path
+                for path in (
+                    directory.iterdir()
+                    if sub == INSTRUCTIONS_DIR
+                    else directory.rglob("*")
+                )
+                if composed(path)
             )
 
 
@@ -234,7 +247,7 @@ def composed_dir_files(inputs: list[Path], sub: str) -> dict[str, Path]:
         if not source_dir.is_dir():
             continue
         for path in sorted(source_dir.rglob("*")):
-            if path.is_file():
+            if path.is_file() and composed(path):
                 winners[path.relative_to(source_dir).as_posix()] = path
     return winners
 

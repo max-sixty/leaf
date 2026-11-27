@@ -28,7 +28,18 @@ repos:
     rev: v2.16
     hooks:
       - id: vulture
-  # Keep the formatter version pinned: its releases change the layout they print.
+  # The JavaScript each TypeScript module compiles to (build/typescript.mjs), written
+  # before the formatter and linters read it.
+  - repo: local
+    hooks:
+      - id: typescript-outputs
+        name: compiled TypeScript modules
+        language: system
+        entry: node build/typescript.mjs
+        pass_filenames: false
+        files: '^(browser|packages)/.*\.(ts|js)$|^build/typescript\.mjs$|^\.oxfmtrc\.jsonc$'
+  # Keep the formatter version pinned, at the version package.json pins for the
+  # TypeScript build's formatting: its releases change the layout they print.
   # It skips the files it doesn't format and those `.oxfmtrc.jsonc` ignores.
   - repo: local
     hooks:

@@ -34,8 +34,11 @@
     "domain.test.js",
     "../leaf.js",
     "../runtime/**/*.js",
+    "../runtime/**/*.ts",
     "../widgets/*.js",
+    "../widgets/*.ts",
     "../../packages/*/widgets/**/*.js",
+    "../../packages/*/widgets/**/*.ts",
     "../../src/leaf/source/render-checks/*.js",
     "../../src/leaf/pages/static-export.js",
     "../../build/entries/**/*.mjs"

@@ -9,12 +9,7 @@ import { spawnSync } from "node:child_process";
 import { parse } from "acorn";
 import { build } from "esbuild";
 import { adapt, seam } from "../vendor.mjs";
-import {
-  buildOutputs,
-  checkOutputs,
-  checkRuntimeModules,
-  compilerPaths,
-} from "./build.mjs";
+import { buildOutputs, checkOutputs, compilerPaths } from "./build.mjs";
 import { bundledPackages, checkModule } from "./shipped.mjs";
 
 const outputs = await buildOutputs();
@@ -150,20 +145,6 @@ test("unimported browser and package modules are strict without a pragma", async
   assert.equal(typed.status, 0, typed.stdout + typed.stderr);
 });
 
-test("runtime TypeScript is refused by build and check, with declarations allowed", async (context) => {
-  const scratch = await mkdtemp(path.join(tmpdir(), "leaf-runtime-source-"));
-  context.after(() => rm(scratch, { recursive: true }));
-  const runtime = path.join(scratch, "browser/runtime/nested");
-  await mkdir(runtime, { recursive: true });
-  await writeFile(path.join(runtime, "types.d.ts"), "export type Value = number;\n");
-  await checkRuntimeModules(scratch);
-  await writeFile(path.join(runtime, "unimported.ts"), "export const value = 1;\n");
-  await assert.rejects(checkRuntimeModules(scratch), {
-    message:
-      "Runtime modules are JavaScript with JSDoc so an edit reaches pages and tests without a build:\nbrowser/runtime/nested/unimported.ts",
-  });
-});
-
 test("locked source reproduces the complete committed output", async () => {
   const rebuilt = await buildOutputs();
   assert.deepEqual(rebuilt, outputs);
@@ -212,6 +193,14 @@ test("checking stale output refuses it without changing any bytes", async (conte
   await writeFile(path.join(scratch, chunk), "");
   await assert.rejects(checkOutputs(outputs, scratch), new RegExp(chunk));
   await rm(path.join(scratch, chunk));
+  // And a module compiled from TypeScript the build no longer compiles.
+  const compiled = "browser/runtime/removed.js";
+  await writeFile(
+    path.join(scratch, compiled),
+    "// Compiled from removed.ts by build/typescript.mjs; edit that file.\n",
+  );
+  await assert.rejects(checkOutputs(outputs, scratch), new RegExp(compiled));
+  await rm(path.join(scratch, compiled));
 });
 
 test("an upstream adaptation fails the build once its seam or its module moves", async () => {

@@ -23,6 +23,7 @@ from leaf_dev.styling_names import (
 DEPENDENCY = (
     "--wa-",
     "--pele-",
+    "--trees-",
     "--pswp-",
     "--diffs-",
     "--plot-",

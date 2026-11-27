@@ -106,6 +106,9 @@
       "/vendor/pierre-parser.esm.js": [
         "../../build/entries/pierre/parser.mjs"
       ],
+      "/vendor/pierre-trees.esm.js": [
+        "../../build/entries/trees/entry.mjs"
+      ],
       "/vendor/webawesome.esm.js": [
         "../../build/entries/webawesome/entry.mjs"
       ],

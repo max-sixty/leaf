@@ -738,14 +738,9 @@ def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
         ]:
             search.fill(path)
             search.press("ArrowDown")
-            expect(tree.locator('[role="treeitem"]:focus')).to_have_accessible_name(
-                "importer.py"
-            )
             search.press("Enter")
             expect(search).to_have_value("")
-            expect(tree.locator('[role="treeitem"]:focus')).to_have_accessible_name(
-                "importer.py"
-            )
+            expect(tree.locator(f'[data-item-path="{path}"]')).to_be_focused()
             page.keyboard.press("Enter")
             expect(visible).to_be_visible()
         folds.last.locator("summary").press("{")

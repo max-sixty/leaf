@@ -3,216 +3,165 @@
  * datum reveal (`NavigateToDatum`, widget-services.js); nothing the reader does in the
  * tree enters Leaf's event log.
  *
- * An Effect UI component (runtime/effect-widget.js) draws the list from its `value`
- * property. The Model holds what the reader is doing: the search query, the folders
- * they closed, the row that holds the tree's one tab stop, and the file they picked.
- * Every folder opens at first, a new one included, and a folder the reader closed stays
- * closed for as long as its path is in the list. The picked file is the selection
- * unless the list names a `current` file, the one its viewer shows.
+ * An Effect UI component (runtime/effect-widget.js) draws the navigator's chrome, its
+ * search field and empty state, and one container the rows draw in. Pierre Trees draws
+ * the rows there, virtualized, and owns their paths, sorting, folder expansion, focus
+ * and selection. One stream mount (`DrawTrees`) owns the Trees instance: it feeds it
+ * each new file list, `current` file and query from the mount's args, and sends what
+ * the reader does in the rows back as messages. The Model holds the search query, which
+ * the reader types in the component's own field, and whether the query leaves any row.
  *
- * The tree is the ARIA tree pattern over native buttons, one row per visible folder or
- * file, flat with `aria-level`: ↑ ↓ Home End move among rows, → opens a folder or
- * enters it, ← closes it or goes to its parent, and Enter or Space presses the row's
- * button, which toggles a folder or opens a file. A folder holding only one folder
- * shows as one row, `a/b`. Search keeps the files whose path holds the query, with
- * their folders, under the same expansion. A letter typed on a row types into it; ↓
- * there goes to the first match, Enter chooses it and empties the search, and Escape
- * empties it. Opening a file empties it too.
+ * Trees draws into a shadow root on the container, staged as Leaf's (`shadowStage`) so
+ * Leaf's focus and arrival observers see its controls; Leaf's sheets go back on it
+ * after Trees adopts its own. One model survives updates and departures. Identical
+ * paths leave it untouched; changed paths retain the surviving focus, selection and
+ * the folders the reader closed, closed folders inside another closed one included;
+ * every other folder, a new one included, opens.
  *
- * One mount (`AttachToLeaf`) joins the drawn tree to Leaf's keyboard and focus: it
- * names the rows' keys as the element's `lfCommands`, reveals a row the keyboard
- * reaches in Leaf's reading viewport, and puts a route that lands on the navigator in
- * its search. Rows take focus with `preventScroll`, so that reveal is the only scroll. */
+ * In the search, ↓ goes to the first matching file's row and Enter chooses it and
+ * empties the search; Escape empties it, there or on a row. A letter typed on a row
+ * types into the search. Opening a file empties it too. Upstream reports selection
+ * changes rather than activation, and a repeated selection reports nothing, so a row's
+ * activation is an ordinary click or the row's declared keys, reading the focused item
+ * through Trees' model. Each row is a native button whose own key scope must precede
+ * native activation, so the scope stands on the focused row. */
 import {
-  Component,
   Effect,
   Html,
   HtmlCommand,
   Mount,
+  Queue,
   Schema,
+  Stream,
   UiSchema,
+  Component,
 } from "/vendor/effect-ui.js";
 import {
   focusDestination,
   onCurrentLocation,
   scrollIntoView,
+  shadowStage,
 } from "/runtime/widget-api.js";
 import { NavigateToDatum } from "/runtime/widget-services.js";
-import { PRESS } from "/runtime/lib/keys.js";
+import { PRESS, plainPress } from "/runtime/lib/keys.js";
 import { COMMANDS } from "/runtime/lib/widget-events.js";
+import { keeps } from "/runtime/lib/keeps.js";
 import { defineWidget, widgetProps } from "/runtime/effect-widget.js";
 
 const Status = Schema.Literals(["added", "modified", "deleted", "renamed"]);
-const FileList = Schema.Struct({
-  files: Schema.Array(
-    Schema.Struct({
-      path: Schema.String,
-      key: Schema.optional(Schema.String),
-      status: Schema.optional(Status),
-    }),
-  ),
-  current: Schema.optional(Schema.String),
-});
+const Files = Schema.Array(
+  Schema.Struct({
+    path: Schema.String,
+    key: Schema.optional(Schema.String),
+    status: Schema.optional(Status),
+  }),
+);
 
 const FileTreeProps = Schema.Struct({
   ...widgetProps,
   // The file list Leaf sets from the bound source or widget, null while it has none.
-  value: Schema.optional(Schema.NullOr(FileList)),
+  value: Schema.optional(
+    Schema.NullOr(
+      Schema.Struct({ files: Files, current: Schema.optional(Schema.String) }),
+    ),
+  ),
   label: Schema.String,
   linked: Schema.Boolean,
 });
-const FileTreeModel = Schema.Struct({
-  query: Schema.String,
-  closed: Schema.Array(Schema.String),
-  active: Schema.NullOr(Schema.String),
-  picked: Schema.NullOr(Schema.String),
-});
+const FileTreeModel = Schema.Struct({ query: Schema.String, rows: Schema.Number });
 export const FileTreeMessage = UiSchema.TaggedEnum({
   UpdatedQuery: { value: Schema.String },
-  PressedSearchKey: { key: Schema.String },
-  ClickedRow: { id: Schema.String },
-  PressedRowKey: { id: Schema.String, key: Schema.String },
+  PressedEscape: {},
+  ChoseMatch: {},
+  ClosedTreeSearch: {},
+  TypedOnRow: { key: Schema.String },
+  OpenedFile: { path: Schema.String },
+  CountedRows: { rows: Schema.Number },
 });
 
 const Search = Html.ref("FileTree.search", "input");
-const Row = Html.ref("FileTree.row", "button");
 const silent = () => Component.noop;
-const quietly = { preventScroll: true };
 
-/**
- * @typedef {typeof FileList.Type["files"][number]} File
- * @typedef {{name: string, path: string, file: File | null, children: Map<string, Folder>}} Folder
- * @typedef {{id: string, path: string, name: string, level: number, size: number,
- *   position: number, parent: string | null, folder: boolean, open: boolean,
- *   file: File | null}} TreeRow
- */
+let library;
+const loadTrees = () => (library ??= import("/vendor/pierre-trees.esm.js"));
 
-/** The folder tree the paths stand in. @param {readonly File[]} files */
-const grow = (files) => {
-  /** @type {Folder} */
-  const root = { name: "", path: "", file: null, children: new Map() };
-  for (const file of files) {
-    const parts = file.path.split("/");
-    let node = root;
-    parts.forEach((part, index) => {
-      let child = node.children.get(part);
-      if (!child) {
-        child = {
-          name: part,
-          path: parts.slice(0, index + 1).join("/"),
-          file: null,
-          children: new Map(),
-        };
-        node.children.set(part, child);
-      }
-      if (index === parts.length - 1) child.file = file;
-      node = child;
-    });
+// Every folder the paths stand in, in Trees' canonical form, ending in a slash.
+/** @param {readonly string[]} paths */
+const folders = (paths) => {
+  /** @type {Set<string>} */
+  const found = new Set();
+  for (const path of paths) {
+    const parts = path.split("/");
+    for (let depth = 1; depth < parts.length; depth++)
+      found.add(`${parts.slice(0, depth).join("/")}/`);
   }
-  return root;
+  return [...found];
 };
-
-const collator = new Intl.Collator(undefined, { numeric: true });
-/** Folders first, then files, each by name. @param {Folder} a @param {Folder} b */
-const order = (a, b) =>
-  Number(Boolean(a.file)) - Number(Boolean(b.file)) || collator.compare(a.name, b.name);
-
-/**
- * The rows the reader can see, in order.
- * @param {readonly File[]} files @param {{query: string, closed: readonly string[]}} model
- * @returns {TreeRow[]}
- */
-export const visibleRows = (files, { query, closed }) => {
-  const needle = query.toLowerCase();
-  /** @param {Folder} node @returns {boolean} */
-  const shown = (node) =>
-    node.file
-      ? node.file.path.toLowerCase().includes(needle)
-      : [...node.children.values()].some(shown);
-  const shut = new Set(closed);
-  /** @type {TreeRow[]} */
-  const rows = [];
-  /** @param {Folder} folder @param {number} level @param {string | null} parent */
-  const walk = (folder, level, parent) => {
-    const children = [...folder.children.values()].filter(shown).sort(order);
-    children.forEach((start, index) => {
-      let node = start;
-      let name = node.name;
-      // A folder holding only one folder is one row.
-      while (!node.file && node.children.size === 1) {
-        const only = /** @type {Folder} */ (node.children.values().next().value);
-        if (only.file) break;
-        node = only;
-        name = `${name}/${node.name}`;
-      }
-      const folderRow = !node.file;
-      const open = folderRow && !shut.has(node.path);
-      const id = `${folderRow ? "folder" : "file"}:${node.path}`;
-      rows.push({
-        id,
-        path: node.path,
-        name,
-        level,
-        size: children.length,
-        position: index + 1,
-        parent,
-        folder: folderRow,
-        open,
-        file: node.file,
-      });
-      if (open) walk(node, level + 1, id);
-    });
-  };
-  walk(grow(files), 1, null);
-  return rows;
+/** @param {import("@pierre/trees").FileTree} tree @param {string} path
+ * @returns {import("@pierre/trees").FileTreeDirectoryHandle | null} */
+const directory = (tree, path) => {
+  const item = tree.getItem(path);
+  return item?.isDirectory()
+    ? /** @type {import("@pierre/trees").FileTreeDirectoryHandle} */ (item)
+    : null;
 };
+/** @param {import("@pierre/trees").FileTree} tree @param {string} path */
+const selectOnly = (tree, path) => {
+  for (const selected of tree.getSelectedPaths())
+    if (selected !== path) tree.getItem(selected)?.deselect();
+  tree.getItem(path)?.select();
+};
+/** @param {EventTarget} target */
+const commandsChanged = (target) =>
+  target.dispatchEvent(new CustomEvent(COMMANDS, { bubbles: true, composed: true }));
+/** @param {{key: string, altKey: boolean, ctrlKey: boolean, metaKey: boolean}} event */
+const typed = ({ key, altKey, ctrlKey, metaKey }) =>
+  [...key].length === 1 && key !== " " && !altKey && !ctrlKey && !metaKey;
 
-/** @param {readonly TreeRow[]} rows @param {string | null} active */
-const tabStop = (rows, active) => rows.find((row) => row.id === active) ?? rows[0];
-
-/** @param {any} $ @param {TreeRow | undefined} row */
-const goTo = ($, row) =>
-  row
-    ? $.evolve({ active: row.id }).run(
-        HtmlCommand.focus(Row.at(row.id), silent, quietly),
-      )
-    : $.model;
-
-/** @param {any} $ @param {TreeRow} row @param {boolean} open */
-const setOpen = ($, row, open) =>
-  $.evolve({
-    active: row.id,
-    closed: (/** @type {readonly string[]} */ closed) =>
-      open ? closed.filter((path) => path !== row.path) : [...closed, row.path],
-  });
-
-/** @param {string} key @param {{alt: boolean, ctrl: boolean, meta: boolean}} mods */
-const typed = (key, { alt, ctrl, meta }) =>
-  [...key].length === 1 && key !== " " && !alt && !ctrl && !meta;
-
-const ROW_KEYS = new Set([
-  "ArrowUp",
-  "ArrowDown",
-  "ArrowLeft",
-  "ArrowRight",
-  "Home",
-  "End",
-]);
-
-// Joins the drawn tree to Leaf: the rows' keys, the reveal of a row the keyboard
-// reaches, and a route's landing on the navigator.
-const AttachToLeaf = Mount.make(
-  "AttachToLeaf",
-  {},
-  (/** @type {HTMLElement} */ node) => {
-    const root = /** @type {ShadowRoot} */ (node.getRootNode());
-    const host = /** @type {HTMLElement} */ (root.host);
-    const onRow = () => root.activeElement?.getAttribute("role") === "treeitem";
-    const announce = () =>
-      host.dispatchEvent(new CustomEvent(COMMANDS, { bubbles: true, composed: true }));
-    return Effect.acquireRelease(
-      Effect.sync(() => {
-        host.lfCommands = {
+// Trees on the container: the args feed it, and what the reader does in its rows
+// comes back as messages.
+const DrawTrees = Mount.makeStream(
+  "DrawTrees",
+  {
+    args: {
+      files: Files,
+      current: Schema.optional(Schema.String),
+      query: Schema.String,
+      label: Schema.String,
+    },
+  },
+  (/** @type {HTMLElement} */ node, args, changes) =>
+    Stream.callback((/** @type {any} */ queue) =>
+      Effect.gen(function* () {
+        const { FileTree } = yield* Effect.promise(loadTrees);
+        /** @param {unknown} message */
+        const send = (message) => Queue.offerUnsafe(queue, message);
+        const outer = /** @type {ShadowRoot} */ (node.getRootNode());
+        const host = /** @type {HTMLElement} */ (outer.host);
+        const stage = shadowStage(node, []);
+        /** @type {string[]} */
+        let paths = args.files.map((file) => file.path);
+        let query = "";
+        let rows = -1;
+        const tree = new FileTree({
+          paths,
+          initialExpansion: "open",
+          // The virtualizer and the drawn rows use the same hit-target height.
+          itemHeight: matchMedia("(pointer: coarse)").matches ? 44 : 30,
+        });
+        const onRow = () => stage.activeElement?.getAttribute("role") === "treeitem";
+        const activate = (/** @type {boolean} */ toggleDirectory) => {
+          const item = tree.getFocusedItem();
+          if (!item) return;
+          if ("toggle" in item) {
+            if (toggleDirectory) item.toggle();
+            return;
+          }
+          selectOnly(tree, item.getPath());
+          send(FileTreeMessage.OpenedFile({ path: item.getPath() }));
+        };
+        /** @type {HTMLElement["lfCommands"]} */
+        const fileActions = {
           title: "In files",
           rows: [
             {
@@ -220,40 +169,168 @@ const AttachToLeaf = Mount.make(
               title: "Open file or toggle folder",
               keys: PRESS,
               when: onRow,
+              run: () => activate(true),
             },
             {
               id: "files.walk",
               title: "Move among files and folders",
-              keys: [...ROW_KEYS],
+              keys: ["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End"],
               when: onRow,
             },
           ],
         };
-        announce();
-        return onCurrentLocation(
-          (/** @type {Element | null} */ place, /** @type {string} */ cause) => {
-            if (place === host) {
-              const search = root.querySelector("input");
-              if (search) focusDestination(search, "return");
-            } else if (
-              place?.getAttribute("role") === "treeitem" &&
-              root.contains(place) &&
-              // A row the user pressed is where they aimed, so it stays under the
-              // pointer until the press ends.
-              cause !== "press"
-            )
-              scrollIntoView(place, { block: "nearest" });
-          },
+        // The first file the search leaves, focused as a row.
+        const toMatch = () => {
+          const count = tree.getVisibleCount();
+          const match = count
+            ? tree.getVisibleRows(0, count - 1).find((/** @type {{path: string, kind: string}} */ row) => row.kind !== "directory")
+            : undefined;
+          if (!match) return false;
+          tree.focusPath(match.path);
+          const row = stage.querySelector(
+            `[data-item-path="${CSS.escape(match.path)}"]`,
+          );
+          if (row instanceof HTMLElement) focusDestination(row, "move");
+          return true;
+        };
+        /** @param {typeof args} next */
+        const apply = (next) => {
+          const nextPaths = next.files.map((file) => file.path);
+          if (
+            paths.length !== nextPaths.length ||
+            paths.some((path, index) => path !== nextPaths[index])
+          ) {
+            // A new model opens every folder (`initialExpansion`), so the folders the
+            // reader closed are read from the old one and closed again.
+            const closed = folders(paths).filter(
+              (folder) => !directory(tree, folder)?.isExpanded(),
+            );
+            tree.resetPaths(nextPaths);
+            paths = nextPaths;
+            for (const folder of closed) directory(tree, folder)?.collapse();
+          }
+          tree.setGitStatus(
+            next.files.flatMap(({ path, status }) => (status ? [{ path, status }] : [])),
+          );
+          if (next.current) selectOnly(tree, next.current);
+          if (next.query !== query) {
+            query = next.query;
+            if (query) tree.setSearch(query);
+            else if (tree.getSearchValue() !== null) tree.closeSearch();
+          }
+          keeps(stage.querySelector('[role="tree"]'), "aria-label", next.label);
+        };
+        yield* Effect.acquireRelease(
+          Effect.sync(() => {
+            tree.render({ fileTreeContainer: node });
+            // Trees has adopted its sheet; restaging puts Leaf's back beside it and
+            // keeps Trees' nodes.
+            shadowStage(
+              node,
+              [...stage.childNodes].filter(
+                (child) =>
+                  !(child instanceof HTMLStyleElement && child.hasAttribute("data-lf-gen")),
+              ),
+            );
+            for (const child of stage.children) child.classList.add("lf-ui");
+            apply(args);
+            send(FileTreeMessage.CountedRows({ rows: (rows = tree.getVisibleCount()) }));
+            const stopModel = tree.subscribe(() => {
+              // Trees closes its search for Escape on a row.
+              if (query && tree.getSearchValue() === null)
+                send(FileTreeMessage.ClosedTreeSearch());
+              const count = tree.getVisibleCount();
+              if (count !== rows) send(FileTreeMessage.CountedRows({ rows: (rows = count) }));
+            });
+            const controller = new AbortController();
+            const { signal } = controller;
+            node.addEventListener(
+              "click",
+              (event) => {
+                // A modified click keeps its usual meaning.
+                if (
+                  plainPress(event) &&
+                  event
+                    .composedPath()
+                    .some(
+                      (target) =>
+                        target instanceof HTMLElement &&
+                        target.getAttribute("role") === "treeitem",
+                    )
+                )
+                  activate(false);
+              },
+              { signal },
+            );
+            stage.addEventListener(
+              "keydown",
+              (pressed) => {
+                const event = /** @type {KeyboardEvent} */ (pressed);
+                if (!event.defaultPrevented && onRow() && typed(event)) {
+                  event.preventDefault();
+                  send(FileTreeMessage.TypedOnRow({ key: event.key }));
+                }
+              },
+              { signal },
+            );
+            outer.addEventListener(
+              "keydown",
+              (pressed) => {
+                const event = /** @type {KeyboardEvent} */ (pressed);
+                const field = event.composedPath()[0];
+                if (!(field instanceof HTMLInputElement) || !field.value || event.isComposing)
+                  return;
+                if (event.key === "ArrowDown" || event.key === "Enter") {
+                  if (toMatch()) event.preventDefault();
+                  if (event.key === "Enter") send(FileTreeMessage.ChoseMatch());
+                }
+              },
+              { signal },
+            );
+            // Trees scrolls its virtualized list and focuses with preventScroll. The
+            // row can still lie outside Leaf's outer reading viewport, so that reveal
+            // goes to the scrolling owner every widget uses. A row the user pressed is
+            // where they aimed, so it stays there: focus arrives on the press's
+            // mousedown, and a reveal there would move the row from under the pointer
+            // before the mouseup, which would fall on another row and open neither.
+            const stopLocation = onCurrentLocation(
+              (
+                /** @type {Element | null} */ place,
+                /** @type {string} */ cause,
+                /** @type {Element | null} */ left,
+              ) => {
+                // Only the focused row carries the rows' scope, so a row focus has
+                // left names no keys.
+                if (left !== place && left?.lfCommands === fileActions) {
+                  left.lfCommands = null;
+                  commandsChanged(left);
+                }
+                // A route to this navigator lands on its search.
+                if (place === host) {
+                  const search = outer.querySelector("input");
+                  if (search) focusDestination(search, "return");
+                }
+                if (place?.getAttribute("role") === "treeitem" && stage.contains(place)) {
+                  place.lfCommands = fileActions;
+                  commandsChanged(place);
+                  if (cause !== "press") scrollIntoView(place, { block: "nearest" });
+                }
+              },
+            );
+            return () => {
+              stopLocation();
+              controller.abort();
+              stopModel();
+              tree.unmount();
+            };
+          }),
+          (release) => Effect.sync(release),
+        );
+        yield* Stream.runForEach(changes, (next) => Effect.sync(() => apply(next))).pipe(
+          Effect.forkScoped,
         );
       }),
-      (stop) =>
-        Effect.sync(() => {
-          stop();
-          host.lfCommands = null;
-          announce();
-        }),
-    ).pipe(Effect.as(Component.noop));
-  },
+    ),
 );
 
 export const FileTree = Html.component({
@@ -262,168 +339,78 @@ export const FileTree = Html.component({
   model: FileTreeModel,
   message: FileTreeMessage,
 }).make({
-  init: () => ({ query: "", closed: [], active: null, picked: null }),
-  update: ($, message) => {
-    const files = $.props.value?.files ?? [];
-    const rows = visibleRows(files, $.model);
-    return FileTreeMessage.match(message, {
+  init: () => ({ query: "", rows: -1 }),
+  update: ($, message) =>
+    FileTreeMessage.match(message, {
       UpdatedQuery: ({ value }) => $.evolve({ query: value }),
-      PressedSearchKey: ({ key }) => {
-        const match = rows.find((row) => !row.folder);
-        switch (key) {
-          case "Escape":
-            return $.evolve({ query: "" });
-          case "Enter":
-            return match ? goTo($, match).evolve({ query: "" }) : $.model;
-          default:
-            return goTo($, $.model.query ? match : tabStop(rows, $.model.active));
-        }
-      },
-      ClickedRow: ({ id }) => {
-        const row = rows.find((row) => row.id === id);
-        if (!row) return $.model;
-        if (row.folder) return setOpen($, row, !row.open);
-        const step = $.evolve({ active: row.id, picked: row.path, query: "" });
-        const key = row.file?.key;
+      PressedEscape: () => $.evolve({ query: "" }),
+      ChoseMatch: () => $.evolve({ query: "" }),
+      ClosedTreeSearch: () => $.evolve({ query: "" }),
+      TypedOnRow: ({ key }) =>
+        $.evolve({ query: (query) => query + key }).run(HtmlCommand.focus(Search, silent)),
+      CountedRows: ({ rows }) => $.evolve({ rows }),
+      OpenedFile: ({ path }) => {
+        const step = $.evolve({ query: "" });
+        const key = $.props.value?.files.find((file) => file.path === path)?.key;
         return $.props.linked && key
           ? step.run(
               NavigateToDatum.make({
                 reference: "for",
                 key,
-                success: `Opened ${row.path}.`,
-                missing: `${row.path} is no longer available.`,
+                success: `Opened ${path}.`,
+                missing: `${path} is no longer available.`,
               }),
             )
           : step;
       },
-      PressedRowKey: ({ id, key }) => {
-        const index = rows.findIndex((row) => row.id === id);
-        const row = rows[index];
-        if (!row) return $.model;
-        switch (key) {
-          case "ArrowDown":
-            return goTo($, rows[index + 1]);
-          case "ArrowUp":
-            return goTo($, rows[index - 1]);
-          case "Home":
-            return goTo($, rows[0]);
-          case "End":
-            return goTo($, rows.at(-1));
-          case "ArrowRight":
-            if (!row.folder) return $.model;
-            return row.open ? goTo($, rows[index + 1]) : setOpen($, row, true);
-          case "ArrowLeft":
-            return row.folder && row.open
-              ? setOpen($, row, false)
-              : goTo(
-                  $,
-                  rows.find((other) => other.id === row.parent),
-                );
-          default:
-            return $.evolve({ query: (query) => query + key }).run(
-              HtmlCommand.focus(Search, silent),
-            );
-        }
-      },
-    });
-  },
+    }),
   view: (h, model) => {
     const { value, label } = h.props;
     const files = value?.files ?? [];
-    const rows = visibleRows(files, model);
-    const stop = tabStop(rows, model.active);
-    const selected = value?.current ?? model.picked;
     const empty = !value
       ? "No files available."
       : !files.length
         ? "No files."
-        : !rows.length
+        : model.query && model.rows === 0
           ? "No matching files."
           : null;
-    return h.div
-      .class("lf-file-tree lf-ui")
-      .onMount(AttachToLeaf())
-      .children(
-        files.length
-          ? h.input
-              .ref(Search)
-              .class("lf-file-tree-search")
-              .attrs({
-                type: "text",
-                name: "files",
-                "aria-label": `Search ${label}`,
-                placeholder: "Search",
-                autocomplete: "off",
-                spellcheck: "false",
-              })
-              .value(model.query)
-              .on("input", ({ value }) => FileTreeMessage.UpdatedQuery({ value }))
-              .on(
-                "keydown",
-                ({ key, composing }) =>
-                  !composing &&
-                  (((key === "Escape" || key === "Enter") && model.query) ||
-                    (key === "ArrowDown" && rows.length))
-                    ? FileTreeMessage.PressedSearchKey({ key })
-                    : undefined,
-                { preventDefault: true },
-              )
-          : null,
-        files.length
-          ? h.div
-              .class("lf-file-tree-rows")
-              .attrs({ role: "tree", "aria-label": label })
-              .children(
-                rows.map((row) => {
-                  const status = row.file?.status;
-                  return h.button
-                    .key(row.id)
-                    .ref(Row.at(row.id))
-                    .class("lf-file-tree-row")
-                    .attrs({
-                      type: "button",
-                      role: "treeitem",
-                      tabindex: row === stop ? "0" : "-1",
-                      "aria-level": String(row.level),
-                      "aria-setsize": String(row.size),
-                      "aria-posinset": String(row.position),
-                      "aria-expanded": row.folder ? String(row.open) : undefined,
-                      "aria-selected": String(!row.folder && row.path === selected),
-                      "aria-description": status,
-                      "data-status": status,
-                    })
-                    .style({ "--lf-file-tree-level": String(row.level) })
-                    .on("click", ({ button, alt, ctrl, meta, shift }) =>
-                      // A modified press keeps its usual meaning.
-                      button === 0 && !alt && !ctrl && !meta && !shift
-                        ? FileTreeMessage.ClickedRow({ id: row.id })
-                        : undefined,
-                    )
-                    .on(
-                      "keydown",
-                      ({ key, composing, ...mods }) =>
-                        !composing && (ROW_KEYS.has(key) || typed(key, mods))
-                          ? FileTreeMessage.PressedRowKey({ id: row.id, key })
-                          : undefined,
-                      { preventDefault: true },
-                    )
-                    .children(
-                      h.span
-                        .class(row.folder ? "lf-file-tree-twisty" : "lf-file-tree-leaf")
-                        .attr("aria-hidden", "true"),
-                      h.span.class("lf-file-tree-name").children(row.name),
-                      status
-                        ? h.span
-                            .class("lf-file-tree-status")
-                            .attr("aria-hidden", "true")
-                            .children(status.charAt(0).toUpperCase())
-                        : null,
-                    );
-                }),
-              )
-          : null,
-        empty ? h.p.class("lf-file-tree-empty").children(empty) : null,
-      );
+    return h.div.class("lf-file-tree lf-ui").children(
+      files.length
+        ? h.input
+            .ref(Search)
+            .class("lf-file-tree-search")
+            .attrs({
+              type: "text",
+              name: "files",
+              "aria-label": `Search ${label}`,
+              placeholder: "Search…",
+              autocomplete: "off",
+              spellcheck: "false",
+            })
+            .value(model.query)
+            .on("input", ({ value }) => FileTreeMessage.UpdatedQuery({ value }))
+            .on(
+              "keydown",
+              ({ key, composing }) =>
+                key === "Escape" && model.query && !composing
+                  ? FileTreeMessage.PressedEscape()
+                  : undefined,
+              { preventDefault: true },
+            )
+        : null,
+      h.div
+        .class("lf-file-tree-rows")
+        .attr("hidden", files.length ? undefined : "")
+        .onMount(
+          DrawTrees({
+            files,
+            ...(value?.current ? { current: value.current } : {}),
+            query: model.query,
+            label,
+          }).pipe(Mount.map((/** @type {any} */ message) => message)),
+        ),
+      empty ? h.p.class("lf-file-tree-empty").children(empty) : null,
+    );
   },
 });
 

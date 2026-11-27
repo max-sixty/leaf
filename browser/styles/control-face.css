@@ -13,9 +13,9 @@
  * In the document it stands at the head of `lf-base`, which ranks above the page's own
  * cascade layers, so a framework's reset there leaves Leaf's controls this face. In a
  * declared tree it stands in `lf-reset`, since a widget adopts its own rules into
- * `lf-base` there, and a library it wraps into layers inside `lf-base`, which rank below
- * every rule standing in the tier itself: at the head of `lf-base` this face would set a
- * library's buttons in the sans over the face the library gives them. Stated
+ * `lf-base` there, and a library it wraps, such as Trees in lf-file-tree, into layers
+ * inside `lf-base`, which rank below every rule standing in the tier itself: at the head
+ * of `lf-base` this face would set Trees' rows, which are buttons, in the sans. Stated
  * in runtime/chrome.css, which is adopted after every component sheet, it would outrank
  * them all.
  *

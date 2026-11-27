@@ -1,15 +1,15 @@
-/* The navigator: its search over a list of rows that scrolls, with the empty state
- * standing in the frame when there are no rows. */
+/* The navigator's chrome: its search over the container Trees draws its rows in, with
+ * the empty state standing in the frame when there are no rows. Trees owns the rows'
+ * look and its scoped stylesheet; Leaf owns the chrome and the theme tokens the rows'
+ * shadow tree inherits. */
 :host(lf-file-tree) .lf-file-tree {
   display: flex;
   flex-direction: column;
   flex: 1;
   min-block-size: 0;
-  font-family: var(--lf-mono);
-  font-size: var(--lf-code-size);
 }
 :host(lf-file-tree) .lf-file-tree-search {
-  margin: 6px;
+  margin: 6px 6px 2px;
   padding: 2px 8px;
   min-block-size: var(--lf-aim-floor);
   box-sizing: border-box;
@@ -17,82 +17,16 @@
   border-radius: var(--lf-r);
   background: var(--lf-field);
   color: var(--lf-ink);
-  font: inherit;
-  font-size: max(1em, var(--lf-entry-floor));
+  font-family: var(--lf-mono);
+  font-size: max(var(--lf-code-size), var(--lf-entry-floor));
   --lf-ring-at: var(--lf-focus-ring-inset);
 }
 :host(lf-file-tree) .lf-file-tree-rows {
   flex: 1;
   min-block-size: 0;
-  overflow: auto;
-  --lf-holds-height: 1;
 }
-/* Rows touch one another and their viewport clips at either edge, so Leaf's focus
- * ring stands inside the row. A row out of sight costs no layout or paint. */
-:host(lf-file-tree) .lf-file-tree-row {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-  inline-size: 100%;
-  block-size: max(30px, var(--lf-aim-floor));
-  padding-block: 0;
-  padding-inline: calc(var(--lf-file-tree-level) * 14px - 6px) 10px;
-  box-sizing: border-box;
-  border: 0;
-  background: none;
-  color: var(--lf-ink);
-  font: inherit;
-  text-align: start;
-  white-space: nowrap;
-  cursor: pointer;
-  content-visibility: auto;
-  contain-intrinsic-block-size: max(30px, var(--lf-aim-floor));
-  --lf-ring-at: var(--lf-focus-ring-inset);
-}
-:host(lf-file-tree) .lf-file-tree-row:hover {
-  background: var(--lf-chip);
-}
-:host(lf-file-tree) .lf-file-tree-row[aria-selected="true"] {
-  background: var(--lf-accent-tint);
-}
-:host(lf-file-tree) .lf-file-tree-name {
-  min-inline-size: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-/* A folder's chevron points right while it is closed and down while it is open. */
-:host(lf-file-tree) .lf-file-tree-twisty,
-:host(lf-file-tree) .lf-file-tree-leaf {
-  flex: none;
-  inline-size: 8px;
-}
-:host(lf-file-tree) .lf-file-tree-twisty::before {
-  content: "";
-  display: block;
-  inline-size: 5px;
-  block-size: 5px;
-  border-block-start: 1.5px solid var(--lf-muted);
-  border-inline-end: 1.5px solid var(--lf-muted);
-  transform: rotate(45deg);
-}
-:host(lf-file-tree) [aria-expanded="true"] > .lf-file-tree-twisty::before {
-  transform: rotate(135deg);
-}
-:host(lf-file-tree) .lf-file-tree-status {
-  margin-inline-start: auto;
-  padding-inline-start: 8px;
-}
-:host(lf-file-tree) [data-status="added"] {
-  color: var(--lf-ok-ink);
-}
-:host(lf-file-tree) [data-status="modified"] {
-  color: var(--lf-warn-ink);
-}
-:host(lf-file-tree) [data-status="deleted"] {
-  color: var(--lf-danger-ink);
-}
-:host(lf-file-tree) [data-status="renamed"] {
-  color: var(--lf-accent);
+:host(lf-file-tree) .lf-file-tree-rows[hidden] {
+  display: none !important;
 }
 :host(lf-file-tree) .lf-file-tree-empty {
   margin: 0;
@@ -103,4 +37,15 @@
   display: grid;
   place-items: center;
   pointer-events: none;
+}
+:host(.lf-file-tree-rows) [data-file-tree-virtualized-scroll] {
+  --lf-holds-height: 1;
+}
+/* Rows touch one another and their viewport clips at either edge. Draw Leaf's
+ * one actual-focus ring inside the row instead of adding it around Trees' ring. */
+:host(.lf-file-tree-rows) [role="treeitem"] {
+  --lf-ring-at: var(--lf-focus-ring-inset);
+}
+:host(.lf-file-tree-rows) [role="treeitem"][data-lf-focus]::before {
+  display: none;
 }

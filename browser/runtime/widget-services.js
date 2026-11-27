@@ -19,7 +19,6 @@
      attribute `reference`, as `navigateToDatum` does, announcing `success` or
      `missing`. Focus stays where the user is. */
 import { Command, Effect, Layer, Schema } from "/vendor/effect-ui.js";
-import { navigateToDatum, obligationActions } from "./host/application.js";
 import { sendGesture } from "./lib/widget-events.js";
 
 /** What became of a recorded gesture. */
@@ -57,6 +56,9 @@ const send = (element, detail) =>
     return (await delivery) ? "admitted" : "refused";
   });
 
+// Each service loads the application when a widget first asks, so a page whose widgets
+// never do, such as one Leaf doesn't serve, loads none of it.
+
 /** Leaf's services for the widget `element`.
  * @param {Element} element */
 export const leafServices = (element) =>
@@ -65,12 +67,16 @@ export const leafServices = (element) =>
       send(element, stripUndefined(args)),
     ),
     NextOnMe.toLayer((/** @type {any} */ { within }) =>
-      Effect.sync(() => obligationActions.next({ within })),
+      Effect.promise(async () => {
+        const { obligationActions } = await import("./host/application.js");
+        obligationActions.next({ within });
+      }),
     ),
     NavigateToDatum.toLayer((/** @type {any} */ { reference, key, success, missing }) =>
-      Effect.promise(() =>
-        navigateToDatum(element, reference, key, { focus: false, success, missing }),
-      ),
+      Effect.promise(async () => {
+        const { navigateToDatum } = await import("./host/application.js");
+        return navigateToDatum(element, reference, key, { focus: false, success, missing });
+      }),
     ),
   );
 

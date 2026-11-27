@@ -168,7 +168,7 @@ def own_sizes(sheets, theme):
 
     A font size is a `font-size`, every term of a `font` but its line height (the term
     after its `/`), a custom property either one reads, and a custom property whose
-    name says it is one, such as a dependency's `--diffs-font-size`, which only
+    name says it is one, such as a dependency's `--trees-font-size-override`, which only
     the dependency's own sheet reads. It is a size of its own where it holds a length in
     any unit but `em`, a keyword in `PICKED`, or a custom property neither `theme` nor
     `sheets` declares. A `var()` naming a property `theme` declares passes unread; one

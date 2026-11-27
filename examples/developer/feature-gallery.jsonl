@@ -18,7 +18,7 @@
 {"kind": "action", "author": "user", "revision": 1, "widget": "bg-board-stove-choice", "action": "choose", "detail": {"value": ["bg-board-stove-later"]}, "answered": true, "id": "80cf1234", "ts": "2026-09-02T00:13:06-07:00"}
 {"kind": "action", "author": "user", "revision": 1, "widget": "bg-work-board", "action": "move", "detail": {"unit": "bg-work", "value": "bg-work-tried", "rank": "i"}, "id": "80b01234", "ts": "2026-09-02T00:13:06-07:00"}
 {"kind": "undo", "author": "user", "undoes": "80b01234", "id": "80d01234", "ts": "2026-09-02T00:13:07-07:00"}
-{"kind":"pickup","author":"page","events":["80ed1234","80ce1234"],"phase":"opened","session":"gallery-agent","turn":"gallery-turn","id":"80ce5678","ts":"2026-09-02T00:13:07-07:00"}
+{"kind":"pickup","author":"page","events":["80ed1234","80ce1234","80cf1234"],"phase":"opened","session":"gallery-agent","turn":"gallery-turn","id":"80ce5678","ts":"2026-09-02T00:13:07-07:00"}
 {"kind":"comment","author":"agent","agent":"Codex","session":"01a0bfe4-a7f6-7321-937f-c62fa8c99431","revision":1,"text":"Workshop planning: how should we use the afternoon?","anchor":{"section":"bg-thread-checkpoint"},"id":"9ee465bb3f9c1fa309ea9cb1767fa365","ts":"2026-09-21T09:19:59-07:00"}
 {"kind":"thread_title","author":"agent","agent":"Codex","session":"01a0bfe4-a7f6-7321-937f-c62fa8c99431","thread":"9ee465bb3f9c1fa309ea9cb1767fa365","title":"Afternoon workshop","id":"99a9002058ea44edb0b5a2bec52bdd06","ts":"2026-09-21T09:19:59-07:00"}
 {"kind":"reply","author":"user","parent":"9ee465bb3f9c1fa309ea9cb1767fa365","text":"Use the afternoon for hands-on practice rather than more presentations.","revision":1,"id":"9084b9141a1ac15fd58de1bd60d04739","ts":"2026-09-21T09:20:25-07:00"}

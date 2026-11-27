@@ -102,7 +102,7 @@ export function widgetAnswered(widget, tag) {
     console.error(
       `leaf: <${kind} id="${widget}"> has no markup to say its answer from`,
     );
-    return byDefault();
+    return false;
   }
   try {
     return Boolean(own.call(state, own.element));

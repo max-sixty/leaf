@@ -100,7 +100,7 @@ export const WALK = "lf-walk";
 // A gesture an element records (`lf-action`) or takes back (`lf-undo`): dispatched on
 // the element, it returns the `delivery` a Leaf page sets on the event, a promise of the
 // event the server admitted or of `null` where the server refused it, and `null` where
-// nothing recorded it (module-plain-elements.md, "`lf-action`").
+// nothing recorded it (module-widgets.md, "`lf-action`").
 /** @param {Element} element @param {"lf-action" | "lf-undo"} type
  *  @param {Record<string, unknown>} detail
  *  @returns {Promise<unknown> | null} */

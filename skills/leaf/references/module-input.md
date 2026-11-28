@@ -4,9 +4,10 @@ Read with [module-authoring.md](module-authoring.md).
 
 ## Commands and keyboard routes
 
-A widget declares its commands as data on the element they apply in: set the element's
-`lfCommands` to the scope and dispatch an `lf-commands` event on the element
-(`module-plain-elements.md`, "`lf-commands`"). The scope holds `title`,
+A widget declares its commands as data on the element they apply in: the element's
+`lfCommands` is the scope, which a component states with `declare` from a Mount
+(`module-widgets.md`, "`lf-commands`"), and other code sets before it dispatches an
+`lf-commands` event on the element. The scope holds `title`,
 the heading the command reference lists it under, and `rows` ("Command rows"). It may
 also hold `when`, whether the page has the scope at all, which gates the reference as a
 row's own `when` gates its press; `ready` (`module-authoring.md`, "Startup and
@@ -16,21 +17,22 @@ every step outside it.
 Leaf reads the declaration when it hears the event, binds its keys, lists them in
 the command reference and hints, and writes their `aria-keyshortcuts`. A page
 without Leaf reads nothing, so a widget that also runs there (`module-authoring.md`, "A
-widget that also runs off Leaf") binds no key. Declare at upgrade.
+widget that also runs off Leaf") binds no key. Declare as the view first draws.
 
-Assigning a new object to `lfCommands` and dispatching the event replaces the
-scope, and Leaf checks the new rows then, reporting a malformed one as the element's
-failure. `null` withdraws the scope. Leaf checks an object once, the first time it is
-given. Dispatching the event with that object again, standing or given back after
+Declaring a new object, or assigning one to `lfCommands` and dispatching the event,
+replaces the scope, and Leaf checks the new rows then, reporting a malformed one as the
+element's failure. `null` withdraws the scope. Leaf checks an object once, the first
+time it is given. Saying the event with that object again, standing or given back after
 `null`, only has Leaf read its rows' titles and availability again, so a row or title
-edited in place goes unchecked; assign a new object to change them.
+edited in place goes unchecked; give a new object to change them.
 
 ```javascript
-this.lfCommands = {
-  title: "On a code block",
-  rows: [{ id: "code.wrap", keys: ["w"], title: "wrap lines", run: toggleWrap }],
-};
-this.dispatchEvent(new CustomEvent("lf-commands", { bubbles: true, composed: true }));
+declare(node, {
+  lfCommands: {
+    title: "On a code block",
+    rows: [{ id: "code.wrap", keys: ["w"], title: "wrap lines", run: toggleWrap }],
+  },
+});
 ```
 
 One object is one scope wherever it is given. Where the same commands apply in several
@@ -62,8 +64,8 @@ classifier.dispatchEvent(
 );
 ```
 
-An element a template draws takes its scope the same way after the render that places
-it.
+A node a component's view draws takes its scope from a Mount on that node, which sets
+its `lfCommands` and says `lf-commands` on it as each draw of the node lands.
 
 ### Command rows
 
@@ -112,8 +114,8 @@ keeps them where reopening finds them and shows that the widget holds them.
 
 Leaf re-evaluates a `when` or a computed field when the page readings it uses change,
 such as the threads. For any other state a row reads, such as the widget's `state`,
-dispatch `lf-commands` on the element after changing or drawing it
-(`module-plain-elements.md`, "`lf-commands`").
+the widget says `lf-commands` again after the change (`module-widgets.md`,
+"`lf-commands`").
 
 ### How scopes compose
 
@@ -256,27 +258,39 @@ it has focus. `{caret: [start, end, direction]}` places a text field's caret. Mo
 focus never scrolls; reveal the destination with `scrollIntoView`
 (`module-scroll-and-motion.md`, "Scrolling to a destination").
 
-Before hiding or replacing nodes the user may be in, as a redraw that rebuilds or
-deletes a row does, call `const restore = holdFocus(scope)`, and call
-`restore?.(...standIns)` after; `holdFocus` returns `null` when the user is outside
+A component's view keeps the user's place by itself where a draw keeps their node:
+Effect UI patches that node, so focus, a field's typed words and its caret stay, and a
+keyed node moved among its parent's children keeps them too. A keyed node moved to
+another parent is a new node there, unless the view writes it as a keep-alive child
+(`h.keepAlive`), whose nodes move with it and keep their words. Around each draw a set
+of `state`, an input or a member starts, the element `defineWidget` defines holds the
+user's place by the `data-lf-datum` key of the datum they are in (`module-state.md`,
+"Marking drawn data"): on their own node where it survived the draw, else on the
+widget's datum now carrying that key, else on the nearest one still drawn, on the datum
+itself rather than a control in it. A draw the component's own messages start has no
+such hold, so focus on a node it removes or moves to another parent drops to the page.
+
+Before code outside a view hides or replaces nodes the user may be in, as a Mount's own
+redraw that rebuilds or deletes a row does, call `const restore = holdFocus(scope)`, and
+call `restore?.(...standIns)` after; `holdFocus` returns `null` when the user is outside
 `scope`. Moving nodes needs no hold (`module-authoring.md`, "Retained nodes"). Unless
 the user has gone elsewhere since, `restore` puts them back on the same node, or else on
 the first stand-in that can take focus. For a keyed list, `holdFocus(list, { key })`
 names the attribute holding each item's key. `restore` then tries the same item, then
-the nearest item that survived, and lands on the control there like the one the user
-was on, such as its Remove. It tries the stand-ins last, so a Remove that empties the
-list can hand the user to the list's Add button. A command row whose `run` redraws the
-user's own place holds focus this way, and leaves `lands` to a press that takes the
-user somewhere else.
+the nearest item that survived, and lands on the control there like the one the user was
+on, such as its Remove. It tries the stand-ins last, so a Remove that empties the list
+can hand the user to the list's Add button. A command row whose `run` redraws the user's
+own place holds focus this way, and leaves `lands` to a press that takes the user
+somewhere else.
 
 A live revision moves focus from a generated control to its replacement by a
 `data-lf-carry` key, unique within the control's nearest authored ancestor with an id.
 For a control in a widget's shadow root, that ancestor is the widget.
 
 Ask the browser what is focused: the `activeElement` of the tree a node stands in,
-`document`, the widget's own `shadowRoot`, or `this.getRootNode()` for a widget that may
-stand inside another's shadow tree. A shadow host stands for focus inside its tree. It
-keeps naming the element while the window is in the background, as when a revision
+`document`, the widget's own `shadowRoot`, or `element.getRootNode()` for a widget that
+may stand inside another's shadow tree. A shadow host stands for focus inside its tree.
+It keeps naming the element while the window is in the background, as when a revision
 arrives, where `:focus` and `:focus-within` stop matching. A command row may read it:
 Leaf reads a scope's rows again whenever focus moves into, out of or within the scope.
 
@@ -373,8 +387,8 @@ or a handler took it. So a handler that acts on a click on anything but a contro
 as a card, a mark or a phrase, calls `event.preventDefault()`.
 
 While the user drags, grabs or scrubs something in the widget, say so with an
-`lf-hold` event (`module-plain-elements.md`, "`lf-hold`"). A widget whose gesture
-moves its own nodes also holds its drawing with `lf-defer` (`module-plain-elements.md`,
+`lf-hold` event (`module-widgets.md`, "`lf-hold`"). A component draws the gesture's
+progress from its Model rather than moving its own nodes (`module-widgets.md`,
 "`lf-defer`").
 
 A surface that must stop moving before Leaf handles a gesture, such as a playing

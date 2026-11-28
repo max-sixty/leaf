@@ -108,7 +108,7 @@ export class LeafElement extends SignalWatcher(UpdateBoundary) {
   #box = null;
   #broken = false;
 
-  /** The widget's reading as Leaf set it (`module-plain-elements.md`, "`state`"):
+  /** The widget's reading as Leaf set it (`module-widgets.md`, "`state`"):
    *  each declared verb's state with every admitted and unresolved record folded in,
    *  whether the user may act on it now (`available`), the reason they may not where
    *  Leaf has one (`unavailable`), and whether `takeBack` would take its action in

@@ -8,7 +8,7 @@ import { actionClass } from "../lib/control-faces.js";
 // A box of words the runtime wrote, which the page's authored source lacks: the
 // `wrote` reading leaves them out, and they are a passage cell of their own
 // (dom/control-labels.js). A package marks its own words the same way, with the
-// attributes themselves (module-plain-elements.md, "Words it writes").
+// attributes themselves (module-widgets.md, "Words it writes").
 export const generatedElement = (node) => {
   keeps(node, "data-lf-gen", "1");
   return node;

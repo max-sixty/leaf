@@ -7,14 +7,14 @@ Read with [module-authoring.md](module-authoring.md).
 Leaf keeps every kind of state a widget has; the module writes no storage or server
 code of its own. Choose by what the state is:
 
-| State                                                                                      | Kept through                                                                                                  | Who sees it                                                                                                         | How the widget hears of a change                                                         |
-| ------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
-| What the user makes: a choice, a move, an edit, a playground's settings before they submit | a verb under `verbs` ([package-data.md, "User state"](package-data.md#user-state)), recorded with `lf-action` | every tab and device, and the agent; the verb's `attention` or `unsent` says whether a change asks the agent to act | Leaf sets `state` again, whether this tab, another one, Undo or a new version changed it |
-| Words the user writes to send                                                              | a draft ([module-input.md, "Text entry and drafts"](module-input.md#text-entry-and-drafts))                   | every tab and device showing the page, until sent                                                                   | the draft's `watch`                                                                      |
-| How the user looks at the widget in this tab: an open panel, a step, a collapsed group     | `tabStore` ("State only this tab keeps")                                                                      | this tab                                                                                                            | only this tab writes it; read it as the widget builds                                    |
-| Data the agent or a source publishes                                                       | a bound property ("Bound data and projections")                                                               | everyone                                                                                                            | Leaf sets the property                                                                   |
-| What the widget shows or derives now, for another widget to follow: a step, a selection    | an output ([package-data.md, "Widget outputs"](package-data.md#widget-outputs))                               | the widgets on this page that name it, in this tab                                                                  | the widget sets it, and Leaf sets a reader's bound property                              |
-| A text file on disk                                                                        | `boundFile()` ("Editing a bound file")                                                                        | whoever reads the file                                                                                              | `watch(callback)`                                                                        |
+| State                                                                                      | Kept through                                                                                                     | Who sees it                                                                                                         | How the widget hears of a change                                                         |
+| ------------------------------------------------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |
+| What the user makes: a choice, a move, an edit, a playground's settings before they submit | a verb under `verbs` ([package-data.md, "User state"](package-data.md#user-state)), recorded with `RecordAction` | every tab and device, and the agent; the verb's `attention` or `unsent` says whether a change asks the agent to act | Leaf sets `state` again, whether this tab, another one, Undo or a new version changed it |
+| Words the user writes to send                                                              | a draft ([module-input.md, "Text entry and drafts"](module-input.md#text-entry-and-drafts))                      | every tab and device showing the page, until sent                                                                   | the draft's `watch`                                                                      |
+| How the user looks at the widget in this tab: an open panel, a step, a collapsed group     | `tabStore` ("State only this tab keeps")                                                                         | this tab                                                                                                            | only this tab writes it; the Model draws the current choice                              |
+| Data the agent or a source publishes                                                       | a bound property ("Bound data and projections")                                                                  | everyone                                                                                                            | Leaf sets the property                                                                   |
+| What the widget shows or derives now, for another widget to follow: a step, a selection    | an output ([package-data.md, "Widget outputs"](package-data.md#widget-outputs))                                  | the widgets on this page that name it, in this tab                                                                  | the widget sets it, and Leaf sets a reader's bound property                              |
+| A text file on disk                                                                        | `boundFile()` ("Editing a bound file")                                                                           | whoever reads the file                                                                                              | `watch(callback)`                                                                        |
 
 Undo tells the first row from the third. Record a change the user would expect Undo to
 take back, and that a comment on the page may be about. Keep in the tab what Undo should
@@ -24,25 +24,25 @@ back.
 
 ## Reading and recording state
 
-A registry-declared widget draws its state from `state`, the property Leaf sets,
-records a gesture with an `lf-action` event and takes one back with `lf-undo`
-(`module-plain-elements.md`). Check a verb's `available` before changing anything for
-it, and its `undoable` before offering to take it back.
+A registry-declared widget draws its state from its `state` prop, which Leaf sets,
+records a gesture with `RecordAction` and takes one back with `TakeBack`
+(`module-widgets.md`). Check a verb's `available` before changing anything for it, and
+its `undoable` before offering to take it back.
 
-Only a widget written in page or message markup has a state, and only under the `id`
-it had at upgrade. Elsewhere, as off Leaf (`module-authoring.md`, "A widget that also
-runs off Leaf") or on an element with no `id`, Leaf sets no `state` and an `lf-action`
-records nothing, so a widget that also runs there draws its markup. A member the user adds through a `creates` verb, such as a new option, has
-none either; its parent draws it from its own state. Leaf itself draws what the
-declaration alone decides, such as hiding a suggestion's `lf-old` once it is accepted
-(`retired-when`).
+Only a widget written in page or message markup has a state, and only under the `id` it
+had at upgrade. Elsewhere, as off Leaf (`module-authoring.md`, "A widget that also runs
+off Leaf") or on an element with no `id`, Leaf sets no `state` and a `RecordAction`
+records nothing, so a widget that also runs there draws its markup. A member the user
+adds through a `creates` verb, such as a new option, has none either; its parent draws
+it from its own state. Leaf itself draws what the declaration alone decides, such as
+hiding a suggestion's `lf-old` once it is accepted (`retired-when`).
 
 A widget reads and records only its own state. Nothing tells it when Leaf sets
 another element's `state` again, so a widget that follows another reads that widget's
 output and asks it for a change with an invoker command
 ([package-data.md, "Widgets working together"](package-data.md#widgets-working-together)).
 
-`says`, in an `lf-action` event's `detail`, names the gesture in the widget's words,
+`says`, in a `RecordAction`'s arguments, names the gesture in the widget's words,
 such as `Chose “Fast”`. Leaf's acknowledgement shows it, and so does Undo in the tab
 that made the gesture, so post no notice of your own for it; another tab, or this one
 after a reload, names the gesture in Leaf's own words.
@@ -51,28 +51,32 @@ The user takes their latest gesture back with ⌘Z, Ctrl+Z off a Mac, or with th
 row in the leaf's menu.
 
 A widget says its own drawing under way, such as a renderer loading, with a
-`pending-task` event (`module-plain-elements.md`, "Drawing").
+`pending-task` event (`module-widgets.md`, "Drawing").
 
 ### State only this tab keeps
 
 `tabStore.get(key)` and `tabStore.set(key, value)` keep a string for this page in this
-tab, such as which groups the user collapsed; set `null` to remove it. Read it as the
-widget builds, so the first visible state reflects it (`module-authoring.md`, "First
-paint"). `tabStore.keys()` lists the keys set, and `tabStore.read(key)` answers
-`{available, value}`, which tells a key never set from a store the browser has switched
-off; `tabStore.where(key)` names the browser's storage entry behind a key.
+tab, such as which groups the user collapsed; set `null` to remove it. A component
+reads it in `options.inputs` for its first draw (`module-authoring.md`, "First paint").
+The store tells nothing of a change, so the component keeps the current choice in its
+Model, which the view draws, and saves it for reopening with the `KeepInTab` Command,
+which takes only a string, as `lf-options` keeps whether its settled group stands
+open. `tabStore.keys()` lists the keys
+set, and `tabStore.read(key)` answers `{available, value}`, which tells a key never set
+from a store the browser has switched off; `tabStore.where(key)` names the browser's
+storage entry behind a key.
 
-A widget that shows one member at a time (`views`, `module-authoring.md`, "First
-paint") keeps the open member in the tab too, through these helpers. A member's native
-`hidden` attribute is view state. Read `viewMembers(holder)` for the canonical member
-list, including holders a module creates. Reading members or the opening choice changes
-no DOM. As the widget builds, open the member `openingView(holder)` returns, and show each
-later member with `keepView(holder, member)`, which applies native visibility and
+A widget that shows one member at a time (`views`, `module-authoring.md`, "First paint")
+keeps the open member in the tab too, through these helpers. A member's native `hidden`
+attribute is view state. Read `viewMembers(holder)` for the canonical member list,
+including holders a module creates. Reading members or the opening choice changes no
+DOM. As the widget first draws, open the member `openingView(holder)` returns, and show
+each later member with `keepView(holder, member)`, which applies native visibility and
 remembers it for reload. Passing null shows none without forgetting the last member.
 During an exit animation, `keepView(holder, member, leaving)` keeps one outgoing member
 visible too; call it again without that member when the animation ends. Only the
-selected member is saved. Pass `null` as a second argument to get null where neither
-the address nor the tab names a member, and choose then.
+selected member is saved. Pass `null` as a second argument to get null where neither the
+address nor the tab names a member, and choose then.
 
 Show each member with `keepView` rather than by writing `hidden`, so that Leaf hears of
 a switch before the member the user leaves is hidden, while the page can still say
@@ -85,7 +89,7 @@ own tree holds, the call changes nothing. From `keepView` and those reveals Leaf
 two things for the widget:
 
 - **The address**, where the widget says its members are the page's views
-  (`data-lf-page-views`, `module-plain-elements.md`).
+  (`data-lf-page-views`, `module-widgets.md`).
 - **The user's place in each member**, where the members stand in the page's flow,
   because the widget declares `flow` or is the page's parts, and each member has an
   id. A member the widget shows opens where the user last read it in this tab. One
@@ -97,8 +101,8 @@ two things for the widget:
 
 ## Declared widget state
 
-The `state` setter draws the whole state each time Leaf sets it, and draws the same
-result if set twice; the render check draws it again to hold it to that. Keep nested
+The view draws the whole state each time Leaf sets it, and draws the same result if
+set twice. Keep nested
 widgets in place rather than rebuilding the widget, and remove an optional recorded
 attribute when its value returns to `null`. `state` holds every declared verb by name,
 each in the shape of its `unit`:
@@ -122,11 +126,11 @@ the unit was dropped at among the container's other units. That key keeps the un
 place whichever other moves are in force. A verb with no record sends what its
 `detail` schema declares.
 
-A widget that puts an obligation on On Me can give its class
-`static answerWords(value, element)`, returning short words for the answer in the On
-lists, which otherwise show none. `value` is the obligation's `answer.value`, and
-`element` gives the authored markup, such as option labels; read only that, not what
-the module draws.
+A widget that puts an obligation on On Me can give its class, through `defineWidget`'s
+`statics`, `static answerWords(value, element)`, returning short words for the answer in
+the On lists, which otherwise show none. `value` is the obligation's `answer.value`, and
+`element` gives the authored markup, such as option labels; read only that, not what the
+module draws.
 
 Such a widget says whether its question is answered with
 `static answered(state, element)`, returning `true` or `false`. Leaf calls it after
@@ -137,11 +141,15 @@ log keeps the widget's word. `lf-options` answers once a pick is made, or Done i
 pressed where it takes several:
 
 ```js
-static answered(state, group) {
-  return group.hasAttribute("multiple")
-    ? Boolean(state.answer?.action)
-    : Boolean(state.choose?.action) && state.choose.value.length > 0;
-}
+defineWidget("lf-options", Options, {
+  statics: {
+    answered(state, group) {
+      return group.hasAttribute("multiple")
+        ? Boolean(state.answer?.action)
+        : Boolean(state.choose?.action) && state.choose.value.length > 0;
+    },
+  },
+});
 ```
 
 A class without it is answered while the user's acts in force hold a state at the
@@ -158,21 +166,23 @@ A widget reads a bound data source through the property its input (`inputs`) nam
 ([package-data.md, "External or derived data"](package-data.md#external-or-derived-data)),
 `"property": "value"` for most widgets. Before each update the delivery moves, Leaf
 sets that property to the source's value, or `null` while there is no readable value,
-including when the value doesn't fit the contract. On a `LeafElement`, declare it as a
-Lit property and read it in `render()`, as a widget would read a value any host sets; a
-plain element defines a setter that draws:
+including when the value doesn't fit the contract. The component names the property
+in `properties` and reads it as a prop of that name, as it would read a value any host
+sets:
 
 ```js
-static properties = { value: { attribute: false } };
+const Builds = Html.component({
+  name: "Builds",
+  props: Schema.Struct({ ...widgetProps, value: Schema.optional(Schema.Unknown) }),
+  model: Schema.Struct({}),
+  message: Schema.Never,
+}).make({
+  init: () => ({}),
+  update: {},
+  view: (h) => (h.props.value ? h.ul.children(/* … */) : h.p.children("No builds.")),
+});
 
-constructor() {
-  super();
-  this.value = null;
-}
-
-render() {
-  return this.value ? html`…` : html`<p>No builds.</p>`;
-}
+defineWidget("lf-builds", Builds, { properties: ["value"] });
 ```
 
 A widget bound to a source first draws once the page has read its data, or has gone
@@ -194,21 +204,40 @@ that fit it.
 ### Marking drawn data
 
 Mark which nodes show data with plain attributes, so comments on them anchor to the
-data rather than to prose. After setting the drawing's marks, dispatch `drawn` with
-the value you drew, in the same synchronous turn:
+data rather than to prose. The view draws the marks, and a Mount on the node that holds
+them dispatches `drawn` on the element with the value the view drew, on each change of
+its args (the Mount's `changes`). Leaf stamps marks only then, so the args hold the keys
+of the rows drawn beside the value, and rows the component's own messages add are
+reported too:
 
 ```js
-setChildren(
-  this,
-  rows.map((row, index) => {
-    row.node.dataset.lfDatum = row.key;
-    row.node.dataset.lfIdentity = row.id;
-    row.node.dataset.lfDatumLabel = row.label;
-    row.node.dataset.lfOriginPath = JSON.stringify(["rows", index]);
-    return row.node;
-  }),
+import { closestAcross } from "/runtime/lib/shadow-tree.js";
+
+const ReportDrawn = Mount.make(
+  "ReportDrawn",
+  { args: { value: Schema.Any, shown: Schema.Array(Schema.String) } },
+  (node, _args, changes) =>
+    Stream.runForEach(changes, ({ value }) =>
+      Effect.sync(() => {
+        const element = closestAcross(node, "lf-builds");
+        element.dispatchEvent(new CustomEvent("drawn", { detail: { value } }));
+      }),
+    ).pipe(Effect.as(Component.noop)),
 );
-this.dispatchEvent(new CustomEvent("drawn", { detail: { value: this.value } }));
+
+// In the view:
+const shown = rows.map((row) => row.key);
+h.ul.onMount(ReportDrawn({ value: h.props.value, shown })).children(
+  ...rows.map((row, index) =>
+    h.li
+      .key(row.key)
+      .attr("data-lf-datum", row.key)
+      .attr("data-lf-identity", row.id)
+      .attr("data-lf-datum-label", row.label)
+      .attr("data-lf-origin-path", JSON.stringify(["rows", index]))
+      .children(row.label),
+  ),
+);
 ```
 
 `data-lf-datum` is a key unique within the widget that Leaf doesn't interpret, and
@@ -216,24 +245,22 @@ this.dispatchEvent(new CustomEvent("drawn", { detail: { value: this.value } }));
 where the same subject survives new values of the source, so a comment follows the
 subject and keeps the quote the user saw; without one, a new value marks comments on
 that key as outdated. `data-lf-origin-path` is an optional JSON array naming the
-datum's place in the value. Take a mark off a node you keep once it no longer shows
-data; a node you remove takes its marks with it.
+datum's place in the value. A mark the view stops drawing leaves with it.
 
 The detail holds one key, the property its input names (`value` above), with the value
-drawn from it. Leaf stamps the marks with that value's source and revision, so a draw
-that finishes after a newer value arrived keeps the revision it drew. Name the value
-Leaf set, not a copy, or `null` for words no bound value supplied, such as records the
-widget composed itself. A string or number value can be one you still hold or one Leaf
-set after the value you last reported; after reporting a newer one, don't go back to an
-older one. A widget with several bound inputs marks the items of one of them and names
-that one, since a widget's marks carry one source. Marks on nodes inside a nested
-widget belong to that widget. On a page without Leaf, nothing listens and the marks
-mean nothing.
+drawn from it. Leaf stamps the marks with that value's source and revision, and marks
+nothing until the widget says one. Name the value Leaf set, not a copy, or `null` for
+words no bound value supplied, such as records the widget composed itself. A widget with
+several bound inputs marks the items of one of them and names that one, since a widget's
+marks carry one source. A delivery equal to the last gives no new props, so the view
+draws nothing for it and its rows keep the earlier delivery's revision. Marks on nodes
+inside a nested widget belong to that widget. On a page without Leaf, nothing listens
+and the marks mean nothing.
 
 ### Time readings
 
-To say how long ago a server timestamp was, a template draws Leaf's `lf-age` element,
-as a page's markup does: `<lf-age datetime=${ts}></lf-age>`. It needs no import, in a
+To say how long ago a server timestamp was, a view draws Leaf's `lf-age` element, as
+a page's markup does: `h.el("lf-age").attr("datetime", ts)`. It needs no import, in a
 shadow tree too. It words the age as the page does everywhere, "just now", then "2m
 ago", "2h ago", "2d ago", and keeps it current. Pointing at it says when, in the
 reader's zone and as their browser writes a date: "Sat, Aug 15, 2026, 2:02 PM PT".

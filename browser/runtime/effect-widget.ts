@@ -1,5 +1,5 @@
 /* A widget written as an Effect UI component, on the protocol any custom element has
-   with its host (module-plain-elements.md): properties in, events out. This header is
+   with its host (module-widgets.md): properties in, events out. This header is
    the contract a widget builds against.
 
    `defineWidget(tag, component, options)` defines `tag` as a plain custom element that
@@ -209,7 +209,9 @@ export function declare(node: Node, declarations: Declarations) {
   if (!element) throw new Error("declare: the node stands in no widget's root");
   // Every own key, symbols included, since `Object.assign` copies those too.
   const keys = Reflect.ownKeys(declarations);
-  const unread = keys.find((key) => !(DECLARED as readonly PropertyKey[]).includes(key));
+  const unread = keys.find(
+    (key) => !(DECLARED as readonly PropertyKey[]).includes(key),
+  );
   if (unread !== undefined)
     throw new TypeError(`declare: Leaf reads no ${String(unread)} off an element`);
   Object.assign(element, declarations);

@@ -13,7 +13,7 @@
    sets it, and does nothing where that is null. Each runs in the task of the input
    that asked.
 
-   Each service makes one of the widget protocol's calls (module-plain-elements.md) or
+   Each service makes one of the widget protocol's calls (module-widgets.md) or
    does what a function of Leaf's does, as its entry says:
 
    - `RecordAction` is `lf-action`. Its success is the delivery Leaf gives the event:

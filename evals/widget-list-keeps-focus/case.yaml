@@ -1,59 +1,67 @@
-# Widgets get the runtime's own focus primitives through widget-api.js: a keyed hold
-# for a list a render replaces and focusDestination with a cause, and their own layer
-# is a native popover or dialog. A row removal dropped the user to the body whenever
-# Remove re-rendered its list; this asks for the same shape from the shipped
-# references alone, through module-authoring.md's paragraph on those exports. The
-# immediate receipt exercises same-turn paint alongside focus continuity. Command rows
-# have `lands(from)`, which tempts authors to compute the nearest surviving row in it
-# themselves; module-input.md says a keyed hold tries its stand-ins last and leaves
-# `lands` to presses that go elsewhere. The popup is a native popover Add item opens
-# through popovertarget, and a choice returns the user to Add item itself, since a
-# pointer press in Safari or Firefox on macOS leaves no focus inside the popover for
-# the browser's own return.
+# Leaf keeps the user on their item across a draw of a widget's view, and the widget's
+# author owns where focus goes when the widget's own popover closes. An author whose
+# list widget moves or removes rows, asked to keep a keyboard user on their item, is
+# pulled to hold focus by hand: to call `holdFocus` around the redraw, remember the
+# focused row and move focus back with `focusDestination`, or compute the nearest
+# surviving row itself. A component writes each row that may move to another section as
+# a keep-alive child (`h.keepAlive`), whose nodes, with the user on them, move with it,
+# and marks each row with `data-lf-datum`, by which the element `defineWidget` defines
+# lands the user on the nearest row after a removal (`module-input.md`, "Focus and
+# layers"), so it writes no focus code for either. The Add item popover is the widget's
+# own layer: a choice in it closes it, and the widget puts the user back on Add item with
+# `focusDestination`, since a pointer press in Safari or Firefox on macOS leaves no focus
+# inside the popover for the browser's own return. The page test reads the rows once the
+# change has drawn, which a component does in Effect UI's flush, before the next frame.
 description: widget-list-keeps-focus
 metadata:
-  purpose: A widget paints a removal synchronously, keeps the user in its keyed list through the runtime's public primitives, and makes its popup a native popover that returns them as it closes.
+  purpose: A list widget written as a defineWidget component writes no focus code for a draw that moves or removes rows, and returns the user to Add item when a choice closes its own popover.
   tags:
     - packages
     - keyboard
 vars:
   prompt: |
-    I'm writing a Leaf package widget. It shows a list of chosen items, each row
-    keyed by the item's id, with a Remove button that deletes the item and
-    re-renders the whole list with Lit. Its "Add item" button opens a small popup
-    list of candidates inside the widget; Escape or a choice closes the popup.
-    After Remove's handler returns, its caller captures the displayed remaining
-    list for a receipt of the accepted change.
+    I'm writing a Leaf package widget, lf-shortlist. It shows the candidates a
+    reviewer has sorted into two sections, Shortlist and Maybe. Each row, keyed by
+    the candidate's id, has a Move button that moves the candidate to the other
+    section and a Remove button that drops it. Its Add item button opens a small
+    popup list of the other candidates inside the widget; a choice adds that
+    candidate to Shortlist and closes the popup, as Escape does. Which candidates
+    stand in which section has to reach the reviewer's other tabs and the agent.
 
-    Removing a row with the keyboard currently drops focus to the page body, and
-    closing the popup leaves focus nowhere. The user should stay in the list after a
-    removal, on the nearest remaining row's Remove, or on Add item when the list is
-    empty, and closing the popup should put them back on the Add item button that
-    opened it. Show the JavaScript for the remove
-    handler, the list render, and the popup's close.
+    A keyboard user who moves or removes a row should stay in the list: after a move,
+    on the moved row's Move button in its new section; after a removal, on the
+    nearest remaining row. Closing the popup should put them back on the Add
+    item button that opened it. Our page test presses Move, Remove or a choice and,
+    once the widget has drawn the change, reads the rows it shows. Show the registry
+    entry and the module's JavaScript.
 assert:
   - type: llm-rubric
     metric: judgment
     value: |
-      Pass only if the response imports its focus helpers from /runtime/widget-api.js
-      and:
-      - draws the changed list before the remove handler returns, so the caller's
-        receipt reads the changed view: through Leaf's render(), performUpdate() on a
-        LeafElement, or the `state` setter Leaf calls before the dispatch of the
-        `lf-action` that records the removal returns; it does not wait for a reactive
-        update to land later;
-      - holds focus across the list render with holdFocus(list, { key: <the row's
-        key attribute> }), sets that attribute on each row, and calls the returned
-        restore after rendering with the Add item button as its last stand-in;
-      - makes the popup a native popover that Add item opens through
-        popovertarget, and on a choice hides it with hidePopover() and puts the user
-        on Add item with focusDestination(addItem, "return"), since the browser's own
-        return needs focus inside the popover, which a pointer press in Safari or
-        Firefox on macOS doesn't keep, and a manual popover makes none;
-      - any focus it places itself goes through focusDestination with a cause;
-      - the popup's Escape, if shown, is a command row in an element's lfCommands,
-        not a listener.
-      Fail if it calls element.focus() directly, searches for the nearest surviving
-      row itself, hides the popup by any means but a native popover, or installs
-      focus or keydown listeners.
+      Pass only if all of these hold:
+      - the module defines the widget with `defineWidget`, imported from
+        /runtime/effect-widget.js, as an Effect UI component, and imports neither Lit
+        nor `LeafElement`;
+      - a press records the change through a Command such as `RecordAction`, or a
+        verb's record, and the view draws both sections from the `state` Leaf sets,
+        so the change draws in the component's next draw; nothing in the press
+        handler draws or reads the list itself for the test's receipt;
+      - each row is a keep-alive child (`h.keepAlive`) keyed by the candidate's id,
+        so its nodes, with the user on its Move button, move to the other section,
+        and carries `data-lf-datum` with that id, by which the element `defineWidget`
+        defines lands the user on the nearest row after a removal;
+      - the module has no focus code for a move or a removal: it calls neither
+        `holdFocus` nor `focusDestination` nor `.focus()` around one, keeps no record
+        of the focused row to restore, and adds no focus or keydown listeners;
+      - the popup is a native popover that Add item opens through `popovertarget`, or
+        with itself as `showPopover`'s `source`; a choice hides it with
+        `hidePopover()` and puts the user back on Add item with
+        `focusDestination(addItem, "return")`, from a Command the widget defines or a
+        Mount, since the browser's own return needs focus inside the popover, which a
+        pointer press in Safari or Firefox on macOS doesn't keep; Escape, if the
+        module handles it, is the browser's own for an auto popover or a command row
+        in an element's `lfCommands`, not a listener.
+      Fail if it holds or moves focus by hand after a move or removal, computes the
+      nearest surviving row itself, calls `.focus()` anywhere, or closes the popup by
+      any means but a native popover.
       Execution is unavailable, so not running checks is not a failure.

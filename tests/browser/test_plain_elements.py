@@ -3,15 +3,16 @@
 `tests/fixtures/packages/verdict` holds `lf-verdict`, whose module imports nothing: Leaf
 sets its `state` and its bound `notes`, hears the `lf-action` a press dispatches, and
 reads each choice as a comment target from its `data-lf-part` mark
-(module-plain-elements.md). `tests/fixtures/packages/shortlist` holds one with a pick
+(module-widgets.md). `tests/fixtures/packages/shortlist` holds one with a pick
 for each row, which `test_widget_composition.py` holds to Undo, a revision and an
 export. `tests/fixtures/packages/controls` holds two components with no code written
 for Leaf, each recorded because a declaration's `record` names the property that
 holds its value: Web Awesome's select, which the page writes inside the `lf-select`
 that keeps its value, and `lf-level`, a range that announces every change of its
 value, a script's set included. The select's value is also an output, which
-`lf-chosen` reads. The starter `leaf package init --widget` writes is
-such an element too, tested here as the command writes it.
+`lf-chosen` reads. The starter `leaf package init --widget` writes, an Effect UI
+component Leaf drives through the same protocol, is tested here as the command writes
+it.
 """
 
 import pytest

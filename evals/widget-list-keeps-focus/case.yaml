@@ -49,9 +49,10 @@ assert:
       - each row is keyed by the candidate's id and carries `data-lf-datum` with that
         id, by which the element `defineWidget` defines lands the user on the nearest
         row after a removal; and the user stays on the moved row's Move button,
-        because the row is a keep-alive child (`h.keepAlive`), whose nodes move with
-        it, or because the Move button itself carries the row's `data-lf-datum`, on
-        which the element lands them;
+        because the rows of both sections stand under one parent, where a keyed move
+        keeps the row's nodes, because the row is a keep-alive child (`h.keepAlive`),
+        whose nodes move with it, or because the Move button itself carries the row's
+        `data-lf-datum`, on which the element lands them;
       - the module has no focus code for a move or a removal: it calls neither
         `holdFocus` nor `focusDestination` nor `.focus()` around one, keeps no record
         of the focused row to restore, and adds no focus or keydown listeners;

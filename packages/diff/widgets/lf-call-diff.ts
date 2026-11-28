@@ -213,11 +213,13 @@ const Folds = Mount.makeStream(
           node.querySelector<HTMLButtonElement>(":scope > .lf-call-tools > button");
         let face: string | null = null;
         let faced: Element | null = null;
+        let expanding = false;
         const paint = () => {
           const button = control();
           if (!button) return;
           const all = roots();
           const expand = all.some((root) => !root.open);
+          expanding = expand;
           const word = all.length === 1 ? "root" : "roots";
           const label = `${expand ? "Expand" : "Collapse"} all ${all.length} call-tree ${word}`;
           if (label === face && button === faced) return;
@@ -241,13 +243,19 @@ const Folds = Mount.makeStream(
         const stop = onCurrentLocation((at, cause) => {
           if (cause !== "drop") held = at && node.contains(at) ? at : null;
         });
+        // A root's fold can only turn the face to Expand all, and its opening only back
+        // from it, so the toggles a bulk press sets off read nothing.
+        const toggled = (event: Event) => {
+          const root = event.target as HTMLDetailsElement;
+          if (root.matches?.("details.lf-call-group") && root.open === expanding) paint();
+        };
         node.addEventListener("click", press);
-        node.addEventListener("toggle", paint, true);
+        node.addEventListener("toggle", toggled, true);
         yield* Effect.addFinalizer(() =>
           Effect.sync(() => {
             stop();
             node.removeEventListener("click", press);
-            node.removeEventListener("toggle", paint, true);
+            node.removeEventListener("toggle", toggled, true);
           }),
         );
         paint();

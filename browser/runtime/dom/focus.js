@@ -33,11 +33,13 @@
    A hold asks a different question, so the two counts stay distinct:
 
    - A hold (`holdFocus`, `holdCurrentLocation`, `handBack`'s retry) reads `placements`: has
-     focus been put anywhere since, by the user or by an owner, other than by a hold's
-     own restore or a closing layer's hand-back. Its question is whether the place it
-     holds is still the user's, and the user typing, pressing or scrolling in that place
-     is them working there: a hold that inputs voided would drop the user from the box
-     they are typing in whenever a render replaced it.
+     focus been put anywhere since, by the user or by an owner, other than by a closing
+     layer's hand-back. Its question is whether the place it holds is still the user's,
+     and the user typing, pressing or scrolling in that place is them working there: a
+     hold that inputs voided would drop the user from the box they are typing in
+     whenever a render replaced it. A hold that puts the user back counts as a
+     placement to every other hold, so where several holds lost the same focus, as a
+     widget's and the one around it do, the first to restore it ends the others.
    - Delayed work (`retainUserIntent`, user-intent.js) reads `inputCount`: has the user
      pressed, typed, scrolled, touched or left the window since the gesture that started
      it. Its question is whether that gesture is still their latest word, and any input
@@ -1654,6 +1656,7 @@ function holdOn(held, { itself = false } = {}) {
               ? before
               : { from: held, inputs: inputCount() },
           );
+        placements += 1;
         return true;
       }
     }

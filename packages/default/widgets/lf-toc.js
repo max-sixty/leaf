@@ -840,6 +840,8 @@ const FollowPosture = Mount.make("FollowPosture", {}, (summary) =>
         chosen = details.open;
         open = true;
       } else if (was) {
+        // A fold from outside whose `toggle` hasn't arrived is the reader's choice too.
+        if (!details.open) chosen = false;
         const rows = details.querySelector(".lf-toc-rows");
         const focused = summary.getRootNode().activeElement;
         open = chosen || Boolean(focused && rows?.contains(focused));

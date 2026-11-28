@@ -1402,7 +1402,7 @@ customElements.define(
         /** @type {((() => unknown) | null)[]} */
         const restores = [];
         const resume = this.defer();
-        // Where the user was in a file this source drops, as the last hunk's Revert
+        // Where the user was in a file this source drops, as the last change's Revert
         // drops the only file, they land on the diff itself (below).
         const kept = this.filesBody && holdFocus(this.filesBody);
         try {

@@ -180,10 +180,9 @@ map alone in its track, and narrow the sidebar under a mouse:
 ```
 
 Under touch the sidebar keeps its column, since no pointer rests on the spine there.
-Anything else in a track that narrow would stand a few letters a line, and the track no
-longer scrolls, so put a status the reader should see at once at the top of the body
-rather than beside the map. A
-sidebar that has wrapped above or below the body shows the map as a disclosure. For a
+A track that narrow fits a few letters a line and doesn't scroll, so keep anything else
+out of it, and put a status the reader should see at once at the top of the body rather
+than beside the map. A sidebar that has wrapped above or below the body shows the map as a disclosure. For a
 board or dashboard, the body can instead be an ordinary `div` with the page's own
 layout, beside which a sidebar keeps its outline open; a `header` and `footer` on the
 outer Layout span both regions.

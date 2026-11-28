@@ -2190,25 +2190,8 @@ def test_a_comment_takes_the_point_a_chart_s_ring_is_on(engine, request, serve):
     expect(page.locator("#p-bins svg[role=img]")).to_be_visible()
     quote = page.locator("#lf-composer-quote")
 
-    page.locator("#before").focus()
-    page.keyboard.press("Tab")
-    expect(page.locator("#p-line")).to_be_focused()
-    for key in ("ArrowRight", "ArrowDown"):
-        page.keyboard.press(key)
-    assert said(page) == ["week May 11, 2026", "team frontend", "hours 21"]
-    # The points the keys reached join no list a reader picks from: each chart offers a
-    # screen reader one response, to the whole chart.
-    render_checks_model.rendered(page)
-    expect(page.locator(".lf-visual-action")).to_have_text(["Respond to chart"] * 3)
-    page.keyboard.press("c")
-    expect(quote).to_have_text(
-        "\u00a7 chart \u00b7 week May 11, 2026, team frontend, hours 21"
-    )
-    page.keyboard.type("Why did frontend rise?")
-    with sending(page, "the line's comment"):
-        page.keyboard.press("Enter")
-
-    # The reader reads the dot's value, which stays up under Alt, and puts the bin's
+    # The pointer's comments come before the line's, since the card a send opens beside
+    # the line's point stands over the dots below it. The reader reads the dot's value, which stays up under Alt, and puts the bin's
     # reading and its ring away with Escape before pressing Alt.
     preview = page.locator(PREVIEW)
     for chart, index, words, escaped in (
@@ -2245,13 +2228,32 @@ def test_a_comment_takes_the_point_a_chart_s_ring_is_on(engine, request, serve):
         with sending(page, f"{chart}'s comment"):
             page.keyboard.press("Enter")
 
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(page.locator("#p-line")).to_be_focused()
+    for key in ("ArrowRight", "ArrowDown"):
+        page.keyboard.press(key)
+    assert said(page) == ["week May 11, 2026", "team frontend", "hours 21"]
+    # The points the keys reached join no list a reader picks from: each chart offers a
+    # screen reader one response, to the whole chart.
+    render_checks_model.rendered(page)
+    expect(page.locator(".lf-visual-action")).to_have_text(["Respond to chart"] * 3)
+    page.keyboard.press("c")
+    expect(quote).to_have_text(
+        "\u00a7 chart \u00b7 week May 11, 2026, team frontend, hours 21"
+    )
+    page.keyboard.type("Why did frontend rise?")
+    with sending(page, "the line's comment"):
+        page.keyboard.press("Enter")
+
     anchors = [
         event["anchor"]
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     ]
     assert anchors == [
-        {"section": chart, "visual": visual} for chart, visual in POINT_IDS.items()
+        {"section": chart, "visual": POINT_IDS[chart]}
+        for chart in ("p-dots", "p-bins", "p-line")
     ]
 
 

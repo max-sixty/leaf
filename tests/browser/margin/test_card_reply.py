@@ -2086,8 +2086,10 @@ def test_a_full_card_s_draft_keeps_its_first_line_as_lines_and_a_picture_come_an
 def test_a_growing_draft_under_its_words_holds_the_editor_s_top(browser, serve):
     """Each new line keeps a card under its words on its side and the reply's first
     line where it was, until the card's foot meets the window's; further lines scroll
-    inside the editor. No keystroke carries its first line along the boundary."""
-    page, _preview, editor = drafting_in_a_short_card(browser, serve, 1000, 600)
+    inside the editor. No keystroke carries its first line along the boundary. The
+    window leaves the transcript its whole height at the cap: a shorter one shares the
+    shortfall between transcript and reply, which moves the first turn."""
+    page, _preview, editor = drafting_in_a_short_card(browser, serve, 1000, 628)
     held = page.evaluate(CARD_AND_REPLY)
     readings = [held]
     for _ in range(30):

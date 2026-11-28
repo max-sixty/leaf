@@ -774,7 +774,7 @@ def test_thread_widget_obligation_attention_comes_from_its_widget_without_a_pros
             "widget": "routes",
             "action": "choose",
             "detail": {"value": ["route-a"]},
-            "facts": {"answered": True},
+            "answered": True,
         }
     )
     state = model.reading(HUB, events)
@@ -838,7 +838,7 @@ def test_an_answer_sends_a_held_reading_only_what_changed():
         "widget": "pick",
         "action": "choose",
         "detail": {"value": ["one"]},
-        "facts": {"answered": True},
+        "answered": True,
         "attempt": "tail-pick-attempt-01",
     }
 

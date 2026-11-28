@@ -221,7 +221,7 @@ def test_versions_counts_the_changes_since_each_older_version(browser, serve):
             "widget": "g",
             "action": "choose",
             "detail": {"value": ["g-a"]},
-            "facts": {"answered": True},
+            "answered": True,
         },
     )
     expect(compare[1]).to_have_text("3 changes Compare")
@@ -830,7 +830,7 @@ def test_a_change_with_no_card_still_says_what_its_version_was_saved_after(
             "widget": "g",
             "action": "choose",
             "detail": {"value": ["g-a"]},
-            "facts": {"answered": True},
+            "answered": True,
         },
     )
     _comment_on(d, "t", "Plan", text="Should we wait?")

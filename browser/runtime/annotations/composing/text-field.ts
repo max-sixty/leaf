@@ -5,15 +5,16 @@
  * message will read: inline code in code type, emphasis and strong in their weights, a
  * link as a link, a heading in bold, a quote and a list item at the message's insets at
  * every level, an item under the message's own marker, a task item's box as the
- * message's disabled checkbox, a rule as the rule, an entity as the character it
- * names, a picture as the picture, drawn after its source while the caret is in it,
- * and a link that leaves the page with the mark the page draws after one
- * (records/declared-words.js). The syntax that produces each (backticks, asterisks, brackets,
- * hashes, list markers, a rule's dashes, an escape's or a break's backslash, an
- * entity's name, a picture's source) is hidden unless the selection touches the
- * construct; the spaces that lead a line, which the message drops, stay hidden. A
- * table and a link's reference definition stay as typed (`DRAWN` in field-editor.js
- * lists what is drawn). List markers reveal their source only inside the marker: the
+ * message's disabled checkbox, a rule as the rule, a table as its grid, an entity as
+ * the character it names, a picture as the picture, drawn after its source while the
+ * caret is in it, and a link that leaves the page with the mark the page draws after
+ * one (records/declared-words.js). The syntax that produces each (backticks, asterisks,
+ * brackets, hashes, list markers, a rule's dashes, a table's `|`s and delimiter row, an
+ * escape's or a break's backslash, an entity's name, a picture's source) is hidden
+ * unless the selection touches the construct, a table's while the selection is in the
+ * table; the spaces that lead a line, and those round a cell's words, which the message
+ * drops, stay hidden. A link's reference definition stays as typed (`DRAWN` in
+ * field-editor.js lists what is drawn). List markers reveal their source only inside the marker: the
  * caret after its trailing space is ready to type content, so even an empty new item
  * already shows its bullet or number. The user can move back into the marker to edit every source
  * character. Nothing is converted: the value is always the source, which is what the
@@ -30,8 +31,8 @@
  *
  * A field that edits words where they are shown, as a draft's does over its prose, names
  * the element that shows them (`facesOf`) and draws them in that display's faces
- * instead of the message's: each heading and code block in the type, padding and indent
- * the page gives it there, each quote's inset, and the display's gap between two
+ * instead of the message's: each heading, code block and table in the type, padding and
+ * indent the page gives it there, each quote's inset, and the display's gap between two
  * outermost blocks in place of the blank line that parts them in the source, so no
  * word moves as the editor opens (browser/AGENTS.md, "Editing something keeps it where
  * it stood and as it read"). Such a display is a Markdown body, which reads as a file,
@@ -349,6 +350,51 @@ sheet.replaceSync(`
      line (base.css), and the mark after a link that leaves the page is the page's
      own (surfaces.css). */
   .lf-md-picture { max-width: 100%; height: auto; vertical-align: middle; }
+  /* A table is a grid around its rows (field-editor.js, \`decorate\`), each row a line
+     taking the grid's columns and each cell one of its items, so a column is as wide as
+     its widest cell and the table only as wide as its columns, set and ruled as the
+     sent table's cells are (reading.css, \`th, td\`), a name in one breaking where it
+     must as there. The head's lower padding is the delimiter row's line, its rule that
+     line's border, so the two stand as high as the sent head; once shown, the
+     delimiter's source stands for the rule in the same room, so showing it moves
+     nothing, and it asks for no width, so it widens no column, running on past the
+     table where it is longer, until the caret is on it. A \`|\` takes no room: the one
+     opening a cell hangs into the padding before its words, the one closing the row
+     after them. A grid's columns share out a width too narrow for them otherwise than a
+     table's do, so a table that must wrap its cells, as on a phone, wraps them at other
+     words than the sent one. Rejected: rows and cells displayed as a table's, which
+     matched the sent columns but not yet its rows' heights, and can't take the padding
+     under its last row. */
+  .lf-md-table { display: grid; grid-template-columns: repeat(var(--lf-table-columns), auto);
+    justify-content: start; font-family: var(--lf-sans); font-style: normal;
+    font-variant-numeric: tabular-nums;
+    --lf-table-edge: max(var(--lf-focus-ring-room), var(--lf-raise-1-blur)); }
+  .cm-line.lf-md-table-row { display: grid; grid-template-columns: subgrid;
+    grid-column: 1 / -1; line-height: 1.5; }
+  .lf-md-cell { padding: 8px 14px; overflow-wrap: normal; word-break: normal;
+    border-block-end: 1px solid var(--lf-rule); }
+  .lf-md-cell:first-child { padding-inline-start: var(--lf-table-edge); }
+  .lf-md-cell-end { padding-inline-end: var(--lf-table-edge); }
+  /* A row short of cells carries its rule on across the columns it lacks, above the
+     room a last row keeps under it. */
+  .cm-line.lf-md-table-short {
+    background: linear-gradient(var(--lf-rule), var(--lf-rule)) 0 100% / 100% 1px
+      no-repeat content-box; }
+  .lf-md-cell code { padding: 0; background: none; font-size: 0.9em;
+    overflow-wrap: anywhere; }
+  .lf-md-align-right { text-align: end; }
+  .lf-md-align-center { text-align: center; }
+  .lf-md-pipe { display: inline-flex; inline-size: 0; white-space: pre; }
+  .lf-md-pipe-open { justify-content: flex-end; }
+  .cm-line.lf-md-table-head { font-size: var(--lf-t-working-label); color: var(--lf-muted);
+    font-weight: 600; }
+  .lf-md-table-head .lf-md-cell { padding-block-end: 0; border: 0; }
+  .cm-line.lf-md-table-rule { display: block; contain: inline-size; white-space: pre;
+    font-size: var(--lf-t-working-label); line-height: 8px;
+    padding-inline: var(--lf-table-edge); border-block-end: 1px solid var(--lf-border); }
+  .cm-line.lf-md-table-rule.lf-md-shown { border-block-end-color: transparent; }
+  .cm-line.lf-md-table-rule.lf-md-editing { line-height: normal; white-space: pre-wrap;
+    overflow-wrap: anywhere; }
   /* A rule's line is the sent hr, a line tall with its stroke through the middle
      (reading.css, \`.lf-msg-body hr\`), its source on that line under the caret, so
      reaching it moves nothing (browser/AGENTS.md, "The page holds still under the

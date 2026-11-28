@@ -281,7 +281,7 @@ import {
   threadName,
   threadPassage,
   threadPreview,
-  titleShown,
+  viewHeading,
 } from "../records/thread/messages.js";
 import { drawnThreadId, THREAD } from "../records/thread/selectors.js";
 import { declareThreadParts } from "../records/thread/selectors.js";
@@ -1768,11 +1768,9 @@ export function createFloatingPanel({
   // the user chose it to show and holds that (`refit`, `holdRoom`).
   // - `key`: what tells two routes of the view apart, where its name alone does not.
   // - `title`: its name, over it, on the way back to it and in the Escape that closes it;
-  //   `head` in its heading where that says more, and `quiet` where something in view
-  //   already says it, so the heading names it to assistive tech alone: On's tabs, or an
-  //   untitled thread's opening message, whose words its name would repeat. While a
-  //   title is on its way, the heading shows and says so, as every list of threads does;
-  //   the user chose that over a heading of the opening words.
+  //   `head` in its heading where that says more, as a thread's view does
+  //   (`viewHeading`), and `quiet` where something in view already says it, so the
+  //   heading names it to assistive tech alone, as On's tabs do.
   // - `draw`: what it holds. `presses`: what stands on its head line after its name
   //   (`headTemplate`). `controls`: what stands at its foot (`controlsTemplate`):
   //   `crumb`, its tabs, and `aux`, the presses beside them.
@@ -1874,11 +1872,7 @@ export function createFloatingPanel({
       title: (route) => threadTitle(route.thread),
       head: (route) => {
         const thread = threadOf(route);
-        return thread ? threadHeading(thread) : threadTitle(route.thread);
-      },
-      quiet: (route) => {
-        const thread = threadOf(route);
-        return !(thread && titleShown(thread));
+        return thread ? viewHeading(thread) : threadTitle(route.thread);
       },
       draw: () => threadView(),
       presses: (route) => threadPresses(route),
@@ -5086,8 +5080,8 @@ export function createFloatingPanel({
   }
   // The view's head line, in two parts. First its name: the way back to the list it
   // opened over, a ‹ alone that names that list as its tooltip; the view's name
-  // (`VIEWS`, `title`, `head` and `quiet`), a thread's saying when its title is still on
-  // its way (`threadHeading`); and the facts the view states after it. Then the view's
+  // (`VIEWS`, `title`, `head` and `quiet`), which for a thread says whether a title is on
+  // its way (`viewHeading`); and the facts the view states after it. Then the view's
   // presses, ended by its Close where the view has no tabs (`closeAtFoot`). A view's
   // `presses` gives both its facts and its presses.
   /** @param {PanelRoute} top @param {unknown} close */

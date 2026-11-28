@@ -27,7 +27,7 @@
    notice and the settlement on its head line, which stands in the thread above its
    messages. The thread draws each of them there, so the panel's view and a card share
    one notice, one settlement and one reply box. Each head line holds the thread's
-   title, which its container draws (`titleShown`, messages.js), and in both each
+   title, which its container draws (`viewHeading`, messages.js), and in both each
    message's head scrolls with its words. The user chose the card's title line over
    the name of the message in view pinned on the line of the card's presses, so the
    card and the panel draw a thread one way and the card keeps no code to pin names.

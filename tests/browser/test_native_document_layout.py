@@ -3,7 +3,14 @@ activate, and keeping the browser's own behavior, such as scroll anchoring."""
 
 import pytest
 from playwright.sync_api import expect
-from render_harness import displayed, leaf_page, open_page, resized, wait_until_ready
+from render_harness import (
+    displayed,
+    leaf_page,
+    open_page,
+    resized,
+    spine_sidebar,
+    wait_until_ready,
+)
 
 from browser.margin import _comment_on
 
@@ -383,6 +390,7 @@ def test_a_sidebar_among_a_column_s_blocks_keeps_its_track_off_what_follows(
         "sidebar among a column's blocks",
         f'<div class="layout-sidebar"><aside><div class="layout-track" id="track">'
         f'{track}</div></aside>{body}</div><div id="after">{after}</div>',
+        head=spine_sidebar(".layout-sidebar") if held == "contents map" else "",
     )
     page = open_page(request.getfixturevalue(engine), serve(source))
     resized(page, 1400, 600)
@@ -418,18 +426,22 @@ def test_a_header_above_a_contents_map_keeps_the_map_below_it(
         )
         + "</div>"
     )
+    spine = spine_sidebar(".layout-sidebar")
     if header == "in the sidebar":
-        source = leaf_page("header above a map", head + regions, layout="sidebar")
+        source = leaf_page(
+            "header above a map", head + regions, head=spine, layout="sidebar"
+        )
     elif header == "before the sidebar":
         source = leaf_page(
             "header above a map",
             f'{head}<div class="layout-sidebar">{regions}</div>',
+            head=spine,
             layout=None,
         )
     else:
-        source = leaf_page("header above a map", regions, layout="sidebar").replace(
-            "<main", f"{head}<main", 1
-        )
+        source = leaf_page(
+            "header above a map", regions, head=spine, layout="sidebar"
+        ).replace("<main", f"{head}<main", 1)
     page = open_page(request.getfixturevalue(engine), serve(source))
     resized(page, 1400, 900)
     gap = page.evaluate("""() =>
@@ -455,7 +467,9 @@ def test_a_contents_map_stays_fixed_beside_what_extensions_append(
         )
         + "</div>"
     )
-    source = leaf_page("map beside appended elements", regions, layout="sidebar")
+    source = leaf_page(
+        "map beside appended elements", regions, head=spine_sidebar(), layout="sidebar"
+    )
     page = open_page(request.getfixturevalue(engine), serve(source))
     resized(page, 1400, 900)
     positions = page.evaluate("""async () => {

@@ -142,7 +142,7 @@ def named_in_place(page, serve, request, root):
             "words": card.locator(".lf-msg-text").first.evaluate(FIRST_LINE),
         }
 
-    expect(heading).to_be_hidden()
+    expect(heading.locator(".lf-thread-name-untitled")).to_be_visible()
     rendered(page)
     before = where()
     claim_for_codex(serve.page_dir, request)

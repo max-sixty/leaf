@@ -133,7 +133,7 @@ def test_foreign_edits_replay_in_order_under_a_live_draft(browser, serve):
                 "widget": "draft-ops",
                 "action": "edit",
                 "detail": {"value": text},
-                "facts": {"answered": True},
+                "answered": True,
             },
         )
     append_command(
@@ -808,7 +808,7 @@ def test_saved_widget_words_cannot_dismiss_an_unfinished_comment(
                 "widget": "mutable",
                 "action": "edit",
                 "detail": {"value": value},
-                "facts": {"answered": bool(value)},
+                "answered": bool(value),
             },
         )
 

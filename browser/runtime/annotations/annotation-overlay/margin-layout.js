@@ -102,6 +102,7 @@ import {
   eachRenderedChild,
   eachRenderedElement,
   isText,
+  labelledBy,
   skipped,
   skipper,
   untilFound,
@@ -1576,12 +1577,15 @@ function scheduleRowLayout() {
   pending = nextRender(layoutMarginRows);
 }
 // What the page shows in place of `node` while a closed box hides it (lib/shadow-tree.js,
-// `closedOver`): a closed disclosure's summary, or else the nearest box round the
-// closed one that draws one of its own, as a tab set does round a panel it hasn't
-// chosen. A row stands by it level with its top, since the line and words it would
-// stand by are inside (`face`). None where nothing round the closed box draws, or the
-// page doesn't draw the closed box itself, as under `display: none` or in skipped
-// content off screen, where reading round it would force that content's layout.
+// `closedOver`): what names the box, a closed disclosure's summary or the drawn label
+// its `aria-labelledby` names, as a tab names its panel wherever the set lists it: in a
+// strip over the panels, a list beside them or a page's column of parts. A box that
+// names none stands by the nearest box round it that draws one of its own, as a deck
+// does round a card it doesn't show. A row stands by it level with its top, since the
+// line and words it would stand by are inside (`face`). None where nothing round the
+// closed box draws, or the page doesn't draw the closed box itself, as under `display:
+// none` or in skipped content off screen, where reading round it would force that
+// content's layout.
 /** @param {Node} node @returns {Element | null} */
 export function closedFaceOver(node) {
   const closed = closedOver(node);
@@ -1590,6 +1594,8 @@ export function closedFaceOver(node) {
     const summary = closed.querySelector(":scope > summary") ?? closed;
     return drawn(summary) ? summary : null;
   }
+  const label = labelledBy(closed).find((named) => drawn(named) && !closedOver(named));
+  if (label) return label;
   if (!drawn(closed)) return null;
   for (
     let at = renderedParent(closed);
@@ -1794,17 +1800,18 @@ function scheduleStirReading() {
       const anchored = options?.anchor();
       if (!options || !anchored?.isConnected) continue;
       const withheld = row.classList.contains("lf-withheld");
-      // A box inside the target that scrolls a passage's words moves them too. One
-      // round a face holds the target, so the target answers for a face as well.
+      // A box inside the target that scrolls a passage's words moves them too, and so
+      // does one round the box the row last stood by (`anchors`): a face may stand
+      // apart from the target, as a list beside a closed panel scrolls its tab.
       const from = (options.point() ? null : wordsStart(options)) ?? anchored;
+      const stoodBy = anchors.get(row);
+      /** @param {Node | null | undefined} at @param {Element} box */
+      const inside = (at, box) => {
+        for (; at; at = renderedParent(at)) if (at === box) return true;
+        return false;
+      };
       const moving =
-        documentOnly ||
-        boxes.some((box) => {
-          /** @type {Node | null} */
-          let at = from;
-          for (; at; at = renderedParent(at)) if (at === box) return true;
-          return false;
-        });
+        documentOnly || boxes.some((box) => inside(from, box) || inside(stoodBy, box));
       if (!moving) continue;
       if (!withheld && documentOnly) continue;
       const face = options.face();

@@ -160,7 +160,7 @@ def test_a_passing_render_check_saves_the_screens_the_author_reads(
             "widget": "ship",
             "action": "choose",
             "detail": {"value": ["ship-now"]},
-            "facts": {"answered": True},
+            "answered": True,
         },
     )
     append_carried_log_record(

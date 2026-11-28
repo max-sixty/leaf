@@ -5,8 +5,7 @@
 import "/runtime/stage-integration.js";
 import assert from "node:assert/strict";
 import test from "node:test";
-import { render } from "/vendor/lit.js";
-import { drawToc } from "../../packages/default/widgets/toc-view.js";
+import { readOutline } from "../../packages/default/widgets/lf-toc.js";
 import { marksWords, sectionMarks } from "../../packages/default/widgets/toc-marks.js";
 
 // The contents of `markup` as lf-toc lists them, and each section's marks, by the words
@@ -19,15 +18,13 @@ import { marksWords, sectionMarks } from "../../packages/default/widgets/toc-mar
 function marked(markup, { threads = [], onMe = [], changes = [], toc = "" } = {}) {
   document.body.innerHTML = `<aside><lf-toc id="contents" ${toc}></lf-toc><p id="aside-note">Aside.</p></aside><main>${markup}</main>`;
   const host = /** @type {HTMLElement} */ (document.querySelector("lf-toc"));
-  const reading = {
-    label: (/** @type {Element} */ heading) => heading.textContent ?? "",
-  };
-  const drawing = drawToc(host, reading);
-  render(drawing.render(reading), host, { host });
-  const main = /** @type {Element} */ (document.querySelector("main"));
+  const { main, sections } = readOutline(
+    host,
+    (/** @type {Element} */ heading) => heading.textContent ?? "",
+  );
   const byId = (/** @type {string} */ id) =>
     /** @type {Element} */ (document.getElementById(id));
-  const marks = sectionMarks(main, drawing.sections(), {
+  const marks = sectionMarks(/** @type {Element} */ (main), sections, {
     threads: threads.map(({ id, resolved }) => ({ resolved, anchor: { section: id } })),
     onMe: onMe.map((id) => ({ source: { id } })),
     changes: changes.map(({ blocks = [], at = blocks[0] ?? "", gap = null }) => ({

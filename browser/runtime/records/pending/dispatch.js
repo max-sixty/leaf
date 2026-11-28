@@ -3,11 +3,11 @@
    and collision notices belong to the composition root; its callbacks run after
    the ledger publishes the command synchronously.
 
-   A widget's action, and an undo of one, carries what the widget works out of its
-   state as the gesture leaves it (`facts`), its word on its obligation among them
-   (`awaits`). The ledger publishes the gesture first, so the widget's reading holds
-   it, then asks the widget (`facts`, the composition root's), and the facts join the
-   event before transport sends it. */
+   A widget's action, and an undo of one, carries what the widget says of its
+   obligation as the gesture leaves its state (`awaits`). The ledger publishes the
+   gesture first, so the widget's reading holds it, then asks the widget
+   (`answered`, the composition root's), and the word joins the event before transport
+   sends it. */
 import { actionForWidget, isThreadEvent } from "../../state/pending/model.js";
 import { createPendingLedger } from "./state.js";
 import { applicationState, readApplication } from "../../state/semantic-state.js";
@@ -48,13 +48,13 @@ export function createCommandDispatch() {
     return dependencies;
   };
   const startPost = (event) => {
-    const { onCollision, afterEnqueue, facts } = current();
+    const { onCollision, afterEnqueue, answered } = current();
     const entry = ledger.enqueue(event);
     if (!entry) {
       onCollision(event.attempt);
       return null;
     }
-    applicationState.sayFacts(entry.event.attempt, facts);
+    applicationState.answer(entry.event.attempt, answered);
     afterEnqueue(entry);
     return entry;
   };

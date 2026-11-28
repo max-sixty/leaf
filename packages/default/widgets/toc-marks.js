@@ -2,7 +2,7 @@
  * changes stand along the contents: how many of each the section each row leads holds.
  *
  * A row's section is its stretch of the page, as the map draws it: from its destination
- * (toc-view.js), the element its heading titles or an identified one inside that
+ * (lf-toc.js), the element its heading titles or an identified one inside that
  * (`titledElement`), to the next row's. An item counts in the row whose stretch holds
  * its first word, so a thread about a whole question or the section around it counts
  * in the question's row, as does a paragraph after the question before the next

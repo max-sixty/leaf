@@ -669,14 +669,14 @@ def test_a_pin_keeps_clear_only_of_controls_the_user_can_see(browser, serve):
     page = open_page(browser, serve(FOOTER_OBLIGATION_PAGE))
     resized(page, 1440, 900)
     pane_scroll_behavior(page, page.locator("#ask-pane"), "bounded")
-    # Scroll the body until its obligation's last control, at the obligation's right edge where a
-    # pin stands, is behind the footer obligation's heading, with the body obligation's heading in
+    # Scroll the body until its obligation's last control, Add's submit at the obligation's right
+    # edge where a pin stands, is behind the footer obligation's heading, with the body obligation's heading in
     # view.
     page.evaluate(
         """() => {
           const body = document.getElementById('ask-body');
-          const control = [...document.querySelectorAll('#body-ask button')].at(-1)
-            .getBoundingClientRect();
+          const control = document.getElementById('body-choice').shadowRoot
+            .querySelector('.lf-compose-submit').getBoundingClientRect();
           const heading = document.querySelector('#foot-ask > h3').getBoundingClientRect();
           body.scrollTop += control.top - heading.top - 2;
         }"""
@@ -689,8 +689,8 @@ def test_a_pin_keeps_clear_only_of_controls_the_user_can_see(browser, serve):
     expect(marker).to_be_visible()
     tops = page.evaluate(
         """() => {
-          const hidden = [...document.querySelectorAll('#body-ask button')].at(-1)
-            .getBoundingClientRect();
+          const hidden = document.getElementById('body-choice').shadowRoot
+            .querySelector('.lf-compose-submit').getBoundingClientRect();
           const foot = document.querySelector('#ask-pane > footer').getBoundingClientRect();
           return {
             hiddenTop: hidden.top, footTop: foot.top,

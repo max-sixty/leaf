@@ -277,7 +277,7 @@ export function renderRetired(el, outcome) {
 // still open, where the same suggestion on the page keeps both.
 export function settledAway(el) {
   let at = el;
-  for (; at; at = at.parentElement) if (retiredSlot(at)) return true;
+  for (; at; at = upFrom(at)) if (retiredSlot(at)) return true;
   const nodes = [...el.childNodes];
   return (
     nodes.some((n) => isElement(n) && retiredSlot(n)) &&
@@ -558,10 +558,11 @@ function enter(ctx, el, inFrame = true) {
   };
 }
 // The tree-local facts start over inside a declared shadow root, as `closest` does.
+// Silence is not one of them: a slot the user's decision took off the page takes the
+// trees of the widgets inside it along, as a settled group's label in its own root.
 const crossed = (ctx) => ({
   ...ctx,
   chrome: false,
-  silenced: false,
   generated: false,
   gen: null,
 });

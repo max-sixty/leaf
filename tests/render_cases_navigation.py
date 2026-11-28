@@ -79,10 +79,12 @@ BINDING_BADGE_PAGE = leaf_page(
 
 # The first ancestor that cuts this element, and by how much. `overflow` and `clip-path`
 # cut at the padding box, so the border comes off the ancestor's own box before the
-# comparison; half a pixel of tolerance for subpixel layout.
+# comparison; half a pixel of tolerance for subpixel layout. The walk crosses a shadow root
+# to its host, since an option draws its badge in its own root.
 CLIPPED_BY = """el => {
     const r = el.getBoundingClientRect();
-    for (let p = el.parentElement; p; p = p.parentElement) {
+    const up = (n) => n.parentElement ?? n.getRootNode().host ?? null;
+    for (let p = up(el); p; p = up(p)) {
       const s = getComputedStyle(p);
       if (s.overflow === "visible" && s.clipPath === "none") continue;
       const b = p.getBoundingClientRect();
@@ -148,11 +150,13 @@ OVER_WORDS = """(el, id) => {
 # The option's width and the opening of its prose come back with the chip, because where
 # the chip belongs is a relation rather than a pinned number. A compact row keeps its
 # binding badge before that opening; a titled card puts it after the opening in the trailing
-# header-state slot. Both keep it inside the cell and off the authored words.
+# header-state slot. Both keep it inside the cell and off the authored words. The option is
+# the host of the shadow root its badge stands in.
 INSIDE_ITS_OPTION = """el => {
+    const option = el.getRootNode().host;
     const chip = el.getBoundingClientRect();
-    const opt = el.parentElement.getBoundingClientRect();
-    const s = getComputedStyle(el.parentElement);
+    const opt = option.getBoundingClientRect();
+    const s = getComputedStyle(option);
     const top = opt.y + parseFloat(s.borderTopWidth);
     const left = opt.x + parseFloat(s.borderLeftWidth);
     const bottom = opt.bottom - parseFloat(s.borderBottomWidth);

@@ -242,9 +242,9 @@ lf-code > lf-note code {
   background: var(--lf-pre-bg);
   color: var(--lf-code-ink);
 }
-/* A block with notes draws its notes mark and Copy on one toolbar (integration.css,
-   `.lf-mark-bar`) in the seat a lone Copy takes, inside the block's top-right corner,
-   taking no room, and shows it as Copy shows: while the pointer or focus is on the
+/* A block draws Copy, and its notes mark where it has notes, on one toolbar
+   (integration.css, `.lf-mark-bar`) in the seat a lone Copy takes, inside the block's
+   top-right corner, taking no room, and shows it as Copy shows: while the pointer or focus is on the
    block, or after a tap stands the user there. Hidden, the notes leave the code whole
    and each annotated line keeps its number in the accent, so the reader can see where
    they were. Paper shows the notes whatever the screen chose. */

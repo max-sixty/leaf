@@ -75,7 +75,18 @@
  * stays the author's: the authored <pre> is the source the lines are drawn from and
  * shows nowhere, and each note stays where it was written, shown under its line
  * through a slot of its own, which a mount assigns it to (`slotAssignment: "manual"`),
- * so its words stay the author's and quotable. A comment on the code anchors on the
+ * so its words stay the author's and quotable.
+ *
+ * Why a shadow root, where a decorating widget draws in a light-DOM part beside the
+ * author's children first (browser/AGENTS.md, "Renderers"): a note reads between two
+ * of the drawn lines, and the light part stands after the authored children, so the
+ * note would come before every line in the document's order, which is the order a
+ * selection, a copy and a passage's quote read in; CSS `order` moves only the paint.
+ * Moving the note into the part instead, as the LeafElement moved it into its <pre>,
+ * takes it from where `inputs` and Leaf's revisions find the author's markup. A slot
+ * puts the note in the flat tree's order where it is drawn and leaves it in place.
+ *
+ * A comment on the code anchors on the
  * drawn lines' text, which the registry's `shadow` brings into the page's reading.
  * The tokenizer is Shiki's (`syntax`), run by a mount on the source (`Color`), whose
  * coloured lines come back as a message; until they do, the block draws its source
@@ -102,7 +113,11 @@ import {
 } from "/vendor/effect-ui.js";
 import { onUserInput, scrollersOf, tabStore } from "/runtime/portable-api.js";
 import { bodyText } from "/runtime/lib/data-body.js";
-import { nameAction, offerActionElement, offerAttributes } from "/runtime/lib/controls.js";
+import {
+  nameAction,
+  offerActionElement,
+  offerAttributes,
+} from "/runtime/lib/controls.js";
 import {
   codeLanguage,
   synAttributes,
@@ -190,7 +205,13 @@ const Note = Schema.Struct({ at: Schema.Number, note: Schema.instanceOf(Element)
 type Note = typeof Note.Type;
 
 type Row =
-  | { kind: "line"; n: number; tokens: readonly Token[]; indent: number; notes: Element[] }
+  | {
+      kind: "line";
+      n: number;
+      tokens: readonly Token[];
+      indent: number;
+      notes: Element[];
+    }
   | { kind: "elided"; from: number; to: number; captions: Element[] };
 
 // The block's rows in order: each line with the notes that stand under it, and an
@@ -215,7 +236,13 @@ export function rowsOf(lines: Lines, spec: string | null, notes: readonly Note[]
     }
     const docked = (byLine.get(n) ?? []).map(({ note }) => note);
     for (const note of docked) placed.add(note);
-    rows.push({ kind: "line", n, tokens, indent: indentColumns(tokens), notes: docked });
+    rows.push({
+      kind: "line",
+      n,
+      tokens,
+      indent: indentColumns(tokens),
+      notes: docked,
+    });
     previous = n;
   }
   const foot = notes.map(({ note }) => note).filter((note) => !placed.has(note));
@@ -226,11 +253,12 @@ export function rowsOf(lines: Lines, spec: string | null, notes: readonly Note[]
 // number, an elided row by the stretch it stands for.
 const rowsAt = (frame: Element, key: string | null | undefined) => {
   const addressed = within(key);
-  return [...frame.querySelectorAll<HTMLElement>(".lf-code-line, .lf-code-elided")].filter(
-    (row) =>
-      row.classList.contains("lf-code-elided")
-        ? addressed(Number(row.dataset.lfFrom), Number(row.dataset.lfTo))
-        : addressed(Number(row.dataset.lfLine)),
+  return [
+    ...frame.querySelectorAll<HTMLElement>(".lf-code-line, .lf-code-elided"),
+  ].filter((row) =>
+    row.classList.contains("lf-code-elided")
+      ? addressed(Number(row.dataset.lfFrom), Number(row.dataset.lfTo))
+      : addressed(Number(row.dataset.lfLine)),
   );
 };
 
@@ -421,7 +449,8 @@ function follow(
   if ((hands.get(scroller) ?? 0) > resumed) return;
   const box = scroller.getBoundingClientRect();
   const { top, bottom } = row.getBoundingClientRect();
-  if (top >= box.top + box.height * 0.15 && bottom <= box.top + box.height * 0.7) return;
+  if (top >= box.top + box.height * 0.15 && bottom <= box.top + box.height * 0.7)
+    return;
   const to = scroller.scrollTop + top - box.top - box.height / 3;
   if (scrollMoves(scroller, { top: to }))
     scroller.scrollTo({ top: to, behavior: "instant" });
@@ -554,34 +583,33 @@ export const Code = Html.component({
         ...row.notes.map((note, index) => noteBox(note, `note:${n}:${index}`, indent)),
       ];
     });
-    const toolbar = interactive && notes.length > 0;
     const pre = h.pre
       .key("source")
-          .class("lf-code-source")
-          .attr("part", "source")
-          // Reading commands remain reachable when wrapping removes overflow.
-          .attr("data-lf-carry", "source")
-          .attr("tabindex", "0")
-          // The gutter fits the widest number, so an excerpt from deep in a file keeps
-          // its code aligned with its notes.
-          .attr("style", `--lf-code-digits: ${String(last).length}`)
-          // Copied as the source the lines were drawn from, never as the lines' text,
-          // which carries the notes docked among them.
-          .attr("data-lf-copy", "code")
-          .prop("lfCopy", () => source)
-          .children(
-            ...drawn,
-            ...foot.map((note, index) => noteBox(note, `foot:${index}`)),
-          );
+      .class("lf-code-source")
+      .attr("part", "source")
+      // Reading commands remain reachable when wrapping removes overflow.
+      .attr("data-lf-carry", "source")
+      .attr("tabindex", "0")
+      // The gutter fits the widest number, so an excerpt from deep in a file keeps
+      // its code aligned with its notes.
+      .attr("style", `--lf-code-digits: ${String(last).length}`)
+      // Copied as the source the lines were drawn from, never as the lines' text,
+      // which carries the notes docked among them.
+      .attr("data-lf-copy", "code")
+      .prop("lfCopy", () => source)
+      .children(...drawn, ...foot.map((note, index) => noteBox(note, `foot:${index}`)));
     return h.div
       .class("lf-code-frame")
       .attr("part", "frame")
       .children(
         lang ? pre.onMount(Color({ source, lang })) : pre,
-        // Copy joins the mark here (`lfBar`), which the theme stands in the block's
-        // corner and shows as it would show a lone Copy; its marks join into one
-        // toolbar (controls.css, `data-lf-joined`).
-        toolbar
+        // Copy stands here (`lfBar`), beside the notes mark where the block has
+        // notes, in the toolbar the theme stands in the block's corner and shows as
+        // it would show a lone Copy; its marks join into one (controls.css,
+        // `data-lf-joined`). Copy can't stand beside the block as it does elsewhere,
+        // since the anchor it would hang from is named in the document and Copy would
+        // stand in this tree, where no such name is heard.
+        interactive
           ? h.div
               .key("bar")
               .attrs(offerAttributes("div", "lf-code-bar lf-mark-bar"))
@@ -590,11 +618,13 @@ export const Code = Html.component({
               .children(
                 // Its press is the notes key's: the scope names the mark as that key's
                 // control, and Leaf's register runs the key when it is pressed.
-                h.button
-                  .key("notes")
-                  .onMount(
-                    NotesMark({ shown: model.notesShown, count: notes.length }),
-                  ),
+                notes.length > 0
+                  ? h.button
+                      .key("notes")
+                      .onMount(
+                        NotesMark({ shown: model.notesShown, count: notes.length }),
+                      )
+                  : null,
               )
           : null,
       )

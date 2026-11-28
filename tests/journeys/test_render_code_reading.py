@@ -26,7 +26,7 @@ def test_code_reference_keeps_command_context_and_cancel_destination(browser, se
         viewport={"width": 390, "height": 844}, has_touch=True
     )
     page = open_page(browser, live_url(serve(source)), context=context)
-    pre = page.locator("#code pre")
+    pre = page.locator("#code .lf-code-source")
     # The leaf's menu goes away as its row opens the reference, so the leaf is the
     # door the reference returns to.
     leaf = page.locator(".lf-fp-leaf")
@@ -76,20 +76,20 @@ def test_code_wrapping_keeps_source_copy_and_reader_choice(browser, serve):
     )
     page = open_page(browser, url, context=context)
     host = page.locator("#code")
-    pre = host.locator("pre")
+    pre = host.locator(".lf-code-source")
     # What lf-code declares rather than asks for, which only Leaf reads: its `w`
-    # (`lfCommands`), a Copy control standing after its block (`data-lf-copy`), and the
-    # word its highlighted line says to a listener (`data-lf-quiet`).
+    # (`lfCommands`), a Copy control in its toolbar (`data-lf-copy`),
+    # and the word its highlighted line says to a listener (`data-lf-quiet`).
     expect(host).to_have_attribute(
         "aria-keyshortcuts", re.compile(r"^w$", re.IGNORECASE)
     )
-    expect(host.locator(":scope > pre + .lf-code-copy")).to_have_count(1)
+    expect(host.locator(".lf-code-bar > .lf-code-copy")).to_have_count(1)
     expect(host.locator(".lf-code-line[data-lf-hi] > .lf-quiet")).to_have_text(
         "highlighted"
     )
     before = pre.evaluate("e => ({text:e.textContent, height:e.clientHeight})")
     page.evaluate(
-        "window.sourceRows = [...document.querySelectorAll('#code .lf-code-line')]"
+        "window.sourceRows = [...document.querySelector('#code').shadowRoot.querySelectorAll('.lf-code-line')]"
     )
     # A finger starts at the source, then uses the existing command reference.
     pre.tap(position={"x": 30, "y": 20})
@@ -100,12 +100,14 @@ def test_code_wrapping_keeps_source_copy_and_reader_choice(browser, serve):
     assert pre.evaluate("e => e.clientHeight") < before["height"]
     assert pre.text_content() == before["text"]
     assert page.evaluate(
-        "sourceRows.every((n,i) => n === document.querySelectorAll('#code .lf-code-line')[i])"
+        "sourceRows.every((n,i) => n === document.querySelector('#code').shadowRoot.querySelectorAll('.lf-code-line')[i])"
     )
     rendered(page)
     pre.hover()
     page.mouse.wheel(200, 0)
-    page.wait_for_function("document.querySelector('#code pre').scrollLeft > 0")
+    page.wait_for_function(
+        "document.querySelector('#code').shadowRoot.querySelector('pre').scrollLeft > 0"
+    )
     scroll_settled(page, "#code pre", axis="x")
     horizontal = pre.evaluate("e => e.scrollLeft")
     page.keyboard.press("w")
@@ -130,7 +132,7 @@ def test_code_wrapping_keeps_source_copy_and_reader_choice(browser, serve):
     expect(pre).to_be_focused()
     assert pre.evaluate("e => e.scrollWidth > e.clientWidth")
     assert page.evaluate(
-        "sourceRows.every((n,i) => n === document.querySelectorAll('#code .lf-code-line')[i])"
+        "sourceRows.every((n,i) => n === document.querySelector('#code').shadowRoot.querySelectorAll('.lf-code-line')[i])"
     )
     page.emulate_media(media="print")
     assert pre.evaluate("e => e.scrollWidth <= e.clientWidth")
@@ -139,7 +141,7 @@ def test_code_wrapping_keeps_source_copy_and_reader_choice(browser, serve):
     changed = source.replace("max_attempts=2", "max_attempts=3")
     (serve.page_dir / "index.html").write_text(changed)
     page.wait_for_function(
-        "document.querySelector('#code pre').textContent.includes('max_attempts=3')",
+        "document.querySelector('#code').shadowRoot.querySelector('pre').textContent.includes('max_attempts=3')",
     )
     rendered(page)
     expect(pre).to_be_focused()

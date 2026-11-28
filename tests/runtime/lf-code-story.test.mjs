@@ -58,15 +58,11 @@ test("the tab's kept choices are where the block starts", () =>
 test("an excerpt numbers its lines from its ranges, with a gap's notes as its caption", () => {
   const line = (text) => [{ text, style: {} }];
   const [docked, gap, far] = ["docked", "gap", "far"];
-  const { rows, foot, last } = rowsOf(
-    [line("a"), line("  b"), line("c")],
-    "10-11,20",
-    [
-      { at: 11, note: docked },
-      { at: 15, note: gap },
-      { at: 99, note: far },
-    ],
-  );
+  const { rows, foot, last } = rowsOf([line("a"), line("  b"), line("c")], "10-11,20", [
+    { at: 11, note: docked },
+    { at: 15, note: gap },
+    { at: 99, note: far },
+  ]);
   assert.deepEqual(
     rows.map((row) =>
       row.kind === "line"

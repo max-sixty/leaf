@@ -547,6 +547,27 @@ def document_sources(n: int) -> dict[str, str]:
     return {f"s{d}": document_text(d) for d in range(documents(n))}
 
 
+def code_blocks(n: int) -> str:
+    """One ask and `n` sections, each an `lf-code` block of eight lines of Python with
+    a highlighted line and two notes, as a walkthrough's are: the blocks grow, and the
+    other widgets don't."""
+    question = (
+        '<lf-group id="q0" label="Question"><h3 id="q0-h">Question</h3><lf-options id="o0" multiple>'
+        '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
+        "</lf-options></lf-group>"
+    )
+    blocks = "".join(
+        f'<section id="s{g}"><h2>Section {g}</h2><p>Some words about block {g}.</p>'
+        f'<lf-code id="c{g}" hi="3">'
+        f'<pre><code class="language-python">{steps(4, f"block {g} ")}</code></pre>'
+        f'<lf-note id="c{g}-n1" at="2">What step one returns, in block {g}.</lf-note>'
+        f'<lf-note id="c{g}-n2" at="6">The third step, for block {g}.</lf-note>'
+        "</lf-code></section>"
+        for g in range(1, n + 1)
+    )
+    return page("Code", question + blocks)
+
+
 def table_rows(n: int) -> str:
     """One ask and a table of `n` rows of four cells, one of them code, as the largest
     real pages' tables are: the table's cells grow, and the widgets and headings don't."""
@@ -720,6 +741,7 @@ COLLECTIONS: dict[str, Collection] = {
         prose_sections, lambda n: [passage_comment(t) for t in range(1, n + 1)]
     ),
     "rows": Collection(table_rows),
+    "code": Collection(code_blocks),
     "documents": Collection(side_documents, data=document_sources),
     "asktabs": Collection(side_asks),
     "widgets": Collection(

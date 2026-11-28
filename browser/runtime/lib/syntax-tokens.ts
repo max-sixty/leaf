@@ -112,7 +112,9 @@ export const synAttributes = (style: SyntaxToken["style"]) => {
   return declarations.length
     ? {
         "data-lf-syn": "",
-        style: declarations.map(([property, value]) => `${property}: ${value}`).join("; "),
+        style: declarations
+          .map(([property, value]) => `${property}: ${value}`)
+          .join("; "),
       }
     : null;
 };
@@ -123,7 +125,8 @@ export const synNodes = (tokens: readonly SyntaxToken[]) =>
     const attributes = synAttributes(style);
     if (!attributes) return document.createTextNode(text);
     const span = document.createElement("span");
-    for (const [name, value] of Object.entries(attributes)) span.setAttribute(name, value);
+    for (const [name, value] of Object.entries(attributes))
+      span.setAttribute(name, value);
     span.textContent = text;
     return span;
   });

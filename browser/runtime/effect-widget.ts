@@ -142,7 +142,10 @@ export type WidgetOptions = {
 };
 
 /** What a widget states on its element for Leaf to read. */
-export type Declarations = Pick<HTMLElement, "lfCommands" | "lfParts" | "lfElementsFor">;
+export type Declarations = Pick<
+  HTMLElement,
+  "lfCommands" | "lfParts" | "lfElementsFor"
+>;
 
 type Root = {
   setProps: (props: unknown) => void;

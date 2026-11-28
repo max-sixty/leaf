@@ -20,7 +20,10 @@ it asks of Leaf, and declares what Leaf reads off the element. The header of
 or event a reference describes, as `Announce` carries no `rows`. Where no Command of
 Leaf's does what a widget needs, it calls the function or dispatches the event itself,
 from a Command of its own (`Command.make`) or a Mount. The component's
-Model holds only what the user is doing in the widget, such as an open disclosure.
+Model holds only what the user is doing in the widget, such as a drag under way; a
+native disclosure's `open` is the browser's, which the view writes once, as an attribute
+that doesn't change, and which a Mount reads off the live `<details>`, and folds there,
+where the widget folds, as for Expand all.
 `/vendor/effect-ui.js` exports only the modules
 [`build/entries/effect-ui/entry.mjs`](../../../build/entries/effect-ui/entry.mjs) names,
 and the bundled widgets' modules show their API in use. This widget records a

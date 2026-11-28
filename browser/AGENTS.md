@@ -985,19 +985,24 @@ visible change").
 
 ## Renderers
 
-Leaf is moving to one renderer, Effect UI, so that each view it draws is written,
-tested and maintained one way. Until it gets there, a bundled widget is either a
-`LeafElement` (`runtime/lib/leaf-element.js`), which draws with Lit, or an Effect UI
-component that `defineWidget` defines (`runtime/effect-widget.js`), and each module's
-header gives its contract. The runtime's own views, Leaf's chrome, draw with Lit.
+Leaf is moving every view it draws to Effect UI, so that each is written, tested and
+maintained one way. Every widget, Leaf's bundled widgets and other authors' alike, ends
+as an Effect UI component that `defineWidget` defines (`runtime/effect-widget.js`), so
+the package interface holds one way to write one, and a new widget is written that
+way. Leaf's chrome, the runtime's own views, follows one view at a time. Until the move
+ends, a bundled widget may still be a `LeafElement` (`runtime/lib/leaf-element.js`),
+which draws with Lit, or a plain custom element, the chrome draws with Lit, and each
+module's header gives its contract.
 
-Lit goes one view at a time, the chrome's views as well as the widgets. Each port, the
-change that moves a view from Lit to Effect UI, has to pay for itself by leaving the
-view easier to work on and no slower on a large page. Ports follow this rule:
+Each port, the change that moves a view to Effect UI, leaves the view no harder to
+work on and no slower on a large page. A widget's port pays for itself by bringing
+every widget to one way of being written, whatever else it makes easier; a chrome
+view's port pays by what it makes easier in that view. Ports follow this rule:
 
-- **A port deletes the Lit view it replaces**, and a service it adds to
-  `runtime/widget-services.js` calls the same owner as the `widget-api.js` function it
-  stands for. That function stays the form plain widgets and page scripts use.
+- **A port deletes the view it replaces**, and a service it adds to
+  `runtime/widget-services.js` calls the same owner as the `widget-api.js` function or
+  protocol event it stands for. Once no widget or page script uses that function or
+  event, it leaves the package interface.
 - **A port names in its commit what it made easier** to build, verify or maintain,
   such as logic now under a Story test (`@effect/ui/testing`), and doesn't otherwise
   grow the widget.

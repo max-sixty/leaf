@@ -547,8 +547,10 @@ can't.
 A smaller interface is worth a small visible difference. Where a name's work is to
 keep a look, a first paint or a behaviour exactly as it was, the name goes, and the
 change shows what a user will see differently. A promise the user is owed on every
-widget is Leaf's to keep from outside, for an element that imports nothing, so a name
-stays for a guarantee `SOUL.md` states only while Leaf can't keep it that way. A shift
+widget is Leaf's to keep without the widget's help: in `defineWidget`, the adapter
+every widget, other authors' included, moves to (`browser/AGENTS.md`, "Renderers"),
+or by driving the element it defines. So a name stays for a guarantee
+`SOUL.md` states only while Leaf can't keep it that way. A shift
 as a widget first draws on a loading page breaks no guarantee.
 
 ### Wait for the event that ends the work

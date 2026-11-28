@@ -1,5 +1,9 @@
 import { shownBox, shownParts, TEXT_BOX, userScrollport } from "/runtime/check-api.js";
-import { closestAcross, renderedParent } from "/runtime/lib/shadow-tree.js";
+import {
+  closestAcross,
+  renderedParent,
+  renderedUnder,
+} from "/runtime/lib/shadow-tree.js";
 import { at, place, unique } from "./locate.js";
 import { openRoots } from "./open-roots.js";
 
@@ -55,7 +59,9 @@ export function clippedControls() {
   ]);
   for (const el of offers) {
     // Chromium reports descendants of a closed details as visible even though only its
-    // summary participates in layout and focus navigation.
+    // summary participates in layout and focus navigation. A control a widget in the
+    // summary draws in its shadow root is in the summary as drawn, not as `contains`
+    // reads it.
     const closedDetails = closestAcross(el, "details:not([open])");
     const visibleSummary = closedDetails?.querySelector(":scope > summary");
     // checkOpacity too: a control faded to nothing is as unreachable as one clipped
@@ -63,7 +69,7 @@ export function clippedControls() {
     if (
       !el.checkVisibility({ checkOpacity: true }) ||
       closestAcross(el, "[hidden]") ||
-      (closedDetails && !visibleSummary?.contains(el))
+      (closedDetails && !(visibleSummary && renderedUnder(el, visibleSummary)))
     )
       continue;
     const b = el.getBoundingClientRect();

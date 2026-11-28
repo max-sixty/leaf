@@ -340,6 +340,7 @@ import { plainPress } from "../lib/keys.js";
 import {
   isElement,
   isHTML,
+  labelledBy,
   overIn,
   renderedParent,
   renderedUnder,
@@ -655,17 +656,6 @@ const marksOf = (text: string) => text.replace(/\s+/gu, "");
 function labelsOf(control: Element): Element[] {
   const { labels } = control as { labels?: NodeListOf<HTMLLabelElement> | null };
   return [...(labels ?? []), ...labelledBy(control)];
-}
-// The elements a control's `aria-labelledby` names, found by id in its tree. Not its
-// `ariaLabelledByElements`: Firefox's content process crashes once the page and an
-// isolated world, such as Playwright's role locator, have both read that property
-// (https://bugzilla.mozilla.org/show_bug.cgi?id=2090055).
-function labelledBy(control: Element): Element[] {
-  const root = control.getRootNode() as Document | ShadowRoot;
-  if (!("getElementById" in root)) return [];
-  return (control.getAttribute("aria-labelledby") ?? "")
-    .split(/\s+/)
-    .flatMap((id) => (id && root.getElementById(id)) || []);
 }
 // The text of the labels naming a form control, less the control's own where a label
 // holds it, as a select's options: its name, whether or not the label shows, and no more

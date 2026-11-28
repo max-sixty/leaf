@@ -148,6 +148,10 @@ const face = (panel) => {
   }
   return shown;
 };
+// The id of the tab that shows `panel`, which the panel's `aria-labelledby` names. Its
+// `lf-` keeps it out of the ids a comment anchors to.
+/** @param {Element} panel */
+const tabId = (panel) => `lf-tab-${panel.id}`;
 
 export class TabSet extends LeafElement {
   static lfPatch = "members";
@@ -225,6 +229,13 @@ export class TabSet extends LeafElement {
       keeps(panel, "data-lf-scroll", side ? "panel" : "");
       panel.setAttribute("role", "tabpanel");
       keeps(panel, "aria-label", panel.getAttribute("label"));
+      // Its tab names it, as in the ARIA tabs pattern, unless its author named it
+      // otherwise. An assistive technology reads the tab's name over the label above,
+      // and Leaf stands the marker of a thread the panel hides by the tab, where the user
+      // opens the panel (margin-layout.js, `closedFaceOver`).
+      const named = panel.getAttribute("aria-labelledby");
+      if (!named || named.startsWith("lf-tab-"))
+        keeps(panel, "aria-labelledby", tabId(panel));
       // The browser found something inside (find-in-page, an anchor jump), or
       // Leaf is about to scroll a comment anchor into view: open up.
       panel.addEventListener("beforematch", () =>
@@ -473,6 +484,7 @@ export class TabSet extends LeafElement {
       ${ref((button) => {
         if (button instanceof HTMLElement) this.#buttons.set(panel, button);
       })}
+      id=${tabId(panel)}
       aria-controls=${panel.id}
       aria-label=${face(panel) ? panel.getAttribute("label") : nothing}
       aria-selected=${panel === this.#active}

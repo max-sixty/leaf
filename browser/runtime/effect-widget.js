@@ -86,8 +86,9 @@
    - Around each draw it starts, from a set or a member, the adapter holds the user's
      place by the key of the drawn datum they are in (`data-lf-datum`, module-state.md,
      "Marking drawn data"), which the widget declares: on their own node where it
-     survived the draw, else on the datum now carrying that key among the widget's own,
-     else on the nearest one still drawn. It lands on the datum itself, a stop lent
+     survived the draw, else on the datum now carrying that key among those of the
+     widget that drew theirs, a nested widget's where they were in one, else on the
+     nearest one still drawn. It lands on the datum itself, a stop lent
      where it is no control, never on a control in it chosen by its look nor on the
      first one a boxless datum draws; where a datum takes no focus, it tries the next
      node its key marks, then the next key's (`holdFocus`, `alike: false`). It puts
@@ -495,7 +496,7 @@ export function defineWidget(
       const restore = holdFocus(this, {
         key: "data-lf-datum",
         alike: false,
-        owns: (item) => drawerOf(item.parentNode) === this,
+        ownerOf: (item) => drawerOf(item.parentNode),
       });
       const drawn = Promise.resolve().then(() => {
         restore?.();

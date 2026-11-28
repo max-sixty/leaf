@@ -1459,34 +1459,56 @@ export const likeSelector = (control: Element) =>
 // false it lands on the item itself, a stop lent where it is no control, and never on
 // a control in it chosen by its tag and classes nor on one a boxless item draws first:
 // where an item takes no focus, it tries the next node its key marks, then the next
-// key's. `owns` says which keyed items are the
-// scope's own, where a scope holds another's, as a widget holds a nested widget whose
-// keys are its own.
+// key's.
+//
+// Keys may be a widget's own, where a scope holds widgets that each key their items:
+// `ownerOf` names the widget that drew an item. The place a hold looks up is then the
+// user's item under the widget that drew it, which is the same place for every hold
+// that lost the same focus, whichever restores first; where that widget has left the
+// page, the item around the user that the nearest widget still standing drew; and
+// failing both, the user's key among every item under the scope.
 export function holdFocus(
   scope: Element,
   {
     key = null,
     alike = true,
-    owns = () => true,
-  }: { key?: string | null; alike?: boolean; owns?: (item: Element) => boolean } = {},
+    ownerOf,
+  }: {
+    key?: string | null;
+    alike?: boolean;
+    ownerOf?: (item: Element) => Element | undefined;
+  } = {},
 ): FocusRestore | null {
   const node = heldIn(scope);
   if (!node) return null;
   const restore = holdOn(node, { itself: !alike });
   if (!key) return restore;
-  const isItem = (each: Element) => each.matches(`[${key}]`) && owns(each);
-  let item: Element | null = node;
-  while (item && !isItem(item)) item = renderedParent(item);
-  if (!item || item === scope || !renderedUnder(item, scope)) return restore;
-  // The items are read in the tree the held one stands in, which is the scope's own or a
-  // shadow tree inside it.
+  // The items around the user, from theirs outward, one for each widget that drew one,
+  // or their nearest alone where no widget is named.
+  const levels: { owner: Element | undefined; item: Element }[] = [];
+  for (let at = node as Element | null; at && renderedUnder(at, scope); ) {
+    if (at === scope) break;
+    const owner = ownerOf?.(at);
+    if (at.matches(`[${key}]`) && !levels.some((level) => level.owner === owner)) {
+      levels.push({ owner, item: at });
+      if (!ownerOf) break;
+    }
+    at = renderedParent(at);
+  }
+  const item = levels[0]?.item;
+  if (!item) return restore;
+  // The items a widget drew, or every item under the scope where none is named, read
+  // in the tree they stand in: the widget's own, or the scope's or a shadow tree in it,
+  // read as the hold is taken.
   const tree = item.getRootNode() === scope.getRootNode() ? scope : item.getRootNode();
-  const items = () =>
-    [...tree.querySelectorAll(`[${key}]`)].filter(
-      (item) => renderedUnder(item, scope) && owns(item),
+  const itemsOf = (owner: Element | undefined) =>
+    [...(owner ? (owner.shadowRoot ?? owner) : tree).querySelectorAll(`[${key}]`)].filter(
+      (each) => renderedUnder(each, scope) && (!owner || ownerOf?.(each) === owner),
     );
   // A key marking several nodes of one place counts once, where it first stands.
-  const keys = [...new Set(items().map((each) => each.getAttribute(key)))];
+  const keys = [
+    ...new Set(itemsOf(levels[0]?.owner).map((each) => each.getAttribute(key))),
+  ];
   const at = keys.indexOf(item.getAttribute(key));
   const order = [keys[at], ...keys.slice(at + 1), ...keys.slice(0, at).reverse()];
   // In an item, the control like the one the user was on, as Remove for Remove, read
@@ -1500,15 +1522,21 @@ export function holdFocus(
     control = host;
   }
   const like = likeSelector(control);
-  const [same, ...rest] = order;
   return (...standIns) => {
+    // The widget whose items the restore looks in: the one that drew the user's, or the
+    // nearest around it still standing, whose item around the user is the place.
+    const level = levels.find(({ owner }) => !owner || owner.isConnected);
+    const owner = level ? level.owner : undefined;
+    const first = !level || level === levels[0];
+    const same = level ? level.item.getAttribute(key) : order[0];
+    const rest = first ? order.slice(1) : [];
     // The items now present, by key, read once for the whole restore: a list whose keys
     // all changed tries every held key against it.
     let byKey: Map<string | null | undefined, Element[]> | null = null;
     const keyed = (value: string | null | undefined) => {
       if (!byKey) {
         byKey = new Map();
-        for (const each of items()) {
+        for (const each of itemsOf(level ? owner : undefined)) {
           const at = each.getAttribute(key);
           let group = byKey.get(at);
           if (!group) {

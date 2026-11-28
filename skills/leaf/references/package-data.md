@@ -247,8 +247,9 @@ question is answered once its marked column is empty says so from the positions 
 Only a gesture says it, so a version that changes the answer, as one adding a step
 does, says nothing by itself. Marking an element `restated` asks again: the question
 stays open until the user's next gesture says otherwise. Marking the widget keeps
-every decision on its members, as a checklist given a step keeps its other steps'
-picks; marking a member takes it out of them. If the widget's `when` stops
+each set of its members a decision records, as a checklist given a step keeps its
+other steps' picks, and takes back its other decisions; marking a member takes it out
+of them. If the widget's `when` stops
 holding, a complete obligation stays answered and an incomplete one is withdrawn.
 
 `awaits.retired` names the attribute an author sets to close an obligation but

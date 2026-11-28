@@ -127,6 +127,19 @@ def test_a_rewritten_option_leaves_a_single_choice_unpicked():
     assert standing_model.answered(question(undone))
 
 
+def test_a_rewritten_option_the_user_moved_away_from_asks_again_with_the_pick_kept():
+    """The user picked a, then b in its place, and a version rewrote a. The pick of b
+    stands, and the question asks again: the version marked an element inside the
+    widget, which says from the version alone that the user should answer again."""
+    documents = {1: group(), 2: group(restated=("a",))}
+    state = model.reading(
+        documents,
+        [picked("a", answered=True), picked("b", answered=True), rewrote("a")],
+    )
+    assert standing(state, CHOOSE) == ["b"]
+    assert asks(state)
+
+
 def test_a_rewritten_option_leaves_the_rest_of_a_multiple_pick_and_asks_again():
     """The user picked a, then a and b, pressed Done, and a version rewrote b: a stays
     picked, and the question asks again although the Done stands."""

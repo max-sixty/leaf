@@ -271,11 +271,12 @@ decisions on it come to across versions:
    to a decision the user replaced. An action made on an earlier version that lands
    after the note, as from a tab still showing that version, is read the same way, and
    one that no longer applies never comes into force.
-3. **A restating version asks again.** The note asks the question of each widget whose
-   actions it reaches again, and so does a reached action that lands after it, until
-   the user's next gesture on the widget says otherwise. A version that edits a
-   widget's markup and restates nothing asks nothing again: most such edits record the
-   answer, as a version writing the user's pick into `selected` does.
+3. **A restating version asks again.** A note that marks a widget or an element inside
+   it `restated` asks the widget's question again, and so does an action made on an
+   earlier version that lands after it, until the user's next gesture on the widget
+   says otherwise. The server reads this from the version alone. A version that edits
+   a widget's markup and restates nothing asks nothing again: most such edits record
+   the answer, as a version writing the user's pick into `selected` does.
 
 The served entry's `value` is the record as it stands, and the browser folds that value
 rather than the event's detail.

@@ -68,10 +68,8 @@ from leaf.base import standing
 from leaf.base.page_memory import Slot
 from leaf.base.standing import ended, is_open, on
 from leaf.log.events import (
-    InForce,
     owed_turns,
     report_settled_at,
-    restated_under,
     taken_back,
     unanswered_agent_turn,
     widget_messages,
@@ -259,20 +257,20 @@ def gesture_answers(
     word said of it. Each of the widget's actions in force in `projection`, and the
     user's undo of one, carries its `answered`, which the widget worked out in the
     browser as the gesture left its state (`module-state.md`, "Declared widget state"),
-    so this reads the word and decides nothing again. A version that restates an id
-    the widget's actions rest on asks again: its note says the question is open, and
-    so does an action made on an earlier version that arrives after it, which the
-    version reads without what it restated (`events.InForce`). The user's next gesture
-    on the widget says otherwise.
+    so this reads the word and decides nothing again. A version note that marks the
+    widget or an element inside it `restated` asks again: it says the question is open,
+    and so does an action made on an earlier version that arrives after it. The user's
+    next gesture on the widget says otherwise.
 
-    The walk takes the log in order, through `revision` where a view of one revision
-    reads it, as the fold does, so a note a later version wrote asks nothing again in a
-    view of an earlier one. `within` is the document's containment
-    (`passages.enclosing_of`). A widget with no word is unanswered, whatever its markup
-    holds."""
-    walk = InForce(within)
+    This takes the log in order, through `revision` where a view of one revision reads
+    it, as the fold does, so a note a later version wrote asks nothing again in a view
+    of an earlier one. `within` is the document's containment
+    (`passages.enclosing_of`), which says what encloses each restated element. A widget
+    with no word is unanswered, whatever its markup holds."""
     widget_of: dict[str, str] = {}
     said: dict[str, bool] = {}
+    # Element → the newest revision whose note restated it or an element inside it.
+    floors: dict[str, int] = {}
     for event in events:
         kind = event["kind"]
         if kind in ("action", "note") and revision is not None:
@@ -282,22 +280,19 @@ def gesture_answers(
             # Only the actions this reading's fold classified stand anywhere in it.
             if event["id"] not in projection.classified:
                 continue
-            widget_of[event["id"]] = event["widget"]
-            asked = bool(restated_under(event, walk.floors, within))
-            if (
-                walk.admit(event) is not None
-                and "answered" in event
-                and event["id"] in projection.in_force
-            ):
-                said[event["widget"]] = event["answered"] and not asked
+            widget = widget_of[event["id"]] = event["widget"]
+            if "answered" in event and event["id"] in projection.in_force:
+                said[widget] = event["answered"] and (
+                    floors.get(widget, 0) <= event["revision"]
+                )
         elif kind == "undo" and (widget := widget_of.get(event["undoes"])):
-            walk.withdraw(event["undoes"])
             if "answered" in event:
                 said[widget] = event["answered"]
         elif kind == "note":
-            for widget, _unit, _verb in walk.reaches(event):
-                said[widget] = False
-            walk.restate(event)
+            for identity in event.get("restated", []):
+                for element in within.get(identity, (identity,)):
+                    said[element] = False
+                    floors[element] = max(floors.get(element, 0), event["revision"])
     return said
 
 

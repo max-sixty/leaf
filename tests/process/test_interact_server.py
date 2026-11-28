@@ -2114,9 +2114,10 @@ def test_undo_walk_ends_at_the_users_newest_gesture():
 def test_each_view_offers_only_the_gestures_it_paints(page_dir):
     """The view's undo list is final: ⌘Z takes its head and a widget filters it.
 
-    A decision carried into a later revision stays undoable there. One that revision
-    restated and one whose widget it dropped are
-    offered only by the view that still paints them.
+    A decision carried into a later revision stays undoable there, a pick on a group
+    that revision restated included, since the version keeps every pick and asks
+    again. One whose widget it dropped is offered only by the view that still paints
+    it.
     """
     old_page = PAGE.replace(PAGE_GROUP, '<lf-options id="picks">').replace(
         "</section>",
@@ -2187,7 +2188,7 @@ def test_each_view_offers_only_the_gestures_it_paints(page_dir):
         return [item["event"]["id"] for item in views[str(revision)]["undo"]]
 
     assert offered(1) == [restated["id"], gone["id"], kept["id"]]
-    assert offered(2) == [kept["id"]]
+    assert offered(2) == [restated["id"], kept["id"]]
 
 
 def test_a_comparison_view_explains_an_unpublished_page(server, page_dir):

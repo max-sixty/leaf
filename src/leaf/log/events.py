@@ -1041,7 +1041,7 @@ class InForce:
 
     The one reading of which action decides a coordinate, and of what it decides, so
     every reader of liveness walks it: the projection fold, the threads a decision
-    closes, memberships, a widget's word on its question and a sampled page. A
+    closes, memberships and a sampled page. A
     decision the log has taken back has to be absent everywhere at once: a reader
     that judged it alone, as `build_threads` settling a thread on a decision without
     asking would, brings a suggestion the next version rewrote back pending with the
@@ -1052,7 +1052,7 @@ class InForce:
     `withdraw` and version notes to `restate` where they fall. An action stands from
     its admission until an undo withdraws it, and the latest action in force wins, one
     answering nothing included. A note that restates an id reaches each action made on
-    an earlier version that rests on it (`reaches`), and each stands as the version
+    an earlier version that rests on it, and each stands as the version
     reads it (`restated_reading`): a set of members without the rewritten ones, or
     nowhere. The version takes back only what it rewrote, so a coordinate never falls
     back to a decision the user replaced: a version taking back a pick of b that
@@ -1128,26 +1128,21 @@ class InForce:
         after = self.winner(coordinate)
         return Change(coordinate, before, after) if after is not before else None
 
-    def reaches(self, note: dict) -> dict[tuple, dict[str, set]]:
-        """Coordinate → each action in force there, made on a version before the
-        note's, that rests on an id the note restates → the restated ids it rests
-        on."""
+    def restate(self, note: dict) -> list[Change]:
+        """Read every action made on an earlier version that rests on what a version
+        note restates as that version does, and raise its floors for actions admitted
+        after it."""
+        restated = note.get("restated", [])
+        # Coordinate → each action reached there → the restated ids it rests on.
         hit: dict[tuple, dict[str, set]] = {}
-        for identity in note.get("restated", []):
+        for identity in restated:
+            self.floors[identity] = max(self.floors.get(identity, 0), note["revision"])
             for action_id in self._resting.get(identity, {}):
                 coordinate = self._coordinate[action_id]
                 if self._at[coordinate][action_id]["revision"] < note["revision"]:
                     hit.setdefault(coordinate, {}).setdefault(action_id, set()).add(
                         identity
                     )
-        return hit
-
-    def restate(self, note: dict) -> list[Change]:
-        """Read every action a version note reaches as that version does, and raise
-        its floors for actions admitted after it."""
-        hit = self.reaches(note)
-        for identity in note.get("restated", []):
-            self.floors[identity] = max(self.floors.get(identity, 0), note["revision"])
         changes = []
         for coordinate, reached in hit.items():
             before = self.winner(coordinate)

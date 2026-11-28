@@ -506,7 +506,7 @@
               }
             }
           },
-          "text": "If you need clarification, ask in a thread on the picked option. To override the pick in a later version, mark the element `restated` and say why in the version note."
+          "text": "If you need clarification, ask in a thread on the picked option. To take the pick back in a later version, mark the picked option `restated` and say why in the version note."
         },
         {
           "when": {

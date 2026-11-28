@@ -33,11 +33,15 @@
    A hold asks a different question, so the two counts stay distinct:
 
    - A hold (`holdFocus`, `holdCurrentLocation`, `handBack`'s retry) reads `placements`: has
-     focus been put anywhere since, by the user or by an owner, other than by a hold's
-     own restore or a closing layer's hand-back. Its question is whether the place it
-     holds is still the user's, and the user typing, pressing or scrolling in that place
-     is them working there: a hold that inputs voided would drop the user from the box
-     they are typing in whenever a render replaced it.
+     focus been put anywhere since, by the user or by an owner, other than by a closing
+     layer's hand-back. Its question is whether the place it holds is still the user's,
+     and the user typing, pressing or scrolling in that place is them working there: a
+     hold that inputs voided would drop the user from the box they are typing in
+     whenever a render replaced it. And a hold puts the user back only while their
+     focus is lost, on the body or on a node no longer drawn: focus that stands on a
+     drawn node, where another hold or anything else put it, is no longer the hold's
+     to move, so several holds that lost the same focus, as a widget's and the one
+     around it do, need no order among them.
    - Delayed work (`retainUserIntent`, user-intent.js) reads `inputCount`: has the user
      pressed, typed, scrolled, touched or left the window since the gesture that started
      it. Its question is whether that gesture is still their latest word, and any input
@@ -1484,12 +1488,17 @@ export function holdFocus(scope, { key = null, alike = true, owns = () => true }
       const place = find(value);
       return Boolean(place && focusDestination(place, "return"));
     };
-    if (!alike)
+    if (!alike) {
+      // Focus that isn't lost, and the user's own node where it survived, before any
+      // search of the items.
+      if (!focusLost()) return deepFocus() === node;
+      if (drawn(node) && restore()) return true;
       return restore(
         ...keyed(same).filter(placeable),
         ...rest.map(neighbour),
         ...standIns,
       );
+    }
     return restore(() => find(same), ...rest.map(neighbour), ...standIns);
   };
 }
@@ -1613,7 +1622,13 @@ function holdOn(held, { itself = false } = {}) {
   const began = placements;
   return (...standIns) => {
     if (placements !== began) return false;
-    for (const standIn of [held, ...standIns]) {
+    if (!focusLost()) return deepFocus() === held;
+    // Where the user last stood, as where another hold put them back, if it stands
+    // again, before the place this hold held: every hold that lost the same focus
+    // lands there, whichever runs first.
+    const latest = lastLocation?.deref();
+    const back = latest && latest !== held && drawn(latest) ? [latest] : [];
+    for (const standIn of [...back, held, ...standIns]) {
       // A reader of a restore before, or a function stand-in, that moved the user said
       // a newer word, and no later stand-in lands over it.
       if (placements !== began) return false;
@@ -1657,6 +1672,11 @@ function holdOn(held, { itself = false } = {}) {
     return false;
   };
 }
+// Whether the user's focus is lost: on the body, or on a node no longer drawn.
+const focusLost = () => {
+  const at = deepFocus();
+  return !at || at === document.body || !drawn(at);
+};
 const land = (landing) => {
   const was = restoring;
   restoring = true;

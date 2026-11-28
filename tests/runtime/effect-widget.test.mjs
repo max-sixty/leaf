@@ -464,6 +464,71 @@ test("a row a new state moves or removes lands the user on the row, never on a c
   }
 });
 
+test("a nested widget's hold that puts the user back ends the hold of the widget around it", async () => {
+  const inner = `lf-effect-${++tags}`;
+  defineWidget(
+    inner,
+    Html.component({
+      name: "InnerRows",
+      props: Schema.Struct({ ...widgetProps }),
+      model: Schema.Struct({}),
+      message: Schema.Never,
+    }).make({
+      init: () => ({}),
+      update: {},
+      view: (h) => {
+        const state = /** @type {{shelves?: string[][]}} */ (h.props.state);
+        return h.div.children(
+          ...(state?.shelves ?? [["a", "b"], []]).map((items, shelf) =>
+            h.section
+              .key(`shelf-${shelf}`)
+              .children(
+                ...items.map((item) =>
+                  h.button.key(item).class("edit").attr("data-lf-datum", item),
+                ),
+              ),
+          ),
+        );
+      },
+    }),
+  );
+  const tag = `lf-effect-${++tags}`;
+  defineWidget(
+    tag,
+    Html.component({
+      name: "Around",
+      props: Schema.Struct({ ...widgetProps }),
+      model: Schema.Struct({}),
+      message: Schema.Never,
+    }).make({
+      init: () => ({}),
+      update: {},
+      view: (h) =>
+        h.div.children(
+          h.p.children(/** @type {{label?: string}} */ (h.props.state)?.label ?? ""),
+          h.el(inner).key("inner"),
+        ),
+    }),
+  );
+  const el = /** @type {HTMLElement & {state: unknown}} */ (document.createElement(tag));
+  el.state = { label: "before" };
+  document.body.append(el);
+  const rows = /** @type {HTMLElement & {state: unknown}} */ (el.querySelector(inner));
+  rows.state = { shelves: [["a", "b"], []] };
+  await new Promise((resolve) => setTimeout(resolve));
+  const edit = () => el.querySelector('[data-lf-datum="b"]');
+  try {
+    /** @type {HTMLButtonElement} */ (edit()).focus();
+    // In one task, the nested widget moves the row and the widget around it redraws.
+    rows.state = { shelves: [["a"], ["b"]] };
+    el.state = { label: "after" };
+    await new Promise((resolve) => setTimeout(resolve));
+    assert.equal(document.activeElement, edit());
+  } finally {
+    el.remove();
+  }
+});
+
 test("a widget's hold finds the user's item among its own, not a nested widget's of the same key", async () => {
   const inner = `lf-effect-${++tags}`;
   defineWidget(
@@ -514,6 +579,18 @@ test("a widget's hold finds the user's item among its own, not a nested widget's
     el.state = { moved: true };
     await Promise.all(pending);
     assert.equal(document.activeElement, el.querySelector(".outer"));
+  } finally {
+    el.remove();
+  }
+});
+
+test("a new state that empties the list leaves the user on the widget, not the body", async () => {
+  const { el, pending, item } = shelves({ shelves: [["only"]] });
+  /** @type {HTMLInputElement} */ (item("only")).focus();
+  try {
+    el.state = { shelves: [[]] };
+    await Promise.all(pending);
+    assert.equal(document.activeElement, el);
   } finally {
     el.remove();
   }

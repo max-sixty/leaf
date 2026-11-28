@@ -1,6 +1,6 @@
-/* The call diff's update as stories (`Story`, @effect/ui/testing): which roots the
-   reader folded, and what a press asks of Leaf, with no page behind it. The drawing
-   and the travel on a page are the browser suite's. */
+/* The call diff's update as stories (`Story`, @effect/ui/testing): what a press asks of
+   Leaf, with no page behind it; and how Expand all and Collapse all read the roots'
+   folds, on an element. The drawing and the travel on a page are the browser suite's. */
 import assert from "node:assert/strict";
 import test from "node:test";
 import { Story } from "@effect/ui/testing";
@@ -19,52 +19,20 @@ const value = {
   to: "feature",
   trees: [root("first()", 1), root("second()", 2)],
 };
-const keys = [
-  JSON.stringify(["first()", "first()", "unchanged", "app.py", 1, 0]),
-  JSON.stringify(["second()", "second()", "unchanged", "app.py", 2, 0]),
-];
-
 /** @param {(s: any) => void} body */
 const story = (body) =>
   Effect.gen(function* () {
     body(yield* Story.make(CallDiff, { value, diff: "patch" }));
   }).pipe(Effect.scoped, Effect.runSync);
 
-test("a root the reader folds stays folded until they open it", () => {
+test("the fold Expand all or Collapse all made is announced", () => {
   story((s) => {
-    s.send(CallDiffMessage.ToggledGroup({ key: keys[0], open: false }));
-    assert.deepEqual(s.model.closed, [keys[0]]);
-    s.send(CallDiffMessage.ToggledGroup({ key: keys[0], open: true }));
-    assert.deepEqual(s.model.closed, []);
-  });
-});
-
-test("a fold the Model already holds, as the toggle answering its own write, leaves the Model as it stands", () => {
-  story((s) => {
-    s.send(CallDiffMessage.ToggledGroup({ key: keys[0], open: false }));
-    const folded = s.model;
-    s.send(CallDiffMessage.ToggledGroup({ key: keys[0], open: false }));
-    assert.equal(s.model, folded);
-    s.send(CallDiffMessage.ToggledGroup({ key: keys[0], open: true }));
-    const opened = s.model;
-    s.send(CallDiffMessage.ToggledGroup({ key: keys[0], open: true }));
-    assert.equal(s.model, opened);
-  });
-});
-
-test("the toggle folds every root, then opens them all once any is folded", () => {
-  story((s) => {
-    s.send(CallDiffMessage.ClickedToggle())
+    s.send(CallDiffMessage.Folded({ open: false }))
       .expectExact(Announce.make({ words: "Collapsed all call-tree roots" }))
       .resolve(Announce, Component.noop);
-    assert.deepEqual(s.model.fold, { open: false, press: 1 });
-    // The browser folds each root through its node, and tells the Model with `toggle`.
-    for (const key of keys) s.send(CallDiffMessage.ToggledGroup({ key, open: false }));
-    s.send(CallDiffMessage.ToggledGroup({ key: keys[1], open: true }));
-    s.send(CallDiffMessage.ClickedToggle())
+    s.send(CallDiffMessage.Folded({ open: true }))
       .expectExact(Announce.make({ words: "Expanded all call-tree roots" }))
       .resolve(Announce, Component.noop);
-    assert.deepEqual(s.model.fold, { open: true, press: 2 });
   });
 });
 
@@ -83,4 +51,37 @@ test("a location's press travels to its line in the linked diff, taking focus th
       )
       .resolve(NavigateToDatum, Component.noop);
   });
+});
+
+test("Expand all and Collapse all read the roots' folds as pressed, and say the fold they make next", async () => {
+  const el = /** @type {HTMLElement & {value: unknown}} */ (
+    document.createElement("lf-call-diff")
+  );
+  el.setAttribute("diff", "patch");
+  el.value = value;
+  document.body.append(el);
+  await new Promise((resolve) => setTimeout(resolve));
+  const control = () =>
+    /** @type {HTMLButtonElement} */ (el.querySelector(".lf-call-toggle"));
+  const roots = () =>
+    /** @type {HTMLDetailsElement[]} */ ([...el.querySelectorAll("details.lf-call-group")]);
+  try {
+    assert.equal(control().getAttribute("aria-label"), "Collapse all 2 call-tree roots");
+    // The reader folds one root, and presses before the browser's `toggle` arrives.
+    roots()[0].open = false;
+    control().click();
+    assert.deepEqual(
+      roots().map((root) => root.open),
+      [true, true],
+    );
+    assert.equal(control().getAttribute("aria-label"), "Collapse all 2 call-tree roots");
+    control().click();
+    assert.deepEqual(
+      roots().map((root) => root.open),
+      [false, false],
+    );
+    assert.equal(control().getAttribute("aria-label"), "Expand all 2 call-tree roots");
+  } finally {
+    el.remove();
+  }
 });

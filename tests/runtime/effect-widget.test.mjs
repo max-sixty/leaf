@@ -381,6 +381,76 @@ test("an item a new state moves along its shelf keeps its node, the user and the
   }
 });
 
+test("an item a new state moves to another shelf, or removes, leaves the user on the datum carrying its key, else the nearest", async () => {
+  const { el, pending, item } = shelves({ shelves: [["a", "moved", "c"], []] });
+  /** @type {HTMLInputElement} */ (item("moved")).focus();
+  try {
+    el.state = { shelves: [["a", "c"], ["moved"]] };
+    await Promise.all(pending);
+    assert.equal(document.activeElement, item("moved"));
+    el.state = { shelves: [["a", "c"], []] };
+    await Promise.all(pending);
+    assert.equal(document.activeElement, item("c"));
+  } finally {
+    el.remove();
+  }
+});
+
+test("a widget's hold finds the user's item among its own, not a nested widget's of the same key", async () => {
+  const inner = `lf-effect-${++tags}`;
+  defineWidget(
+    inner,
+    Html.component({
+      name: "Inner",
+      props: Schema.Struct({ ...widgetProps }),
+      model: Schema.Struct({}),
+      message: Schema.Never,
+    }).make({
+      init: () => ({}),
+      update: {},
+      view: (h) => h.input.class("inner").attr("data-lf-datum", "same"),
+    }),
+  );
+  const tag = `lf-effect-${++tags}`;
+  defineWidget(
+    tag,
+    Html.component({
+      name: "Outer",
+      props: Schema.Struct({ ...widgetProps }),
+      model: Schema.Struct({}),
+      message: Schema.Never,
+    }).make({
+      init: () => ({}),
+      update: {},
+      view: (h) => {
+        const moved = /** @type {{moved?: boolean}} */ (h.props.state)?.moved;
+        const row = h.input.key("same").class("outer").attr("data-lf-datum", "same");
+        return h.div.children(
+          h.section.key("first").children(moved ? null : row),
+          h.el(inner).key("inner"),
+          h.section.key("second").children(moved ? row : null),
+        );
+      },
+    }),
+  );
+  const el = /** @type {HTMLElement & {state: unknown}} */ (document.createElement(tag));
+  el.state = {};
+  document.body.append(el);
+  /** @type {PromiseLike<unknown>[]} */
+  const pending = [];
+  el.addEventListener("pending-task", (event) =>
+    pending.push(/** @type {any} */ (event).complete),
+  );
+  try {
+    /** @type {HTMLInputElement} */ (el.querySelector(".outer")).focus();
+    el.state = { moved: true };
+    await Promise.all(pending);
+    assert.equal(document.activeElement, el.querySelector(".outer"));
+  } finally {
+    el.remove();
+  }
+});
+
 test("a keep-alive item a new state moves to another shelf keeps its node and the words in it", async () => {
   const { el, pending, item } = shelves({ shelves: [["moved"], []], kept: true });
   const before = /** @type {HTMLInputElement} */ (item("moved"));

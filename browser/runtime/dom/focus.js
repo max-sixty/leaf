@@ -1387,20 +1387,26 @@ export const likeSelector = (control) =>
 // and its restore, after the held node, tries the item now carrying the same key, then
 // the nearest item that survived after it, then before it, before the caller's own
 // stand-ins: the user is never left on the body because the row they were on left the
-// list.
-export function holdFocus(scope, { key = null } = {}) {
+// list. With `alike` false the restore lands on the item itself, a stop lent where it is
+// no control, rather than on the control in it like the user's. `owns` says which keyed
+// items are the scope's own, where a scope holds another's, as a widget holds a nested
+// widget whose keys are its own.
+export function holdFocus(scope, { key = null, alike = true, owns = () => true } = {}) {
   const node = heldIn(scope);
   if (!node) return null;
   const restore = holdOn(node);
   if (!key) return restore;
+  const isItem = (each) => each.matches(`[${key}]`) && owns(each);
   let item = node;
-  while (item && !item.matches(`[${key}]`)) item = renderedParent(item);
+  while (item && !isItem(item)) item = renderedParent(item);
   if (!item || item === scope || !renderedUnder(item, scope)) return restore;
   // The items are read in the tree the held one stands in, which is the scope's own or a
   // shadow tree inside it.
   const tree = item.getRootNode() === scope.getRootNode() ? scope : item.getRootNode();
   const items = () =>
-    [...tree.querySelectorAll(`[${key}]`)].filter((item) => renderedUnder(item, scope));
+    [...tree.querySelectorAll(`[${key}]`)].filter(
+      (item) => renderedUnder(item, scope) && owns(item),
+    );
   // A key marking several nodes of one place counts once, where it first stands.
   const keys = [...new Set(items().map((each) => each.getAttribute(key)))];
   const at = keys.indexOf(item.getAttribute(key));
@@ -1455,6 +1461,7 @@ export function holdFocus(scope, { key = null } = {}) {
     };
     const find = (value) => {
       const found = keyed(value).filter(placeable);
+      if (!alike) return found[0] ?? null;
       return (
         found.find((each) => each.matches(like)) ??
         found.map(matching).find(Boolean) ??

@@ -75,10 +75,17 @@
    focus, a field's words and its caret stay where they are, and a keyed node moved
    among its parent's children moves with `moveBefore`, which keeps them too (the
    selection in a contenteditable collapses, in every engine). The adapter holds
-   nothing around a draw. A keyed node is matched only among its parent's children,
-   so a node a draw moves to another parent is a new node there, with no focus or
-   words; a widget whose rows move between parents writes each row as a keep-alive
-   child (`h.keepAlive`), whose nodes move with it and keep the user's words.
+   nothing of its own around a draw. A keyed node is matched only among its parent's
+   children, so a node a draw moves to another parent is a new node there, with no
+   focus or words, and a removed node takes focus with it. Around each draw it starts,
+   from a set or a member, the adapter holds the user's place by the key of the drawn
+   datum they are in (`data-lf-datum`, module-state.md, "Marking drawn data"), which
+   the widget declares: where the draw took their node away, they land on the datum
+   now carrying that key among its own, else the nearest one still drawn, on the
+   datum itself (`holdFocus`, `alike: false`). A draw the component's own message starts has no
+   such hold, since Effect UI gives no hook before its flush. A widget whose rows move
+   between parents writes each row as a keep-alive child (`h.keepAlive`), whose nodes
+   move with it and keep the user's words.
 
    Failure. A root that fails, or inputs that throw, report the failure as the
    element's `error` and show Leaf's failure box beside the authored children, which
@@ -123,6 +130,7 @@ import {
   Scope,
 } from "/vendor/effect-ui.js";
 import { signal, effect as watch, untracked } from "/vendor/signals-core.js";
+import { holdFocus } from "./dom/focus.js";
 import { failSoft, placesFailure } from "./lib/failure.js";
 import { PendingTaskEvent } from "./lib/pending-task.js";
 import { COMMANDS, CONNECT, layoutChanged } from "./lib/widget-events.js";
@@ -182,12 +190,16 @@ const elementOf = new WeakMap<Node, HTMLElement>();
 // The members each element's widget declared, which its root's close clears.
 const declaredOn = new WeakMap<HTMLElement, Set<string>>();
 
+// The widget whose root drew the nodes at `at` and below.
+const drawerOf = (at: Node | null) => {
+  while (at && !elementOf.has(at)) at = at.parentNode;
+  return at ? elementOf.get(at) : undefined;
+};
+
 /** State `declarations` on the widget whose root drew `node`, until that root closes,
  *  and say them, so Leaf reads them again. */
 export function declare(node: Node, declarations: Declarations) {
-  let at: Node | null = node.parentNode;
-  while (at && !elementOf.has(at)) at = at.parentNode;
-  const element = at && elementOf.get(at);
+  const element = drawerOf(node.parentNode);
   if (!element) throw new Error("declare: the node stands in no widget's root");
   // Every own key, symbols included, since `Object.assign` copies those too.
   const keys = Reflect.ownKeys(declarations);
@@ -448,9 +460,19 @@ export function defineWidget(
     }
 
     // The root draws a change in Effect UI's flush, the microtask that `setProps` or
-    // `send` queued, so a task queued now runs after it.
+    // `send` queued, so a task queued now runs after it. Where that draw takes away the
+    // node the user is on, they land on the datum now carrying its key, or the nearest
+    // one still drawn (Focus, typed words and moves, above).
     #redraws() {
-      const drawn = Promise.resolve().then(() => this.#drawn());
+      const restore = holdFocus(this, {
+        key: "data-lf-datum",
+        alike: false,
+        owns: (item) => drawerOf(item.parentNode) === this,
+      });
+      const drawn = Promise.resolve().then(() => {
+        restore?.();
+        this.#drawn();
+      });
       this.dispatchEvent(new PendingTaskEvent(drawn));
     }
 

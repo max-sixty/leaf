@@ -419,11 +419,9 @@ and names the reason in `data-lf-startup-error`.
 `runtime/bootstrap.js` runs in a served page only, stands the floating panel's row from
 the first paint, holds keys pressed before upgrade and shows a startup failure.
 
-Of the runtime, content modules import only `runtime/widget-api.js`, the public helper
-surface, and the modules of the library ("The library of shared web code"). A widget
-that also runs off Leaf imports, in place of `widget-api.js`, only the part of it any
-document loads, `runtime/portable-api.js`.
-`module-authoring.md` defines these boundaries. Owners
+Of the runtime, content modules import only the paths the kernel registry's
+`$public-modules` lists. `module-authoring.md` says which to use, including for a
+widget that also runs off Leaf, and defines these boundaries. Owners
 receive their capabilities when constructed and read other owners in their mounts. The
 projection, thread and pending models import no DOM or application services.
 `../.config/dependency-cruiser.mjs` enforces these boundaries, eslint the runtime's
@@ -986,19 +984,29 @@ visible change").
 
 ## Renderers
 
-Leaf is moving to one renderer, Effect UI, so that each view it draws is written,
-tested and maintained one way. Until it gets there, a bundled widget is either a
-`LeafElement` (`runtime/lib/leaf-element.js`), which draws with Lit, or an Effect UI
-component that `defineWidget` defines (`runtime/effect-widget.js`), and each module's
-header gives its contract. The runtime's own views, Leaf's chrome, draw with Lit.
+Leaf is moving everything it draws to Effect UI, so that every view is written,
+tested and maintained one way, and Lit and `LeafElement` leave the tree. Every widget,
+Leaf's bundled widgets and other authors' alike, is its declaration, plus an Effect UI
+component defined with `defineWidget` (`runtime/effect-widget.js`) if it draws
+anything. A widget that draws nothing, such as a group that only names what it holds,
+has no module: Leaf sets on its element what its declaration states, such as its role
+and name. So the package interface holds one way to write a widget, and a new widget
+is written that way. Leaf's chrome,
+the views the runtime draws itself, such as the floating panel and Threads, moves too,
+one component at a time, since each component keeps one renderer (below). Until the
+move ends, a widget may still be a `LeafElement` (`runtime/lib/leaf-element.js`),
+which draws with Lit, or a plain custom element, and the chrome still draws with Lit.
+Each module's header gives its contract.
 
-Lit goes one view at a time, the chrome's views as well as the widgets. Each port, the
-change that moves a view from Lit to Effect UI, has to pay for itself by leaving the
-view easier to work on and no slower on a large page. Ports follow this rule:
+Each port, the change that moves one view to Effect UI, is worth making because it
+brings Leaf closer to drawing everything one way, whatever else it makes easier. It
+leaves the view no harder to work on and no slower on a large page, and follows this
+rule:
 
-- **A port deletes the Lit view it replaces**, and a service it adds to
-  `runtime/widget-services.js` calls the same owner as the `widget-api.js` function it
-  stands for. That function stays the form plain widgets and page scripts use.
+- **A port deletes the view it replaces**, and a service it adds to
+  `runtime/widget-services.js` calls the same owner as the `widget-api.js` function or
+  protocol event it stands for. Once no widget or page script uses that function or
+  event, it leaves the package interface.
 - **A port names in its commit what it made easier** to build, verify or maintain,
   such as logic now under a Story test (`@effect/ui/testing`), and doesn't otherwise
   grow the widget.

@@ -97,6 +97,7 @@ import {
   readingChoices,
   primaryReading,
   threadReading,
+  marginEntry,
   entryHasMarginHost,
   optionsOffered,
   canFold,
@@ -146,6 +147,7 @@ import { readingRegionFor } from "../../readings/reading-regions.js";
 import { keys, paintKeys } from "../../dom/keyboard/scopes.js";
 import { pageRung, pageScope } from "../../dom/keyboard/register.js";
 import {
+  closedOver,
   nativeLayerHolding,
   renderedParent,
   skipped,
@@ -288,9 +290,12 @@ export function createMarginProjection({
   // its controls' words read. A cluster is drawn again only where one of them changed.
   /** @type {WeakMap<Host, {entry: Entry, expanded: string | boolean, forced: boolean, folded: boolean, agent: string}>} */
   const drawnFrom = new WeakMap();
-  // Each marker's place in the walk, from the last render, which only a render changes.
+  // Each marker's place in the walk, and how many markers it walks, from the last
+  // render, which only a render changes. A marker another stands for while a closed box
+  // hides its threads (`gatherFaces`) takes no place.
   /** @type {WeakMap<Host, number>} */
   const walkPlace = new WeakMap();
+  let walkLength = 0;
   // Whether a row has changed since a render last asked: drawn, taken away, moved by a
   // layout pass, or shown or hidden with the annotation layer. What reads the rows as a
   // whole reads them again only then (`renderNow`).
@@ -319,12 +324,15 @@ export function createMarginProjection({
             ((place.getBoundingClientRect().top - column.top) / column.height) * 100,
           )
         : null;
-    return { index: walkPlace.get(host) ?? 0, of: hosts.size, position };
+    return { index: walkPlace.get(host) ?? 0, of: walkLength, position };
   }
   // A marker's name, with where it stands while focus is on it.
   /** @param {Host} host */
   const spokenName = (host) =>
-    markerName(host.lfEntry, host.marker === focusedRow() ? spokenPlace(host) : null);
+    markerName(
+      shownEntry(host),
+      host.marker === focusedRow() ? spokenPlace(host) : null,
+    );
   // Names a marker with where it stands while focus is on it, and leaves that out again
   // as focus leaves.
   /** @param {Host} host */
@@ -368,7 +376,11 @@ export function createMarginProjection({
     const host = hosts.get(entry.key);
     return host ? standsFolded(host) : false;
   };
-  let refoldQueued = false;
+  // A layout pass that changed what a cluster shows, as by folding it or by reading
+  // another face than the render gathered by (`gatherFaces`), presents the clusters
+  // again once that pass has written, before the frame paints, however many rows it
+  // changed.
+  const refreshAfterPass = () => afterScript(renderAnnotations.refresh);
   // An explicit mode can focus one contribution inside the target's existing cluster.
   // The rail then shows that owner's complete control set without spending margin entries on
   // readings in force or unrelated actions; Page Map still reads the whole entry.
@@ -492,6 +504,73 @@ export function createMarginProjection({
   const threadsPlace = (entry) =>
     readingPlace(entryPassage(entry), entryPoint(entry)).node ?? targetFor(entry);
 
+  // The threads one closed box hides stand one marker by the face it shows, badged with
+  // how many it holds: a marker each crowded a face as narrow as a part's name and
+  // spilled onto the next one's line (the user's choice). That marker is the row of the
+  // first such entry in reading order, painted with every thread the box hides, so its
+  // preview lists them all and a press opens the box on the first, where each then
+  // stands by its own words. The other rows stand nowhere until the box opens
+  // (margin-layout.js, `gathered`), their other readings with them, as a row offering an
+  // action is withheld (`faceOf`). Rows gather by the box, not by its face, since boxes
+  // apart can show one face, as cards of a deck show the deck. Each row keeps its own
+  // entry, so every route to a thread finds the thread's own row, and a card open on a
+  // thread the box gathers withholds itself with that row until the box opens.
+  // The box each entry was gathered by is the one the render read (`gatheredBy`), and a
+  // pass that reads another draws the margin again (`markerOptions`), which gathers or
+  // parts the threads.
+  /** @type {Map<string, Element | null>} */
+  let gatheredBy = new Map();
+  /** @type {Map<string, Entry>} */
+  let gatheredInto = new Map();
+  // Each row another stands for, by its key, and the key of the row standing for it.
+  /** @type {Map<string, string>} */
+  let gatheredAway = new Map();
+  /** @type {WeakMap<Entry, {members: Entry[], entry: Entry}>} */
+  const gatherings = new WeakMap();
+  /** @param {Entry} entry @param {Element | null} face */
+  const hidingBox = (entry, face) => {
+    const place = face && threadsPlace(entry);
+    return place ? closedOver(place) : null;
+  };
+  // What a row draws: its own entry, or every thread a closed box hides.
+  /** @param {Host} host */
+  const shownEntry = (host) => gatheredInto.get(host.lfEntry.key) ?? host.lfEntry;
+  /** @param {readonly Entry[]} inventory */
+  function gatherFaces(inventory) {
+    /** @type {Map<Element, Entry[]>} */
+    const byBox = new Map();
+    gatheredBy = new Map();
+    gatheredInto = new Map();
+    gatheredAway = new Map();
+    for (const entry of inventory) {
+      const box = hidingBox(entry, faceOf(entry));
+      gatheredBy.set(entry.key, box);
+      if (!box) continue;
+      const members = byBox.get(box);
+      if (members) members.push(entry);
+      else byBox.set(box, [entry]);
+    }
+    for (const members of byBox.values()) {
+      const [first, ...rest] = members;
+      if (!first || !rest.length) continue;
+      const kept = gatherings.get(first);
+      const entry =
+        kept?.members.length === members.length &&
+        kept.members.every((member, at) => member === members[at])
+          ? kept.entry
+          : marginEntry({
+              ...first,
+              items: [
+                ...first.items,
+                ...rest.flatMap((member) => threadReading(member)?.items ?? []),
+              ],
+            });
+      gatherings.set(first, { members, entry });
+      gatheredInto.set(first.key, entry);
+      for (const member of rest) gatheredAway.set(member.key, first.key);
+    }
+  }
+
   // Every row lives in the chrome's margin layer, whatever it holds, and the layout owns
   // where: which lane, in which posture, at what offset (margin-layout.js). The row states
   // its target, what it stands by while a closed box hides that, and its place among the
@@ -502,7 +581,13 @@ export function createMarginProjection({
       anchor: () => targetFor(row.lfEntry),
       point: () => entryPoint(row.lfEntry),
       passage: () => entryPassage(row.lfEntry),
-      face: () => faceOf(row.lfEntry),
+      face: () => {
+        const face = faceOf(row.lfEntry);
+        if (hidingBox(row.lfEntry, face) !== (gatheredBy.get(row.lfEntry.key) ?? null))
+          refreshAfterPass();
+        return face;
+      },
+      gathered: () => gatheredAway.has(row.lfEntry.key),
       order,
       fold: {
         able: () =>
@@ -528,16 +613,8 @@ export function createMarginProjection({
             folded: true,
           }).optionsOpen,
         // Told from inside the layout pass, which has already seated the row at its new
-        // size: the cluster is presented again once that pass has written, before the
-        // frame paints, however many rows it folded.
-        changed: () => {
-          if (refoldQueued) return;
-          refoldQueued = true;
-          queueMicrotask(() => {
-            refoldQueued = false;
-            renderAnnotations.refresh();
-          });
-        },
+        // size.
+        changed: refreshAfterPass,
       },
     };
   }
@@ -1280,10 +1357,11 @@ export function createMarginProjection({
   let railRoom = null;
   /** @param {readonly Entry[]} inventory */
   function renderNow(inventory) {
-    // A layout read, so before this render's writes (browser/AGENTS.md).
+    // Layout reads, so before this render's writes (browser/AGENTS.md).
     const room = windowHoldsRail();
     const agent = agentName();
     const selected = card.selection();
+    gatherFaces(inventory);
     const forcedKey = selected?.forced ? selected.entry.key : null;
     const threadOwnerHeld = transferThreadFocus || focused() === selected?.control;
     transferThreadFocus = false;
@@ -1346,6 +1424,7 @@ export function createMarginProjection({
     // Each row's place among the rows, which an entry with no row of its own leaves
     // the same (margin-layout.js, `registerMarginRow`).
     let rank = 0;
+    let walked = 0;
     /** @type {Host[]} */
     const drawnHosts = [];
     pageInventory.forEach((entry, order) => {
@@ -1402,28 +1481,38 @@ export function createMarginProjection({
         hosts.set(entry.key, created);
       }
       const { marker, more } = host;
-      walkPlace.set(host, rank);
+      walkPlace.set(host, walked);
+      const standsFor = gatheredAway.get(entry.key);
+      if (!standsFor) walked += 1;
+      // A marker joining another's group hands focus to that marker, the one the walk
+      // now reaches for it, before the layout withholds it.
+      else if (currentLocationIn(host)) {
+        const marker = hosts.get(standsFor)?.marker;
+        if (marker) focusDestination(marker, "return");
+      }
       registerMarginRow(host, markerOptions(host, rank++));
       // Insert in inventory order; the theme keeps the row unpainted and measurable
       // until the layout pass assigns its anchored posture.
       if (!host.isConnected) move(toolbar, host, toolbarAfter(order));
       host.lfEntry = entry;
       host.lfTarget = targetFor(entry);
-      marker.lfEntry = entry;
+      // A row standing for the threads a closed box hides draws them all (`gatherFaces`).
+      const shows = shownEntry(host);
+      marker.lfEntry = shows;
       const expanded =
         expandedOptionsKey === entry.key && (expandedOptionsOwner ?? true);
       const forced = forcedKey === entry.key;
       const isFolded = folded(entry);
       const drawn = drawnFrom.get(host);
       if (
-        drawn?.entry === entry &&
+        drawn?.entry === shows &&
         drawn.expanded === expanded &&
         drawn.forced === forced &&
         drawn.folded === isFolded &&
         drawn.agent === agent
       )
         return;
-      drawnFrom.set(host, { entry, expanded, forced, folded: isFolded, agent });
+      drawnFrom.set(host, { entry: shows, expanded, forced, folded: isFolded, agent });
       drawnHosts.push(host);
       rowsChanged = true;
       const focus = {
@@ -1434,7 +1523,7 @@ export function createMarginProjection({
         // that may replace its control (dom/focus.js, keyed `holdFocus`).
         restore: holdFocus(host, { key: "data-lf-margin-entry-identity" }),
       };
-      const projection = clusterProjection(entry, {
+      const projection = clusterProjection(shows, {
         expandedKey: expandedOptionsKey,
         expandedOwner: expandedOptionsOwner,
         forcedInlineKey: forcedKey,
@@ -1444,14 +1533,15 @@ export function createMarginProjection({
         expandedOptionsKey = null;
         expandedOptionsOwner = null;
       }
-      presentCluster(host, marker, more, entry, projection, focus);
+      presentCluster(host, marker, more, shows, projection, focus);
     });
+    walkLength = walked;
     // Each drawn cluster's marker takes its new face once every row has reconciled, so
     // focus a paint hands to a marker moves after the clusters that read it.
     for (const host of drawnHosts)
-      paintMarker(host.marker, host.lfEntry, Boolean(host.primary), {
+      paintMarker(host.marker, shownEntry(host), Boolean(host.primary), {
         suppressed: Boolean(
-          focusedOfferOf(host.lfEntry, expandedOptionsKey, expandedOptionsOwner),
+          focusedOfferOf(shownEntry(host), expandedOptionsKey, expandedOptionsOwner),
         ),
         accessibleLabel: spokenName(host),
       });

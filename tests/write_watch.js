@@ -538,7 +538,7 @@
   // clamps at the editor's end, and a landing or a glide stops a scroll the browser
   // drives, which this watch can't see (dom/arrivals.js, `stopWhereItStands`).
   const EXPECTED_SCROLLS = [
-    (by) => by[0].includes("vendor/codemirror."),
+    (by) => /vendor\/(?:codemirror|file-editor)\./.test(by[0]),
     (by) => /^stopWhereItStands\b.*\bruntime\/dom\/arrivals\.js:/.test(by[0]),
   ];
   // Run one scroll write to `box`, `options` saying how it moves.

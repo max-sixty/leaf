@@ -537,20 +537,26 @@ advice rather than Leaf's, so it may name any widget.
 
 A package leans on Leaf only through the package interface: the keys of an element
 declaration, the widget protocol, Leaf's own elements, the data contracts Leaf's
-packages declare, the functions `widget-api.js` exports and the styling names the
-references declare. Another author's package has nothing else, so Leaf's bundled
-widgets use nothing else. The interface sprawls through names that each look
-reasonable alone, and every later change keeps each name working, so Leaf keeps it
-small and coherent. A change meets a widget's need without a new name where it can,
-and `packages/AGENTS.md`, "A widget's need of Leaf", says how to choose where it
-can't.
+packages declare, the public modules and the names each exports, and the styling
+names the references declare. The public modules are those the kernel registry lists
+in `$public-modules` outside the library: Leaf's own, such as `widget-api.js` and
+`effect-widget.js`, and the dependencies Leaf serves, such as Effect UI. Another
+author's package has nothing else, so Leaf's bundled widgets use nothing else. The
+interface sprawls through names that each look reasonable alone, and every later
+change keeps each name working, so Leaf keeps it small and coherent. A change meets a
+widget's need without a new name where it can, and `packages/AGENTS.md`, "A widget's
+need of Leaf", says how to choose where it can't.
 
 A smaller interface is worth a small visible difference. Where a name's work is to
 keep a look, a first paint or a behaviour exactly as it was, the name goes, and the
-change shows what a user will see differently. A promise the user is owed on every
-widget is Leaf's to keep from outside, for an element that imports nothing, so a name
-stays for a guarantee `SOUL.md` states only while Leaf can't keep it that way. A shift
-as a widget first draws on a loading page breaks no guarantee.
+change shows what a user will see differently. Some promises in `SOUL.md` hold on
+every widget, such as keeping focus on the control the user is using when the widget
+redraws. Leaf keeps such a promise in its own code, so a widget's author writes
+nothing for it: in `defineWidget`, which every widget that draws is moving to
+(`browser/AGENTS.md`, "Renderers"), or in the runtime code that sets the widget's
+properties and hears its events. A name that exists to help widgets keep such a
+promise, such as a function they call, stays only until Leaf can keep the promise
+itself. A shift as a widget first draws on a loading page breaks no guarantee.
 
 ### Wait for the event that ends the work
 

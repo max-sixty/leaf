@@ -44,8 +44,11 @@ function travel(start, end, low, high, alignment, margin, side) {
     : end - high + margin;
 }
 
+/** What the view is built from: these exports of a CodeMirror 6 bundle, the runtime's
+ * `/vendor/codemirror.esm.js` or one a package ships. */
+
 const classes = new WeakMap();
-/** The view class over `codemirror`, the namespace of `/vendor/codemirror.esm.js`. */
+/** The view class over `codemirror`, a CodeMirror 6 bundle's namespace. */
 export function leafEditorView(codemirror) {
   let made = classes.get(codemirror);
   if (!made) classes.set(codemirror, (made = editorViewOver(codemirror)));

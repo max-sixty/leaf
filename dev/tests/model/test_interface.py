@@ -7,13 +7,16 @@ from click.testing import CliRunner
 
 from leaf_dev import ROOT
 from leaf_dev.cli import cli
-from leaf_dev.commands.interface import PARTS, Tree, census
+from leaf_dev.commands.interface import PARTS, Tree, census, spans
 from leaf_dev.styling_names import REFERENCES
 
 
 def test_each_part_reads_its_list_and_its_users():
     """A part whose list or users the census stops finding prints as empty with no
-    error, so a name from each part, with a use the tree has, holds the reading."""
+    error, so a name from each part, with a use the tree has where one does, holds the
+    reading. A mark only `module-input.md` gives holds the reading of every reference's
+    marks, and a function from a module beside `widget-api.js` the reading of every
+    module `$public-modules` admits."""
     result = CliRunner().invoke(cli, ["interface", "--json"])
     assert result.exit_code == 0, result.output
     parts = {
@@ -24,13 +27,19 @@ def test_each_part_reads_its_list_and_its_users():
         ("keys", "verbs"): "packages",
         ("elements", "lf-suggestion"): "examples",
         ("protocol", "lf-commands"): "packages",
+        ("protocol", "data-lf-focus-visible"): "packages",
         ("contracts", "text-document"): "examples",
+        ("modules", "/vendor/lit.js"): "packages",
         ("functions", "whileConnected"): "packages",
+        ("functions", "defineWidget"): "packages",
+        ("vendored", "html"): "packages",
         ("styling", "--lf-ink"): "packages",
     }
     for (part, name), group in used.items():
         assert parts[part][name]["users"][group], f"{part} {name} has no {group} use"
     assert parts["protocol"]["lf-action"]["form"] == "event"
+    assert parts["functions"]["defineWidget"]["form"] == "effect-widget.js"
+    assert parts["parts"]["card"]["form"] == "Leaf's chrome"
     assert parts["styling"]["--lf-ink"]["form"] == "the theme sets it"
     assert (
         parts["contracts"]["choice"]["form"] == "default declares it; output, reference"
@@ -38,7 +47,7 @@ def test_each_part_reads_its_list_and_its_users():
 
 
 def test_the_protocol_index_lists_each_protocol_name_a_reference_gives():
-    """The census reads the widget protocol from its index in
+    """The census reads the widget protocol's members and events from its index in
     `module-plain-elements.md`, so a name another reference describes and the index
     leaves out is one the census misses. A reference gives such a name in code, by a
     shape that says what it is: a member Leaf reads off an element, `lf` then a
@@ -49,11 +58,9 @@ def test_the_protocol_index_lists_each_protocol_name_a_reference_gives():
     missing = sorted(
         f"{path.name}: {name}"
         for path in (ROOT / REFERENCES).glob("*.md")
-        for span in re.findall(
-            r"`([^`]+)`",
-            re.sub(r"^```.*?^```", "", path.read_text(), flags=re.M | re.S),
-        )
-        # A mark's `dataset` property is the mark, which the index lists by its name.
+        for span in spans(path.read_text())
+        # A mark's `dataset` property is the mark, which the census reads by its name
+        # from every reference.
         for name in re.findall(
             r"(?<![\w$-])(?<!dataset\.)(lf[A-Z]\w*|[a-z]+(?:-[a-z]+)+)", span
         )

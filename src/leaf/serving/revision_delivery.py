@@ -383,8 +383,9 @@ def mark_declared(
     registry: Mapping,
     resources: Mapping[str, Resource],
 ) -> str:
-    """Paint each element's declared marks (`registry.kernel.kernel_marks`) onto its
-    start tag, the rest byte-for-byte, and the size of the page media it names.
+    """Paint each element's declared marks (`registry.kernel.kernel_marks`), with the
+    ARIA role and name a mark's `role` gives, onto its start tag, the rest
+    byte-for-byte, and the size of the page media it names.
 
     A mark painted by the runtime would land a registry fetch after the document first
     draws, so a workspace would draw its panes before knowing they are panes. An image
@@ -437,6 +438,10 @@ def mark_declared(
                 marks["data-lf-view-members"] = declared["members"]
                 value = "parts" if declared.get("parts") else ""
             marks[mark["attribute"]] = value
+            if role := mark.get("role", {}).get(value):
+                for name, aria in (("role", role), ("aria-label", attrs.get("label"))):
+                    if name not in attrs:
+                        marks[name] = aria
         sizes = [
             size
             for value in attrs.values()

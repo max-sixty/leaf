@@ -70,7 +70,7 @@ def test_saved_website_record_restores_comments_choices_and_private_revision(
                 "widget": "choice",
                 "action": "choose",
                 "detail": {"value": ["backfill-first"]},
-                "facts": {"answered": True},
+                "answered": True,
             },
         )
         comment = append_command(

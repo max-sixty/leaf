@@ -9,22 +9,18 @@ the document reading's own (`SourceReading.decided_passages`).
 
 from typing import NamedTuple
 
-from leaf.log.obligations import page_obligation_readings, widget_facts
+from leaf.log.obligations import page_obligation_readings
 from leaf.log.projection import PageReading, StateProjection, retirement_outcomes
 from leaf.source.passages import Passages
 from leaf.source.structure import SourceDocument
 
 
 class DocumentReading(NamedTuple):
-    """`facts` is each widget's facts as the page keeps them through this revision
-    (`obligations.widget_facts`)."""
-
     document: SourceDocument
     projection: StateProjection
     spoken: dict
     passages: Passages
     items: dict
-    facts: dict
     within: dict
     floors: dict
 
@@ -46,7 +42,6 @@ def read_document(
     spk = page.spoken
     passages = page.reading.decided_passages(retirement_outcomes(projection.actions))
     dropped = set(passages.retired) | set(passages.gone)
-    facts = widget_facts(events, projection, page.within, revision)
     items = page_obligation_readings(
         page.reading.obligation_sources,
         projection,
@@ -59,7 +54,6 @@ def read_document(
         owed,
         settled_away=set(passages.gone),
         prior=page.prior,
-        facts=facts,
         revision=revision,
         events=events,
     )
@@ -69,7 +63,6 @@ def read_document(
         spoken=spk,
         passages=passages,
         items=items,
-        facts=facts,
         within=page.within,
         floors=page.floors,
     )

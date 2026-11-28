@@ -410,7 +410,7 @@ def test_a_widget_presents_its_authored_state_offline_and_the_log_on_recovery(
             "widget": "options",
             "action": "choose",
             "detail": {"value": ["two"]},
-            "facts": {"answered": True},
+            "answered": True,
         },
     )
     page = browser.new_page(viewport={"width": 1200, "height": 900})
@@ -446,7 +446,7 @@ def test_a_widget_draws_its_authored_state_while_its_first_read_waits(browser, s
             "widget": "options",
             "action": "choose",
             "detail": {"value": ["two"]},
-            "facts": {"answered": True},
+            "answered": True,
         },
     )
     page = browser.new_page(viewport={"width": 1200, "height": 900})

@@ -1,6 +1,6 @@
 """Document-scoped browser projection and undo readings."""
 
-from leaf.log.events import UndoReading, action_retracted
+from leaf.log.events import UndoReading
 from leaf.log.gesture_words import GestureWords
 from leaf.log.projection import PageReading, StateProjection
 from leaf.records.document_reading import DocumentReading
@@ -37,8 +37,9 @@ def browser_undo_candidates(
     what the append door refuses (`UndoReading`), an entry must paint something on
     this document. An action stands where its widget and verb are in this document's
     projection or the thread
-    markup's, and a page action no longer stands once a later revision restated what
-    it rests on. A decision carried from an earlier revision is otherwise as
+    markup's, and a page action only while that projection holds it in force, which a
+    later revision restating what it rests on can end (`events.InForce`). A decision
+    carried from an earlier revision is otherwise as
     undoable as one made on this one; where this revision's markup places its unit,
     the door refuses it (`absorbed`).
 
@@ -89,7 +90,7 @@ def browser_undo_candidates(
         item: dict = {"event": event}
         if event["kind"] == "action":
             if event["id"] in document.projection.classified:
-                if action_retracted(event, document.floors, document.within):
+                if event["id"] not in document.projection.in_force:
                     continue
                 coordinate, _entry = document.projection.classified[event["id"]]
             elif event["id"] in thread_projection.classified:

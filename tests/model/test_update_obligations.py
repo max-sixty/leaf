@@ -221,7 +221,7 @@ def test_stop_and_idle_hold_the_agent_to_the_answers_it_owed_before(claimed):
                 "action": "move",
                 "detail": {"unit": card, "value": "keep", "rank": rank},
                 # The queue says it is answered once its Queued column is empty.
-                "facts": {"answered": emptied},
+                "answered": emptied,
             },
         )
         for card, rank, emptied in (("card-a", "i", False), ("card-b", "r", True))
@@ -236,7 +236,7 @@ def test_stop_and_idle_hold_the_agent_to_the_answers_it_owed_before(claimed):
             "action": "edit",
             "detail": {"value": "Green room."},
             # A draft says words stand in it, whether or not it asks the user.
-            "facts": {"answered": True},
+            "answered": True,
         },
     )
     picked = append_command(
@@ -248,7 +248,7 @@ def test_stop_and_idle_hold_the_agent_to_the_answers_it_owed_before(claimed):
             "widget": "choice",
             "action": "choose",
             "detail": {"value": ["backfill-first"]},
-            "facts": {"answered": True},
+            "answered": True,
         },
     )
     receive_through(claimed, last_deliverable_seq(claimed))

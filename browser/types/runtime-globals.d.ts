@@ -357,6 +357,9 @@ interface Window {
 }
 
 interface CustomElementConstructor {
+  answerWords?: (value: unknown, element: Element) => unknown;
+  /** Whether the widget's question is answered as `state` stands (`awaits`). */
+  answered?: (state: import("./domain.js").WidgetState, element: Element) => unknown;
   /** How a revision reaches the widget while it stands in the page: `"members"` has
    * Leaf edit inside its direct authored children in place (`features/version.js`,
    * `reachesMembers`). A class field's literal is typed `string`, so this is too. */

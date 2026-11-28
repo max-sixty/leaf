@@ -124,7 +124,7 @@ def test_late_answer_to_a_thread_widget_reopens_without_repeating_its_obligation
                 "widget": "thread-picks",
                 "action": "choose",
                 "detail": {"value": ["thread-option"]},
-                "facts": {"answered": True},
+                "answered": True,
             }
         ).encode(),
     )
@@ -176,7 +176,7 @@ PICKED = {
     "widget": "sug-a",
     "action": "decide",
     "detail": {"outcome": "accept"},
-    "facts": {"answered": True},
+    "answered": True,
 }
 
 
@@ -185,7 +185,7 @@ TURNED_DOWN = {
     "widget": "sug-a",
     "action": "decide",
     "detail": {"outcome": "reject"},
-    "facts": {"answered": True},
+    "answered": True,
 }
 
 
@@ -247,9 +247,7 @@ def test_the_answer_that_settles_a_thread_acknowledges_what_it_said():
 
     assert unread() == ["e2"]
     assert unread(PICKED) == []
-    assert unread(
-        PICKED, {"kind": "undo", "undoes": "e3", "facts": {"answered": False}}
-    ) == ["e2"]
+    assert unread(PICKED, {"kind": "undo", "undoes": "e3", "answered": False}) == ["e2"]
     assert unread(PICKED, {**edit, "text": "Try sug-a first."}, TURNED_DOWN) == ["e4"]
 
 
@@ -343,7 +341,7 @@ def test_taking_back_a_reject_lets_the_accept_it_superseded_stand_again():
     assert settlement(ASKED, PICKED, TURNED_DOWN) is None
     # The reject is the third event written, so `e3` is what the undo names.
     # The accept still stands, so the suggestion stays decided.
-    taken_back = {"kind": "undo", "undoes": "e3", "facts": {"answered": True}}
+    taken_back = {"kind": "undo", "undoes": "e3", "answered": True}
     assert settlement(ASKED, PICKED, TURNED_DOWN, taken_back)["detail"] == {
         "outcome": "accept"
     }
@@ -467,7 +465,7 @@ def test_independent_state_does_not_reopen_an_answer_even_after_retirement(
             "action": action,
             "detail": detail,
             # A decided suggestion says its question is answered.
-            "facts": {"answered": True},
+            "answered": True,
             "attempt": attempt,
         }
         status, body = fetch(f"{server}/api/event", data=json.dumps(command).encode())
@@ -482,7 +480,7 @@ def test_independent_state_does_not_reopen_an_answer_even_after_retirement(
     # Literal text matching an id is not a dependency; ancestry remains live for
     # declared identities, tested in test_admission.py's named-dependency contrast.
     assert revision is not None
-    assert not event_folds_model.action_retracted(
+    assert not event_folds_model.restated_under(
         labeled, {"proposed": revision + 1}, {"proposed": ("proposal", "proposed")}
     )
     result = event_folds_model.build_threads(
@@ -531,7 +529,7 @@ def test_an_independent_verb_leaves_a_decisions_thread_resolved(page_dir):
         "widget": "sug-a",
         "action": "label",
         "detail": {},
-        "facts": {"answered": True},
+        "answered": True,
     }
     html = '<lf-suggestion id="sug-a" resolves="c1"><lf-new><p>Proposed</p></lf-new></lf-suggestion>'
     stated = ModelPage(html, registry=registry)

@@ -68,7 +68,9 @@ def definitions(module: Path) -> dict[str, set[str]]:
         function = call.child_by_field_name("function")
         arguments = call.child_by_field_name("arguments")
         values = [
-            node for node in (arguments.named_children if arguments else []) if node.type != "comment"
+            node
+            for node in (arguments.named_children if arguments else [])
+            if node.type != "comment"
         ]
         if not values or values[0].type != "string":
             continue
@@ -79,7 +81,9 @@ def definitions(module: Path) -> dict[str, set[str]]:
                 found["old"].add(tag)
         elif callee in adapter:
             found["component"].add(tag)
-        elif callee == "customElements.define" or callee.endswith(".customElements.define"):
+        elif callee == "customElements.define" or callee.endswith(
+            ".customElements.define"
+        ):
             found["plain"].add(tag)
     return found
 
@@ -137,7 +141,9 @@ def get_assert(output: str, context: dict) -> dict:
             ]
         )
         if any(name.startswith("page/") for name in own):
-            problems.append(f"the page's own module, not its package's, defines <{tag}>")
+            problems.append(
+                f"the page's own module, not its package's, defines <{tag}>"
+            )
         if not any(tag in modules[name]["component"] for name in own):
             problems.append(
                 f"no package module for <{tag}> defines it with defineWidget"

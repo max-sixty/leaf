@@ -29,7 +29,7 @@ assert:
         or a dynamic `import()`: its imports, if it has any, are
         /runtime/portable-api.js, /runtime/effect-widget.js,
         /runtime/widget-services.js, modules under /runtime/lib/ and /vendor/
-        bundles;
+        bundles other than Lit's;
       - no button's label is the whole `textContent` or `innerText` of an element the
         author wrote, or a copy of all its nodes: the label comes from an attribute
         the author wrote, or from a reading or copy of the paragraph that leaves out

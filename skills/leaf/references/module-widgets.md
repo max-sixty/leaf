@@ -12,11 +12,10 @@ the component; the header of
 [`/runtime/effect-widget.js`](../../../browser/runtime/effect-widget.js) is its whole
 contract. Leaf drives that element from outside: on an element whose tag declares
 `verbs` or `inputs`, it sets the widget's state and bound data, hears what the widget
-records and reads what it declares. The element is the adapter between Leaf and the
-component: what Leaf sets arrives as props, what the component asks of Leaf it issues as
-a Command of Leaf's services
-([`/runtime/widget-services.js`](../../../browser/runtime/widget-services.js)), and what
-Leaf reads off the element the component states there. The header of
+records and reads what it declares. The component receives Leaf's state as props,
+issues a Command of Leaf's services
+([`/runtime/widget-services.js`](../../../browser/runtime/widget-services.js)) for what
+it asks of Leaf, and declares what Leaf reads off the element. The header of
 `widget-services.js` says what each Command does, which can be less than the function
 or event a reference describes, as `Announce` carries no `rows`. Where no Command of
 Leaf's does what a widget needs, it calls the function or dispatches the event itself,
@@ -121,8 +120,11 @@ Each method or property Leaf reads off the widget's element, such as its keys
 `declare(node, {…})` from a Mount, Effect UI's hook on a node its view drew, where
 `node` is that node. The `DECLARED` list in `effect-widget.js` names those members, and
 `declare` refuses any other key. Each stands on the element until the root closes, and
-each call says what it set, so Leaf reads it again. A member Leaf reads off a node the
-view draws, such as `lfPreview` on a row, the view sets on that node with `.prop()`.
+each call says `lf-commands` for keys and `lf-layout` for the rest, so Leaf reads it
+again; a preview already on screen reads again only on `lf-preview`
+(`module-previews.md`). A member Leaf reads off a node the view draws, such as
+`lfPreview` on a row or a child outlet's `lfHold`, the view sets on that node with
+`.prop()`.
 
 The component's own events, which its `events` schema declares and its `update` emits,
 are for the page around it: each reaches the page as a bubbling, composed `CustomEvent`
@@ -131,7 +133,8 @@ prop, Command or declaration, such as `drawn`, an output's `change` or `lf-hold`
 component sets or dispatches it on the element from a Mount.
 From that node, `closestAcross(node, tag)`, from the library's
 [`shadow-tree.js`](../../../browser/runtime/lib/shadow-tree.js), finds the element,
-whether the view draws in its shadow root or beside its authored children. Dispatch an
+whether the view draws in its shadow root or beside its authored children, unless the
+node is itself an element of the widget's tag. Dispatch an
 `lf-` event that is about the element on the element, with `bubbles: true` and
 `composed: true`, in addition to any option its entry names, since Leaf listens for it
 at the document and an ancestor element may listen too; `lf-announce` and `lf-error` are

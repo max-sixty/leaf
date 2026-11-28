@@ -186,13 +186,13 @@ defineWidget("lf-builds", Builds, { properties: ["value"] });
 ```
 
 A widget bound to a source first draws once the page has read its data, or has gone
-offline without it, so until then it shows its first-paint box. Each delivery is a new
-copy, so a widget tells a new delivery by identity. A rerun with
-the same value delivers a new copy too. Where the markup binds the input of a widget
-whose body is data (`content: data`) to nothing, as with an `lf-diff` showing its
-inline patch, Leaf sets the input's property once, with its first sets, to the text of its
-`<pre>`. Any other unbound input is left to the widget (`package-data.md`, "External
-or derived data").
+offline without it, so until then it shows its first-paint box. Each delivery Leaf sets
+is a new copy, a rerun with the same value included, but a component's props change only
+where the copy's contents differ ("Marking drawn data"). Where the markup binds the
+input of a widget whose body is data (`content: data`) to nothing, as with an `lf-diff`
+showing its inline patch, Leaf sets the input's property once, with its first sets, to
+the text of its `<pre>`. Any other unbound input is left to the widget
+(`package-data.md`, "External or derived data").
 
 An input bound to another widget's output reads through the same property, as the
 value that widget holds (package-data.md, "Widget outputs"). The producer sets its
@@ -206,9 +206,10 @@ that fit it.
 Mark which nodes show data with plain attributes, so comments on them anchor to the
 data rather than to prose. The view draws the marks, and a Mount on the node that holds
 them dispatches `drawn` on the element with the value the view drew, on each change of
-its args (the Mount's `changes`). Leaf stamps marks only then, so the args hold the keys
-of the rows drawn beside the value, and rows the component's own messages add are
-reported too:
+its args (the Mount's `changes`). Leaf stamps marks only then, so the args hold, beside
+the value, the key of each row drawn, and the parent it stands in where rows move
+between parents, so a draw that adds or moves a marked row, as one the component's own
+messages start, reports again:
 
 ```js
 import { closestAcross } from "/runtime/lib/shadow-tree.js";
@@ -227,17 +228,18 @@ const ReportDrawn = Mount.make(
 
 // In the view:
 const shown = rows.map((row) => row.key);
-h.ul.onMount(ReportDrawn({ value: h.props.value, shown })).children(
-  ...rows.map((row, index) =>
-    h.li
-      .key(row.key)
-      .attr("data-lf-datum", row.key)
-      .attr("data-lf-identity", row.id)
-      .attr("data-lf-datum-label", row.label)
-      .attr("data-lf-origin-path", JSON.stringify(["rows", index]))
-      .children(row.label),
-  ),
-);
+h.ul
+  .onMount(ReportDrawn({ value: h.props.value, shown }))
+  .children(
+    ...rows.map((row) =>
+      h.li
+        .key(row.key)
+        .attr("data-lf-datum", row.key)
+        .attr("data-lf-identity", row.id)
+        .attr("data-lf-datum-label", row.label)
+        .children(row.label),
+    ),
+  );
 ```
 
 `data-lf-datum` is a key unique within the widget that Leaf doesn't interpret, and
@@ -245,7 +247,8 @@ h.ul.onMount(ReportDrawn({ value: h.props.value, shown })).children(
 where the same subject survives new values of the source, so a comment follows the
 subject and keeps the quote the user saw; without one, a new value marks comments on
 that key as outdated. `data-lf-origin-path` is an optional JSON array naming the
-datum's place in the value. A mark the view stops drawing leaves with it.
+datum's place in the value, not where the view shows it. A mark the view stops drawing
+leaves with it.
 
 The detail holds one key, the property its input names (`value` above), with the value
 drawn from it. Leaf stamps the marks with that value's source and revision, and marks

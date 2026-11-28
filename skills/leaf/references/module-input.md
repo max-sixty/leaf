@@ -64,8 +64,9 @@ classifier.dispatchEvent(
 );
 ```
 
-A node a component's view draws takes its scope from a Mount on that node, which sets
-its `lfCommands` and says `lf-commands` on it as each draw of the node lands.
+A node a component's view draws takes a scope of its own from a Mount on that node,
+which sets the node's `lfCommands` and says `lf-commands` on it as the Mount starts and
+on each change of what the rows read (the Mount's `changes`).
 
 ### Command rows
 
@@ -260,15 +261,18 @@ focus never scrolls; reveal the destination with `scrollIntoView`
 
 A component's view keeps the user's place by itself where a draw keeps their node:
 Effect UI patches that node, so focus, a field's typed words and its caret stay, and a
-keyed node moved among its parent's children keeps them too. A keyed node moved to
-another parent is a new node there, unless the view writes it as a keep-alive child
-(`h.keepAlive`), whose nodes move with it and keep their words. Around each draw a set
-of `state`, an input or a member starts, the element `defineWidget` defines holds the
+keyed node moved among its parent's children keeps them too, though a contenteditable's
+selection collapses. A keyed node moved to another parent is a new node there, unless
+the view writes it as a keep-alive child (`h.keepAlive`, which takes a keyed child
+component), whose nodes move with it and keep their words. Around each draw a set of
+`state`, an input or a member starts, the element `defineWidget` defines holds the
 user's place by the `data-lf-datum` key of the datum they are in (`module-state.md`,
 "Marking drawn data"): on their own node where it survived the draw, else on the
 widget's datum now carrying that key, else on the nearest one still drawn, on the datum
-itself rather than a control in it. A draw the component's own messages start has no
-such hold, so focus on a node it removes or moves to another parent drops to the page.
+itself rather than a control in it. A widget whose rows draw no box of their own
+(`display: contents`) leaves the user on the page's body when their row goes. After a
+draw the component's own messages start, which has no such hold, a user whose node it
+removed or moved to another parent lands on the body.
 
 Before code outside a view hides or replaces nodes the user may be in, as a Mount's own
 redraw that rebuilds or deletes a row does, call `const restore = holdFocus(scope)`, and

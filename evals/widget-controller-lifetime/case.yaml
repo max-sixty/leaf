@@ -50,8 +50,8 @@ assert:
     value: |
       Pass only if the view draws each build's paragraph keyed by the build's id, so a
       paragraph keeps its node across source replacements, marks each with
-      data-lf-datum and a data-lf-identity of its id, and a Mount dispatches a `drawn`
-      event on the element whose detail names the value the view drew, after the
-      commit that draws it, so comments follow that build with the correct source
-      revision. Fail if the view replaces every paragraph on every update rather than
+      data-lf-datum and a data-lf-identity of its id, and a Mount whose args hold the
+      value and the keys of the paragraphs drawn dispatches a `drawn` event on the
+      element whose detail names the value the view drew, after each commit that
+      changes either, so comments follow that build with the correct source revision. Fail if the view replaces every paragraph on every update rather than
       keeping their nodes.

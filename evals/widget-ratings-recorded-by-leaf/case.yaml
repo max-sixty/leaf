@@ -67,5 +67,6 @@ assert:
       Fail if the module still keeps the ratings in `localStorage`, `sessionStorage`,
       IndexedDB, a cookie, `tabStore`, or a copy of its own that it draws from in
       place of `state`, whether instead of the recorded action or beside it; or if it
-      sends them anywhere itself, with `fetch`, XHR, a WebSocket or `connection()`.
+      sends them anywhere itself, with `fetch`, XHR, a WebSocket or `connection()`;
+      or if the module imports Lit or extends `LeafElement`.
       Execution is unavailable, so not running checks is not a failure.

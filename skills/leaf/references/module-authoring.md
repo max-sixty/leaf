@@ -35,16 +35,14 @@ library ("Shared web code").
 
 Whatever a component can't do through its props, Commands and declarations, such as
 reading the page's words or its obligations, keeping the user's place, moving focus or
-keeping a draft, is a function it imports from `/runtime/widget-api.js`, as a page
-script does; "Functions" lists them all. A component reads the page through such a
-function in its `options.inputs`, and acts through one where no Command of Leaf's
-does the act (`module-widgets.md`). Of the runtime's
-other modules, import only those the kernel registry
-(`browser/runtime/kernel-registry.json`) lists in `$public-modules`:
-`effect-widget.js` and `widget-services.js`, `portable-api.js` ("A widget that also
-runs off Leaf") and the library's ("Shared web code"). Each module's header gives its
-contract.
-Don't query Leaf's own chrome or copy a runtime helper.
+keeping a draft, is usually a function it imports from `/runtime/widget-api.js`, as a
+page script does; "Functions" lists them all. A component reads the page through such a
+function in its `options.inputs`, and acts through one where no Command of Leaf's does
+the act (`module-widgets.md`). Of the runtime's other modules, import only those the
+kernel registry (`browser/runtime/kernel-registry.json`) lists in `$public-modules`:
+`effect-widget.js` and `widget-services.js`, `portable-api.js` ("A widget that also runs
+off Leaf") and the library's ("Shared web code"). Each module's header gives its
+contract. Don't query Leaf's own chrome or copy a runtime helper.
 
 ### Functions
 
@@ -376,7 +374,7 @@ readings.
 
 ### The view
 
-A component's view draws from its props and Model, first as the element connects and
+A component's view draws from its props and Model, first as the root mounts and
 then after each change in Effect UI's flush, before the next frame (`module-widgets.md`,
 "Drawing"). The view draws only into the box `defineWidget`
 gives it, never into authored children, and nothing else changes that box's children. A

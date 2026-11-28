@@ -3,11 +3,11 @@
 # list widget moves or removes rows, asked to keep a keyboard user on their item, is
 # pulled to hold focus by hand: to call `holdFocus` around the redraw, remember the
 # focused row and move focus back with `focusDestination`, or compute the nearest
-# surviving row itself. A component writes each row that may move to another section as
-# a keep-alive child (`h.keepAlive`), whose nodes, with the user on them, move with it,
-# and marks each row with `data-lf-datum`, by which the element `defineWidget` defines
-# lands the user on the nearest row after a removal (`module-input.md`, "Focus and
-# layers"), so it writes no focus code for either. The Add item popover is the widget's
+# surviving row itself. A component marks each row with `data-lf-datum`, by which the
+# element `defineWidget` defines lands the user on the row carrying that key after a
+# move, or on the nearest row after a removal (`module-input.md`, "Focus and layers"),
+# and writes a row that moves to another section as a keep-alive child (`h.keepAlive`)
+# where the user should stay on its control, so it writes no focus code for either. The Add item popover is the widget's
 # own layer: a choice in it closes it, and the widget puts the user back on Add item with
 # `focusDestination`, since a pointer press in Safari or Firefox on macOS leaves no focus
 # inside the popover for the browser's own return. The page test reads the rows once the
@@ -46,10 +46,12 @@ assert:
         verb's record, and the view draws both sections from the `state` Leaf sets,
         so the change draws in the component's next draw; nothing in the press
         handler draws or reads the list itself for the test's receipt;
-      - each row is a keep-alive child (`h.keepAlive`) keyed by the candidate's id,
-        so its nodes, with the user on its Move button, move to the other section,
-        and carries `data-lf-datum` with that id, by which the element `defineWidget`
-        defines lands the user on the nearest row after a removal;
+      - each row is keyed by the candidate's id and carries `data-lf-datum` with that
+        id, by which the element `defineWidget` defines lands the user on the nearest
+        row after a removal; and the user stays on the moved row's Move button,
+        because the row is a keep-alive child (`h.keepAlive`), whose nodes move with
+        it, or because the Move button itself carries the row's `data-lf-datum`, on
+        which the element lands them;
       - the module has no focus code for a move or a removal: it calls neither
         `holdFocus` nor `focusDestination` nor `.focus()` around one, keeps no record
         of the focused row to restore, and adds no focus or keydown listeners;

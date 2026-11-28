@@ -111,9 +111,8 @@ one, taking the id from its own reference attribute, as in
 `.attr("commandfor", h.props.target)`. The browser makes the press, so the button needs
 no click listener and no `lfCommands` row, a key and a finger press it as a pointer
 does, and it works the same on a page without Leaf. A press does nothing until
-the target's module has loaded, as with any control a module wires. A button in a
-shadow tree can't send a request to a target outside that tree this way, since the
-target sees the shadow's host as `event.source`, so a module drawing there sends from
+the target's module has loaded, as with any control a module wires. In a shadow tree,
+`commandfor` finds no target outside that tree, so a module drawing there sends from
 its button's click listener as above, with `document.getElementById` off Leaf.
 
 ## User state

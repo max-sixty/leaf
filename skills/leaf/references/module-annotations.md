@@ -361,17 +361,18 @@ leaves the widget's outlets under `node` with the user still writing in it. If
 `threadOutlets` throws, Leaf returns the widget's threads to the margin until the next
 pass.
 
-`threadSurface(this).open` is the reactive opener for the comment box on the widget or
-one of its data items, or `null` while no surface is registered, as in an export, which
-holds no thread and can send none. Read it while rendering and offer comment controls
-only when it exists; call it with the datum, or with the widget itself, to open the box
-in the outlet `threadOutlets` returns for it. Leaf keeps the draft and the sending.
-Registration can follow the widget's first drawing, and departure retires the opener
-until the widget returns.
+`threadSurface(element).open` is the reactive opener for the comment box on the widget
+or one of its data items, or `null` while no surface is registered, as in an export,
+which holds no thread and can send none. A component reads it in `options.inputs`, which
+follows its registration, and offers comment controls only while it exists; call it with
+the datum, or with the widget itself, to open the box in the outlet `threadOutlets`
+returns for it. Leaf keeps the draft and the sending. Registration can follow the
+widget's first drawing, and departure retires the opener until the widget returns.
 
 The comment box standing in an outlet the widget returns for itself can offer a second
-send. Set the outlet's `lfHold` to its words, such as `"Send & pause"`, as a component's
-view sets it on an outlet it draws with `.prop("lfHold", …)`, and the box
+send. Set the outlet's `lfHold` to its words, such as `"Send & pause"` (`declare` sets
+it where the widget's own element is the outlet, and the view's `.prop("lfHold", …)` on
+an outlet it draws), and the box
 shows a button under those words beside Send, which Tab reaches after Send. Its comment
 carries `holds`, naming the widget, so the widget is held while that thread is open,
 and resolving the thread releases it.

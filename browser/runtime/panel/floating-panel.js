@@ -874,20 +874,25 @@ export function createFloatingPanel({
               ${
                 initial || !top
                   ? nothing
-                  : keyedBy(
-                      opening,
-                      html`<div
-                        class="lf-fp-view"
-                        tabindex="-1"
-                        data-lf-route=${top.view}
-                        data-lf-thread=${threadOf(top)?.id ?? nothing}
-                        ?data-lf-thread-view=${threadOf(top) !== null}
-                        ?data-lf-rises=${Boolean(top.thread)}
-                        ${ref(declareView)}
-                        style=${opening.room !== null ? `height: ${opening.room}px` : nothing}
-                      >
-                        ${viewOf(top).draw(top)}
-                      </div>`,
+                  : // A one-item `repeat` keyed by the opening, not `keyed`: Lit's
+                    // `keyed` drops the old view without releasing its `ref`, so the
+                    // stage's part kept every view it ever drew.
+                    repeat(
+                      [top],
+                      () => opening,
+                      (route) =>
+                        html`<div
+                          class="lf-fp-view"
+                          tabindex="-1"
+                          data-lf-route=${route.view}
+                          data-lf-thread=${threadOf(route)?.id ?? nothing}
+                          ?data-lf-thread-view=${threadOf(route) !== null}
+                          ?data-lf-rises=${Boolean(route.thread)}
+                          ${ref(declareView)}
+                          style=${opening.room !== null ? `height: ${opening.room}px` : nothing}
+                        >
+                          ${viewOf(route).draw(route)}
+                        </div>`,
                     )
               }
             </div>

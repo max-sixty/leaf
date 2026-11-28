@@ -28,6 +28,7 @@ from render_harness import (
     resized,
     scroll_settled,
     shown,
+    spine_sidebar,
     told,
 )
 
@@ -171,6 +172,7 @@ def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve)
 <div style="height: 700px"></div>
 <section><h2 id="verify">Verify</h2><p>Compare the totals.</p></section></div>
 """,
+                head=spine_sidebar(),
                 layout="sidebar",
             )
         ),

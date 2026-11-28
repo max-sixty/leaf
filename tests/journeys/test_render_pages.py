@@ -439,7 +439,7 @@ def test_available_space_is_a_generic_package_capacity(browser, serve):
     """An available surface with no sidebar receives the page room even when it is
     ordinary compound markup. Diagram's source-sized layout must not be the mechanism
     that grants the shared capacity. An ordinary prose-adjacent sidebar then withholds
-    its whole side, unlike the contents spine that declares its shell-edge occupancy."""
+    its whole side."""
     entry = {
         "description": "A project package's compound review surface.",
         "attributes": {

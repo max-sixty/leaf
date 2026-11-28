@@ -42,12 +42,19 @@ const tell = (story) =>
   }).pipe(Effect.scoped, Effect.runSync);
 
 test("a set opens on the tab Leaf names, before the user chooses one", () =>
-  tell((s) => assert.deepEqual(s.model, { active: null, via: null, step: 0, travels: false })));
+  tell((s) =>
+    assert.deepEqual(s.model, { active: null, via: null, step: 0, travels: false }),
+  ));
 
 test("a press opens its tab, and says it was the pointer's", () =>
   tell((s) => {
     s.send({ _tag: "Chose", id: "plan", pointer: true });
-    assert.deepEqual(s.model, { active: "plan", via: "pointer", step: 1, travels: true });
+    assert.deepEqual(s.model, {
+      active: "plan",
+      via: "pointer",
+      step: 1,
+      travels: true,
+    });
   }));
 
 test("the line travels from a neighbour until the strip settles, and jumps past one", () =>
@@ -57,7 +64,12 @@ test("the line travels from a neighbour until the strip settles, and jumps past 
     s.send({ _tag: "Settled" });
     assert.equal(s.model.travels, false);
     s.send({ _tag: "Chose", id: "plan", pointer: true });
-    assert.deepEqual(s.model, { active: "plan", via: "pointer", step: 2, travels: false });
+    assert.deepEqual(s.model, {
+      active: "plan",
+      via: "pointer",
+      step: 2,
+      travels: false,
+    });
   }));
 
 test("a key opens its tab, and the open tab pressed again is a step of its own", () =>
@@ -78,5 +90,10 @@ test("a panel the browser reveals opens its tab, and the open one changes nothin
     s.send({ _tag: "Revealed", id: "risks" });
     assert.deepEqual(s.model, { active: null, via: null, step: 0, travels: false });
     s.send({ _tag: "Revealed", id: "plan" });
-    assert.deepEqual(s.model, { active: "plan", via: "reveal", step: 1, travels: false });
+    assert.deepEqual(s.model, {
+      active: "plan",
+      via: "reveal",
+      step: 1,
+      travels: false,
+    });
   }));

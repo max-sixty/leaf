@@ -172,11 +172,13 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     }""")
     assert clearance["ringBottom"] <= clearance["answerTop"], clearance
 
-    moved = page.locator("#queue").evaluate(
+    # Out of the page past a turn of Leaf's observers, the set closes its view, and
+    # back in it draws the answer row again from the obligation (effect-widget.ts,
+    # "Lifecycle").
+    page.locator("#queue").evaluate(
         """async queue => {
           const parent = queue.parentElement;
           const next = queue.nextSibling;
-          const firstTab = queue.shadowRoot.querySelector('.lf-tab-btn');
           await new Promise(resolve => {
             const observer = new MutationObserver(() => {
               observer.disconnect(); resolve();
@@ -185,10 +187,8 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
             queue.remove();
           });
           parent.insertBefore(queue, next);
-          return firstTab === queue.shadowRoot.querySelector('.lf-tab-btn');
         }"""
     )
-    assert moved, "moving the tab set replaced its retained answer row"
     expect(answer).to_have_text("Fix")
     expect(tabs.first).to_have_accessible_description("Answered")
 

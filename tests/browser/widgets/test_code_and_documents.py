@@ -439,7 +439,8 @@ def test_document_readings_share_one_height_keep_their_scroll_and_fit_their_text
       };
       const owner = document.querySelector('#document');
       return [box(owner), box(owner.querySelector('figcaption')),
-              box(owner.querySelector('[role="tablist"]')),
+              box(owner.querySelector('lf-tabs').shadowRoot
+                .querySelector('[role="tablist"]')),
               box(document.querySelector('#following')), scrollY];
     }"""
     before = page.evaluate(geometry)
@@ -642,7 +643,8 @@ def test_a_document_in_a_tab_set_keeps_its_strip_under_its_caption(
             resized(page, width, 844)
             read = document.evaluate("""el => {
               const caption = el.querySelector('figcaption').getBoundingClientRect();
-              const strip = el.querySelector('.lf-tabstrip').getBoundingClientRect();
+              const strip = el.querySelector('lf-tabs').shadowRoot
+                .querySelector('.lf-tabstrip').getBoundingClientRect();
               const panel = el.querySelector('[role=tabpanel]:not([hidden])');
               const top = panel.getBoundingClientRect();
               const hit = document.elementFromPoint(top.left + 24, top.top + 2);

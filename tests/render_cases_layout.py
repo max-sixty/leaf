@@ -1345,10 +1345,16 @@ UNDER_EMPTY_BOXES = r"""(el) => {
         parseFloat(s[`border${side}Width`]) > 0 && s[`border${side}Style`] !== 'none'
         && seen(s[`border${side}Color`]));
   };
+  // Axe stacks a panel a widget shows through its slot over words beside it that the
+  // panel's box never reaches, so a box counts only where it meets the words.
+  const meets = (box) => {
+    const [a, b] = [el, box].map((node) => node.getBoundingClientRect());
+    return a.left < b.right && b.left < a.right && a.top < b.bottom && b.top < a.bottom;
+  };
   axe.setup();
   try {
     const over = axe.commons.dom.getTextElementStack(el).flatMap((stack) =>
-      stack.slice(0, stack.indexOf(el)).filter((box) => !box.contains(el)));
+      stack.slice(0, stack.indexOf(el)).filter((box) => !box.contains(el) && meets(box)));
     return over.length > 0 && !over.some(paints);
   } finally {
     axe.teardown();

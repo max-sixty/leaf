@@ -511,16 +511,18 @@ class StripWork {
         "data-lf-scroll",
         this.host.getAttribute("list") === "side" ? "panel" : "",
       );
-      panel.setAttribute("role", "tabpanel");
+      keeps(panel, "role", "tabpanel");
       keeps(panel, "aria-label", panel.getAttribute("label"));
       // The browser found something inside (find-in-page, an anchor jump), or
       // Leaf is about to scroll a comment anchor into view: open up.
       panel.addEventListener("beforematch", this.#revealed);
     }
     keeps(strip, "data-lf-scroll", "");
-    this.host.classList.add("lf-rendered"); // the upgraded marker every widget uses
-    // The set rings its open panel (surfaces.css, `.lf-ring-frame`).
-    this.host.classList.add("lf-ring-frame");
+    // The upgraded marker every widget uses, and the ring the set draws round its open
+    // panel (surfaces.css, `.lf-ring-frame`). A set mounted again, as on its return to
+    // the page, already wears them, and an unchanged write would tell Leaf it changed.
+    for (const mark of ["lf-rendered", "lf-ring-frame"])
+      if (!this.host.classList.contains(mark)) this.host.classList.add(mark);
     this.#size = sizeObserver(this.#positionStrip);
     this.#size.observe(strip);
     strip.addEventListener("scroll", this.#stopSelectionMotion);
@@ -885,7 +887,14 @@ const Strip = Mount.makeStream(
           Queue.offerUnsafe(queue, message),
         );
         yield* Effect.addFinalizer(() => Effect.sync(() => work.close()));
-        // The first args are the set's opening, which Leaf shows as a switch's panel.
+        // The first args are the set's opening, which Leaf shows as a switch's panel
+        // in the mount itself, so a module that builds a set reads its open panel as
+        // soon as it appends it, as lf-text-document.js measures its preview.
+        const opening = work.update(args);
+        if (opening) {
+          yield* keepView({ member: opening });
+          work.landed();
+        }
         yield* Effect.forkScoped(
           Stream.runForEach(changes, (next) =>
             Effect.gen(function* () {

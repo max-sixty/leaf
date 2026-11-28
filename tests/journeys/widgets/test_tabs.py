@@ -434,7 +434,7 @@ def test_a_strip_marks_its_open_tab_by_the_way_it_runs(browser, serve):
         ruleInk: foot.backgroundColor === name.color,
         lastRow: rows.at(-1), rows: rows.length,
         ground: getComputedStyle(strip).backgroundColor,
-        frame: getComputedStyle(strip.parentElement).backgroundColor,
+        frame: getComputedStyle(strip.getRootNode().host).backgroundColor,
         height: strip.getBoundingClientRect().height,
         reserved: parseFloat(getComputedStyle(strip).minBlockSize)};
     }"""
@@ -447,8 +447,9 @@ def test_a_strip_marks_its_open_tab_by_the_way_it_runs(browser, serve):
         assert column["rule"] == 0 and column["nameRule"] == 0, column
         resized(page, 390, 800)
         page.wait_for_function(
-            "s => getComputedStyle(document.querySelector(s)).flexDirection === 'row'",
-            arg=f"{strip} .lf-tabstrip",
+            "s => getComputedStyle(document.querySelector(s).shadowRoot"
+            ".querySelector('.lf-tabstrip')).flexDirection === 'row'",
+            arg=strip,
         )
         row = page.locator(f"{strip} .lf-tabstrip").evaluate(mark)
         assert not row["filled"] and not row["contoured"], row

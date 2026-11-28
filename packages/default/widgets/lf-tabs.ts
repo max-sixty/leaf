@@ -325,62 +325,66 @@ export const Tabs = Html.component({
       const { answered, answer, summarized, description } = tabWords(panel, props);
       const selected = panel.id === active;
       const mark = h.span.class("lf-tab-mark").attr("aria-hidden", "true");
-      return h.span
-        .key(panel.id)
-        .attrs(selectableAttributes("tab", "lf-tab-btn"))
-        // Its key in the set's shadow tree, by which Leaf returns focus to it, as Back
-        // does to the tab the user stood on (records/carry.js).
-        .attr("data-lf-carry", `tab-${panel.id}`)
-        .attr("part", selected ? "tab selected" : "tab")
-        .attr("aria-label", panel.face === null ? undefined : panel.label)
-        .attr("aria-selected", String(selected))
-        .attr("aria-description", description || undefined)
-        .attr("tabindex", selected ? "0" : "-1")
-        .prop("ariaControlsElements", [panel.panel])
-        // A click no pointer made is a key's: Enter, Space, or the walk's own press.
-        .on("click", (press: { readonly pointerType: string }) =>
-          TabsMessage.Chose({ id: panel.id, pointer: press.pointerType !== "" }),
-        )
-        .children(
-          h.span
-            .class("lf-tab-name")
-            .attr("part", "name")
-            .attr("data-lf-gen", "1")
-            .attr("data-lf-said", "")
-            .children(
-              panel.face === null
-                ? panel.label
-                : h.span.class("lf-tab-face").onMount(ShowFace({ markup: panel.face })),
-              down ? null : mark,
-            ),
-          summarized
-            ? h.span
-                .class("lf-tab-summary")
-                .attr("data-lf-gen", "1")
-                .attr("data-lf-said", "")
-                .children(panel.summary)
-            : null,
-          panel.asks
-            ? h.span
-                .class("lf-tab-answer")
-                .attr(
-                  "data-lf-obligations",
-                  answered ? "answered" : answer ? "open" : undefined,
-                )
-                .children(h.span.class("lf-tab-answer-words").children(answer))
-            : null,
-          h.span
-            .class("lf-tabdiff lf-chip lf-change-count")
-            .children(panel.changed ? `Δ${panel.changed}` : ""),
-          panel.asks
-            ? h.span
-                .class("lf-tab-on-me")
-                .attr("aria-hidden", "true")
-                .attr("data-lf-waiting", panel.onUser > 0 ? "" : undefined)
-                .onMount(ShowIcon({ icon: actionIcon("on-me"), name: "" }))
-            : null,
-          down ? mark : null,
-        );
+      return (
+        h.span
+          .key(panel.id)
+          .attrs(selectableAttributes("tab", "lf-tab-btn"))
+          // Its key in the set's shadow tree, by which Leaf returns focus to it, as Back
+          // does to the tab the user stood on (records/carry.js).
+          .attr("data-lf-carry", `tab-${panel.id}`)
+          .attr("part", selected ? "tab selected" : "tab")
+          .attr("aria-label", panel.face === null ? undefined : panel.label)
+          .attr("aria-selected", String(selected))
+          .attr("aria-description", description || undefined)
+          .attr("tabindex", selected ? "0" : "-1")
+          .prop("ariaControlsElements", [panel.panel])
+          // A click no pointer made is a key's: Enter, Space, or the walk's own press.
+          .on("click", (press: { readonly pointerType: string }) =>
+            TabsMessage.Chose({ id: panel.id, pointer: press.pointerType !== "" }),
+          )
+          .children(
+            h.span
+              .class("lf-tab-name")
+              .attr("part", "name")
+              .attr("data-lf-gen", "1")
+              .attr("data-lf-said", "")
+              .children(
+                panel.face === null
+                  ? panel.label
+                  : h.span
+                      .class("lf-tab-face")
+                      .onMount(ShowFace({ markup: panel.face })),
+                down ? null : mark,
+              ),
+            summarized
+              ? h.span
+                  .class("lf-tab-summary")
+                  .attr("data-lf-gen", "1")
+                  .attr("data-lf-said", "")
+                  .children(panel.summary)
+              : null,
+            panel.asks
+              ? h.span
+                  .class("lf-tab-answer")
+                  .attr(
+                    "data-lf-obligations",
+                    answered ? "answered" : answer ? "open" : undefined,
+                  )
+                  .children(h.span.class("lf-tab-answer-words").children(answer))
+              : null,
+            h.span
+              .class("lf-tabdiff lf-chip lf-change-count")
+              .children(panel.changed ? `Δ${panel.changed}` : ""),
+            panel.asks
+              ? h.span
+                  .class("lf-tab-on-me")
+                  .attr("aria-hidden", "true")
+                  .attr("data-lf-waiting", panel.onUser > 0 ? "" : undefined)
+                  .onMount(ShowIcon({ icon: actionIcon("on-me"), name: "" }))
+              : null,
+            down ? mark : null,
+          )
+      );
     };
     // A press at one edge of the strip, which pages the names that run past it (the
     // package theme shows it only while there is more that way). It takes no tab stop:
@@ -524,16 +528,18 @@ class StripWork {
         "data-lf-scroll",
         this.host.getAttribute("list") === "side" ? "panel" : "",
       );
-      panel.setAttribute("role", "tabpanel");
+      keeps(panel, "role", "tabpanel");
       keeps(panel, "aria-label", panel.getAttribute("label"));
       // The browser found something inside (find-in-page, an anchor jump), or
       // Leaf is about to scroll a comment anchor into view: open up.
       panel.addEventListener("beforematch", this.#revealed);
     }
     keeps(strip, "data-lf-scroll", "");
-    this.host.classList.add("lf-rendered"); // the upgraded marker every widget uses
-    // The set rings its open panel (surfaces.css, `.lf-ring-frame`).
-    this.host.classList.add("lf-ring-frame");
+    // The upgraded marker every widget uses, and the ring the set draws round its open
+    // panel (surfaces.css, `.lf-ring-frame`). A set mounted again, as on its return to
+    // the page, already wears them, and an unchanged write would tell Leaf it changed.
+    for (const mark of ["lf-rendered", "lf-ring-frame"])
+      if (!this.host.classList.contains(mark)) this.host.classList.add(mark);
     this.#size = sizeObserver(this.#positionStrip);
     this.#size.observe(strip);
     strip.addEventListener("scroll", this.#stopSelectionMotion);
@@ -899,7 +905,14 @@ const Strip = Mount.makeStream(
           Queue.offerUnsafe(queue, message),
         );
         yield* Effect.addFinalizer(() => Effect.sync(() => work.close()));
-        // The first args are the set's opening, which Leaf shows as a switch's panel.
+        // The first args are the set's opening, which Leaf shows as a switch's panel
+        // in the mount itself, so a module that builds a set reads its open panel as
+        // soon as it appends it, as lf-text-document.js measures its preview.
+        const opening = work.update(args);
+        if (opening) {
+          yield* keepView({ member: opening });
+          work.landed();
+        }
         yield* Effect.forkScoped(
           Stream.runForEach(changes, (next: StripArgs) =>
             Effect.gen(function* () {

@@ -1193,7 +1193,7 @@ def test_a_quoted_widget_exhibits_without_taking_input(browser, serve):
                 "widget": "quoted-suggestion",
                 "action": "decide",
                 "detail": {"outcome": "accept"},
-                "facts": {"answered": True},
+                "answered": True,
             },
         )
     assert refused_on(refused.value).code == "quoted-widget"
@@ -1833,7 +1833,7 @@ def test_a_nested_obligations_pick_is_not_part_of_its_outers_record(browser, ser
             "widget": "outer",
             "action": "choose",
             "detail": {"value": ["out-drill"]},
-            "facts": {"answered": False},
+            "answered": False,
         },
     )
 
@@ -2341,11 +2341,7 @@ def test_multiple_done_can_be_taken_back_after_an_empty_answer(browser, serve):
     expect_obligations_answered(page, "0/3")
     events = events_model.read_events(serve.page_dir)
     answers = [event for event in events if event.get("action") == "answer"]
-    # Done names the set it answered: every option the group showed, none picked.
-    assert len(answers) == 1 and answers[0]["detail"] == {
-        "options": ["job-camera", "job-heater", "job-mounts"],
-        "picked": [],
-    }
+    assert len(answers) == 1 and answers[0]["detail"] == {}
     assert [event["undoes"] for event in events if event["kind"] == "undo"] == [
         answers[0]["id"]
     ]
@@ -2505,14 +2501,15 @@ def test_an_answer_carrying_an_older_pick_cannot_undo_a_newer_one(browser, serve
     assert len(sent_behind) == 1
     page.locator("#job-heater").click()
     round_trip(page)
+    # A pick records a set (an `attribute` record), whose order the page keeps none of.
     assert [
-        e["detail"]["value"]
+        set(e["detail"]["value"])
         for e in events_model.read_events(d)
         if e.get("widget") == "jobs"
     ] == [
-        ["job-mounts"],
-        ["job-mounts", "job-camera"],
-        ["job-mounts", "job-camera", "job-heater"],
+        {"job-mounts"},
+        {"job-mounts", "job-camera"},
+        {"job-mounts", "job-camera", "job-heater"},
     ]
 
 

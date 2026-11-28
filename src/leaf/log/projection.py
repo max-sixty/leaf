@@ -12,7 +12,6 @@ from leaf.log.events import (
     event_coordinate,
     report_settlements,
     retractions,
-    taken_back,
     thread_structure,
 )
 from leaf.log.thread_context import thread_names, thread_widgets
@@ -146,10 +145,11 @@ class StateProjection:
     read on first use, since only a move made on an earlier revision asks for that
     revision's document (`absorption`).
 
-    `in_force` holds every action that survives, neither taken back nor retracted;
-    `actions` is the newest of them at each coordinate. A browser withdrawing the one
-    on top locally falls back to the next of these rather than judging survival
-    again.
+    `in_force` holds every action that survives, neither taken back nor taken out by
+    a version, by id, each as it stands (`events.InForce`): where a version rewrote a
+    member of a set it records, the set without that member. `actions` is the newest
+    of them at each coordinate. A browser withdrawing the one on top locally falls
+    back to the next of these rather than judging survival again.
 
     A reading that asks about each widget in turn, such as the obligation
     inventory, reads that widget's coordinates through an index built once per
@@ -162,7 +162,7 @@ class StateProjection:
     desired: dict
     report_settlements: dict
     classified: dict
-    in_force: frozenset
+    in_force: dict
     absorption: Callable[[], frozenset] = field(
         default=frozenset, compare=False, repr=False
     )
@@ -252,8 +252,9 @@ class PageReading(NamedTuple):
 class ThreadMarkupReading(NamedTuple):
     """The panel's thread markup and durable state as one document.
 
-    No revision window or retraction floor bounds this projection. The markup
-    lives in the log rather than in a revision, so its actions read the whole
+    No revision window bounds this projection, and no version takes its actions
+    back: a version restates ids of its own, which no message's markup holds. The
+    markup lives in the log rather than in a revision, so its actions read the whole
     thread window.
     """
 
@@ -292,9 +293,7 @@ def state_projection(
     spk: dict,
     registry: dict,
     upto,
-    floors: dict | None = None,
     *,
-    withdrawn: set | None = None,
     revision_orders: Callable[[int], "AuthoredOrders"] | None = None,
 ) -> StateProjection:
     """Project user actions and agent reports onto owner-unit-verb coordinates.
@@ -307,7 +306,8 @@ def state_projection(
     prefixes of the log by the same rule, from `classified` and `in_force`.
 
     Both writers share one classification pass over the window. They end by
-    different facts: undo or a retraction floor ends an action, while a note
+    different facts: an undo or a note through `upto` restating what it rests on
+    ends an action, each where it falls in the log (`events.InForce`), while a note
     settling a report ends that report. `report_settlements` retains the answer
     version for gate diagnostics; `classified` retains valid entries for other
     derived readings. Events apply where their admitted operation still matches
@@ -318,21 +318,24 @@ def state_projection(
 
     `revision_orders` reads a revision's `AuthoredOrders`, which `absorbed` compares
     with this document's for each page move made on an earlier revision."""
-    if floors is None:
-        floors = retractions(events, upto)
-    if withdrawn is None:
-        withdrawn = taken_back(events)
     settled = report_settlements(events, upto)
     reports = {}
     settlement_versions = {}
     classified = {}
     # Where each id sits is all the retraction test asks of a page, taken once for
     # the walk rather than per event; `InForce` decides each coordinate's winner.
-    in_force = InForce(enclosing_of(spk), floors, withdrawn)
+    in_force = InForce(enclosing_of(spk))
     specs = {}
     # Each widget verb's current definition, read once for every event that names it.
     definitions = {}
     for event in events:
+        if event["kind"] == "undo":
+            in_force.withdraw(event["undoes"])
+            continue
+        if event["kind"] == "note":
+            if upto is None or event["revision"] <= upto:
+                in_force.restate(event)
+            continue
         if event["kind"] not in verb_writers():
             continue
         if upto is not None and event["revision"] > upto:
@@ -374,8 +377,8 @@ def state_projection(
         entry = (event, spec)
         classified[event["id"]] = (coordinate, entry)
         if event["kind"] == "action":
-            if in_force.admit(event):
-                specs[event["id"]] = spec
+            specs[event["id"]] = spec
+            in_force.admit(event)
         elif settled_at := settled.get(event["id"]):
             settlement_versions[coordinate] = max(
                 settlement_versions.get(coordinate, 0), settled_at
@@ -430,7 +433,7 @@ def state_projection(
         desired,
         settlement_versions,
         classified,
-        in_force.ids(),
+        in_force.standing(),
         absorption,
     )
 
@@ -449,13 +452,11 @@ def with_action(
         projection,
         actions={**projection.actions, coordinate: entry},
         desired={**projection.desired, coordinate: entry},
-        in_force=projection.in_force | {event["id"]},
+        in_force={**projection.in_force, event["id"]: event},
     )
 
 
-def thread_markup_reading(
-    events: list, registry: dict, *, withdrawn: set | None = None
-) -> ThreadMarkupReading:
+def thread_markup_reading(events: list, registry: dict) -> ThreadMarkupReading:
     """Project every message fragment through one shared reading."""
     structure = thread_structure(events)
     by_name = thread_names(events)
@@ -468,9 +469,7 @@ def thread_markup_reading(
         spk,
         by_name,
         by_widget,
-        state_projection(
-            events, structure.by_id, spk, registry, None, floors={}, withdrawn=withdrawn
-        ),
+        state_projection(events, structure.by_id, spk, registry, None),
     )
 
 
@@ -822,7 +821,6 @@ def page_reading(
     events: list,
     revision: int,
     *,
-    withdrawn: set | None = None,
     revisions: Iterable[int] = (),
     revision_reader: Callable[[int], SourceReading] | None = None,
 ) -> PageReading:
@@ -846,7 +844,6 @@ def page_reading(
             reading.spoken,
             reading.registry,
             revision,
-            withdrawn=withdrawn,
             revision_orders=(
                 lambda made_on: AuthoredOrders.read(revision_reader(made_on))
             )

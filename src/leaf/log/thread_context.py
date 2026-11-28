@@ -5,12 +5,10 @@ from collections.abc import Callable
 from leaf.log.events import (
     InForce,
     ThreadStructure,
-    action_retracted,
     active_summaries,
     build_threads,
     conversation_turns,
     event_coordinate,
-    retractions,
     spoken_turns,
     taken_back,
     thread_structure,
@@ -51,7 +49,7 @@ def sample_events(
     )
     # A coordinate a selected thread's action stands at is copied whole, so the
     # child folds the same winner there: an action that changed no thread, such as
-    # the one a retracted answer had superseded, still decides the widget.
+    # one replacing a decision that answered nothing, still decides the widget.
     coordinates = {
         event_coordinate(event)
         for event in events
@@ -59,15 +57,27 @@ def sample_events(
     }
     # The child has one revision, this document, so every copied event is made on
     # it. A version's retractions are applied here rather than copied: what a later
-    # version retracted stays behind, with the notes that retracted it and anything
-    # undoing it, and the rest stands in the child as it stands in the log.
-    floors = retractions(events)
-    copied = set()
+    # version took out of force stays behind, with the notes that took it and anything
+    # undoing it, and the rest stands in the child as it stands in the log: a pick a
+    # version took an option out of is copied without it (`InForce`). An action the
+    # user took back while it stood is copied with its undo.
+    walk = InForce(within)
+    undone = set()
+    for event in events:
+        if event["kind"] == "action":
+            walk.admit(event)
+        elif event["kind"] == "undo":
+            if event["undoes"] in walk:
+                undone.add(event["undoes"])
+            walk.withdraw(event["undoes"])
+        elif event["kind"] == "note":
+            walk.restate(event)
+    standing = walk.standing()
+    kept = standing.keys() | undone
+    copied = {}
     for event in events:
         kind = event["kind"]
-        if kind == "note" or (
-            kind == "action" and action_retracted(event, floors, within)
-        ):
+        if kind == "note" or (kind == "action" and event["id"] not in kept):
             continue
         if (
             event["undoes"] in copied
@@ -75,7 +85,7 @@ def sample_events(
             else selected.intersection(memberships[event["id"]])
             or (kind == "action" and event_coordinate(event) in coordinates)
         ):
-            copied.add(event["id"])
+            copied[event["id"]] = standing.get(event["id"], event)
     return [
         {
             **{
@@ -85,8 +95,7 @@ def sample_events(
             },
             **({"revision": 1} if "revision" in event else {}),
         }
-        for event in events
-        if event["id"] in copied
+        for event in copied.values()
     ]
 
 
@@ -239,8 +248,8 @@ def thread_memberships(
     all: an action, undo, or version note that changes which action wins a
     coordinate (`InForce`) changes the threads the winner before and after it
     answer. A later action supersedes the answer there, its undo restores it, and a
-    note retracting an answer's superseder closes that answer's thread again. An
-    undo also inherits the membership of the gesture it takes back.
+    note restating what the answer rests on reopens the answer's thread. An undo also
+    inherits the membership of the gesture it takes back.
 
     This is the shared join for wait delivery, sampled thread closures, and the
     browser state, which serves it so the browser files an unsent undo or action

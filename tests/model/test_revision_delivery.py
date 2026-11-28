@@ -875,7 +875,6 @@ def test_source_fallback_marks_derive_from_open_registry_content_declarations():
         "lf-new-source": {
             "content": "data",
             "awaits": {"value": "choose"},
-            "facts": {"answered": {"type": "boolean"}},
         },
         "lf-literal": {
             "content": "data",

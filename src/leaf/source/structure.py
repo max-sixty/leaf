@@ -550,8 +550,8 @@ class SourceDocument:
 
     @property
     def restated(self) -> set:
-        """Ids this version declares it has rewritten, retracting whatever the
-        user had recorded on them."""
+        """Ids this version declares it has rewritten, which the user's decisions
+        resting on them lose (`events.md`, "Widget answers")."""
         return {
             rec["attrs"]["id"]
             for rec in self.lf_elements

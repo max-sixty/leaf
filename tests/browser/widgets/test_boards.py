@@ -890,7 +890,8 @@ ANSWERS_BOARD_PAGE = leaf_page(
 def test_a_section_and_a_board_answer_one_decision(browser, serve):
     """The card shows the section's answer and changes it through the section's own
     command, so a pick and a drop are one fact at one coordinate, and both views follow
-    its undo, its refusal and a version's retraction."""
+    its undo, its refusal and a version that rewrites the picked option, which takes
+    the pick back and leaves the card undecided."""
     page = open_page(browser, live_url(serve(ANSWERS_BOARD_PAGE)))
     grip = page.locator("#card-rail .lf-grip")
 
@@ -935,13 +936,13 @@ def test_a_section_and_a_board_answer_one_decision(browser, serve):
 
     (serve.page_dir / "index.html").write_text(
         ANSWERS_BOARD_PAGE.replace(
-            '<lf-options id="rail">',
-            '<lf-options id="rail" restated>',
+            '<lf-option id="rail-next" value="next">',
+            '<lf-option id="rail-next" value="next" restated>',
         )
     )
     assert stamp(serve.page_dir, "Ask again").exit_code == 0
     told(page)
-    stands("col-later", "rail-later")
+    stands("col-open", None)
 
     def refuse(route):
         attempt = route.request.post_data_json["attempt"]
@@ -950,8 +951,8 @@ def test_a_section_and_a_board_answer_one_decision(browser, serve):
 
     page.route("**/api/event", refuse)
     with page.expect_response(lambda response: "/api/event" in response.url):
-        drop("ArrowLeft")
-    stands("col-later", "rail-later")
+        drop("ArrowRight")
+    stands("col-open", None)
     page.unroute("**/api/event")
     consume_browser_errors(page, http_error_console(400))
     assert len(picks()) == 2

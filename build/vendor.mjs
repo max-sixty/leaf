@@ -191,17 +191,26 @@ const bundles = {
     // Record block syntax where native rules consume it. Public maps expose only
     // lines; guessing delimiters again disagrees with containers and code content.
     // A list item also records the columns its later lines stand past its
-    // container's, where the item's own blocks start.
+    // container's, where the item's own blocks start. A table's row records the
+    // source of each cell its split found, between the `|`s, surplus cells included,
+    // and the table its columns' alignments.
     adapt: [
       {
         file: /markdown-it\/dist\/markdown-it\.mjs$/,
         edit: (source) =>
-          [
+          /** @type {[string, string, number?][]} */ ([
             [
               "var StateBlock = class {",
               `function sourceSpan(state, line, from, to) {
                 const start = state.src.lastIndexOf("\\n", from - 1) + 1;
                 return [line, from - start, to - start];
+              }
+              function rowSpans(state, line, spans) {
+                const from = state.bMarks[line] + state.tShift[line];
+                const text = state.src.slice(from, state.eMarks[line]);
+                const [, a] = sourceSpan(state, line, from, from);
+                const at = a + text.length - text.trimStart().length;
+                return spans.map(([b, c]) => [line, at + b, at + c]);
               }
               var StateBlock = class {`,
             ],
@@ -231,13 +240,47 @@ const bundles = {
               'token_o.lfSource = { markers }; token_o.markup = ">";',
             ],
             [
+              "function escapedSplit(str) {\n\tconst result = [];",
+              "function escapedSplit(str) {\n\tconst result = [];\n\tconst spans = [];\n\tlet cellStart = 0;",
+            ],
+            [
+              "result.push(current + str.substring(lastPos, pos));",
+              "result.push(current + str.substring(lastPos, pos));\n\t\t\t\tspans.push([cellStart, pos]);\n\t\t\t\tcellStart = pos + 1;",
+            ],
+            [
+              "result.push(current + str.substring(lastPos));",
+              "result.push(current + str.substring(lastPos));\n\tspans.push([cellStart, max]);\n\tresult.spans = spans;",
+            ],
+            [
+              'if (columns.length && columns[0] === "") columns.shift();',
+              'if (columns.length && columns[0] === "") { columns.shift(); columns.spans.shift(); }',
+              2,
+            ],
+            [
+              'if (columns.length && columns[columns.length - 1] === "") columns.pop();',
+              'if (columns.length && columns[columns.length - 1] === "") { columns.pop(); columns.spans.pop(); }',
+              2,
+            ],
+            [
+              "token_to.map = tableLines;",
+              "token_to.map = tableLines;\n\ttoken_to.lfSource = { aligns };",
+            ],
+            [
+              "token_htro.map = [startLine, startLine + 1];",
+              "token_htro.map = [startLine, startLine + 1];\n\ttoken_htro.lfSource = { markers: rowSpans(state, startLine, columns.spans) };",
+            ],
+            [
+              "token_tro.map = [nextLine, nextLine + 1];",
+              "token_tro.map = [nextLine, nextLine + 1];\n\t\ttoken_tro.lfSource = { markers: rowSpans(state, nextLine, columns.spans) };",
+            ],
+            [
               'token = state.push("list_item_open", "li", 1);',
               `token = state.push("list_item_open", "li", 1);
           token.lfSource = { markers: [sourceSpan(state, nextLine, state.bMarks[nextLine] + state.tShift[nextLine], Math.min(posAfterMarker + 1, contentStart))], indent: indent - state.blkIndent };`,
             ],
-          ].reduce(
-            (text, [original, replacement]) =>
-              seam(text, original, replacement, "Markdown block source"),
+          ]).reduce(
+            (text, [original, replacement, count]) =>
+              seam(text, original, replacement, "Markdown block source", count),
             source,
           ),
       },

@@ -58,6 +58,7 @@ export type TokenSource = {
   url?: string | null;
   beforeJoin?: TokenSnapshot[];
   beforeLinks?: BeforeLink[];
+  aligns?: string[];
 };
 
 const escapeHtml = (text: string) =>
@@ -307,6 +308,9 @@ export type BlockPlacement = {
   heading_open: { markers: [number, number][] };
   fence: { markers: [number, number][] };
   blockquote_open: { markers: [number, number][] };
+  // Each cell's source between its `|`s, as the row's split found it, cells past the
+  // head's count included.
+  tr_open: { markers: [number, number][] };
   list_item_open: {
     markers: [[number, number], ...[number, number][]];
     token: NativeToken & { lfSource: TokenSource & { indent: number } };

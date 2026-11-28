@@ -1453,9 +1453,9 @@ pick on the page:
         The user already sees the action applied.
     - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["scope"], "properties": {"scope": {"const": "thread"}}}}}}
       text: >-
-        If you need clarification, ask in a thread on the picked option. To override
-        the pick in a later version, mark the element `restated` and say why in
-        the version note.
+        If you need clarification, ask in a thread on the picked option. To take
+        the pick back in a later version, mark the picked option `restated` and
+        say why in the version note.
     - text: >-
         It answers the page's obligation, which waits on you until the markup records
         the answer. Before starting the work it selects or unblocks, name it with
@@ -1484,9 +1484,9 @@ option the user added:
         it out of the markup.
     - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["scope"], "properties": {"scope": {"const": "thread"}}}}}}
       text: >-
-        If you need clarification, ask in a thread on the picked option. To override
-        the pick in a later version, mark the element `restated` and say why in
-        the version note.
+        If you need clarification, ask in a thread on the picked option. To take
+        the pick back in a later version, mark the picked option `restated` and
+        say why in the version note.
     - when: {"not": {"required": ["answer"]}}
       text: >-
         This action owes no answer of its own.
@@ -1507,9 +1507,9 @@ pick on a page with a held to-do:
         The user already sees the action applied.
     - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["scope"], "properties": {"scope": {"const": "thread"}}}}}}
       text: >-
-        If you need clarification, ask in a thread on the picked option. To override
-        the pick in a later version, mark the element `restated` and say why in
-        the version note.
+        If you need clarification, ask in a thread on the picked option. To take
+        the pick back in a later version, mark the picked option `restated` and
+        say why in the version note.
     - text: >-
         It answers the page's obligation, which waits on you until the markup records
         the answer. Before starting the work it selects or unblocks, name it with
@@ -1541,9 +1541,9 @@ pick before Done:
         Every later version keeps the action without an edit.
     - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["scope"], "properties": {"scope": {"const": "thread"}}}}}}
       text: >-
-        If you need clarification, ask in a thread on the picked option. To override
-        the pick in a later version, mark the element `restated` and say why in
-        the version note.
+        If you need clarification, ask in a thread on the picked option. To take
+        the pick back in a later version, mark the picked option `restated` and
+        say why in the version note.
     - when: {"not": {"required": ["answer"]}}
       text: >-
         This action owes no answer of its own.
@@ -1563,9 +1563,9 @@ pick a thread's open question is about:
         The user already sees the action applied.
     - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["scope"], "properties": {"scope": {"const": "thread"}}}}}}
       text: >-
-        If you need clarification, ask in a thread on the picked option. To override
-        the pick in a later version, mark the element `restated` and say why in
-        the version note.
+        If you need clarification, ask in a thread on the picked option. To take
+        the pick back in a later version, mark the picked option `restated` and
+        say why in the version note.
     - when: {"required": ["waiting"]}
       text: >-
         Your questions in `waiting`, asked in a thread about this widget, still
@@ -1601,9 +1601,9 @@ decided suggestion:
         write the kept branch in as plain prose with its ids and remove the suggestion.
     - when: {"not": {"required": ["meaning"], "properties": {"meaning": {"required": ["scope"], "properties": {"scope": {"const": "thread"}}}}}}
       text: >-
-        If you need clarification, ask in a thread on the picked option. To override
-        the pick in a later version, mark the element `restated` and say why in
-        the version note.
+        If you need clarification, ask in a thread on the picked option. To take
+        the pick back in a later version, mark the picked option `restated` and
+        say why in the version note.
     - text: >-
         It answers the page's obligation, which waits on you until the markup records
         the answer. Before starting the work it selects or unblocks, name it with

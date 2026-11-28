@@ -1036,10 +1036,6 @@ def test_evidence_close_folds_room_but_retires_controls_immediately(
     summary.click()
     assert details.evaluate("d=>d.open")
     assert height() == pytest.approx(full, abs=1)
-    # Each toggle's own reading is taken at once, above. The next toggle waits for
-    # `rendered`: Effect UI writes the Model's `open` back in the frame after a
-    # `toggle` event, which undoes a toggle made before that frame.
-    rendered(page)
     summary.press("Enter")
     assert not details.evaluate("d=>d.open")
     closed = height()
@@ -1052,10 +1048,8 @@ def test_evidence_close_folds_room_but_retires_controls_immediately(
         )
         == "hidden"
     )
-    rendered(page)
     summary.press("Enter")
     assert height() == pytest.approx(full, abs=1)
-    rendered(page)
     page.emulate_media(reduced_motion="reduce")
     summary.click()
     assert not details.evaluate("d=>d.open")
@@ -1066,9 +1060,62 @@ def test_evidence_close_folds_room_but_retires_controls_immediately(
         )
         == "hidden"
     )
-    rendered(page)
     details.evaluate("d => d.open = true")
     assert height() == pytest.approx(full, abs=1)
 
 
-import pytest
+def test_a_second_toggle_before_the_next_frame_holds(browser, serve):
+    """A fold pressed again before the frame after its first press's `toggle` ends
+    where the second press left it; Effect UI's write-back of `open` doesn't undo it."""
+    from render_cases_navigation import call_diff, call_node
+
+    url = serve(
+        leaf_page(
+            "Fold twice",
+            '<lf-call-diff id="evidence" source="change" diff="patch"></lf-call-diff>'
+            '<lf-diff id="patch" source="patch-data" collapsed></lf-diff>',
+        ),
+        packages=("diff",),
+    )
+    page_data_model.cmd_data_set(
+        serve.page_dir,
+        "change",
+        call_diff(call_node("root", children=[call_node("step")])),
+    )
+    page_data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        patch_manifest(
+            "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-old\n+new\n"
+        ),
+    )
+    page = open_page(browser, url)
+    details = page.locator("#evidence details").first
+    expect(details.locator("summary")).to_be_visible()
+    first = details.evaluate("d => d.open")
+    # The second press runs in a frame callback queued before the first `toggle`
+    # reaches the widget, so it runs in the same frame as Effect UI's write-back of
+    # the Model's `open` and just before it. Effect UI hears each `toggle` in a capture
+    # listener on its container and queues that toggle's restore there, so the frame
+    # this listener queues on the second `toggle` runs after that restore.
+    details.evaluate("""d => {
+      const summary = d.querySelector(':scope > summary');
+      let heard = false;
+      d.addEventListener('toggle', () => { heard = true }, {once: true});
+      const again = () => {
+        if (!heard) return requestAnimationFrame(again);
+        d.addEventListener('toggle', event => requestAnimationFrame(() => {
+          window.secondToggle = event.newState;
+        }), {once: true});
+        summary.click();
+      };
+      summary.click();
+      requestAnimationFrame(again);
+    }""")
+    page.wait_for_function("() => window.secondToggle !== undefined")
+    # The second `toggle` reports the press's own change rather than one the
+    # write-back merged away.
+    assert page.evaluate("window.secondToggle") == ("open" if first else "closed")
+    # The Model's render of what it heard has run too, so `open` now stays.
+    rendered(page)
+    assert details.evaluate("d => d.open") == first

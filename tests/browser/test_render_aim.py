@@ -4422,7 +4422,7 @@ def test_quote_attachment_can_hide_while_its_paragraph_remains(browser, serve):
 
 def test_a_withheld_draft_restores_editing_and_deliberate_dismissal(browser, serve):
     page, words = _open_attachment_draft(
-        browser, serve(COMPOSER_ATTACHMENT_PAGE), "#bg-contents a"
+        browser, serve(COMPOSER_ATTACHMENT_PAGE), "#bg-contents a[href='#first']"
     )
     context = 'composer:[["section","bg-contents"]]'
     assert stored_draft_text(page, context) == words
@@ -4457,7 +4457,7 @@ def test_explicit_reopening_keeps_a_css_hidden_subject_draft_reachable(
     browser, serve, reopen
 ):
     page, words = _open_attachment_draft(
-        browser, serve(COMPOSER_ATTACHMENT_PAGE), "#bg-contents a"
+        browser, serve(COMPOSER_ATTACHMENT_PAGE), "#bg-contents a[href='#first']"
     )
     if reopen not in {"withheld", "comment"}:
         page.keyboard.press("Escape")

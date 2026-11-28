@@ -205,7 +205,7 @@ customElements.define('lf-delayed-body', class extends LeafElement {
             "revision": 1,
             # A draft asks, so its act says whether it answers; the asynchronous body
             # asks nothing, and admission refuses the word there.
-            **({} if asynchronous else {"facts": {"answered": True}}),
+            **({} if asynchronous else {"answered": True}),
         },
     )
     assert response.ok, response.text()
@@ -369,7 +369,7 @@ def test_a_reply_widget_replays_and_withdraws_its_action(browser, serve):
             "widget": "rp-live",
             "action": "choose",
             "detail": {"value": ["rp-shim"]},
-            "facts": {"answered": True},
+            "answered": True,
         },
     )
     page = open_page(browser, live_url(url))
@@ -513,7 +513,7 @@ def test_a_refused_thread_choice_replays_recorded_and_recordless_history(
         (event["action"], event["detail"]) for event in actions(serve.page_dir)
     ] == [
         ("choose", {"value": ["tq-logs"]}),
-        ("answer", {"options": ["tq-logs", "tq-metrics"], "picked": ["tq-logs"]}),
+        ("answer", {}),
     ]
     consume_browser_errors(page, http_error_console(400))
 
@@ -553,11 +553,7 @@ def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, ser
         )
 
     expect(page.locator("#tq-logs")).not_to_have_attribute("selected", "")
-    # The refused pick leaves the Done that is still on its way, which no longer
-    # stands on the picks the group shows, so it reads unpressed.
-    set_answer = "set => set.state.answer.action"
-    assert page.locator("#tq-set").evaluate(set_answer) == "answer"
-    expect(done).to_have_attribute("aria-pressed", "false")
+    expect(done).to_have_attribute("aria-pressed", "true")
     second_attempt = held[1].request.post_data_json["attempt"]
     with page.expect_response(lambda response: "/api/event" in response.url):
         held[1].fulfill(
@@ -572,7 +568,6 @@ def test_refusal_restores_queued_recordless_thread_actions_in_order(browser, ser
 
     expect(done).not_to_have_attribute("aria-busy", "true")
     expect(done).to_have_attribute("aria-pressed", "false")
-    assert page.locator("#tq-set").evaluate(set_answer) is None
     assert actions(serve.page_dir) == []
     consume_browser_errors(page, http_error_console(400))
 

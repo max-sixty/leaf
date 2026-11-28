@@ -29,11 +29,13 @@ from model_folds import (
 )
 
 from leaf.log.event_log import EventRefused
+from leaf.log.events import restated_reading
 from leaf.log.projection import (
     AuthoredOrders,
     StateProjection,
     attribute_marks,
     authored_rank,
+    folded_value,
     obligation_value,
 )
 from leaf.source.reading import SourceReading
@@ -106,7 +108,7 @@ BOTH_SIDES = (
         "widget": "ship",
         "action": "choose",
         "detail": {"value": ["ship-now"]},
-        "facts": {"answered": True},
+        "answered": True,
     },
     {
         "kind": "pickup",
@@ -395,7 +397,7 @@ def build() -> dict:
                         "widget": "sug-refill",
                         "action": "decide",
                         "detail": {"outcome": "accept"},
-                        "facts": {"answered": True},
+                        "answered": True,
                     },
                 ),
             ),
@@ -409,7 +411,7 @@ def build() -> dict:
                         "widget": "ship",
                         "action": "choose",
                         "detail": {"value": ["ship-now"]},
-                        "facts": {"answered": True},
+                        "answered": True,
                     },
                     {"kind": "comment", "text": "Rebuild the chart."},
                     {
@@ -498,6 +500,7 @@ def obligation_value_cases():
         initial=None,
         actions=(),
         answered=False,
+        restated=(),
     ):
         spec = {"unit": unit, **({"record": record} if record else {})}
         markup = f'<lf-value id="owner" {attrs}>{body}</lf-value>'
@@ -519,17 +522,26 @@ def obligation_value_cases():
                 "action": "set",
                 "detail": detail,
             }
+            # The action as a version that rewrote the `restated` members of the set it
+            # records reads it, which the browser folds from the entry's value while
+            # the entry's event stays as the user made it.
+            standing = event
+            if restated:
+                meaning = {"unit": part, "depends": detail["value"], "state": spec}
+                standing = restated_reading({**event, "meaning": meaning}, {*restated})
+                assert standing is not None
             coordinate = ("owner", part, "set")
-            held[coordinate] = (event, spec)
+            held[coordinate] = (standing, spec)
             entries.append(
                 {
                     "e": event,
                     "unit": part,
                     "spec": spec,
+                    "value": folded_value(standing, spec) if record else None,
                     "coordinate": json.dumps(coordinate, separators=(",", ":")),
                 }
             )
-        projection = StateProjection(held, {}, held, {}, {}, frozenset())
+        projection = StateProjection(held, {}, held, {}, {}, {})
         value, present = obligation_value(
             "owner",
             "set",
@@ -569,6 +581,14 @@ def obligation_value_cases():
         body='<lf-part id="a">A</lf-part><lf-part id="b">B</lf-part>',
         initial=[],
         actions=[("owner", {"value": ["b", "a"]})],
+    )
+    add(
+        "attribute a version narrowed",
+        attribute,
+        body='<lf-part id="a">A</lf-part><lf-part id="b">B</lf-part>',
+        initial=[],
+        actions=[("owner", {"value": ["b", "a"]})],
+        restated=("b",),
     )
     value = {"kind": "value", "attr": "value"}
     add("value absent despite completion", value, initial=None, answered=True)
@@ -652,7 +672,7 @@ def gesture_sequence() -> dict:
             "widget": "draft-ops",
             "action": "edit",
             "detail": {"value": value},
-            "facts": {"answered": True},
+            "answered": True,
             "attempt": f"sequence-edit-{index:03}",
         }
         for index, value in enumerate(edits, 1)
@@ -661,7 +681,7 @@ def gesture_sequence() -> dict:
     withdrawal = {
         "kind": "undo",
         "undoes": "e3",
-        "facts": {"answered": True},
+        "answered": True,
         "attempt": "sequence-undo-003",
     }
     commands.append(withdrawal)
@@ -730,7 +750,7 @@ TAIL_LOG = (
         "action": "choose",
         "detail": {"value": ["red"]},
         "attempt": "tail-attempt-0001",
-        "facts": {"answered": False},
+        "answered": False,
     },
     {
         "kind": "action",
@@ -738,7 +758,7 @@ TAIL_LOG = (
         "action": "choose",
         "detail": {"value": ["red", "blue"]},
         "attempt": "tail-attempt-0002",
-        "facts": {"answered": False},
+        "answered": False,
     },
     {"kind": "comment", "text": "Why both?", "attempt": "tail-attempt-0003"},
     {
@@ -747,12 +767,12 @@ TAIL_LOG = (
         "action": "choose",
         "detail": {"value": ["now"]},
         "attempt": "tail-attempt-0004",
-        "facts": {"answered": True},
+        "answered": True,
     },
     {
         "kind": "undo",
         "undoes": "e2",
-        "facts": {"answered": False},
+        "answered": False,
         "attempt": "tail-attempt-0005",
     },
     {
@@ -776,8 +796,8 @@ TAIL_LOG = (
         "kind": "action",
         "widget": "kinds",
         "action": "answer",
-        "detail": {"options": ["blue", "red"], "picked": ["red"]},
-        "facts": {"answered": True},
+        "detail": {},
+        "answered": True,
         "attempt": "tail-attempt-0008",
     },
 )
@@ -849,7 +869,6 @@ def tail_cases() -> list[dict]:
                 "when": {"active": [True]},
                 "value": "set",
             },
-            "facts": {"answered": {"type": "boolean"}},
             "verbs": {
                 "set": {
                     "unit": "widget",
@@ -870,7 +889,7 @@ def tail_cases() -> list[dict]:
                 "widget": "typed",
                 "action": "set",
                 "detail": {"value": value},
-                "facts": {"answered": True},
+                "answered": True,
             }
             for value in values
         ]

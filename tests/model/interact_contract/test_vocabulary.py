@@ -433,7 +433,6 @@ def test_late_gesture_wakes_for_the_active_vocabulary(
     def publish_choice(needs_attention):
         pick = _stateful_page_declaration(page_dir, "lf-pick")
         if needs_attention and declaration == "obligation":
-            pick["facts"] = {"answered": {"type": "boolean"}}
             pick["awaits"] = {
                 "value": "first",
             }
@@ -469,7 +468,7 @@ def test_late_gesture_wakes_for_the_active_vocabulary(
             "widget": "choice",
             "action": "first",
             "detail": {"value": "user"},
-            **({"facts": {"answered": True}} if asked else {}),
+            **({"answered": True} if asked else {}),
         },
     )
     woke = active_attention and declaration == "attention"

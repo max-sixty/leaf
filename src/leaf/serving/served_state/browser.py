@@ -108,7 +108,6 @@ def browser_state(
                 readings[revision],
                 events,
                 revision,
-                withdrawn=withdrawn,
                 revisions=revision_ids if revision_ids is not None else readings,
                 revision_reader=revisions or readings.__getitem__,
             )
@@ -147,10 +146,6 @@ def browser_state(
             "document": browser_document(page),
             "thread": thread,
             "obligations": items,
-            # Each widget's facts as the page keeps them, its page's and its thread
-            # markup's, which a tab compares with what it works out
-            # (`obligations.widget_facts`).
-            "facts": {**viewed.thread_facts, **reading.facts},
             "reports": canonical_reports(projection),
             "undo": browser_undo_candidates(
                 events,

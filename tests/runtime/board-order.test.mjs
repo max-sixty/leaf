@@ -76,7 +76,7 @@ function board() {
         action: "move",
         detail,
       };
-      moves.push({ unit: card, spec, e });
+      moves.push({ unit: card, spec, e, value: to });
       return moves.at(-1);
     },
     undo(move) {
@@ -178,7 +178,7 @@ const foldV2 = (entry) =>
   }).get("board").state.move;
 
 test("a move a later revision absorbed leaves the order that revision wrote", () => {
-  const move = foldV2({ unit: "x", spec, e: dropX, absorbed: true });
+  const move = foldV2({ unit: "x", spec, e: dropX, value: "todo", absorbed: true });
   assert.deepEqual(move.value.todo, ["n", "a", "x", "b", "c"]);
   // The move still stands on its unit, as a written-back pick does.
   assert.equal(move.units.x.value, "todo");
@@ -209,6 +209,7 @@ for (const { name, authored: containers, moves, order } of cases.folds) {
           unit: card,
           spec,
           absorbed,
+          value: to,
           e: {
             id: `m${seq}`,
             seq,
@@ -227,7 +228,7 @@ for (const { name, authored: containers, moves, order } of cases.folds) {
 test("a move no revision has absorbed still places its card by its rank", () => {
   // The reading a revision written after the move has to record, which is why the
   // door takes a move only on the newest revision.
-  assert.deepEqual(foldV2({ unit: "x", spec, e: dropX }).value.todo, [
+  assert.deepEqual(foldV2({ unit: "x", spec, e: dropX, value: "todo" }).value.todo, [
     "n",
     "x",
     "a",
@@ -248,7 +249,7 @@ test("a widget nothing moved keeps the very state its last folding gave it", () 
     detail: { unit: "a", value: "done", rank: "5" },
   };
   const coordinate = JSON.stringify(["board", "a", "move"]);
-  const entry = { unit: "a", spec, e };
+  const entry = { unit: "a", spec, e, value: "done" };
   const first = read(both, { desired: new Map() });
   const moved = read(both, { desired: new Map([[coordinate, entry]]) });
   assert.equal(moved.get("other"), first.get("other"));

@@ -251,8 +251,14 @@ function foldWidget(
   for (const entry of entries) {
     const { spec, e, unit } = entry;
     const record = spec.record;
-    const value = record ? structuredClone(e.detail.value) : e.action;
-    const current = { action: e.action, value, detail: structuredClone(e.detail) };
+    // A record stands at the entry's value, which a version that rewrote a member of
+    // the set it records narrows (`events.InForce` in Python), so the event's own
+    // detail is the gesture as the user made it.
+    const value = record ? structuredClone(entry.value) : e.action;
+    const detail = record
+      ? { ...structuredClone(e.detail), value: structuredClone(entry.value) }
+      : structuredClone(e.detail);
+    const current = { action: e.action, value, detail };
     const target = state[e.action];
     if (target && "units" in target) {
       target.units[unit] = current;

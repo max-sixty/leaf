@@ -19,11 +19,13 @@
  * roots the reader folded, by root key, so a capture that keeps a root keeps its fold.
  * Rows are keyed by call within their root, so a row the next capture keeps under the
  * same root keeps its nodes, and the selection or focus on it. A row a capture moves
- * under another root is drawn afresh there, in that root's fold, and focus on it is
- * lost: Effect UI keys children within one parent, and carrying focus across would
- * be a mechanism of its own for a rare path. After each commit the root says the value
- * it drew (`drawn`, host/element-data.js), so Leaf stamps the rows' datum marks with
- * that value's snapshot. */
+ * under another root is a new node there, in that root's fold, since Effect UI keys
+ * children within one parent. Focus on the row follows it by its datum key
+ * (effect-widget.js), and a folded destination opens to show it (`FollowRow`), since
+ * the user's place outweighs a fold made before the row arrived. A row moved without
+ * focus leaves its destination's fold as it was. After each commit the root says the
+ * value it drew (`drawn`, host/element-data.js), so Leaf stamps the rows' datum marks
+ * with that value's snapshot. */
 import {
   Component,
   Effect,
@@ -35,6 +37,7 @@ import {
 } from "/vendor/effect-ui.js";
 import { Announce, NavigateToDatum } from "/runtime/widget-services.js";
 import { defineWidget, widgetProps } from "/runtime/effect-widget.js";
+import { onCurrentLocation } from "/runtime/widget-api.js";
 import { offerActionElement } from "/runtime/lib/controls.js";
 import type {
   DataCalldiff,
@@ -192,6 +195,47 @@ const ReportDrawn = Mount.make(
     ).pipe(Effect.as(Component.noop)),
 );
 
+// The user on a row a capture moves into a folded root goes with it there. The mount
+// hears each commit once its rows are patched, and asks the Model to open that root.
+// Effect UI draws a message sent during a flush in that flush, so the root stands open
+// before defineWidget's hold puts the user back on the row by its key
+// (effect-widget.js). The mount follows where the user is, except that a change
+// removing or hiding their node leaves it on the node they lost.
+const FollowRow = Mount.makeStream(
+  "FollowRow",
+  { args: { value: Schema.NullOr(Document) } },
+  (node: HTMLElement, _args, changes) =>
+    Stream.unwrap(
+      Effect.gen(function* () {
+        let held: Element | null = null;
+        yield* Effect.acquireRelease(
+          Effect.sync(() =>
+            onCurrentLocation((at, cause) => {
+              if (cause !== "drop") held = at && node.contains(at) ? at : null;
+            }),
+          ),
+          (stop) => Effect.sync(stop),
+        );
+        // The folded root that now holds the row the commit took the user from.
+        const destination = () => {
+          const key = held?.isConnected
+            ? null
+            : held?.closest("[data-lf-datum]")?.getAttribute("data-lf-datum");
+          const group = key
+            ? node
+                .querySelector(`[data-lf-datum="${CSS.escape(key)}"]`)
+                ?.closest("details")
+            : null;
+          return group && !group.open ? group.getAttribute("data-lf-call-group") : null;
+        };
+        return changes.pipe(
+          Stream.map(destination),
+          Stream.filter((root): root is string => root !== null),
+        );
+      }),
+    ),
+);
+
 const rootKeys = (value: DataCalldiff | null | undefined) =>
   value ? recordsOf(value).groups.map(({ root }) => root.key) : [];
 
@@ -301,69 +345,78 @@ export const CallDiff = Html.component({
     const rootsWord = roots === 1 ? "root" : "roots";
     return frame.children(
       h.div
-        .key("tools")
-        .class("lf-call-tools")
-        .children(
-          // The counts are an account of the tree, not words the page holds, so
-          // `data-lf-gen` takes them out of the version diff and makes each its own
-          // passage cell, as `lf-diff` marks its own injected stat.
-          h.p
-            .class("lf-call-summary")
-            .attr("data-lf-gen", "1")
-            .children(
-              `${roots} changed ${rootsWord} · ${counted(rows, "added")} added · ${counted(rows, "removed")} removed · ${rows.length} items`,
-            ),
-          h.button
-            .onMount(
-              OfferToggle({
-                action: expand ? "expand-all" : "collapse-all",
-                label: `${expand ? "Expand" : "Collapse"} all ${roots} call-tree ${rootsWord}`,
-              }),
-            )
-            .on("click", CallDiffMessage.ClickedToggle()),
-        ),
-      h.div
-        .key("meta")
-        .class("lf-call-line")
-        .attrs(marks(records.meta))
-        .children(...words(records.meta)),
-      ...records.groups.flatMap(({ root, children }) => [
-        // Source navigation and disclosure are separate controls: a link nested in
-        // summary disappears from some accessibility readings. The summary stays the
-        // tight root datum, and its source control stands beside it rather than
-        // around the whole call tree.
-        h.div
-          .key(`location:${root.key}`)
-          .class("lf-call-root-location")
-          .attr("data-lf-status", root.status)
-          .children(locationLink(root)),
-        h.details
-          .key(`group:${root.key}`)
-          .class("lf-call-group")
-          .attr("data-lf-call-group", root.key)
-          .open(!closed.has(root.key))
-          .on("toggle", ({ open }) =>
-            CallDiffMessage.ToggledGroup({ key: root.key, open }),
-          )
-          .children(
-            h.summary
-              .class("lf-call-line lf-call-group-summary lf-disclosure-marker")
-              .attrs(marks(root))
-              .children(...words(root, groupLabel([root, ...children]))),
-            h.div
-              .class("lf-call-group-body lf-text-scroller")
-              .attr("data-lf-scroll", "")
-              .children(
-                ...children.map((record) =>
-                  h.div
-                    .key(record.key)
-                    .class("lf-call-line")
-                    .attrs(marks(record))
-                    .children(...words(record)),
-                ),
-              ),
+        .style({ display: "contents" })
+        .onMount(
+          FollowRow({ value }).pipe(
+            Mount.map((key) => CallDiffMessage.ToggledGroup({ key, open: true })),
           ),
-      ]),
+        )
+        .children(
+          h.div
+            .key("tools")
+            .class("lf-call-tools")
+            .children(
+              // The counts are an account of the tree, not words the page holds, so
+              // `data-lf-gen` takes them out of the version diff and makes each its own
+              // passage cell, as `lf-diff` marks its own injected stat.
+              h.p
+                .class("lf-call-summary")
+                .attr("data-lf-gen", "1")
+                .children(
+                  `${roots} changed ${rootsWord} · ${counted(rows, "added")} added · ${counted(rows, "removed")} removed · ${rows.length} items`,
+                ),
+              h.button
+                .onMount(
+                  OfferToggle({
+                    action: expand ? "expand-all" : "collapse-all",
+                    label: `${expand ? "Expand" : "Collapse"} all ${roots} call-tree ${rootsWord}`,
+                  }),
+                )
+                .on("click", CallDiffMessage.ClickedToggle()),
+            ),
+          h.div
+            .key("meta")
+            .class("lf-call-line")
+            .attrs(marks(records.meta))
+            .children(...words(records.meta)),
+          ...records.groups.flatMap(({ root, children }) => [
+            // Source navigation and disclosure are separate controls: a link nested in
+            // summary disappears from some accessibility readings. The summary stays the
+            // tight root datum, and its source control stands beside it rather than
+            // around the whole call tree.
+            h.div
+              .key(`location:${root.key}`)
+              .class("lf-call-root-location")
+              .attr("data-lf-status", root.status)
+              .children(locationLink(root)),
+            h.details
+              .key(`group:${root.key}`)
+              .class("lf-call-group")
+              .attr("data-lf-call-group", root.key)
+              .open(!closed.has(root.key))
+              .on("toggle", ({ open }) =>
+                CallDiffMessage.ToggledGroup({ key: root.key, open }),
+              )
+              .children(
+                h.summary
+                  .class("lf-call-line lf-call-group-summary lf-disclosure-marker")
+                  .attrs(marks(root))
+                  .children(...words(root, groupLabel([root, ...children]))),
+                h.div
+                  .class("lf-call-group-body lf-text-scroller")
+                  .attr("data-lf-scroll", "")
+                  .children(
+                    ...children.map((record) =>
+                      h.div
+                        .key(record.key)
+                        .class("lf-call-line")
+                        .attrs(marks(record))
+                        .children(...words(record)),
+                    ),
+                  ),
+              ),
+          ]),
+        ),
     );
   },
 });

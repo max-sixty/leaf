@@ -20,6 +20,7 @@ from render_harness import (
     resized,
     scroll_settled,
     show_changes,
+    spine_sidebar,
     told,
 )
 
@@ -31,12 +32,14 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 
 def contents_page(title, body, *, toc_id="contents"):
-    """A native sidebar track beside the authored document column."""
+    """A native sidebar track beside the authored document column, narrowed to the
+    contents map's spine."""
     return leaf_page(
         title,
         '<aside id="route"><div class="layout-track" id="route-track">'
         f'<lf-toc id="{toc_id}"></lf-toc></div></aside>'
         f'<div class="layout-column">{body}</div>',
+        head=spine_sidebar(),
         layout="sidebar",
     )
 
@@ -353,6 +356,7 @@ def test_contents_with_every_destination_hidden_returns_when_the_disclosure_open
   <div style="height: 110vh"></div>
 </div></div></details>
 """,
+        head=spine_sidebar(".layout-sidebar"),
     )
     page = open_page(browser, serve(source))
     resized(page, 1400, 900)
@@ -691,7 +695,7 @@ def test_generated_page_interface_reconciles_before_semantic_interaction(
                     f"Migration checkpoint {number}." for number in range(1, 17)
                 )
             },
-            "facts": {"answered": True},
+            "answered": True,
         },
     )
     held = []

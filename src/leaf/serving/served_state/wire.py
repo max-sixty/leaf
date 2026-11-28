@@ -1,6 +1,6 @@
 """Wire serialization for one declared state projection."""
 
-from leaf.log.events import action_rests_on
+from leaf.log.events import restated_under
 from leaf.log.projection import StateProjection, folded_value
 
 
@@ -11,24 +11,24 @@ def browser_projection(
     within: dict,
     floors: dict,
 ) -> dict:
-    """Serialize one declared projection without making the wire its authority."""
+    """Serialize one declared projection without making the wire its authority.
+
+    Each entry carries the event as the log holds it, and `value`, its record as it
+    stands, which a version that rewrote a member of the set it records narrows
+    (`events.InForce`): the value the browser folds."""
     entries = []
     for coordinate, (event, spec) in projection.classified.values():
-        restated = []
-        if event["kind"] == "action":
-            restated = [
-                identity
-                for identity in action_rests_on(event, within)
-                if floors.get(identity, 0) > event["revision"]
-            ]
+        standing = projection.in_force.get(event["id"], event)
         entries.append(
             {
                 "event": event,
                 "coordinate": list(coordinate),
                 "spec": spec,
-                "value": folded_value(event, spec) if spec.get("record") else None,
+                "value": folded_value(standing, spec) if spec.get("record") else None,
                 "scope": scope,
-                "restated": restated,
+                "restated": restated_under(event, floors, within)
+                if event["kind"] == "action"
+                else [],
                 "absorbed": event["id"] in projection.absorbed,
                 "stands": event["id"] in projection.in_force,
             }

@@ -209,9 +209,8 @@ A row is *withheld* while no part of its target shows in its region, as inside a
 ## Contents outline
 
 `lf-toc` requests the **contents outline**, navigation built from the page's headings.
-In a document's sidebar holding nothing else, under a mouse, it shows the **contents
-spine** instead, which spreads the headings over the document's height, and the
-sidebar narrows to it. Each row's **section marks** say whether its
+In a document's sidebar that the page narrows to it, it shows the **contents spine**
+instead, which spreads the headings over the document's height. Each row's **section marks** say whether its
 section holds open threads, On Me items and, while the changes view is on, changes;
 its link's preview counts them.
 

@@ -411,9 +411,10 @@ the events still in force. Don't add a database, a current-state file or a
 per-widget replay list as a source of truth for page state, and don't treat the DOM
 as one.
 
-Each decision the user made carries over to later versions of the page. To withdraw
-a decision because a rewrite invalidated what it rests on, mark it `restated`;
-leaving the decision out of the new version withdraws nothing. An `undo` event names
+Each decision the user made carries over to later versions of the page. To ask the
+user again because a rewrite changed what a decision rests on, mark the changed
+element `restated`, which takes it out of the decisions resting on it (`events.md`,
+"Widget answers"); leaving the decision out of the new version withdraws nothing. An `undo` event names
 the gesture it withdraws, and never deletes an event or adds an opposite one.
 
 The registry gives each widget action and report a key of three parts: the widget,
@@ -430,7 +431,7 @@ holds no renderer nodes, promises or DOM attributes. Components read that value
 through selectors and never write it. Widgets draw the complete state, unset and
 undecided values included. Undo never rebuilds a widget or replays authored actions
 into the DOM. A page widget's state draws only on actions logged up to the version
-the page shows, and a `restated` mark withdraws the widget's earlier actions. A
+the page shows, as a `restated` mark leaves them. A
 widget in a thread message has neither bound: its state draws on actions from its
 whole thread, since its markup lives in the log rather than in a version.
 

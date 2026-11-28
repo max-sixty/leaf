@@ -271,7 +271,7 @@ def test_a_pick_after_the_rounds_message_takes_its_line(claimed):
             "widget": "file-issue",
             "action": "choose",
             "detail": {"value": ["file"]},
-            "facts": {"answered": True},
+            "answered": True,
         },
     )
     round_ = basis(claimed, asked["id"], message["id"])

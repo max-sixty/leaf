@@ -850,6 +850,7 @@ def test_markdown_decoration_keeps_source_editable(browser, serve):
                 strong: line.querySelector('strong')?.textContent,
                 listed: getComputedStyle(line.closest('.lf-md-item') ?? line).display === 'list-item',
                 shownMarkers: [...line.querySelectorAll('.lf-md-marker:not(.lf-md-unseen)')].map(mark => mark.textContent),
+                cells: [...line.querySelectorAll('.lf-md-cell')].map(cell => cell.textContent),
               }));
             }""",
             },
@@ -894,4 +895,12 @@ def test_markdown_decoration_keeps_source_editable(browser, serve):
     expect(field).to_have_js_property("value", "- First\n* Cars")
     field.press("ControlOrMeta+z")
     expect(field).to_have_js_property("value", "- First\n* Carts")
+
+    # A table is its grid, a cell to each stretch of a row; the line begun after its
+    # last row is the next row, drawn once its first word comes.
+    write(field, "| a | b |\n| - | - |\n| x | y |")
+    field.press("Shift+Enter")
+    assert reading()[2]["cells"] == ["|x", "|y|"], reading()
+    page.keyboard.type("z")
+    assert reading()[-1]["cells"] == ["z"], reading()
     cdp.detach()

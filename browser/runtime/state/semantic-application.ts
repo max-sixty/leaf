@@ -28,7 +28,6 @@ import {
 import {
   threadForAttempt,
   editForAttempt,
-  gestureWidget,
   isThreadEvent,
   isTurnEvent,
   nameAdmitted,
@@ -337,6 +336,18 @@ const NO_OBLIGATIONS = {
 };
 const NO_WITHDRAWALS: ClassifiedEntry[] = [];
 
+// The widget an action concerns, or an undo of one: the only gestures that carry the
+// widget's word on whether its obligation is answered (`awaits`).
+const gestureWidget = ({
+  event,
+  projection,
+}: Pick<LedgerEntry, "event" | "projection">): string | null =>
+  event.kind === "action"
+    ? event.widget
+    : projection?.kind === "undo"
+      ? projection.target.e.widget
+      : null;
+
 // What this tab's gestures the log has yet to read say of each widget's obligation: the
 // word the newest of them carries, by widget. Kept by the gestures, so a publication
 // that moves none makes no new map.
@@ -345,11 +356,8 @@ const gestureAnswers = kept(
     const said: Map<string, boolean> = new Map();
     for (const entry of local) {
       const widget = gestureWidget(entry);
-      const answered =
-        entry.event.kind === "action" || entry.event.kind === "undo"
-          ? entry.event.facts?.answered
-          : undefined;
-      if (widget !== null && typeof answered === "boolean") said.set(widget, answered);
+      if (widget !== null && typeof entry.event.answered === "boolean")
+        said.set(widget, entry.event.answered);
     }
     return said;
   },
@@ -1586,15 +1594,15 @@ export function createSemanticApplication({
       });
       return entry(event.attempt);
     },
-    // The gesture `attempt` carries what its widget works out of its state once the
+    // The gesture `attempt` carries what its widget says of its obligation once the
     // gesture is drawn (`read`: records/pending/dispatch.js), before it is sent, so the
     // publication that follows draws the obligation answered or open and the POST
-    // carries the facts to the log (`facts`, `awaits`). An undo speaks for the widget of
-    // the action it takes back, found where this tab holds it: drawn, still sending, or
-    // in the log. A gesture that concerns no widget declaring facts carries none.
-    sayFacts(
+    // carries the word to the log (`awaits`). An undo speaks for the widget of the
+    // action it takes back, found where this tab holds it: drawn, still sending, or in
+    // the log. A gesture that concerns no widget that asks carries nothing.
+    answer(
       attempt: string,
-      read: (widget: string, tag: string | null) => Record<string, unknown> | undefined,
+      read: (widget: string, tag: string | null) => boolean | undefined,
     ) {
       const root = publisher.peek();
       const held = entry(attempt);
@@ -1618,11 +1626,11 @@ export function createSemanticApplication({
       const acted = actedOn();
       if (!acted) return;
       const tag = root.document.descriptors.get(acted.widget)?.tag ?? acted.origin;
-      const facts = read(acted.widget, tag);
-      if (facts === undefined) return;
+      const answered = read(acted.widget, tag);
+      if (answered === undefined) return;
       update(attempt, (item) =>
         item.event.kind === "action" || item.event.kind === "undo"
-          ? { ...item, event: { ...item.event, facts } }
+          ? { ...item, event: { ...item.event, answered } }
           : item,
       );
     },

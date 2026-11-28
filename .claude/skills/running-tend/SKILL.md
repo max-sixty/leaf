@@ -212,7 +212,8 @@ hit its timeout, and that is a failure.
 A scheduled run runs every test a push runs, so main's push and schedule `ci` reports
 share most of their failures. When both need diagnosis, the push report owns each
 failure a push run also shows. The schedule report's diagnosis covers what pushes
-don't run, the `journeys` and `nightly` tests and `test-macos`, and links the push
+don't run, the `journeys` and `nightly` tests, `test-macos` and
+`journey-claude-code`, and links the push
 report's diagnosis and cause issues for the rest instead of rerunning or bisecting
 those tests itself.
 
@@ -225,6 +226,13 @@ base's failure rate would have failed three of them (54 where the base failed 1 
 failure, the failing scheduled run is the evidence from before, and the next one on
 main, after the fix merges, the evidence from after. If that run still fails, its
 report brings the failure back to triage.
+
+The scheduled run's `journey-claude-code` job runs the claude-code agent journey,
+which your sandbox can't run: tmux and Claude Code's messaging need Unix sockets the
+sandbox refuses. Diagnose from the job's log and its `journey-claude-code-*` artifact,
+which holds each step's screen, Claude Code's debug log and the page's log. The
+failing run is the evidence from before a fix, and the next scheduled run on main the
+evidence from after.
 
 ## Cloudflare logs
 

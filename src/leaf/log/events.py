@@ -320,9 +320,10 @@ def build_threads(events: list, within: dict, *, withdrawn: set | None = None) -
     (`_ClosureHistory`): the latest closing or reopening still in force decides it.
     A closing is a resolution, or an action winning its coordinate whose answer
     names the thread; a reopening is an unresolve, a spoken reply, or the user's
-    rewrite of a message. Taking one back, an action superseded, or a version
-    retracting it (`InForce`) leaves the one before deciding, at the place where
-    that happened. ``closures`` holds each time a closing answered for the thread
+    rewrite of a message. Taking one back or an action superseded leaves the one
+    before deciding, at the place where that happened, and a version restating what
+    an action rests on leaves what the version reads of it (`InForce`), which answers
+    nothing. ``closures`` holds each time a closing answered for the thread
     (`_ClosureHistory.answering`), in log order: the seq it ``closed`` at and the seq
     it ``reopened`` at, or null while it stands, so what such a closing ended stayed
     ended until then (`provenance.saved_after`). The user's own resolve begins none:
@@ -985,19 +986,45 @@ def action_rests_on(event: dict, within: dict) -> list:
     )
 
 
-def action_retracted(event: dict, floors: dict, within: dict) -> bool:
-    """Whether a retraction has taken this action back: true when any id it rests
-    on carries a floor from a version later than the one the action was made on.
+def restated_under(event: dict, floors: dict, within: dict) -> list:
+    """The ids `event` rests on that a version later than the one it was made on
+    restated (`retractions`), which the page marks as rewritten under it."""
+    return [
+        identity
+        for identity in action_rests_on(event, within)
+        if floors.get(identity, 0) > event["revision"]
+    ]
 
-    One predicate for every reader of liveness — the fold's survival test, the
-    words gate's, and the thread a decision settles — because a decision the log
-    has taken back has to be absent everywhere at once. A reader that goes without,
-    as `build_threads` settling a thread on a decision without asking would, brings
-    a suggestion the next version rewrote back pending with the thread it answered
-    still filed away, and the user is never asked the question again."""
-    return any(
-        floors.get(i, 0) > event["revision"] for i in action_rests_on(event, within)
-    )
+
+def restated_reading(action: dict, restated: set) -> dict | None:
+    """`action` as the version that restated `restated`, ids it rests on, reads it,
+    or None where the decision no longer applies.
+
+    A decision recording a set of the widget's members (an `attribute` record, as an
+    `lf-options` pick is) keeps every member the version left alone, so a rewritten
+    option leaves the rest of the pick, an emptied set still stands (what the user
+    unpicked stays unpicked), and restating the widget itself leaves the set whole.
+    The reading is the action without the rewritten members in its value and its
+    dependencies, so it rests on them no longer, and without the answer it gave as a
+    whole. Any other decision is of what the version rewrote, as a draft's words or a
+    suggestion's outcome are of the draft or the suggestion, so it no longer
+    applies."""
+    meaning = action["meaning"]
+    if ((meaning.get("state") or {}).get("record") or {}).get("kind") != "attribute":
+        return None
+    value = action["detail"]["value"]
+    if not restated & set(value):
+        return action
+    reading = {key: field for key, field in action.items() if key != "meaning"}
+    reading["detail"] = {
+        **action["detail"],
+        "value": [member for member in value if member not in restated],
+    }
+    reading["meaning"] = {
+        **{key: field for key, field in meaning.items() if key != "answer"},
+        "depends": [i for i in meaning["depends"] if i not in restated],
+    }
+    return reading
 
 
 class Change(NamedTuple):
@@ -1010,34 +1037,52 @@ class Change(NamedTuple):
 
 class InForce:
     """The actions in force at each owner-unit-verb coordinate, in log order, the
-    last of them its winner.
+    last of them its winner, each as it stands.
 
-    The one reading of which action decides a coordinate. An action stands from its
-    admission until an undo withdraws it or a version note retracts what it rests on
-    (`action_retracted`), and the latest action in force wins, one answering nothing
-    included. A reader of the final state admits the log's actions with `withdrawn`
-    and the log's whole `floors` given (the projection fold); a reader of what each
-    event changed walks the log in order instead, handing undos to `withdraw` and
-    notes to `restate` where they fall (`thread_memberships`, `build_threads`). The
-    two agree on where the walk ends.
+    The one reading of which action decides a coordinate, and of what it decides, so
+    every reader of liveness walks it: the projection fold, the threads a decision
+    closes, memberships and a sampled page. A
+    decision the log has taken back has to be absent everywhere at once: a reader
+    that judged it alone, as `build_threads` settling a thread on a decision without
+    asking would, brings a suggestion the next version rewrote back pending with the
+    thread it answered still filed away, and the user is never asked the question
+    again.
+
+    Each reader walks the log in order, handing actions to `admit`, undos to
+    `withdraw` and version notes to `restate` where they fall. An action stands from
+    its admission until an undo withdraws it, and the latest action in force wins, one
+    answering nothing included. A note that restates an id reaches each action made on
+    an earlier version that rests on it, and each stands as the version
+    reads it (`restated_reading`): a set of members without the rewritten ones, or
+    nowhere. The version takes back only what it rewrote, so a coordinate never falls
+    back to a decision the user replaced: a version taking back a pick of b that
+    replaced a pick of a leaves no pick, rather than a again. An undo of a decision
+    still in force brings back the one before it, as the version reads that one.
+
+    The note's floor reaches an action made on an earlier version that arrives after
+    it, as from a tab still showing that version, the same way: a set stands without
+    the rewritten members, and any other decision never comes into force.
 
     A step reports a `Change` only where the winner moved: taking out an action
-    that was not winning changes no coordinate's reading.
+    that was not winning changes no coordinate's reading. A reached winner that still
+    stands moves to its reading where the version rewrote one of its members.
 
     Each step costs what it touches: a note reaches the actions resting on what it
-    restates through an index of them, never every action in force, and a
-    coordinate's winner is the tail of a linked order, which taking actions out
-    leaves constant to reach. A walk is therefore linear in the log however many
-    actions one coordinate collects."""
+    restates through an index of them, never every action in force, a coordinate's
+    winner is the tail of a linked order, which taking actions out leaves constant to
+    reach, and an action leaves force once. A walk is therefore linear in the log
+    however many actions one coordinate collects."""
 
-    def __init__(self, within: dict, floors: dict | None = None, withdrawn=frozenset()):
+    def __init__(self, within: dict):
         self.within = within
-        self.floors = dict(floors or {})
-        self.withdrawn = withdrawn
+        self.floors: dict[str, int] = {}
         self._at: dict[tuple, OrderedDict[str, dict]] = {}
         self._coordinate: dict[str, tuple] = {}
         # identity → the actions in force resting on it, in log order.
         self._resting: dict[str, OrderedDict[str, None]] = {}
+
+    def __contains__(self, identity: str) -> bool:
+        return identity in self._coordinate
 
     def winner(self, coordinate: tuple) -> dict | None:
         actions = self._at.get(coordinate)
@@ -1051,24 +1096,27 @@ class InForce:
             if actions
         }
 
-    def ids(self) -> frozenset:
-        """Every action in force."""
-        return frozenset(self._coordinate)
+    def standing(self) -> dict[str, dict]:
+        """Action id → the action as it stands, for every action in force."""
+        return {
+            identity: self._at[coordinate][identity]
+            for identity, coordinate in self._coordinate.items()
+        }
 
     def admit(self, action: dict) -> Change | None:
-        """Stand `action` at its coordinate, unless it was withdrawn or a version had
-        already retracted it on arrival, as from a tab showing an older version."""
-        if action["id"] in self.withdrawn or action_retracted(
-            action, self.floors, self.within
-        ):
+        """Stand `action` at its coordinate, as the versions since the one it was made
+        on read it."""
+        restated = set(restated_under(action, self.floors, self.within))
+        reading = restated_reading(action, restated) if restated else action
+        if reading is None:
             return None
         coordinate = event_coordinate(action)
         before = self.winner(coordinate)
-        self._at.setdefault(coordinate, OrderedDict())[action["id"]] = action
+        self._at.setdefault(coordinate, OrderedDict())[action["id"]] = reading
         self._coordinate[action["id"]] = coordinate
-        for identity in action_rests_on(action, self.within):
+        for identity in action_rests_on(reading, self.within):
             self._resting.setdefault(identity, OrderedDict())[action["id"]] = None
-        return Change(coordinate, before, action)
+        return Change(coordinate, before, reading)
 
     def withdraw(self, identity: str) -> Change | None:
         """Take the action `identity` names out, where it stands."""
@@ -1081,22 +1129,32 @@ class InForce:
         return Change(coordinate, before, after) if after is not before else None
 
     def restate(self, note: dict) -> list[Change]:
-        """Retract what a version note restates from every action made on an
-        earlier version, and raise its floors for actions admitted after it."""
+        """Read every action made on an earlier version that rests on what a version
+        note restates as that version does, and raise its floors for actions admitted
+        after it."""
         restated = note.get("restated", [])
+        # Coordinate → each action reached there → the restated ids it rests on.
+        hit: dict[tuple, dict[str, set]] = {}
         for identity in restated:
             self.floors[identity] = max(self.floors.get(identity, 0), note["revision"])
-        hit: dict[tuple, dict[str, None]] = {}
-        for identity in restated:
             for action_id in self._resting.get(identity, {}):
                 coordinate = self._coordinate[action_id]
                 if self._at[coordinate][action_id]["revision"] < note["revision"]:
-                    hit.setdefault(coordinate, {})[action_id] = None
+                    hit.setdefault(coordinate, {}).setdefault(action_id, set()).add(
+                        identity
+                    )
         changes = []
-        for coordinate, retracted in hit.items():
+        for coordinate, reached in hit.items():
             before = self.winner(coordinate)
-            for action_id in retracted:
-                self._remove(action_id)
+            for action_id, ids in reached.items():
+                action = self._at[coordinate][action_id]
+                reading = restated_reading(action, ids)
+                if reading is None:
+                    self._remove(action_id)
+                elif reading is not action:
+                    self._at[coordinate][action_id] = reading
+                    for identity in ids:
+                        self._resting[identity].pop(action_id, None)
             if (after := self.winner(coordinate)) is not before:
                 changes.append(Change(coordinate, before, after))
         return changes

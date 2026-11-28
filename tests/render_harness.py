@@ -53,6 +53,7 @@ import pytest
 from browser_sources import browser_function
 from click.testing import CliRunner
 from interact_support import (
+    PLUGIN_ROOT,
     STATED_TIMEOUT,
     append_carried_log_record,
     declare_work,
@@ -274,6 +275,18 @@ def wait_for_revision(page, revision: int) -> None:
     # The marker answers which source is installed; the reading answers whether that
     # source and the server state that selected it became one complete browser view.
     told(page)
+
+
+def spine_sidebar(sidebar: str = "main.layout-sidebar") -> str:
+    """The head of a page that narrows the sidebar `sidebar` selects to the contents
+    map's spine, by the rule `page-layout.md`, "A sidebar page", gives a page's `main`.
+    The rule is read from the reference, so a test of the spine holds the rule the
+    reference teaches."""
+    reference = PLUGIN_ROOT / "skills/leaf/references/page-layout.md"
+    section = reference.read_text(encoding="utf-8").split("\n## A sidebar page\n")[1]
+    rule = section.split("\n## ")[0].split("```css\n")[1].split("```")[0]
+    assert "main.layout-sidebar" in rule, rule
+    return f"<style>{rule.replace('main.layout-sidebar', sidebar)}</style>"
 
 
 # A long page, so the document scrolls, and nothing else — the panel is the subject.

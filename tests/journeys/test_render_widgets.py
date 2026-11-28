@@ -30,6 +30,7 @@ from render_harness import (
     round_trip,
     scroll_settled,
     sending,
+    spine_sidebar,
     stamp_page,
     told,
     undo,
@@ -430,9 +431,9 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     """A document's contents spine is a stable reading map rather than a compressed
     outline.
 
-    Under a mouse a sidebar before a `layout-column` holding only the map narrows to its
-    spine rather than keeping a column's width, and the prose stands where a
-    column page's would. Each section's marker stands at its place on the document's
+    Under a mouse the page narrows the sidebar before its `layout-column` to the map's
+    spine, by the rule page-layout.md gives, and the prose stands where a column page's
+    would. Each section's marker stands at its place on the document's
     scale, a moving lens shows the visible band, and late content growth redraws both.
     Labels reveal over the body without moving the map or changing the item under the
     pointer. Outside the narrowed sidebar, the same links open through a native
@@ -463,6 +464,7 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
 <section><h2 id="verify">Verify both readings before releasing the original copy</h2><p>Compare the totals.</p></section>
 <div style="height: 380px"></div></div></div>
 """,
+        head=spine_sidebar(".layout-sidebar"),
     )
     url = serve(with_one_obligation(source))
     page = open_page(browser, url)
@@ -950,8 +952,9 @@ def test_a_contents_spine_maps_the_document_until_the_user_enters_it(browser, se
     )
     page.close()
 
-    # A wide touch screen, where nothing reaches into a spine by pointing, keeps a
-    # column's room for the sidebar, so the contents stand open there as an outline.
+    # The page's rule narrows the sidebar under a mouse alone, so a wide touch screen,
+    # where nothing reaches into a spine by pointing, keeps a column's room for the
+    # sidebar, and the contents stand open there as an outline.
     context = browser.new_context(
         viewport={"width": 1400, "height": 900}, has_touch=True
     )

@@ -21,8 +21,7 @@ import { answeredInWords } from "../records/obligations/model.js";
 import { readObligations } from "../records/obligations/place.js";
 import { watchPendingTraffic } from "../transport/traffic.js";
 import { createCommandDispatch } from "../records/pending/dispatch.js";
-import { widgetFacts } from "./widget-state.js";
-import { reportFacts } from "./widget-facts.js";
+import { widgetAnswered } from "./widget-state.js";
 import { setMounted } from "./mounted.js";
 import { createDelivery, deliverBookkeeping } from "./delivery.js";
 import { keepRefusedWords } from "../records/drafts.js";
@@ -319,7 +318,7 @@ function createApplication<Overlay extends MarginOverlay>(
     withdraw: (candidate) => undo.withdraw(candidate),
     onCollision: (attempt) =>
       raiseError(`Couldn't send — attempt ${attempt} is already in use`),
-    facts: widgetFacts,
+    answered: widgetAnswered,
   });
 
   const { post } = commandDispatch;
@@ -352,9 +351,6 @@ function createApplication<Overlay extends MarginOverlay>(
     markSeen: (revision) =>
       deliverBookkeeping({ kind: "seen", revision }, receiveState),
   });
-  // What a widget works out of its state, told again where a version or another tab
-  // moved it (widget-facts.js); nothing draws it ahead of the answer.
-  reportFacts((event) => deliverBookkeeping(event, receiveState));
   const read = createReadTracking({
     markRead,
     openThread: openPageThread,

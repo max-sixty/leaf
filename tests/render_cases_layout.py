@@ -801,15 +801,20 @@ def aim_targets(page_dir):
 
 # Where in a target to aim, asked of the rendered page rather than assumed: near its
 # leading corner, since the middle of a container is usually one of its children, and only
-# where the point is really the target's — an element under the panel or clipped to
-# nothing is somewhere no aim can land, which is a skip rather than a failure.
+# where the point is really the target's, read through open shadow roots as AIM_CURSOR
+# reads it — an element under the panel or clipped to nothing is somewhere no aim can
+# land, which is a skip rather than a failure.
 AIM_POINT = """(el) => {
   const r = el.getBoundingClientRect();
   const spots = [[r.left + Math.min(8, r.width / 2), r.top + Math.min(8, r.height / 2)],
                  [r.left + r.width / 2, r.top + r.height / 2]];
   for (const [x, y] of spots) {
-    const at = document.elementFromPoint(x, y);
-    if (at && (at === el || el.contains(at))) return [x, y];
+    let at = document.elementFromPoint(x, y);
+    for (let inner = at?.shadowRoot?.elementFromPoint(x, y); inner && inner !== at;
+         inner = at.shadowRoot?.elementFromPoint(x, y))
+      at = inner;
+    for (; at; at = at.parentElement ?? at.getRootNode().host)
+      if (at === el) return [x, y];
   }
   return null;
 }"""

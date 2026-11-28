@@ -1,5 +1,7 @@
 import { shownBox, shownParts, TEXT_BOX, userScrollport } from "/runtime/check-api.js";
+import { closestAcross, renderedParent } from "/runtime/lib/shadow-tree.js";
 import { at, place, unique } from "./locate.js";
+import { openRoots } from "./open-roots.js";
 
 // The axes on which a box clips what it holds and offers the user no way in, asked of
 // the overflow value per axis rather than of the scroll extent. A box that clips
@@ -43,19 +45,24 @@ export function sealedAxes(style) {
 // with something to scroll answers for what it holds. And only for controls the page
 // offers (data-lf-offer), which keeps it clear of everything deliberately clipped to
 // nothing — the paint pass's quiet words, the line counting a block's comments — whose
-// whole point is to be read and not seen.
+// whole point is to be read and not seen. A control a widget draws in its shadow root
+// is offered the same way, and the climb to what clips it goes as the box is drawn:
+// a slotted node through its slot, a root's top through its host.
 export function clippedControls() {
   const out = [];
-  for (const el of document.querySelectorAll("[data-lf-offer]")) {
+  const offers = openRoots(document).flatMap((root) => [
+    ...root.querySelectorAll("[data-lf-offer]"),
+  ]);
+  for (const el of offers) {
     // Chromium reports descendants of a closed details as visible even though only its
     // summary participates in layout and focus navigation.
-    const closedDetails = el.closest("details:not([open])");
+    const closedDetails = closestAcross(el, "details:not([open])");
     const visibleSummary = closedDetails?.querySelector(":scope > summary");
     // checkOpacity too: a control faded to nothing is as unreachable as one clipped
     // away, and reporting it against a box it is inside would name the wrong fault.
     if (
       !el.checkVisibility({ checkOpacity: true }) ||
-      el.closest("[hidden]") ||
+      closestAcross(el, "[hidden]") ||
       (closedDetails && !visibleSummary?.contains(el))
     )
       continue;
@@ -72,9 +79,9 @@ export function clippedControls() {
     // the fold as hidden by the page it is on. Leaf's chrome stands after the body
     // (base.css), so its controls stop at the root.
     for (
-      let a = el.parentElement;
+      let a = renderedParent(el);
       a && a !== document.body && a !== document.documentElement;
-      a = a.parentElement
+      a = renderedParent(a)
     ) {
       const s = getComputedStyle(a);
       const { across, down } = sealedAxes(s);

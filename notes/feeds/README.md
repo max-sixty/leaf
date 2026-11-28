@@ -46,7 +46,7 @@ same four verbs (`HumanInterruptConfig`: accept, edit, respond, ignore), and
 - **The wake on a press exists, on Claude Code only.** When a page's claimant is a
   background job whose worker has retired, a press resumes the job with
   `claude --bg --resume` (`resume_claude_code_job` in `harness.py`, called from
-  `ClaudeCodeHarness.nudge`, which `presence.nudge_unwatched` calls on admission).
+  `ClaudeCodeHarness.nudge`, which `delivery.nudge_unwatched` calls on admission).
   So a card approved hours later reaches the agent that wrote it. Codex and Pi
   have no equivalent.
 - **No list spans pages.** All pages shows each live page's agent status. A page's

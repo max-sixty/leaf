@@ -1,5 +1,4 @@
-/* This module owns declared shadow roots, the shadow.css rules they render under, and
- * the shared highlight rules. */
+/* This module owns declared shadow roots and the shadow.css rules they render under. */
 import { isStage, liveStages } from "./arrivals.js";
 import { isElement, openRoot } from "../lib/shadow-tree.js";
 import { registry } from "../state/registry.js";

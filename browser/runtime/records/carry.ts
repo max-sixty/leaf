@@ -36,15 +36,15 @@
  * owner's and its `data-lf-carry` key; or a part of a drawn thread by the thread's id,
  * its reply or a message by the message it draws, or the drawing itself; with the
  * caret. Inside a message, as on the page, a name comes first: an element by its id,
- * which focus in its shadow tree counts as on it, and a generated control by its
- * owner's id and its key. An element nothing names is named by its place among the
- * elements like it (dom/focus.js, `likeSelector`) in the nearest holder something names,
- * the message or the page. That place names it only where the holder is drawn from the
- * same words: a message, whose words are the log's, or the page in the revision the key
- * was read in. A revision's handoff of page elements takes no such place, since it
- * names nothing the arriving revision must hold; the floating panel's and the margin's
- * handoffs of a thread view take a thread key whole (panel/floating-panel.js,
- * margin-projection.js, `captureCurrentLocation`).
+ * and a generated control by its owner's id and its key. An element nothing names is
+ * named by its place among the elements like it (dom/focus.js, `likeSelector`) in the
+ * nearest holder something names, light tree then shadow root, as an option's mark in
+ * the option, or else in the message or the page. That place names it only where the
+ * holder is drawn from the same words: a message, whose words are the log's, or the page
+ * in the revision the key was read in. A revision's handoff of page elements takes no
+ * such place, since it names nothing the arriving revision must hold; the floating
+ * panel's and the margin's handoffs of a thread view take a thread key whole
+ * (panel/floating-panel.js, margin-projection.js, `captureCurrentLocation`).
  */
 import { setScroll } from "../dom/arrivals.js";
 import { focusDestination, likeSelector, readCaret, focused } from "../dom/focus.js";
@@ -87,10 +87,17 @@ export type FocusKey = {
   revision?: number | null;
   caret?: Caret;
 };
+// The elements like `like` that `root` holds, its own shadow tree's after its light
+// tree's, so a control a named widget draws in its root has a place in the widget.
+const placesIn = (root: Element, like: string): Element[] => [
+  ...root.querySelectorAll(like),
+  ...(root.shadowRoot?.querySelectorAll(like) ?? []),
+];
+
 // How `active` is named inside `holder`, a message or the page, names first: a generated
 // control by its named owner's id and its `data-lf-carry` key and tag; the element
-// focus is on, or whose shadow tree holds it, by its id; else its place among the
-// elements like it in the nearest element with an id inside the holder, or the holder.
+// focus is on by its id; else its place among the elements like it in the nearest
+// element with an id inside the holder, its shadow tree included, or the holder.
 export function nameIn(holder: Element, active: Element): FocusKey {
   const page = holder === pageDocument();
   const inside = (node: Element | null | undefined): node is Element =>
@@ -103,10 +110,13 @@ export function nameIn(holder: Element, active: Element): FocusKey {
   const found = closestAcross(active, ADDRESSABLE);
   const named = inside(found) ? found : null;
   const root = named ?? holder;
-  const standIn = hostIn(active, root.getRootNode()) ?? active;
+  const standIn =
+    (named?.shadowRoot && hostIn(active, named.shadowRoot)) ||
+    hostIn(active, root.getRootNode()) ||
+    active;
   if (named && standIn === named) return { id: named.id, name: named.localName };
   const like = likeSelector(standIn);
-  const nth = [...root.querySelectorAll(like)].indexOf(standIn);
+  const nth = placesIn(root, like).indexOf(standIn);
   return {
     ...(named && { id: named.id, name: named.localName }),
     ...(nth >= 0 && { at: [like, nth] as [string, number] }),
@@ -174,8 +184,7 @@ function focusedBy(
   if (!owner || (key.name && owner.localName !== key.name)) return null;
   if (key.part !== undefined) return keyedFocus(owner, key);
   const placed = key.revision === runtime.currentRevision;
-  const target =
-    (placed && key.at && owner.querySelectorAll(key.at[0])[key.at[1]]) || owner;
+  const target = (placed && key.at && placesIn(owner, key.at[0])[key.at[1]]) || owner;
   return target === page ? null : target;
 }
 
@@ -187,7 +196,7 @@ export function namedIn(holder: Element, key: FocusKey): Element | null {
   const owner = key.id ? holder.querySelector(`[id="${CSS.escape(key.id)}"]`) : holder;
   if (!owner || (key.name && owner.localName !== key.name)) return holder;
   if (key.part !== undefined) return keyedFocus(owner, key);
-  return (key.at && owner.querySelectorAll(key.at[0])[key.at[1]]) || owner;
+  return (key.at && placesIn(owner, key.at[0])[key.at[1]]) || owner;
 }
 
 // Returns the user to what `key` names (`focusedBy`), with the caret it kept, where

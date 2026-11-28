@@ -87,10 +87,11 @@
      "Marking drawn data"), which the widget declares: where they last stood, if that
      stands again, as where a nested widget's hold put them back; else on their own
      node where it survived the draw; else on the datum now carrying that key among
-     the widget's own, else on the nearest one still drawn. It lands on the datum itself, a stop lent
-     where it is no control, never on a control in it chosen by its look nor on the
-     first one a boxless datum draws; where a datum takes no focus, it tries the next
-     node its key marks, then the next key's (`holdFocus`, `alike: false`). The last
+     the widget's own, else on the nearest one still drawn. It lands on the datum
+     itself, a stop lent where it is no control, never on a control in it chosen by its
+     look nor on the first one a boxless datum draws; where a datum takes no focus, it
+     tries the next node its key marks, then the next key's (`holdFocus`,
+     `alike: false`). The last
      place it tries is the widget's own element, with a stop lent, as where a removal
      empties its list or the user's node stood in none of the widget's datums. It puts
      the user back only while their focus is lost, so a nested widget's hold and this
@@ -150,6 +151,10 @@
      its first control, open root or closed, as on main: the hold can't see past it.
    - Where no datum takes focus, as where every row is boxless (`display: contents`),
      the hold leaves the user on the widget's own element.
+   - Where a widget's own draw hides the user's node and a nested widget's later draw
+     in the same pass draws it anew, the outer hold runs first and leaves the user on
+     the outer widget or its row, one Tab from their control. Landing them on it would
+     take holds that restore after every draw of the pass, innermost first.
    - A render that changes a node's attributes removes the ones it drops before it
      sets the new ones (`patchAttrs`), so an `<a>` that trades `href` for `tabindex`
      loses focusability for an instant and Chromium blurs it. A widget keeps such a

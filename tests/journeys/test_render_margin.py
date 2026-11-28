@@ -530,9 +530,27 @@ def test_margin_card_holds_its_top_while_read_and_its_reply_while_written(
     assert caret["caretBottom"] <= caret["boxBottom"], caret
 
 
-def test_a_second_margin_reply_grows_below_the_first_line(browser, serve):
-    """A new draft grows downward, then shares the bounded card with its transcript."""
-    page, preview, editor = drafting_in_a_short_card(browser, serve, 1000, 640)
+@pytest.mark.parametrize(
+    "height",
+    [
+        673,
+        pytest.param(
+            640,
+            marks=pytest.mark.xfail(
+                strict=True,
+                raises=AssertionError,
+                reason="#7511: the capping keystroke shrinks the transcript too, which"
+                " moves the reply's first line",
+            ),
+        ),
+    ],
+)
+def test_a_second_margin_reply_grows_below_the_first_line(browser, serve, height):
+    """A new draft grows downward, then shares the bounded card with its transcript.
+    At 673px the first new line still fits under the window's foot; at 640px it caps
+    the card, and the card's grid shares the shortfall between transcript and reply.
+    The mark is strict, so the 640px case fails once the card holds the reply there."""
+    page, preview, editor = drafting_in_a_short_card(browser, serve, 1000, height)
     preview.locator(".lf-thread-reply .lf-compose-submit").click()
     rendered(page)
     editor.click()
@@ -565,12 +583,30 @@ def test_a_second_margin_reply_grows_below_the_first_line(browser, serve):
     assert caret["caretBottom"] <= caret["boxBottom"], caret
 
 
+@pytest.mark.parametrize(
+    "height",
+    [
+        633,
+        pytest.param(
+            600,
+            marks=pytest.mark.xfail(
+                strict=True,
+                raises=AssertionError,
+                reason="#7511: the capping keystroke shrinks the transcript too, which"
+                " moves the reply's first line",
+            ),
+        ),
+    ],
+)
 def test_continued_margin_draft_grows_below_its_first_line_after_agent_reply(
-    browser, serve
+    browser, serve, height
 ):
     """News holds the reply row. Typing grows below its first line until the card
-    reaches the window's foot, then the editor scrolls within that room."""
-    page, preview, editor = drafting_in_a_short_card(browser, serve, 1000, 600)
+    reaches the window's foot, then the editor scrolls within that room. At 633px the
+    cap still leaves the transcript its whole height; at 600px it doesn't, and the
+    card's grid shares the shortfall between transcript and reply. The mark is strict,
+    so the 600px case fails once the card holds the reply there."""
+    page, preview, editor = drafting_in_a_short_card(browser, serve, 1000, height)
     append_carried_log_record(
         serve.page_dir,
         {

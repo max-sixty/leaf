@@ -1459,9 +1459,8 @@ export const likeSelector = (control: Element) =>
 // false it lands on the item itself, a stop lent where it is no control, and never on
 // a control in it chosen by its tag and classes nor on one a boxless item draws first:
 // where an item takes no focus, it tries the next node its key marks, then the next
-// key's. `owns` says which keyed items are the
-// scope's own, where a scope holds another's, as a widget holds a nested widget whose
-// keys are its own.
+// key's. `owns` says which keyed items are the scope's own, where a scope holds
+// another's, as a widget holds a nested widget whose keys are its own.
 export function holdFocus(
   scope: Element,
   {
@@ -1551,7 +1550,8 @@ export function holdFocus(
     const neighbour = (value: string | null | undefined) => () => {
       if (!alike)
         return keyed(value).some(
-          (each) => placeable(each) && focusDestination(each, "return", { itself: true }),
+          (each) =>
+            placeable(each) && focusDestination(each, "return", { itself: true }),
         );
       const place = find(value);
       return Boolean(place && focusDestination(place, "return"));
@@ -1561,7 +1561,11 @@ export function holdFocus(
       // search of the items.
       if (!focusLost()) return deepFocus() === node;
       if (drawn(node) && restore()) return true;
-      return restore(...keyed(same).filter(placeable), ...rest.map(neighbour), ...standIns);
+      return restore(
+        ...keyed(same).filter(placeable),
+        ...rest.map(neighbour),
+        ...standIns,
+      );
     }
     return restore(() => find(same), ...rest.map(neighbour), ...standIns);
   };

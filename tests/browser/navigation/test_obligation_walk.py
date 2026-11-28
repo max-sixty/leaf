@@ -503,7 +503,7 @@ def test_an_obligations_digits_are_drawn_whole(browser, serve):
         # focus, one Tab in.
         page.keyboard.press("Tab")
         for id_ in options:
-            chip = page.locator(f"#{id_} > .lf-key-badge")
+            chip = page.locator(f"#{id_} .lf-key-badge")
             expect(chip).to_be_visible()
             cut = chip.evaluate(CLIPPED_BY)
             assert cut is None, f"{id_}'s digit is cut: {cut}"

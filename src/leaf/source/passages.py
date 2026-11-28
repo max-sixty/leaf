@@ -65,7 +65,7 @@ from leaf.source.structure import VOID_TAGS, SourceDocument, pre_body
 # page's words, so the reading skips it.
 
 # The characters a whitespace run is made of, as the browser's reading collapses them
-# (registry.json's `$passages.collapse` says why the set is spelled out).
+# (kernel-registry.json's `$passages` says why the set is spelled out).
 COLLAPSE_CHARS = frozenset(kernel_passages()["collapse"])
 COLLAPSE = re.compile("[" + re.escape("".join(sorted(COLLAPSE_CHARS))) + "]+")
 

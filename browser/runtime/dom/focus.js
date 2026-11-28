@@ -1397,9 +1397,8 @@ export const likeSelector = (control) =>
 // false it lands on the item itself, a stop lent where it is no control, and never on
 // a control in it chosen by its tag and classes nor on one a boxless item draws first:
 // where an item takes no focus, it tries the next node its key marks, then the next
-// key's. `owns` says which keyed items are the
-// scope's own, where a scope holds another's, as a widget holds a nested widget whose
-// keys are its own.
+// key's. `owns` says which keyed items are the scope's own, where a scope holds
+// another's, as a widget holds a nested widget whose keys are its own.
 export function holdFocus(scope, { key = null, alike = true, owns = () => true } = {}) {
   const node = heldIn(scope);
   if (!node) return null;

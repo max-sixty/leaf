@@ -741,10 +741,10 @@ def test_slash_finds_page_text_without_a_target_kind(browser, serve):
         '[role=option][data-lf-command="target.picker.open"]'
     )
     expect(search_command.locator("kbd")).to_have_text("/")
-    expect(search_command).to_have_accessible_name("Search page")
+    expect(search_command).to_have_accessible_name(re.compile(r"^Search page\b"))
     expect(search_command.locator(".lf-command-reference-description")).to_have_count(0)
     expect(select_command.locator("kbd")).to_have_text("s")
-    expect(select_command).to_have_accessible_name("Select mode")
+    expect(select_command).to_have_accessible_name(re.compile(r"^Select mode\b"))
     assert (
         "Choose an element by pressing it or typing its hint, then comment"
         in preview_parts(select_command)

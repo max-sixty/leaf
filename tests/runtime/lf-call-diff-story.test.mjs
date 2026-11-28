@@ -64,9 +64,14 @@ test("Expand all and Collapse all read the roots' folds as pressed, and say the 
   const control = () =>
     /** @type {HTMLButtonElement} */ (el.querySelector(".lf-call-toggle"));
   const roots = () =>
-    /** @type {HTMLDetailsElement[]} */ ([...el.querySelectorAll("details.lf-call-group")]);
+    /** @type {HTMLDetailsElement[]} */ ([
+      ...el.querySelectorAll("details.lf-call-group"),
+    ]);
   try {
-    assert.equal(control().getAttribute("aria-label"), "Collapse all 2 call-tree roots");
+    assert.equal(
+      control().getAttribute("aria-label"),
+      "Collapse all 2 call-tree roots",
+    );
     // The reader folds one root, and presses before the browser's `toggle` arrives.
     roots()[0].open = false;
     control().click();
@@ -74,7 +79,10 @@ test("Expand all and Collapse all read the roots' folds as pressed, and say the 
       roots().map((root) => root.open),
       [true, true],
     );
-    assert.equal(control().getAttribute("aria-label"), "Collapse all 2 call-tree roots");
+    assert.equal(
+      control().getAttribute("aria-label"),
+      "Collapse all 2 call-tree roots",
+    );
     control().click();
     assert.deepEqual(
       roots().map((root) => root.open),

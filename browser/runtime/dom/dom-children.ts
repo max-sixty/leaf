@@ -379,7 +379,7 @@ function patchAttributes(
 }
 
 // The runtime and page scripts write properties of their own inline on authored
-// elements, `body`'s included (annotations/composing/aim.js, readings/content-layout.js), so a revision
+// elements, `body`'s included (readings/content-layout.js), so a revision
 // writes whatever the live element holds that neither the old text nor the new one
 // declares, then the author's new text, in one write. The carried part goes as
 // serialized text, since a shorthand written with `var()` reads back empty longhand by

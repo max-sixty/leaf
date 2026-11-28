@@ -231,7 +231,11 @@ const Folds = Mount.makeStream(
         };
         const press = (event: Event) => {
           const button = control();
-          if (!button || !(event.target instanceof Node) || !button.contains(event.target))
+          if (
+            !button ||
+            !(event.target instanceof Node) ||
+            !button.contains(event.target)
+          )
             return;
           const all = roots();
           const open = all.some((root) => !root.open);
@@ -247,7 +251,8 @@ const Folds = Mount.makeStream(
         // from it, so the toggles a bulk press sets off read nothing.
         const toggled = (event: Event) => {
           const root = event.target as HTMLDetailsElement;
-          if (root.matches?.("details.lf-call-group") && root.open === expanding) paint();
+          if (root.matches?.("details.lf-call-group") && root.open === expanding)
+            paint();
         };
         node.addEventListener("click", press);
         node.addEventListener("toggle", toggled, true);

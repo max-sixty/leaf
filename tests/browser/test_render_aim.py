@@ -2685,7 +2685,7 @@ CONTROL_SHAPES = {
     "queue": (
         '<lf-tabs id="queue" list="side"><lf-tab id="first" label="Primary" summary="pages"><p>Primary evidence.</p></lf-tab><lf-tab id="second" label="Backup" summary="pages"><p>Backup evidence.</p></lf-tab></lf-tabs>',
         "#queue [role=tab] .lf-tab-summary",
-        [("Primary", None), ("Backup", None)],
+        [("Primary pages", None), ("Backup pages", None)],
     ),
     # An editor's value never names it, and an authored id does.
     "editable-regions": (
@@ -2758,7 +2758,7 @@ CONTROL_PRESSES = {
     "a tab's summary": (
         '#queue [role=tab][aria-controls="second"] .lf-tab-summary',
         None,
-        "Backup",
+        "Backup pages",
     ),
     "a region": ("#focusable-regions > div >> nth=1", None, "Draft region"),
     "a picture": ("#pictures > figure svg", None, "Cost chart"),
@@ -4422,7 +4422,7 @@ def test_quote_attachment_can_hide_while_its_paragraph_remains(browser, serve):
 
 def test_a_withheld_draft_restores_editing_and_deliberate_dismissal(browser, serve):
     page, words = _open_attachment_draft(
-        browser, serve(COMPOSER_ATTACHMENT_PAGE), "#bg-contents a"
+        browser, serve(COMPOSER_ATTACHMENT_PAGE), "#bg-contents a[href='#first']"
     )
     context = 'composer:[["section","bg-contents"]]'
     assert stored_draft_text(page, context) == words
@@ -4457,7 +4457,7 @@ def test_explicit_reopening_keeps_a_css_hidden_subject_draft_reachable(
     browser, serve, reopen
 ):
     page, words = _open_attachment_draft(
-        browser, serve(COMPOSER_ATTACHMENT_PAGE), "#bg-contents a"
+        browser, serve(COMPOSER_ATTACHMENT_PAGE), "#bg-contents a[href='#first']"
     )
     if reopen not in {"withheld", "comment"}:
         page.keyboard.press("Escape")

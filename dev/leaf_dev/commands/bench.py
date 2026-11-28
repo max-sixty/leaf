@@ -454,9 +454,9 @@ def board_sections(boards: int, cards: int, done: int = 0) -> str:
     )
 
 
-def prose_sections(n: int) -> str:
+def prose_sections(n: int, track: str = "") -> str:
     """`n` sections of headings and paragraphs after one ask: the document grows, and
-    the widgets don't."""
+    the widgets don't. `track` is what a sidebar beside it holds, if anything."""
     question = (
         '<lf-group id="q0" label="Question"><h3 id="q0-h">Question</h3><lf-options id="o0" multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
@@ -469,7 +469,14 @@ def prose_sections(n: int) -> str:
         "</section>"
         for g in range(1, n + 1)
     )
-    return page("Prose", question + sections)
+    return page("Prose", question + sections, track)
+
+
+def contents_sections(n: int) -> str:
+    """`prose_sections(n)` beside a track holding an `lf-toc`: a row, a marker and a
+    heading the reading position follows for each of the `n` sections, so the map's
+    fitting and the reading position grow with the outline."""
+    return prose_sections(n, track='<lf-toc id="contents"></lf-toc>')
 
 
 def steps(count: int, name: str = "") -> str:
@@ -567,11 +574,19 @@ def table_rows(n: int) -> str:
     return page("Rows", question + table)
 
 
-def page(title: str, body: str) -> str:
+def page(title: str, body: str, track: str = "") -> str:
+    """A page of `body` under its title, beside a sidebar's track holding `track` if
+    there is one."""
+    article = f'<article id="document"><h1>{title}</h1>{body}</article>'
+    main = (
+        '<main class="layout-sidebar"><aside><div class="layout-track">'
+        f'{track}</div></aside><div class="layout-column">{article}</div></main>'
+        if track
+        else f"<main>{article}</main>"
+    )
     return (
         f'<!doctype html><html lang="en"><head><title>{title}</title></head><body>'
-        f'<main><article id="document"><h1>{title}</h1>{body}</article></main>'
-        "</body></html>"
+        f"{main}</body></html>"
     )
 
 
@@ -720,6 +735,8 @@ COLLECTIONS: dict[str, Collection] = {
         prose_sections, lambda n: [passage_comment(t) for t in range(1, n + 1)]
     ),
     "rows": Collection(table_rows),
+    # Prose beside a reading map of its sections.
+    "contents": Collection(contents_sections),
     "documents": Collection(side_documents, data=document_sources),
     "asktabs": Collection(side_asks),
     "widgets": Collection(

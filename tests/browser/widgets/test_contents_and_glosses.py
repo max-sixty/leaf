@@ -20,6 +20,7 @@ from render_harness import (
     resized,
     scroll_settled,
     show_changes,
+    spine_sidebar,
     told,
 )
 
@@ -31,12 +32,14 @@ pytestmark = pytest.mark.shifts_unsurveyed
 
 
 def contents_page(title, body, *, toc_id="contents"):
-    """A native sidebar track beside the authored document column."""
+    """A native sidebar track beside the authored document column, narrowed to the
+    contents map's spine."""
     return leaf_page(
         title,
         '<aside id="route"><div class="layout-track" id="route-track">'
         f'<lf-toc id="{toc_id}"></lf-toc></div></aside>'
         f'<div class="layout-column">{body}</div>',
+        head=spine_sidebar(),
         layout="sidebar",
     )
 
@@ -338,7 +341,8 @@ def test_contents_addresses_a_title_group_and_maps_its_complete_box(browser, ser
 def test_contents_with_every_destination_hidden_returns_when_the_disclosure_opens(
     browser, serve
 ):
-    """An empty displayed route has no current destination, then recovers on reveal."""
+    """A route whose every destination is hidden shows, as the disclosure opens, its
+    whole map and its start as current in the first frame it lays out."""
     source = leaf_page(
         "closed contents",
         """
@@ -353,19 +357,19 @@ def test_contents_with_every_destination_hidden_returns_when_the_disclosure_open
   <div style="height: 110vh"></div>
 </div></div></details>
 """,
+        head=spine_sidebar(".layout-sidebar"),
     )
     page = open_page(browser, serve(source))
     resized(page, 1400, 900)
     nav = page.get_by_role("navigation", name="On this page", include_hidden=True)
     expect(nav).to_be_hidden()
-    expect(nav.locator("[aria-current]")).to_have_count(0)
     page.evaluate("""() => {
       window.firstContentsReveal = null;
       const observer = new ResizeObserver(() => {
         if (!document.querySelector('main > details').open) return;
         const nav = document.querySelector('#contents');
         firstContentsReveal = {
-          unshown: nav.querySelectorAll('.lf-toc-marker:not([data-lf-toc-shown])').length,
+          unshown: nav.querySelectorAll('.lf-toc-marker[data-lf-toc-off]').length,
           current: nav.querySelector('[aria-current]')?.textContent,
         };
         observer.disconnect();
@@ -378,10 +382,9 @@ def test_contents_with_every_destination_hidden_returns_when_the_disclosure_open
     first_reveal = page.evaluate("firstContentsReveal")
     assert first_reveal == {"unshown": 0, "current": "Migration plan"}
     expect(nav.locator(".lf-toc-start a")).to_have_attribute("aria-current", "location")
-    expect(nav.locator(".lf-toc-marker:not([data-lf-toc-shown])")).to_have_count(0)
+    expect(nav.locator(".lf-toc-marker[data-lf-toc-off]")).to_have_count(0)
     page.get_by_text("Open the migration plan", exact=True).click()
     expect(nav).to_be_hidden()
-    expect(nav.locator("[aria-current]")).to_have_count(0)
 
 
 def test_contents_reconciles_live_title_boundaries_and_keeps_its_links(browser, serve):
@@ -1167,6 +1170,39 @@ def test_the_current_section_is_the_one_that_fills_the_window(browser, serve):
     assert page.locator("#verify").evaluate(
         "node => node.getBoundingClientRect().top < innerHeight / 2"
     )
+
+
+def test_a_framed_page_s_current_section_is_read_against_its_own_window(browser, serve):
+    """A page framed low in its host, as a window sample stands, scrolls in a window of
+    its own, and its current section is the one filling that window's top half, not
+    the host's."""
+    sections = "".join(
+        f'<section><h2 id="{name.lower()}">{name}</h2>'
+        '<div style="height: 1400px"></div></section>'
+        for name in ("Prepare", "Move", "Verify")
+    )
+    page = open_page(
+        browser,
+        serve(contents_page("framed contents", f"<h1>A migration</h1>{sections}")),
+    )
+    resized(page, 1728, 999)
+    page.evaluate("""() => {
+      const frame = document.createElement('iframe');
+      frame.id = 'frame';
+      frame.title = 'Framed';
+      frame.style.cssText =
+        'position: fixed; inset: 600px auto auto 0; width: 1600px; height: 800px';
+      frame.src = location.href;
+      document.body.append(frame);
+    }""")
+    embedded = page.locator("#frame").element_handle().content_frame()
+    wait_until_ready(embedded)
+    current = embedded.locator("#contents a[aria-current='location']")
+    embedded.locator("#move").evaluate(
+        "node => scrollTo({behavior: 'instant', "
+        "top: node.getBoundingClientRect().top + scrollY - 100})"
+    )
+    expect(current).to_have_text("Move")
 
 
 def test_a_route_too_long_for_its_labels_leaves_its_deepest_level_off_the_map(

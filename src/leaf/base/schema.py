@@ -375,7 +375,6 @@ FACTS: dict[str, dict] = {
     # and reserves only what an occurrence's data-height states.
     "height": {"oneOf": [{"const": True}, {"type": "integer", "minimum": 1}]},
     "bound": {"enum": ["start", "end"]},
-    "spine": {"const": True},
     "flow": _conditional({"const": True}),
     "inputs": DATA_INPUTS_SCHEMA,
     # Each output's name is the element property holding it (host/data.js).

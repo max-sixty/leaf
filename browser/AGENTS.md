@@ -847,6 +847,7 @@ only for what Leaf alone holds (`../packages/AGENTS.md`, "A widget's need of Lea
 | Whether a node is, or is inside, an open native layer, and of which kind                              | `lib/shadow-tree.js` `nativeLayerKind`, `isNativeLayer`, `nativeLayerHolding` (_lint_) |
 | Whether a node stands in content the browser skips, the box that skips it, and every element it draws | `lib/shadow-tree.js` `skipped`, `skipper`, `drawnElements`                             |
 | The closed box that hides a node until the user opens it: a closed disclosure or a tab not chosen     | `lib/shadow-tree.js` `closedOver`                                                      |
+| The elements an `aria-labelledby` names, in its element's own tree                                    | `lib/shadow-tree.js` `labelledBy`                                                      |
 | Which native layers are open, in opening order, and whether a modal admits a node                     | `dom/keyboard/layer-stack.js` `nativeLayers`, `nativeModalAdmits`                      |
 | The element a URL fragment names, or the part of a widget its key names; a package's address too      | `readings/anchor-resolution.js` `fragmentTarget`, `fragmentAddress`, `elementNamed`    |
 | The element an id names, read from the element that gives it: its message first, then the page        | `readings/references.js` `authoredElement`                                             |

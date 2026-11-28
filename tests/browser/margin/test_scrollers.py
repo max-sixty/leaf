@@ -1148,11 +1148,11 @@ TAB_PIN_PAGE = leaf_page(
 )
 
 
-def test_a_row_behind_an_inactive_tab_stands_on_the_tab_set(browser, serve):
+def test_a_row_behind_an_inactive_tab_stands_on_its_tab(browser, serve):
     """An inactive tab keeps its content laid out under `content-visibility: hidden`,
     where an anchor is invalid and a row would be drawn wherever it stood with no
-    anchor at all. The row stands level with the tab set instead, which the page
-    draws, and moves to its passage with its tab."""
+    anchor at all. The row stands level with the tab that shows the panel instead,
+    which the page draws, and moves to its passage as that tab opens."""
     page = open_page(browser, serve(TAB_PIN_PAGE, events=[_comment_on("behind")]))
     resized(page, 1440, 900)
     margins_laid_out(page)
@@ -1163,7 +1163,8 @@ def test_a_row_behind_an_inactive_tab_stands_on_the_tab_set(browser, serve):
         assert abs(row.bounding_box()["y"] - top) <= 2, selector
 
     expect(row).to_be_visible()
-    level_with("#views")
+    # The second tab's name, which the panel's label names.
+    level_with("#" + page.locator("#second-view").get_attribute("aria-labelledby"))
     page.get_by_role("tab", name="Second").click()
     margins_laid_out(page)
     expect(row).to_be_visible()

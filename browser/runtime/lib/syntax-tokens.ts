@@ -102,17 +102,31 @@ type Tokenized = Awaited<ReturnType<typeof import("/vendor/syntax.esm.js").token
 type SyntaxState = NonNullable<Tokenized["state"]>;
 type SyntaxToken = Tokenized["tokens"][number];
 
-// Tokens as nodes: one span per style, and the bare text where none applies, so nothing
-// lands in the DOM that says nothing. Callers build from here — plain code replacing its
-// own children, lf-code appending into the line it is numbering — because a second place
-// writing the same span is a second place to forget the attribute.
+// A token's span as attributes: one span per style, and null for the bare text where
+// none applies, so nothing lands in the DOM that says nothing. Every caller builds its
+// spans from here — plain code replacing its own children (`synNodes`), lf-code's view
+// drawing the line it is numbering — because a second place writing the same span is a
+// second place to forget the attribute.
+export const synAttributes = (style: SyntaxToken["style"]) => {
+  const declarations = Object.entries(style);
+  return declarations.length
+    ? {
+        "data-lf-syn": "",
+        style: declarations
+          .map(([property, value]) => `${property}: ${value}`)
+          .join("; "),
+      }
+    : null;
+};
+
+// Tokens as nodes, for a caller that builds the DOM itself.
 export const synNodes = (tokens: readonly SyntaxToken[]) =>
   tokens.map(({ text, style }) => {
-    if (!Object.keys(style).length) return document.createTextNode(text);
+    const attributes = synAttributes(style);
+    if (!attributes) return document.createTextNode(text);
     const span = document.createElement("span");
-    span.dataset.lfSyn = "";
-    for (const [property, value] of Object.entries(style))
-      span.style.setProperty(property, value);
+    for (const [name, value] of Object.entries(attributes))
+      span.setAttribute(name, value);
     span.textContent = text;
     return span;
   });

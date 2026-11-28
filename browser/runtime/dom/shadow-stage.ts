@@ -6,15 +6,14 @@
    Leaf installs its augmentation from stage-integration.js before widgets upgrade:
    shared styles and marks, and focus and passage watches belong to the host,
    not to a widget's staging lifecycle. Re-adoption restores shared adopted sheets
-   without discarding a renderer's own. The host returns its retained style nodes so
-   imperative staging keeps them alongside the rendering. */
+   without discarding a renderer's own. */
 import { setChildren } from "./dom-children.js";
 import { watchArrivalsIn } from "./arrivals.js";
 import { stagesFailure } from "../lib/failure.js";
 import { watchLayers } from "./keyboard/layer-stack.js";
 
-let integration: ((root: ShadowRoot) => Node[]) | null = null;
-export const installStageIntegration = (adopt: (root: ShadowRoot) => Node[]) => {
+let integration: ((root: ShadowRoot) => void) | null = null;
+export const installStageIntegration = (adopt: (root: ShadowRoot) => void) => {
   integration = adopt;
 };
 export function adoptShadowStage(root: ShadowRoot) {
@@ -28,9 +27,9 @@ export function shadowStage(host: Element, nodes: Iterable<Node>) {
   const root = host.shadowRoot ?? stageFor(host);
   watchArrivalsIn(root);
   watchLayers(root);
-  const styles = integration?.(root) ?? [];
+  integration?.(root);
   // Keep retained nodes connected, preserving their focus and widget lifecycle.
-  setChildren(root, [...styles, ...nodes]);
+  setChildren(root, nodes);
   for (const child of [...host.childNodes]) child.remove();
   host.removeAttribute("data-lf-failed");
   return root;

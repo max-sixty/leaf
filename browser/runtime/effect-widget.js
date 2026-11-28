@@ -16,7 +16,10 @@
      the view draws shows the authored children in place. A widget that decorates
      those children draws its controls around the slot and exposes them to the theme as
      shadow parts (`part=` / `::part`), as lf-options.js's header says ("How it is
-     drawn: a decorating widget").
+     drawn: a decorating widget"). With `slotAssignment: "manual"` as well, a slot
+     shows only the children a Mount on it assigns (`slot.assign`), so a widget can
+     stand each authored child at a place of its own, as lf-code stands each note under
+     its line, without writing a `slot` attribute on the author's markup.
 
    Props. The component's Model holds only what the user is doing in the widget, such
    as an open disclosure; what Leaf knows arrives as props:
@@ -51,8 +54,9 @@
    by its lowercased tag, with the event as `detail`, as `BrowserHost.defineElement`
    dispatches one.
 
-   Declarations. What Leaf reads off the element itself, its keys (`lfCommands`) and
-   its visual parts (`lfParts`), a widget states with `declare(node, declarations)`
+   Declarations. What Leaf reads off the element itself, its keys (`lfCommands`), its
+   visual parts (`lfParts`) and the elements a key into it addresses
+   (`lfElementsFor`, anchor-resolution.js), a widget states with `declare(node, declarations)`
    from a Mount, where `node` is the element or one its view drew: they stand on the
    element while the root does. Each call says them (`lf-commands`, and `lf-layout`
    for parts), so Leaf reads again what they read. A widget gives the Mount, as its
@@ -71,7 +75,8 @@
 
    Failure. A root that fails, or inputs that throw, report the failure as the
    element's `error` and show Leaf's failure box beside the authored children, which
-   stay visible: a shadow root that failed shows them through a bare slot. A later
+   stay visible: a shadow root that failed shows them through a bare slot, assigned
+   all of them where its slots are assigned by hand. A later
    successful reading of the inputs removes the box; a failed root stands failed until
    the element connects again.
 
@@ -148,7 +153,10 @@ export function declare(node, declarations) {
   while (at && !elementOf.has(at)) at = at.parentNode;
   const element = at && elementOf.get(at);
   if (!element) throw new Error("declare: the node stands in no widget's root");
-  const { lfCommands, lfParts } = declarations;
+  const { lfCommands, lfParts, lfElementsFor } = declarations;
+  if ("lfElementsFor" in declarations)
+    if (lfElementsFor) element.lfElementsFor = lfElementsFor;
+    else delete element.lfElementsFor;
   if ("lfCommands" in declarations) {
     element.lfCommands = lfCommands;
     element.dispatchEvent(new CustomEvent(COMMANDS, { bubbles: true, composed: true }));
@@ -164,7 +172,14 @@ export function declare(node, declarations) {
 export function defineWidget(
   tag,
   component,
-  { shadow = false, statics, inputs, properties = [], members = {} } = {},
+  {
+    shadow = false,
+    slotAssignment = "named",
+    statics,
+    inputs,
+    properties = [],
+    members = {},
+  } = {},
 ) {
   const Widget = class extends HTMLElement {
     static {
@@ -220,7 +235,7 @@ export function defineWidget(
 
     constructor() {
       super();
-      if (shadow) this.attachShadow({ mode: "open" });
+      if (shadow) this.attachShadow({ mode: "open", slotAssignment });
       // A page may set a property before this module defines the tag, which leaves an
       // own property hiding the accessor. Its value moves into the props here, without
       // the accessor's mount: an element upgraded in the document mounts from
@@ -287,6 +302,7 @@ export function defineWidget(
         elementOf.delete(this);
         if (!this.shadowRoot) this.#container?.remove();
         this.lfCommands = this.lfParts = undefined;
+        delete this.lfElementsFor;
         this.#root = this.#scope = this.#unwatch = this.#container = undefined;
         Effect.runFork(Scope.close(scope, Exit.void));
       });
@@ -346,7 +362,17 @@ export function defineWidget(
         onEmit: (event) => this.#emit(event),
         fallback: (failure, h) => {
           this.#failed = true;
-          queueMicrotask(() => failSoft(this, Cause.squash(failure.cause)));
+          queueMicrotask(() => {
+            failSoft(this, Cause.squash(failure.cause));
+            if (slotAssignment === "manual")
+              this.shadowRoot
+                ?.querySelector("slot")
+                ?.assign(
+                  ...[...this.childNodes].filter(
+                    (node) => node instanceof Element || node instanceof Text,
+                  ),
+                );
+          });
           return this.shadowRoot ? h.slot : h.span;
         },
       });

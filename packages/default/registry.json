@@ -326,6 +326,7 @@
       "required": ["id"]
     },
     "content": "data",
+    "shadow": true,
     "inputs": {
       "playhead": {
         "contract": "source-lines",

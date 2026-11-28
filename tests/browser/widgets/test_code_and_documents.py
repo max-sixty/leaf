@@ -1688,12 +1688,13 @@ only
         ),
     )
     page = open_page(browser, url)
-    rows = page.locator("#walk pre > *")
+    rows = page.locator("#walk .lf-code-source > *")
     expect(rows).to_have_count(8)
     assert rows.evaluate_all(
         """rs => rs.map(r => r.classList.contains('lf-code-elided')
-                   ? ['elided', r.dataset.lfElided, r.textContent]
-                   : r.localName === 'lf-note' ? ['note']
+                   ? ['elided', r.dataset.lfElided,
+                      r.querySelector('slot').assignedElements()[0].textContent]
+                   : r.classList.contains('lf-code-note') ? ['note']
                    : [getComputedStyle(r, '::before').content, r.hasAttribute('data-lf-hi')])"""
     ) == [
         ['"1505"', False],
@@ -1705,14 +1706,15 @@ only
         ["note"],
         ['"1552"', False],
     ]
-    short = page.locator("#short pre > *")
+    short = page.locator("#short .lf-code-source > *")
     expect(short).to_have_count(4)
     assert short.evaluate_all(
-        """rs => rs.map(r => r.localName === 'lf-note' ? r.id
+        """rs => rs.map(r => r.classList.contains('lf-code-note')
+                   ? r.querySelector('slot').assignedElements()[0].id
                    : getComputedStyle(r, '::before').content)"""
     ) == ['"10"', '"11"', '"12"', "far"]
     # A range far past the body numbers only the body's lines.
-    vast = page.locator("#vast pre > .lf-code-line")
+    vast = page.locator("#vast .lf-code-source > .lf-code-line")
     expect(vast).to_have_count(1)
     assert vast.evaluate("r => getComputedStyle(r, '::before').content") == '"1"'
 
@@ -1725,7 +1727,8 @@ only
             range.setStart(node.firstChild.firstChild ?? node.firstChild, 0);
             return range.getBoundingClientRect().left;
           };
-          const line = document.querySelector('#walk [data-lf-line="1551"]');
+          const root = document.querySelector('#walk').shadowRoot;
+          const line = root.querySelector('[data-lf-line="1551"]');
           const walker = document.createTreeWalker(line, NodeFilter.SHOW_TEXT);
           let key = null;
           for (let node = walker.nextNode(); node && !key; node = walker.nextNode()) {
@@ -1735,10 +1738,10 @@ only
             key.setStart(node, at);
             key.setEnd(node, at + 1);
           }
-          const note = document.querySelector('#walk pre > lf-note');
+          const note = root.querySelector('.lf-code-note');
           const card = note.getBoundingClientRect().left
             + parseFloat(getComputedStyle(note, '::before').left);
-          return [start(document.querySelector('#walk .lf-code-line')),
+          return [start(root.querySelector('.lf-code-line')),
                   key.getBoundingClientRect().left, card];
         }"""
     )
@@ -1747,7 +1750,8 @@ only
 
     # The caption sits after the gutter and the count, on the elided row's own line.
     gutter, caption = page.evaluate(
-        """() => [document.querySelector('#walk .lf-code-line').getBoundingClientRect(),
+        """() => [document.querySelector('#walk').shadowRoot.querySelector('.lf-code-line')
+                    .getBoundingClientRect(),
                   document.querySelector('#gap').getBoundingClientRect()]
                  .map(r => [r.left, r.height])"""
     )
@@ -1761,7 +1765,7 @@ only
     assert page.evaluate(addressed, "3") == []
 
     # The user drags from the excerpt's first word to its last.
-    ends = page.locator("#walk pre").evaluate(
+    ends = page.locator("#walk .lf-code-source").evaluate(
         """pre => {
           const walker = document.createTreeWalker(pre, NodeFilter.SHOW_TEXT,
             (node) => node.data.trim() ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_SKIP);
@@ -1780,7 +1784,11 @@ only
         }"""
     )
     select(page, *ends)
-    copied = page.evaluate("() => getSelection().toString()")
+    # What the clipboard takes: the notes the block's slots show are in it, though a
+    # selection's own `toString()` reads only the shadow tree's text.
+    page.context.grant_permissions(["clipboard-read", "clipboard-write"])
+    page.keyboard.press("ControlOrMeta+c")
+    copied = page.evaluate("navigator.clipboard.readText()")
     # The notes come along on lines of their own, as authored text; the numbers,
     # the elided mark and its count do not.
     assert copied == (
@@ -1815,7 +1823,7 @@ def ceiling(limit):
     expect(page.locator("#walk .lf-code-line")).to_have_count(3)
     reading = page.evaluate(
         """() => {
-          const pre = document.querySelector('#walk pre');
+          const pre = document.querySelector('#walk').shadowRoot.querySelector('pre');
           const [first, ...long] = pre.querySelectorAll('.lf-code-line');
           const glyph = document.createRange();
           const text = document.createTreeWalker(first, NodeFilter.SHOW_TEXT).nextNode();
@@ -1853,23 +1861,24 @@ def ceiling(limit):
     assert set(digest_rows[1:]) == {2}, reading
     assert reading["gutterSpans"] == [True, True], reading
 
-    pre = page.locator("#walk pre")
+    pre = page.locator("#walk .lf-code-source")
     line = page.locator("#walk .lf-code-line").nth(1)
-    # The page supplies the initial presentation; an explicit reader choice owns
-    # wrapping even when the page declares its preference important.
+    # The page supplies the initial presentation, which the reader's first press turns
+    # the other way; an explicit reader choice owns wrapping even when the page
+    # declares its preference important.
     authored = page.add_style_tag(
-        content="#walk .lf-code-line { white-space: pre; overflow-wrap: normal; }"
+        content="#walk::part(line) { white-space: pre; overflow-wrap: normal; }"
     )
+    expect(line).to_have_css("white-space", "pre")
     pre.focus()
     page.keyboard.press("w")
-    expect(line).to_have_css("white-space", "pre")
-    page.keyboard.press("w")
     expect(line).to_have_css("white-space", "pre-wrap")
+    page.keyboard.press("w")
+    expect(line).to_have_css("white-space", "pre")
     authored.evaluate(
-        """node => node.textContent = '#walk .lf-code-line { '
+        """node => node.textContent = '#walk::part(line) { '
           + 'white-space: pre-wrap !important; overflow-wrap: anywhere !important; }'"""
     )
-    page.keyboard.press("w")
     expect(line).to_have_css("white-space", "pre")
     expect(line).to_have_css("overflow-wrap", "normal")
     pre.evaluate("node => node.scrollLeft = 80")
@@ -1913,30 +1922,31 @@ print("no notes")
         ),
     )
     page = open_page(browser, url)
-    bar = page.locator("#walk > .lf-code-bar")
+    bar = page.locator("#walk .lf-code-bar")
     toggle = bar.locator(".lf-code-notes-toggle")
     note = page.locator("#freeze")
     number = page.locator('#walk [data-lf-line="2"]')
-    # Notes first, Copy last, on one toolbar; a block without notes keeps Copy alone.
+    # Notes first, Copy last, on one toolbar; a block without notes has Copy alone on
+    # its toolbar.
     expect(bar.locator(":scope > *")).to_have_count(2)
     assert bar.locator(":scope > *").evaluate_all(
         "marks => marks.map(m => m.getAttribute('aria-label'))"
     ) == ["Hide notes", "Copy"]
-    expect(page.locator("#plain .lf-code-bar")).to_have_count(0)
-    expect(page.locator("#plain .lf-code-copy")).to_have_count(1)
+    expect(page.locator("#plain .lf-code-bar > *")).to_have_count(1)
+    expect(page.locator("#plain .lf-code-bar > .lf-code-copy")).to_have_count(1)
     expect(note).to_be_visible()
     page.mouse.move(0, 0)
     expect(bar).to_have_css("opacity", "0")
     shown = number.evaluate("line => getComputedStyle(line, '::before').color")
 
-    page.locator("#walk pre").hover()
+    page.locator("#walk .lf-code-source").hover()
     expect(bar).to_have_css("opacity", "1")
     toggle.click()
     expect(toggle).to_have_attribute("aria-label", "Show 1 note")
     expect(note).to_be_hidden()
     assert number.evaluate("line => getComputedStyle(line, '::before').color") != shown
 
-    page.locator("#walk pre").focus()
+    page.locator("#walk .lf-code-source").focus()
     page.keyboard.press("n")
     expect(toggle).to_have_attribute("aria-label", "Hide notes")
     expect(note).to_be_visible()
@@ -1945,7 +1955,7 @@ print("no notes")
     expect(note).to_be_hidden()
     # Copy, the toolbar's last mark, copies the code without the note's words.
     page.context.grant_permissions(["clipboard-read", "clipboard-write"])
-    page.locator("#walk pre").hover()
+    page.locator("#walk .lf-code-source").hover()
     bar.get_by_role("button", name="Copy").click()
     assert page.evaluate("navigator.clipboard.readText()") == (
         'def bracket(temp):\n    if temp < 0:\n        return "steel"\n    return "cedar"'

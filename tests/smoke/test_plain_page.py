@@ -199,13 +199,20 @@ FACES_BELOW = """([ids, names]) => Object.fromEntries(ids.map(id => {
   return [id, faces];
 }))"""
 # The parts of the widgets that a stylesheet moves, by class: each element below a
-# widget whose computed style names an animation, or a transition that takes time.
-MOVING = """() => [...document.querySelectorAll("main > section:not(#host) *")]
-  .filter(part => {
-    const style = getComputedStyle(part);
-    return style.animationName !== "none" || (style.transitionProperty !== "none"
-      && style.transitionDuration.split(",").some(time => parseFloat(time) > 0));
-  }).map(part => part.getAttribute("class") ?? part.localName)"""
+# widget, in its shadow tree as well, whose computed style names an animation, or a
+# transition that takes time. An authored child a shadow tree shows nowhere has no
+# style to read, so it moves nothing.
+MOVING = """() => {
+  const under = root => [...root.querySelectorAll("*")]
+    .flatMap(part => [part, ...(part.shadowRoot ? under(part.shadowRoot) : [])]);
+  return [...document.querySelectorAll("main > section:not(#host)")].flatMap(under)
+    .filter(part => {
+      const style = getComputedStyle(part);
+      return style.display !== "" && (style.animationName !== "none"
+        || (style.transitionProperty !== "none"
+          && style.transitionDuration.split(",").some(time => parseFloat(time) > 0)));
+    }).map(part => part.getAttribute("class") ?? part.localName);
+}"""
 # What each widget's root inherits from the page around it, the same on both pages.
 STAGE = (
     "inline-size: 860px; font: 16px/1.5 Georgia, serif; color: rgb(28, 27, 24);"

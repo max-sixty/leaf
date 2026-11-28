@@ -1,7 +1,8 @@
-/* lf-code: upgraded because it splits lines. The body is code verbatim in a <pre>
- * (data); `hi` highlights line ranges; lf-note children beside that <pre> anchor a
- * remark at a line. Notes are moved, never rewritten, so their text stays quotable
- * — the annotated-walkthrough shape.
+// Compiled from lf-code.ts by build/typescript.mjs; edit that file.
+/* lf-code: the author's code, numbered and coloured, with `lf-note` children standing
+ * under the lines they remark on — the annotated-walkthrough shape. The body is code
+ * verbatim in a <pre> (data); `hi` highlights line ranges; each note's `at` names the
+ * line it is about.
  *
  * A `language-…` class colors it, on a `<code>` inside the `<pre>` as on any code
  * block (`codeLanguage`). A token can span a newline (a docstring, a block comment)
@@ -21,14 +22,17 @@
  * Every number from the first shown line to the last addresses a row: its own line,
  * or the elided row standing in for the stretch it falls in. So a left-out line is
  * referenced like any other — `hi` tints the elided row, and a note whose `at` falls
- * there becomes that row's caption, saying what was left out.
+ * there becomes that row's caption, saying what was left out. A note naming a line past
+ * either end of the block stands at its foot.
  *
  * `lfElementsFor(key)` answers a reference into the block (`navigateToDatum`) in that
  * same grammar. A number outside the block addresses nothing.
- * The reader can switch wrapping through the code block’s command scope without rebuilding source rows. This
- * is tab-local reading state, retained by widget id across revisions, not a decision.
- * Until the reader chooses, authored presentation remains the default. Paper wraps
- * complete lines regardless of the screen choice.
+ *
+ * The reader can switch wrapping through the code block's command scope (`w`). This is
+ * tab-local reading state, kept by widget id across revisions (`KeepInTab`), not a
+ * decision. Until the reader chooses, authored presentation remains the default, and
+ * the press reads which that is off the drawn line. Paper wraps complete lines
+ * regardless of the screen choice.
  *
  * A docked note carries its line's indent (`--lf-code-indent`, as the line does), so
  * the theme stands it under the line's first character. A block with notes offers a
@@ -63,9 +67,32 @@
  * from a reader who had scrolled up to read the lede as soon as the film lit a line
  * beside it.
  *
- * It is a `LeafElement` only to be handed `playhead`; it draws no Lit template, and its
- * source draw is the update's completion, so Leaf's first anchor pass waits for the
- * lines.
+ * How it is drawn: a decorating widget (lf-options.js, "How it is drawn"). An Effect
+ * UI component (runtime/effect-widget.js) draws the numbered lines, the elided rows and
+ * the toolbar in the element's shadow root, and the theme styles them by their shadow
+ * parts (code.css): `frame`, `source`, each `row` (a `line` or an `elided` row, with
+ * `hi`, `at` and `folded` for the states a row is in, and `wrap` or `scroll` for the
+ * reader's choice), each `note` and `caption` holding a note, and `bar`. The light DOM
+ * stays the author's: the authored <pre> is the source the lines are drawn from and
+ * shows nowhere, and each note stays where it was written, shown under its line
+ * through a slot of its own, which a mount assigns it to (`slotAssignment: "manual"`),
+ * so its words stay the author's and quotable.
+ *
+ * Why a shadow root, where a decorating widget draws in a light-DOM part beside the
+ * author's children first (browser/AGENTS.md, "Renderers"): a note reads between two
+ * of the drawn lines, and the light part stands after the authored children, so the
+ * note would come before every line in the document's order, which is the order a
+ * selection, a copy and a passage's quote read in; CSS `order` moves only the paint.
+ * Moving the note into the part instead, as the LeafElement moved it into its <pre>,
+ * takes it from where `inputs` and Leaf's revisions find the author's markup. A slot
+ * puts the note in the flat tree's order where it is drawn and leaves it in place.
+ *
+ * A comment on the code anchors on the
+ * drawn lines' text, which the registry's `shadow` brings into the page's reading.
+ * The tokenizer is Shiki's (`syntax`), run by a mount on the source (`Color`), whose
+ * coloured lines come back as a message; until they do, the block draws its source
+ * uncoloured, and it holds Leaf's presentation for them (`pending-task`), so the first
+ * anchor pass reads the lines as they stand.
  *
  * It imports only the helpers that load in any document, so a plain HTML page that maps
  * `/runtime/` and `/vendor/` draws it too: coloured, numbered by its own stylesheet where
@@ -73,19 +100,36 @@
  * the wrap and notes keys as the element's `lfCommands`, the Copy control from the
  * block's `data-lf-copy`, standing in the block's toolbar (`lfBar`) where it has one,
  * and the word a listener hears on a highlighted line from its `data-lf-quiet`. */
+import {
+  Command,
+  Component,
+  Effect,
+  Equal,
+  Html,
+  Mount,
+  Queue,
+  Schema,
+  Stream,
+  UiSchema,
+} from "/vendor/effect-ui.js";
 import { onUserInput, scrollersOf, tabStore } from "/runtime/portable-api.js";
-import { LeafElement } from "/runtime/lib/leaf-element.js";
 import { bodyText } from "/runtime/lib/data-body.js";
-import { failSoft } from "/runtime/lib/failure.js";
-import { nameAction, offer, offerAction } from "/runtime/lib/controls.js";
+import {
+  nameAction,
+  offerActionElement,
+  offerAttributes,
+} from "/runtime/lib/controls.js";
 import {
   codeLanguage,
-  synNodes,
+  synAttributes,
   syntax,
   tokenLines,
 } from "/runtime/lib/syntax-tokens.js";
-import { keeps } from "/runtime/lib/keeps.js";
 import { scrollMoves } from "/runtime/lib/scroll-range.js";
+import { PendingTaskEvent } from "/runtime/lib/pending-task.js";
+import { layoutChanged } from "/runtime/lib/widget-events.js";
+import { KeepInTab } from "/runtime/widget-services.js";
+import { declare, defineWidget, widgetProps } from "/runtime/effect-widget.js";
 
 // Which of the reader's gestures last had their hand on or inside each element, counted
 // from the first. A block follows in its box unless their hand was in the box after it
@@ -94,19 +138,16 @@ import { scrollMoves } from "/runtime/lib/scroll-range.js";
 // from the document's one reading of the reader's inputs (`onUserInput`), which binds
 // no key, and is one of its gestures: an `input` follows a gesture already counted, and
 // a script that moves the followed widget dispatches one with no reader behind it.
-/** @type {WeakMap<Element, number>} */
 const hands = new WeakMap();
 let gestures = 0;
 const HAND = new Set(["pointerdown", "wheel", "touchstart", "keydown"]);
 onUserInput((event) => {
   if (!HAND.has(event.type)) return;
   gestures += 1;
-  for (const node of event.composedPath())
-    if (node instanceof Element) hands.set(node, gestures);
+  for (const node of event.composedPath()) hands.set(node, gestures);
 });
 
 // "3-5,8" → [[3, 5], [8, 8]].
-/** @param {string | null} spec @returns {[number, number][]} */
 const spans = (spec) =>
   (spec ? spec.split(",") : []).map((part) => {
     const [start, end] = part.split("-");
@@ -117,24 +158,13 @@ const spans = (spec) =>
 // Whether a range spec names any of the lines lo..hi: one line, or the stretch an
 // elided row stands for. A range may run across a gap in an excerpt, and then
 // addresses the lines on either side of it and the elided row between.
-/** @param {string | null} spec */
 const within = (spec) => {
   const ranges = spans(spec);
-  return (/** @type {number} */ lo, hi = lo) =>
-    ranges.some(([from, to]) => from <= hi && lo <= to);
+  return (lo, hi = lo) => ranges.some(([from, to]) => from <= hi && lo <= to);
 };
-
-// The rows a range addresses: a numbered line by its number, an elided row by the
-// stretch it stands for.
-/** @param {HTMLSpanElement} row @returns {[number, number?]} */
-const rowSpan = (row) =>
-  row.classList.contains("lf-code-elided")
-    ? [Number(row.dataset.lfFrom), Number(row.dataset.lfTo)]
-    : [Number(row.dataset.lfLine)];
 
 // How many columns a line's leading whitespace takes, a tab reaching the next stop of
 // eight (the <pre>'s tab-size).
-/** @param {{text: string}[]} tokens */
 const indentColumns = (tokens) => {
   const leading = tokens
     .map((token) => token.text)
@@ -151,10 +181,9 @@ const indentColumns = (tokens) => {
 // counting from the last number, and ranges past the body's end number nothing.
 // Each range is walked only as far as the body needs, so a range far longer than the
 // body costs nothing.
-/** @param {HTMLElement} el @returns {Generator<number, never>} */
-function* numbering(el) {
+function* numbering(spec) {
   let last = 0;
-  for (const [from, to] of spans(el.getAttribute("lines")))
+  for (const [from, to] of spans(spec))
     for (let n = from; n <= to; n++) {
       last = n;
       yield n;
@@ -162,284 +191,450 @@ function* numbering(el) {
   while (true) yield ++last;
 }
 
-customElements.define(
-  "lf-code",
-  class extends LeafElement {
-    static properties = { playhead: { attribute: false } };
+const Token = Schema.Struct({
+  text: Schema.String,
+  style: Schema.Record(Schema.String, Schema.String),
+});
 
-    constructor() {
-      super();
-      /** @type {string | null} */
-      this.playhead = null;
+const Lines = Schema.Array(Schema.Array(Token));
+
+// The tokens' lines, each style a record of CSS declarations, as Shiki's `TokenStyles` is.
+const linesOf = (tokens) => tokenLines(tokens);
+
+const Note = Schema.Struct({ at: Schema.Number, note: Schema.instanceOf(Element) });
+
+// The block's rows in order: each line with the notes that stand under it, and an
+// elided row for each gap between the numbers, captioned by the notes whose `at` falls
+// in it. A note naming a line past either end of the block stands at its foot.
+export function rowsOf(lines, spec, notes) {
+  const numbers = numbering(spec);
+  const byLine = Map.groupBy(notes, ({ at }) => at);
+  const rows = [];
+  const placed = new Set();
+  let previous = null;
+  for (const tokens of lines) {
+    const n = numbers.next().value;
+    if (previous !== null && n > previous + 1) {
+      const [from, to] = [previous + 1, n - 1];
+      const captions = [...byLine]
+        .filter(([at]) => from <= at && at <= to)
+        .sort(([a], [b]) => a - b)
+        .flatMap(([, list]) => list.map(({ note }) => note));
+      for (const note of captions) placed.add(note);
+      rows.push({ kind: "elided", from, to, captions });
     }
+    const docked = (byLine.get(n) ?? []).map(({ note }) => note);
+    for (const note of docked) placed.add(note);
+    rows.push({
+      kind: "line",
+      n,
+      tokens,
+      indent: indentColumns(tokens),
+      notes: docked,
+    });
+    previous = n;
+  }
+  const foot = notes.map(({ note }) => note).filter((note) => !placed.has(note));
+  return { rows, foot, last: previous };
+}
 
-    /** @type {Promise<void> | undefined} */
-    #source;
-    // The numbered and elided rows, in order, once the lines are in.
-    /** @type {HTMLSpanElement[]} */
-    #rows = [];
-    // The rows the playhead marks.
-    /** @type {HTMLSpanElement[]} */
-    #at = [];
-    // Whether the playhead has had a value. The first only marks, as an arrival moves
-    // nothing (see the header).
-    #arrived = false;
+// The rows a range addresses, among those drawn under `frame`: a numbered line by its
+// number, an elided row by the stretch it stands for.
+const rowsAt = (frame, key) => {
+  const addressed = within(key);
+  return [...frame.querySelectorAll(".lf-code-line, .lf-code-elided")].filter((row) =>
+    row.classList.contains("lf-code-elided")
+      ? addressed(Number(row.dataset.lfFrom), Number(row.dataset.lfTo))
+      : addressed(Number(row.dataset.lfLine)),
+  );
+};
 
-    // The rendered lines a range addresses, none before the lines are in.
-    /** @param {string | null} key */
-    lfElementsFor(key) {
-      const addressed = within(key);
-      return this.#rows.filter((row) => addressed(...rowSpan(row)));
-    }
+const CodeProps = Schema.Struct({
+  ...widgetProps,
+  id: Schema.String,
+  source: Schema.String,
+  lang: Schema.NullOr(Schema.String),
+  lines: Schema.NullOr(Schema.String),
+  hi: Schema.NullOr(Schema.String),
+  follows: Schema.NullOr(Schema.String),
+  notes: Schema.Array(Note),
+  interactive: Schema.Boolean,
+  savedWrap: Schema.NullOr(Schema.String),
+  savedNotes: Schema.NullOr(Schema.String),
+  playhead: Schema.optional(Schema.NullOr(Schema.String)),
+});
+// `colored` is the source's lines as the tokenizer coloured them, null until it has;
+// `wrap` is the reader's choice of wrapping, null until they make one.
+const CodeModel = Schema.Struct({
+  colored: Schema.NullOr(Lines),
+  wrap: Schema.NullOr(Schema.Boolean),
+  notesShown: Schema.Boolean,
+});
+export const CodeMessage = UiSchema.TaggedEnum({
+  Colored: { lines: Lines },
+  // `wrapped` is whether the lines wrapped as the reader pressed, the authored
+  // presentation's choice until they made one.
+  ToggledWrap: { wrapped: Schema.Boolean },
+  ToggledNotes: {},
+});
 
-    // The tokenizer loads lazily, so even an uncolored block lands a microtask late,
-    // and one writer has to finish before another reads: the update completes once the
-    // lines are in, and Leaf's first anchor pass waits for it.
-    setup() {
-      this.#source = this.#draw();
-    }
+const wrapKey = (id) => `code-wrap:${id}`;
+const notesKey = (id) => `code-notes:${id}`;
+const parts = (...names) => names.filter(Boolean).join(" ");
+const noteCount = (count) => `Show ${count} note${count === 1 ? "" : "s"}`;
 
-    async getUpdateComplete() {
-      const result = await super.getUpdateComplete();
-      await this.#source;
-      return result;
-    }
+// The source coloured by the tokenizer, sent back as the coloured lines. The block
+// holds Leaf's presentation until they are drawn: their message draws in the flush it
+// starts, a microtask after the body ends, so a task after that sees them drawn.
+const Color = Mount.make(
+  "Color",
+  { args: { source: Schema.String, lang: Schema.String } },
+  (pre, { source, lang }) =>
+    Effect.suspend(() => {
+      let settle = () => {};
+      const settled = new Promise((resolve) => (settle = resolve));
+      pre.dispatchEvent(new PendingTaskEvent(settled));
+      return Effect.promise(() => syntax(source, lang)).pipe(
+        Effect.map(({ tokens }) => CodeMessage.Colored({ lines: linesOf(tokens) })),
+        Effect.ensuring(Effect.sync(() => setTimeout(settle))),
+      );
+    }),
+);
 
-    /** @param {Map<PropertyKey, unknown>} changed */
-    updated(changed) {
-      super.updated(changed);
-      if (changed.has("playhead")) this.#follow();
-    }
+// A slot shows the one note assigned to it.
+const Assign = Mount.make(
+  "Assign",
+  { args: { note: Schema.instanceOf(Element) } },
+  (slot, { note }) =>
+    Effect.sync(() => {
+      slot.assign(note);
+      return Component.noop;
+    }),
+);
 
-    #mark() {
-      const at = this.lfElementsFor(this.playhead);
-      for (const row of this.#at) if (!at.includes(row)) keeps(row, "data-lf-at", null);
-      for (const row of at) keeps(row, "data-lf-at", "");
-      this.#at = at;
-    }
-
-    // Mark the new lines, and keep the first in sight as the header says.
-    #follow() {
-      this.#mark();
-      const arrived = this.#arrived;
-      this.#arrived ||= this.playhead !== null;
-      const [row] = this.#at;
-      // A row the page doesn't render, as in a closed disclosure, has no place to bring
-      // into view.
-      if (!arrived || !row?.checkVisibility()) return;
-      const [scroller] = scrollersOf(row);
-      if (!scroller || scroller === document.scrollingElement) return;
-      const id = this.getAttribute("for");
-      const followed =
-        id &&
-        /** @type {Document | ShadowRoot} */ (this.getRootNode()).getElementById(id);
-      const resumed = (followed && hands.get(followed)) || 0;
-      if ((hands.get(scroller) ?? 0) > resumed) return;
-      const frame = scroller.getBoundingClientRect();
-      const { top, bottom } = row.getBoundingClientRect();
-      if (
-        top >= frame.top + frame.height * 0.15 &&
-        bottom <= frame.top + frame.height * 0.7
-      )
-        return;
-      const to = scroller.scrollTop + top - frame.top - frame.height / 3;
-      if (scrollMoves(scroller, { top: to }))
-        scroller.scrollTo({ top: to, behavior: "instant" });
-    }
-
-    async #draw() {
-      // The code is the <pre>'s and nothing else's; notes are its siblings and say
-      // which line they are about, so a note never sits between two halves of the
-      // source and there is no interrupted-line arithmetic to get right.
-      const notes = /** @type {HTMLElement[]} */ ([
-        ...this.querySelectorAll(":scope > lf-note"),
-      ]);
-      const source = bodyText(this);
-      try {
-        const lang = codeLanguage(this);
-        // One representation either way: an uncolored block is the whole source as a
-        // single unstyled token, so the line walk below has one shape to handle.
-        const lines = tokenLines(
-          lang ? (await syntax(source, lang)).tokens : [{ text: source, style: {} }],
-        );
-        const numbers = numbering(this);
-        const rows = lines.map((tokens) => ({ tokens, n: numbers.next().value }));
-        const hi = within(this.getAttribute("hi"));
-        const byLine = Map.groupBy(notes, (note) => Number(note.getAttribute("at")));
-        // Reading commands remain reachable when wrapping removes overflow.
-        const pre = document.createElement("pre");
-        pre.setAttribute("data-lf-carry", "source");
-        pre.tabIndex = 0;
-        // The gutter fits the widest number, so an excerpt from deep in a file keeps
-        // its code aligned with its notes.
-        pre.style.setProperty("--lf-code-digits", `${String(rows.at(-1)?.n).length}`);
-        // A note stands at the row of the line it names, or the elided row standing
-        // for it; one naming a line past either end of the block stands at its foot.
-        /** @type {number | null} */
-        let previous = null;
-        const firstLine = document.createElement("span");
-        rows.forEach(({ tokens, n }) => {
-          if (previous !== null && n > previous + 1) {
-            const [from, to] = [previous + 1, n - 1];
-            const captions = [...byLine]
-              .filter(([at]) => from <= at && at <= to)
-              .sort(([a], [b]) => a - b)
-              .flatMap(([, list]) => list);
-            pre.append(elided(from, to, hi(from, to), captions));
-          }
-          const line = previous === null ? firstLine : document.createElement("span");
-          line.className = "lf-code-line";
-          line.dataset.lfLine = String(n);
-          // A line too long for the frame wraps, and its later rows hang from its own
-          // indent (the theme's `--lf-code-indent`), so a wrapped line keeps its place
-          // in the code's structure.
-          const indent = indentColumns(tokens);
-          if (indent) line.style.setProperty("--lf-code-indent", String(indent));
-          line.append(...synNodes(tokens), "\n");
-          // The tint says "this is the line" to the eye and nothing to a user
-          // listening, who is handed the whole block with no idea which of it the note
-          // beside it is about. A word per highlighted line rather than one at the top
-          // saying which numbers: the numbers are painted from data-lf-line, into no
-          // text node on purpose — a line number in the text would be a line number in
-          // the clipboard — so "lines 3 to 4" would name something the user cannot
-          // hear. Said per line, it arrives where it is true. The one word rides the
-          // same clip as every other quiet word, out of the selection with it, so a
-          // copied block is still the source and nothing else. Leaf writes it from the
-          // declaration, since only Leaf's theme keeps it off the screen.
-          if (hi(n)) {
-            line.dataset.lfHi = "";
-            line.dataset.lfQuiet = "highlighted";
-          }
-          pre.append(line);
-          // Moved, not copied: the authored element keeps its text and id.
-          for (const note of byLine.get(n) ?? []) {
-            if (indent) note.style.setProperty("--lf-code-indent", String(indent));
-            else note.style.removeProperty("--lf-code-indent");
-            pre.append(note);
-          }
-          previous = n;
-        });
-        const foot = notes.filter((note) => !pre.contains(note));
-        for (const note of foot) note.style.removeProperty("--lf-code-indent");
-        pre.append(...foot);
-        this.#rows = /** @type {HTMLSpanElement[]} */ (
-          [...pre.children].filter((row) =>
-            row.matches(".lf-code-line, .lf-code-elided"),
-          )
-        );
-        // Copied as the source the lines were drawn from, never as the lines' text,
-        // which carries the notes docked among them.
-        pre.dataset.lfCopy = "code";
-        pre.lfCopy = () => source;
-        const notesKey = `code-notes:${this.id}`;
-        let notesShown = tabStore.get(notesKey) !== "hidden";
-        const notesToggle =
-          notes.length && document.documentElement.hasAttribute("data-lf-interactive")
-            ? offerAction("mark", "lf-code-notes-toggle", "Hide notes", {
-                action: "collapse-all",
-              })
-            : null;
-        // Copy joins the mark here (`lfBar`), which the theme stands in the block's
-        // corner and shows as it would show a lone Copy.
-        const bar = notesToggle ? offer("div", "lf-code-bar lf-mark-bar") : null;
-        // Its marks join into one toolbar (controls.css, `data-lf-joined`).
-        if (bar) bar.dataset.lfJoined = "";
-        if (bar && notesToggle) bar.append(notesToggle);
-        if (bar) pre.lfBar = bar;
-        // The press says what it will do, and hidden notes say how many wait.
-        const showNotes = `Show ${notes.length} note${notes.length === 1 ? "" : "s"}`;
-        const paintNotes = () => {
-          if (notesShown) this.removeAttribute("data-lf-notes");
-          else this.setAttribute("data-lf-notes", "hidden");
-          if (notesToggle)
-            nameAction(notesToggle, notesShown ? "collapse-all" : "expand-all", {
-              label: notesShown ? "Hide notes" : showNotes,
-              className: "lf-mark-icon",
-            });
-        };
-        paintNotes();
-        this.replaceChildren(pre, ...(bar ? [bar] : []));
-        this.classList.add("lf-rendered");
-        const key = `code-wrap:${this.id}`;
-        const saved = tabStore.get(key);
-        let wrapped = getComputedStyle(firstLine).whiteSpace !== "pre";
-        let horizontal = 0;
-        const paintWrap = (/** @type {boolean} */ value) => {
-          wrapped = value;
-          this.setAttribute("data-lf-reader-wrap", value ? "wrap" : "scroll");
-        };
-        if (saved !== null) paintWrap(saved === "true");
-        const toggleWrap = () => {
-          if (!wrapped) horizontal = pre.scrollLeft;
-          paintWrap(!wrapped);
-          tabStore.set(key, String(wrapped));
-          // Wrapped, the block stood at its start, so only an offset it had is put back.
-          if (!wrapped && horizontal)
-            pre.scrollTo({ left: horizontal, behavior: "instant" });
-          this.dispatchEvent(
-            new CustomEvent("lf-layout", { bubbles: true, composed: true }),
-          );
-        };
-        this.lfCommands = {
-          title: "On a code block",
-          rows: [
-            {
-              id: "code.wrap",
-              keys: ["w"],
-              title: () => (wrapped ? "unwrap lines" : "wrap lines"),
-              run: toggleWrap,
-            },
-            ...(notesToggle
-              ? [
-                  {
-                    id: "code.notes",
-                    keys: ["n"],
-                    title: () => (notesShown ? "hide notes" : "show notes"),
-                    control: notesToggle,
-                    touch: /** @type {false} */ (false),
-                    run: () => {
-                      notesShown = !notesShown;
-                      tabStore.set(notesKey, notesShown ? "shown" : "hidden");
-                      paintNotes();
-                      this.dispatchEvent(
-                        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
-                      );
-                    },
-                  },
-                ]
-              : []),
-          ],
-        };
-        this.dispatchEvent(
-          new CustomEvent("lf-commands", { bubbles: true, composed: true }),
-        );
-        this.#mark();
-        this.dispatchEvent(
-          new CustomEvent("lf-layout", { bubbles: true, composed: true }),
-        );
-      } catch (err) {
-        failSoft(this, err, source);
-      }
-    }
+// The toolbar's notes mark, whose symbol and name follow whether the notes show.
+const NotesMark = Mount.make(
+  "NotesMark",
+  { args: { shown: Schema.Boolean, count: Schema.Number } },
+  (button, args, changes) => {
+    const name = ({ shown, count }) =>
+      nameAction(button, shown ? "collapse-all" : "expand-all", {
+        label: shown ? "Hide notes" : noteCount(count),
+        className: "lf-mark-icon",
+      });
+    offerActionElement(button, "mark", "lf-code-notes-toggle", "Hide notes", {
+      action: "collapse-all",
+    });
+    name(args);
+    return Stream.runForEach(changes, (next) => Effect.sync(() => name(next))).pipe(
+      Effect.as(Component.noop),
+    );
   },
 );
 
-// The row standing for the lines an excerpt leaves out. Its count is painted from the
-// attribute, as the gutter's numbers are, so a copied excerpt is still only source and
-// no passage anchors on text the author never wrote. A note docked in the stretch is
-// the row's caption: moved in whole, so its authored text stays quotable.
-/** @param {number} from @param {number} to @param {boolean} highlighted @param {Element[]} captions */
-function elided(from, to, highlighted, captions) {
-  const row = document.createElement("span");
-  row.className = "lf-code-elided";
-  row.dataset.lfFrom = String(from);
-  row.dataset.lfTo = String(to);
-  const count = to - from + 1;
-  row.dataset.lfElided = `${count} line${count === 1 ? "" : "s"}`;
-  if (highlighted) {
-    row.dataset.lfHi = "";
-    row.dataset.lfQuiet = "highlighted";
-  }
-  row.append(...captions);
-  return row;
+// What Leaf reads off the element, and the work after a draw: the block's keys and the
+// rows a key into it addresses, the toolbar Copy joins, the reader's sideways scroll put
+// back when they unwrap, and the marked line kept in view (see the header).
+const Reading = Mount.makeStream(
+  "Reading",
+  {
+    args: {
+      follows: Schema.NullOr(Schema.String),
+      playhead: Schema.NullOr(Schema.String),
+      wrap: Schema.NullOr(Schema.Boolean),
+      notesShown: Schema.Boolean,
+    },
+  },
+  (frame, args, changes) =>
+    Stream.callback((queue) =>
+      Effect.gen(function* () {
+        const send = (message) => Queue.offerUnsafe(queue, message);
+        const host = frame.getRootNode().host;
+        const pre = frame.querySelector(".lf-code-source");
+        const toggle = frame.querySelector(".lf-code-notes-toggle");
+        const bar = frame.querySelector(".lf-code-bar");
+        if (bar) pre.lfBar = bar;
+        let current = args;
+        // The reader's sideways scroll as they wrapped the lines, put back when they
+        // unwrap: wrapped, the block stood at its start.
+        let horizontal = 0;
+        // The drawn line says whether lines wrap, the reader's choice or the page's.
+        const wrapped = () => {
+          const line = pre.querySelector(".lf-code-line");
+          return !!line && getComputedStyle(line).whiteSpace !== "pre";
+        };
+        declare(frame, {
+          lfElementsFor: (key) => rowsAt(frame, key),
+          lfCommands: {
+            title: "On a code block",
+            rows: [
+              {
+                id: "code.wrap",
+                keys: ["w"],
+                title: () => (wrapped() ? "unwrap lines" : "wrap lines"),
+                run: () => {
+                  const was = wrapped();
+                  if (!was) horizontal = pre.scrollLeft;
+                  send(CodeMessage.ToggledWrap({ wrapped: was }));
+                },
+              },
+              ...(toggle
+                ? [
+                    {
+                      id: "code.notes",
+                      keys: ["n"],
+                      title: () => (current.notesShown ? "hide notes" : "show notes"),
+                      control: toggle,
+                      touch: false,
+                      run: () => send(CodeMessage.ToggledNotes()),
+                    },
+                  ]
+                : []),
+            ],
+          },
+        });
+        // The first value only marks its line, as an arrival moves nothing.
+        let arrived = args.playhead !== null;
+        yield* Effect.forkScoped(
+          Stream.runForEach(changes, (next) =>
+            Effect.sync(() => {
+              const was = current;
+              current = next;
+              if (next.wrap !== was.wrap || next.notesShown !== was.notesShown) {
+                if (next.wrap === false && horizontal)
+                  pre.scrollTo({ left: horizontal, behavior: "instant" });
+                layoutChanged(host);
+              }
+              if (next.playhead !== was.playhead) {
+                if (arrived) follow(frame, host, next);
+                arrived ||= next.playhead !== null;
+              }
+            }),
+          ),
+        );
+      }),
+    ),
+);
+
+// Keep the first marked line in the band of the box that scrolls it (see the header).
+function follow(frame, host, { follows, playhead }) {
+  const [row] = rowsAt(frame, playhead);
+  // A row the page doesn't render, as in a closed disclosure, has no place to bring
+  // into view.
+  if (!row?.checkVisibility()) return;
+  const [scroller] = scrollersOf(row);
+  if (!scroller || scroller === document.scrollingElement) return;
+  const followed = follows && host.getRootNode().getElementById(follows);
+  const resumed = (followed && hands.get(followed)) || 0;
+  if ((hands.get(scroller) ?? 0) > resumed) return;
+  const box = scroller.getBoundingClientRect();
+  const { top, bottom } = row.getBoundingClientRect();
+  if (top >= box.top + box.height * 0.15 && bottom <= box.top + box.height * 0.7)
+    return;
+  const to = scroller.scrollTop + top - box.top - box.height / 3;
+  if (scrollMoves(scroller, { top: to }))
+    scroller.scrollTo({ top: to, behavior: "instant" });
 }
+
+export const Code = Html.component({
+  name: "Code",
+  props: CodeProps,
+  model: CodeModel,
+  message: CodeMessage,
+}).make({
+  init: ($) =>
+    $.set({
+      colored: null,
+      wrap: $.props.savedWrap === null ? null : $.props.savedWrap === "true",
+      notesShown: $.props.savedNotes !== "hidden",
+    }),
+  update: {
+    Colored: ($, { lines }) => $.evolve({ colored: lines }),
+    ToggledWrap: ($, { wrapped }) =>
+      $.evolve({ wrap: !wrapped }).run(
+        KeepInTab.make({ key: wrapKey($.props.id), value: String(!wrapped) }).pipe(
+          Command.asNoop,
+        ),
+      ),
+    ToggledNotes: ($) => {
+      const shown = !$.model.notesShown;
+      return $.evolve({ notesShown: shown }).run(
+        KeepInTab.make({
+          key: notesKey($.props.id),
+          value: shown ? "shown" : "hidden",
+        }).pipe(Command.asNoop),
+      );
+    },
+  },
+  view: (h, model) => {
+    const { source, lang, notes, interactive, follows } = h.props;
+    const playhead = h.props.playhead ?? null;
+    // One representation either way: an uncolored block is the whole source as a
+    // single unstyled token, so the rows have one shape to draw.
+    const lines = model.colored ?? linesOf([{ text: source, style: {} }]);
+    const { rows, foot, last } = rowsOf(lines, h.props.lines, notes);
+    const hi = within(h.props.hi);
+    const at = within(playhead);
+    const folded = !model.notesShown && "folded";
+    const reading = model.wrap === null ? null : model.wrap ? "wrap" : "scroll";
+    const marks = (highlighted) => ({
+      // The tint says "this is the line" to the eye and nothing to a user listening,
+      // who is handed the whole block with no idea which of it the note beside it is
+      // about. A word per highlighted line rather than one at the top saying which
+      // numbers: the numbers are painted from data-lf-line, into no text node on
+      // purpose — a line number in the text would be a line number in the clipboard —
+      // so "lines 3 to 4" would name something the user cannot hear. Said per line, it
+      // arrives where it is true. The one word rides the same clip as every other
+      // quiet word, out of the selection with it, so a copied block is still the
+      // source and nothing else. Leaf writes it from the declaration, since only
+      // Leaf's theme keeps it off the screen.
+      ...(highlighted && { "data-lf-hi": "", "data-lf-quiet": "highlighted" }),
+    });
+    // A note stands in a slot of its own, under its line in that line's indent, or at
+    // the block's foot; it is moved nowhere, so the authored element keeps its text
+    // and id.
+    const noteBox = (note, key, indent = 0) =>
+      h.span
+        .key(key)
+        .class("lf-code-note")
+        .attr("part", parts("note", folded))
+        .attr("style", indent ? `--lf-code-indent: ${indent}` : undefined)
+        .children(h.slot.onMount(Assign({ note })));
+    const drawn = rows.flatMap((row) => {
+      if (row.kind === "elided") {
+        const { from, to } = row;
+        const count = to - from + 1;
+        const lit = hi(from, to);
+        // The row standing for the lines an excerpt leaves out. Its count is painted
+        // from the attribute, as the gutter's numbers are, so a copied excerpt is
+        // still only source and no passage anchors on text the author never wrote. A
+        // note docked in the stretch is the row's caption, shown in whole, so its
+        // authored text stays quotable.
+        return [
+          h.span
+            .key(`elided:${from}`)
+            .class("lf-code-elided")
+            .attr("part", parts("row elided", lit && "hi", at(from, to) && "at"))
+            .attr("data-lf-from", String(from))
+            .attr("data-lf-to", String(to))
+            .attr("data-lf-elided", `${count} line${count === 1 ? "" : "s"}`)
+            .attr("data-lf-at", at(from, to) ? "" : undefined)
+            .attrs(marks(lit))
+            .children(
+              ...row.captions.map((note, index) =>
+                h.span
+                  .key(`caption:${index}`)
+                  .class("lf-code-caption")
+                  .attr("part", parts("caption", folded))
+                  .children(h.slot.onMount(Assign({ note }))),
+              ),
+            ),
+        ];
+      }
+      const { n, tokens, indent } = row;
+      return [
+        // A line too long for the frame wraps, and its later rows hang from its own
+        // indent (the theme's `--lf-code-indent`), so a wrapped line keeps its place in
+        // the code's structure.
+        h.span
+          .key(`line:${n}`)
+          .class("lf-code-line")
+          .attr(
+            "part",
+            parts(
+              "row line",
+              hi(n) && "hi",
+              at(n) && "at",
+              row.notes.length > 0 && folded,
+              reading,
+            ),
+          )
+          .attr("data-lf-line", String(n))
+          .attr("data-lf-at", at(n) ? "" : undefined)
+          .attr("style", indent ? `--lf-code-indent: ${indent}` : undefined)
+          .attrs(marks(hi(n)))
+          .children(
+            ...tokens.map(({ text, style }) => {
+              const attributes = synAttributes(style);
+              return attributes ? h.span.attrs(attributes).children(text) : text;
+            }),
+            "\n",
+          ),
+        ...row.notes.map((note, index) => noteBox(note, `note:${n}:${index}`, indent)),
+      ];
+    });
+    const pre = h.pre
+      .key("source")
+      .class("lf-code-source")
+      .attr("part", "source")
+      // Reading commands remain reachable when wrapping removes overflow.
+      .attr("data-lf-carry", "source")
+      .attr("tabindex", "0")
+      // The gutter fits the widest number, so an excerpt from deep in a file keeps
+      // its code aligned with its notes.
+      .attr("style", `--lf-code-digits: ${String(last).length}`)
+      // Copied as the source the lines were drawn from, never as the lines' text,
+      // which carries the notes docked among them.
+      .attr("data-lf-copy", "code")
+      .prop("lfCopy", () => source)
+      .children(...drawn, ...foot.map((note, index) => noteBox(note, `foot:${index}`)));
+    return h.div
+      .class("lf-code-frame")
+      .attr("part", "frame")
+      .children(
+        lang ? pre.onMount(Color({ source, lang })) : pre,
+        // Copy stands here (`lfBar`), beside the notes mark where the block has
+        // notes, in the toolbar the theme stands in the block's corner and shows as
+        // it would show a lone Copy; its marks join into one (controls.css,
+        // `data-lf-joined`). Copy can't stand beside the block as it does elsewhere,
+        // since the anchor it would hang from is named in the document and Copy would
+        // stand in this tree, where no such name is heard.
+        interactive
+          ? h.div
+              .key("bar")
+              .attrs(offerAttributes("div", "lf-code-bar lf-mark-bar"))
+              .attr("part", "bar")
+              .attr("data-lf-joined", "")
+              .children(
+                // Its press is the notes key's: the scope names the mark as that key's
+                // control, and Leaf's register runs the key when it is pressed.
+                notes.length > 0
+                  ? h.button
+                      .key("notes")
+                      .onMount(
+                        NotesMark({ shown: model.notesShown, count: notes.length }),
+                      )
+                  : null,
+              )
+          : null,
+      )
+      .onMount(
+        Reading({ follows, playhead, wrap: model.wrap, notesShown: model.notesShown }),
+      );
+  },
+});
+
+defineWidget("lf-code", Code, {
+  shadow: true,
+  slotAssignment: "manual",
+  properties: ["playhead"],
+  inputs: (element) => ({
+    id: element.id,
+    source: bodyText(element),
+    lang: codeLanguage(element) ?? null,
+    lines: element.getAttribute("lines"),
+    hi: element.getAttribute("hi"),
+    follows: element.getAttribute("for"),
+    // The code is the <pre>'s and nothing else's; notes are its siblings and say which
+    // line they are about, so a note never sits between two halves of the source and
+    // there is no interrupted-line arithmetic to get right. Each note is the same
+    // input only as itself (`Equal.byReferenceUnsafe`).
+    notes: [...element.querySelectorAll(":scope > lf-note")].map((note) => ({
+      at: Number(note.getAttribute("at")),
+      note: Equal.byReferenceUnsafe(note),
+    })),
+    interactive: document.documentElement.hasAttribute("data-lf-interactive"),
+    savedWrap: tabStore.get(wrapKey(element.id)),
+    savedNotes: tabStore.get(notesKey(element.id)),
+  }),
+});

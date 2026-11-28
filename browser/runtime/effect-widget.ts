@@ -90,9 +90,11 @@
      the widget's own, else on the nearest one still drawn. It lands on the datum itself, a stop lent
      where it is no control, never on a control in it chosen by its look nor on the
      first one a boxless datum draws; where a datum takes no focus, it tries the next
-     node its key marks, then the next key's, then the widget's own element, with a
-     stop lent, as where a removal empties its list (`holdFocus`, `alike: false`). It puts the user back only while their focus is lost, so a nested
-     widget's hold and this one need no order between them.
+     node its key marks, then the next key's (`holdFocus`, `alike: false`). The last
+     place it tries is the widget's own element, with a stop lent, as where a removal
+     empties its list or the user's node stood in none of the widget's datums. It puts
+     the user back only while their focus is lost, so a nested widget's hold and this
+     one need no order between them.
    - A row the widget moves to another parent, and whose user should stay on their
      control with their words and caret, it writes as a keep-alive child
      (`h.keepAlive`): its nodes move with it, and the hold puts the user back on theirs.
@@ -524,8 +526,10 @@ export function defineWidget(
         alike: false,
         owns: (item) => drawerOf(item.parentNode) === this,
       });
+      // The widget's own element, with a stop lent, is the last place a hold tries, as
+      // where a removal empties the list.
       const drawn = Promise.resolve().then(() => {
-        restore?.();
+        restore?.(this);
         this.#drawn();
       });
       this.dispatchEvent(new PendingTaskEvent(drawn));

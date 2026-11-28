@@ -546,14 +546,13 @@ each name working, so Leaf keeps it small and coherent. A change meets a widget'
 need without a new name where it can, and `packages/AGENTS.md`, "A widget's need of
 Leaf", says how to choose where it can't.
 
-Leaf is moving its widgets to Effect UI, and until the move ends the interface holds
-two ways to write one. An Effect UI component, which `effect-widget.js` defines, asks
-Leaf for some acts through the Command services of `widget-services.js`, where a Lit
-or plain element dispatches the protocol's event or calls a `widget-api.js` function
-for the same act. A bundled widget Leaf adds or rewrites that draws a view of its own
-is an Effect UI component. A name that only widgets not yet moved use, such as a
-function a service repeats, leaves the interface once the last package or page code
-that calls it has moved.
+Leaf is moving every view it draws, its widgets and its chrome, to Effect UI
+(`browser/AGENTS.md`, "Renderers"). Until the move ends, the interface holds two ways
+to write a widget, and Lit and `LeafElement` leave it once Leaf's packages and example
+pages no longer draw with them. An Effect UI component asks Leaf for some acts through
+the Command services of `widget-services.js`. A plain element or a page script asks
+for the same acts through the protocol's events and `widget-api.js` functions, which
+stay after the move, since neither can issue a Command service.
 
 A smaller interface is worth a small visible difference. Where a name's work is to
 keep a look, a first paint or a behaviour exactly as it was, the name goes, and the

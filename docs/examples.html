@@ -123,6 +123,13 @@
           gap: 9px;
         }
       }
+      /* The contents rests as the map's spine under a mouse; a phone or tablet,
+         with no pointer to rest on the spine, keeps the open outline. */
+      @media screen and (hover: hover) and (pointer: fine) {
+        main.layout-sidebar {
+          --lf-aside: 56px;
+        }
+      }
     </style>
   </head>
   <body class="site-page">

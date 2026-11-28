@@ -187,7 +187,6 @@
       "required": ["id"]
     },
     "content": "empty",
-    "spine": true,
     "instructions": "Write it empty with a stable id. It outlines the nearest tab or part containing it, or the whole main when outside those views. Add `open` to show its compact inline links on arrival; the reader can still collapse them. Set `max-level` to leave out deeper headings that are local detail; by default it lists h2 to h6.",
     "example": "<h1>Migration plan</h1>\n<lf-toc id=\"plan-contents\"></lf-toc>\n<section><h2>Prepare</h2><p>Take a snapshot.</p><h3>Check capacity</h3><p>Leave headroom for the copy.</p></section>\n<section><h2>Move</h2><p>Shift one cohort at a time.</p></section>"
   },

@@ -165,16 +165,28 @@ keeping another in view. The sidebar and body are authored siblings; the sidebar
 
 Use a `layout-column` body for a reading document with wider exhibits. Its prose
 stands where a column page's would, moving toward the end only as far as the sidebar
-needs, and exhibits use the body's width on either side of it. Where its
-sidebar comes before the body and its track holds only the contents map, under a mouse
-the sidebar narrows to the map's spine, which draws the document's sections to scale,
-and the map shows its labels over the page when the reader points at it. Under touch,
-after the body, or with anything else in the track, the sidebar keeps a column's room
-and the map stands open as an outline. So put a status the reader should see at once at
-the top of the body rather than beside the map. A sidebar that has wrapped above or
-below the body shows the map as a disclosure. For a board or dashboard, the body can
-instead be an ordinary `div` with the page's own layout, beside which a sidebar keeps
-its outline open; a `header` and `footer` on the outer Layout span both regions.
+needs, and exhibits use the body's width on either side of it. Beside it, the contents
+map stands open as an outline in the sidebar's column. The map can rest instead as its
+spine, which draws the document's sections to scale and shows their labels over the page
+when the reader points at it. For the spine, put the `aside` before the body with the
+map alone in its track, and narrow the sidebar under a mouse:
+
+```css
+@media screen and (hover: hover) and (pointer: fine) {
+  main.layout-sidebar {
+    --lf-aside: 56px;
+  }
+}
+```
+
+Under touch the sidebar keeps its column, since no pointer rests on the spine there.
+Anything else in a track that narrow would stand a few letters a line, and the track no
+longer scrolls, so put a status the reader should see at once at the top of the body
+rather than beside the map. A
+sidebar that has wrapped above or below the body shows the map as a disclosure. For a
+board or dashboard, the body can instead be an ordinary `div` with the page's own
+layout, beside which a sidebar keeps its outline open; a `header` and `footer` on the
+outer Layout span both regions.
 
 The browser wraps the regions in source order when they no longer fit. Put the
 `aside` before the body when its contents should be read first on a narrow screen,
@@ -327,8 +339,8 @@ whether `data-height` was missing, too small or too large.
 
 ## The rail and the margin
 
-A document's explicit sidebar keeps its route beside the body, narrowed to the contents
-map's spine or at a column's width as "A sidebar page" says. Both are CSS layout,
+A document's explicit sidebar keeps its route beside the body, at a column's width or
+narrowed to the contents map's spine as "A sidebar page" says. Both are CSS layout,
 present before widgets load. Page CSS does not read runtime placement
 attributes. To change where a route stands, compose its sidebar and body explicitly.
 

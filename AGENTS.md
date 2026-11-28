@@ -554,9 +554,12 @@ every widget, such as keeping focus on the control the user is using when the wi
 redraws. Leaf keeps such a promise in its own code, so a widget's author writes
 nothing for it: in `defineWidget`, which every widget that draws is moving to
 (`browser/AGENTS.md`, "Renderers"), or in the runtime code that sets the widget's
-properties and hears its events. A name that exists to help widgets keep such a
-promise, such as a function they call, stays only until Leaf can keep the promise
-itself. A shift as a widget first draws on a loading page breaks no guarantee.
+properties and hears its events. A row a widget moves to another parent is the
+exception: only the widget knows the old and new place hold one row, so it writes
+such a row as a keep-alive child, which keeps the user's words and place in it as it
+moves. A name that exists to help widgets keep such a promise, such as a function
+they call, stays only until Leaf can keep the promise itself. A shift as a widget
+first draws on a loading page breaks no guarantee.
 
 ### Wait for the event that ends the work
 

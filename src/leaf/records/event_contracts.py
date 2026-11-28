@@ -28,7 +28,7 @@ from leaf.log.events import (
     undo_error,
     unshown,
 )
-from leaf.log.obligations import questions_in_words, told_facts
+from leaf.log.obligations import questions_in_words
 from leaf.log.projection import (
     AuthoredOrders,
     container_owner,
@@ -381,7 +381,7 @@ def action_contract_error(view, event: dict, readings: AdmissionReadings):
     page_rec = document.by_id.get(event["widget"])
     rec = page_rec or thread_by_id[event["widget"]]
     tag = rec["tag"]
-    if error := facts_error(event, tag, registry):
+    if error := word_error(event, tag, registry):
         return error
     spec = registry[tag]["verbs"][event["action"]]
     # A created child is new: an id the markup already holds is an authored element,
@@ -715,92 +715,25 @@ def _withdrawal_error(
     if error := undo_error(event, events, absorbed):
         return error
     # The gesture taken back is a widget's action, whose meaning names its tag, or
-    # another kind, of which no widget works anything out.
+    # another kind, which no widget's word speaks for.
     target = next(e for e in events if e["id"] == event["undoes"])
     if target["kind"] != "action":
-        return facts_error(event, target["kind"], {})
+        return word_error(event, target["kind"], {})
     origin = target["meaning"].get("state", {}).get("origin")
-    return facts_error(event, origin, readings.registry)
+    return word_error(event, origin, readings.registry)
 
 
-def facts_error(event: dict, tag: str | None, registry: dict) -> Finding | None:
-    """Why the facts an act, an undo or a `facts` event of a `tag` element says are not
-    ones its declaration lists (`facts`): a fact it doesn't declare, or a value the
-    fact's schema refuses. An act or undo of a widget that asks (`awaits`) also says
-    whether its question is answered (`obligations.widget_facts`): one that left the
-    word out would leave the question as it stood however the user acted, with
-    nothing to tell anyone. Validated here once, every reader takes the values as
-    they stand."""
-    entry = registry.get(tag) or {}
-    declared = entry.get("facts", {})
-    said = event.get("facts", {})
-    for fact, value in said.items():
-        if fact not in declared:
-            return Finding(
-                "undeclared-fact",
-                values={"tag": tag, "fact": fact, "declared": sorted(declared)},
-            )
-        if complaint := schema_complaint(declared[fact], value):
-            return Finding(
-                "invalid-fact", values={"tag": tag, "fact": fact, **complaint}
-            )
-    if event["kind"] != "facts" and entry.get("awaits") and "answered" not in said:
+def word_error(event: dict, tag: str | None, registry: dict) -> Finding | None:
+    """Why a gesture of a `tag` element carries the wrong word on its question: a
+    widget that asks says on each act and undo of it whether its question is answered
+    (`obligations.gesture_answers`), and one that doesn't says nothing. An act that
+    left the word out would answer nothing however the user acted, with nothing to
+    tell anyone."""
+    asks = bool((registry.get(tag) or {}).get("awaits"))
+    if asks and "answered" not in event:
         return Finding("answered-missing", values={"tag": tag})
-    return None
-
-
-def _facts_event_error(view, event: dict, readings: AdmissionReadings):
-    """A `facts` event names the newest revision and a widget of its document, or one
-    in thread markup, says only facts that widget declares (`facts_error`), and
-    changes a value the page keeps (`AdmissionReadings.kept_facts`): every tab works
-    the facts out after the same reading, and those that agree leave one event in the
-    log.
-
-    It is worked out from the reading of the log `through` names, and bookkeeping
-    travels beside the user's gestures rather than behind them, so a gesture on the
-    widget, or a word of another tab's, can land between that reading and the event.
-    A word worked out on an older version could likewise stand after the note of a
-    newer one and override what that version's restatement lapsed. Either word is of a
-    state the page has moved past, so the door refuses it, and the tab works the facts
-    out again from the reading the refusal carries."""
-    if event["kind"] != "facts":
-        return None
-    widget = event["widget"]
-    taken = {
-        logged["id"]
-        for logged in readings.events
-        if logged["kind"] == "action" and logged["widget"] == widget
-    }
-    if event["revision"] != view.revisions[-1] or any(
-        logged["seq"] > event["through"]
-        and (
-            (logged["kind"] in ("action", "facts") and logged["widget"] == widget)
-            or (logged["kind"] == "undo" and logged["undoes"] in taken)
-        )
-        for logged in readings.events
-    ):
-        return Finding("stale-facts", values={"widget": widget})
-    page_rec = view.document(event["revision"]).by_id.get(event["widget"])
-    rec = page_rec or readings.thread.by_id.get(event["widget"])
-    if rec is None:
-        return Finding(
-            "unknown-sender",
-            values={
-                "kind": "facts",
-                "widget": event["widget"],
-                "revision": event["revision"],
-            },
-        )
-    if error := facts_error(event, rec["tag"], readings.registry):
-        return error
-    kept = readings.kept_facts(
-        event["widget"], event["revision"], "page" if page_rec else "thread"
-    )
-    if all(
-        fact in kept and kept[fact] == value
-        for fact, value in told_facts(event).items()
-    ):
-        return Finding("unchanged-facts", values={"widget": event["widget"]})
+    if not asks and "answered" in event:
+        return Finding("answered-unasked", values={"tag": tag})
     return None
 
 
@@ -824,7 +757,6 @@ def admission_error(
         or _revision_error(view, event)
         or _action_error(view, event, readings)
         or _report_error(view, event, readings)
-        or _facts_event_error(view, event, readings)
         or _anchored_comment_error(view, event, registry)
         or _parent_error(event, events)
         or _named_question_error(event, events)

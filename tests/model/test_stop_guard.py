@@ -342,7 +342,7 @@ def test_the_turn_holds_again_when_a_version_takes_the_answer_back(
             "widget": "picks",
             "action": "choose",
             "detail": {"value": ["flag-first"]},
-            "facts": {"answered": True},
+            "answered": True,
         },
     )
     note = {
@@ -907,10 +907,7 @@ def test_a_threads_messages_and_moves_share_one_start_and_one_reply(
             "</lf-options>",
         },
     )
-    for action, detail in (
-        ("choose", {"value": ["thread-east"]}),
-        ("answer", {"options": ["thread-east"], "picked": ["thread-east"]}),
-    ):
+    for action, detail in (("choose", {"value": ["thread-east"]}), ("answer", {})):
         done = append_command(
             claimed,
             {
@@ -920,7 +917,7 @@ def test_a_threads_messages_and_moves_share_one_start_and_one_reply(
                 "widget": "thread-region",
                 "action": action,
                 "detail": detail,
-                "facts": {"answered": True},
+                "answered": True,
             },
         )
     follow = append_carried_log_record(
@@ -1149,7 +1146,7 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(
             "action": "edit",
             "detail": {"value": "Green room."},
             # A draft says words stand in it, whether or not it asks the user.
-            "facts": {"answered": True},
+            "answered": True,
         },
     )
     edited = state_json(claimed)
@@ -1176,7 +1173,7 @@ def test_a_page_pick_holds_the_turn_until_the_markup_records_it(
             "widget": "choice",
             "action": "choose",
             "detail": {"value": ["backfill-first"]},
-            "facts": {"answered": True},
+            "answered": True,
         },
     )
     state = state_json(claimed)
@@ -1247,7 +1244,7 @@ def test_a_pick_of_an_added_option_settles_without_writing_the_option_in(claimed
                 "widget": "choice",
                 "action": action,
                 "detail": detail,
-                "facts": {"answered": answered},
+                "answered": answered,
             },
         )
     assert {"kind": "markup", "action": picked["id"]} in [
@@ -1280,7 +1277,7 @@ def test_done_hands_over_a_pick_the_markup_must_still_record(claimed):
     for action, detail, answered in [
         ("add", {"option": "choice-option-mine", "text": "Both, staged."}, False),
         ("choose", {"value": ["flag-first", "choice-option-mine"]}, False),
-        ("answer", {"options": [], "picked": []}, True),
+        ("answer", {}, True),
     ]:
         done = append_command(
             claimed,
@@ -1291,7 +1288,7 @@ def test_done_hands_over_a_pick_the_markup_must_still_record(claimed):
                 "widget": "choice",
                 "action": action,
                 "detail": detail,
-                "facts": {"answered": answered},
+                "answered": answered,
             },
         )
     [workflow] = owed(state_json(claimed))
@@ -1330,7 +1327,7 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys):
             "widget": "choice",
             "action": "choose",
             "detail": {"value": ["flag-first"]},
-            "facts": {"answered": False},
+            "answered": False,
         },
     )
     ticked = state_json(claimed)
@@ -1354,8 +1351,8 @@ def test_a_tick_before_done_hands_nothing_to_the_agent(claimed, capsys):
             "revision": 1,
             "widget": "choice",
             "action": "answer",
-            "detail": {"options": [], "picked": []},
-            "facts": {"answered": True},
+            "detail": {},
+            "answered": True,
         },
     )
     finished = state_json(claimed)
@@ -1421,7 +1418,7 @@ def test_a_queue_owes_nothing_until_it_is_finished_and_then_every_card_moved(
                 "action": "move",
                 "detail": {"unit": card, "value": "keep", "rank": rank},
                 # The queue says it is answered once its Queued column is empty.
-                "facts": {"answered": emptied},
+                "answered": emptied,
             },
         )
 

@@ -407,7 +407,7 @@ sequenceDiagram
               The same link shows the revised proposal. Stable widget ids keep recorded
               choices attached across edits. When an edit changes what a decision was
               about, the author explicitly marks it <code>restated</code> and explains
-              why the decision no longer applies.
+              why the user is asked again.
               <a href="#ontology-kinds">State and records</a> defines these concepts;
               <a href="#versions">Revisions</a> explains their continuity.
             </p>
@@ -780,8 +780,8 @@ leaf page stamp ./review --text "Queue policy: drop the oldest record"</code></p
               </p>
               <p id="answers-preservation">
                 These changes preserve the user's recorded choices. If an edit changes
-                what a decision was about, the author marks the widget
-                <code>restated</code> to invalidate that decision. The
+                what a decision was about, the author marks what changed
+                <code>restated</code>, which asks the user again. The
                 <a href="#revisions">Revisions</a> view explains how decisions survive
                 page edits.
               </p>
@@ -2102,8 +2102,9 @@ flowchart TD
               recorded actions to them. Leaf keys each action by
               <code>[widget, unit, verb]</code>: the owning widget, the part of its
               state being changed, and the operation. For each key, the latest action
-              that has not been undone or retracted sets that part of the state, so a
-              new pick in an <code>lf-options</code> replaces the previous pick.
+              that has not been undone sets that part of the state, as versions that
+              marked something <code>restated</code> read it, so a new pick in an
+              <code>lf-options</code> replaces the previous pick.
               <code>leaf page state</code> reports the result; the browser adds
               <a href="#browser-updates">pending browser updates</a>.
             </p>
@@ -2237,19 +2238,10 @@ flowchart TD
     "unit": "option",
     "creates": {"child": "lf-option", "words": "text"}
   },
-  "answer": {
-    "detail": {
-      "properties": {"options": {"type": "array", "items": {"type": "string"},
-                                 "uniqueItems": true},
-                     "picked": {"type": "array", "items": {"type": "string"},
-                                "uniqueItems": true}},
-      "required": ["options", "picked"]}}
+  "answer": {"detail": {}}
 },
 "awaits": {
   "value": "choose"
-},
-"facts": {
-  "answered": {"type": "boolean"}
 }
 </code></pre>
               <lf-note at="2"
@@ -2275,25 +2267,18 @@ flowchart TD
               >
               <lf-note at="13"
                 ><code>answer</code> is the Done press that closes a
-                <code>multiple</code> choice. Its detail names the options the group
-                showed and those picked: the set Done says is whole.</lf-note
+                <code>multiple</code> choice.</lf-note
               >
-              <lf-note at="21"
-                >The widget asks the user a question, which stands on their On Me list
-                while it is open.</lf-note
+              <lf-note at="15"
+                >Whether the question is answered is the widget's own word: after each
+                pick, Done or undo, Leaf asks the module's static <code>answered</code>,
+                which says a single choice is answered once an option is selected and a
+                multiple choice once the user presses Done, and sends the word with the
+                gesture.</lf-note
               >
-              <lf-note at="22"
+              <lf-note at="16"
                 >The obligation's typed answer comes from the current
                 <code>choose</code> value.</lf-note
-              >
-              <lf-note at="25"
-                >Whether the question is answered is the widget's own word, a fact it
-                works out of its state and markup. After each pick, Done or undo, and as
-                a version or another tab's act moves the widget, Leaf asks the module's
-                static <code>answered</code> and sends its word to the page, which keeps
-                it. A single choice is answered once an option is selected, and a
-                multiple choice while Done stands on the options it shows and the picks
-                among them.</lf-note
               >
             </lf-code>
             <p id="coordinate">
@@ -2385,8 +2370,7 @@ flowchart TD
 {"kind": "action", "revision": 1, "widget": "ship", "action": "add",
  "detail": {"option": "ship-option-1f82bf7ba6828718a418aa6076e29c63",
    "text": "After the canary is healthy"},
- "facts": {"answered": false},
- "attempt": "1f82bf7ba6828718a418aa6076e29c63", "author": "user",
+ "answered": false, "attempt": "1f82bf7ba6828718a418aa6076e29c63", "author": "user",
  "id": "f541943a",
  "meaning": {"scope": "page",
    "unit": "ship-option-1f82bf7ba6828718a418aa6076e29c63",
@@ -2405,8 +2389,7 @@ flowchart TD
  "attention": false, "ts": "2026-09-23T22:09:53-07:00", "seq": 2}
 {"kind": "action", "revision": 1, "widget": "ship", "action": "choose",
  "detail": {"value": ["ship-option-1f82bf7ba6828718a418aa6076e29c63"]},
- "facts": {"answered": true},
- "attempt": "d10bc95f51e47796494c2aa01b7c872f", "author": "user",
+ "answered": true, "attempt": "d10bc95f51e47796494c2aa01b7c872f", "author": "user",
  "id": "c47d1659",
  "meaning": {"scope": "page",
    "unit": "ship",
@@ -2426,8 +2409,7 @@ flowchart TD
  "attention": true, "ts": "2026-09-23T22:09:53-07:00", "seq": 3}
 {"kind": "action", "revision": 1, "widget": "ship", "action": "choose",
  "detail": {"value": ["ship-later"]},
- "facts": {"answered": true},
- "attempt": "26e7a30143df35cda03ec8b7b164f2b6", "author": "user",
+ "answered": true, "attempt": "26e7a30143df35cda03ec8b7b164f2b6", "author": "user",
  "id": "0450d79c",
  "meaning": {"scope": "page",
    "unit": "ship",
@@ -2445,29 +2427,22 @@ flowchart TD
        "additionalProperties": false}},
    "answer": null},
  "attention": true, "ts": "2026-09-23T22:09:54-07:00", "seq": 4}
-{"kind": "undo", "attempt": "abec07d894a0444733756c659d4edafe", "undoes": "0450d79c",
- "facts": {"answered": true},
- "author": "user",
+{"kind": "undo", "attempt": "abec07d894a0444733756c659d4edafe", "undoes": "0450d79c", "answered": true, "author": "user",
  "id": "6d9e1f06", "attention": true, "ts": "2026-09-23T22:09:54-07:00", "seq": 5}
-{"kind": "undo", "attempt": "5a3b1fb07f32ba1933b472b288a03e36", "undoes": "c47d1659",
- "facts": {"answered": false},
- "author": "user",
+{"kind": "undo", "attempt": "5a3b1fb07f32ba1933b472b288a03e36", "undoes": "c47d1659", "answered": false, "author": "user",
  "id": "935db19d", "attention": true, "ts": "2026-09-23T22:09:55-07:00", "seq": 6}
-{"kind": "undo", "attempt": "7d324c8ea06016e59db0ca09ea0303e4", "undoes": "f541943a",
- "facts": {"answered": false},
- "author": "user",
+{"kind": "undo", "attempt": "7d324c8ea06016e59db0ca09ea0303e4", "undoes": "f541943a", "answered": false, "author": "user",
  "id": "b0f9f750", "attention": false, "ts": "2026-09-23T22:09:55-07:00", "seq": 7}
 </code></pre>
               <lf-note at="1"
                 >The browser sent <code>kind</code>, <code>revision</code>,
                 <code>widget</code>, <code>action</code>, <code>detail</code>,
-                <code>facts</code>, what the widget worked out of its state, here its
-                word on whether its question is answered, and <code>attempt</code>, its
-                retry key. Leaf added the remaining fields.
-                <code>attention</code> records whether the action changes work the agent
-                owes.</lf-note
+                <code>answered</code>, the widget's word on whether its question is
+                answered, and <code>attempt</code>, its retry key. Leaf added the
+                remaining fields. <code>attention</code> records whether the action
+                changes work the agent owes.</lf-note
               >
-              <lf-note at="7"
+              <lf-note at="6"
                 >Leaf derives <code>meaning</code> and refuses a sender that supplies
                 it. It keeps only what a reader without the registry could not recover:
                 whether the action was made on the page or in a thread
@@ -2477,16 +2452,16 @@ flowchart TD
                 operation and its allowed detail values so later revisions can tell
                 whether the decision still applies.</lf-note
               >
-              <lf-note at="6"
+              <lf-note at="5"
                 >Leaf generates the eight-hex <code>id</code>; <code>seq</code> is the
                 record's line in the log.</lf-note
               >
-              <lf-note at="41"
+              <lf-note at="39"
                 >The widget said this pick answers its question, so it completes the
                 obligation. <code>null</code> means it closes no thread; a widget with a
                 <code>resolves</code> attribute would name one here.</lf-note
               >
-              <lf-note at="64"
+              <lf-note at="61"
                 >An undo names the gesture to withdraw. Leaf excludes that gesture when
                 deriving state, and both records stay in the log.</lf-note
               >
@@ -2507,8 +2482,9 @@ flowchart TD
               </li>
               <li>
                 <strong>The author's <code>restated</code></strong
-                >: a stamped version lists element ids it deliberately rewrote, and
-                every earlier action that depends on one of them is retracted.
+                >: a stamped version lists element ids it deliberately rewrote. Each
+                earlier action that depends on one of them loses it, a pick keeping its
+                other options, and the widget asks its question again.
               </li>
             </ul>
             <p id="taking-back-markup">
@@ -2630,9 +2606,9 @@ flowchart TD
               unanswered widgets and page stamps, and the pick persists with the
               widget's id across unrelated edits. When the action or evidence changes
               enough to invalidate that permission, the author explains the change and
-              marks the widget <code>restated</code>. A request that depends on another
-              decision is presented after that decision, once the action to permit is
-              concrete.
+              marks the picked option <code>restated</code>, which takes the pick back
+              and asks again. A request that depends on another decision is presented
+              after that decision, once the action to permit is concrete.
             </p>
             <p id="permission-sample-guide">
               Choose Publish the report, then choose it again. The request changes
@@ -3143,15 +3119,14 @@ flowchart TD
             <p id="progress-lists-answer">
               On the page, an item On Me is answered only in the widget or thread that
               asks it, and Leaf adds no control of its own to end one. A widget’s
-              obligation is answered while the widget says the user's gestures on it
+              obligation is answered when the widget says the user's gesture on it
               answered it (<code>awaits</code>), as a pick does, or the Done a
-              multi-select choice offers as its own control. A version that changes what
-              they answered, such as one adding a step to a checklist, asks again once a
-              tab shows it. A question in a thread is answered by the user’s reply
-              there, in words or a reaction such as 👍. The agent ends its to-dos with
-              <code>leaf task end</code>, and ends a thread question the user answered
-              elsewhere, such as in chat, by resolving its thread. Done history records
-              the outcome, including withdrawn obligations and failed or dropped to-dos.
+              multi-select choice offers as its own control. A question in a thread is
+              answered by the user’s reply there, in words or a reaction such as 👍. The
+              agent ends its to-dos with <code>leaf task end</code>, and ends a thread
+              question the user answered elsewhere, such as in chat, by resolving its
+              thread. Done history records the outcome, including withdrawn obligations
+              and failed or dropped to-dos.
             </p>
 
             <p id="progress-lists-thread">
@@ -3669,11 +3644,11 @@ EOF</code></pre>
             </p>
             <p id="message-widgets-state">
               A widget on the page takes its state from the version being viewed: that
-              version's markup plus the actions taken up to it, minus any a stamped
-              version marked <code>restated</code>. A widget in a message belongs to no
-              version. Its state is its markup plus every action taken on it, whichever
-              version is open, and no revision can retract one. Choosing the answer to
-              its question hands the thread back to the agent.
+              version's markup plus the actions taken up to it, as a stamped version
+              that marked something <code>restated</code> reads them. A widget in a
+              message belongs to no version. Its state is its markup plus every action
+              taken on it, whichever version is open, and no revision can restate one.
+              Choosing the answer to its question hands the thread back to the agent.
             </p>
           </section>
           <section id="titles">
@@ -5870,7 +5845,6 @@ verdict/
       "decide": { "record": { "attr": "verdict" } }
     },
     "awaits": { "value": "decide" },
-    "facts": { "answered": { "type": "boolean" } },
     "example": "&lt;lf-group id=\"release\" label=\"Ship 4.2 today?\"&gt;&lt;lf-verdict id=\"verdict\"&gt;&lt;/lf-verdict&gt;&lt;/lf-group&gt;"
   }
 }
@@ -5915,14 +5889,9 @@ verdict/
                 leave <code>awaits</code> out. The question is the label of the group
                 around the widget, and it stays on On Me, the user’s list of everything
                 waiting on them, until it is answered. <code>value</code> names the verb
-                whose value is the answer, which Leaf delivers to the agent.</lf-note
-              >
-              <lf-note at="13"
-                >Whether the question is answered is the widget’s own word, a fact the
-                page keeps for it. A module may work it out in a static
-                <code>answered</code>; this one defines none, so Leaf says it: the
-                question is answered once <code>decide</code> holds a value the user
-                chose.</lf-note
+                whose value is the answer, so the question is answered once
+                <code>decide</code> has one. Leaf then delivers that answer to the
+                agent.</lf-note
               >
             </lf-code>
             <h3 id="verdict-module-heading">Module</h3>

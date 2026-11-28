@@ -21,7 +21,6 @@
       }
     },
     "awaits": { "value": "choose" },
-    "facts": { "answered": { "type": "boolean" } },
     "outputs": { "value": { "contract": "control-value" } },
     "example": "<lf-group id=\"plan\" label=\"Which plan?\"><lf-select id=\"plan-choice\"><wa-select placeholder=\"Choose a plan\"><wa-option value=\"starter\">Starter</wa-option><wa-option value=\"team\">Team</wa-option></wa-select></lf-select></lf-group>"
   },

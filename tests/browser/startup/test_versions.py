@@ -84,7 +84,7 @@ def test_restating_a_widget_is_how_a_version_takes_the_pen_back(browser, serve):
             "widget": "draft-ops",
             "action": "edit",
             "detail": {"value": DRAFT_EDITED},
-            "facts": {"answered": True},
+            "answered": True,
         },
     )
     corrected = "Run the migration after deploying — it needs the new column."
@@ -215,7 +215,7 @@ def test_foreign_state_draws_beside_a_live_drag(browser, serve):
             "widget": "draft-ops",
             "action": "edit",
             "detail": {"value": foreign},
-            "facts": {"answered": True},
+            "answered": True,
         },
     )
     told(page)
@@ -548,7 +548,7 @@ def test_the_thread_follows_the_decision_that_still_stands(browser, serve):
             "widget": "sug-fix",
             "action": "decide",
             "detail": {"outcome": "reject"},
-            "facts": {"answered": True},
+            "answered": True,
         },
     )
     told(page)

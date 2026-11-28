@@ -727,18 +727,18 @@ def stamp_words(registry: dict) -> dict:
     return registry
 
 
-# The boolean attribute a version sets on a widget to take back what a writer recorded
-# on the whole of it: the user's decision (the registry's `$restated`) or the agent's
-# report (`$report`).
+# The boolean attribute a version sets on a widget it changed, for what a writer recorded
+# on the whole of it: the user's decision, which it asks about again (the registry's
+# `$restated`), or the agent's report, which its own state overrules (`$report`).
 RETRACTIONS = {"user": "restated", "agent": "overruled"}
 
 
 def stamp_retractions(registry: dict) -> dict:
     """Write into a validated vocabulary, for each verb whose unit is the whole widget,
     the attribute that takes it back (`RETRACTIONS`) as a boolean, replacing any the
-    widget's declaration lists. So a version can take back every such decision and
-    report whatever the declaration says, and validation and an author reading the
-    entry read the attribute there. An agent's verb always has that unit. A verb with
+    widget's declaration lists. So a version can ask again about every such decision
+    and overrule every such report whatever the declaration says, and validation and
+    an author reading the entry read the attribute there. An agent's verb always has that unit. A verb with
     another unit names a member by id, as a board's move names a card, and that
     member's own declaration lists `restated`.
 

@@ -50,8 +50,8 @@ entry for its HTML.
 
 The event log keeps the user's choices, added options, edits and suggestion outcomes,
 so don't copy them into the markup. Revise your own markup when the content needs it,
-keeping the meaning of the user's decisions. To withdraw a decision, follow the
-registry's `$restated`.
+keeping the meaning of the user's decisions. To ask the user again about a decision,
+follow the registry's `$restated`.
 
 Take in a user's answer to a page's obligation in a stamped version. Where the widget's
 `verbs` declares a `record` form, write that form as its author instructions
@@ -93,8 +93,8 @@ Anything the choice sets in motion that hasn't happened yet reads as decided, no
 under way. Keep the result and its evidence
 in the current reading flow while the reader still needs them (`page-authoring.md`,
 "Reading cost"); retire the superseded interaction as finished work. Pose anything
-still worth asking as a new decision with new ids. Use `$restated` to withdraw the
-decision and ask again.
+still worth asking as a new decision with new ids. Use `$restated` to ask about the
+decision again.
 Keep a section open while the user is still commenting there.
 
 The user reads threads to find out how their input was addressed. When a revision

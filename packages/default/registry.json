@@ -498,6 +498,7 @@
       "required": ["id"]
     },
     "content": "members",
+    "shadow": true,
     "views": { "members": "lf-tab" },
     "flow": { "when": { "flow": ["page"] } },
     "instructions": "The first `lf-tabs` written directly in `main` owns the page's view history and URL. Give a set `flow=\"page\"` to share the document's space without a frame, as page-layout.md describes; omit it for a boxed tab set. Visual flow does not choose history ownership. Put the page's title and lede before page tabs, and the main current view first. Make each `lf-tab` a self-contained view; history, threads and versions belong to the whole page. When current work no longer needs a view, remove it. Move any context still needed, and any passage an open thread or an unretracted decision is anchored to, into a `details` in the relevant tab. Use `list=\"side\"` for a queue listed beside the item it opens.",
@@ -547,6 +548,7 @@
     "description": "A page made of parts, each laid out by a Layout of its own and shown one at a time, listed down the window's left edge under the page's title.",
     "attributes": { "required": ["id"] },
     "content": "members",
+    "shadow": true,
     "views": { "members": "lf-part", "parts": true },
     "instructions": "Place it as `page-layout.md`, \"A page of parts\", says, giving each `lf-part` one child carrying that part's Layout, such as `<article class=\"layout-column\">`. Put the main current part first. History, threads and versions belong to the whole page. When current work no longer needs a part, remove it, moving any passage an open thread or an unretracted decision is anchored to into a `details` in the relevant part.",
     "example": "<header>\n  <h1>Retry storm</h1>\n</header>\n<lf-parts id=\"parts\">\n  <lf-part id=\"part-decide\" label=\"Decide\" summary=\"Ship the retry cap?\">\n    <div class=\"layout-workspace density-working\">\n      <p id=\"decide-intro\">Compare the two caps.</p>\n    </div>\n  </lf-part>\n  <lf-part id=\"part-background\" label=\"Background\">\n    <article class=\"layout-column\">\n      <p id=\"storm-history\">The storm started with the 2.3 release.</p>\n    </article>\n  </lf-part>\n</lf-parts>"

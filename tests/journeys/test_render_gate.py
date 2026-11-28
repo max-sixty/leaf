@@ -86,6 +86,7 @@ from render_harness import (
     resized,
     root_overflow,
     still_page,
+    tab_for,
     take_browser_errors,
 )
 
@@ -145,11 +146,11 @@ def test_the_layer_holds_its_whole_page_rules_on_the_corpus(browser, serve, subt
         _layout_passes_batch_without_refolding_controls(page)
     resized(page, 1200, 900)
 
-    page.locator('[role="tab"][aria-controls="corpus-feature-gallery"]').click()
-    page.locator('[role="tab"][aria-controls="bg-view-page"]').click()
+    tab_for(page, "corpus-feature-gallery").click()
+    tab_for(page, "bg-view-page").click()
     expect(page.locator("#bg-durable-embedding")).to_have_attribute("hidden", "")
     assert page.locator("#bg-durable-frame").get_attribute("src") == "about:blank"
-    page.locator('[role="tab"][aria-controls="corpus-review-a-plan"]').click()
+    tab_for(page, "corpus-review-a-plan").click()
     expect(page.locator("#corpus-review-a-plan")).to_be_visible()
 
     findings = {

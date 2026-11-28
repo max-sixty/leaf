@@ -8,10 +8,12 @@ import type {
   obligationActions,
   threadActions,
 } from "./application.js";
+import type { keepView } from "../records/views.js";
 import type { showHeldReadings } from "../records/thread/held-news.js";
 import type { threadList } from "../records/thread/state.js";
 
 export type MountedApplication = {
+  keepView: typeof keepView;
   navigateToDatum: typeof navigateToDatum;
   obligationActions: typeof obligationActions;
   threadActions: typeof threadActions;

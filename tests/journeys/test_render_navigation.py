@@ -684,8 +684,9 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
         """ids => Object.fromEntries(ids.map(id => {
           const target = document.getElementById(id);
           const panel = target?.closest('#bg-gallery-tabs > lf-tab');
-          const tab = panel && document.querySelector(
-            `#bg-gallery-tabs [role="tab"][aria-controls="${panel.id}"]`);
+          const tab = panel && [...document.querySelector('#bg-gallery-tabs')
+            .shadowRoot.querySelectorAll('[role="tab"]')]
+            .find((tab) => tab.ariaControlsElements[0] === panel);
           return [id, {tag: target?.localName || null,
                        tab: tab?.textContent.trim() || null}];
         }))""",

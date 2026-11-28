@@ -78,6 +78,7 @@ from render_harness import (
     stamp_page,
     state_changes,
     still_page,
+    tab_for,
     take_browser_errors,
     wait_for_revision,
 )
@@ -2817,30 +2818,36 @@ def short_aim_findings_in_every_tab(page):
     return _short_aims(page, every_tab=True)
 
 
-NEXT_TAB = """(opened) => {
+# Every tab on the page, in document order: a tab set draws its own in its shadow tree,
+# where each names its panel by reference rather than by an id attribute.
+EVERY_TAB = """const everyTab = () =>
+  [...document.querySelectorAll('[role="tab"], :is(lf-tabs, lf-parts)')].flatMap((el) =>
+    el.shadowRoot ? [...el.shadowRoot.querySelectorAll('[role="tab"]')] : [el]);
+const panelOf = (tab) =>
+  tab.ariaControlsElements?.[0]?.id ?? tab.getAttribute('aria-controls');"""
+NEXT_TAB = f"""(opened) => {{
+  {EVERY_TAB}
   // The last unopened tab in document order, so the tabs a tab opens, which stand
   // after it, are all opened before the strip they hang from goes on to its next tab.
-  const tab = [...document.querySelectorAll('[role="tab"]')].findLast(
+  const tab = everyTab().findLast(
     (tab) =>
       !tab.closest('.lf-chrome') &&
-      !tab.closest('[hidden]') &&
       tab.checkVisibility() &&
-      !opened.includes(tab.getAttribute('aria-controls')),
+      !opened.includes(panelOf(tab)),
   );
-  return tab?.getAttribute('aria-controls') ?? null;
-}"""
+  return tab ? panelOf(tab) : null;
+}}"""
 
 
 # Press the tab that opens a panel, or a sibling of it in its strip (`away`). Pressed by
 # script: a strip that runs past a phone's width leaves tabs outside the window, and
 # what is under test is the content the tab opens, not the strip's reach.
-OPEN_TAB = """([id, away]) => {
-  const tab = [...document.querySelectorAll('[role="tab"]')].find(
-    (tab) => tab.getAttribute('aria-controls') === id,
-  );
-  const siblings = [...tab.parentElement.closest('.lf-tabstrip').querySelectorAll('[role="tab"]')];
+OPEN_TAB = f"""([id, away]) => {{
+  {EVERY_TAB}
+  const tab = everyTab().find((tab) => panelOf(tab) === id);
+  const siblings = [...tab.closest('[role="tablist"]').querySelectorAll('[role="tab"]')];
   (away ? siblings.find((other) => other !== tab) : tab).click();
-}"""
+}}"""
 
 
 def _short_aims(page, *, every_tab):
@@ -2924,7 +2931,7 @@ def pressable_paper_findings(page):
     mean anything: a corpus whose controls were bare and whose disclosures were open
     everywhere would pass the assertions below while proving nothing about the medium.
     """
-    page.locator('[role="tab"][aria-controls="corpus-command-hub"]').click()
+    tab_for(page, "corpus-command-hub").click()
     expect(page.locator("#corpus-command-hub")).to_be_visible()
     on_screen = page.evaluate(PRINTED_OFFERS)
     assert sum(1 for offer in on_screen if offer["pressable"]) > 20, (

@@ -421,7 +421,7 @@ def test_a_flowing_workspace_keeps_its_header_over_what_a_next_lands_on(browser,
     # A tab set in the body sticks its strip under the header, not behind it.
     page.locator("#v-long").evaluate("el => el.scrollIntoView({block: 'center'})")
     scroll_settled(page)
-    strip = page.locator("#views > .lf-tabstrip").bounding_box()
+    strip = page.locator("#views .lf-tabstrip").bounding_box()
     assert strip["y"] >= header["y"] + header["height"] - 1, (strip, header)
     # The stuck header covers the gutters with paint alone; its box stays in the column.
     assert evaluate_probe(page, "misplacedBoxes") == []

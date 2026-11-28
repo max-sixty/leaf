@@ -3402,7 +3402,7 @@ def overflowing_tabs(page: Page) -> None:
     page.locator("#bg-gallery-tabs").get_by_role(
         "tab", name="Page & layout", exact=True
     ).click()
-    strip = page.locator("#bg-rollout-tabs > .lf-tabstrip")
+    strip = page.locator("#bg-rollout-tabs .lf-tabstrip")
     strip.scroll_into_view_if_needed()
     strip.locator('.lf-tabstrip-scroll[data-lf-to="end"] > span').click()
     scroll_settled(page)

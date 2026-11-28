@@ -3341,6 +3341,20 @@ def preview_text(target):
     return "".join(preview_parts(target))
 
 
+def tab_for(page, panel):
+    """The tab that opens the panel whose id is `panel`. A tab set draws its tabs in its
+    own shadow tree, so a tab names its panel by reference (`ariaControlsElements`),
+    which no selector reads."""
+    return page.evaluate_handle(
+        """(id) => {
+          const panel = document.getElementById(id);
+          return [...panel.parentElement.shadowRoot.querySelectorAll('[role="tab"]')]
+            .find((tab) => tab.ariaControlsElements[0] === panel);
+        }""",
+        panel,
+    ).as_element()
+
+
 def resized(page, width, height):
     """Resize and wait for the page's listeners and rendering update.
 

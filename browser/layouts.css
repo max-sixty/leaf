@@ -96,7 +96,8 @@
    * part does, where a narrow window puts the floating panel's row over the column, and
    * scrolls on its own where it holds more names than that leaves it, a height it holds
    * on purpose (`--lf-holds-height`), as a sticking block does. The package that draws
-   * the parts sets only how the list looks (the default package's tabs.css, "A page's
+   * the parts places the list and sets how it looks, since it draws the list in its own
+   * tree, where no rule here reaches (the default package's tabs.css, "A page's
    * parts"), where the parts' `main` carries no Layout (`--lf-layout-box`). In a `main`
    * that carries one, which `page check` advises against (`parts-in-layout`), the parts
    * draw as a strip of tabs inside that Layout.
@@ -175,26 +176,7 @@
       body
       > main:not(.layout-column, .layout-sidebar, .layout-workspace)
       > [data-lf-views="parts"]
-      > [role="tablist"] {
-      grid-column: 1;
-      grid-row: 2;
-      position: fixed;
-      position-anchor: --lf-parts-title;
-      top: anchor(bottom, var(--lf-top));
-      inline-size: var(--lf-parts-list);
-      box-sizing: border-box;
-      align-self: start;
-      block-size: calc(100dvh - var(--lf-head-room) - anchor-size(height, 0px));
-      min-block-size: 0;
-      overflow-x: hidden;
-      overflow-y: auto;
-      --lf-holds-height: 1;
-    }
-    html[data-lf-interactive]
-      body
-      > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-      > [data-lf-views="parts"]
-      > :not([role="tablist"]) {
+      > * {
       grid-column: 2;
       grid-row: 1 / -1;
     }
@@ -202,7 +184,7 @@
       body
       > main:not(.layout-column, .layout-sidebar, .layout-workspace)
       > [data-lf-views="parts"]
-      > :not([role="tablist"], [hidden]) {
+      > :not([hidden]) {
       align-self: stretch;
     }
     /* A full-height workspace's height is its part's, not its content's, so the part
@@ -212,14 +194,14 @@
         body
         > main:not(.layout-column, .layout-sidebar, .layout-workspace)
         > [data-lf-views="parts"]
-        > :not([role="tablist"], [hidden]):has(> .layout-workspace) {
+        > :not([hidden]):has(> .layout-workspace) {
         contain: size;
       }
       html[data-lf-interactive]
         body
         > main:not(.layout-column, .layout-sidebar, .layout-workspace)
         > [data-lf-views="parts"]
-        > :not([role="tablist"], [hidden])
+        > :not([hidden])
         > .layout-workspace {
         block-size: 100%;
       }
@@ -244,29 +226,9 @@
         body
         > main:not(.layout-column, .layout-sidebar, .layout-workspace)
         > [data-lf-views="parts"]
-        > [role="tablist"],
-      html[data-lf-interactive]
-        body
-        > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-        > [data-lf-views="parts"]
-        > :not([role="tablist"]) {
+        > * {
         grid-column: 1;
         grid-row: auto;
-      }
-      html[data-lf-interactive]
-        body
-        > main:not(.layout-column, .layout-sidebar, .layout-workspace)
-        > [data-lf-views="parts"]
-        > [role="tablist"] {
-        position-anchor: normal;
-        position: sticky;
-        --lf-head-inset: 0px;
-        top: var(--lf-top);
-        inline-size: auto;
-        z-index: 2;
-        block-size: revert-layer;
-        overflow-x: auto;
-        overflow-y: hidden;
       }
       @container style(--lf-holds-parts: 1) {
         :where(main > *):not([data-lf-views="parts"]) {
@@ -281,7 +243,7 @@
         body
         > main:not(.layout-column, .layout-sidebar, .layout-workspace)
         > [data-lf-views="parts"]
-        > :not([role="tablist"], [hidden]) {
+        > :not([hidden]) {
         align-self: start;
       }
       /* Stacked, the title and list stand over the part, so a full-height workspace takes
@@ -291,14 +253,14 @@
           body
           > main:not(.layout-column, .layout-sidebar, .layout-workspace)
           > [data-lf-views="parts"]
-          > :not([role="tablist"], [hidden]):has(> .layout-workspace) {
+          > :not([hidden]):has(> .layout-workspace) {
           contain: none;
         }
         html[data-lf-interactive]
           body
           > main:not(.layout-column, .layout-sidebar, .layout-workspace)
           > [data-lf-views="parts"]
-          > :not([role="tablist"], [hidden])
+          > :not([hidden])
           > .layout-workspace {
           block-size: var(--lf-view-height);
         }

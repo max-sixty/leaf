@@ -425,7 +425,7 @@ def test_a_thread_whose_passage_stays_hidden_opens_in_the_panel(browser, serve):
         ),
     )
     resized(page, 390, 844)
-    strip = page.locator("#views > .lf-tabstrip")
+    strip = page.locator("#views .lf-tabstrip")
     assert strip.evaluate("s => s.scrollWidth > s.clientWidth"), "the strip fits"
     assert open_where_the_user_stands(page, "last-words", scroll=False) is True
     expect(page.locator(PANEL)).to_have_attribute("data-lf-open", re.compile(".+"))
@@ -442,7 +442,7 @@ def test_a_thread_in_view_opens_and_leaves_the_tab_strip(browser, serve):
         browser, serve(LONG_STRIP_PAGE, events=[_comment_on("open-words")])
     )
     resized(page, 390, 844)
-    strip = page.locator("#views > .lf-tabstrip")
+    strip = page.locator("#views .lf-tabstrip")
     left = strip.evaluate("s => (s.scrollLeft = s.scrollWidth, s.scrollLeft)")
     assert left > 0, "the strip fits, so it proves nothing"
     assert open_where_the_user_stands(page, "open-words") is True

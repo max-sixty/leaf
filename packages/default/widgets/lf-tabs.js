@@ -1,13 +1,12 @@
+// Compiled from lf-tabs.ts by build/typescript.mjs; edit that file.
 /* lf-tabs: several views of one page, one panel on screen at a time.
- * Lit draws the generated strip from panel labels and tracked readings; authored
- * panels stay outside its render root. The upgrade hides
- * inactive panels with hidden="until-found", so browser find-in-page and
- * fragment navigation still reach them, and so does Leaf's travel to a comment
+ * The upgrade hides inactive panels with hidden="until-found", so browser find-in-page
+ * and fragment navigation still reach them, and so does Leaf's travel to a comment
  * anchor, which reveals as they do: `beforematch` opens the owning tab. A page can
  * make a panel itself scroll with CSS, so the widget declares each panel as a scroll
  * surface; its CSS still decides
  * whether that panel scrolls. The open tab is view state for this user,
- * remembered per browser tab (`keepView`): switching is reading, not editing, so it
+ * remembered per browser tab (`KeepView`): switching is reading, not editing, so it
  * never sends an action and no version carries it — this widget doesn't ride the
  * action channel at all. Which tab a set opens on is the runtime's (`openingView`),
  * which selects the member before its first paint (`views`).
@@ -16,7 +15,9 @@
  * Leaf then names the open panel in the address by its id, adds a history entry for
  * each switch the user makes, and shows an entry's panel again on Back and Forward
  * (the runtime's records/views.js). A link inside a panel is still fragment travel
- * (records/history.js).
+ * (records/history.js). Which set is first is read as the set draws; a set that a
+ * revision puts before it in `main` takes the page's address once the page draws its
+ * sets again, as on a reload.
  *
  * The authored `flow="page"` puts the set in the document's flow (`flow`), and
  * the package styles its unframed face, separately from the address above. In
@@ -40,7 +41,7 @@
  * Its panels are reading regions, and so is its list while it scrolls on its own, so
  * reading keys and the user's place follow the list or the item rather than the set.
  *
- * A page's parts (`lf-parts`, lf-parts.js) are this module's set under their own tag,
+ * A page's parts (`lf-parts`, lf-parts.ts) are this module's set under their own tag,
  * with `lf-part` members. They stand directly in a `main` that carries no Layout
  * (`page check` refuses one that carries one), and each part's child carries a Layout
  * of its own (layouts.css, "A page of parts"). They are the page's own flow: each part
@@ -91,171 +92,562 @@
  * moves no row. While the version diff is on, each tab
  * counts the marked passages its panel holds, including inactive panels. Unupgraded,
  * panels stack as labeled sections; authored content is never replaced, so
- * there is no failSoft. */
-import { html, nothing, render, repeat, ref } from "/vendor/lit.js";
+ * there is no failSoft.
+ *
+ * How it is drawn: a decorating widget (lf-options.js, "How it is drawn"), in a
+ * shadow root rather than the light-DOM box `defineWidget` draws by default
+ * (browser/AGENTS.md, "Renderers"). That box is appended after the authored panels,
+ * and a tablist has to stand before them in the document's order, not only on screen:
+ * Tab from above the set would reach the open panel's links before its tabs, a screen
+ * reader would read every panel before the list that names them, and a page-flow set
+ * lays its strip out in block flow, where no CSS `order` can lift it above its panels
+ * to stick there. A shadow root puts the strip first and shows the panels through a
+ * `<slot>` after it.
+ *
+ * - The panels are the author's, in the light DOM, and show through the root's
+ *   `<slot>`. What the widget states on them is the tab pattern's record: `role`,
+ *   `aria-label` from the panel's `label`, `tabindex`, `data-lf-scroll`, and the
+ *   `hidden` Leaf keeps (`KeepView`). The host wears `data-lf-down` while its list runs
+ *   down, and `data-lf-page-views` where it is the page's navigation.
+ * - The strip is drawn by Effect UI in the set's shadow root, from what `inputs` reads
+ *   of each panel: its `label`, `summary`, `group`, the face its `<template>` holds,
+ *   the version diff's count and its obligations. The face is the template's markup
+ *   cloned into the tab, so the theme's faces for markup dress it, and the page's own
+ *   stylesheet, which stops at the root, doesn't. The theme restyles the strip through
+ *   shadow parts (`strip`, `tab`, `name`); tabs-shadow.css holds what the strip's
+ *   pieces take from each other and from the host's state.
+ * - The component's Model is the tab the user is on and how they got there. One Mount
+ *   on the strip (`Strip`) does what only the host's own code can: it shows the panel
+ *   through Leaf (`KeepView`) as the Model moves, keeps the tab in view, declares the
+ *   strip's keys, decorates the panels, and hears a panel the browser reveals
+ *   (`beforematch`) as a message. */
 import {
-  nameOf,
+  Component,
+  Effect,
+  Equal,
+  Html,
+  Mount,
+  Queue,
+  Schema,
+  Stream,
+  UiSchema,
+} from "/vendor/effect-ui.js";
+import {
   agentName,
   answerWords,
   backgroundFlash,
   comparisonChanges,
-  keepView,
-  whileConnected,
-  openingView,
-  viewMembers,
-  readObligations,
   focusDestination,
-  scrollIntoView,
   landingInsets,
+  nameOf,
+  openingView,
+  readObligations,
+  scrollIntoView,
+  viewMembers,
 } from "/runtime/widget-api.js";
-import { LeafElement } from "/runtime/lib/leaf-element.js";
-import { offer, selectableOffered } from "/runtime/lib/controls.js";
+import { defineWidget, widgetProps } from "/runtime/effect-widget.js";
+import { KeepView } from "/runtime/widget-services.js";
+import { offerAttributes, selectableAttributes } from "/runtime/lib/controls.js";
 import { sizeObserver } from "/runtime/lib/frame-pass.js";
-import { actionTemplate } from "/runtime/lib/icons.js";
+import { iconElement, actionIcon } from "/runtime/lib/icon-paths.js";
 import { PRESS, rowArrows } from "/runtime/lib/keys.js";
 import { keeps, layoutPx } from "/runtime/lib/keeps.js";
 import { tally } from "/runtime/lib/obligation-tally.js";
 
-/** @param {Element} owner */
-const substantiveChildren = (owner) =>
-  [...owner.childNodes].filter(
-    (child) =>
-      (child instanceof Element && !child.matches("script, style, template")) ||
-      (child instanceof Text && child.data.trim()),
-  );
-/** @param {Element} owner */
-const soleSubstantiveElement = (owner) => {
-  const children = substantiveChildren(owner);
-  return children.length === 1 && children[0] instanceof Element ? children[0] : null;
+/** What `inputs` reads of one panel. */
+const Panel = Schema.Struct({
+  panel: Schema.instanceOf(Element),
+  id: Schema.String,
+  label: Schema.String,
+  summary: Schema.NullOr(Schema.String),
+  group: Schema.NullOr(Schema.String),
+  // The markup of the `<template>` the panel opens with, which its tab shows in place
+  // of its label and summary.
+  face: Schema.NullOr(Schema.String),
+  changed: Schema.Number,
+  // Whether the panel's markup asks the user something, and its obligations as
+  // `tally` counts them, with the answer's words where it holds one.
+  asks: Schema.Boolean,
+  onUser: Schema.Number,
+  onAgent: Schema.Number,
+  open: Schema.Number,
+  total: Schema.Number,
+  only: Schema.NullOr(Schema.String),
+});
+
+const TabsProps = Schema.Struct({
+  ...widgetProps,
+  panels: Schema.Array(Panel),
+  side: Schema.Boolean,
+  parts: Schema.Boolean,
+  root: Schema.Boolean,
+  pageFlow: Schema.Boolean,
+  name: Schema.String,
+  agent: Schema.String,
+  opening: Schema.NullOr(Schema.String),
+});
+
+// How the user reached the open tab: a press, a key, or the browser revealing its
+// panel, as find-in-page, a fragment or Back does.
+const Via = Schema.Literals(["pointer", "key", "reveal"]);
+
+const TabsModel = Schema.Struct({
+  active: Schema.NullOr(Schema.String),
+  via: Schema.NullOr(Via),
+  // Counts the user's switches, a press on the open tab included, which brings that
+  // tab back into the strip after the user scrolled it away.
+  step: Schema.Number,
+  // Whether the open tab's line travels to it from the tab before, as it does for a
+  // press on a neighbour, until the strip scrolls or resizes under it. It is drawn with
+  // the selection it travels to, so the line starts from where it was painted.
+  travels: Schema.Boolean,
+});
+
+export const TabsMessage = UiSchema.TaggedEnum({
+  Chose: { id: Schema.String, pointer: Schema.Boolean },
+  Revealed: { id: Schema.String },
+  // The strip scrolled or resized, which ends a line's travel at its tab.
+  Settled: {},
+});
+
+// Whether the list runs down beside the panels: a side list's, and a page's list of
+// parts. Parts placed anywhere else list their names in a row.
+const runsDown = (props) => props.side || (props.parts && props.root);
+
+// The open panel: the user's, else the one the set opened on, else the first.
+const activeId = (model, props) => {
+  const ids = props.panels.map((panel) => panel.id);
+  if (model.active !== null && ids.includes(model.active)) return model.active;
+  if (props.opening !== null && ids.includes(props.opening)) return props.opening;
+  return ids[0] ?? null;
 };
-// A member's face: markup its list shows in place of its `label` and `summary`, where
-// text can't say it, such as a file's name in code type over a coloured diffstat. It
-// opens the member as a <template>, which the page doesn't show, and the list shows one
-// copy of it per template. `label` stays the member's name: the tab's accessible name,
-// and every place that takes only text.
-/** @type {WeakMap<HTMLTemplateElement, HTMLElement>} */
-const faces = new WeakMap();
-/** @param {Element} panel @returns {HTMLElement | null} */
-const face = (panel) => {
-  const template = panel.firstElementChild;
-  if (!(template instanceof HTMLTemplateElement)) return null;
-  let shown = faces.get(template);
-  if (!shown) {
-    shown = document.createElement("span");
-    shown.className = "lf-tab-face";
-    shown.append(template.content.cloneNode(true));
-    faces.set(template, shown);
-  }
-  return shown;
+
+// What a tab says beyond its name: the version diff's marked passages, and in a list
+// down beside the panels its obligations' state, with the answer once they are all
+// answered.
+const tabWords = (panel, props) => {
+  const down = runsDown(props);
+  const { onUser, onAgent, open, total, only } = panel;
+  const answered = total > 0 && open === 0;
+  const turn = onUser ? "To answer" : onAgent ? `On ${props.agent}` : "Open";
+  const answer = answered
+    ? total === 1
+      ? (only ?? "")
+      : ""
+    : total && !onUser
+      ? turn
+      : "";
+  const group = props.side ? panel.group : null;
+  const summarized = down && panel.face === null && panel.summary !== null;
+  // The answer line's words are in the name unless a face's label names the tab, so
+  // the description then adds only the state they leave out.
+  const said = panel.face === null && Boolean(answer);
+  const counted = `${total - open} of ${total} answered`;
+  const description = [
+    group && `${group} group`,
+    summarized ? "" : panel.summary,
+    panel.changed === 1 ? "1 change" : panel.changed ? `${panel.changed} changes` : "",
+    !total
+      ? ""
+      : !answered
+        ? total === 1
+          ? said
+            ? ""
+            : turn
+          : said
+            ? counted
+            : `${turn}, ${counted}`
+        : total === 1
+          ? answer && !said
+            ? `Answered: ${answer}`
+            : "Answered"
+          : `All ${total} answered`,
+  ]
+    .filter(Boolean)
+    .join(". ");
+  return { down, answered, answer, summarized, description };
 };
 
-export class TabSet extends LeafElement {
-  static lfPatch = "members";
-  // Whether the set is a page's parts (lf-parts.js).
-  get parts() {
-    return false;
+// Each run of neighbouring panels that share a `group`, which a side list heads with
+// the group's label; every other list is one run.
+const runsOf = (props) => {
+  const runs = [];
+  for (const panel of props.panels) {
+    const run = runs.at(-1);
+    if (!run || (props.side && panel.group !== run.group))
+      runs.push({ group: panel.group, panels: [panel] });
+    else run.panels.push(panel);
   }
-  #parts = this.parts;
-  /** @type {Map<Element, HTMLElement>} */
-  /** @type {Map<Element, HTMLElement>} */
-  #buttons = new Map(); // panel → its strip button
-  /** @type {Element[]} */
-  #panels = [];
-  /** @type {{panel: Element, group: string | null, panels: Element[]}[]} */
-  #runs = [];
-  #down = false;
-  // The open panel, which the strip's Enter row reads too.
-  /** @type {Element | null} */
-  #active = null;
-  #root = false;
-  /** @type {(MutationObserver) | null} */
-  #contextObserver = null;
-  #strip = offer("div", "lf-tabstrip");
-  #side = false;
-  #pageFlow = false;
-  /** @type {(ReturnType<typeof backgroundFlash>) | null} */
-  #revealMotion = null;
+  return runs;
+};
 
-  createRenderRoot() {
-    return this.#strip;
-  }
+export const Tabs = Html.component({
+  name: "Tabs",
+  props: TabsProps,
+  model: TabsModel,
+  message: TabsMessage,
+}).make({
+  init: () => ({ active: null, via: null, step: 0, travels: false }),
+  update: {
+    Chose: ($, { id, pointer }) => {
+      const ids = $.props.panels.map((panel) => panel.id);
+      const to = ids.indexOf(id);
+      if (to < 0) return $.model;
+      const from = ids.indexOf(activeId($.model, $.props));
+      return $.evolve({
+        active: id,
+        via: pointer ? "pointer" : "key",
+        step: $.model.step + 1,
+        // Only a press on a neighbour moves the line; keys land at once.
+        travels: pointer && Math.abs(to - from) === 1,
+      });
+    },
+    // The runtime has shown the panel the browser revealed; the strip follows it.
+    Revealed: ($, { id }) =>
+      id === activeId($.model, $.props) ||
+      !$.props.panels.some((panel) => panel.id === id)
+        ? $.model
+        : $.evolve({
+            active: id,
+            via: "reveal",
+            step: $.model.step + 1,
+            travels: false,
+          }),
+    Settled: ($) => ($.model.travels ? $.evolve({ travels: false }) : $.model),
+  },
+  view: (h, model) => {
+    const props = h.props;
+    const active = activeId(model, props);
+    const down = runsDown(props);
+    const tab = (panel) => {
+      const { answered, answer, summarized, description } = tabWords(panel, props);
+      const selected = panel.id === active;
+      const mark = h.span.class("lf-tab-mark").attr("aria-hidden", "true");
+      return (
+        h.span
+          .key(panel.id)
+          .attrs(selectableAttributes("tab", "lf-tab-btn"))
+          // Its key in the set's shadow tree, by which Leaf returns focus to it, as Back
+          // does to the tab the user stood on (records/carry.js).
+          .attr("data-lf-carry", `tab-${panel.id}`)
+          .attr("part", selected ? "tab selected" : "tab")
+          .attr("aria-label", panel.face === null ? undefined : panel.label)
+          .attr("aria-selected", String(selected))
+          .attr("aria-description", description || undefined)
+          .attr("tabindex", selected ? "0" : "-1")
+          .prop("ariaControlsElements", [panel.panel])
+          // A click no pointer made is a key's: Enter, Space, or the walk's own press.
+          .on("click", (press) =>
+            TabsMessage.Chose({ id: panel.id, pointer: press.pointerType !== "" }),
+          )
+          .children(
+            h.span
+              .class("lf-tab-name")
+              .attr("part", "name")
+              .attr("data-lf-gen", "1")
+              .attr("data-lf-said", "")
+              .children(
+                panel.face === null
+                  ? panel.label
+                  : h.span
+                      .class("lf-tab-face")
+                      .onMount(ShowFace({ markup: panel.face })),
+                down ? null : mark,
+              ),
+            summarized
+              ? h.span
+                  .class("lf-tab-summary")
+                  .attr("data-lf-gen", "1")
+                  .attr("data-lf-said", "")
+                  .children(panel.summary)
+              : null,
+            panel.asks
+              ? h.span
+                  .class("lf-tab-answer")
+                  .attr(
+                    "data-lf-obligations",
+                    answered ? "answered" : answer ? "open" : undefined,
+                  )
+                  .children(h.span.class("lf-tab-answer-words").children(answer))
+              : null,
+            h.span
+              .class("lf-tabdiff lf-chip lf-change-count")
+              .children(panel.changed ? `Δ${panel.changed}` : ""),
+            panel.asks
+              ? h.span
+                  .class("lf-tab-on-me")
+                  .attr("aria-hidden", "true")
+                  .attr("data-lf-waiting", panel.onUser > 0 ? "" : undefined)
+                  .onMount(ShowIcon({ icon: actionIcon("on-me"), name: "" }))
+              : null,
+            down ? mark : null,
+          )
+      );
+    };
+    // A press at one edge of the strip, which pages the names that run past it (the
+    // package theme shows it only while there is more that way). It takes no tab stop:
+    // the tabs are the keyboard's route, and a focused tab brings itself into view.
+    const edge = (to) =>
+      h.span
+        .class("lf-tabstrip-scroll")
+        .attr("data-lf-to", to)
+        .attr("aria-hidden", "true")
+        .children(
+          h.span.onMount(
+            ShowIcon({
+              icon: actionIcon(to === "start" ? "previous" : "next"),
+              name: "lf-tabstrip-scroll-icon",
+            }),
+          ),
+        );
+    const tabs = props.side
+      ? runsOf(props).map((run) =>
+          h.div
+            .key(`run:${run.panels[0]?.id}`)
+            .class("lf-tab-run")
+            .attr("role", "none")
+            .children(
+              run.group
+                ? h.span
+                    .class("lf-tab-group lf-rows-head")
+                    .attr("aria-hidden", "true")
+                    .attr("data-lf-gen", "1")
+                    .attr("data-lf-said", "")
+                    .children(run.group)
+                : null,
+              ...run.panels.map(tab),
+            ),
+        )
+      : props.panels.map(tab);
+    return h.div.style({ display: "contents" }).children(
+      h.div
+        .attrs(offerAttributes("div", "lf-tabstrip"))
+        .attr("part", "strip")
+        .attr("role", "tablist")
+        .attr("data-lf-down", down ? "" : undefined)
+        // CSS carries one retained line between the selected marks, along a row.
+        .attr("data-lf-selection-travel", model.travels ? "" : undefined)
+        .attr("aria-label", props.name || undefined)
+        .onMount(
+          Strip({
+            active,
+            step: model.step,
+            via: model.via,
+            travels: model.travels,
+            down,
+            pageFlow: props.pageFlow,
+            parts: props.parts,
+            root: props.root,
+          }),
+        )
+        .children(
+          edge("start"),
+          ...tabs,
+          edge("end"),
+          h.span.class("lf-tab-selection").attr("aria-hidden", "true"),
+        ),
+      h.slot,
+    );
+  },
+});
 
-  setup() {
-    const panels = viewMembers(this);
-    if (!panels.length) return;
-    this.#panels = panels;
-    const side = this.getAttribute("list") === "side";
-    this.#side = side;
-    this.#watchRootContext();
-    this.#syncRootContext();
-    // A side list and a page's list of parts both run down beside their panels; parts
-    // placed anywhere else list their names in a row (the package theme). The set wears
-    // `data-lf-down` while its list runs down, and the theme draws a row's summary and
-    // state lines from that mark alone (tabs.css).
-    const down = side || (this.#parts && this.#root);
-    this.#down = down;
-    this.toggleAttribute("data-lf-down", down);
-    // The strip is a thing to work, and its tabs ride inside it, so paper drops the
-    // whole row and puts each panel's label back on the panel. What a tab says is not
-    // the strip's word though — it is the panel's name, and once the strip exists it
-    // is the only place that name is written. So the name goes in its own span,
-    // declared the page speaking, and the anchor pass reads it over the chrome around
-    // it: a user points at a tab's name the way they point at a heading. Its own
-    // span rather than the tab's whole text, because the Δ count lands here too and
-    // it is the runtime talking about the document.
-    //
-    // A press is a span wearing the role rather than a <button> (see `offer`), which
-    // is what makes a drag across the name possible at all.
-    const strip = this.#strip;
-    strip.setAttribute("role", "tablist");
-    strip.toggleAttribute("data-lf-scroll", true);
-    // Group runs are fixed by authored panels. Lit owns every generated child;
-    // panel nodes stay outside its render root, with native reading and focus state.
-    /** @type {{panel: Element, group: string | null, panels: Element[]} | undefined} */
-    let run;
-    for (const panel of panels) {
-      const group = panel.getAttribute("group");
-      if (!run || (side && group !== run.group)) {
-        run = { panel, group, panels: [] };
-        this.#runs.push(run);
-      }
-      run.panels.push(panel);
+// A face's markup, drawn into its tab: the agent's words for the eye, as its template
+// holds them.
+const ShowFace = Mount.make(
+  "ShowFace",
+  { args: { markup: Schema.String } },
+  (span, _args, changes) =>
+    Stream.runForEach(changes, ({ markup }) =>
+      Effect.sync(() => {
+        const template = document.createElement("template");
+        template.innerHTML = markup;
+        span.replaceChildren(template.content);
+      }),
+    ).pipe(Effect.as(Component.noop)),
+);
+
+// One of Leaf's icons (icon-paths.js), drawn into its node.
+const ShowIcon = Mount.make(
+  "ShowIcon",
+  { args: { icon: Schema.String, name: Schema.String } },
+  (node, _args, changes) =>
+    Stream.runForEach(changes, ({ icon, name }) =>
+      Effect.sync(() => {
+        node.replaceChildren(iconElement(icon, name));
+      }),
+    ).pipe(Effect.as(Component.noop)),
+);
+
+/** What the set does beside its drawing, kept by the strip's mount. */
+class StripWork {
+  args;
+  host;
+  // The panel the set last showed, which the next switch leaves.
+  #shown = null;
+  #step = -1;
+  #flash = null;
+  // What a switch read before its panel showed, for the rest of it.
+  #landing = null;
+  #size;
+  #panels;
+
+  strip;
+  send;
+
+  constructor(strip, args, send) {
+    this.strip = strip;
+    this.send = send;
+    this.args = args;
+    this.host = strip.getRootNode().host;
+    this.#panels = viewMembers(this.host);
+    for (const panel of this.#panels) {
+      // Each panel's stop (`#switch`) stands before it is named a scroll surface, so
+      // Leaf's reach reads it as the panel's own (dom/reach.js) and never takes it back.
+      keeps(panel, "tabindex", panel.id === args.active ? 0 : -1);
       // Every panel is a scroll surface, and a side list's is a reading region too
       // (`#syncListRegion`).
-      keeps(panel, "data-lf-scroll", side ? "panel" : "");
+      keeps(
+        panel,
+        "data-lf-scroll",
+        this.host.getAttribute("list") === "side" ? "panel" : "",
+      );
       panel.setAttribute("role", "tabpanel");
       keeps(panel, "aria-label", panel.getAttribute("label"));
       // The browser found something inside (find-in-page, an anchor jump), or
       // Leaf is about to scroll a comment anchor into view: open up.
-      panel.addEventListener("beforematch", () =>
-        this.#activate(panel, { reveal: true }),
-      );
+      panel.addEventListener("beforematch", this.#revealed);
     }
-    // Build the strip before opening its panel: activation measures the selected
-    // name and the underline in this same task. Later publication uses LeafElement's
-    // tracked render; its unchanged Lit parts retain these exact nodes.
-    render(this.render(), strip);
-    // Roving focus per the ARIA tabs pattern: arrows move and activate, and come round
-    // at the ends. The strip takes no tab stop of its own, so focus inside it, which is
-    // the whole of when this scope holds, is always one of these buttons.
-    const tabs = () => [...this.#buttons.values()];
-    // The element focus is on, in the tree the strip stands in.
-    const here = () =>
-      /** @type {Document | ShadowRoot} */ (strip.getRootNode()).activeElement;
-    const focusedTab = () => tabs().find((button) => button === here());
-    /** @param {HTMLElement | undefined} next */
+    keeps(strip, "data-lf-scroll", "");
+    this.host.classList.add("lf-rendered"); // the upgraded marker every widget uses
+    // The set rings its open panel (surfaces.css, `.lf-ring-frame`).
+    this.host.classList.add("lf-ring-frame");
+    this.#size = sizeObserver(this.#positionStrip);
+    this.#size.observe(strip);
+    strip.addEventListener("scroll", this.#stopSelectionMotion);
+    strip.addEventListener("click", this.#page);
+    this.#declareKeys();
+    this.#syncListRegion();
+  }
+
+  close() {
+    for (const panel of this.#panels)
+      panel.removeEventListener("beforematch", this.#revealed);
+    this.strip.removeEventListener("scroll", this.#stopSelectionMotion);
+    this.strip.removeEventListener("click", this.#page);
+    this.#size.disconnect();
+    this.#flash?.cancel();
+    this.#flash = null;
+  }
+
+  // Take the newest args: the panel to show where they move the set to another one,
+  // which the mount has Leaf show before the rest of the switch (`landed`).
+  update(args) {
+    this.args = args;
+    const { host } = this;
+    host.toggleAttribute("data-lf-down", args.down);
+    // The page's navigation says so, and Leaf names its open panel in the address.
+    keeps(host, "data-lf-page-views", args.root ? "" : null);
+    const step = args.step !== this.#step;
+    this.#step = args.step;
+    const panel = step ? this.#switch() : null;
+    if (!panel) this.#declareHeader();
+    return panel;
+  }
+
+  #tabs() {
+    return [...this.strip.querySelectorAll(".lf-tab-btn")];
+  }
+
+  #tabOf(panel) {
+    return this.#tabs()[panel ? this.#panels.indexOf(panel) : -1];
+  }
+
+  // Open the panel the args name: the user's own switch, by press or key, or a reveal,
+  // which is travel to something inside the panel, or Back and Forward, each landing
+  // the user itself; on the first draw, the panel the set opened on. What it reads of
+  // the page before the panel shows, it reads here; the rest waits for `landed`.
+  #switch() {
+    const { active, via, pageFlow } = this.args;
+    const panel = this.#panels.find((each) => each.id === active) ?? null;
+    const tab = this.#tabOf(panel);
+    if (!panel || !tab) return null;
+    const strip = this.strip;
+    const previous = this.#shown;
+    // The open tab pressed again, or walked to, is the user's way back to it after
+    // scrolling the row away.
+    if (panel === previous) {
+      this.#showTab(tab);
+      return null;
+    }
+    // A box's own switch made while its strip is pinned opens the panel at its start.
+    const pinnedBox =
+      previous !== null &&
+      !pageFlow &&
+      via !== "reveal" &&
+      this.host.getBoundingClientRect().top < strip.getBoundingClientRect().top - 1;
+    this.#landing = { previous, pinnedBox };
+    this.#shown = panel;
+    for (const each of this.#panels)
+      // A tabpanel of prose has no focusable content, so Tab reaches the open
+      // panel itself. hidden="until-found" skips only what a panel holds, not
+      // the panel. A scrolling panel also takes a native browser stop without
+      // tabindex, so explicitly exclude closed panels from the tab order.
+      keeps(each, "tabindex", each === panel ? 0 : -1);
+    return panel;
+  }
+
+  // The rest of a switch, once Leaf has shown the panel, named it in the address where
+  // the set is the page's navigation, and kept the user's place in each view of a
+  // page-flow set (`KeepView`).
+  landed() {
+    const panel = this.#shown;
+    const tab = this.#tabOf(panel);
+    const landing = this.#landing;
+    this.#landing = null;
+    if (!panel || !tab || !landing) return;
+    const { previous, pinnedBox } = landing;
+    const { via } = this.args;
+    // A walk shows the tab in the window too, since focus is on it (`#declareKeys`).
+    this.#showTab(tab, via === "key" ? null : this.strip);
+    this.#flash?.cancel();
+    this.#flash = null;
+    // A destination walk can change tabs without touching the strip. Give its
+    // selected name one quiet highlight; focus stays on the destination, and
+    // motion's shared gate answers reduced motion and initial presentation.
+    if (previous && via === "reveal") {
+      const name = tab.querySelector(":scope > .lf-tab-name");
+      if (name) this.#flash = backgroundFlash(name);
+    }
+    if (pinnedBox) scrollIntoView(this.host, { block: "start", behavior: "instant" });
+    for (const each of previous ? [previous, panel] : [panel]) laidOut(each);
+    this.host.dispatchEvent(
+      new CustomEvent("lf-layout", { bubbles: true, composed: true }),
+    );
+    // The open tab takes no press to open it, so Leaf reads the strip's keys again.
+    this.strip.dispatchEvent(
+      new CustomEvent("lf-commands", { bubbles: true, composed: true }),
+    );
+    this.#declareHeader();
+  }
+
+  // Roving focus per the ARIA tabs pattern: arrows move and activate, and come round
+  // at the ends. The strip takes no tab stop of its own, so focus inside it, which is
+  // the whole of when this scope holds, is always one of its tabs.
+  #declareKeys() {
+    const strip = this.strip;
+    const down = this.args.down;
+    const tabs = () => this.#tabs();
+    const here = () => strip.getRootNode().activeElement;
+    const focusedTab = () => tabs().find((tab) => tab === here());
     const walk = (next) => {
       if (!next) return;
       // Native focus scrolling would carry a stuck tab back to its place in flow and
       // move the view being left before the switch records it. So the tab comes into
       // the window after the switch (`#showTab`), once the focus paint marks its ring,
-      // as every walk's landing does (records/walk-position.js, `rowWalk`). The move queues that
-      // paint for the end of this script, so a microtask queued after the move runs
-      // behind it. Left out of sight, the tab would lose focus to the next key
-      // (panel/page-keys/controller.js).
+      // as every walk's landing does (records/walk-position.js, `rowWalk`). Left out of
+      // sight, the tab would lose focus to the next key (panel/page-keys/controller.js).
       focusDestination(next, "move");
       next.click();
-      queueMicrotask(() => this.#showTab(next, null));
       const all = tabs();
       next.dispatchEvent(
         new CustomEvent("lf-walk", {
@@ -271,9 +663,7 @@ export class TabSet extends LeafElement {
       );
     };
     // Across the row, back is the way the names run from.
-    const arrows = rowArrows(this);
-    const back = arrows[0];
-    const ahead = arrows[1];
+    const [back, ahead] = rowArrows(this.host);
     strip.lfCommands = {
       title: "On a tab",
       rows: [
@@ -281,10 +671,9 @@ export class TabSet extends LeafElement {
           id: "tab.activate",
           keys: PRESS,
           title: "open the tab",
-
           // The tab already open has nothing for this press to do, so the line does not
           // name it there; the walk beside it is what moves.
-          when: () => here() !== this.#currentButton(),
+          when: () => here() !== this.#tabOf(this.#shown),
           run: () => {
             focusedTab()?.click();
           },
@@ -311,7 +700,7 @@ export class TabSet extends LeafElement {
           runKey: (binding) => {
             const step = [ahead, "ArrowDown"].includes(binding) ? 1 : -1;
             const all = tabs();
-            const at = all.findIndex((button) => button === focusedTab());
+            const at = all.findIndex((tab) => tab === focusedTab());
             walk(all[(at + step + all.length) % all.length]);
           },
         },
@@ -328,349 +717,69 @@ export class TabSet extends LeafElement {
         },
       ],
     };
-    this.prepend(strip);
     strip.dispatchEvent(
       new CustomEvent("lf-commands", { bubbles: true, composed: true }),
     );
-    this.#declareHeader();
-    this.classList.add("lf-rendered"); // the upgraded marker every widget uses
-    // The set rings its open panel (surfaces.css, `.lf-ring-frame`).
-    this.classList.add("lf-ring-frame");
-    // Open the tab the address names, or this
-    // user's last, whose id resolves in later versions because check forbids
-    // dropping ids. It opens here, during upgrade, so the runtime's view restore
-    // measures final geometry.
-    this.#activate(openingView(this) ?? null);
-    whileConnected(this, (signal) => {
-      this.#watchRootContext();
-      this.#syncRootContext();
-      const stripSize = this.#watchStrip();
-      strip.addEventListener("scroll", this.#stopSelectionMotion, { signal });
-      this.#syncListRegion();
-      return () => {
-        this.#revealMotion?.cancel();
-        this.#revealMotion = null;
-        this.#stopSelectionMotion();
-        stripSize.disconnect();
-        this.#contextObserver?.disconnect();
-        this.#contextObserver = null;
-      };
-    });
   }
+
+  #revealed = (event) => {
+    const panel = event.currentTarget;
+    this.send(TabsMessage.Revealed({ id: panel.id }));
+  };
+
+  // A press on an edge's face pages the strip that way.
+  #page = (event) => {
+    const press = event.target.closest(".lf-tabstrip-scroll > span");
+    const to = press?.parentElement?.getAttribute("data-lf-to");
+    if (!to) return;
+    const strip = this.strip;
+    const ahead = getComputedStyle(strip).direction === "rtl" ? -1 : 1;
+    strip.scrollBy({
+      left: ahead * (to === "start" ? -0.8 : 0.8) * strip.clientWidth,
+      behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "instant"
+        : "smooth",
+    });
+  };
 
   // A side list's panels are reading regions whatever their posture, as panes are
-  // (`setup` marks them), so the user's place in an item survives the workspace flowing
-  // and filling the window again. Its list is one only while it scrolls on its own,
-  // which the theme declares on it (`--lf-holds-height`): a column, sticking beside the
-  // item or filling the height a full-height workspace gives it, or that workspace's
-  // stacked row. A row over the item elsewhere keeps its open tab in view itself
-  // (`#showTab`), and observed as a region there, its own scrolling as it turned into a
-  // row ended the size observers' pass with notifications undelivered. Which it is
-  // follows the window, so the strip's size observer asks again.
+  // (the constructor marks them), so the user's place in an item survives the
+  // workspace flowing and filling the window again. Its list is one only while it
+  // scrolls on its own, which the theme declares on it (`--lf-holds-height`): a column,
+  // sticking beside the item or filling the height a full-height workspace gives it,
+  // or that workspace's stacked row. A row over the item elsewhere keeps its open tab
+  // in view itself (`#showTab`), and observed as a region there, its own scrolling as
+  // it turned into a row ended the size observers' pass with notifications
+  // undelivered. Which it is follows the window, so the strip's size observer asks
+  // again.
   #syncListRegion() {
-    if (!this.#side || !this.isConnected) return;
+    if (this.host.getAttribute("list") !== "side" || !this.strip.isConnected) return;
     const holds =
-      getComputedStyle(this.#strip).getPropertyValue("--lf-holds-height").trim() ===
-      "1";
-    keeps(this.#strip, "data-lf-scroll", holds ? "list" : "");
-  }
-
-  // What each panel holds, said in the tab's description with its summary where the
-  // tab doesn't show that: the version diff's marked passages, and in a list down beside the panels its obligations'
-  // state, with the answer once they are all answered.
-  render() {
-    if (!this.#panels.length) return nothing;
-    return html`${this.#edge("start")}${
-        this.#side
-          ? repeat(
-              this.#runs,
-              (run) => run.panel,
-              (run) =>
-                html` <div class="lf-tab-run" role="none">
-                  ${
-                    run.group
-                      ? html`<span
-                          class="lf-tab-group lf-rows-head"
-                          aria-hidden="true"
-                          data-lf-gen="1"
-                          data-lf-said
-                          >${run.group}</span
-                        >`
-                      : nothing
-                  }
-                  ${repeat(
-                    run.panels,
-                    (panel) => panel,
-                    (panel) => this.#tab(panel),
-                  )}
-                </div>`,
-            )
-          : repeat(
-              this.#panels,
-              (panel) => panel,
-              (panel) => this.#tab(panel),
-            )
-      }${this.#edge("end")}<span class="lf-tab-selection" aria-hidden="true"></span>`;
-  }
-
-  #currentButton() {
-    const active = this.#active;
-    return active ? this.#buttons.get(active) : undefined;
-  }
-
-  /** @param {Element} panel */
-  #tab(panel) {
-    const changed = comparisonChanges(panel).length;
-    // A side list's row keeps the answer's room where its panel's markup asks the user
-    // something.
-    const held = this.#down ? readObligations(panel) : null;
-    const hasAnswer = Boolean(held?.asks);
-    const items = held?.asks ? held.all : [];
-    // Counted as an `lf-tally` of the panel would count them (`tally`). Withdrawn items
-    // are already left out, so every item that isn't open is answered.
-    const { onUser, onAgent, open, total } = tally(items);
-    const answered = total > 0 && open === 0;
-    const only = total === 1 ? items[0] : null;
-    const turn = onUser ? "To answer" : onAgent ? `On ${agentName()}` : "Open";
-    const answer = answered
-      ? only
-        ? answerWords(only)
-        : ""
-      : total && !onUser
-        ? turn
-        : "";
-    const group = this.#side && panel.getAttribute("group");
-    const summarized = this.#down && !face(panel) && panel.hasAttribute("summary");
-    // The answer line's words are in the name unless a face's label names the tab, so
-    // the description then adds only the state they leave out.
-    const said = !face(panel) && Boolean(answer);
-    const counted = `${total - open} of ${total} answered`;
-    const description = [
-      group && `${group} group`,
-      summarized ? "" : panel.getAttribute("summary"),
-      changed === 1 ? "1 change" : changed ? `${changed} changes` : "",
-      !total
-        ? ""
-        : !answered
-          ? only
-            ? said
-              ? ""
-              : turn
-            : said
-              ? counted
-              : `${turn}, ${counted}`
-          : only
-            ? answer && !said
-              ? `Answered: ${answer}`
-              : "Answered"
-            : `All ${total} answered`,
-    ]
-      .filter(Boolean)
-      .join(". ");
-    const mark = html`<span class="lf-tab-mark" aria-hidden="true"></span>`;
-    return html`<span
-      ${selectableOffered("tab", "lf-tab-btn")}
-      ${ref((button) => {
-        if (button instanceof HTMLElement) this.#buttons.set(panel, button);
-      })}
-      aria-controls=${panel.id}
-      aria-label=${face(panel) ? panel.getAttribute("label") : nothing}
-      aria-selected=${panel === this.#active}
-      aria-description=${description || nothing}
-      tabindex=${panel === this.#active ? 0 : -1}
-      @click=${(/** @type {MouseEvent} */ event) =>
-        this.#activate(panel, { pointer: event.detail !== 0 })}
-      ><span class="lf-tab-name" data-lf-gen="1" data-lf-said
-        >${face(panel) ?? panel.getAttribute("label")}${this.#down ? nothing : mark}</span
-      >${
-        summarized
-          ? html`<span class="lf-tab-summary" data-lf-gen="1" data-lf-said
-              >${panel.getAttribute("summary")}</span
-            >`
-          : nothing
-      }${
-        hasAnswer
-          ? html`<span
-              class="lf-tab-answer"
-              data-lf-obligations=${answered ? "answered" : answer ? "open" : nothing}
-              ><span class="lf-tab-answer-words">${answer}</span></span
-            >`
-          : nothing
-      }<span class="lf-tabdiff lf-chip lf-change-count"
-        >${changed ? `Δ${changed}` : ""}</span
-      >${
-        hasAnswer
-          ? html`<span
-              class="lf-tab-on-me"
-              aria-hidden="true"
-              ?data-lf-waiting=${onUser > 0}
-              >${actionTemplate("on-me")}</span
-            >`
-          : nothing
-      }${this.#down ? mark : nothing}</span
-    >`;
-  }
-
-  // Open a panel: the user's own switch, by `pointer` or key, or a `reveal`, which is
-  // travel to something inside the panel, or Back and Forward, each landing the user
-  // itself.
-  /** @param {Element | null} active @param {{reveal?: boolean, pointer?: boolean}} [how] */
-  #activate(active, { reveal = false, pointer = false } = {}) {
-    const activeButton = active ? this.#buttons.get(active) : undefined;
-    if (!active || !activeButton) return;
-    // The open tab pressed again, or walked to, is the user's way back to it after
-    // scrolling the row away.
-    if (active === this.#active) {
-      this.#showTab(this.#buttons.get(active));
-      return;
-    }
-    const previous = this.#active;
-    const order = [...this.#buttons.keys()];
-    const travels =
-      pointer &&
-      previous &&
-      Math.abs(order.indexOf(active) - order.indexOf(previous)) === 1 &&
-      getComputedStyle(this.#strip).flexDirection === "row";
-    // CSS carries one retained line between the selected marks. Keeping the
-    // transition enabled lets a reversed choice continue from its painted place.
-    keeps(this.#strip, "data-lf-selection-travel", travels ? "" : null);
-    // A box's own switch made while its strip is pinned opens the panel at its start.
-    const pinnedBox =
-      previous &&
-      !this.#pageFlow &&
-      !reveal &&
-      this.getBoundingClientRect().top < this.#strip.getBoundingClientRect().top - 1;
-    // Leaf shows the panel, names it in the address where the set is the page's
-    // navigation, and keeps the user's place in each view of a page-flow set.
-    keepView(this, active);
-    for (const panel of this.#panels) {
-      // A tabpanel of prose has no focusable content, so Tab reaches the open
-      // panel itself. hidden="until-found" skips only what a panel holds, not
-      // the panel. A scrolling panel also takes a native browser stop without
-      // tabindex, so explicitly exclude closed panels from the tab order.
-      keeps(panel, "tabindex", panel === active ? 0 : -1);
-    }
-    this.#active = active;
-    // Selection changes in this task. The update asked for then replaces no
-    // node, and has Leaf read the strip's keys again.
-    render(this.render(), this.#strip);
-    this.requestUpdate();
-    this.#showTab(activeButton);
-    this.#revealMotion?.cancel();
-    this.#revealMotion = null;
-    // A destination walk can change tabs without touching the strip. Give its
-    // selected name one quiet highlight; focus stays on the destination, and
-    // motion's shared gate answers reduced motion and initial presentation.
-    if (previous && reveal) {
-      const name = activeButton.querySelector(":scope > .lf-tab-name");
-      if (name) this.#revealMotion = backgroundFlash(name);
-    }
-    if (pinnedBox) scrollIntoView(this, { block: "start", behavior: "instant" });
-
-    for (const panel of previous ? [previous, active] : [active]) {
-      const child = soleSubstantiveElement(panel);
-      if (child)
-        child.dispatchEvent(
-          new CustomEvent("lf-layout", { bubbles: true, composed: true }),
-        );
-    }
-    this.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
-  }
-
-  #syncRootContext() {
-    const wasFlow = this.#pageFlow;
-    // The first tab set directly in the page is its navigation, whatever else the page
-    // holds beside it; a later one is a tabbed section like any nested set. A page's
-    // parts are its navigation where the page lays them out, in a `main` that is no
-    // Layout's box (layouts.css, `--lf-layout-box`), as the theme and content-layout
-    // read it; in any other `main` they stand as if placed anywhere else.
-    const main = this.parentElement;
-    this.#root =
-      !!main &&
-      main.matches("body > main") &&
-      (this.#parts
-        ? getComputedStyle(main).getPropertyValue("--lf-layout-box").trim() !== "1"
-        : main.querySelector(":scope > lf-tabs") === this);
-    // The page's navigation says so, and Leaf names its open panel in the address.
-    keeps(this, "data-lf-page-views", this.#root ? "" : null);
-    this.#pageFlow = this.#parts ? this.#root : this.getAttribute("flow") === "page";
-    // The strip is named as the chrome names the set (`nameOf`): its author's
-    // `aria-label`, else the nearest element holding it that has a name, such as its
-    // section. The page's navigation stands in no section, and the page's `<title>`
-    // names it: `main` has no name of its own, so its label would be its words run
-    // together.
-    keeps(
-      this.#strip,
-      "aria-label",
-      nameOf(this) || (this.#root ? nameOf(document) : "") || null,
-    );
-    this.#declareHeader();
-    // A set that changed flow drew its open panel at another width.
-    if (wasFlow !== this.#pageFlow && this.#active) {
-      const child = soleSubstantiveElement(this.#active);
-      if (child)
-        child.dispatchEvent(
-          new CustomEvent("lf-layout", { bubbles: true, composed: true }),
-        );
-      this.dispatchEvent(
-        new CustomEvent("lf-layout", { bubbles: true, composed: true }),
-      );
-    }
-  }
-
-  #watchRootContext() {
-    this.#contextObserver?.disconnect();
-    this.#contextObserver = null;
-    const main = this.parentElement;
-    if (!main?.matches("body > main")) return;
-    // Only a tab set arriving or leaving among main's children can change which is
-    // first.
-    this.#contextObserver = new MutationObserver(() => this.#syncRootContext());
-    this.#contextObserver.observe(main, { childList: true });
+      getComputedStyle(this.strip).getPropertyValue("--lf-holds-height").trim() === "1";
+    keeps(this.strip, "data-lf-scroll", holds ? "list" : "");
   }
 
   // A page-flow strip sticks at the window's top over the whole document, so it is a
   // sticky header of the root: its border-box height joins the root landing inset
-  // through its `data-lf-root-header` mark, and every landing arrives
-  // below it. What the strip stands over inside its panels stacks through `--lf-top`
-  // (the package theme). A set that stops being the page's strip withdraws it only
-  // where no other set has become that strip. A page's list of parts is that header
-  // only while it is a row over the open part, as on a phone; beside the part it covers
-  // none of it. Which the list is follows the window, so the strip's size observer asks
-  // again.
+  // through its `data-lf-root-header` mark, and every landing arrives below it. What
+  // the strip stands over inside its panels stacks through `--lf-top` (the package
+  // theme). A page's list of parts is that header only while it is a row over the open
+  // part, as on a phone; beside the part it covers none of it. Which the list is
+  // follows the window, so the strip's size observer asks again.
   #declareHeader() {
-    const over = !this.#parts || Boolean(this.#active && this.#listOver(this.#active));
-    const header = this.#pageFlow && over && this.#strip.isConnected;
-    this.#strip.toggleAttribute("data-lf-root-header", header);
-  }
-
-  // Whether a page's list of parts stands over the open part rather than beside it.
-  /** @param {Element} panel */
-  #listOver(panel) {
-    const list = this.#strip.getBoundingClientRect();
-    return list.right > panel.getBoundingClientRect().left + 1;
-  }
-
-  // A press at one edge of the strip, which pages the names that run past it (the
-  // package theme shows it only while there is more that way). It takes no tab stop:
-  // the tabs are the keyboard's route, and a focused tab brings itself into view.
-  /** @param {"start" | "end"} to */
-  #edge(to) {
-    return html`<span class="lf-tabstrip-scroll" data-lf-to=${to} aria-hidden="true"
-      ><span
-        @click=${() => {
-          const strip = this.#strip;
-          const ahead = getComputedStyle(strip).direction === "rtl" ? -1 : 1;
-          strip.scrollBy({
-            left: ahead * (to === "start" ? -0.8 : 0.8) * strip.clientWidth,
-            behavior: matchMedia("(prefers-reduced-motion: reduce)").matches
-              ? "instant"
-              : "smooth",
-          });
-        }}
-        >${actionTemplate(to === "start" ? "previous" : "next", "lf-tabstrip-scroll-icon")}</span
-      ></span
-    >`;
+    const { parts, pageFlow } = this.args;
+    const shown = this.#shown;
+    const over =
+      !parts ||
+      Boolean(
+        shown &&
+        this.strip.getBoundingClientRect().right >
+          shown.getBoundingClientRect().left + 1,
+      );
+    this.strip.toggleAttribute(
+      "data-lf-root-header",
+      pageFlow && over && this.strip.isConnected,
+    );
   }
 
   // A tab the row runs past is scrolled into the strip, and only the strip: a page
@@ -694,60 +803,165 @@ export class TabSet extends LeafElement {
   // the run's first tab brings the label in with it, standing in its own place, and
   // a later tab comes in beside the stuck label. Where they cannot share the row,
   // the tab lands whole and the label gives way (`data-lf-group-apart`).
-  /** @param {HTMLElement | undefined} btn @param {Element | null} [within] */
-  #showTab(btn, within = this.#strip) {
-    const strip = this.#strip;
-    if (!btn) return;
-    const run = btn.parentElement;
-    if (!run) return;
+  #showTab(tab, within = this.strip) {
+    const strip = this.strip;
+    const run = tab?.parentElement;
+    if (!tab || !run) return;
     const label = run.querySelector(":scope > .lf-tab-group");
     if (label && getComputedStyle(strip).flexDirection === "row") {
       const inset = landingInsets(strip);
       const room = strip.clientWidth - inset.left - inset.right;
       const gap = Number.parseFloat(getComputedStyle(run).columnGap) || 0;
       const size = label.getBoundingClientRect().width;
-      const apart = size + gap + btn.getBoundingClientRect().width > room;
+      const apart = size + gap + tab.getBoundingClientRect().width > room;
       run.toggleAttribute("data-lf-group-apart", apart);
       run.style.setProperty("--lf-tab-group-size", layoutPx(size));
-      scrollIntoView(btn, { block: "nearest", within });
+      scrollIntoView(tab, { block: "nearest", within });
       return;
     }
     const range = label && document.createRange();
-    if (range) {
+    if (range && label) {
       range.setStartBefore(label);
-      range.setEndAfter(btn);
+      range.setEndAfter(tab);
     }
-    scrollIntoView(btn, { including: range, block: "nearest", within });
-  }
-
-  // The open tab stays in the row as the strip's width changes, and not only when a
-  // tab opens: a narrowed window, a panel opening beside the page, or a side list's
-  // column turning into a row would otherwise leave the open tab past the edge. It
-  // follows the size delivery before the resized strip paints.
-  #watchStrip() {
-    const stripSize = sizeObserver(this.#positionStrip);
-    stripSize.observe(this.#strip);
-    return stripSize;
+    scrollIntoView(tab, { including: range, block: "nearest", within });
   }
 
   // The tablist says which way its names run, the way the theme lays them
   // (`--lf-tabstrip-flow`): down a column, and across the row a narrow window stacks a
   // side list or a page's parts into, as every other strip runs (the tablist default).
+  // The open tab stays in the row as the strip's width changes, and not only when a
+  // tab opens: a narrowed window, a panel opening beside the page, or a side list's
+  // column turning into a row would otherwise leave the open tab past the edge. It
+  // follows the size delivery before the resized strip paints.
   #positionStrip = () => {
     keeps(
-      this.#strip,
+      this.strip,
       "aria-orientation",
-      getComputedStyle(this.#strip).flexDirection === "column" ? "vertical" : null,
+      getComputedStyle(this.strip).flexDirection === "column" ? "vertical" : null,
     );
     this.#stopSelectionMotion();
     this.#syncListRegion();
     this.#declareHeader();
-    this.#showTab(this.#currentButton());
+    this.#showTab(this.#tabOf(this.#shown));
   };
 
   #stopSelectionMotion = () => {
-    keeps(this.#strip, "data-lf-selection-travel", null);
+    if (this.args.travels) this.send(TabsMessage.Settled());
   };
 }
 
-customElements.define("lf-tabs", TabSet);
+// A panel whose one block was drawn at another width, or shown or hidden, tells it.
+const laidOut = (panel) => {
+  const children = [...panel.childNodes].filter(
+    (child) =>
+      (child instanceof Element && !child.matches("script, style, template")) ||
+      (child instanceof Text && child.data.trim()),
+  );
+  const [only] = children;
+  if (children.length === 1 && only instanceof Element)
+    only.dispatchEvent(new CustomEvent("lf-layout", { bubbles: true, composed: true }));
+};
+
+const Strip = Mount.makeStream(
+  "Strip",
+  {
+    args: {
+      active: Schema.NullOr(Schema.String),
+      step: Schema.Number,
+      via: Schema.NullOr(Via),
+      travels: Schema.Boolean,
+      down: Schema.Boolean,
+      pageFlow: Schema.Boolean,
+      parts: Schema.Boolean,
+      root: Schema.Boolean,
+    },
+  },
+  (strip, args, changes) =>
+    Stream.callback((queue) =>
+      Effect.gen(function* () {
+        const keepView = yield* KeepView;
+        const work = new StripWork(strip, args, (message) =>
+          Queue.offerUnsafe(queue, message),
+        );
+        yield* Effect.addFinalizer(() => Effect.sync(() => work.close()));
+        // The first args are the set's opening, which Leaf shows as a switch's panel.
+        yield* Effect.forkScoped(
+          Stream.runForEach(changes, (next) =>
+            Effect.gen(function* () {
+              const member = work.update(next);
+              if (!member) return;
+              yield* keepView({ member });
+              work.landed();
+            }),
+          ),
+        );
+      }),
+    ),
+);
+
+/** The options both of this module's tags define their widget with. */
+export const tabSetOptions = {
+  shadow: true,
+  statics: { lfPatch: "members" },
+  inputs: (element) => {
+    const parts = element.localName === "lf-parts";
+    // The first tab set directly in the page is its navigation, whatever else the page
+    // holds beside it; a later one is a tabbed section like any nested set. A page's
+    // parts are its navigation where the page lays them out, in a `main` that is no
+    // Layout's box (layouts.css, `--lf-layout-box`), as the theme and content-layout
+    // read it; in any other `main` they stand as if placed anywhere else.
+    const main = element.parentElement;
+    const root =
+      !!main &&
+      main.matches("body > main") &&
+      (parts
+        ? getComputedStyle(main).getPropertyValue("--lf-layout-box").trim() !== "1"
+        : main.querySelector(":scope > lf-tabs") === element);
+    const panels = viewMembers(element).map((panel) => {
+      Equal.byReferenceUnsafe(panel);
+      const template = panel.firstElementChild;
+      // A row keeps the answer's room where its panel's markup asks the user something.
+      const held = readObligations(panel);
+      const items = held.asks ? held.all : [];
+      // Counted as an `lf-tally` of the panel would count them (`tally`). Withdrawn
+      // items are already left out, so every item that isn't open is answered.
+      const { onUser, onAgent, open, total } = tally(items);
+      const [only] = items;
+      return {
+        panel,
+        id: panel.id,
+        label: panel.getAttribute("label") ?? "",
+        summary: panel.getAttribute("summary"),
+        group: panel.getAttribute("group"),
+        face: template instanceof HTMLTemplateElement ? template.innerHTML : null,
+        changed: comparisonChanges(panel).length,
+        asks: Boolean(held.asks),
+        onUser,
+        onAgent,
+        open,
+        total,
+        only: total === 1 && open === 0 && only ? answerWords(only) : null,
+      };
+    });
+    return {
+      panels,
+      side: element.getAttribute("list") === "side",
+      parts,
+      root,
+      pageFlow: parts ? root : element.getAttribute("flow") === "page",
+      // The strip is named as the chrome names the set (`nameOf`): its author's
+      // `aria-label`, else the nearest element holding it that has a name, such as its
+      // section. The page's navigation stands in no section, and the page's `<title>`
+      // names it: `main` has no name of its own, so its label would be its words run
+      // together.
+      name: nameOf(element) || (root ? nameOf(document) : ""),
+      agent: agentName(),
+      // Open the tab the address names, or this user's last, whose id resolves in
+      // later versions because check forbids dropping ids.
+      opening: openingView(element)?.id ?? null,
+    };
+  },
+};
+
+defineWidget("lf-tabs", Tabs, tabSetOptions);

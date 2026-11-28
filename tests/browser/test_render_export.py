@@ -150,7 +150,7 @@ def test_exported_workspace_tabs_open_new_evidence_below_the_pinned_strip(
     )
     rendered(page)
     heading = page.locator("#second h2").bounding_box()
-    strip = page.locator("#evidence > .lf-tabstrip").bounding_box()
+    strip = page.locator("#evidence .lf-tabstrip").bounding_box()
     assert heading["y"] >= strip["y"] + strip["height"] - 1
     assert heading["y"] + heading["height"] < 600
     # Leaving and reopening the outer view keeps the nested selection readable too.

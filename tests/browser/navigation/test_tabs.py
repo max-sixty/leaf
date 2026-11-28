@@ -121,7 +121,7 @@ def test_overflowing_section_tabs_reveal_and_open_their_sections(browser, serve)
     )
     resized(page, 1200, 900)
     tabs = page.locator("#bg-rollout-tabs")
-    strip = tabs.locator(":scope > .lf-tabstrip")
+    strip = tabs.locator(":scope .lf-tabstrip")
     tabs.scroll_into_view_if_needed()
     choices = tabs.get_by_role("tab")
     expect(choices).to_have_count(6)
@@ -130,7 +130,7 @@ def test_overflowing_section_tabs_reveal_and_open_their_sections(browser, serve)
 
     strip.locator('.lf-tabstrip-scroll[data-lf-to="end"] > span').click()
     page.wait_for_function(
-        "document.querySelector('#bg-rollout-tabs > .lf-tabstrip').scrollLeft > 0"
+        "document.querySelector('#bg-rollout-tabs').shadowRoot.querySelector('.lf-tabstrip').scrollLeft > 0"
     )
     expect(choices.first).to_have_attribute("aria-selected", "true")
     # The keyboard reaches a tab from the pointer control without requiring that
@@ -188,7 +188,7 @@ def test_an_inline_tab_keeps_its_panel_inside_one_visible_boundary(browser, serv
     boundary = page.evaluate(
         """() => {
           const tabs = document.querySelector('#views');
-          const strip = tabs.querySelector('.lf-tabstrip');
+          const strip = tabs.shadowRoot.querySelector('.lf-tabstrip');
           const panel = tabs.querySelector('lf-tab:not([hidden])');
           const selected = strip.querySelector('[aria-selected="true"]');
           const inactive = strip.querySelector('[aria-selected="false"]');
@@ -324,7 +324,7 @@ def test_a_pressed_tab_stops_naming_the_key_that_opens_it(browser, serve):
         "</lf-tabs></section>"
     )
     page = open_page(browser, live_url(serve(leaf_page("Two views", body))))
-    strip = page.locator("#views > .lf-tabstrip")
+    strip = page.locator("#views .lf-tabstrip")
     tab = page.locator("#views").get_by_role("tab", name="Two")
     box = tab.bounding_box()
     assert box is not None

@@ -2684,7 +2684,7 @@ CONTROL_SHAPES = {
     # anchor names the tab and quotes nothing.
     "queue": (
         '<lf-tabs id="queue" list="side"><lf-tab id="first" label="Primary" summary="pages"><p>Primary evidence.</p></lf-tab><lf-tab id="second" label="Backup" summary="pages"><p>Backup evidence.</p></lf-tab></lf-tabs>',
-        "#queue [role=tab] .lf-tab-summary",
+        "#queue >>> [role=tab] .lf-tab-summary",
         [("Primary", None), ("Backup", None)],
     ),
     # An editor's value never names it, and an authored id does.
@@ -2756,7 +2756,7 @@ CONTROL_PRESSES = {
     "a select": ("#hidden-options select >> nth=1", None, "Region"),
     "a field": ("#spoken input", None, "Search flags"),
     "a tab's summary": (
-        '#queue [role=tab][aria-controls="second"] .lf-tab-summary',
+        "#queue [role=tab] >> nth=1 >> .lf-tab-summary",
         None,
         "Backup",
     ),
@@ -2791,15 +2791,22 @@ READ_CONTROL_SHAPES = """async (shapes) => {
       chosen: chosen ? {anchor: chosen.anchor, label: chosen.label} : null,
     };
   };
+  // `host >>> inner` names controls in a widget's shadow tree.
+  const all = (selector) => {
+    const [host, inner] = selector.split(" >>> ");
+    return inner
+      ? document.querySelector(host).shadowRoot.querySelectorAll(inner)
+      : document.querySelectorAll(selector);
+  };
   return Object.fromEntries(Object.entries(shapes).map(
-    ([shape, selector]) => [shape, [...document.querySelectorAll(selector)].map(read)]));
+    ([shape, selector]) => [shape, [...all(selector)].map(read)]));
 }"""
 # What a press on the page's controls could leave behind it.
 CONTROLS_LEFT_ALONE = """() => ({
   checked: [...document.querySelectorAll("main input")].filter((box) => box.checked).length,
   activated: document.querySelectorAll("main [data-activated]").length,
-  selected: document.querySelector('#queue [role=tab][aria-selected="true"]')
-    ?.getAttribute("aria-controls"),
+  selected: document.querySelector('#queue').shadowRoot
+    .querySelector('[role=tab][aria-selected="true"]')?.ariaControlsElements[0].id,
 })"""
 
 
@@ -2812,7 +2819,7 @@ def _back_in_design_mode(page):
       for (const box of document.querySelectorAll("main input")) box.checked = false;
       for (const box of document.querySelectorAll("main [data-activated]"))
         delete box.dataset.activated;
-      const first = document.querySelector('#queue [role=tab][aria-controls="first"]');
+      const first = document.querySelector('#queue').shadowRoot.querySelector('[role=tab]');
       if (first.getAttribute("aria-selected") !== "true") first.click();
     }""")
     if page.locator(".lf-composer").is_visible():

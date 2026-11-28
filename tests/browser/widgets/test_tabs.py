@@ -89,20 +89,20 @@ def test_pointer_tab_underline_moves_without_delaying_the_view(browser, serve):
         "</lf-tabs></section>",
         head="<style>#moving-tabs { max-width:480px }</style>",
     )
-    page = open_page(
-        browser,
-        serve(source),
-        init_script="""document.addEventListener('transitionrun', event => {
-          if (!event.target.matches('.lf-tab-selection')) return;
-          for (const animation of event.target.getAnimations()) {
-            animation.pause();
-            animation.currentTime = 0;
-          }
-        });""",
-    )
+    page = open_page(browser, serve(source))
+    # A transition's events stay in the tree that runs it, here each set's shadow tree.
+    for tabs_set in ("#moving-tabs", "#side-tabs"):
+        page.locator(tabs_set).evaluate("""(set) => set.shadowRoot.addEventListener(
+          'transitionrun', (event) => {
+            if (!event.target.matches('.lf-tab-selection')) return;
+            for (const animation of event.target.getAnimations()) {
+              animation.pause();
+              animation.currentTime = 0;
+            }
+          })""")
     page.emulate_media(reduced_motion="no-preference")
     tabs = page.locator("#moving-tabs").get_by_role("tab")
-    mark = page.locator("#moving-tabs > .lf-tabstrip > .lf-tab-selection")
+    mark = page.locator("#moving-tabs .lf-tabstrip > .lf-tab-selection")
     animating = "node => node.getAnimations().length"
     at = "node => node.getBoundingClientRect().left"
     advance = "(node, time) => node.getAnimations().forEach(a => a.currentTime = time)"
@@ -110,9 +110,9 @@ def test_pointer_tab_underline_moves_without_delaying_the_view(browser, serve):
     def travelling():
         expect(mark).to_be_visible()
         page.wait_for_function(
-            "s => {const a = document.querySelector(s).getAnimations(); "
+            "() => {const a = document.querySelector('#moving-tabs').shadowRoot"
+            ".querySelector('.lf-tab-selection').getAnimations(); "
             "return a.length > 0 && a.every(a => a.playState === 'paused')}",
-            arg="#moving-tabs > .lf-tabstrip > .lf-tab-selection",
         )
 
     initial = mark.evaluate(at)
@@ -151,9 +151,9 @@ def test_pointer_tab_underline_moves_without_delaying_the_view(browser, serve):
     page.keyboard.press("Home")
     tabs.nth(1).click()
     travelling()
-    page.locator("#moving-tabs > .lf-tabstrip").evaluate("node => node.scrollLeft = 30")
+    page.locator("#moving-tabs .lf-tabstrip").evaluate("node => node.scrollLeft = 30")
     page.wait_for_function(
-        "document.querySelector('#moving-tabs > .lf-tabstrip > .lf-tab-selection').getAnimations().length === 0"
+        "document.querySelector('#moving-tabs').shadowRoot.querySelector('.lf-tabstrip > .lf-tab-selection').getAnimations().length === 0"
     )
     tabs.first.focus()
     page.keyboard.press("Home")
@@ -163,9 +163,9 @@ def test_pointer_tab_underline_moves_without_delaying_the_view(browser, serve):
     assert mark.evaluate(animating) == 0
     # The side list now runs horizontally; its mark is below the summary, and travels too.
     side.first.click()
-    side_mark = page.locator("#side-tabs > .lf-tabstrip > .lf-tab-selection")
+    side_mark = page.locator("#side-tabs .lf-tabstrip > .lf-tab-selection")
     page.wait_for_function(
-        "document.querySelector('#side-tabs > .lf-tabstrip > .lf-tab-selection').getAnimations().length > 0"
+        "document.querySelector('#side-tabs').shadowRoot.querySelector('.lf-tabstrip > .lf-tab-selection').getAnimations().length > 0"
     )
     assert side_mark.bounding_box()["height"] == 2
     side_mark.evaluate("node => node.getAnimations().forEach(a => a.finish())")
@@ -181,8 +181,8 @@ def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
     resized(page, 1280, 720)
     READ = """async () => {
       const geometry = await window.__lfCheckApi();
-      const strip = document
-        .querySelector('#root-tabs > .lf-tabstrip').getBoundingClientRect();
+      const strip = document.querySelector('#root-tabs').shadowRoot
+        .querySelector('.lf-tabstrip').getBoundingClientRect();
       const behind = document.querySelector('#plan-stages h2');
       return {
         strip: {top: strip.top, bottom: strip.bottom},
@@ -217,9 +217,9 @@ def test_a_stuck_root_tab_strip_hides_what_passes_under_it(browser, serve):
     # A forced transparent border must not make every page tab look selected.
     page.emulate_media(forced_colors="active")
     page.keyboard.press("Tab")
-    page.locator("#root-tabs > .lf-tabstrip .lf-tab-btn").first.focus()
+    page.locator("#root-tabs .lf-tabstrip .lf-tab-btn").first.focus()
     reading = """() => {
-      const strip = document.querySelector('#root-tabs > .lf-tabstrip');
+      const strip = document.querySelector('#root-tabs').shadowRoot.querySelector('.lf-tabstrip');
       const background = getComputedStyle(strip).backgroundColor;
       const line = strip.querySelector('.lf-tab-selection');
       const mark = getComputedStyle(line);
@@ -314,7 +314,7 @@ def test_sticky_headers_stack_so_a_diff_in_a_tab_pins_under_the_strip(
         """async () => {
         const geometry = await window.__lfCheckApi();
         const box = (el) => el.getBoundingClientRect();
-        const strip = document.querySelector('#tabs > .lf-tabstrip');
+        const strip = document.querySelector('#tabs').shadowRoot.querySelector('.lf-tabstrip');
         const diff = document.querySelector('lf-diff');
         const head = diff.shadowRoot.querySelector('.lf-diff-file > details > summary');
         const row = [...diff.shadowRoot.querySelectorAll('[data-line]')][150];
@@ -353,8 +353,8 @@ def test_sticky_headers_stack_so_a_diff_in_a_tab_pins_under_the_strip(
             file: diff.shadowRoot.querySelector('.lf-diff-file > details > summary'),
         };
         if (id === 'patch')
-            controls.tab = document.querySelector(
-                '#tabs > .lf-tabstrip [aria-selected="true"]');
+            controls.tab = document.querySelector('#tabs').shadowRoot
+                .querySelector('[aria-selected="true"]');
         const moved = {};
         for (const [name, control] of Object.entries(controls)) {
             const before = page.scrollTop;
@@ -434,7 +434,7 @@ def test_tab_onto_a_link_in_a_wide_table_under_a_framed_strip_clears_the_strip(
     )
     scroll_settled(page)
     page.evaluate("""() => {
-      const strip = document.querySelector('#views > .lf-tabstrip').getBoundingClientRect();
+      const strip = document.querySelector('#views').shadowRoot.querySelector('.lf-tabstrip').getBoundingClientRect();
       const link = document.getElementById('row-11').getBoundingClientRect();
       scrollBy({top: link.top - strip.top - 20, behavior: 'instant'});
     }""")
@@ -444,7 +444,7 @@ def test_tab_onto_a_link_in_a_wide_table_under_a_framed_strip_clears_the_strip(
     expect(page.locator("#row-11")).to_be_focused()
     scroll_settled(page)
     read = page.evaluate("""() => {
-      const strip = document.querySelector('#views > .lf-tabstrip').getBoundingClientRect();
+      const strip = document.querySelector('#views').shadowRoot.querySelector('.lf-tabstrip').getBoundingClientRect();
       const link = document.getElementById('row-11');
       const style = getComputedStyle(link);
       const ring = parseFloat(style.outlineOffset) + parseFloat(style.outlineWidth);
@@ -559,7 +559,7 @@ def test_page_tabs_take_the_page_width_and_its_one_left_edge(browser, serve):
                 - parseFloat(style.paddingRight)),
             },
             title: box(document.querySelector('main > header h1')),
-            strip: box(document.querySelector('#root-tabs > .lf-tabstrip')),
+            strip: box(document.querySelector('#root-tabs').shadowRoot.querySelector('.lf-tabstrip')),
             panel: box(document.querySelector('#root-tabs > lf-tab:not([hidden])')),
           };
         }"""
@@ -820,7 +820,7 @@ def test_a_scrolling_tab_panel_keeps_nested_headers_on_its_edge(browser, serve, 
     scroll_settled(page)
     geometry = page.evaluate("""() => {
       const panel = document.querySelector('#output');
-      const strip = document.querySelector('#arms > .lf-tabstrip');
+      const strip = document.querySelector('#arms').shadowRoot.querySelector('.lf-tabstrip');
       return {edge: panel.getBoundingClientRect().top + panel.clientTop,
               header: strip.getBoundingClientRect().top};
     }""")
@@ -1065,7 +1065,7 @@ def test_a_queue_stands_its_items_under_their_groups(browser, serve):
     # tabs.
     runs = """() => {
       const box = (el) => el.getBoundingClientRect();
-      return [...document.querySelectorAll('#queue > .lf-tabstrip > .lf-tab-run')]
+      return [...document.querySelector('#queue').shadowRoot.querySelectorAll('.lf-tabstrip > .lf-tab-run')]
         .map((run) => {
           const label = run.querySelector(':scope > .lf-tab-group');
           const first = run.querySelector('[role="tab"]');
@@ -1078,7 +1078,7 @@ def test_a_queue_stands_its_items_under_their_groups(browser, serve):
                 || box(label).right <= box(first).left + 0.5)),
             ruled: parseFloat(style.borderTopWidth) + parseFloat(style.borderLeftWidth) > 0,
             tabs: [...run.querySelectorAll('[role="tab"]')]
-              .map((tab) => tab.getAttribute('aria-controls')),
+              .map((tab) => tab.ariaControlsElements[0].id),
           };
         });
     }"""
@@ -1108,7 +1108,7 @@ def test_a_queue_stands_its_items_under_their_groups(browser, serve):
 
     revised = queue(["Merge", "Merge", "Merge", None, "FYI", "FYI"])
     wait_for_revision(page, stamp_page(serve.page_dir, revised, "Regroup")["revision"])
-    expect(page.locator("#queue > .lf-tabstrip .lf-tab-group")).to_have_text(
+    expect(page.locator("#queue .lf-tabstrip .lf-tab-group")).to_have_text(
         ["Merge", "FYI"]
     )
     expect(tabs.nth(2)).to_have_accessible_description("Merge group")
@@ -1135,7 +1135,7 @@ def test_a_queue_stands_its_items_under_their_groups(browser, serve):
     ]
     # The open tab's label in the row before the tab, both clear of the presses.
     label_shown = """() => {
-      const strip = document.querySelector('#queue > .lf-tabstrip');
+      const strip = document.querySelector('#queue').shadowRoot.querySelector('.lf-tabstrip');
       const room = strip.getBoundingClientRect();
       const open = strip.querySelector('[aria-selected="true"]');
       const tab = open.getBoundingClientRect();
@@ -1150,7 +1150,7 @@ def test_a_queue_stands_its_items_under_their_groups(browser, serve):
     }"""
     # The open tab whole in the row and clear of the presses, with no label over it.
     tab_whole = """() => {
-      const strip = document.querySelector('#queue > .lf-tabstrip');
+      const strip = document.querySelector('#queue').shadowRoot.querySelector('.lf-tabstrip');
       const room = strip.getBoundingClientRect();
       const open = strip.querySelector('[aria-selected="true"]');
       const tab = open.getBoundingClientRect();
@@ -1174,7 +1174,7 @@ def test_a_queue_stands_its_items_under_their_groups(browser, serve):
     phone_tabs.nth(1).click()
     assert phone.evaluate(
         """() => {
-      const strip = document.querySelector('#queue > .lf-tabstrip');
+      const strip = document.querySelector('#queue').shadowRoot.querySelector('.lf-tabstrip');
       return strip.querySelector('.lf-tab-run').getBoundingClientRect().width
         > strip.clientWidth;
     }"""
@@ -1184,7 +1184,7 @@ def test_a_queue_stands_its_items_under_their_groups(browser, serve):
     phone.wait_for_function(tab_whole)
     assert phone.evaluate(
         """() => {
-      const strip = document.querySelector('#queue > .lf-tabstrip');
+      const strip = document.querySelector('#queue').shadowRoot.querySelector('.lf-tabstrip');
       const tab = strip.querySelector('[aria-selected="true"]').getBoundingClientRect();
       const label = strip.querySelector('.lf-tab-group').getBoundingClientRect();
       const press = parseFloat(getComputedStyle(strip).scrollPaddingLeft);
@@ -1218,8 +1218,9 @@ def test_a_scrolling_queue_brings_a_group_s_heading_in_with_its_first_item(
     page.get_by_role("tab", name="Ticket 11").click()
     # Cut the run's first item off above the list, its heading hidden over it.
     page.evaluate("""() => {
-      const strip = document.querySelector('#queue > .lf-tabstrip');
-      const first = strip.querySelector('[aria-controls="t-10"]');
+      const strip = document.querySelector('#queue').shadowRoot.querySelector('.lf-tabstrip');
+      const first = [...strip.querySelectorAll('[role="tab"]')]
+        .find((tab) => tab.ariaControlsElements[0].id === 't-10');
       strip.scrollTop +=
         first.getBoundingClientRect().top - strip.getBoundingClientRect().top + 10;
     }""")
@@ -1232,7 +1233,7 @@ def test_a_scrolling_queue_brings_a_group_s_heading_in_with_its_first_item(
     # The step said its place in the queue to the page.
     assert walks_said(page) == ["Tab 11 of 30"]
     page.wait_for_function("""() => {
-      const strip = document.querySelector('#queue > .lf-tabstrip');
+      const strip = document.querySelector('#queue').shadowRoot.querySelector('.lf-tabstrip');
       const band = strip.getBoundingClientRect();
       const tab = strip.querySelector('[aria-selected="true"]').getBoundingClientRect();
       const heading = [...strip.querySelectorAll('.lf-tab-group')]
@@ -1309,7 +1310,7 @@ def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
     # The open tab inside the strip and clear of every press showing, with at least
     # `presses` of them showing.
     shown = """([id, presses]) => {
-      const strip = document.querySelector(`#${id} > .lf-tabstrip`);
+      const strip = document.querySelector(`#${id}`).shadowRoot.querySelector(`.lf-tabstrip`);
       const room = strip.getBoundingClientRect();
       const tab = strip.querySelector('[aria-selected="true"]').getBoundingClientRect();
       const faces = [...strip.querySelectorAll('.lf-tabstrip-scroll > span')]
@@ -1322,11 +1323,11 @@ def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
     # Focus brings itself into view, so the tabs opened before the window narrows are
     # left unfocused.
     for name in ("View framed 11", "View queue 11"):
-        tab = page.get_by_role("tab", name=name, exact=True)
+        tab = page.get_by_role("tab", name=re.compile("^" + name + r"\b"))
         tab.click()
         tab.blur()
     # The tablist says which way its names run: the column down, the row across.
-    queue_strip = page.locator("#queue > .lf-tabstrip")
+    queue_strip = page.locator("#queue .lf-tabstrip")
     expect(queue_strip).to_have_attribute("aria-orientation", "vertical")
     # Sample the first resized layout before paint, not the settled endpoint: the
     # selected tab must never disappear for a frame as the column becomes a row.
@@ -1334,7 +1335,7 @@ def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
       window.firstStripResize = {};
       const observer = new ResizeObserver(entries => {
         for (const {target} of entries) {
-          const id = target.parentElement.id;
+          const id = target.getRootNode().host.id;
           const strip = target.getBoundingClientRect();
           if (innerWidth !== 390 || id in firstStripResize) continue;
           const tab = target.querySelector('[aria-selected="true"]').getBoundingClientRect();
@@ -1345,7 +1346,7 @@ def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
         }
       });
       for (const id of ['framed', 'queue'])
-        observer.observe(document.querySelector(`#${id} > .lf-tabstrip`));
+        observer.observe(document.querySelector(`#${id}`).shadowRoot.querySelector(`.lf-tabstrip`));
       window.stripResizeObserver = observer;
     }""")
     resized(page, 390, 844)
@@ -1368,7 +1369,7 @@ def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
     # away. A sliver stays in the strip: with none, the tab is out of sight, so the key
     # lets go of it and acts from what the user reads (panel/page-keys/controller.js).
     page.evaluate("""() => {
-      const strip = document.querySelector('#framed > .lf-tabstrip');
+      const strip = document.querySelector('#framed').shadowRoot.querySelector('.lf-tabstrip');
       const tab = strip.querySelector('[aria-selected="true"]');
       strip.scrollLeft += tab.getBoundingClientRect().right
         - strip.getBoundingClientRect().left - 8;
@@ -1398,7 +1399,7 @@ def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
     for strip_id, sign in (("framed", 1), ("rtl", -1)):
         paged = page.evaluate(
             """([id, sign]) => {
-          const strip = document.querySelector(`#${id} > .lf-tabstrip`);
+          const strip = document.querySelector(`#${id}`).shadowRoot.querySelector(`.lf-tabstrip`);
           strip.scrollLeft = 0;
           const expected = sign * Math.min(
             0.8 * strip.clientWidth, strip.scrollWidth - strip.clientWidth);
@@ -1477,7 +1478,7 @@ def test_root_tab_targets_remain_global(browser, serve):
     expect(page.locator("#plan-stages")).to_be_in_viewport()
     arrival = page.evaluate("""() => ({
       target: document.querySelector('#plan-stages').getBoundingClientRect().top,
-      strip: document.querySelector('#root-tabs > .lf-tabstrip').getBoundingClientRect().bottom
+      strip: document.querySelector('#root-tabs').shadowRoot.querySelector('.lf-tabstrip').getBoundingClientRect().bottom
     })""")
     assert arrival["target"] >= arrival["strip"] - 1, arrival
     page.keyboard.press("m")
@@ -1549,7 +1550,7 @@ def test_the_list_of_parts_stays_in_reach_in_every_window(browser, serve, subtes
     plan = tabs.get_by_role("tab", name="Plan", exact=True)
     evidence = tabs.get_by_role("tab", name="Evidence", exact=True)
     last = tabs.get_by_role("tab", name="Summary", exact=True)
-    strip = page.locator("#root-parts > .lf-tabstrip")
+    strip = page.locator("#root-parts .lf-tabstrip")
 
     with subtests.test("its last name comes into the window"):
         # The list runs to the window's foot. The window leaves the list 100 px below
@@ -1709,7 +1710,7 @@ def test_each_part_s_row_says_where_its_question_stands(browser, serve):
     assert row("reopened").bounding_box()["height"] == height
 
     resized(page, 390, 800)
-    expect(page.locator("#parts > .lf-tabstrip")).to_have_css("flex-direction", "row")
+    expect(page.locator("#parts .lf-tabstrip")).to_have_css("flex-direction", "row")
     for key in ("untouched", "answered", "sent", "reopened"):
         expect(mark(key)).to_be_hidden()
     expect(on_me("untouched")).to_be_hidden()

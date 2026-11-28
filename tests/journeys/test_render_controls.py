@@ -1360,11 +1360,12 @@ def test_the_stop_reading_names_a_control_with_nothing_drawn_on_it(browser, serv
         name.evaluate(
             "(node, property) => node.style.removeProperty(property)", property
         )
-    page.evaluate("""() => {
+    # The tab set draws its tabs in its shadow tree, where the page's sheets don't reach.
+    page.locator(".lf-tab-btn").first.evaluate("""(tab) => {
         const style = document.createElement('style');
         style.textContent =
           '.lf-tab-btn > .lf-tab-name { outline: none !important; }';
-        document.head.append(style);
+        tab.getRootNode().append(style);
     }""")
     lost = seen_stop(page)
     assert lost and "lf-tab-btn" in lost, lost

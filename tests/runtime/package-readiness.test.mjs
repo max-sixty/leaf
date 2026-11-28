@@ -13,13 +13,16 @@ adoptRegistry({
 });
 
 for (const phase of ["waiting", "offline"])
-  test(`package tabs remain keyboard-operable while saved state is ${phase}`, () => {
+  test(`package tabs remain keyboard-operable while saved state is ${phase}`, async () => {
     applicationState.setPhase(phase);
     const owner = document.createElement("section");
     owner.innerHTML =
       '<lf-tabs id="reading-views"><lf-tab id="first" label="First">One</lf-tab><lf-tab id="second" label="Second">Two</lf-tab></lf-tabs>';
     document.body.append(owner);
-    const tabs = [...owner.querySelectorAll('[role="tab"]')];
+    // The set draws its tabs in its own shadow tree.
+    const tabs = [
+      ...owner.querySelector("lf-tabs").shadowRoot.querySelectorAll('[role="tab"]'),
+    ];
     try {
       assert.equal(tabs.length, 2);
       tabs[0].focus();
@@ -29,6 +32,8 @@ for (const phase of ["waiting", "offline"])
       });
       assert.equal(dispatchKey(press), true);
       assert.equal(press.defaultPrevented, true);
+      // The set draws the step it took on its next turn.
+      await new Promise((resolve) => setTimeout(resolve));
       assert.equal(tabs[1].getAttribute("aria-selected"), "true");
     } finally {
       owner.remove();

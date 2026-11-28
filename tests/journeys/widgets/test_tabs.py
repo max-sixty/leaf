@@ -40,7 +40,7 @@ def test_a_side_list_workspace_scrolls_its_list_and_its_item_apart(browser, serv
     page = open_page(browser, serve(source))
     resized(page, 1280, 720)
     state = """() => {
-      const strip = document.querySelector('#queue > .lf-tabstrip');
+      const strip = document.querySelector('#queue').shadowRoot.querySelector('.lf-tabstrip');
       const item = document.querySelector('#queue > lf-tab:not([hidden])');
       const selected = strip.querySelector('[aria-selected="true"]').getBoundingClientRect();
       const room = strip.getBoundingClientRect();
@@ -100,7 +100,7 @@ def test_a_side_list_workspace_scrolls_its_list_and_its_item_apart(browser, serv
     resized(page, 730, 600)
     page.wait_for_function(
         """() => {
-          const strip = document.querySelector('#queue > .lf-tabstrip').getBoundingClientRect();
+          const strip = document.querySelector('#queue').shadowRoot.querySelector('.lf-tabstrip').getBoundingClientRect();
           const item = document.querySelector('#queue > lf-tab:not([hidden])').getBoundingClientRect();
           return strip.right > item.left + 1 && item.top >= strip.bottom - 1;
         }"""
@@ -147,7 +147,7 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
     def stuck_at_start(panel):
         geometry = page.evaluate(
             """selector => {
-          const strip = document.querySelector('#root-tabs > .lf-tabstrip');
+          const strip = document.querySelector('#root-tabs').shadowRoot.querySelector('.lf-tabstrip');
           return {
             panel: document.querySelector(selector).getBoundingClientRect().top,
             strip: strip.getBoundingClientRect().toJSON(),
@@ -267,7 +267,7 @@ def test_parts_switch_without_moving_the_list_and_follow_history(browser, serve)
     plan = tabs.get_by_role("tab", name="Plan", exact=True)
     evidence = tabs.get_by_role("tab", name="Evidence", exact=True)
     summary = tabs.get_by_role("tab", name="Summary", exact=True)
-    strip = page.locator("#root-parts > .lf-tabstrip")
+    strip = page.locator("#root-parts .lf-tabstrip")
 
     def switch(tab):
         before = strip.bounding_box()
@@ -441,16 +441,16 @@ def test_a_strip_marks_its_open_tab_by_the_way_it_runs(browser, serve):
     for source, strip in ((ROOT_PARTS_PAGE, "#root-parts"), (queue, "#queue")):
         page = open_page(browser, serve(source))
         resized(page, 1280, 720)
-        column = page.locator(f"{strip} > .lf-tabstrip").evaluate(mark)
+        column = page.locator(f"{strip} .lf-tabstrip").evaluate(mark)
         assert column["flow"] == "column", column
         assert column["filled"] and column["contoured"], column
         assert column["rule"] == 0 and column["nameRule"] == 0, column
         resized(page, 390, 800)
         page.wait_for_function(
             "s => getComputedStyle(document.querySelector(s)).flexDirection === 'row'",
-            arg=f"{strip} > .lf-tabstrip",
+            arg=f"{strip} .lf-tabstrip",
         )
-        row = page.locator(f"{strip} > .lf-tabstrip").evaluate(mark)
+        row = page.locator(f"{strip} .lf-tabstrip").evaluate(mark)
         assert not row["filled"] and not row["contoured"], row
         assert row["rule"] == 2 and row["ruleInk"] and row["nameRule"] == 0, row
         assert row["lastRow"] == "2px", row
@@ -460,7 +460,7 @@ def test_a_strip_marks_its_open_tab_by_the_way_it_runs(browser, serve):
             assert row["height"] == pytest.approx(row["reserved"], abs=0.01), row
             assert row["ground"] == row["frame"], row
         page.emulate_media(forced_colors="active")
-        ruled = page.locator(f"{strip} > .lf-tabstrip").evaluate(
+        ruled = page.locator(f"{strip} .lf-tabstrip").evaluate(
             """strip => {
               const ground = getComputedStyle(strip).backgroundColor;
               const line = strip.querySelector('.lf-tab-selection');

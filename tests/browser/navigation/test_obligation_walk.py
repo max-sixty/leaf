@@ -111,12 +111,13 @@ def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_que
           window.obligationFrames = [];
           window.obligationTabCues = [];
           const record = () => {
-            const tab = document.querySelector('#views > .lf-tabstrip [aria-selected="true"]');
-            const selected = tab.getAttribute('aria-controls');
+            const tab = document.querySelector('#views').shadowRoot.querySelector('.lf-tabstrip [aria-selected="true"]');
+            const selected = tab.ariaControlsElements[0].id;
             const ask = document.getElementById(`ask-${selected}`);
-            const source = document.querySelector('#source-views [aria-selected="true"]');
+            const source = document.querySelector('#source-views')?.shadowRoot
+              .querySelector('[aria-selected="true"]');
             obligationFrames.push({selected, scroll: scrollY,
-                           source: source?.getAttribute('aria-controls'),
+                           source: source?.ariaControlsElements[0].id,
                            top: ask.getBoundingClientRect().top});
             window.obligationFrame = requestAnimationFrame(record);
           };
@@ -124,13 +125,13 @@ def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_que
           window.obligationTabObserver = new MutationObserver(records => {
             for (const {target} of records) {
               if (target.getAttribute('aria-selected') === 'true' &&
-                  target.closest('lf-tabs').id === 'views') {
+                  target.getRootNode().host.id === 'views') {
                 const name = target.querySelector('.lf-tab-name');
                 obligationTabCues.push(name.getAnimations().length);
               }
             }
           });
-          obligationTabObserver.observe(document.querySelector('#views'), {
+          obligationTabObserver.observe(document.querySelector('#views').shadowRoot, {
             subtree: true, attributes: true, attributeFilter: ['aria-selected']
           });
         }""")
@@ -146,7 +147,7 @@ def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_que
     # A disclosure, by contrast, extends the current view and preserves its glide.
     if nested_source:
         expect(
-            page.locator('#source-views [aria-controls="source-context"]')
+            page.locator("#source-views").get_by_role("tab", name="Context")
         ).to_have_attribute("aria-selected", "true")
     else:
         expect(page.locator("#question-fold")).not_to_have_attribute("open", "")
@@ -156,12 +157,12 @@ def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_que
     expect(page.locator("#ask-first")).to_be_focused()
     if nested_source:
         expect(
-            page.locator('#source-views [aria-controls="source-answer"]')
+            page.locator("#source-views").get_by_role("tab", name="Answer")
         ).to_have_attribute("aria-selected", "true")
     else:
         expect(page.locator("#question-fold")).to_have_attribute("open", "")
     expect(
-        page.locator('#views > .lf-tabstrip [aria-controls="first"]')
+        page.locator("#views .lf-tabstrip").get_by_role("tab", name="First")
     ).to_have_attribute("aria-selected", "true")
     scroll_settled(page)
     after = page.evaluate("scrollY")
@@ -185,7 +186,7 @@ def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_que
         start_trace()
         page.keyboard.press(key)
         expect(page.locator(f"#ask-{target}")).to_be_focused()
-        selected = page.locator("#views > .lf-tabstrip").get_by_role(
+        selected = page.locator("#views .lf-tabstrip").get_by_role(
             "tab", name=tab, exact=True
         )
         expect(selected).to_have_attribute("aria-selected", "true")
@@ -215,8 +216,8 @@ def test_an_obligation_walk_glides_within_a_view_and_opens_other_tabs_at_the_que
     page.wait_for_function("navigation.transition === null")
     returned = page.evaluate("""() => ({
       scroll: scrollY, fragment: location.hash,
-      selected: document.querySelector('#views > .lf-tabstrip [aria-selected="true"]')
-        .getAttribute('aria-controls')
+      selected: document.querySelector('#views').shadowRoot.querySelector('.lf-tabstrip [aria-selected="true"]')
+        .ariaControlsElements[0].id
     })""")
     assert returned["selected"] == "first", {"reading": reading, "returned": returned}
     assert returned["scroll"] == pytest.approx(reading, abs=2), returned

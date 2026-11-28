@@ -116,8 +116,10 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     page = open_page(browser, live_url(serve(source)))
     resized(page, 1200, 900)
     boxes = """() => {
-      const r = (s) => document.querySelector(s).getBoundingClientRect();
-      const strip = r('#queue > .lf-tabstrip'), panel = r('#queue > lf-tab:not([hidden])');
+      const queue = document.querySelector('#queue');
+      const strip = queue.shadowRoot.querySelector('.lf-tabstrip').getBoundingClientRect();
+      const panel = queue.querySelector(':scope > lf-tab:not([hidden])')
+        .getBoundingClientRect();
       return {stripRight: strip.right, stripTop: strip.top, stripBottom: strip.bottom,
               panelLeft: panel.left, panelTop: panel.top};
     }"""
@@ -127,7 +129,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
       board: document.querySelector('#board').getBoundingClientRect().right,
       panel: document.querySelector('#t-a').getBoundingClientRect().right})""")
     assert bounds["board"] <= bounds["panel"] + 1, bounds
-    expect(page.locator("#queue > .lf-tabstrip .lf-tab-summary").first).to_have_text(
+    expect(page.locator("#queue .lf-tabstrip .lf-tab-summary").first).to_have_text(
         "sev a · suggested fix"
     )
 
@@ -136,7 +138,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     expect(tabs.first).to_have_text("Ticket asev a · suggested fix")
     expect(tabs.first).to_have_accessible_description("To answer")
     rows = (
-        "() => [...document.querySelectorAll('#queue .lf-tab-btn')]"
+        "() => [...document.querySelector('#queue').shadowRoot.querySelectorAll('.lf-tab-btn')]"
         ".map((b) => b.getBoundingClientRect().height)"
     )
     heights = page.evaluate(rows)
@@ -174,7 +176,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
         """async queue => {
           const parent = queue.parentElement;
           const next = queue.nextSibling;
-          const firstTab = queue.querySelector('.lf-tab-btn');
+          const firstTab = queue.shadowRoot.querySelector('.lf-tab-btn');
           await new Promise(resolve => {
             const observer = new MutationObserver(() => {
               observer.disconnect(); resolve();
@@ -183,7 +185,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
             queue.remove();
           });
           parent.insertBefore(queue, next);
-          return firstTab === queue.querySelector('.lf-tab-btn');
+          return firstTab === queue.shadowRoot.querySelector('.lf-tab-btn');
         }"""
     )
     assert moved, "moving the tab set replaced its retained answer row"
@@ -228,7 +230,7 @@ def test_a_side_list_is_a_queue_beside_the_item_it_opens(browser, serve):
     narrow = page.evaluate(boxes)
     assert narrow["stripBottom"] <= narrow["panelTop"] + 1, narrow
     row = page.evaluate("""() => {
-      const strip = document.querySelector('#queue > .lf-tabstrip');
+      const strip = document.querySelector('#queue').shadowRoot.querySelector('.lf-tabstrip');
       const tops = [...strip.querySelectorAll('.lf-tab-btn')]
         .map((b) => Math.round(b.getBoundingClientRect().top));
       return {rows: new Set(tops).size, runsPast: strip.scrollWidth > strip.clientWidth};

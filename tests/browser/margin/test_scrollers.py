@@ -1336,16 +1336,16 @@ def test_a_pin_and_copy_pass_under_a_stuck_tab_strip(browser, serve):
     row = page.locator('.lf-margin-cluster[data-lf-margin-for="under-strip"]')
     expect(row).to_have_attribute("data-lf-place", "pin")
     under = """selector => {
-      const strip = document.querySelector('#views .lf-tabstrip');
+      const strip = document.querySelector('#views').shadowRoot.querySelector('.lf-tabstrip');
       const box = document.querySelector(selector);
       const t = box.getBoundingClientRect(), s = strip.getBoundingClientRect();
-      const hit = document.elementFromPoint((t.left + t.right) / 2, s.bottom - 4);
+      const hit = strip.getRootNode().elementFromPoint((t.left + t.right) / 2, s.bottom - 4);
       return {top: t.top, strip: [s.top, s.bottom], hitStrip: strip.contains(hit),
               below: box.contains(document.elementFromPoint(
                 (t.left + t.right) / 2, Math.min(t.bottom, s.bottom + 4) - 1))};
     }"""
     page.evaluate("""() => {
-      const strip = document.querySelector('#views .lf-tabstrip');
+      const strip = document.querySelector('#views').shadowRoot.querySelector('.lf-tabstrip');
       const t = document.querySelector('[data-lf-margin-for="under-strip"]').getBoundingClientRect();
       window.scrollBy(0, t.top - strip.getBoundingClientRect().height + 10);
     }""")
@@ -1356,7 +1356,7 @@ def test_a_pin_and_copy_pass_under_a_stuck_tab_strip(browser, serve):
     assert pin["below"], pin
 
     page.evaluate("""() => {
-      const strip = document.querySelector('#views .lf-tabstrip');
+      const strip = document.querySelector('#views').shadowRoot.querySelector('.lf-tabstrip');
       const t = document.getElementById('under-code').getBoundingClientRect();
       window.scrollBy(0, t.top - strip.getBoundingClientRect().top - 20);
     }""")

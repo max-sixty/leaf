@@ -31,6 +31,8 @@
      attribute `reference`, as `navigateToDatum` does, announcing `success` or
      `missing`. Focus stays where the user is.
    - `Announce` is `lf-announce`: words a listener should hear now.
+   - `KeepView` is `keepView`: it shows `member` of the element's members and
+     remembers it, as records/views.js says.
    - `KeepInTab` is `tabStore.set`: how the user looks at the widget, kept for this
      tab, which the widget's inputs read back with `tabStore.get`.
    - `OpenThread` opens the thread whose id is `id` where Leaf opens it, inline or in
@@ -82,6 +84,10 @@ export class KeepInTab extends Command.Service()("leaf/KeepInTab", {
   args: { key: Schema.String, value: Schema.String },
 }) {}
 
+export class KeepView extends Command.Service()("leaf/KeepView", {
+  args: { member: Schema.instanceOf(Element) },
+}) {}
+
 export class OpenThread extends Command.Service()("leaf/OpenThread", {
   args: { id: Schema.String },
 }) {}
@@ -123,6 +129,11 @@ export const leafServices = (element) =>
     KeepInTab.toLayer(({ key, value }) =>
       Effect.sync(() => {
         tabStore.set(key, value);
+      }),
+    ),
+    KeepView.toLayer(({ member }) =>
+      Effect.sync(() => {
+        mounted()?.keepView(element, member);
       }),
     ),
     OpenThread.toLayer(({ id }) =>

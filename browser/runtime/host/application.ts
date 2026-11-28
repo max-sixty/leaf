@@ -19,6 +19,7 @@ import { announce } from "../transport/notifications.js";
 import { hasObligationSource } from "../state/obligations/source.js";
 import { answeredInWords } from "../records/obligations/model.js";
 import { readObligations } from "../records/obligations/place.js";
+import { keepView } from "../records/views.js";
 import { watchPendingTraffic } from "../transport/traffic.js";
 import { createCommandDispatch } from "../records/pending/dispatch.js";
 import { widgetFacts } from "./widget-state.js";
@@ -188,6 +189,7 @@ export function mountApplication<Overlay extends MarginOverlay>(
   const mounted = createApplication(dependencies);
   application = mounted;
   setMounted({
+    keepView,
     navigateToDatum,
     obligationActions,
     threadActions,

@@ -1,0 +1,613 @@
+/* lf-tabs / lf-parts inside their shadow roots (lf-tabs.ts, "How it is drawn"): the
+ * strip the module draws, its tabs and their pieces, by the host's state and by how the
+ * strip runs. The panels are the author's, in the light DOM, and tabs.css lays them out
+ * beside the strip. The strip shows only where the live page answers it, which is a
+ * fact about the document, so tabs.css says it (`::part(strip)`), and a document rule
+ * on a part outranks every rule here.
+ *
+ * How the strip marks the open tab follows only which way it runs (`--lf-tabstrip-flow`):
+ * along a row, a rule under the tab; down a column, a painted face. */
+
+/* An open panel asks its set whether it has a definite height to fill
+ * (`--lf-full-height`, tabs.css), a property that doesn't inherit, and a style query
+ * asks an element's parent, which for a panel is the root's slot. So the root, which
+ * takes no box, passes the set's answer down to its slot. */
+:host(:is(lf-tabs, lf-parts)) > div,
+:host(:is(lf-tabs, lf-parts)) > div > slot {
+  --lf-full-height: inherit;
+}
+
+/* The strip is a box of Leaf's controls (`lf-ui`), sized as every such box is; the
+ * runtime's reset for them (chrome.css) is the document's, and reaches no shadow tree. */
+:host(:is(lf-tabs, lf-parts)) .lf-tabstrip,
+:host(:is(lf-tabs, lf-parts)) .lf-tabstrip *,
+:host(:is(lf-tabs, lf-parts)) .lf-tabstrip *::before,
+:host(:is(lf-tabs, lf-parts)) .lf-tabstrip *::after {
+  box-sizing: border-box;
+}
+
+/* Hidden until tabs.css shows it, because a row of buttons is worth showing only where
+ * something will answer one. */
+:host(:is(lf-tabs, lf-parts)) .lf-tabstrip {
+  anchor-scope: --lf-tab-mark;
+  display: none;
+  gap: 2px;
+  --lf-tabstrip-flow: row;
+  border-bottom: 1px solid var(--lf-border);
+}
+/* The aim floor is the padding, which a side list's column cannot squeeze out from under
+ * a row's summary as it could a min-height. Of what stands between the floor and the
+ * name's line, 4px is the name's own padding and 2px its rule (below), which comes a
+ * pixel from each side, the least padding included, so a tab is as tall with its rule
+ * as without; the foot keeps the 2px it has over the head. A tab never shrinks: one
+ * that did would cut its own name, which the strip's scroll could never reach. */
+:host(:is(lf-tabs, lf-parts)) .lf-tab-btn {
+  padding: max(4px, (var(--lf-aim-floor) - 1lh) / 2 - 4px) 7px
+    max(6px, (var(--lf-aim-floor) - 1lh) / 2 - 2px);
+  min-width: var(--lf-aim-floor);
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--lf-muted);
+  cursor: pointer;
+}
+:host(:is(lf-tabs, lf-parts)) .lf-tab-btn:hover {
+  color: var(--lf-ink-2);
+  box-shadow: none;
+}
+:host(:is(lf-tabs, lf-parts))
+  .lf-tab-btn:not([aria-selected="true"]):hover
+  > .lf-tab-name {
+  box-shadow: var(--lf-offer-hover-shadow);
+}
+/* Focus follows the name, as in the ARIA tabs example: selection and keyboard focus
+ * remain separate marks on one compact face. The containing tab keeps its larger aim
+ * floor; neither mark changes layout. The name stands among the strip's others as a
+ * control does, so its ring stands at a control's gap, inside the strip. */
+:host(:is(lf-tabs, lf-parts)) .lf-tab-btn[data-lf-focus-visible] {
+  outline: none;
+}
+:host(:is(lf-tabs, lf-parts)) .lf-tab-btn[data-lf-focus-visible] > .lf-tab-name {
+  outline: var(--lf-focus-ring);
+  --lf-ring-at: var(--lf-focus-ring-gap);
+}
+/* The open tab's mark follows the strip's flow (`--lf-tabstrip-flow`), the one fact
+ * that also lays the strip out, so every strip marks its open name the same way where
+ * it runs the same way. Along a row, as page tabs, a box's strip and a phone's list of
+ * parts run, the open name stands on a 2px rule. Down a column, a queue's list or a
+ * page's list of parts, its names are a list's rows, and the open one paints its square
+ * face instead; that fill alone barely parts from the strip's ground, in the dark
+ * scheme least, so its contour carries the state. Either mark stays within the box
+ * every name reserves, so neither changes any control's measure. One mark belongs to
+ * the name, or the tab's foot where it has lines under its name (below). It can travel
+ * without moving the name or its focus ring. */
+:host(:is(lf-tabs, lf-parts)) .lf-tab-btn > .lf-tab-name {
+  position: relative;
+  display: inline-block;
+  padding: 2px 5px;
+  border-bottom: 2px solid transparent;
+}
+:host(:is(lf-tabs, lf-parts)) .lf-tab-mark {
+  position: absolute;
+  inset-inline: 0;
+  bottom: -2px;
+  block-size: 2px;
+  visibility: hidden;
+  pointer-events: none;
+}
+:host(:is(lf-tabs, lf-parts)) .lf-tab-selection {
+  position: absolute;
+  position-anchor: --lf-tab-mark;
+  left: anchor(left);
+  top: anchor(top);
+  width: anchor-size(width);
+  block-size: 2px;
+  background: var(--lf-ink);
+  pointer-events: none;
+  transition: none;
+}
+/* The shared line follows native layout, including an interrupted transition.
+ * The controller states only which pointer choices travel; CSS owns their motion,
+ * which runs along a row. */
+@media (prefers-reduced-motion: no-preference) {
+  @container style(--lf-tabstrip-flow: row) {
+    :host(:is(lf-tabs, lf-parts))
+      .lf-tabstrip[data-lf-selection-travel]
+      > .lf-tab-selection {
+      transition:
+        left var(--lf-motion-mark) ease,
+        top var(--lf-motion-mark) ease,
+        width var(--lf-motion-mark) ease;
+    }
+  }
+}
+:host(:is(lf-tabs, lf-parts)) .lf-tab-btn[aria-selected="true"] {
+  color: var(--lf-ink);
+}
+:host(:is(lf-tabs, lf-parts)) .lf-tab-btn[aria-selected="true"] .lf-tab-mark {
+  anchor-name: --lf-tab-mark;
+  visibility: visible;
+}
+@container style(--lf-tabstrip-flow: column) {
+  :host(:is(lf-tabs, lf-parts)) .lf-tab-btn {
+    padding-block: max(5px, (var(--lf-aim-floor) - 1lh) / 2 - 3px)
+      max(7px, (var(--lf-aim-floor) - 1lh) / 2 - 1px);
+  }
+  :host(:is(lf-tabs, lf-parts)) .lf-tab-btn > .lf-tab-name {
+    border-bottom: 0;
+  }
+  :host(:is(lf-tabs, lf-parts)) :is(.lf-tab-mark, .lf-tab-selection) {
+    display: none;
+  }
+  :host(:is(lf-tabs, lf-parts)) .lf-tab-btn[aria-selected="true"] > .lf-tab-name {
+    background: var(--lf-card);
+    box-shadow: inset 0 0 0 1px var(--lf-border);
+  }
+}
+/* Keep selection visible independently of the focus outline, including when focus has
+ * moved into the panel. System colors show a transparent rule, so an unopened name's
+ * rule takes the system background, and they remove a column's fill, so its open name
+ * is underlined instead. */
+@media (forced-colors: active) {
+  :host(:is(lf-tabs, lf-parts)) .lf-tab-btn > .lf-tab-name {
+    border-bottom-color: Canvas;
+  }
+  :host(:is(lf-tabs, lf-parts)) .lf-tab-selection {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
+  @container style(--lf-tabstrip-flow: column) {
+    :host(:is(lf-tabs, lf-parts)) .lf-tab-btn[aria-selected="true"] > .lf-tab-name {
+      text-decoration: underline;
+      text-decoration-thickness: 2px;
+      text-underline-offset: 2px;
+    }
+  }
+}
+/* A tab counts the changes the version diff marks (chip.css, `.lf-change-count`).
+   An empty count takes no room. */
+:host(:is(lf-tabs, lf-parts)) .lf-tabdiff {
+  font-weight: 400;
+  margin-left: 6px;
+}
+:host(:is(lf-tabs, lf-parts)) .lf-tabdiff:empty {
+  display: none;
+}
+
+@media screen {
+  /* One row of the strip is the stated height a page strip is (`--lf-tabstrip-h`), so
+   * the room the page keeps for it before upgrade (tabs.css) is one number.
+   *
+   * A strip is that one row whatever the set, so its names scroll sideways when they
+   * outrun it rather than wrapping onto rows the page could not keep before upgrade,
+   * which push the open panel down. A scrollbar would add to its height, so it draws
+   * none, and a press at either edge scrolls the names that run past it (lf-tabs.ts),
+   * shown while the layer reads more that way (`data-lf-more-before`,
+   * `data-lf-more-after`, dom/reach.js). A side list's column runs down instead, and
+   * scrolls down past the window's height (below). The press's own face fades the
+   * names under it into the strip's background, so the layer's edge fade is off. A
+   * finger or a trackpad scrolls the strip itself, and an opened tab brings itself
+   * into view. */
+  :host(:is(lf-tabs, lf-parts)) .lf-tabstrip {
+    flex-direction: var(--lf-tabstrip-flow);
+    padding: 8px var(--lf-tabstrip-pad) 0;
+    --lf-tabstrip-pad: 8px;
+    box-sizing: border-box;
+    min-block-size: var(--lf-tabstrip-h);
+    border-radius: var(--lf-r-in) var(--lf-r-in) 0 0;
+    --lf-tabstrip-bg: var(--lf-card);
+    background: var(--lf-tabstrip-bg);
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    overflow-y: hidden;
+    scrollbar-width: none;
+    scroll-padding-inline: var(--lf-tabstrip-press);
+    --lf-tabstrip-press: max(36px, var(--lf-aim-floor));
+    --lf-more-fade-to: #000;
+    /* The strip is a child of the set's ring frame, as its panels are, so a focused
+     * tab rings the open panel (surfaces.css, `.lf-ring-frame`). */
+    --lf-focus-box: .lf-ring-frame, [data-lf-reading-role=pane];
+  }
+
+  /* A list beside its panels (`list="side"`): a queue beside the item it opens. The
+   * list is a column left of the open panel wherever the set holds both, and a row
+   * over it below that, as a narrow window or a phone gives it (tabs.css says why). */
+  @container (width >= 36rem) {
+    :host(lf-tabs[list="side"][data-lf-views]) .lf-tabstrip {
+      background: none;
+      margin-inline-end: 1px;
+    }
+  }
+  :host(lf-tabs[list="side"][data-lf-views]) .lf-tabstrip {
+    grid-column: 1;
+    grid-row: 1;
+    --lf-tabstrip-flow: column;
+    --lf-tabstrip-bg: var(--lf-field);
+    gap: 0;
+    /* No press stands at a column's edge, so a landing keeps clear of none, and a run
+     * from its heading to a tab, as wide as the column, fits it (lf-tabs.ts,
+     * `#showTab`). */
+    scroll-padding-inline: 0;
+    padding: 8px;
+    border-bottom: 0;
+    border-radius: 0;
+    align-self: stretch;
+  }
+  /* Outside a full-height workspace the page scrolls the open item, and the list
+   * sticks beside it. It sticks a landing's room (`--lf-landing-room`) below the
+   * sticky-header slot and ends a landing's room above the window's foot, as a
+   * column's sidebar does (layouts.css, `.layout-track`). The list is as tall as its rows,
+   * up to that band's height, and scrolls on its own beyond it (lf-tabs.ts,
+   * `#showTab`). Standing at the top of its cell rather than stretched down it, a
+   * short list sticks until the item beside it ends. A tab it lands keeps a tab's
+   * room above and below it, so the rows either side of the open one show and the
+   * list doesn't look as though it starts or ends there. At either end of the list a
+   * wheel goes on to scroll the page, as the item beside it is the page's to scroll. */
+  @container (width >= 36rem) {
+    @container not style(--lf-full-height: 1) {
+      :host(lf-tabs[list="side"][data-lf-views]) .lf-tabstrip {
+        position: sticky;
+        top: calc(var(--lf-top-outer) + var(--lf-landing-room));
+        max-block-size: calc(100dvh - var(--lf-top-outer) - 2 * var(--lf-landing-room));
+        align-self: start;
+        overflow: hidden auto;
+        scroll-padding-block: var(--lf-tab-row-h);
+        --lf-top: 0px;
+        --lf-top-covered: 0px;
+        --lf-head-inset: initial;
+        --lf-holds-height: 1;
+      }
+    }
+  }
+  /* A list that runs down beside its panels (`data-lf-down`, lf-tabs.ts), a side
+   * list's or a page's parts', draws each row as below. A row is its name, then its
+   * diff count, with the summary on a line under them.
+   * A tab with no count ends at its words. Such a tab's rule stands at its foot, a
+   * line of its own under its last line, so along a row it underlines the whole tab
+   * as a lone name's rule underlines the name, and takes the 2px the name gives up.
+   * The lines keep to the top of a tab the strip stretches, so the rule stays against
+   * the last of them. The keyboard rings the whole row, inside its edge, as a list's
+   * row is (base.css, "Where it stands"): round the name alone, the ring ran over
+   * the summary under it. */
+  :host(:is(lf-tabs, lf-parts)) .lf-tabstrip[data-lf-down] .lf-tab-btn {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto auto;
+    align-content: start;
+    align-items: baseline;
+    justify-items: start;
+    text-align: start;
+    --lf-ring-at: var(--lf-focus-ring-inset);
+    &[data-lf-focus-visible] {
+      outline: var(--lf-focus-ring);
+      & > .lf-tab-name {
+        outline: none;
+      }
+    }
+    & > .lf-tab-mark {
+      position: static;
+      grid-column: 1 / -1;
+      justify-self: stretch;
+    }
+    & > .lf-tab-name {
+      border-bottom: 0;
+    }
+    & > .lf-tabdiff {
+      margin-left: 6px;
+    }
+  }
+  /* A row whose panel waits on the user ends its name's line in On Me's symbol, quiet
+   * as the summary is, after any change count (lf-tabs.ts). */
+  :host(:is(lf-tabs, lf-parts)) .lf-tabstrip[data-lf-down] .lf-tab-on-me {
+    grid-row: 1;
+    grid-column: 3;
+    align-self: center;
+    display: flex;
+    margin-inline: 6px 5px;
+    color: var(--lf-muted);
+    &:not([data-lf-waiting]) {
+      visibility: hidden;
+    }
+    & svg {
+      inline-size: 14px;
+      block-size: 14px;
+    }
+  }
+  /* The outcome has its own reserved line below the authored summary. Neither
+   * choosing nor undoing borrows room from the name or its context. The answer
+   * contains its inline size; exceptional long values ellipsize and remain whole
+   * in the tab's accessible description. */
+  :host(:is(lf-tabs, lf-parts)) .lf-tabstrip[data-lf-down] .lf-tab-answer {
+    container-type: inline-size;
+    grid-column: 1 / -1;
+    grid-row: 3;
+    padding-inline: 5px;
+    justify-self: stretch;
+    display: flex;
+    gap: 0.3em;
+    font: var(--lf-font-heading);
+    color: var(--lf-ink-2);
+  }
+  :host(:is(lf-tabs, lf-parts)) .lf-tabstrip[data-lf-down] .lf-tab-answer::before {
+    content: "✓" / "";
+    flex: none;
+    color: var(--lf-ink);
+  }
+  :host(:is(lf-tabs, lf-parts))
+    .lf-tabstrip[data-lf-down]
+    .lf-tab-answer[data-lf-obligations="open"] {
+    font: var(--lf-font-small);
+    color: var(--lf-muted);
+    &::before {
+      content: "○" / "";
+      color: inherit;
+    }
+  }
+  :host(:is(lf-tabs, lf-parts))
+    .lf-tabstrip[data-lf-down]
+    .lf-tab-answer:not([data-lf-obligations]) {
+    visibility: hidden;
+  }
+  :host(:is(lf-tabs, lf-parts)) .lf-tabstrip[data-lf-down] .lf-tab-answer-words {
+    min-inline-size: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  /* A summary is what the reader chooses an item by, read down the list, so it is set
+   * on the rung between the name's size and the label size of "To answer" beside it. */
+  :host(:is(lf-tabs, lf-parts)) .lf-tabstrip[data-lf-down] .lf-tab-summary {
+    grid-column: 1 / -1;
+    grid-row: 2;
+    padding: 0 5px;
+    font: var(--lf-font-compact);
+    color: var(--lf-muted);
+  }
+  /* Each run of rows sharing a group, or sharing none, is a box of its own
+   * (lf-tabs.ts), ruled off from the run before it, so a row's run is the one the
+   * rule above it opens. A group's label heads its run in the column and is a word
+   * before the run's first tab in the row, centred on the names. It is no tab, so it
+   * takes no aim floor. */
+  :host(lf-tabs[list="side"][data-lf-views]) .lf-tabstrip > .lf-tab-run {
+    display: flex;
+    flex-direction: column;
+  }
+  :host(lf-tabs[list="side"][data-lf-views]) .lf-tabstrip > .lf-tab-run + .lf-tab-run {
+    margin-block-start: 2px;
+    padding-block-start: 2px;
+    border-block-start: 1px solid var(--lf-border);
+  }
+  :host(lf-tabs[list="side"][data-lf-views]) .lf-tabstrip .lf-tab-group {
+    padding: 4px 12px 2px;
+  }
+  @container (width < 36rem) {
+    :host(lf-tabs[list="side"][data-lf-views]) .lf-tabstrip {
+      grid-column: 1 / -1;
+      grid-row: auto;
+      --lf-tabstrip-flow: row;
+      --lf-tabstrip-bg: var(--lf-card);
+      gap: 2px;
+      overflow-x: auto;
+      overflow-y: hidden;
+      scroll-padding-inline: var(--lf-tabstrip-press);
+      padding: 8px var(--lf-tabstrip-pad) 0;
+      border-inline-end: 0;
+      border-bottom: 1px solid var(--lf-border);
+      border-radius: var(--lf-r-in) var(--lf-r-in) 0 0;
+      min-block-size: var(--lf-tab-row-h);
+    }
+    :host(lf-tabs[list="side"][data-lf-views]) .lf-tabstrip .lf-tab-btn {
+      max-inline-size: 16rem;
+    }
+    :host(lf-tabs[list="side"][data-lf-views]) .lf-tabstrip > .lf-tab-run {
+      flex: none;
+      flex-direction: row;
+      --lf-tab-run-gap: 2px;
+      gap: var(--lf-tab-run-gap);
+    }
+    :host(lf-tabs[list="side"][data-lf-views])
+      .lf-tabstrip
+      > .lf-tab-run
+      + .lf-tab-run {
+      margin-block-start: 0;
+      padding-block-start: 0;
+      border-block-start: 0;
+      padding-inline-start: 4px;
+      border-inline-start: 1px solid var(--lf-border);
+    }
+    /* The label sticks at the row's start while its run scrolls under it, and the run's
+     * end pushes it out as the next run's label comes in, so the open item's group
+     * stays named however far along a long run the user is. It stands clear of the
+     * start press while that shows (`data-lf-more-before`, dom/reach.js), which is the
+     * only time a label can be stuck, and covers the whole height of the names that
+     * slide under it, its word still centred on theirs, so a tab landing in the row
+     * keeps the label's room before it: the module measures the label for this
+     * margin (lf-tabs.ts, `#showTab`). Where the label and the open tab cannot share
+     * the row (`data-lf-group-apart`), the tab lands whole and the label stands in
+     * its own place, scrolling with its run. */
+    :host(lf-tabs[list="side"][data-lf-views]) .lf-tabstrip .lf-tab-group {
+      flex: none;
+      display: flex;
+      align-items: center;
+      padding: 0 4px;
+      position: sticky;
+      inset-inline-start: calc(-1 * var(--lf-tabstrip-pad));
+      z-index: 1;
+      background: var(--lf-tabstrip-bg);
+    }
+    :host(lf-tabs[list="side"][data-lf-views])
+      .lf-tabstrip[data-lf-more-before]
+      .lf-tab-group {
+      inset-inline-start: calc(var(--lf-tabstrip-press) - var(--lf-tabstrip-pad));
+    }
+    :host(lf-tabs[list="side"][data-lf-views])
+      .lf-tabstrip
+      > .lf-tab-run:not([data-lf-group-apart])
+      > .lf-tab-group
+      ~ .lf-tab-btn {
+      scroll-margin-inline-start: calc(
+        var(--lf-tab-group-size) + var(--lf-tab-run-gap)
+      );
+    }
+    :host(lf-tabs[list="side"][data-lf-views])
+      .lf-tabstrip
+      > .lf-tab-run[data-lf-group-apart]
+      > .lf-tab-group {
+      position: static;
+    }
+    :host(lf-tabs[list="side"][data-lf-views])
+      .lf-tabstrip
+      .lf-tab-btn
+      > :is(.lf-tab-name, .lf-tab-summary) {
+      max-inline-size: 100%;
+      box-sizing: border-box;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+  }
+  /* A side list told it has a definite height to fill (tabs.css): its list scrolls on
+   * its own, spanning the two rows beside the item and taking the first stacked over
+   * it. */
+  @container style(--lf-full-height: 1) {
+    :host(lf-tabs[list="side"][data-lf-views]) .lf-tabstrip {
+      grid-row: 1;
+    }
+    @container (width >= 36rem) {
+      :host(lf-tabs[list="side"][data-lf-views]) .lf-tabstrip {
+        grid-row: 1 / -1;
+      }
+    }
+    :host(lf-tabs[list="side"][data-lf-views]) .lf-tabstrip {
+      align-self: stretch;
+      min-block-size: 0;
+      overflow: auto;
+      --lf-top: var(--lf-top-start);
+      overscroll-behavior: contain;
+      scrollbar-gutter: stable;
+      --lf-holds-height: 1;
+    }
+  }
+
+  /* Horizontal indexes stay with the panel they identify: a row's strip sticks at the
+   * slot its set met, over the panel (tabs.css passes the panel the strip's height). */
+  :host(lf-tabs:not([list="side"])) .lf-tabstrip {
+    position: sticky;
+    top: var(--lf-top);
+    --lf-head-inset: 8px;
+    z-index: 2;
+    block-size: var(--lf-tabstrip-h);
+  }
+
+  /* Each press stands at its edge without taking room in the row: a box no wider
+   * than nothing, stuck to that edge, whose face lies over the names beside it and
+   * fades into them. Its negative margin returns the strip's gap, so a press coming
+   * and going moves no name. It sticks at the strip's own edge rather than inside the
+   * strip's inline padding (`--lf-tabstrip-pad`), which a sticky box otherwise keeps
+   * clear, so no name shows unfaded beside the face and the face covers exactly the
+   * strip's `scroll-padding`. */
+  :host(:is(lf-tabs, lf-parts)) .lf-tabstrip-scroll {
+    display: none;
+    position: sticky;
+    z-index: 1;
+    flex: none;
+    inline-size: 0;
+    align-self: stretch;
+  }
+  :host(:is(lf-tabs, lf-parts)) .lf-tabstrip-scroll[data-lf-to="start"] {
+    inset-inline-start: calc(-1 * var(--lf-tabstrip-pad));
+    margin-inline-end: -2px;
+  }
+  :host(:is(lf-tabs, lf-parts)) .lf-tabstrip-scroll[data-lf-to="end"] {
+    inset-inline-end: calc(-1 * var(--lf-tabstrip-pad));
+    margin-inline-start: -2px;
+  }
+  :host(:is(lf-tabs, lf-parts)) .lf-tabstrip-scroll:dir(rtl) .lf-tabstrip-scroll-icon {
+    scale: -1 1;
+  }
+  :host(:is(lf-tabs, lf-parts)) .lf-tabstrip-scroll > span {
+    position: absolute;
+    inset-block: 0;
+    inline-size: var(--lf-tabstrip-press);
+    padding-inline: 8px;
+    display: flex;
+    align-items: center;
+    color: var(--lf-muted);
+    cursor: pointer;
+  }
+  :host(:is(lf-tabs, lf-parts))
+    .lf-tabstrip[data-lf-more-before]
+    > .lf-tabstrip-scroll[data-lf-to="start"],
+  :host(:is(lf-tabs, lf-parts))
+    .lf-tabstrip[data-lf-more-after]
+    > .lf-tabstrip-scroll[data-lf-to="end"] {
+    display: block;
+  }
+  :host(:is(lf-tabs, lf-parts)) .lf-tabstrip-scroll > span:hover {
+    color: var(--lf-ink);
+  }
+  :host(:is(lf-tabs, lf-parts)) .lf-tabstrip-scroll[data-lf-to="start"] > span {
+    inset-inline-start: 0;
+    justify-content: flex-start;
+    background: linear-gradient(to right, var(--lf-tabstrip-bg) 75%, transparent);
+  }
+  :host(:is(lf-tabs, lf-parts)) .lf-tabstrip-scroll[data-lf-to="end"] > span {
+    inset-inline-end: 0;
+    justify-content: flex-end;
+    background: linear-gradient(to left, var(--lf-tabstrip-bg) 75%, transparent);
+  }
+  :host(:is(lf-tabs, lf-parts))
+    .lf-tabstrip-scroll[data-lf-to="start"]:dir(rtl)
+    > span {
+    background: linear-gradient(to left, var(--lf-tabstrip-bg) 75%, transparent);
+  }
+  :host(:is(lf-tabs, lf-parts)) .lf-tabstrip-scroll[data-lf-to="end"]:dir(rtl) > span {
+    background: linear-gradient(to right, var(--lf-tabstrip-bg) 75%, transparent);
+  }
+
+  /* A page's parts where the page lays them out (tabs.css says when, by
+   * `--lf-parts-column` on the holder): the list a column on the page's ground, marking
+   * the open part with a painted face, and on a phone a row sticking over the part,
+   * its tabs names alone, so it stays one line high. */
+  @container style(--lf-parts-column: 1) {
+    :host(lf-parts[data-lf-views]) .lf-tabstrip {
+      --lf-tabstrip-flow: column;
+      gap: 0;
+      /* Room for a focus ring at the header's foot, where it scrolls (layouts.css). */
+      padding: calc(var(--lf-sp-4) - var(--lf-focus-ring-room)) 8px var(--lf-sp-4);
+      border-bottom: 0;
+      border-radius: 0;
+      --lf-tabstrip-bg: var(--lf-paper);
+    }
+    :host(lf-parts[data-lf-views]) .lf-tabstrip > .lf-tabstrip-scroll {
+      display: none;
+    }
+    @container lf-shell (width < 640px) {
+      :host(lf-parts[data-lf-views]) .lf-tabstrip {
+        block-size: var(--lf-tabstrip-h);
+        --lf-tabstrip-flow: row;
+        gap: 2px;
+        padding: 8px var(--lf-tabstrip-pad) 0;
+        border-bottom: 1px solid var(--lf-border);
+      }
+      :host(lf-parts[data-lf-views])
+        .lf-tabstrip
+        :is(.lf-tab-summary, .lf-tab-answer, .lf-tab-on-me) {
+        display: none;
+      }
+    }
+  }
+
+  /* Page tabs (`flow="page"`) stand on the page's ground, unframed. */
+  :host(lf-tabs[flow="page"]) .lf-tabstrip {
+    border-radius: 0;
+    --lf-tabstrip-pad: 0px;
+    --lf-tabstrip-bg: var(--lf-paper);
+  }
+  /* A full-height set gives its open tab what the strip leaves (tabs.css). */
+  @container style(--lf-full-height: 1) {
+    :host(lf-tabs[flow="page"]) .lf-tabstrip {
+      flex: none;
+    }
+  }
+}

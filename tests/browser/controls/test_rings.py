@@ -218,7 +218,7 @@ def test_a_side_lists_open_panel_rings_its_whole_cell(browser, serve):
     rendered(page)
     reach = page.evaluate(
         """() => {
-          const strip = document.querySelector('#queue > .lf-tabstrip');
+          const strip = document.querySelector('#queue').shadowRoot.querySelector('.lf-tabstrip');
           const words = document.getElementById('words-0').getBoundingClientRect();
           return {
             panel: document.getElementById('item-0').getBoundingClientRect().bottom,

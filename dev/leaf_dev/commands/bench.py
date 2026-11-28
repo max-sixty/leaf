@@ -277,13 +277,19 @@ PASSAGE = """(nth) => {
   const box = passage.getBoundingClientRect();
   return [box.x, box.y];
 }"""
+# A tab set's tab controls, which it draws in its shadow tree, each naming its panel by
+# reference (`ariaControlsElements`).
+TABS = """const tabsOf = (set) => [...set.shadowRoot.querySelectorAll("[role=tab]")];"""
 # The centre of the control of the tab whose panel is `panel`, brought into view.
-TAB_CONTROL = """(panel) => {
-  const control = document.querySelector(`[role=tab][aria-controls="${panel}"]`);
-  control.scrollIntoView({ block: "nearest" });
+TAB_CONTROL = f"""(id) => {{
+  {TABS}
+  const panel = document.getElementById(id);
+  const control = tabsOf(panel.parentElement)
+    .find((tab) => tab.ariaControlsElements[0] === panel);
+  control.scrollIntoView({{ block: "nearest" }});
   const box = control.getBoundingClientRect();
   return [box.x + box.width / 2, box.y + box.height / 2];
-}"""
+}}"""
 # The centre of the element `selector` names, or null where none shows yet.
 CENTRE = """(selector) => {
   const node = document.querySelector(selector);
@@ -292,14 +298,15 @@ CENTRE = """(selector) => {
   return [box.x + box.width / 2, box.y + box.height / 2];
 }"""
 # The centres of the page's first two tab controls, the first brought into view.
-TAB_CENTRES = """() => {
-  const controls = [...document.querySelectorAll("[role=tab]")].slice(0, 2);
-  controls[0].scrollIntoView({ block: "nearest" });
-  return controls.map((control) => {
+TAB_CENTRES = f"""() => {{
+  {TABS}
+  const controls = tabsOf(document.querySelector(":is(lf-tabs, lf-parts)")).slice(0, 2);
+  controls[0].scrollIntoView({{ block: "nearest" }});
+  return controls.map((control) => {{
     const box = control.getBoundingClientRect();
     return [box.x + box.width / 2, box.y + box.height / 2];
-  });
-}"""
+  }});
+}}"""
 # The leaf, the menu's tab at the On view's foot, which the leaf may have opened on
 # another, its Annotations, and Capture area's row there.
 MENU_ROWS = (
@@ -309,9 +316,9 @@ MENU_ROWS = (
     '.lf-fp-item[data-lf-row="command:capture.region.open"]',
 )
 # The number of the document `side_documents` shows, in the tab open now.
-SHOWN_DOCUMENT = """() => Number(document
-  .querySelector('#docs [role=tab][aria-selected="true"]')
-  .getAttribute("aria-controls").slice(1))"""
+SHOWN_DOCUMENT = """() => Number(document.querySelector("#docs").shadowRoot
+  .querySelector('[role=tab][aria-selected="true"]')
+  .ariaControlsElements[0].id.slice(1))"""
 # Whether document `d`'s first line shows in its syntax colour.
 COLOURED = """(d) => {
   const row = document.querySelector(`#d${d} .lf-text-document-run > div`);
@@ -1447,7 +1454,7 @@ def open_tabs(tab: Tab) -> Goals:
     if tab.page.evaluate("() => window.__leafBench.met('searching')"):
         tab.page.keyboard.press("Escape")
     count = tab.page.evaluate(
-        "() => document.querySelectorAll('#docs [role=tab]').length"
+        "() => document.querySelector('#docs').shadowRoot.querySelectorAll('[role=tab]').length"
     )
     for d in range(1, count):
         tab.page.mouse.click(*tab.page.evaluate(TAB_CONTROL, f"t{d}"))
@@ -1550,7 +1557,7 @@ INPUTS: dict[str, Input] = {
         leave=design_key,
         each=False,
         after=50,
-        needs="[role=tab]",
+        needs=":is(lf-tabs, lf-parts)",
     ),
     "pick": Input(
         pick_step,
@@ -1559,10 +1566,15 @@ INPUTS: dict[str, Input] = {
         leave=leave_picker,
         each=False,
         after=100,
-        needs="[role=tab]",
+        needs=":is(lf-tabs, lf-parts)",
     ),
     "part": Input(
-        press, 4, enter_design, leave=leave_composer, after=400, needs="[role=tab]"
+        press,
+        4,
+        enter_design,
+        leave=leave_composer,
+        after=400,
+        needs=":is(lf-tabs, lf-parts)",
     ),
     "draw": Input(draw_key, 2, halfway, each=False, after=400),
     "capture": Input(capture_toggle, 2, open_annotations, each=False, after=400),

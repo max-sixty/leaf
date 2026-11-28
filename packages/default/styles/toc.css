@@ -433,7 +433,7 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
       opacity: 1;
     }
     lf-toc:is(:hover, [data-lf-focus-within]) .lf-toc-labels::before,
-    lf-toc:is(:hover, [data-lf-focus-within]) .lf-toc-labels a:not([data-lf-toc-off]) {
+    lf-toc:is(:hover, [data-lf-focus-within]) .lf-toc-labels .lf-toc-link:not([data-lf-toc-off]) {
       pointer-events: auto;
     }
     @scope (body[data-lf-go-to-active] lf-toc) {
@@ -442,7 +442,7 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
         transition: none;
       }
       :scope:is(lf-toc) .lf-toc-labels::before,
-      :scope:is(lf-toc) .lf-toc-labels a:not([data-lf-toc-off]) {
+      :scope:is(lf-toc) .lf-toc-labels .lf-toc-link:not([data-lf-toc-off]) {
         pointer-events: auto;
       }
     }

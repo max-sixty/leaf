@@ -610,9 +610,7 @@ const placementsRule = {
           (definition) =>
             definition.type === "ImportBinding" &&
             definition.node.imported?.name === "EditorView" &&
-            /(?:^|\/)vendor\/[^/]+\.js$/u.test(
-              definition.parent.source.value,
-            ),
+            /(?:^|\/)vendor\/[^/]+\.js$/u.test(definition.parent.source.value),
         );
       }
       return false;

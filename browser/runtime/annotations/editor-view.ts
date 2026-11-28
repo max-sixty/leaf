@@ -64,8 +64,10 @@ type CodeMirrorCore = Pick<
   "Compartment" | "Direction" | "EditorState" | "EditorView" | "StateEffect"
 >;
 
-const classes: WeakMap<CodeMirrorCore, ReturnType<typeof editorViewOver>> =
-  new WeakMap();
+const classes: WeakMap<
+  CodeMirrorCore,
+  ReturnType<typeof editorViewOver>
+> = new WeakMap();
 /** The view class over `codemirror`, a CodeMirror 6 bundle's namespace. */
 export function leafEditorView(codemirror: CodeMirrorCore) {
   let made = classes.get(codemirror);

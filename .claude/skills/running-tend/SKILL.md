@@ -153,8 +153,13 @@ once more.
 
 Two test-owned failures recur:
 
-- **A read or press before the page said it was ready**, which a re-run hides.
-  State the ordering (`tests/AGENTS.md`, **Races** and **Transient states**) rather than repeating the gesture.
+- **A timing a slower host can still miss**, such as a read or press before the
+  page said it was ready, or a passing pose a starved host may sample only once. A
+  re-run hides it, and a longer wait or a longer animation only moves the odds.
+  State the ordering, or hold and step the motion (`tests/AGENTS.md`, **Races**,
+  **Transient states** and **Frames, sequences, and instants**), rather than
+  repeating the gesture or giving it more time. A review reports a repair that only
+  gives it more time.
 - **A reading that has been widened before.** When the fix that presents itself
   is one more member of an accepted set, allowlist, or tolerance, read the line's
   history (`git log -L`); a set that keeps growing describes the suite's own

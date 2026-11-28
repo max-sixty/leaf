@@ -2525,3 +2525,25 @@ def test_c_on_a_commented_point_continues_its_thread_beside_one_on_the_chart(
     )
     expect(reply).to_be_focused()
     expect(page.locator(".lf-composer")).to_be_hidden()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_escape_from_a_point_s_card_leaves_the_chart_s_ring_off(engine, request, serve):
+    """Escape from the card of a comment on a point the keys reached lets go of it,
+    landing Tab's start beside the chart without putting the reader on a point: the
+    ring and its aim stay off, and the focus that passes through the chart writes
+    nothing to them, which the browser fixture's write watch would report."""
+    page = open_page(clocked(request.getfixturevalue(engine)), serve(POINTS_PAGE))
+    expect(page.locator("#p-line svg[role=img]")).to_be_visible()
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(page.locator("#p-line")).to_be_focused()
+    page.keyboard.press("ArrowRight")
+    page.keyboard.press("c")
+    page.keyboard.type("Why did frontend rise?")
+    with sending(page, "the line's comment"):
+        page.keyboard.press("Enter")
+    page.keyboard.press("Escape")
+    expect(page.locator("#p-line")).not_to_be_focused()
+    expect(page.locator("#p-line .lf-chart-at")).to_have_attribute("display", "none")
+    expect(page.locator("#p-line .lf-chart-aim")).to_have_attribute("display", "none")

@@ -180,6 +180,12 @@ const BoardModel = Schema.Struct({
   // each ask is spent once.
   reveal: Schema.NullOr(Schema.Struct({ card: Schema.String, ask: Schema.Number })),
   asks: Schema.Number,
+  // The placement a recorded move leaves, with the `state` it was recorded against.
+  // A draw commits before its Commands run, so the draw that ends the gesture still
+  // has that `state`; it draws this placement, as the `state` the move then sets
+  // will, rather than put the card back for one draw. Any later `state` places the
+  // cards itself.
+  landed: Schema.NullOr(Schema.Struct({ placement: Placement, state: Schema.Unknown })),
 });
 
 export const BoardMessage = UiSchema.TaggedEnum({
@@ -349,8 +355,14 @@ function send($, next, card, from, to, index) {
     );
   }
   const current = placementOf(props);
-  if (!current) return step;
-  return step.run(
+  if (!current) return $.evolve(next);
+  const placement = Object.fromEntries(
+    Object.entries(current).map(([column, cards]) => {
+      const rest = cards.filter((id) => id !== card);
+      return [column, column === to ? rest.toSpliced(index, 0, card) : rest];
+    }),
+  );
+  return $.evolve({ ...next, landed: { placement, state: props.state } }).run(
     RecordAction.make({
       verb: "move",
       detail: {
@@ -375,7 +387,14 @@ export const Board = Html.component({
   model: BoardModel,
   message: BoardMessage,
 }).make({
-  init: () => ({ held: null, grab: null, dragging: null, reveal: null, asks: 0 }),
+  init: () => ({
+    held: null,
+    grab: null,
+    dragging: null,
+    reveal: null,
+    asks: 0,
+    landed: null,
+  }),
   update: {
     // One gesture at a time: a grab, or a pointer drag under way, holds the board.
     Grabbed: ($, { card }) => {
@@ -487,7 +506,11 @@ export const Board = Html.component({
   },
   view: (h, model) => {
     const props = h.props;
-    const placement = model.held ?? placementOf(props);
+    const placement =
+      model.held ??
+      (model.landed && model.landed.state === props.state
+        ? model.landed.placement
+        : placementOf(props));
     const faces = {};
     if (!props.exhibit)
       for (const card of props.cards) {
@@ -571,33 +594,43 @@ function structure(host) {
 function arrange(host, placement, reveal) {
   const columns = new Map(columnsOf(host).map((column) => [column.id, column]));
   const cards = new Map(cardsOf(host).map((card) => [card.id, card]));
-  const placed = [...columns].every(([id, column]) => {
+  // The columns whose cards stand otherwise than the placement says. Only their cards
+  // move, so only theirs are measured and carried (FLIP).
+  const changed = [...columns].filter(([id, column]) => {
     const order = placement[id] ?? [];
     const current = cardsIn(column);
     return (
-      current.length === order.length &&
-      current.every((card, i) => card.id === order[i])
+      current.length !== order.length || current.some((card, i) => card.id !== order[i])
     );
   });
-  if (placed) return false;
+  if (!changed.length) return false;
   const shown = reveal ? cards.get(reveal) : undefined;
   const origin = shown && [
     shown.parentElement,
     cardsIn(shown.parentElement).indexOf(shown),
   ];
   const first = new Map(
-    [...cards.values()].map((card) => {
-      const painted = card.getBoundingClientRect();
-      for (const animation of card.getAnimations()) animation.cancel();
-      return [card, painted];
-    }),
+    changed.flatMap(([id]) =>
+      (placement[id] ?? []).flatMap((cardId) => {
+        const card = cards.get(cardId);
+        if (!card) return [];
+        const painted = card.getBoundingClientRect();
+        for (const animation of card.getAnimations()) animation.cancel();
+        return [[card, painted]];
+      }),
+    ),
   );
-  for (const [id, column] of columns)
-    (placement[id] ?? []).forEach((cardId, index) => {
-      const card = cards.get(cardId);
-      if (card && cardsIn(column)[index] !== card)
-        move(column, card, cardsIn(column)[index] ?? null);
-    });
+  for (const [id, column] of changed) {
+    // Each card goes before the one standing where the next belongs, read once from
+    // the column's children rather than again for every card.
+    const order = (placement[id] ?? []).flatMap((cardId) => cards.get(cardId) ?? []);
+    let next = column.querySelector(":scope > lf-card");
+    for (const card of order) {
+      if (card !== next) move(column, card, next);
+      else next = card.nextElementSibling;
+      while (next && next.localName !== "lf-card") next = next.nextElementSibling;
+    }
+  }
   const moved =
     shown &&
     origin &&

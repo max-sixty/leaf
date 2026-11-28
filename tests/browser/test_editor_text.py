@@ -92,12 +92,13 @@ def test_an_editor_s_text_follows_typing_once_it_rests_and_takes_a_revert(
 ):
     """The output holds what the user typed only once their typing has rested half a
     second, so a diff bound to it redraws once a pause rather than at each key, and it
-    holds a draft's unsent words as a file's unsaved ones. A Revert on one hunk is
+    holds a draft's unsent words as a file's unsaved ones. A Revert on one change is
     taken as one edit, moving the output in the task that takes it, which leaves the
-    user's other changes and their typing alone and which one undo takes back. A
-    request naming a value the output no longer holds is refused, and a draft whose
-    editor is open offers its diff no Revert at all, since its words can't be folded
-    around one."""
+    user's other changes and their typing alone and which one undo takes back. It
+    leaves the user in the file at the restored line, or on a draft's diff at the row
+    where the change stood. A request naming a value the output no longer holds is
+    refused, and a draft whose editor is open offers its diff no Revert at all, since
+    its words can't be folded around one."""
     editor = EDITORS[kind]
     url = serve(
         leaf_page(
@@ -144,6 +145,17 @@ def test_an_editor_s_text_follows_typing_once_it_rests_and_takes_a_revert(
     held = page.evaluate(TEXT)
     assert held["text"] == typed.replace("Line thirty.", "Line 30.")
     expect(reverts).to_have_count(2)
+    # A file's Revert takes the user to the restored line in the file; a draft's leaves
+    # them on the row where the change stood, to go on reviewing, not on a press.
+    if kind == "file":
+        expect(
+            page.locator("#notes").get_by_role("textbox", name="File contents")
+        ).to_be_focused()
+    else:
+        assert page.evaluate(
+            "() => document.querySelector('#changes').shadowRoot.activeElement"
+            "?.hasAttribute('data-line')"
+        )
 
     editor.undo(page)
     page.wait_for_function(

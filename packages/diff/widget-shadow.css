@@ -334,30 +334,28 @@ span.lf-diff-line-number {
    neither; the shared Web Awesome theme draws that band once for every package. */
 /* A line's press stands in a stack of lines, one above the next, so it reaches no
    further than its own line: a reach would lie over the press on the next. */
-.lf-diff-line-comment::after {
+.lf-diff-line-comment::after,
+.lf-diff-revert::after {
   content: none;
 }
-/* A hunk's Revert (lf-diff.js, `revertButton`), a quiet word at the end of the hunk's
-   first row: it floats there, so the row's words wrap short of it, and sticks to the
-   code's visible end while the code scrolls sideways. It stands the row's line rather
-   than a word's (`--lf-line`), its words set solid, so the row keeps one code line's
-   height. */
-.lf-diff-line:has(> .lf-diff-revert) {
-  display: flow-root;
-}
+/* A change's Revert (lf-diff.js, `revertButton`): Leaf's U-turn in the room its first
+   row's gutter keeps before the numbers, where the comment press draws its + on other
+   rows, a line tall and that room wide, in the ink of its row's numbers (below). The
+   row's numbers still take a comment. */
 .lf-diff-revert {
-  float: inline-end;
-  position: sticky;
-  inset-inline-end: 0;
-  z-index: 1;
-  font: var(--lf-font-small);
-  line-height: 1;
-  --lf-line: var(--lf-code-line);
-  padding-block: calc((var(--lf-line) - 1lh) / 2 - 1px);
-  user-select: none;
+  position: absolute;
+  z-index: 3;
+  inset-block-start: 0;
+  inset-inline-start: 0;
+  --lf-icon-action-face: var(--lf-code-line);
+  --lf-icon-action-hit: 2ch;
+}
+.lf-diff-line:has(> .lf-diff-revert) > .lf-diff-line-comment::before {
+  content: none;
 }
 /* For the same reason its ring stands on its edge (base.css, "Where it stands"). */
-.lf-diff-comment {
+.lf-diff-comment,
+.lf-diff-revert {
   --lf-ring-at: 0px;
 }
 /* The file's own row, and the box it opens clips (overflow above), so the ring it wears
@@ -496,10 +494,10 @@ pre[data-overflow="wrap"] .lf-diff-rows {
 .lf-diff-line[data-line-type="change-addition"] {
   background: var(--lf-code-add-fill);
 }
-.lf-diff-line[data-line-type="change-deletion"] > button[data-lf-echo] {
+.lf-diff-line[data-line-type="change-deletion"] > button {
   color: var(--lf-danger-ink);
 }
-.lf-diff-line[data-line-type="change-addition"] > button[data-lf-echo] {
+.lf-diff-line[data-line-type="change-addition"] > button {
   color: var(--lf-ok-ink);
 }
 :where(:host(lf-diff)) [data-line-type="change-deletion"] [data-diff-span] {

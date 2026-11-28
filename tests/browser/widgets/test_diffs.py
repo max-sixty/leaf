@@ -977,19 +977,37 @@ def test_a_diff_of_a_file_and_its_committed_text_follows_the_typing(
     assert file.read_text() == edited
 
 
-def test_a_revert_lands_in_the_file_and_keeps_the_typing_it_meets(
+# What the diff's shadow tree has focused: a change's Revert, a row's words or another
+# element, and the words of the row it stands on.
+DIFF_FOCUS = """(id) => {
+  const at = document.getElementById(id).shadowRoot.activeElement;
+  const kind = at?.classList.contains("lf-diff-revert")
+    ? "Revert"
+    : at?.hasAttribute("data-line") ? "row" : (at?.localName ?? null);
+  return [kind, at?.closest(".lf-diff-line")?.querySelector("[data-line]")?.textContent ?? null];
+}"""
+
+
+def test_a_revert_takes_back_one_change_and_lands_in_the_file_there(
     browser, serve, tmp_path
 ):
-    """Revert on a hunk of a diff bound to a file's editor puts the hunk back to the
-    committed text and lands the user in the editor at the restored line, ready to
-    undo it there. Pressed while the editor still holds typing its output hasn't
-    taken in, it folds around typing on other lines and is refused over typing on the
-    hunk's own lines, which stays, and the page says it wasn't reverted. A diff bound to
-    the file's binding follows the file on disk, which takes no request, so it offers
-    none. The row Revert stands on still takes a comment by its number."""
+    """Revert on a change of a diff bound to a file's editor, a run of changed lines,
+    puts that change alone back to the committed text, though its hunk holds another,
+    and lands the user in the editor at the restored line, ready to undo it there. The
+    keyboard reaches it from the hunk walk: `]` lands on the hunk's first row, and Tab
+    on each of its changes' Reverts in turn. The committed text's CRLF breaks beside the
+    editor's LF change nothing the diff draws, so each Revert applies. Pressed while the
+    editor still holds typing its output hasn't taken in, a Revert folds around typing
+    on other lines and is refused over typing on the change's own lines, which stays,
+    and the page says it wasn't reverted. A diff bound to the file's binding follows the
+    file on disk, which takes no request, so it offers none. The row Revert stands on
+    still takes a comment by its number."""
     earlier = "".join(f"Line {number}.\n" for number in range(1, 41))
-    current = earlier.replace("Line 5.", "Line five.").replace(
-        "Line 30.", "Line thirty."
+    # Two changes three lines apart, which one hunk holds, and one in a hunk of its own.
+    current = (
+        earlier.replace("Line 5.", "Line five.")
+        .replace("Line 8.", "Line eight.")
+        .replace("Line 30.", "Line thirty.")
     )
     file = tmp_path / "notes.md"
     file.write_text(current)
@@ -1003,28 +1021,51 @@ def test_a_revert_lands_in_the_file_and_keeps_the_typing_it_meets(
     )
     bind_file(serve.page_dir, "notes", file)
     page_data_model.cmd_data_set(
-        serve.page_dir, "committed", {"name": "notes.md", "text": earlier}
+        serve.page_dir,
+        "committed",
+        {"name": "notes.md", "text": earlier.replace("\n", "\r\n")},
     )
     page = open_page(browser, live_url(url))
     editor = page.locator("lf-file-editor").get_by_role(
         "textbox", name="File contents", exact=True
     )
     reverts = page.locator("#changes .lf-diff-revert")
-    expect(reverts).to_have_count(2)
+    expect(reverts).to_have_count(3)
+    expect(page.locator("#changes .lf-diff-line")).to_have_count(20)
     expect(page.locator("#on-disk .lf-diff-line")).not_to_have_count(0)
     expect(page.locator("#on-disk .lf-diff-revert")).to_have_count(0)
     # The row Revert stands on still takes a comment on its line by its number.
-    head = page.locator("#changes .lf-diff-line").first
+    head = reverts.first.locator("xpath=..")
     head.hover()
     head.locator(".lf-diff-line-comment").click()
     expect(page.locator(".lf-composer")).to_be_visible()
     page.keyboard.press("Escape")
     expect(page.locator(".lf-composer")).to_be_hidden()
 
+    def focus_is(kind, words):
+        page.wait_for_function(
+            f"([id, want]) => JSON.stringify(({DIFF_FOCUS})(id)) === JSON.stringify(want)",
+            arg=["changes", [kind, words]],
+        )
+
     text = "() => document.getElementById('notes-file').text.text"
-    reverts.first.click()
+    page.locator("#changes summary").first.focus()
+    page.keyboard.press("]")
+    focus_is("row", "Line 2.")
+    page.keyboard.press("Tab")
+    focus_is("Revert", "Line 5.")
+    page.keyboard.press("Tab")
+    focus_is("Revert", "Line 8.")
+    page.keyboard.press("Shift+Tab")
+    focus_is("Revert", "Line 5.")
+    page.keyboard.press("Enter")
     expect(editor).to_be_focused()
     expect(editor.locator(".cm-activeLine")).to_have_text("Line 5.")
+    page.wait_for_function(f"() => ({text})().includes('Line 5.\\nLine 6.')")
+    assert page.evaluate(text) == current.replace("Line five.", "Line 5.")
+    expect(reverts).to_have_count(2)
+    reverts.first.click()
+    expect(editor.locator(".cm-activeLine")).to_have_text("Line 8.")
     expect(reverts).to_have_count(1)
 
     # From here only the test moves the page's clock, so the typing stays untaken by

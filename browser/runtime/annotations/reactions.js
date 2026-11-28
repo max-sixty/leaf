@@ -585,8 +585,10 @@ export function createReactionController({
       if (reactArmed && reactSurface === marginSurface) setReact(false);
     });
     // The margin's entries are drawn from the threads and the annotation inventory, so a
-    // change to either may retire or move the offer's target. This reads the margin's
-    // nodes, which the watcher cannot track, so it reads those parts itself.
+    // change to either may retire or move the offer's target, and a reaction put on or
+    // taken back, in this tab or another, changes which of the bar's chips stand pressed.
+    // This reads the margin's nodes, which the watcher cannot track, so it reads those
+    // parts itself.
     const margin = readPart((root) => ({
       threads: root.effective.thread.collection.threads,
       annotations: annotationSelection(root),
@@ -601,6 +603,7 @@ export function createReactionController({
         )
           setReact(false);
         else if (reactArmed && reactSurface === marginSurface) marginOffer?.update();
+        if (fabAnchorAt()) paintBarReactions(fabAnchorAt());
       });
     });
   }

@@ -267,12 +267,13 @@ the view writes it as a keep-alive child (`h.keepAlive`, which takes a keyed chi
 component), whose nodes move with it and keep their words. Around each draw a set of
 `state`, an input or a member starts, the element `defineWidget` defines holds the
 user's place by the `data-lf-datum` key of the datum they are in (`module-state.md`,
-"Marking drawn data"): on their own node where it survived the draw, else on the
-widget's datum now carrying that key, else on the nearest one still drawn, on the datum
-itself rather than a control in it. A widget whose rows draw no box of their own
-(`display: contents`) leaves the user on the page's body when their row goes. After a
-draw the component's own messages start, which has no such hold, a user whose node it
-removed or moved to another parent lands on the body.
+"Marking drawn data"), and puts them back only where the draw lost their focus: where
+they last stood, if that is drawn again; else on their own node where it survived the
+draw; else on the widget's datum now carrying that key, else on the nearest one still
+drawn, on the datum itself rather than a control in it; and last, as where a removal
+empties the list, on the widget's own element. After a draw the component's own
+messages start, which has no such hold, a user whose node it removed or moved to
+another parent lands on the body.
 
 Before code outside a view hides or replaces nodes the user may be in, as a Mount's own
 redraw that rebuilds or deletes a row does, call `const restore = holdFocus(scope)`, and

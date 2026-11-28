@@ -408,7 +408,7 @@ test("an item a new state moves to another shelf, or removes, leaves the user on
   }
 });
 
-test("a row a new state moves or removes keeps the user on the control at their control's place among those like it", async () => {
+test("a row a new state moves or removes lands the user on the row, never on a control chosen by its look", async () => {
   const tag = `lf-effect-${++tags}`;
   defineWidget(
     tag,
@@ -430,6 +430,8 @@ test("a row a new state moves or removes keeps the user on the control at their 
                     .key(item)
                     .attr("data-lf-datum", item)
                     .children(
+                      // A moved row gains a control like the user's before theirs.
+                      shelf ? h.button.class("act").children("Undo") : null,
                       h.button.class("act").children("Remove"),
                       h.button.class("act").children("Move"),
                     ),
@@ -447,18 +449,16 @@ test("a row a new state moves or removes keeps the user on the control at their 
   el.addEventListener("pending-task", (event) =>
     pending.push(/** @type {any} */ (event).complete),
   );
-  const acts = (/** @type {string} */ item) =>
-    /** @type {NodeListOf<HTMLButtonElement>} */ (
-      el.querySelectorAll(`[data-lf-datum="${item}"] .act`)
-    );
+  const row = (/** @type {string} */ item) =>
+    el.querySelector(`[data-lf-datum="${item}"]`);
   try {
-    acts("b")[1].focus();
+    /** @type {HTMLButtonElement} */ (row("b")?.querySelectorAll(".act")[1]).focus();
     el.state = { shelves: [["a", "c"], ["b"]] };
     await Promise.all(pending);
-    assert.equal(document.activeElement, acts("b")[1]);
+    assert.equal(document.activeElement, row("b"));
     el.state = { shelves: [["a", "c"], []] };
     await Promise.all(pending);
-    assert.equal(document.activeElement, acts("c")[1]);
+    assert.equal(document.activeElement, row("c"));
   } finally {
     el.remove();
   }

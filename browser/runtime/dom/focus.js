@@ -1387,12 +1387,12 @@ export const likeSelector = (control) =>
 // and its restore, after the held node, tries the item now carrying the same key, then
 // the nearest item that survived after it, then before it, before the caller's own
 // stand-ins: the user is never left on the body because the row they were on left the
-// list. In the item it lands on, it puts the user on the control at the place theirs
-// held among the controls like it, as the second Remove for the second Remove, or on
-// the item itself, a stop lent where it is no control, where the item has no control
-// at that place. `owns` says which keyed items are the scope's own, where a scope holds
-// another's, as a widget holds a nested widget whose keys are its own.
-export function holdFocus(scope, { key = null, owns = () => true } = {}) {
+// list. Where focus won't land on one, the restore goes on to the next. With `alike`
+// false it lands on the item itself, a stop lent where it is no control, and never on
+// a control in it chosen by its tag and classes. `owns` says which keyed items are the
+// scope's own, where a scope holds another's, as a widget holds a nested widget whose
+// keys are its own.
+export function holdFocus(scope, { key = null, alike = true, owns = () => true } = {}) {
   const node = heldIn(scope);
   if (!node) return null;
   const restore = holdOn(node);
@@ -1409,8 +1409,7 @@ export function holdFocus(scope, { key = null, owns = () => true } = {}) {
       (item) => renderedUnder(item, scope) && owns(item),
     );
   // A key marking several nodes of one place counts once, where it first stands.
-  const held = items();
-  const keys = [...new Set(held.map((each) => each.getAttribute(key)))];
+  const keys = [...new Set(items().map((each) => each.getAttribute(key)))];
   const at = keys.indexOf(item.getAttribute(key));
   const order = [keys[at], ...keys.slice(at + 1), ...keys.slice(0, at).reverse()];
   // In an item, the control like the one the user was on, as Remove for Remove, read
@@ -1424,22 +1423,6 @@ export function holdFocus(scope, { key = null, owns = () => true } = {}) {
     control = host;
   }
   const like = likeSelector(control);
-  // The drawn controls like the user's under the nodes one key marks, in order, read in
-  // each node's own tree (`eachRenderedElement`, entering no host's root). One key may
-  // mark several nodes of one place, as a diff line's text and its gutter's Comment.
-  const alikeIn = (nodes) => {
-    const out = [];
-    const visit = (at) => {
-      if (at.matches(like) && drawn(at)) out.push(at);
-      eachRenderedElement(at, visit, () => null);
-    };
-    for (const each of nodes) visit(each);
-    return out;
-  };
-  const sameKey = item.getAttribute(key);
-  const nth = alikeIn(
-    held.filter((each) => each.getAttribute(key) === sameKey),
-  ).indexOf(control);
   const [same, ...rest] = order;
   return (...standIns) => {
     // The items now present, by key, read once for the whole restore: a list whose keys
@@ -1460,11 +1443,32 @@ export function holdFocus(scope, { key = null, owns = () => true } = {}) {
       }
       return byKey.get(value) ?? [];
     };
-    // The drawn item keyed so, where a hidden copy of it stands too: the control at the
-    // user's place among those like theirs, or else the item.
+    // The drawn item keyed so, where a hidden copy of it stands too. One key may mark
+    // several nodes of one place, as a diff line's text and its gutter's Comment: the one
+    // like the control the user was on, or holding one, comes first.
+    // Read in the item's own tree, as `like` was (`eachRenderedElement`, entering no
+    // host's root).
+    const matching = (root) => {
+      if (root.matches(like) && drawn(root)) return root;
+      let found = null;
+      eachRenderedElement(
+        root,
+        (child) => {
+          found ??= matching(child);
+        },
+        () => null,
+      );
+      return found;
+    };
     const find = (value) => {
       const found = keyed(value).filter(placeable);
-      return (nth >= 0 ? alikeIn(found)[nth] : undefined) ?? found[0] ?? null;
+      if (!alike) return found[0] ?? null;
+      return (
+        found.find((each) => each.matches(like)) ??
+        found.map(matching).find(Boolean) ??
+        found[0] ??
+        null
+      );
     };
     // The item keyed the same is the same place, so the caret goes with the user; a
     // neighbour is another place, which this hold lands on with no caret.

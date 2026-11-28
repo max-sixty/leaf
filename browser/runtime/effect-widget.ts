@@ -82,10 +82,11 @@
    focus or words, and a removed node takes focus with it. Around each draw it starts,
    from a set or a member, the adapter holds the user's place by the key of the drawn
    datum they are in (`data-lf-datum`, module-state.md, "Marking drawn data"), which
-   the widget declares: where the draw took their node away, they land on the datum
-   now carrying that key among its own, else the nearest one still drawn, on the
-   control at their control's place among those like it, or on the datum
-   (`holdFocus`). A draw the component's own message starts has no
+   the widget declares: on their own node where it survived the draw, else on the
+   datum now carrying that key among its own, else the nearest one still drawn, on the
+   datum itself and never on a control in it chosen by its look (`holdFocus`,
+   `alike: false`). A widget that keeps the user on their control across a move to
+   another parent writes the row as a keep-alive child, whose nodes survive. A draw the component's own message starts has no
    such hold, since Effect UI gives no hook before its flush. A widget whose rows move
    between parents writes each row as a keep-alive child (`h.keepAlive`), whose nodes
    move with it and keep the user's words.
@@ -154,8 +155,9 @@ export type WidgetOptions = {
   members?: Record<string, Member>;
 };
 
-// Every member Leaf reads off a widget's element (runtime-globals.d.ts), `lfHold`
-// included, which Leaf reads off an outlet a widget returns, the widget's element too.
+// Every member Leaf reads off a widget's element (runtime-globals.d.ts). A member Leaf
+// reads off a node the view draws, as `lfPreview` and an outlet's `lfHold` are, the view
+// sets there (`.prop`).
 const DECLARED = [
   "lfCommands",
   "lfParts",
@@ -169,7 +171,6 @@ const DECLARED = [
   "lfDataDatum",
   "lfDatumLabel",
   "threadOutlets",
-  "lfHold",
 ] as const;
 
 /** What a widget states on its element for Leaf to read. */
@@ -490,6 +491,7 @@ export function defineWidget(
     #redraws() {
       const restore = holdFocus(this, {
         key: "data-lf-datum",
+        alike: false,
         owns: (item) => drawerOf(item.parentNode) === this,
       });
       const drawn = Promise.resolve().then(() => {

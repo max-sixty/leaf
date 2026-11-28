@@ -21,8 +21,9 @@
  * Rows are keyed by call within their root, so a row the next capture keeps under the
  * same root keeps its nodes, and the selection or focus on it. A row a capture moves
  * under another root is a new node there, in that root's fold, since Effect UI keys
- * children within one parent. Focus on the row follows it by its datum key
- * (effect-widget.js), and a folded destination opens to show it (`FollowRow`), since
+ * children within one parent. A user on the row lands on the new row by its datum key,
+ * the row itself rather than its location link (effect-widget.js), and a folded
+ * destination opens to show it (`FollowRow`), since
  * the user's place outweighs a fold made before the row arrived. A row moved without
  * focus leaves its destination's fold as it was. After each commit the root says the
  * value it drew (`drawn`, host/element-data.js), so Leaf stamps the rows' datum marks

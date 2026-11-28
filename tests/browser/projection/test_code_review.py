@@ -915,9 +915,10 @@ def test_call_diff_source_paths_do_not_alias_durable_rename_coordinates(browser,
 
 
 def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
-    """A capture that reorders the roots moves the group the user is located in, one that
-    reorders a root's calls moves the row, and one that moves a call under another root,
-    folded or open, moves the row there: each way they stay on its location."""
+    """A capture that reorders the roots moves the group the user is located in, and one
+    that reorders a root's calls moves the row, each way keeping them on its location.
+    One that moves a call under another root, folded or open, draws the row anew there,
+    and the user lands on that row, the datum the call diff declares."""
     url = serve(
         leaf_page(
             "call diff order",
@@ -1010,7 +1011,7 @@ def test_call_diff_keeps_the_user_on_a_row_a_new_capture_moves(browser, serve):
             )
         ).to_have_text(destination)
         expect(location).to_be_visible()
-        expect(location).to_be_focused()
+        expect(location.locator("xpath=ancestor::*[@data-lf-datum][1]")).to_be_focused()
         expect(groups.last).not_to_have_attribute("open", "")
 
     # Native callee keys do not identify persistent invocation instances. Source

@@ -989,10 +989,11 @@ Leaf is moving every view it draws to Effect UI, so that each is written, tested
 maintained one way. Every widget, Leaf's bundled widgets and other authors' alike, ends
 as an Effect UI component that `defineWidget` defines (`runtime/effect-widget.js`), so
 the package interface holds one way to write one, and a new widget is written that
-way. Leaf's chrome, the runtime's own views, follows one view at a time. Until the move
-ends, a bundled widget may still be a `LeafElement` (`runtime/lib/leaf-element.js`),
-which draws with Lit, or a plain custom element, the chrome draws with Lit, and each
-module's header gives its contract.
+way. Leaf's chrome, the runtime's own views, follows one component at a time, since a
+component keeps one renderer (below). Until the move ends, a bundled widget may still
+be a `LeafElement` (`runtime/lib/leaf-element.js`), which draws with Lit, or a plain
+custom element, the chrome draws with Lit, and each module's header gives its
+contract.
 
 Each port, the change that moves a view to Effect UI, leaves the view no harder to
 work on and no slower on a large page. A widget's port pays for itself by bringing

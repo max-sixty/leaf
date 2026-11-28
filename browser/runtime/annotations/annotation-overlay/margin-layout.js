@@ -1225,12 +1225,10 @@ function coverIn(root, band, target, bands, stop, standing, children, subject) {
           : by;
       if (!boxless && !holds && node !== target) boxes.push({ node, box, by: at });
       const control = node.matches(CONTROL);
-      // The target's own shadow tree is walked like its children, so its words and
-      // controls are cover and the rest of its box is room the pin may stand on.
       if (
         !boxless &&
         !holds &&
-        ((node.shadowRoot && node !== target) || node.matches(OPAQUE) || control) &&
+        (node.shadowRoot || node.matches(OPAQUE) || control) &&
         node.checkVisibility()
       ) {
         const clipped = clippedRect(box, node, bands, stop);

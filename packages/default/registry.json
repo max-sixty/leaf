@@ -429,7 +429,6 @@
     "attributes": { "required": ["id"] },
     "content": "members",
     "space": "available",
-    "shadow": true,
     "verbs": {
       "move": {
         "record": {
@@ -478,7 +477,6 @@
     },
     "owners": ["lf-column"],
     "verbatim": true,
-    "shadow": true,
     "inputs": {
       "choice": { "contract": "choice", "reference": "shows", "property": "choice" }
     },

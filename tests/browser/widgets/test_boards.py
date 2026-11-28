@@ -453,7 +453,7 @@ def test_a_sideways_board_keeps_a_card_s_words_whole(browser, serve, subtests):
             """() => {
               const board = document.querySelector('#crowd');
               const before = board.scrollLeft;
-              document.querySelector('#sq-card-5').shadowRoot.querySelector('.lf-grip')
+              document.querySelector('#sq-card-5 .lf-grip')
                 .focus({preventScroll: true});
               return board.scrollLeft === before;
             }"""
@@ -725,7 +725,7 @@ def test_a_card_s_title_clears_its_grip_and_its_prose_starts_under_it(
         # line stands under the grip's box, so a press there is always the grip's.
         measured = page.locator("#card-a").evaluate(
             """(card) => {
-            const grip = card.shadowRoot.querySelector('.lf-grip').getBoundingClientRect();
+            const grip = card.querySelector('.lf-grip').getBoundingClientRect();
             const range = document.createRange(), lines = [];
             const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
             for (let node = walker.nextNode(); node; node = walker.nextNode()) {
@@ -800,7 +800,7 @@ def test_a_grip_taller_than_its_title_leaves_the_blocks_under_it_their_width(
     page = open_page(browser, serve(GRIPPED_BLOCK_CARD_PAGE), context=context)
     measured = page.locator("#card-a").evaluate(
         """(card) => {
-        const grip = card.shadowRoot.querySelector('.lf-grip').getBoundingClientRect();
+        const grip = card.querySelector('.lf-grip').getBoundingClientRect();
         const s = getComputedStyle(card), box = card.getBoundingClientRect();
         const content = box.width - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight)
             - parseFloat(s.borderLeftWidth) - parseFloat(s.borderRightWidth);

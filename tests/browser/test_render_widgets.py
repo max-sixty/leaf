@@ -89,7 +89,7 @@ def test_board_moves_preserve_live_sample_and_control_state(browser, serve, rout
           window.boardDragInput = [];
           // Keep the actual hit and moving geometry: a later snapshot cannot tell
           // whether a coordinate press reached the grip or Sortable cancelled it.
-          const grip = document.querySelector('#card-heater').shadowRoot.querySelector('.lf-grip');
+          const grip = document.querySelector('#card-heater .lf-grip');
           for (const type of ['pointerdown', 'pointermove', 'pointerup', 'pointercancel']) {
             document.addEventListener(type, event => {
               window.boardDragInput.push({

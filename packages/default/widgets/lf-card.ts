@@ -1,11 +1,11 @@
-/* lf-card: one card on a board, and the controls Leaf draws inside it. It is a
-   decorating widget's member (lf-options.js, "How it is drawn"): the card's words are
-   the author's and show through its root's `<slot>`, and its root holds the grip and,
-   where a phone shows them, the buttons that move the card to another column, since
-   both stand inside the card's box. The board tells each card its face (the `face`
-   property) as a host sets `state`, and does every move; a card draws what it is told
-   and records nothing itself. The theme dresses the controls through shadow parts:
-   `grip`, and `destinations` with its `destinations-label` and each `destination`.
+/* lf-card: one card on a board, and the controls Leaf draws inside it. The card's words
+   are the author's and stay where the author wrote them; its root draws the grip and,
+   where a phone shows them, the buttons that move the card to another column, in
+   `defineWidget`'s own box after those words (a `display: contents` part beside them),
+   since both stand inside the card's box. The board tells each card its face (the
+   `face` property) as a host sets `state`, and does every move; a card draws what it is
+   told and records nothing itself. board.css places the grip in the card's corner and
+   shows the buttons on a phone.
 
    The grip is a symbol (controls.js) whose keys the board declares: the face carries
    the grip's rows (`keys`), which read the board as it stands when a key is pressed,
@@ -52,6 +52,10 @@ const owners = new WeakMap<Element, string | null>();
 export const ownerOf = (card: Element) =>
   owners.has(card) ? (owners.get(card) ?? null) : card.getAttribute("shows") || null;
 
+/** The grip `card` draws, or null; a board in the card's words keeps its own. */
+export const gripOf = (card: Element) =>
+  card.querySelector<HTMLElement>(":scope > [data-lf-gen] > span > .lf-grip");
+
 // The grip says the drag, as its description and under its name in its preview; the
 // keys that grab it are its rows' own, its activation, which a control's preview leaves
 // out, so the grip names them as key chips beside its name. Grabbed, the card is
@@ -88,7 +92,7 @@ const SaysChoice = Mount.make(
   "SaysChoice",
   { args: { choice: Schema.Unknown } },
   (node: Element, _args, changes) => {
-    const card = (node.getRootNode() as ShadowRoot).host;
+    const card = node.closest("lf-card") as Element;
     return Stream.runForEach(changes, ({ choice }) =>
       Effect.sync(() => {
         if (choice === undefined) return;
@@ -117,11 +121,9 @@ export const Card = Html.component({
       .style({ display: "contents" })
       .onMount(SaysChoice({ choice }))
       .children(
-        h.slot.key("slot"),
         face
           ? h.button
               .key("grip")
-              .attr("part", "grip")
               // A revision that rewrites any card replaces the board, and a user on
               // this grip is on the same card's grip in the replacement
               // (records/carry.js).
@@ -135,20 +137,14 @@ export const Card = Html.component({
           ? h.div
               .key("destinations")
               .attrs(offerAttributes("div", "lf-board-destinations"))
-              .attr("part", "destinations")
               .attr("role", "group")
               .attr("aria-label", `Move ${face.title} to`)
               .children(
-                h.span
-                  .class("lf-board-destinations-label")
-                  .attr("part", "destinations-label")
-                  .attr("data-lf-gen", "1")
-                  .children("Move to"),
+                h.span.class("lf-board-destinations-label").children("Move to"),
                 ...face.destinations.map(({ column, label }) =>
                   h.button
                     .key(column)
                     .attrs(pressAttributes("word", "lf-board-destination"))
-                    .attr("part", "destination")
                     .attr("data-lf-board-target", column)
                     .attr("aria-label", `Move ${face.title} to ${label}`)
                     .attr("disabled", face.movable ? undefined : "")
@@ -160,4 +156,4 @@ export const Card = Html.component({
   },
 });
 
-defineWidget("lf-card", Card, { shadow: true, properties: ["face", "choice"] });
+defineWidget("lf-card", Card, { properties: ["face", "choice"] });

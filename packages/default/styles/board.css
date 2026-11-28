@@ -1,9 +1,6 @@
 /* lf-board / lf-column / lf-card: the one widget the user edits directly.
  * All presentation is CSS; the lf-board upgrade wires move controls and reports
- * each result as a `move` action. Unupgraded it reads as a static board. The controls
- * a card holds, its grip and its phone's Move to buttons, stand in the card's shadow
- * root (lf-card.js), so this sheet dresses them through the card's parts: `grip`, and
- * `destinations` with its `destinations-label` and each `destination`. */
+ * each result as a `move` action. Unupgraded it reads as a static board. */
 /* The floor a column stops narrowing at, and the reason it is arithmetic rather than a
  * round number. A board lays its columns into whatever width it is given and scrolls
  * once they are at their narrowest, which is the right order. Rejected: the floor
@@ -106,7 +103,7 @@ lf-column {
   min-height: calc(64px + 2 * var(--lf-reading-column-inset));
   --lf-block-frame: 1;
 }
-lf-card::part(destinations) {
+.lf-board-destinations {
   display: none;
 }
 /* Where sharing the board between columns would leave none of them readable, the
@@ -130,14 +127,15 @@ lf-card::part(destinations) {
 }
 @media screen and (pointer: coarse) {
   @container lf-board (width <= 640px) {
-    lf-card::part(destinations) {
+    .lf-board-destinations {
+      clear: right;
       display: flex;
       align-items: center;
       flex-wrap: wrap;
       gap: var(--lf-sp-1);
       margin-top: var(--lf-sp-2);
     }
-    lf-card::part(destinations-label) {
+    .lf-board-destinations-label {
       color: var(--lf-muted);
       font: var(--lf-font-small);
     }
@@ -271,7 +269,7 @@ lf-card > strong + p {
    card keeps for it above. It stands `--lf-grip-inset` clear of the card's top and
    end edges, so its face, rounded all round, stands clear of the card's corner rather
    than nearly meeting it. */
-lf-card::part(grip) {
+lf-card .lf-grip {
   position: absolute;
   top: var(--lf-grip-inset);
   right: var(--lf-grip-inset);
@@ -285,7 +283,7 @@ lf-card::part(grip) {
    container, so 100cqi is its content). Without it a board scrolling sideways showed only
    the 30px grip, leaving the card's words and column cut off at the board's edge. The
    reveal is the browser's, so a focus restored without scrolling leaves the board be. */
-lf-card::part(grip) {
+lf-card .lf-grip {
   scroll-margin-inline-start: calc(100cqi + 2 * var(--lf-card-inset));
 }
 /* SortableJS drag states on the real card: the in-flow slot and pressed card. */

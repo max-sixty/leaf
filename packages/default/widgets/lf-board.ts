@@ -68,18 +68,19 @@
  * light DOM as the page speaking (`data-lf-said`), where selection and page search
  * reach it, and generated (`data-lf-gen`), so the diff looks away.
  *
- * How it is drawn: a decorating widget (lf-options.js, "How it is drawn").
+ * How it is drawn: a decorating widget, in light-DOM parts beside the author's children
+ * (browser/AGENTS.md, "Renderers"), with no shadow root, since nothing it draws needs
+ * one.
  *
- * - The light DOM is the author's, and the page's record: each card stands in the
- *   column and at the rank the `move` record places it (the verb's record form), and the
- *   board adds only the roles and headings above.
- * - Leaf's controls are drawn by Effect UI in shadow roots: the board's root holds only
- *   its slot, and each card is a small widget of its own, `lf-card` (lf-card.js), whose
- *   root holds its grip and its phone buttons around the card's slot, since they stand
- *   inside the card's box. The theme restyles them through the card's parts.
+ * - The authored children are the author's, and the page's record: each card stands in
+ *   the column and at the rank the `move` record places it (the verb's record form), and
+ *   the board adds only the roles and headings above.
+ * - Each card is a small widget of its own, `lf-card` (lf-card.js), whose root draws its
+ *   grip and its phone buttons in `defineWidget`'s box after the card's words, since
+ *   they stand inside the card's box. The board's own root draws one hidden node.
  * - The board's component holds what the user is doing (the grab, the drag, the
  *   placement held under the hand) and its `update` turns gestures into Leaf's services
- *   (`RecordAction`, `Announce`). One Mount on its slot (`ShowBoard`) does what only a
+ *   (`RecordAction`, `Announce`). One Mount on that node (`ShowBoard`) does what only a
  *   host's own code can: it places the cards, says the headings and counts, gives each
  *   card its face (the `face` property the card's widget declares, as a host sets
  *   `state`), owns the Sortable instances, holds the page while the user does, and
@@ -125,7 +126,7 @@ import { keeps, keepsText } from "/runtime/lib/keeps.js";
 import { PRESS, rowArrows } from "/runtime/lib/keys.js";
 import { byRank, rankAt } from "/runtime/lib/rank.js";
 import { ANNOUNCE, DeferEvent, HOLD } from "/runtime/lib/widget-events.js";
-import { ownerOf, type CardFace } from "./lf-card.js";
+import { gripOf, ownerOf, type CardFace } from "./lf-card.js";
 
 /** A `choice` value, as the registry's `$data.contracts` declares it. */
 const Choice = Schema.Struct({
@@ -533,7 +534,7 @@ export const Board = Html.component({
                   .map((column) => ({ column: column.id, label: column.label })),
         };
       }
-    return h.slot.onMount(
+    return h.span.attr("hidden", "").onMount(
       ShowBoard({
         show: {
           exhibit: props.exhibit,
@@ -670,9 +671,6 @@ function arrange(host: HTMLElement, placement: Placement, reveal: string | null)
   return Boolean(moved);
 }
 
-const gripOf = (card: Element) =>
-  card.shadowRoot?.querySelector<HTMLElement>(".lf-grip") ?? null;
-
 // The grip's rows for one card, made once and reading the board as it stands when a
 // key is pressed.
 function rowsFor(host: HTMLElement, card: HTMLElement, latest: () => Show, send: Send) {
@@ -780,7 +778,7 @@ function stacked(card: HTMLElement, row: number) {
   return row > 0 ? there.top >= here.bottom - 1 : there.bottom <= here.top + 1;
 }
 
-/** What the board states outside its shadow root, kept by its slot's mount. */
+/** What the board states on the author's elements, kept by its root's one mount. */
 class BoardLight {
   #latest: Show | null = null;
   #sortables = new Set<Sortable>();
@@ -880,7 +878,7 @@ class BoardLight {
       target instanceof Element
         ? target.closest<HTMLElement>(".lf-board-destination")
         : null;
-    const card = button && (button.getRootNode() as ShadowRoot).host;
+    const card = button?.closest("lf-card");
     const column = button?.dataset.lfBoardTarget;
     if (!card || !column || card.closest("lf-board") !== this.host) return;
     this.send(BoardMessage.MovedTo({ card: card.id, column }));
@@ -894,8 +892,13 @@ class BoardLight {
     const grabbed = this.#latest?.grab?.card;
     if (!grabbed || cause === "drop" || node === left || !left?.matches(".lf-grip"))
       return;
-    const card = (left.getRootNode() as ShadowRoot).host;
-    if (card?.id === grabbed && cardsOf(this.host).includes(card as HTMLElement))
+    const card = left.closest<HTMLElement>("lf-card");
+    if (
+      card &&
+      card.id === grabbed &&
+      gripOf(card) === left &&
+      cardsOf(this.host).includes(card)
+    )
       this.send(BoardMessage.Cancelled({ refocus: false }));
   };
 
@@ -994,10 +997,10 @@ class BoardLight {
 const ShowBoard = Mount.makeStream(
   "ShowBoard",
   { args: { show: Schema.Unknown } },
-  (slot: HTMLSlotElement, { show }, changes) =>
+  (node: HTMLElement, { show }, changes) =>
     Stream.callback<typeof BoardMessage.Type>((queue) =>
       Effect.gen(function* () {
-        const host = (slot.getRootNode() as ShadowRoot).host as HTMLElement;
+        const host = node.closest("lf-board") as HTMLElement;
         const light = new BoardLight(host, (message) =>
           Queue.offerUnsafe(queue, message),
         );
@@ -1016,7 +1019,6 @@ const ShowBoard = Mount.makeStream(
 const hearing = new WeakSet<Element>();
 
 defineWidget("lf-board", Board, {
-  shadow: true,
   inputs: (board, reread) => {
     if (!hearing.has(board)) {
       hearing.add(board);

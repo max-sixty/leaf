@@ -25,7 +25,9 @@
  * page, taking the page's width. Each is then a view with a place of its own, which
  * Leaf keeps: a switch by press or key is not fragment travel, because a view is not a
  * destination, so the strip stays where it is on screen and the view opens where this
- * user last read it, or at its start when they never read past it; Back and Forward
+ * user last read it, or at its start when they never read past it. A view too short
+ * to reach the window's foot from under the stuck strip shows the page's end instead,
+ * since a document ends at its last line (layouts.css). Back and Forward
  * return to where the user was on the entry. Every other set is a
  * box ("box"): framed, its horizontal strip sticky within the set, each panel a bounded
  * box that what it holds measures itself against. A switch leaves the page where it

@@ -39,12 +39,11 @@ page binds, here `deploy/values.yaml`, `deploy/alerts.yaml` and `docs/runbook.md
 A reading of the file beside its editor, such as a Markdown preview or a diff against
 its committed text, binds the editor with `for`. The editor holds the open file's name
 and its text as the reader has it, saved or not, as its `text` output, so the reading
-follows the typing about half a second after the reader stops and follows whichever
-file an editor of several has open. A preview takes a double-click on a word to the
-editor, and a diff offers Revert on each change, which the editor takes as one edit
-its own Undo takes back. A Markdown file beside its rendered copy, where the reader
-comments on passages or suggests new wording, takes two elements, each in a pane of a
-workspace so both fill the window's height:
+follows the typing about half a second after the reader stops, and whichever file an
+editor of several has open. A preview takes a double-click on a word to the editor. A
+Markdown file beside its rendered copy, where the reader comments on passages or
+suggests new wording, takes two elements, each in a pane of a workspace so both fill
+the window's height:
 
 ```html
 <lf-file-editor id="readme-editor" binding="readme"></lf-file-editor>

@@ -74,11 +74,8 @@
  * The draft holds its source as its `text` output (the registry's `text-document`
  * contract), named as the Markdown file it reads as, `<id>.md`, so a reading bound to
  * it, such as a diff against an earlier text, shows it as it would a file's: the saved
- * text, or the open editor's unsent words once typing in them rests. A draft the user
- * can edit and has closed takes `--replace`, the contract's request to hold another
- * text, as an edit named by the sender's words, so a diff's Revert is one more edit the
- * page's Undo takes back. An open editor takes none, since the request would have to
- * fold around its words, which the field can't do.
+ * text, the words a save sends while it travels, or the open editor's unsent words once
+ * typing in them rests.
  *
  * The shared draft store holds an open editor's words, so they survive a reload, a live
  * revision that replaces this element, the element leaving the page and coming back,
@@ -98,7 +95,7 @@
  *   own, together with what has to reach that editor synchronously: the draft store's
  *   words, the command rows whose Save reads them, the press away and Android's back,
  *   the caret a click carries in, focus as the editor opens and closes, the send, and
- *   the `text` output and `--replace`, which `defineWidget` has no option for.
+ *   the `text` output, which `defineWidget` has no option for.
  *   Its args are Leaf's reading; it reports what the user did and what became of a
  *   save as messages. The editor's words and caret live only in the editor and the
  *   store, so no redraw, new reading or revision touches them.
@@ -148,10 +145,6 @@ import {
 // How long typing in the editor rests before the `text` output takes its words, in ms,
 // the pause a file editor waits before it saves.
 const PAUSE = 500;
-// The `revision` of each value a draft's `text` output holds: a count of this load's
-// moves of every draft, after a mark of the load, so no two values of any draft's
-// output share one, an element's that a revision replaced under the same id included.
-const revisions = { load: Math.random().toString(36).slice(2, 8), moves: 0 };
 
 const DraftProps = Schema.Struct({
   ...widgetProps,
@@ -256,11 +249,6 @@ class DraftEditing {
   #rests = 0;
   // The words a save in flight sends, which the `text` output holds meanwhile.
   #submitted = null;
-  // Whether the draft's editing has been taken down, as it leaves the page, after which
-  // it says nothing more of its text (`close`).
-  #closed = false;
-  // The value this mount last gave the `text` output.
-  #published = null;
   #returnMotion = null;
   #stopPressAway = null;
   #stops = [];
@@ -345,23 +333,14 @@ class DraftEditing {
     this.#holdText();
   }
 
-  // Hold the source the box shows as the `text` output, or `replaced`, the text a
-  // replacement just recorded, ahead of Leaf's reading of it, with a revision while the
-  // draft takes a replacement: on the page, closed, not saving, and editable.
-  #holdText(replaced) {
+  // Hold the source the box shows as the `text` output.
+  #holdText() {
     clearTimeout(this.#rests);
     this.#rests = 0;
-    if (this.#closed) return;
     const host = this.#host;
-    const text = replaced ?? this.#editor?.value ?? this.#submitted ?? this.#args.saved;
-    const takes = !this.#editor && !this.#sending && this.#args.available;
-    const held = host.text;
-    if (held?.text === text && Boolean(held.revision) === takes) return;
-    host.text = this.#published = {
-      name: `${host.id}.md`,
-      text,
-      ...(takes ? { revision: `${revisions.load}:${++revisions.moves}` } : {}),
-    };
+    const text = this.#editor?.value ?? this.#submitted ?? this.#args.saved;
+    if (host.text?.text === text) return;
+    host.text = { name: `${host.id}.md`, text };
     host.dispatchEvent(new Event("change"));
   }
 
@@ -383,49 +362,6 @@ class DraftEditing {
     };
     host.addEventListener("pointermove", point, { signal });
     host.addEventListener("pointerleave", point, { signal });
-    // `--replace` (the `text-document` contract): the button's `value` is the JSON of
-    // `{text, revision}`. Where the revision is the one the draft holds, and the text
-    // isn't the one it holds, the text is recorded as the user's edit, named by the
-    // button's words, and the output holds it at once. Until the server has answered,
-    // the edit is in flight as a Save's is (`#sending`): the output holds no revision
-    // and Edit waits, so neither a request nor the user's next edit builds on an edit
-    // the server may refuse; Leaf's reading of the edit then sets the output. Anything
-    // else is refused.
-    host.addEventListener(
-      "command",
-      (event) => {
-        const { command, source } = event;
-        if (command !== "--replace") return;
-        const held = host.text;
-        let asked = null;
-        try {
-          asked = JSON.parse(source.value);
-        } catch {
-          // A value that isn't JSON asks for nothing, so the check below refuses it.
-        }
-        if (
-          !held?.revision ||
-          asked?.revision !== held.revision ||
-          typeof asked.text !== "string" ||
-          asked.text === held.text
-        )
-          return event.preventDefault();
-        this.#sending = true;
-        const recorded = Effect.runPromise(
-          this.#record({
-            verb: "edit",
-            detail: { value: asked.text },
-            says: source?.textContent?.trim() || `Edited ${this.#args.named}`,
-          }),
-        );
-        this.#holdText(asked.text);
-        void recorded.finally(() => {
-          this.#sending = false;
-          this.#holdText();
-        });
-      },
-      { signal },
-    );
     // Capture only the pointer Discard's old allocation. The command still owns
     // closing, discarding and focus; its new reading is true before this effect.
     host.addEventListener(
@@ -512,15 +448,6 @@ class DraftEditing {
 
   close() {
     clearTimeout(this.#rests);
-    this.#closed = true;
-    // The output takes no request through this mount any more; a mount that took its
-    // place since has said its own.
-    const host = this.#host;
-    const held = this.#published;
-    if (held?.revision && host.text === held) {
-      host.text = { name: held.name, text: held.text };
-      host.dispatchEvent(new Event("change"));
-    }
     this.#returnMotion?.cancel();
     this.#stopPressAway?.();
     for (const stop of this.#stops.splice(0)) stop();

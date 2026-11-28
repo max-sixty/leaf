@@ -41,9 +41,7 @@ follows a source and when it keeps a snapshot.
 
 Where the reader edits a file on the page, `lf-diff` can show what they changed
 since an earlier text of it, such as the version last committed. It compares the two
-texts itself, line by line with their line endings set aside, so it needs no patch, and
-a text that changes only CRLF to LF shows no change; supply git's patch to show a
-change of line endings:
+texts itself, so it needs no patch:
 
 ```html
 <lf-diff id="readme-changes" before="readme-committed" for="readme-editor"></lf-diff>
@@ -51,12 +49,9 @@ change of line endings:
 
 `for` names the file's editor, or any widget holding a `text-document` output, such as
 a draft. The diff follows the text as the reader types it, once they pause, and
-whichever file an editor of several has open, and each change offers Revert, which
-puts that change back to the earlier text as an edit of the reader's: in a file, one
-the editor's Undo takes back, where Revert leaves the reader; in a draft, one the
-page's Undo takes back. Bind `after` to a source instead, such as the file's binding
-(`leaf file bind`), to follow each write to the file, the editor's saves and yours
-alike, with no Revert. Set the earlier text as a source, naming the file:
+whichever file an editor of several has open. Bind `after` to a source instead, such
+as the file's binding (`leaf file bind`), to follow each write to the file, the
+editor's saves and yours alike. Set the earlier text as a source, naming the file:
 
 ```bash
 git show HEAD:README.md | jq -Rs '{name: "README.md", text: .}' | leaf data set <page> readme-committed

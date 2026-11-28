@@ -30,29 +30,7 @@
  * operations and textual hunks are independent: metadata-only files have a commentable
  * row without an empty disclosure, and a file-type replacement keeps one file identity.
  * Author notes use the same source coordinate resolver as cross-widget navigation;
- * their authored nodes move into the stage, never copied into generated data rows.
- *
- * Bound with `for` to a widget whose current text takes a replacement, as an editor's
- * does while it holds a `revision`, two compared texts offer Revert on each change: a
- * run of changed rows with no unchanged row inside it, the unit every diff tool's
- * Revert takes back, of which a hunk may hold several. Its seat is the change's first
- * row (`revertButton`), after the row's words, so Tab from the row `]` and `[` land on
- * reaches the hunk's first Revert. A press asks the widget, with the `text-document`
- * contract's `--replace`, to hold its text with that change taken back, as jsdiff makes
- * it from the patch of the two texts with no context, whose hunks are the drawing's
- * changes in order (`revertedText`). The widget may fold the request around the user's
- * typing or refuse it, and the diff draws whatever text it then holds. Where the text
- * names its file by `key`, a taken Revert follows the link to its restored line, so the
- * user lands in the file's editor, whose own Undo takes the replacement back; a draft
- * records it, so the page's Undo takes it back from here, where the user stands on the
- * change's row to go on reviewing. A refusal is said as a notice (`lf-error`). Pierre's
- * renderer offers no control of a change's own, so the seat is Leaf's. The widget is
- * portable, so it finds the target by id in its own tree and travels by the link a
- * page could write.
- *
- * Two texts compare line by line with a line's trailing CR set aside, so a file an
- * editor holds with LF breaks reads as unchanged beside the CRLF text it was read
- * from, rather than every line changed, with a Revert no editor could take. */
+ * their authored nodes move into the stage, never copied into generated data rows. */
 import { html, nothing, keyed, render } from "/vendor/lit.js";
 import {
   focusDestination,
@@ -102,7 +80,7 @@ import { pierre, markSyntax } from "/widgets/pierre.js";
 /** Two texts of one file, `before` and `after` as bound, which the widget compares.
  * @typedef {{before: TextDocument, after: TextDocument}} Comparison */
 /** @typedef {import("../../../browser/types/contract.js").DataUnifiedDiff | Comparison} DiffSource */
-/** @typedef {{path: string, hunk: number, change?: number} & ({side: "both", oldLine: number, newLine: number} | {side: "old", oldLine: number, newLine?: never} | {side: "new", newLine: number, oldLine?: never})} SourceLine */
+/** @typedef {{path: string, hunk: number} & ({side: "both", oldLine: number, newLine: number} | {side: "old", oldLine: number, newLine?: never} | {side: "new", newLine: number, oldLine?: never})} SourceLine */
 /** @typedef {SourceLine & {node: HTMLElement, row: HTMLDivElement, content: string}} RenderedLine */
 /** @typedef {Pick<FileRecord, "path"> & Partial<Omit<FileRecord, "path">>} FileSummary */
 /** @typedef {{outlet: HTMLElement, row: Element | null, active: boolean}} ThreadSeat */
@@ -111,8 +89,7 @@ import { pierre, markSyntax } from "/widgets/pierre.js";
 /** @typedef {FileEntry & {kind: "text"}} TextEntry */
 /** @typedef {FilePresentation & {kind: "text"}} TextPresentation */
 /** @typedef {{error: unknown} | {file: ParsedFile, renderKey: string | null, rendered: Awaited<ReturnType<typeof renderFile>> | null}} EntryPreparation */
-/** @typedef {typeof import("/vendor/pierre-parser.esm.js")} Parser */
-/** @type {Promise<Parser> | null} */
+/** @type {Promise<typeof import("/vendor/pierre-parser.esm.js")> | null} */
 let parser = null;
 const parse = () => (parser ??= import("/vendor/pierre-parser.esm.js"));
 
@@ -170,50 +147,26 @@ async function recordFile(patch, path) {
 // its own, which the hunks (`sourceLines`) don't hold, and puts expand controls in its
 // separators, which nothing here answers.
 /** @param {Comparison} comparison @returns {Promise<readonly SourceRecord[]>} */
-async function comparedRecords(comparison) {
-  const { before, after } = comparison;
-  if (textOf(before) === textOf(after)) return [];
+async function comparedRecords({ before, after }) {
+  const text = (/** @type {TextDocument} */ side) =>
+    typeof side === "string" ? side : side.text;
+  if (text(before) === text(after)) return [];
   const name =
     [after, before].find((side) => typeof side === "object")?.name ?? UNNAMED;
-  const parser = await parse();
-  const compared = comparedPatch(parser, comparison, name, 3);
-  if (!compared.hunks.length) return [];
-  return sourceRecords(parser.formatPatch({ ...compared, isGit: true }));
-}
-
-/** @param {TextDocument} side */
-const textOf = (side) => (typeof side === "string" ? side : side.text);
-
-// The patch of two compared texts with `context` lines of context: with Git's three,
-// the hunks the drawing shows; with none, one hunk for each change those hunks hold,
-// in the same order, since only the grouping differs (`sourceLines`).
-/** @param {Parser} parser @param {Comparison} comparison @param {string} name
- *  @param {number} context */
-const comparedPatch = ({ structuredPatch }, { before, after }, name, context) =>
-  structuredPatch(
-    `a/${name}`,
-    `b/${name}`,
-    textOf(before),
-    textOf(after),
-    undefined,
-    undefined,
-    { context, stripTrailingCr: true },
-  );
-
-// The current text with change `index` of the comparison taken back, and the line of
-// the current text where that change stands, which after the Revert is where the
-// earlier text's lines stand again; null where the change doesn't apply.
-/** @param {Parser} parser @param {Comparison} comparison @param {number} index */
-function revertedText(parser, comparison, index) {
-  const patch = comparedPatch(parser, comparison, UNNAMED, 0);
-  const hunk = patch.hunks[index];
-  if (!hunk) return null;
-  const text = parser.applyPatch(
-    textOf(comparison.after),
-    parser.reversePatch({ ...patch, hunks: [hunk] }),
-  );
-  if (text === false) return null;
-  return { text, line: Math.max(1, hunk.newStart) };
+  const { structuredPatch, formatPatch } = await parse();
+  const patch = formatPatch({
+    ...structuredPatch(
+      `a/${name}`,
+      `b/${name}`,
+      text(before),
+      text(after),
+      undefined,
+      undefined,
+      { context: 3 },
+    ),
+    isGit: true,
+  });
+  return sourceRecords(patch);
 }
 
 // Each record carries the index of the hunk it came out of. A hunk is the unit a
@@ -224,20 +177,15 @@ function revertedText(parser, comparison, index) {
 // parse already had. It rides on the same record the anchor coordinate is read off,
 // and `diffDatumKey` names only the fields that make a comment's coordinate, so a row
 // knowing which hunk it is in changes no anchor.
-// A changed row also carries the index of its change in the file, a run of changed
-// rows with no unchanged row inside it, which Revert takes back alone.
 /** @param {NativeFile} file @returns {SourceLine[]} */
 function sourceLines(file) {
   /** @type {SourceLine[]} */
   const lines = [];
-  let change = -1;
   for (const [hunk, chunk] of file.hunks.entries()) {
     let oldLine = chunk.deletionStart;
     let newLine = chunk.additionStart;
-    let changing = false;
     for (const part of chunk.hunkContent) {
       if (part.type === "context") {
-        changing = false;
         for (let index = 0; index < part.lines; index++) {
           lines.push({ path: file.name, hunk, side: "both", oldLine, newLine });
           oldLine++;
@@ -245,12 +193,10 @@ function sourceLines(file) {
         }
         continue;
       }
-      if (!changing) change++;
-      changing = true;
       for (let index = 0; index < part.deletions; index++)
-        lines.push({ path: file.name, hunk, change, side: "old", oldLine: oldLine++ });
+        lines.push({ path: file.name, hunk, side: "old", oldLine: oldLine++ });
       for (let index = 0; index < part.additions; index++)
-        lines.push({ path: file.name, hunk, change, side: "new", newLine: newLine++ });
+        lines.push({ path: file.name, hunk, side: "new", newLine: newLine++ });
     }
   }
   return lines;
@@ -262,13 +208,6 @@ function sourceLines(file) {
 const hunkHeads = (entry) =>
   (entry.rendered?.lines ?? []).filter(
     (line, index, lines) => line.hunk !== lines[index - 1]?.hunk,
-  );
-// The first rendered row of each change, where its Revert stands.
-/** @param {FileEntry} entry */
-const changeHeads = (entry) =>
-  (entry.rendered?.lines ?? []).filter(
-    (line, index, lines) =>
-      line.change !== undefined && line.change !== lines[index - 1]?.change,
   );
 /** @template {Element} T @param {{node: T}} holder */
 const nodeOf = ({ node }) => node;
@@ -599,22 +538,6 @@ function commentButton(label, opened, className) {
   );
   if (opened) button.addEventListener("click", opened);
   return button;
-}
-
-// A change's Revert, Leaf's U-turn standing in its first row's gutter
-// (widget-shadow.css), after the row's words, named by that line as the line's comment
-// press is, and keyed as the line is, so a redraw that takes it away hands its focus to
-// the nearest line that stays.
-/** @param {RenderedLine} line */
-function revertButton(line) {
-  const button = offerAction(
-    "symbol",
-    "lf-diff-revert",
-    `Revert the change at ${lineLabel(line)}`,
-    { action: "revert" },
-  );
-  button.setAttribute(LINE_KEY, diffDatumKey(line));
-  line.row.append(button);
 }
 
 // Keep file controls and evidence under one retained body across source revisions.
@@ -1406,9 +1329,6 @@ customElements.define(
         /** @type {((() => unknown) | null)[]} */
         const restores = [];
         const resume = this.defer();
-        // Where the user was in a file this source drops, as the last change's Revert
-        // drops the only file, they land on the diff itself (below).
-        const kept = this.filesBody && holdFocus(this.filesBody);
         try {
           const entries = plans.map(({ record, evidence, previous, prepared }) => {
             const metadata =
@@ -1492,7 +1412,6 @@ customElements.define(
           this.filterFiles(this.diffTools?.search.value ?? "");
           this.publishFiles();
           for (const restore of restores) restore?.();
-          kept?.(this);
         } finally {
           resume();
         }
@@ -1916,9 +1835,6 @@ customElements.define(
     attachEntryControls(entry) {
       entry.node.addEventListener("click", (event) => {
         const target = event.target;
-        const revert =
-          target instanceof Element ? target.closest(".lf-diff-revert") : null;
-        if (revert) this.revert(entry, revert);
         const button =
           target instanceof Element ? target.closest(".lf-diff-line-comment") : null;
         const line = button?.nextElementSibling;
@@ -1950,16 +1866,7 @@ customElements.define(
         fileComment.remove();
         restore?.(entry.header);
       }
-      const heads = new Set(
-        this.reverting() ? changeHeads(entry).map(({ row }) => row) : [],
-      );
       for (const line of entry.rendered?.lines ?? []) {
-        const revert = line.row.querySelector(":scope > .lf-diff-revert");
-        if (revert && !heads.has(line.row)) {
-          const restore = holdFocus(revert);
-          revert.remove();
-          restore?.(line.node);
-        } else if (!revert && heads.has(line.row)) revertButton(line);
         const previous = line.row.firstElementChild;
         if (!previous || (previous.localName === "button") === Boolean(opener))
           continue;
@@ -1968,66 +1875,6 @@ customElements.define(
         previous.replaceWith(number);
         restore?.(number);
       }
-    }
-
-    // Whether the texts drawn take a Revert: two compared texts, the current one bound
-    // by `for` from a widget holding it with a `revision`.
-    reverting() {
-      const source = this.drawnSource;
-      return Boolean(
-        this.hasAttribute("for") &&
-        typeof source === "object" &&
-        source &&
-        "after" in source &&
-        typeof source.after === "object" &&
-        source.after.revision,
-      );
-    }
-
-    // Ask the widget `for` names to hold its text with the change `button` stands on
-    // taken back (the header says how), from a button made off the page, since this
-    // one stands in the diff's shadow tree. Its words name the gesture.
-    /** @param {FileEntry} entry @param {Element} button */
-    revert(entry, button) {
-      const comparison = this.drawnSource;
-      const line = entry.rendered?.lines.find(({ row }) => row.contains(button));
-      const id = this.getAttribute("for");
-      if (!line || !id || typeof comparison !== "object" || !comparison) return;
-      if (!("after" in comparison)) return;
-      const { after } = comparison;
-      if (typeof after !== "object" || !after.revision) return;
-      const root = /** @type {Document | ShadowRoot} */ (this.getRootNode());
-      const { change } = line;
-      if (change === undefined) return;
-      void parse().then((parser) => {
-        const reverted = revertedText(parser, comparison, change);
-        const taken =
-          reverted &&
-          root.getElementById(id)?.dispatchEvent(
-            new CommandEvent("command", {
-              command: "--replace",
-              source: Object.assign(document.createElement("button"), {
-                value: JSON.stringify({
-                  text: reverted.text,
-                  revision: after.revision,
-                }),
-                textContent: `Reverted the change at line ${reverted.line}`,
-              }),
-              cancelable: true,
-            }),
-          );
-        if (!reverted || !taken)
-          window.dispatchEvent(
-            new CustomEvent("lf-error", {
-              detail: "Not reverted: the text stays as it is.",
-            }),
-          );
-        else if (after.key) location.assign(`#${id}:${after.key}:${reverted.line}`);
-        // Staying here, the user stands on the change's row, and the redraw that takes
-        // the change away hands them to the nearest row that stays, as `]` lands.
-        else if (this.shadowRoot?.activeElement === button)
-          focusDestination(line.node, "move");
-      });
     }
 
     /** @param {PromiseLike<unknown>} promise */

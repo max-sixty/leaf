@@ -104,9 +104,9 @@ export function iconElement(icon: string, className: string = "lf-margin-entry-i
 // Each action a press can show as a symbol, and the symbol and name it shows wherever
 // Leaf offers it (browser/AGENTS.md, "Controls are few and quiet"). A press names its action and
 // never an icon, so one action can't show two symbols. Two actions may share one
-// symbol, as Undo, Discard and a diff's Revert share the U-turn, and a press may say
-// more than the action's name, as "Retry source inspection" does. The icons above that
-// no action names mark a kind or a state, not a press.
+// symbol, as Undo and Discard share the U-turn, and a press may say more than the
+// action's name, as "Retry source inspection" does. The icons above that no action
+// names mark a kind or a state, not a press.
 //
 // Discard throws an editor's unsaved words away, so it wears Undo's U-turn rather than
 // Close's ✕, which keeps them: closing a card leaves an open rewrite's words in its
@@ -166,7 +166,6 @@ export const ACTIONS: Record<string, { name: string; icon: string }> = {
   reset: { name: "Reset", icon: "retry" },
   resolve: { name: "Resolve", icon: "check" },
   retry: { name: "Retry", icon: "retry" },
-  revert: { name: "Revert", icon: "undo" },
   save: { name: "Save", icon: "save" },
   send: { name: "Send", icon: "send" },
   show: { name: "Show", icon: "locate" },

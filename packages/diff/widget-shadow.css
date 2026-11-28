@@ -334,31 +334,7 @@ span.lf-diff-line-number {
    neither; the shared Web Awesome theme draws that band once for every package. */
 /* A line's press stands in a stack of lines, one above the next, so it reaches no
    further than its own line: a reach would lie over the press on the next. */
-.lf-diff-line-comment::after,
-.lf-diff-revert::after {
-  content: none;
-}
-/* A change's Revert (lf-diff.js, `revertButton`): Leaf's U-turn in the box the
-   comment press draws its + in on other rows (controls.css, `.lf-gutter::before`),
-   inside the room the gutter keeps before the numbers and a pixel short of them, in the
-   code's `ch` and the ink of its row's numbers (below). Its icon is drawn to that box,
-   so a number that fills its column stands clear of it. The row's numbers still take a
-   comment. Its ring stands inside its edge, clear of the numbers. */
-.lf-diff-revert {
-  position: absolute;
-  z-index: 3;
-  inset-block-start: calc(-1 * var(--lf-focus-ring-inset));
-  inset-inline-start: calc(-1 * var(--lf-focus-ring-inset));
-  font: inherit;
-  --lf-icon-action-face: calc(var(--lf-code-line) + 2 * var(--lf-focus-ring-inset));
-  --lf-icon-action-hit: calc(2ch - 1px + var(--lf-focus-ring-inset));
-  --lf-ring-at: var(--lf-focus-ring-inset);
-}
-.lf-diff-revert > svg {
-  inline-size: 12px;
-  block-size: 12px;
-}
-.lf-diff-line:has(> .lf-diff-revert) > .lf-diff-line-comment::before {
+.lf-diff-line-comment::after {
   content: none;
 }
 /* For the same reason its ring stands on its edge (base.css, "Where it stands"). */

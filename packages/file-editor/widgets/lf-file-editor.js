@@ -20,15 +20,14 @@
  * page's server gives it and keyed by its binding, with the open one `current`, so a
  * navigator beside it lists them, and the open file's name and its text as the reader
  * has it, saved or not, as its `text` output, so a reading bound to it, such as a
- * Markdown preview, follows their typing once it rests (`holdText`), and a diff beside
- * it can revert a change through it (`--replace`). A reveal of a binding
- * (`navigateToDatum`, a link to `#<editor>:<binding>`) opens that file. Which file is
- * open is how this tab looks at the files, not a change to them, so it enters no log;
- * a reload opens the one its address names, else the first. Each file keeps its own
- * text, selection, history and scroll while another is open, and leaving a file saves
- * what it holds at once. A file the reader has left settles its requests as the open
- * one does; a failure or conflict there is announced by the file's name and stands in
- * the status when it is opened.
+ * Markdown preview, follows their typing once it rests (`holdText`). A reveal of a
+ * binding (`navigateToDatum`, a link to `#<editor>:<binding>`) opens that file. Which
+ * file is open is how this tab looks at the files, not a change to them, so it enters
+ * no log; a reload opens the one its address names, else the first. Each file keeps
+ * its own text, selection, history and scroll while another is open, and leaving a
+ * file saves what it holds at once. A file the reader has left settles its requests as
+ * the open one does; a failure or conflict there is announced by the file's name and
+ * stands in the status when it is opened.
  *
  * Autosave serializes snapshots, retaining later typing while each receipt adopts
  * exactly the submitted snapshot. A clean editor follows external revisions through
@@ -118,10 +117,6 @@ import { createEditor, followKept, mergeKept } from "./editor.js";
 
 // How long typing rests before the editor saves it and its `text` output moves, in ms.
 const PAUSE = 500;
-// The `revision` of each value an editor's `text` output holds: a count of this load's
-// moves of every editor, after a mark of the load, so no two values of any editor's
-// output share one, an element's that a revision replaced under the same id included.
-const revisions = { load: Math.random().toString(36).slice(2, 8), moves: 0 };
 
 customElements.define(
   "lf-file-editor",
@@ -446,70 +441,25 @@ customElements.define(
       // is read. Typing moves it once it has rested for the pause autosave waits
       // (`PAUSE`), since a reading bound to it redraws from the whole text: moved at
       // each key, a keystroke's work grew with the file, past the frame's budget at a
-      // thousand lines. Every other change moves it at once. While the file takes
-      // typing it holds a `revision` no earlier value held, the count of its moves, and
-      // the editor takes `--replace` naming it (below), which it takes only while it is
-      // on the page.
-      /** @type {{key: string, name: string, text: string, revision?: string} | null} */
+      // thousand lines. Every other change moves it at once.
+      /** @type {{key: string, name: string, text: string} | null} */
       this.text = null;
       let rests = 0;
       const holdText = () => {
         clearTimeout(rests);
         rests = 0;
         const name = label(file);
-        const takes = connected && !readOnly(file);
         const held = this.text;
         const text = file.base ? editor.value : null;
         if (
           text === null
             ? held === null
-            : held?.text === text &&
-              held.name === name &&
-              held.key === file.binding &&
-              Boolean(held.revision) === takes
+            : held?.text === text && held.name === name && held.key === file.binding
         )
           return;
-        this.text =
-          text === null
-            ? null
-            : {
-                key: file.binding,
-                name,
-                text,
-                ...(takes
-                  ? { revision: `${revisions.load}:${++revisions.moves}` }
-                  : {}),
-              };
+        this.text = text === null ? null : { key: file.binding, name, text };
         this.dispatchEvent(new Event("change"));
       };
-      // `--replace` (the `text-document` contract): the button's `value` is the JSON of
-      // `{text, revision}`, the whole text to hold and the revision of the output it
-      // replaces. Where that revision is the one held, the text is one edit of the
-      // reader's, folded around what they typed since the output moved (editor.js,
-      // `replace`), which autosave then saves; a fold that would cross their typing, or
-      // would change nothing, is refused, as is every other request.
-      this.addEventListener("command", (event) => {
-        const { command, source } = /** @type {CommandEvent} */ (event);
-        if (command !== "--replace") return;
-        const held = this.text;
-        /** @type {{text?: unknown, revision?: unknown} | null} */
-        let asked = null;
-        try {
-          asked = JSON.parse(/** @type {HTMLButtonElement} */ (source).value);
-        } catch {
-          // A value that isn't JSON asks for nothing, so the check below refuses it.
-        }
-        if (
-          !held?.revision ||
-          asked?.revision !== held.revision ||
-          typeof asked.text !== "string" ||
-          !this.isConnected ||
-          readOnly(file) ||
-          !editor.replace(held.text, asked.text)
-        )
-          return event.preventDefault();
-        holdText();
-      });
       // What follows each draw: the editor's own state, the host's, the menu, the news
       // and the comparison's editor, all of which read the controls the draw made.
       this.#drawn = () => {
@@ -969,8 +919,6 @@ customElements.define(
         });
         return () => {
           connected = false;
-          // The output says at once that the editor takes no replacement while away.
-          holdText();
           stopLanding();
           stopWatch?.();
           stopWatch = null;

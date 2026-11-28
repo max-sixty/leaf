@@ -1065,3 +1065,53 @@ def test_evidence_close_folds_room_but_retires_controls_immediately(
 
 
 import pytest
+
+
+def test_a_second_toggle_before_the_next_frame_holds(browser, serve):
+    """A fold pressed again before the frame after its first press's `toggle` ends
+    where the second press left it; Effect UI's write-back of `open` doesn't undo it."""
+    from render_cases_navigation import call_diff, call_node
+
+    url = serve(
+        leaf_page(
+            "Fold twice",
+            '<lf-call-diff id="evidence" source="change" diff="patch"></lf-call-diff>'
+            '<lf-diff id="patch" source="patch-data" collapsed></lf-diff>',
+        ),
+        packages=("diff",),
+    )
+    page_data_model.cmd_data_set(
+        serve.page_dir,
+        "change",
+        call_diff(call_node("root", children=[call_node("step")])),
+    )
+    page_data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        patch_manifest(
+            "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-old\n+new\n"
+        ),
+    )
+    page = open_page(browser, url)
+    details = page.locator("#evidence details").first
+    expect(details.locator("summary")).to_be_visible()
+    first = details.evaluate("d => d.open")
+    # The second press runs in a frame callback queued before the first `toggle`
+    # reaches the widget, so it runs in the same frame as Effect UI's write-back of
+    # the Model's `open` and just before it.
+    ended = details.evaluate("""d => new Promise(done => {
+      const summary = d.querySelector(':scope > summary');
+      let heard = false;
+      d.addEventListener('toggle', () => { heard = true }, {once: true});
+      const again = () => {
+        if (!heard) return requestAnimationFrame(again);
+        summary.click();
+        requestAnimationFrame(() => requestAnimationFrame(() =>
+          setTimeout(() => done(d.open), 50)));
+      };
+      summary.click();
+      requestAnimationFrame(again);
+    })""")
+    assert ended == first
+    rendered(page)
+    expect(details).to_have_js_property("open", first)

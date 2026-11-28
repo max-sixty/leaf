@@ -453,7 +453,8 @@ def test_a_sideways_board_keeps_a_card_s_words_whole(browser, serve, subtests):
             """() => {
               const board = document.querySelector('#crowd');
               const before = board.scrollLeft;
-              document.querySelector('#sq-card-5 .lf-grip').focus({preventScroll: true});
+              document.querySelector('#sq-card-5 .lf-grip')
+                .focus({preventScroll: true});
               return board.scrollLeft === before;
             }"""
         )
@@ -531,6 +532,25 @@ def test_on_a_stacked_board_a_vertical_step_past_a_column_s_end_enters_the_next(
     placed(0, 0)
 
 
+def test_leaving_a_held_card_s_grip_puts_the_card_back(browser, serve):
+    """A grab lasts only while the user stays on its grip: Tab away and the card returns
+    to where it was grabbed, with no move recorded."""
+    page = open_page(browser, serve(SQUEEZED_BOARD_PAGE))
+    page.emulate_media(reduced_motion="reduce")
+    page.locator("#sq-card-0 .lf-grip").focus()
+    page.keyboard.press("Enter")
+    page.keyboard.press("ArrowRight")
+    expect(page.locator("#sq-col-1 > #sq-card-0")).to_have_count(1)
+    page.keyboard.press("Tab")
+    expect(page.locator("#sq-col-0 > #sq-card-0")).to_have_count(1)
+    expect(page.locator("#sq-card-0")).not_to_have_class(re.compile(r"\blf-lift\b"))
+    assert not [
+        event
+        for event in events_model.read_events(serve.page_dir)
+        if event["kind"] == "action"
+    ]
+
+
 def test_cancelling_a_keyboard_move_stops_its_scroll(browser, serve):
     """Escape supersedes a reveal still travelling toward the abandoned placement."""
     page = open_page(browser, serve(TALL_BOARD_PAGE))
@@ -588,10 +608,12 @@ def test_reversing_a_move_continues_from_the_painted_card(browser, serve, route)
             page.keyboard.press(key)
         else:
             card.evaluate(
-                """(el, column) => void el.closest('lf-board').record(
-                  'move',
-                  {unit: el.id, value: column, rank: '0i'},
-                  {says: 'Moved card'},
+                """(el, column) => void el.closest('lf-board').dispatchEvent(
+                  new CustomEvent('lf-action', {detail: {
+                    verb: 'move',
+                    detail: {unit: el.id, value: column, rank: '0i'},
+                    says: 'Moved card',
+                  }}),
                 )""",
                 column,
             )
@@ -703,7 +725,7 @@ def test_a_card_s_title_clears_its_grip_and_its_prose_starts_under_it(
         # line stands under the grip's box, so a press there is always the grip's.
         measured = page.locator("#card-a").evaluate(
             """(card) => {
-            const grip = card.querySelector(':scope > .lf-grip').getBoundingClientRect();
+            const grip = card.querySelector('.lf-grip').getBoundingClientRect();
             const range = document.createRange(), lines = [];
             const walker = document.createTreeWalker(card, NodeFilter.SHOW_TEXT);
             for (let node = walker.nextNode(); node; node = walker.nextNode()) {
@@ -778,7 +800,7 @@ def test_a_grip_taller_than_its_title_leaves_the_blocks_under_it_their_width(
     page = open_page(browser, serve(GRIPPED_BLOCK_CARD_PAGE), context=context)
     measured = page.locator("#card-a").evaluate(
         """(card) => {
-        const grip = card.querySelector(':scope > .lf-grip').getBoundingClientRect();
+        const grip = card.querySelector('.lf-grip').getBoundingClientRect();
         const s = getComputedStyle(card), box = card.getBoundingClientRect();
         const content = box.width - parseFloat(s.paddingLeft) - parseFloat(s.paddingRight)
             - parseFloat(s.borderLeftWidth) - parseFloat(s.borderRightWidth);
@@ -982,7 +1004,7 @@ def test_a_card_offers_the_columns_its_choice_takes_once_the_choice_arrives(
     ):
         expect(
             page.locator(f'#card-rail [data-lf-board-target="{column}"]')
-        ).to_have_js_property("hidden", not offered)
+        ).to_have_count(1 if offered else 0)
 
 
 @pytest.mark.parametrize(
@@ -991,7 +1013,7 @@ def test_a_card_offers_the_columns_its_choice_takes_once_the_choice_arrives(
         # Leaf has bound the card to `rail`, so the drop asks `rail`.
         ("once the card has drawn", "ArrowLeft", "rail"),
         # Leaf binds the card to `other`, so the drop asks `other`.
-        ("as the card's class is defined", "ArrowRight", "other"),
+        ("as the card is parsed", "ArrowRight", "other"),
     ],
 )
 def test_a_drop_asks_the_widget_whose_choice_the_card_shows(
@@ -1011,8 +1033,12 @@ def test_a_drop_asks_the_widget_whose_choice_the_card_shows(
     rewrite = "document.getElementById('card-rail').setAttribute('shows', 'other')"
     context = browser.new_context()
     if rewritten.startswith("as"):
+        # Before Leaf binds the card, which it does as the card connects.
         context.add_init_script(
-            f"customElements.whenDefined('lf-card').then(() => {rewrite});"
+            "new MutationObserver((_, observer) => {"
+            " if (!document.getElementById('card-rail')) return;"
+            f" {rewrite}; observer.disconnect();"
+            " }).observe(document, {childList: true, subtree: true});"
         )
     page = open_page(browser, live_url(serve(source)), context=context)
     if rewritten.startswith("once"):
@@ -1186,31 +1212,21 @@ def test_a_column_two_options_name_takes_no_drop(browser, serve, subtests):
         pager = page.locator("#card-pager")
         expect(page.locator("#col-open > #card-pager")).to_have_count(1)
         expect(pager.locator(".lf-grip")).to_have_attribute("aria-disabled", "true")
-        expect(pager.locator(".lf-board-destinations")).to_have_js_property(
-            "hidden", True
-        )
+        expect(pager.locator(".lf-board-destinations")).to_have_count(0)
         # Once a pick stands it in a column, the undecided column takes it back.
         with sending(page, "the pick"):
             page.locator("#pager-now").click()
         expect(page.locator("#col-next > #card-pager")).to_have_count(1)
         expect(pager.locator(".lf-grip")).to_have_attribute("aria-disabled", "false")
-        expect(pager.locator(".lf-board-destinations")).to_have_js_property(
-            "hidden", False
-        )
-        expect(pager.locator('[data-lf-board-target="col-open"]')).to_have_js_property(
-            "hidden", False
-        )
+        expect(pager.locator(".lf-board-destinations")).to_have_count(1)
+        expect(pager.locator('[data-lf-board-target="col-open"]')).to_have_count(1)
         assert picks() == [("pager", "choose", {"value": ["pager-now"]})]
 
     with subtests.test(card="one a column two options name"):
         card = page.locator("#card-rail")
         expect(page.locator("#col-later > #card-rail")).to_have_count(1)
-        expect(card.locator('[data-lf-board-target="col-open"]')).to_have_js_property(
-            "hidden", False
-        )
-        expect(card.locator('[data-lf-board-target="col-next"]')).to_have_js_property(
-            "hidden", True
-        )
+        expect(card.locator('[data-lf-board-target="col-open"]')).to_have_count(1)
+        expect(card.locator('[data-lf-board-target="col-next"]')).to_have_count(0)
 
         # A pointer drag resting over the column opens no slot there. The drag is live
         # once the card wears the slot's class, and the loop reads the pointer's last

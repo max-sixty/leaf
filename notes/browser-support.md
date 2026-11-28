@@ -494,7 +494,7 @@ Safari ships invoker commands and `CommandEvent` from 26.2, by caniuse's
 `wf-invoker-commands` data; current Chrome and Edge, and Firefox from 144, have both.
 In an earlier
 Safari, a drop, an arrow move or a destination tap on a board card that shows a
-question's pick asks the question nothing: `lf-board.js` (`#ask`) throws
+question's pick asks the question nothing: `lf-board.js` (`AskOwner`) throws
 `CommandEvent is not defined`, the board lets go of the gesture, the card goes back to
 the column its question's pick names, and the page reports the error. An authored
 `<button commandfor command="--…">` does nothing there either. Everything else works:

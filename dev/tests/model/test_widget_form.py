@@ -4,6 +4,7 @@ import json
 
 import pytest
 
+from leaf.source.registry.storage import write_layer
 from leaf_dev.widget_form import get_assert
 
 PAGE = '<lf-rating id="r"></lf-rating><lf-margin-note id="n">Caveat.</lf-margin-note>'
@@ -13,10 +14,18 @@ defineWidget("lf-rating", Rating);
 DECLARED = ("lf-rating", "lf-margin-note")
 
 
-def grade(tmp_path, modules, page=PAGE, declared=DECLARED, home="packages/review-kit"):
+def grade(
+    tmp_path,
+    modules,
+    page=PAGE,
+    declared=DECLARED,
+    home="packages/review-kit",
+    selects=("./review-kit",),
+):
     package = tmp_path / "page" / home
     (package / "widgets").mkdir(parents=True)
     (tmp_path / "page" / "index.html").write_text(page)
+    write_layer(tmp_path / "page", {"packages": list(selects), "generation": "0" * 32})
     (package / "registry.json").write_text(json.dumps({tag: {} for tag in declared}))
     for name, text in modules.items():
         (package / "widgets" / name).write_text(text)
@@ -37,6 +46,12 @@ widget("lf-rating", Rating);
 """,
         """import { defineWidget } from "/runtime/effect-widget.js";
 defineWidget ("lf-rating", Rating);
+""",
+        """import { defineWidget } from "/runtime/effect-widget.js";
+defineWidget(/* the tag */ "lf-rating", Rating);
+""",
+        """import * as adapter from "/runtime/effect-widget.js";
+adapter.defineWidget("lf-rating", Rating);
 """,
     ],
 )
@@ -65,6 +80,17 @@ customElements.define ("lf-rating", class extends HTMLElement {});
 customElements.define("lf-rating", class extends HTMLElement {});
 """
         },
+        {
+            "lf-rating.js": """import { defineWidget } from "/runtime/effect-widget.js";
+if (false) defineWidget("lf-rating", Rating);
+window.customElements.define("lf-rating", class extends HTMLElement {});
+"""
+        },
+        {
+            "lf-rating.js": COMPONENT
+            + """const { html } = await import("/vendor/lit.js");
+"""
+        },
         # The widget that draws nothing has a module.
         {"lf-rating.js": COMPONENT, "lf-margin-note.js": "// nothing\n"},
         {
@@ -87,3 +113,11 @@ def test_each_widget_must_be_declared_by_a_package_and_placed(tmp_path):
     )["pass"]
     assert not grade(tmp_path / "undeclared", modules, declared=("lf-rating",))["pass"]
     assert not grade(tmp_path / "page-local", modules, home="page")["pass"]
+    assert not grade(tmp_path / "unselected", modules, selects=("./other-kit",))["pass"]
+
+
+def test_a_page_module_that_overrides_the_package_fails(tmp_path):
+    overriding = tmp_path / "page" / "page" / "widgets"
+    overriding.mkdir(parents=True)
+    (overriding / "lf-rating.js").write_text(COMPONENT)
+    assert not grade(tmp_path, {"lf-rating.js": COMPONENT})["pass"]

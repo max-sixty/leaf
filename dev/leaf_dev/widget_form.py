@@ -9,8 +9,8 @@ resolves them), and each module's syntax tree (the JavaScript reader Leaf reads
 module imports with), so spacing, comments and the name a module imports under don't change a
 grade.
 
-Every named tag must be declared by a package the page holds under `packages/` and
-placed on the page. A drawing widget passes where its package's module for it calls
+Every named tag must be declared by a package the page selects, whose copy it holds
+under `packages/`, and placed on the page. A drawing widget passes where its package's module for it calls
 `defineWidget`, imported from `/runtime/effect-widget.js` under any name, with the tag,
 and no module calls `customElements.define` with it; a drawless one passes where its
 package has no module for it and no module defines it either way. Any module that
@@ -23,6 +23,7 @@ from pathlib import Path
 from tree_sitter import Node
 
 from leaf.source.registry.contract import module_paths, read_registry_declarations
+from leaf.source.registry.storage import layer_packages
 from leaf.source.resource_urls import _javascript_reader
 from leaf.source.structure import SourceDocument
 
@@ -44,8 +45,9 @@ def said(node: Node | None) -> str:
 
 def definitions(module: Path) -> dict[str, set[str]]:
     """The tags a module defines, by how: `component` for a call to the name it imports
-    `defineWidget` under, `plain` for `customElements.define`; and `old` for each Lit
-    module it imports."""
+    `defineWidget` under, or to `defineWidget` on the namespace it imports the adapter
+    as; `plain` for a call to `customElements.define`, on whatever object; and `old` for
+    each Lit module it imports, statically or with `import()`."""
     found = {"component": set(), "plain": set(), "old": set()}
     parser, _ = _javascript_reader()
     script = parser.parse(module.read_bytes()).root_node
@@ -59,20 +61,25 @@ def definitions(module: Path) -> dict[str, set[str]]:
                 if said(named.child_by_field_name("name")) == "defineWidget":
                     alias = named.child_by_field_name("alias")
                     adapter.add(said(alias) if alias else "defineWidget")
+            for namespace in nodes(statement, "namespace_import"):
+                for name in nodes(namespace, "identifier"):
+                    adapter.add(f"{said(name)}.defineWidget")
     for call in nodes(script, "call_expression"):
+        function = call.child_by_field_name("function")
         arguments = call.child_by_field_name("arguments")
-        first = (
-            arguments.named_children[0]
-            if arguments and arguments.named_children
-            else None
-        )
-        if first is None or first.type != "string":
+        values = [
+            node for node in (arguments.named_children if arguments else []) if node.type != "comment"
+        ]
+        if not values or values[0].type != "string":
             continue
-        callee = said(call.child_by_field_name("function"))
-        tag = said(first)[1:-1]
-        if callee in adapter:
+        callee = said(function)
+        tag = said(values[0])[1:-1]
+        if function is not None and function.type == "import":
+            if tag in OLD_WAY:
+                found["old"].add(tag)
+        elif callee in adapter:
             found["component"].add(tag)
-        elif callee == "customElements.define":
+        elif callee == "customElements.define" or callee.endswith(".customElements.define"):
             found["plain"].add(tag)
     return found
 
@@ -88,10 +95,18 @@ def get_assert(output: str, context: dict) -> dict:
         if index.is_file()
         else set()
     )
-    # Each package's declared tags and the module each has, as the layer resolves them.
+    # The packages the page's layer record selects by path, whose copies it holds, each
+    # with its declared tags and the module each has, as the layer resolves them.
+    selected = {
+        Path(value).name
+        for value in layer_packages(page) or []
+        if "/" in value or value.startswith((".", "~"))
+    }
     packages = {}
     for package in sorted(
-        path for path in (page / "packages").glob("*") if path.is_dir()
+        path
+        for path in (page / "packages").glob("*")
+        if path.is_dir() and path.name in selected
     ):
         declared = read_registry_declarations(package / "registry.json") or {}
         available = {
@@ -111,11 +126,18 @@ def get_assert(output: str, context: dict) -> dict:
         if tag not in placed:
             problems.append(f"the page places no <{tag}>")
     for tag in config.get("drawing", []):
-        own = [
-            str((package / paths[tag]).relative_to(page))
-            for package, (_, paths) in packages.items()
-            if tag in paths
-        ]
+        # A page's own module for a tag wins over its package's (registry/page.py).
+        own = (
+            [f"page/widgets/{tag}.js"]
+            if (page / "page" / "widgets" / f"{tag}.js").is_file()
+            else [
+                str((package / paths[tag]).relative_to(page))
+                for package, (_, paths) in packages.items()
+                if tag in paths
+            ]
+        )
+        if any(name.startswith("page/") for name in own):
+            problems.append(f"the page's own module, not its package's, defines <{tag}>")
         if not any(tag in modules[name]["component"] for name in own):
             problems.append(
                 f"no package module for <{tag}> defines it with defineWidget"

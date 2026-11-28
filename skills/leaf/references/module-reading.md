@@ -175,9 +175,10 @@ symbol and the words its press says.
 
 ## Page readings
 
-Each function here returns a page reading. A `LeafElement`'s `render()` that reads one
-synchronously runs again when the reading changes (`module-plain-elements.md`,
-"`LeafElement`"); a read after an `await` is not followed.
+Each function here returns a page reading. A `LeafElement`'s `render()` or an Effect UI
+component's `inputs` that reads one synchronously runs again when the reading changes
+(`module-plain-elements.md`, "`LeafElement`"; `/runtime/effect-widget.js`); a read after
+an `await` is not followed.
 
 ### Reading obligations and the On lists
 
@@ -305,8 +306,9 @@ on the same unit and verb, or `settled` by a stamped version. The element form i
 the widget's own drawing: its `phase` waits on that element's drawing, and Leaf sets
 only that element's `state` again. Pass `{kind: "widget", id}` for another widget's
 reports, `{kind: "thread", id}` for a Thread's, or nothing for all of them. Their
-`phase` is the page's, and only a `LeafElement`'s `render()` follows them: nothing
-sets a plain element's `state` when they move.
+`phase` is the page's, and only a `LeafElement`'s `render()` or an Effect UI
+component's `inputs` follows them: nothing sets a plain element's `state` when they
+move.
 
 ### Reading version changes
 

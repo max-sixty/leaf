@@ -16,19 +16,29 @@ Each part is read from the list that defines it, as the check that guards it rea
   form is the facts its declaration states.
 - The widget protocol: what Leaf sets on an element, hears from it and reads off it.
   Code keeps only its events: those Leaf's runtime listens for or makes (`events`)
-  that the library exports by name, as `lib/widget-events.js` does. The rest is read
-  from the protocol's index, `module-plain-elements.md`, "The widget protocol": each
-  entry's lead name, and each name the section gives in code of a member of the
-  element or its class (`lf` then a capital, `static name`, or `name()` where no
-  function has that name), a mark (`data-lf-…`), or an event Leaf's runtime listens
-  for or makes. A lead named by a registry field, as `record.property` is, belongs to
-  the declaration key `verbs`. The census reads no other reference, and
-  `dev/tests/model/test_interface.py` holds the index to the members and events the
+  that the library exports by name, as `lib/widget-events.js` does. A mark is any
+  `data-lf-…` name a reference gives in code, since that shape says what it is, and
+  each attribute the kernel registry's `$marks` paints for a declaration key. A focus
+  mark's shadow part, its name less `data-` (`module-input.md`), is the mark's twin,
+  so the census lists the mark alone, with the mark's own uses. The members and the
+  other events are read from the protocol's index, `module-plain-elements.md`, "The
+  widget protocol": each entry's lead name, and each name the section gives in code of
+  a member of the element or its class (`lf` then a capital, `static name`, or
+  `name()` where no function has that name), or of an event Leaf's runtime listens for
+  or makes. A lead named by a registry field, as `record.property` is, belongs to the
+  declaration key `verbs`. For members and events the census reads no other
+  reference, and `dev/tests/model/test_interface.py` holds the index to the ones the
   other references give.
-- Functions: `widget-api.js`'s exports, `export *` followed, as
-  `tests/runtime/widget-api.test.mjs` reads them. A function's form is the section the
-  references' index (`module-authoring.md`, "Functions") files it under, and whether it
-  is portable (`portable-api.js` exports it).
+- Modules: the paths `$public-modules` in the kernel registry admits outside the
+  library (`/runtime/lib/`): Leaf's own modules under `/runtime/`, such as
+  `widget-api.js` and `effect-widget.js`, and the dependencies Leaf serves under
+  `/vendor/`, such as Lit's. A module's form says which of the two it is.
+- Functions: the exports of Leaf's own modules, `export *` followed, as
+  `tests/runtime/widget-api.test.mjs` reads `widget-api.js`'s. A function's form is the
+  section the references' index (`module-authoring.md`, "Functions") files it under, or
+  else the module that exports it, with `portable` where `portable-api.js` exports it.
+- Vendored exports: the names the vendored modules export, which Leaf's build
+  chooses (`build/vendor.mjs`). A name's form is the module that exports it.
 - Data contracts: the names `$data.contracts` declares in `browser/registry.json` and
   in each bundled package's registry. An example page's registry declares contracts for
   that page alone, which are no part of the interface. A contract's form is the
@@ -52,6 +62,15 @@ Each part is read from the list that defines it, as the check that guards it rea
   class is read where a `.` leads it and set, as by a `class` attribute, elsewhere,
   but a whole string naming an event the script makes, hears or exports is the
   event, as `"lf-preview"` is in `new CustomEvent("lf-preview")`.
+- Parts: the parts of Leaf's chrome a theme restyles, as `package-themes.md`'s "Leaf's
+  chrome" table lists them and `tests/browser/threads/test_layout.py` reads them. A
+  widget's own `part` names are its package's, for a page to style with `::part`
+  (`packages.md`, "Styles and composition"), so the census reads none of them.
+
+The census counts a name as an author imports it or writes it as a key. A function's
+options, an event's `detail` and an element's attributes are fields of that name's
+contract, which its module or reference describes, so `--base` reports none of them
+and a change to one is read in its diff.
 
 A name's users are counted in three groups: the bundled packages (`packages/*`), the
 library's modules (`browser/runtime/lib/`), and the example pages (`examples/`, a page
@@ -62,11 +81,16 @@ out Leaf's own registry, whose elements a key's form names instead. A use is:
 - for a contract, an element declaration in a registry whose `inputs` or `outputs`
   name it;
 - for an element, its start tag;
-- for a function, its import from `widget-api.js` or `portable-api.js`;
+- for a module, a script's import or re-export of it, or its `import("…")`, under the
+  path `$public-modules` spells;
+- for a function or a vendored export, a script's import of it by name from a module
+  that exports it;
 - for a protocol member, a script's property of its name; for an event, a call in a
   script that listens for or makes it (`Tree.events`); for a mark, its name, or its
   `dataset` property, in a file's code less its comments;
-- for a styling name, its name in a file's code less its comments.
+- for a styling name, its name in a file's code less its comments;
+- for a part, an attribute selector naming it (`[part~="card"]`), in a file's code
+  less its comments.
 
 An event named by a common word, as `change` is, counts every listener for it, a
 media query's included. A script that imports a library module using a name reaches
@@ -76,7 +100,9 @@ second count after a `+`, and each part lists the names with the fewest direct u
 first.
 
 `--base [REF]` prints instead the names this tree adds and removes against REF, the
-merge base with `main` without one, part by part, for a pull request to carry.
+merge base with `main` without one, part by part, for a pull request to carry. An
+export counts once for each module it is exported from, so making an existing
+function portable adds it from `portable-api.js`.
 `--json` prints the same facts as one document, with the commit the working tree
 stands on. The command reports; no test or job reads its counts.
 """
@@ -94,9 +120,11 @@ from pathlib import Path
 import click
 import tree_sitter_javascript
 import turbohtml
+from markdown_it import MarkdownIt
 from tree_sitter import Language, Node, Parser, Query, QueryCursor
 
 from leaf.source.registry.contract import element_declarations, is_element_name
+from leaf.source.resource_urls import javascript_imports
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     arm_commit,
@@ -123,14 +151,17 @@ PARTS = {
     "elements": "Leaf's elements",
     "protocol": "The widget protocol",
     "contracts": "Data contracts",
+    "modules": "Modules",
     "functions": "Functions",
+    "vendored": "Vendored exports",
+    "parts": "Parts",
     "styling": "Styling names",
 }
 GROUPS = ("packages", "library", "examples")
 SCRIPTS = (".js", ".mjs", ".html")
 CODE = {".css", ".py", *SCRIPTS}
-API = ("/runtime/widget-api.js", "/runtime/portable-api.js")
 LIBRARY = "browser/runtime/lib/"
+KERNEL = "browser/runtime/kernel-registry.json"
 THEME = "browser/styles/tokens.css"
 # The calls whose first argument names an event: listening for one, or making one, as
 # an `Event` subclass's constructor does through `super`.
@@ -171,9 +202,22 @@ CONSTANTS = Query(
           name: (identifier) @name value: (string (string_fragment) @value))))
     """,
 )
+MARK = re.compile(r"(?<![\w-])data-lf-[a-z0-9]+(?:-[a-z0-9]+)*")
+MARKDOWN = MarkdownIt("commonmark").enable("table")
 PROPERTIES = Query(
     LANGUAGE, "[(property_identifier) (shorthand_property_identifier)] @property"
 )
+
+
+def spans(text: str) -> list[str]:
+    """The code a Markdown text gives inline, outside its code blocks."""
+    return [
+        " ".join(child.content.split())
+        for token in MARKDOWN.parse(text)
+        if token.type == "inline"
+        for child in token.children or ()
+        if child.type == "code_inline"
+    ]
 
 
 def said(node: Node | None) -> str:
@@ -280,10 +324,12 @@ def imports(script: Node) -> Iterator[tuple[str, Node]]:
 @dataclass
 class Name:
     """One name of the interface: its form, and by group the files of each of its
-    users, and of each user that only imports a library module using it. A styling
-    name also says which sides set and read it."""
+    users, and of each user that only imports a library module using it. An export
+    also names the modules it is exported from, and a styling name says which sides
+    set and read it."""
 
     form: str = ""
+    homes: list[str] = field(default_factory=list)
     users: dict[str, defaultdict[str, list[str]]] = field(
         default_factory=lambda: {group: defaultdict(list) for group in GROUPS}
     )
@@ -441,6 +487,34 @@ class Tree:
                 for tag, declaration in element_declarations(self.json(path)).items():
                     yield path, user, tag, declaration
 
+    def specifiers(self, path: str) -> set[str]:
+        """The paths a script imports, re-exports or loads by `import("…")`, each as
+        the script spells it."""
+        return {
+            specifier
+            for script in self.scripts(path)
+            for _, _, specifier in javascript_imports(said(script).encode(), path, [])
+        }
+
+    @cached_property
+    def painted(self) -> dict[str, str]:
+        """The attribute the kernel registry's `$marks` paints for each declaration key.
+        The table opens with its own description, which paints nothing."""
+        return {
+            key: mark["attribute"]
+            for key, mark in self.json(KERNEL)["$marks"].items()
+            if key != "description"
+        }
+
+    @cached_property
+    def public_modules(self) -> list[str]:
+        """The module paths `$public-modules` admits outside the library."""
+        return [
+            path
+            for path in self.json(KERNEL)["$public-modules"]["paths"]
+            if not path.startswith("/runtime/lib/")
+        ]
+
     def imported_modules(self, path: str) -> set[str]:
         """The library modules a script imports, by file name."""
         return {
@@ -452,14 +526,11 @@ class Tree:
 
 
 def keys(tree: Tree) -> dict[str, Name]:
-    # Each `$` table opens with its own description, which paints nothing.
-    painted = tree.json("browser/runtime/kernel-registry.json")["$marks"]
-    del painted["description"]
     core = tree.json("browser/registry.json")
     rows = {}
     for key in core["$keys"]:
         own = [tag for tag in sorted(core) if is_element_name(tag) and key in core[tag]]
-        form = [f"painted {painted[key]['attribute']}"] if key in painted else []
+        form = [f"painted {tree.painted[key]}"] if key in tree.painted else []
         rows[key] = Name(
             "; ".join(form + ([f"Leaf's {', '.join(own)}"] if own else []))
         )
@@ -513,20 +584,22 @@ def elements(tree: Tree) -> dict[str, Name]:
 
 
 def protocol(tree: Tree, functions: dict[str, Name]) -> dict[str, Name]:
-    text = tree.text(f"{REFERENCES}/module-plain-elements.md")
-    prose = re.sub(r"^```.*?^```", "", text.split("\n## ", 1)[0], flags=re.M | re.S)
-    leads = set(re.findall(r"^- \*\*`([^`]+)`", prose, re.M))
+    index = tree.text(f"{REFERENCES}/module-plain-elements.md").split("\n## ", 1)[0]
+    leads = set(re.findall(r"^- \*\*`([^`]+)`", index, re.M))
     # The events Leaf hears or makes that the library exports by name are the
     # protocol's whether or not the index names them.
     library = set(tree.runtime_strings(LIBRARY).values())
     rows = {name: Name("event") for name in tree.heard & library}
-    for span in (" ".join(found.split()) for found in re.findall(r"`([^`]+)`", prose)):
+    for path in tree.files:
+        if path.startswith(f"{REFERENCES}/") and path.endswith(".md"):
+            for span in spans(tree.text(path)):
+                rows |= {name: Name("mark") for name in MARK.findall(span)}
+    rows |= {name: Name("mark") for name in tree.painted.values()}
+    for span in spans(index):
         name = re.sub(r"^static |\(\)$|=.*$", "", span)
-        if "." in name:
+        if "." in name or name.startswith("data-lf-"):
             continue
-        if re.fullmatch(r"data-lf-[a-z-]+", name):
-            rows[name] = Name("mark")
-        elif name in tree.heard:
+        if name in tree.heard:
             rows[name] = Name("event")
         elif (
             span in leads
@@ -593,15 +666,34 @@ def function_index(tree: Tree) -> dict[str, str]:
     return sections
 
 
-def functions(tree: Tree) -> dict[str, Name]:
-    portable = exports(tree, "browser/runtime/portable-api.js")
-    index = function_index(tree)
+def modules(tree: Tree) -> dict[str, Name]:
+    rows = {
+        path: Name("Leaf's" if path.startswith("/runtime/") else "vendored")
+        for path in tree.public_modules
+    }
+    for path, user in tree.code_users():
+        if path.endswith(SCRIPTS):
+            for module in tree.specifiers(path) & rows.keys():
+                rows[module].used(user, path)
+    return rows
+
+
+def named_exports(
+    tree: Tree, modules: list[str], index: dict[str, str]
+) -> dict[str, Name]:
+    """The names `modules` export, each with the section `index` files it under, or
+    else the modules that export it, as its form, and its imports from them as uses."""
+    homes = defaultdict(list)
+    for module in modules:
+        for name in exports(tree, f"browser{module}"):
+            homes[name].append(module)
     rows = {
         name: Name(
-            ("portable; " if name in portable else "")
-            + index.get(name, "in no section")
+            ("portable; " if "/runtime/portable-api.js" in where else "")
+            + index.get(name, ", ".join(map(os.path.basename, where))),
+            where,
         )
-        for name in exports(tree, "browser/runtime/widget-api.js")
+        for name, where in homes.items()
     }
     for path, user in tree.code_users():
         if not path.endswith(SCRIPTS):
@@ -609,12 +701,37 @@ def functions(tree: Tree) -> dict[str, Name]:
         imported = {
             said(specifier.child_by_field_name("name"))
             for script in tree.scripts(path)
-            for specifier_path, node in imports(script)
-            if specifier_path.endswith(API)
+            for module, node in imports(script)
+            if module in modules
             for specifier in descendants(node, "import_specifier")
         }
         for name in imported & rows.keys():
             rows[name].used(user, path)
+    return rows
+
+
+def functions(tree: Tree) -> dict[str, Name]:
+    own = [path for path in tree.public_modules if path.startswith("/runtime/")]
+    return named_exports(tree, own, function_index(tree))
+
+
+def vendored(tree: Tree) -> dict[str, Name]:
+    others = [path for path in tree.public_modules if not path.startswith("/runtime/")]
+    return named_exports(tree, others, {})
+
+
+def parts(tree: Tree) -> dict[str, Name]:
+    themes = tree.text(f"{REFERENCES}/package-themes.md")
+    chrome = themes.split("\n## Leaf's chrome", 1)[1].split("\n## ", 1)[0]
+    rows = {
+        name: Name("Leaf's chrome")
+        for name in re.findall(r"^\| `([a-z-]+)` ", chrome, re.M)
+    }
+    for path, user in tree.code_users():
+        for name, row in rows.items():
+            selector = rf"\[\s*part\s*[~|]?=\s*[\"']?{re.escape(name)}[\"'\s\]]"
+            if re.search(selector, tree.code(path)):
+                row.used(user, path)
     return rows
 
 
@@ -695,8 +812,11 @@ def census(tree: Tree) -> dict[str, dict[str, Name]]:
         "keys": keys(tree),
         "elements": elements(tree),
         "contracts": contracts(tree),
+        "modules": modules(tree),
     }
     read["functions"] = functions(tree)
+    read["vendored"] = vendored(tree)
+    read["parts"] = parts(tree)
     read["protocol"] = protocol(tree, read["functions"])
     read["styling"] = styling(tree)
     imported = {
@@ -706,8 +826,8 @@ def census(tree: Tree) -> dict[str, dict[str, Name]]:
     }
     for rows in read.values():
         for row in rows.values():
-            for path, ((group, who), modules) in imported.items():
-                if via := modules & row.users["library"].keys():
+            for path, ((group, who), library) in imported.items():
+                if via := library & row.users["library"].keys():
                     row.through[group][who].append(f"{path}: {', '.join(sorted(via))}")
     return {
         part: dict(
@@ -718,6 +838,31 @@ def census(tree: Tree) -> dict[str, dict[str, Name]]:
         )
         for part in PARTS
     }
+
+
+def change(rows: dict[str, Name], against: dict[str, Name]) -> dict[str, list[str]]:
+    """The names `rows` holds that `against` lacks, each with the modules it newly comes
+    from where it is an export."""
+    entries = [
+        {(name, home) for name, row in each.items() for home in row.homes or [""]}
+        for each in (rows, against)
+    ]
+    found = defaultdict(list)
+    for name, home in sorted(entries[0] - entries[1]):
+        found[name] += [home] if home else []
+    return dict(found)
+
+
+def listed(names: dict[str, list[str]]) -> str:
+    """Names a comparison found, an export's under each module it comes from."""
+    grouped = defaultdict(list)
+    for name, homes in names.items():
+        for home in homes or [""]:
+            grouped[home].append(f"`{name}`")
+    return "; ".join(
+        (f"from `{home}` " if home else "") + ", ".join(each)
+        for home, each in grouped.items()
+    )
 
 
 def document(parts: dict[str, dict[str, Name]]) -> dict:
@@ -782,9 +927,9 @@ def printed(parts: dict[str, dict[str, Name]]) -> str:
 @base_option()
 def interface(as_json: bool, base: str | None) -> None:
     """Print every name a package's author can lean on Leaf for: an element
-    declaration's keys, Leaf's elements, the widget protocol, data contracts,
-    functions and styling names, each with its form and what uses it. With --base,
-    print the names this tree adds and removes."""
+    declaration's keys, Leaf's elements, the widget protocol, data contracts, modules,
+    functions, vendored exports, parts and styling names, each with its form and what
+    uses it. With --base, print the names this tree adds and removes."""
     head = census(Tree.working())
     if base is None:
         click.echo(
@@ -796,8 +941,8 @@ def interface(as_json: bool, base: str | None) -> None:
     commit = arm_commit(base or merge_base())
     with tempfile.TemporaryDirectory() as scratch:
         earlier = census(Tree.at(commit, Path(scratch)))
-    added = {part: sorted(head[part].keys() - earlier[part].keys()) for part in PARTS}
-    removed = {part: sorted(earlier[part].keys() - head[part].keys()) for part in PARTS}
+    added = {part: change(head[part], earlier[part]) for part in PARTS}
+    removed = {part: change(earlier[part], head[part]) for part in PARTS}
     if as_json:
         click.echo(
             json.dumps({"base": commit, "added": added, "removed": removed}, indent=1)
@@ -806,7 +951,7 @@ def interface(as_json: bool, base: str | None) -> None:
     lines = [
         f"{PARTS[part]}: "
         + "; ".join(
-            f"{verb} {', '.join(f'`{name}`' for name in names[part])}"
+            f"{verb} {listed(names[part])}"
             for verb, names in (("adds", added), ("removes", removed))
             if names[part]
         )

@@ -1,68 +1,27 @@
 export {
-  EditorView,
-  keymap,
-  Decoration,
-  ViewPlugin,
   BlockWrapper,
+  Decoration,
+  Direction,
+  EditorView,
+  ViewPlugin,
+  WidgetType,
+  keymap,
 } from "@codemirror/view";
-export { EditorState, StateEffect, Compartment } from "@codemirror/state";
-export {
-  history,
-  standardKeymap,
-  historyKeymap,
-  isolateHistory,
-  invertedEffects,
-} from "@codemirror/commands";
-export { StreamLanguage } from "@codemirror/language";
 export {
   ChangeSet,
+  Compartment,
   EditorSelection,
-  Prec,
-  Transaction,
-  Annotation,
+  EditorState,
   Facet,
-  RangeSet,
-  RangeSetBuilder,
+  Prec,
+  StateEffect,
   StateField,
-  Text,
-  codePointAt,
-  codePointSize,
-  fromCodePoint,
-  combineConfig,
-  MapMode,
-  RangeValue,
-  CharCategory,
-  countColumn,
 } from "@codemirror/state";
 export {
-  drawSelection,
-  lineNumbers,
-  highlightActiveLineGutter,
-  highlightActiveLine,
-  dropCursor,
-  rectangularSelection,
-  crosshairCursor,
-  GutterMarker,
-  gutter,
-  WidgetType,
-  logException,
-  Direction,
-  showTooltip,
-  getTooltip,
-  placeholder,
-} from "@codemirror/view";
-export {
-  defaultKeymap,
+  history,
+  historyKeymap,
   insertNewlineAndIndent as insertNewline,
+  invertedEffects,
+  isolateHistory,
+  standardKeymap,
 } from "@codemirror/commands";
-export {
-  HighlightStyle,
-  syntaxHighlighting,
-  indentOnInput,
-  bracketMatching,
-  syntaxTree,
-  indentUnit,
-  language,
-  highlightingFor,
-} from "@codemirror/language";
-export { Tag, highlightTree } from "@lezer/highlight";

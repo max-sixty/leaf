@@ -3,7 +3,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 
-import { EditorView, historyKeymap } from "/vendor/codemirror.esm.js";
+import { EditorView, historyKeymap } from "/vendor/file-editor.esm.js";
 import { createEditor, followKept, mergeKept } from "/widgets/editor.js";
 
 /** An editor showing `text`, with its view for typing as the reader would. */

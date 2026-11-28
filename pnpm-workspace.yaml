@@ -33,4 +33,3 @@ patchedDependencies:
   pele: build/pele.patch
   "@awesome.me/webawesome": build/@awesome.me__webawesome.patch
   "@pierre/diffs": build/@pierre__diffs.patch
-  "@effect/ui": build/@effect__ui.patch

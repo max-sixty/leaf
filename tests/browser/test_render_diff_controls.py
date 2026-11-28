@@ -1066,7 +1066,7 @@ def test_evidence_close_folds_room_but_retires_controls_immediately(
 
 def test_a_second_toggle_before_the_next_frame_holds(browser, serve):
     """A fold pressed again before the frame after its first press's `toggle` ends
-    where the second press left it; Effect UI's write-back of `open` doesn't undo it."""
+    where the second press left it; no draw or restore writes `open` over it."""
     from render_cases_navigation import call_diff, call_node
 
     url = serve(
@@ -1094,10 +1094,10 @@ def test_a_second_toggle_before_the_next_frame_holds(browser, serve):
     expect(details.locator("summary")).to_be_visible()
     first = details.evaluate("d => d.open")
     # The second press runs in a frame callback queued before the first `toggle`
-    # reaches the widget, so it runs in the same frame as Effect UI's write-back of
-    # the Model's `open` and just before it. Effect UI hears each `toggle` in a capture
-    # listener on its container and queues that toggle's restore there, so the frame
-    # this listener queues on the second `toggle` runs after that restore.
+    # reaches the widget. That is the frame in which Effect UI would restore a
+    # controlled `open` after the first `toggle`, and the press runs just before that
+    # restore, which would undo it. The frame this listener queues on the second
+    # `toggle` runs after any such restore.
     details.evaluate("""d => {
       const summary = d.querySelector(':scope > summary');
       let heard = false;
@@ -1113,17 +1113,17 @@ def test_a_second_toggle_before_the_next_frame_holds(browser, serve):
       requestAnimationFrame(again);
     }""")
     page.wait_for_function("() => window.secondToggle !== undefined")
-    # The second `toggle` reports the press's own change rather than one the
-    # write-back merged away.
+    # The second `toggle` reports the press's own change rather than one a write of
+    # `open` merged away.
     assert page.evaluate("window.secondToggle") == ("open" if first else "closed")
-    # The Model's render of what it heard has run too, so `open` now stays.
+    # The widget's draws since have run too, and `open` stays.
     rendered(page)
     assert details.evaluate("d => d.open") == first
 
 
 def test_a_fold_redrawn_before_its_toggle_holds(browser, serve):
     """A fold the widget redraws before its press's `toggle` arrives stays where the
-    press left it; the redraw doesn't write the Model's older `open` over it."""
+    press left it; the redraw doesn't write `open` over it."""
     from render_cases_navigation import call_diff, call_node
 
     url = serve(

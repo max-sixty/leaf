@@ -155,24 +155,25 @@ function watchLayout(box) {
     observer.observe(node);
   };
   observe(root);
-  if (box !== pageScroller) {
-    for (const child of box.children) observe(child);
-    const mutation = new MutationObserver((entries) => {
-      for (const entry of entries) {
-        for (const node of entry.addedNodes) if (node instanceof Element) observe(node);
-        for (const node of entry.removedNodes)
-          if (node instanceof Element) observer.unobserve(node);
-      }
-    });
-    mutation.observe(box, { childList: true });
-    watchOwner(box, {
-      disconnect() {
-        observer.disconnect();
-        mutation.disconnect();
-        watchedLayout.delete(box);
-      },
-    });
-  }
+  // The root's box can stand the window's height while the page's content grows past
+  // it, so the page's children are watched too, as a box's are.
+  for (const child of root.children) observe(child);
+  const mutation = new MutationObserver((entries) => {
+    for (const entry of entries) {
+      for (const node of entry.addedNodes) if (node instanceof Element) observe(node);
+      for (const node of entry.removedNodes)
+        if (node instanceof Element) observer.unobserve(node);
+    }
+  });
+  mutation.observe(root, { childList: true });
+  if (box === pageScroller) return;
+  watchOwner(box, {
+    disconnect() {
+      observer.disconnect();
+      mutation.disconnect();
+      watchedLayout.delete(box);
+    },
+  });
 }
 // The page is watched from the start, so where it stands now counts as its last end.
 watchLayout(pageScroller);

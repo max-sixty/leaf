@@ -1404,7 +1404,9 @@ export const likeSelector = (control) =>
 // user's item under the widget that drew it, which is the same place for every hold
 // that lost the same focus, whichever restores first; where that widget has left the
 // page, the item around the user that the nearest widget still standing drew; and
-// failing both, the user's key among every item under the scope.
+// failing both, the user's key among every item under the scope. Where none of those
+// takes focus, as where a removal empties the list, the user lands on that widget's
+// own element.
 export function holdFocus(scope, { key = null, alike = true, ownerOf } = {}) {
   const node = heldIn(scope);
   if (!node) return null;
@@ -1519,10 +1521,13 @@ export function holdFocus(scope, { key = null, alike = true, ownerOf } = {}) {
       // search of the items.
       if (!focusLost()) return deepFocus() === node;
       if (drawn(node) && restore()) return true;
+      // Where the list has emptied, the widget that drew it, with a stop lent.
+      const home = owner && owner.isConnected ? [owner] : [];
       return restore(
         ...keyed(same).filter(placeable),
         ...rest.map(neighbour),
         ...standIns,
+        ...home,
       );
     }
     return restore(() => find(same), ...rest.map(neighbour), ...standIns);

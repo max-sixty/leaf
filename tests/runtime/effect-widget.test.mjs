@@ -584,6 +584,18 @@ test("a widget's hold finds the user's item among its own, not a nested widget's
   }
 });
 
+test("a new state that empties the list leaves the user on the widget, not the body", async () => {
+  const { el, pending, item } = shelves({ shelves: [["only"]] });
+  /** @type {HTMLInputElement} */ (item("only")).focus();
+  try {
+    el.state = { shelves: [[]] };
+    await Promise.all(pending);
+    assert.equal(document.activeElement, el);
+  } finally {
+    el.remove();
+  }
+});
+
 test("a keep-alive item a new state moves to another shelf keeps its node and the words in it", async () => {
   const { el, pending, item } = shelves({ shelves: [["moved"], []], kept: true });
   const before = /** @type {HTMLInputElement} */ (item("moved"));

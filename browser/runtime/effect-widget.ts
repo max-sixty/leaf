@@ -90,9 +90,10 @@
      nearest one still drawn. It lands on the datum itself, a stop lent
      where it is no control, never on a control in it chosen by its look nor on the
      first one a boxless datum draws; where a datum takes no focus, it tries the next
-     node its key marks, then the next key's (`holdFocus`, `alike: false`). It puts
-     the user back only while their focus is lost, so a nested widget's hold and this
-     one need no order between them.
+     node its key marks, then the next key's, then the element of the widget that drew
+     their datum, with a stop lent, as where a removal empties its list (`holdFocus`,
+     `alike: false`). It puts the user back only while their focus is lost, so a nested
+     widget's hold and this one need no order between them.
    - A row the widget moves to another parent, and whose user should stay on their
      control with their words and caret, it writes as a keep-alive child
      (`h.keepAlive`): its nodes move with it, and the hold puts the user back on theirs.
@@ -147,7 +148,7 @@
    - A datum that is a host whose shadow root delegates focus hands the hold's focus to
      its first control, open root or closed, as on main: the hold can't see past it.
    - Where no datum takes focus, as where every row is boxless (`display: contents`),
-     the hold leaves the user on the body.
+     the hold leaves the user on the widget's own element.
    - A render that changes a node's attributes removes the ones it drops before it
      sets the new ones (`patchAttrs`), so an `<a>` that trades `href` for `tabindex`
      loses focusability for an instant and Chromium blurs it. A widget keeps such a

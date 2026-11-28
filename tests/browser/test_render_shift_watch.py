@@ -1377,9 +1377,13 @@ def test_a_carry_draws_the_way_of_a_step_news_may_take(browser, fault, key, prot
                 unstanding: [{ '--carry': '0px 40px' }, { '--carry': '0px 40px', offset: 0.5 },
                   { '--carry': '0px 0px' }],
               }[fault] ?? [{ '--carry': `0px ${from}px` }, { '--carry': `0px ${to}px` }];
+              // An overshoot is a transform's roundtrip, which the watch fails only
+              // where several readings find it (tests/shift_watch.js, "Runs of
+              // motion"), so it runs as long as a carry a key interrupts.
+              const duration = key || fault === 'overshoot' ? 1600 : 200;
               const carry = () => [row, port].map((part) => {
                 part.style.translate = 'var(--carry)';
-                return part.animate(keyframes, { duration: key ? 1600 : 200, fill: 'forwards' });
+                return part.animate(keyframes, { duration, fill: 'forwards' });
               });
               window.carries = carry();
               // Re-timed from where it is drawn before any frame draws it, as

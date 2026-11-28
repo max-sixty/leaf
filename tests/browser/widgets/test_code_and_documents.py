@@ -1926,13 +1926,14 @@ print("no notes")
     toggle = bar.locator(".lf-code-notes-toggle")
     note = page.locator("#freeze")
     number = page.locator('#walk [data-lf-line="2"]')
-    # Notes first, Copy last, on one toolbar; a block without notes keeps Copy alone.
+    # Notes first, Copy last, on one toolbar; a block without notes has Copy alone on
+    # its toolbar.
     expect(bar.locator(":scope > *")).to_have_count(2)
     assert bar.locator(":scope > *").evaluate_all(
         "marks => marks.map(m => m.getAttribute('aria-label'))"
     ) == ["Hide notes", "Copy"]
-    expect(page.locator("#plain .lf-code-bar")).to_have_count(0)
-    expect(page.locator("#plain .lf-code-copy")).to_have_count(1)
+    expect(page.locator("#plain .lf-code-bar > *")).to_have_count(1)
+    expect(page.locator("#plain .lf-code-bar > .lf-code-copy")).to_have_count(1)
     expect(note).to_be_visible()
     page.mouse.move(0, 0)
     expect(bar).to_have_css("opacity", "0")

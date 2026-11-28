@@ -30,5 +30,4 @@ installStageIntegration((root) => {
   root.adoptedStyleSheets = [theme, ...others, marksSheet];
   watchCurrentLocationIn(root);
   watchPassageRoot(root);
-  return [];
 });

@@ -149,7 +149,7 @@ import {
   scrollLimit,
 } from "../../dom/scrolling.js";
 import { signal } from "/vendor/signals-core.js";
-import { nothing, render } from "/vendor/lit.js";
+import { render } from "/vendor/lit.js";
 import { tick } from "../../state/version-signal.js";
 import { cancelRender, nextRender } from "../../lib/frame-pass.js";
 import { spokenSubject } from "../../base/contribution-model.js";
@@ -185,9 +185,8 @@ import { threadKey } from "../../state/thread/model.js";
 import {
   anchorLabel,
   releaseAuthoredUnder,
-  threadHeading,
   threadPassage,
-  titleShown,
+  viewHeading,
 } from "../../records/thread/messages.js";
 import { coarsePointer } from "../../base/pointer.js";
 import {
@@ -1308,11 +1307,8 @@ export function createThreadPreview({
     const shownThread = item.thread;
     // The title says what the floating panel's view of the thread says over it, from
     // the thread as it stands, so a title arriving with news the thread holds shows
-    // there at once, as in the panel (panel/floating-panel.js, `VIEWS`, `thread`). An
-    // untitled thread's card draws none: the card's label names the thread already.
-    const titled = titleShown(shownThread);
-    render(titled ? threadHeading(shownThread) : nothing, previewTitle);
-    keepsHidden(previewTitle, !titled);
+    // there at once, as in the panel (panel/floating-panel.js, `VIEWS`, `thread`).
+    render(viewHeading(shownThread), previewTitle);
     // The panel's view carries the reply being written along from the closed card
     // (records/thread/replies.js, `carry`).
     previewOpenInPanel.onclick = () => {

@@ -4,7 +4,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta
       name="description"
-      content="A local Markdown file, edited directly with quiet automatic saving and explicit conflict recovery, beside a rendered copy and its changes, which follow each save."
+      content="A local Markdown file, edited directly with quiet automatic saving and explicit conflict recovery, beside a rendered copy and its changes, which follow the typing."
     />
     <title>Quiet file editing</title>
     <style>
@@ -41,7 +41,7 @@
               <lf-diff
                 id="research-changes"
                 before="research-committed"
-                after="research-notes"
+                for="research-file"
               ></lf-diff>
             </lf-tab>
           </lf-tabs>
@@ -52,9 +52,11 @@
           <summary>Where the file lives</summary>
           <p>
             Edits save automatically, and the rendered copy and the Changes tab follow
-            each save. Double-click a word in the rendered copy to type at the start of
-            its line in the editor. The editor follows changes made elsewhere and asks
-            which version to keep when edits overlap.
+            the typing once it pauses. Double-click a word in the rendered copy to type
+            at the start of its line in the editor. Revert on a change in the Changes
+            tab puts it back to the text the file started from and takes you to those
+            lines in the editor, where Undo takes the Revert back. The editor follows
+            changes made elsewhere and asks which version to keep when edits overlap.
           </p>
           <p>
             The Changes tab compares the file with the text it started from, which the

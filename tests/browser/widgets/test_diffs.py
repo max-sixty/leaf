@@ -4,6 +4,7 @@ with its committed text."""
 
 import json
 import re
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from playwright.sync_api import expect
@@ -907,11 +908,11 @@ def diff_refresh_keeps_selection(page, serve, diff, source, value, edit):
     ), gutters
 
 
-def test_a_diff_of_a_file_and_its_committed_text_follows_each_save(
+def test_a_diff_of_a_file_and_its_committed_text_follows_the_typing(
     browser, serve, tmp_path
 ):
-    """A diff given a file's committed text and the file's editor compares the two after
-    each save, as `git diff` would: Git's three lines of context and only the rows that
+    """A diff given a file's committed text and the file's editor compares the two once
+    the typing rests, as `git diff` would: Git's three lines of context and only the rows that
     patch holds, so the one unchanged line on either side of the change stays out of the
     drawing, with no control to bring it in. Two equal texts say there are no changes,
     and two plain strings, which name no file, compare as the unnamed file. A patch
@@ -947,7 +948,15 @@ def test_a_diff_of_a_file_and_its_committed_text_follows_each_save(
 
     page.locator("lf-file-editor .cm-line", has_text="Line 5").click()
     page.keyboard.press("End")
-    page.keyboard.type(" edited")
+    edited = text.replace("Line 5", "Line 5 edited")
+    with page.expect_response(
+        lambda response: (
+            response.request.method == "POST"
+            and response.url.endswith("/api/files/notes")
+            and response.request.post_data_json["text"] == edited
+        )
+    ):
+        page.keyboard.type(" edited")
     expect(diff.locator(".lf-diff-head")).to_contain_text("notes.md")
     expect(diff.locator(".lf-diff-line")).to_have_count(8)
     sides = diff.evaluate("""d => [...d.shadowRoot.querySelectorAll('[data-lf-datum]')]
@@ -965,7 +974,80 @@ def test_a_diff_of_a_file_and_its_committed_text_follows_each_save(
     ]
     expect(diff.locator("[data-separator]")).to_have_text(["1 unmodified line"])
     expect(diff.locator("[data-expand-button]")).to_have_count(0)
-    assert file.read_text() == text.replace("Line 5", "Line 5 edited")
+    assert file.read_text() == edited
+
+
+def test_a_revert_lands_in_the_file_and_keeps_the_typing_it_meets(
+    browser, serve, tmp_path
+):
+    """Revert on a hunk of a diff bound to a file's editor puts the hunk back to the
+    committed text and lands the user in the editor at the restored line, ready to
+    undo it there. Pressed while the editor still holds typing its output hasn't
+    taken in, it folds around typing on other lines and is refused over typing on the
+    hunk's own lines, which stays, and the page says it wasn't reverted. A diff bound to
+    the file's binding follows the file on disk, which takes no request, so it offers
+    none. The row Revert stands on still takes a comment by its number."""
+    earlier = "".join(f"Line {number}.\n" for number in range(1, 41))
+    current = earlier.replace("Line 5.", "Line five.").replace(
+        "Line 30.", "Line thirty."
+    )
+    file = tmp_path / "notes.md"
+    file.write_text(current)
+    url = serve(
+        leaf_page(
+            "Changes",
+            '<h1>Changes</h1><lf-file-editor id="notes-file" binding="notes">'
+            '</lf-file-editor><lf-diff id="changes" before="committed" for="notes-file">'
+            '</lf-diff><lf-diff id="on-disk" before="committed" after="notes"></lf-diff>',
+        )
+    )
+    bind_file(serve.page_dir, "notes", file)
+    page_data_model.cmd_data_set(
+        serve.page_dir, "committed", {"name": "notes.md", "text": earlier}
+    )
+    page = open_page(browser, live_url(url))
+    editor = page.locator("lf-file-editor").get_by_role(
+        "textbox", name="File contents", exact=True
+    )
+    reverts = page.locator("#changes .lf-diff-revert")
+    expect(reverts).to_have_count(2)
+    expect(page.locator("#on-disk .lf-diff-line")).not_to_have_count(0)
+    expect(page.locator("#on-disk .lf-diff-revert")).to_have_count(0)
+    # The row Revert stands on still takes a comment on its line by its number.
+    head = page.locator("#changes .lf-diff-line").first
+    head.hover()
+    head.locator(".lf-diff-line-comment").click()
+    expect(page.locator(".lf-composer")).to_be_visible()
+    page.keyboard.press("Escape")
+    expect(page.locator(".lf-composer")).to_be_hidden()
+
+    text = "() => document.getElementById('notes-file').text.text"
+    reverts.first.click()
+    expect(editor).to_be_focused()
+    expect(editor.locator(".cm-activeLine")).to_have_text("Line 5.")
+    expect(reverts).to_have_count(1)
+
+    # From here only the test moves the page's clock, so the typing stays untaken by
+    # the output while the next Revert is pressed.
+    page.clock.install()
+    page.clock.pause_at(datetime.now(UTC) + timedelta(seconds=1))
+    page.keyboard.press("ControlOrMeta+End")
+    page.keyboard.type("typed")
+    reverts.click()
+    page.clock.resume()
+    expect(editor.locator(".cm-activeLine")).to_have_text("Line 30.")
+    page.wait_for_function(f"() => ({text})().endsWith('typed')")
+    assert page.evaluate(text) == earlier + "typed"
+    expect(reverts).to_have_count(1)
+
+    page.clock.pause_at(datetime.now(UTC) + timedelta(seconds=1))
+    page.keyboard.press("ControlOrMeta+End")
+    page.keyboard.type(" more")
+    reverts.click()
+    page.clock.resume()
+    expect(page.get_by_text("Not reverted: the text stays as it is.")).to_be_visible()
+    page.wait_for_function(f"() => ({text})().endsWith('typed more')")
+    assert page.evaluate(text) == earlier + "typed more"
 
 
 def test_a_closed_diff_file_reads_current_evidence_across_source_forms(browser, serve):

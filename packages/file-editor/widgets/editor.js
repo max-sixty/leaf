@@ -28,6 +28,7 @@ import {
   drawSelection,
   history,
   historyKeymap,
+  isolateHistory,
   defaultKeymap,
   HighlightStyle,
   StreamLanguage,
@@ -369,10 +370,10 @@ const changesBetween = (from, to) =>
  * @typedef {{state: import("@codemirror/state").EditorState,
  *   scroll: {top: number, left: number}}} KeptFile */
 
-/** The changes that fold `theirs`, a version of `base` written elsewhere, into
- * `ours`, the reader's edit of `base`, where the two changed lines apart from each
- * other; null where they changed the same or adjacent lines, which a line merge leaves
- * for the reader to compare.
+/** The changes that fold `theirs`, another version of `base`, written elsewhere or
+ * sent as a replacement (`replace`), into `ours`, the reader's edit of `base`, where
+ * the two changed lines apart from each other; null where they changed the same or
+ * adjacent lines, which a line merge leaves for the reader to compare.
  * @param {string} base @param {string} ours @param {string} theirs */
 function lineMerge(base, ours, theirs) {
   const lines = EditorState.create({ doc: base }).doc;
@@ -632,6 +633,23 @@ export function createEditor(
       const changes = lineMerge(base, reading().doc.toString(), theirs);
       if (!changes) return false;
       write(changes);
+      return true;
+    },
+    // Take `text`, which replaces `base`, as one edit of the reader's, folded around
+    // what they typed since `base` (`lineMerge`); say whether it did. It is a step of
+    // the reader's undo history of its own, never joined to their typing either side,
+    // and its line breaks are the editor's, as a paste's are. A replacement that would
+    // change nothing is no edit.
+    /** @param {string} base @param {string} text */
+    replace(base, text) {
+      const state = reading();
+      const changes = lineMerge(
+        base,
+        state.doc.toString(),
+        state.toText(text).toString(),
+      );
+      if (!changes || changes.empty) return false;
+      dispatch({ changes, annotations: isolateHistory.of("full") });
       return true;
     },
     // What the editor would keep of `text` read afresh, for a file not yet shown.

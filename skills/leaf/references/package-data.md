@@ -78,13 +78,14 @@ names no element, or whose `command` is neither kind; a custom command the targe
 doesn't handle does nothing, with no error.
 
 The target decides what a request does: it takes the request as its own change,
-adjusts it, or refuses it with `event.preventDefault()`. So the asker draws the
-target's value, never what it asked for, and draws again from that value after every
-request, taken or not. Where the target sets its value inside its `command` listener,
-Leaf has set the asker's input by the time `dispatchEvent` returns, and where the value
-stays as it was, Leaf sets nothing. So a rent slider that asks a budget table for 60,
-when the table already holds rent at its cap of 40, gets no set, and one that kept
-its thumb where the user dragged it would show 60 beside 40.
+adjusts it, or refuses it with `event.preventDefault()` inside its `command` listener.
+So the asker draws the target's value, never what it asked for, and draws again from
+that value after every request, taken or not. The target moves its value in the task
+that takes the request, so Leaf sets the asker's input before the page draws, perhaps
+after `dispatchEvent` returns, and sets nothing where the value stays as it was. So a
+rent slider that asks a budget table for 60, when the table already holds rent at its
+cap of 40, gets no set, and one that kept its thumb where the user dragged it would
+show 60 beside 40.
 
 A request no button on the page makes, such as a dragged handle, a typed number or a
 drop on a board, is the same event. The module dispatches it on the target, found

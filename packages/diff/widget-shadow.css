@@ -337,6 +337,23 @@ span.lf-diff-line-number {
 .lf-diff-line-comment::after {
   content: none;
 }
+/* A hunk's Revert (lf-diff.js, `revertButton`), a quiet word at the end of the hunk's
+   first row: it floats there, so the row's words wrap short of it, and sticks to the
+   code's visible end while the code scrolls sideways. It takes the row's line rather
+   than a word's, so the row keeps one code line's height. */
+.lf-diff-line:has(> .lf-diff-revert) {
+  display: flow-root;
+}
+.lf-diff-revert {
+  float: inline-end;
+  position: sticky;
+  inset-inline-end: 0;
+  z-index: 1;
+  font: var(--lf-font-small);
+  line-height: calc(var(--lf-code-line) - 2px);
+  padding-block: 0;
+  user-select: none;
+}
 /* For the same reason its ring stands on its edge (base.css, "Where it stands"). */
 .lf-diff-comment {
   --lf-ring-at: 0px;
@@ -477,10 +494,10 @@ pre[data-overflow="wrap"] .lf-diff-rows {
 .lf-diff-line[data-line-type="change-addition"] {
   background: var(--lf-code-add-fill);
 }
-.lf-diff-line[data-line-type="change-deletion"] > button {
+.lf-diff-line[data-line-type="change-deletion"] > button[data-lf-echo] {
   color: var(--lf-danger-ink);
 }
-.lf-diff-line[data-line-type="change-addition"] > button {
+.lf-diff-line[data-line-type="change-addition"] > button[data-lf-echo] {
   color: var(--lf-ok-ink);
 }
 :where(:host(lf-diff)) [data-line-type="change-deletion"] [data-diff-span] {

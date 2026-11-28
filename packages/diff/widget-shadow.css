@@ -347,11 +347,11 @@ span.lf-diff-line-number {
 .lf-diff-revert {
   position: absolute;
   z-index: 3;
-  inset-block-start: var(--lf-focus-ring-w);
-  inset-inline-start: var(--lf-focus-ring-w);
+  inset-block-start: calc(-1 * var(--lf-focus-ring-inset));
+  inset-inline-start: calc(-1 * var(--lf-focus-ring-inset));
   font: inherit;
-  --lf-icon-action-face: calc(var(--lf-code-line) - 2 * var(--lf-focus-ring-w));
-  --lf-icon-action-hit: calc(2ch - 1px - var(--lf-focus-ring-w));
+  --lf-icon-action-face: calc(var(--lf-code-line) + 2 * var(--lf-focus-ring-inset));
+  --lf-icon-action-hit: calc(2ch - 1px + var(--lf-focus-ring-inset));
   --lf-ring-at: var(--lf-focus-ring-inset);
 }
 .lf-diff-revert > svg {

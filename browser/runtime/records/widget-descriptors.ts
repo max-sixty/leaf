@@ -15,17 +15,19 @@
    there finds its widget at once. */
 import { untracked } from "/vendor/signals-core.js";
 import { runtime } from "../state/context.js";
-import { declaredElements, exhibits } from "../state/registry.js";
+import { declaredElements } from "../state/registry.js";
 import { isElementName } from "../state/registry-contract.js";
-import { authoredParents } from "./projection/authored.js";
+import {
+  NATIVE_CANDIDATES,
+  authoredParent as parentOf,
+  nativeMarks,
+  quotedBy,
+} from "./projection/authored.js";
 import { readPart } from "../state/semantic-state.js";
 import type { WidgetDescriptor } from "../state/semantic-application.js";
 
 const byElement = new WeakMap<Element, WidgetDescriptor>();
 const adoptedDescriptors = readPart((root) => root.document.descriptors);
-
-const parentOf = (element: Element): Element | null =>
-  authoredParents.has(element) ? authoredParents.get(element) : element.parentElement;
 
 const declaredAncestors = (element: Element) => {
   const ancestors = [];
@@ -39,18 +41,6 @@ const declaredAncestors = (element: Element) => {
   return ancestors;
 };
 
-// Whether an element stands strictly inside an `exhibit` widget in the authored
-// document, so what it holds is quoted material rather than controls (`quoted` below).
-// The exhibit itself is no mention, as the server reads it (`structure.quoted_in`);
-// `tests/exhibit_cases.json` holds both runtimes to one set of cases. Asked of
-// authored parents, so a widget layout has moved still answers for where it was
-// written.
-const quotedBy = (element: Element) => {
-  for (let node = parentOf(element); node; node = parentOf(node))
-    if (exhibits(node, runtime.registry[node.localName])) return true;
-  return false;
-};
-
 export function stageWidgetDescriptors(
   root: Document | Element | DocumentFragment = document,
   documentContext: WidgetDescriptor["document"] = {
@@ -60,6 +50,18 @@ export function stageWidgetDescriptors(
 ) {
   const captured = new Map<string, WidgetDescriptor>();
   const bindings: { element: Element; descriptor: WidgetDescriptor }[] = [];
+  // The native members (`nativeMarks`) each declared element holds nearest, which the
+  // application's membership reading places by that element's place.
+  type Native = NonNullable<WidgetDescriptor["natives"]>[number];
+  const natives = new Map<string, Native[]>();
+  for (const element of root.querySelectorAll(NATIVE_CANDIDATES)) {
+    const marks = nativeMarks(element);
+    const [holder] = marks.length ? declaredAncestors(element) : [];
+    if (!holder) continue;
+    const held = natives.get(holder.id) ?? [];
+    held.push({ id: element.id, marks, quoted: quotedBy(element) });
+    natives.set(holder.id, held);
+  }
   for (const element of declaredElements(root)) {
     if (!element.id) continue;
     const existing = byElement.get(element);
@@ -83,6 +85,7 @@ export function stageWidgetDescriptors(
       parent: ancestors[0] ?? null,
       ancestors,
       quoted: quotedBy(element),
+      natives: natives.get(element.id) ?? [],
     };
     bindings.push({ element, descriptor });
     captured.set(element.id, descriptor);

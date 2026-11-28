@@ -2,7 +2,8 @@
  * authored initial condition once from validated source markup, before content modules
  * upgrade or render it. Those values are inputs to the complete widget projection; no
  * cloned DOM, inverse action, or restoration statement is retained. */
-import { recordedWidgetSelector, stateSpecs } from "../../state/registry.js";
+import { exhibits, recordedWidgetSelector, stateSpecs } from "../../state/registry.js";
+import { runtime } from "../../state/context.js";
 import { NATIVE_MEMBERS } from "../../state/kernel-facts.js";
 import { readPart } from "../../state/semantic-state.js";
 import { dataBody } from "../../lib/data-body.js";
@@ -23,7 +24,7 @@ import type { ActionSpec, AuthoredWidget, StateRecord } from "../../../types/dom
    The complete initial value, by record kind:
 
    - `attribute`: the sorted ids of the members carrying the declared attribute
-     (`setMembers`);
+     (`markedMembers`), one radio of each radio group among them;
    - `value`: the attribute string, or `null` when absent;
    - `position`: ordered id lists for each container the widget orders, itself
      included where `within` names its own tag, and each listed unit's authored
@@ -38,34 +39,77 @@ import type { ActionSpec, AuthoredWidget, StateRecord } from "../../../types/dom
    Other attributes and record kinds coexist, including scalar state on a member or
    container. */
 export const authoredStates = readPart((root) => root.document.authored);
-export const authoredParents = new WeakMap();
+const authoredParents = new WeakMap();
 
 const recordedOwner = (member: Element, record: StateRecord) => {
   const selector = recordedWidgetSelector(record);
   return selector ? (member.parentElement?.closest(selector) ?? null) : null;
 };
-/** The members of the set `record` keeps on `widget`, in document order, or with
- * `marked` those the markup marks as in it: each element with an id whose nearest
- * ancestor recording the same attribute is `widget`, as the server's index reads them
- * (`projection.record_members`). A Leaf element is a member, and so is a native
- * element HTML marks with the record's attribute, as `checked` marks a checkbox
- * (`$native-members`). Any other native element is the author's own control: an
- * `<option selected>` inside an option's card is no pick. */
-export const setMembers = (
+// An element's parent in the authored document, which layout may since have moved.
+export const authoredParent = (element: Element): Element | null =>
+  authoredParents.has(element) ? authoredParents.get(element) : element.parentElement;
+
+// Whether an element stands strictly inside an `exhibit` widget in the authored
+// document, so what it holds is quoted material rather than controls. The exhibit
+// itself is no mention, as the server reads it (`structure.quoted_in`);
+// `tests/exhibit_cases.json` holds both runtimes to one set of cases.
+export const quotedBy = (element: Element) => {
+  for (let node = authoredParent(element); node; node = authoredParent(node))
+    if (exhibits(node, runtime.registry[node.localName])) return true;
+  return false;
+};
+
+// The elements with an id that may be native members (`nativeMarks`).
+export const NATIVE_CANDIDATES = [
+  ...new Set(Object.values(NATIVE_MEMBERS).map(({ tag }) => `${tag}[id]`)),
+].join(",");
+
+/** The attributes a native element is a member under (`$native-members`), as HTML
+ * marks it, as `checked` marks a checkbox: none for any other element, and none
+ * inside an SVG, which the server's reading keeps whole (`structure.SourceDocument`). */
+export const nativeMarks = (element: Element) =>
+  element.namespaceURI === "http://www.w3.org/1999/xhtml" && !element.closest("svg")
+    ? Object.entries(NATIVE_MEMBERS)
+        .filter(
+          ([, { tag, type }]) =>
+            element.localName === tag &&
+            type.includes((element.getAttribute("type") ?? "").toLowerCase()),
+        )
+        .map(([attr]) => attr)
+    : [];
+
+/** The members of the set `record` keeps on `widget` that its markup marks as in it,
+ * as the server's index reads them (`projection.attribute_marks`): each element with
+ * an id and the attribute whose nearest ancestor recording that attribute is
+ * `widget`, with no exhibit between. A Leaf element is a member, and so is a native
+ * element HTML marks with the attribute (`nativeMarks`). Any other native element is
+ * the author's own control: an `<option selected>` inside an option's card is no
+ * pick. Of the radios of one group, HTML checks the last its markup marks. */
+const markedMembers = (
   widget: Element,
   record: Extract<StateRecord, { kind: "attribute" }>,
-  marked = false,
 ) => {
-  const native = NATIVE_MEMBERS[record.attr];
-  return [...widget.querySelectorAll(marked ? `[${record.attr}]` : "[id]")].filter(
+  const quoted = quotedBy(widget);
+  const members = [...widget.querySelectorAll(`[id][${record.attr}]`)].filter(
     (member) =>
-      member.id &&
       (member.localName.startsWith("lf-") ||
-        (member.localName === native?.tag &&
-          native.type.includes((member.getAttribute("type") ?? "").toLowerCase()))) &&
-      recordedOwner(member, record) === widget,
+        nativeMarks(member).includes(record.attr)) &&
+      recordedOwner(member, record) === widget &&
+      quotedBy(member) === quoted,
   );
+  // A radio group is the radios of one name in one form, or in one tree where they
+  // have none, as the arrival reads it (base/document-inputs.js).
+  const last = new Map<Node, Map<string, Element>>();
+  for (const member of members)
+    if (radio(member)) {
+      const scope = member.form ?? member.getRootNode();
+      last.set(scope, (last.get(scope) ?? new Map()).set(member.name, member));
+    }
+  const shown = new Set([...last.values()].flatMap((names) => [...names.values()]));
+  return members.filter((member) => !radio(member) || shown.has(member));
 };
+const radio = (element: Element): element is HTMLInputElement =>
+  element instanceof HTMLInputElement && element.type === "radio" && !!element.name;
 
 // `parent` states where a root that is not yet in the document will stand, so the
 // readings that ask about its place are right before insertion; a root already in the
@@ -115,7 +159,7 @@ function initialState(
   }
   let value = null;
   if (record?.kind === "attribute")
-    value = setMembers(widget, record, true)
+    value = markedMembers(widget, record)
       .map((member) => member.id)
       .sort();
   else if (record?.kind === "value") value = widget.getAttribute(record.attr);

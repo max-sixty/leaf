@@ -15,6 +15,8 @@ is also an output, which `lf-chosen` reads. The starter `leaf package init --wid
 writes is such an element too, tested here as the command writes it.
 """
 
+import json
+
 import pytest
 from click.testing import CliRunner
 from interact_support import append_carried_log_record, append_command
@@ -784,6 +786,80 @@ def test_a_recorded_set_shows_what_the_page_holds(browser, serve):
     expect(
         panel_control(page, "command:history.undo").locator(".lf-fp-label")
     ).to_have_text("Undo: chose “macOS”, “Windows” in “Which platforms?”")
+
+
+RESET_PICKS = PICKS.replace(
+    '<label><input type="checkbox" id="platforms-windows" /> Windows</label>',
+    '<label><input type="checkbox" id="platforms-windows" /> Windows</label>'
+    '<button type="reset" id="platforms-reset">Reset</button>',
+)
+
+
+def test_a_native_pick_says_itself_returns_when_refused_and_records_a_reset(
+    browser, serve
+):
+    """Until the server answers, Undo names a pick of a checkbox by its label, as the
+    widget's words for the change. A pick the server refuses returns the checkbox to
+    the set the page holds. A form's reset changes its inputs with no event of
+    theirs, and the set it leaves is recorded as the user's pick."""
+    url = live_url(serve(leaf_page("Release 4.2", RESET_PICKS), packages=(CONTROLS,)))
+    page = open_page(browser, url)
+
+    held = []
+    page.route("**/api/event", lambda route: held.append(route))
+    page.get_by_label("Linux").check()
+    holding(page, held, 1, "the pick whose answer is held")
+    undo_row = panel_control(page, "command:history.undo").locator(".lf-fp-label")
+    expect(undo_row).to_have_text("Undo: Chose “Linux”")
+    page.keyboard.press("Escape")
+    held[0].continue_()
+    page.unroute("**/api/event")
+    round_trip(page)
+
+    def refuse(route):
+        command = route.request.post_data_json
+        if command["kind"] != "action":
+            return route.continue_()
+        route.fulfill(
+            status=400,
+            json={
+                "ok": False,
+                "attempt": command["attempt"],
+                "error": "refused before append",
+                "final": True,
+            },
+        )
+
+    page.route("**/api/event", refuse)
+    with sending(page, "the pick the server refuses"):
+        page.get_by_label("Windows").check()
+    page.unroute("**/api/event")
+    consume_browser_errors(page, http_error_console(400))
+    assert checked(page, "platforms") == [MAC, LINUX]
+
+    with sending(page, "the set the reset leaves"):
+        page.locator("#platforms-reset").click()
+    assert checked(page, "platforms") == [MAC]
+    assert chosen(serve.page_dir) == [("platforms", [MAC, LINUX]), ("platforms", [MAC])]
+
+
+LABEL_CASES = json.loads((PLUGIN_ROOT / "tests" / "label_cases.json").read_text())
+
+
+def test_the_browser_reads_a_controls_label_as_the_server_does(browser):
+    """Which `<label>` names a control, as the browser's own `labels` gives it, the
+    relation the chrome names a control by (`accessibleName`) and the server reads
+    off the markup (`passages.control_labels`, `tests/label_cases.json`)."""
+    page = browser.new_page()
+    for case in LABEL_CASES:
+        page.set_content(f"<!doctype html><body>{case['markup']}</body>")
+        read = page.evaluate(
+            """(ids) => Object.fromEntries(ids.map((id) => [id,
+                (document.getElementById(id).labels?.[0]?.textContent ?? "")
+                  .replace(/\\s+/g, " ").trim()]))""",
+            list(case["labels"]),
+        )
+        assert read == case["labels"], case["id"]
 
 
 WORKER = {

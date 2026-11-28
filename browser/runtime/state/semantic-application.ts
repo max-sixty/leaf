@@ -267,6 +267,10 @@ export type WidgetDescriptor = {
   parent: { id: string; tag: string } | null;
   ancestors: readonly { id: string; tag: string }[];
   quoted: boolean;
+  // The native elements, such as checkboxes, that are members (`nativeMarks`, records/
+  // projection/authored.js) of whichever widget holds this element, with the
+  // attributes they are members under.
+  natives?: readonly { id: string; marks: readonly string[]; quoted: boolean }[];
 };
 
 // An admitted entry as the folds read it, kept by the served entry (`state/kept.js`), so a
@@ -513,8 +517,11 @@ const threadsOf = (
 
 /** Attribute-set owners depend on the members their total render paints, as well
  * as on the selected ids. Capture supplies authored parentage; the complete
- * position fold supplies current parentage for declared descendants. Flat creates
- * supply additional members to their creator without becoming widget owners. */
+ * position fold supplies current parentage for declared descendants. A native member
+ * stands where the declared element holding it stands. Flat creates supply additional
+ * members to their creator without becoming widget owners. A member inside an exhibit
+ * is quoted material, which no widget round the exhibit records
+ * (`projection.owner_above`). */
 function currentWidgetRelations(
   descriptors: SemanticDocument["descriptors"],
   widgets: ReturnType<typeof foldWidgetStates>,
@@ -546,15 +553,24 @@ function currentWidgetRelations(
       }
     }
   }
+  // The nearest owner named for the attribute at or above `from`, short of `member`.
+  const ownerFrom = (from: string | undefined, named: Set<string>, member?: string) => {
+    const seen = new Set(member ? [member] : []);
+    for (let at = from; at && !seen.has(at); at = parents.get(at)) {
+      if (named.has(at)) return at;
+      seen.add(at);
+    }
+    return undefined;
+  };
+  const quoted = (id: string) => descriptors.get(id)?.quoted ?? false;
   for (const [attr, named] of owners) {
-    for (const id of descriptors.keys()) {
-      const seen = new Set([id]);
-      for (let parent = parents.get(id); parent; parent = parents.get(parent)) {
-        if (seen.has(parent)) break;
-        seen.add(parent);
-        if (!named.has(parent)) continue;
-        members(parent, attr).push(id);
-        break;
+    for (const [id, descriptor] of descriptors) {
+      const owner = ownerFrom(parents.get(id), named, id);
+      if (owner && descriptor.quoted === quoted(owner)) members(owner, attr).push(id);
+      for (const native of descriptor.natives ?? []) {
+        const holder = native.marks.includes(attr) && ownerFrom(id, named);
+        if (holder && native.quoted === quoted(holder))
+          members(holder, attr).push(native.id);
       }
     }
     for (const { e, unit, spec } of desired.values())

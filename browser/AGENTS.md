@@ -995,7 +995,7 @@ view easier to work on and no slower on a large page. Ports follow this rule:
 
 - **A port deletes the Lit view it replaces**, and a service it adds to
   `runtime/widget-services.js` calls the same owner as the `widget-api.js` function it
-  stands for.
+  stands for. That function stays the form plain widgets and page scripts use.
 - **A port names in its commit what it made easier** to build, verify or maintain,
   such as logic now under a Story test (`@effect/ui/testing`), and doesn't otherwise
   grow the widget.

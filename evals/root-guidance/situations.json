@@ -404,13 +404,5 @@
     "text": "The maintainer asked for unsent drafts to move from each tab's own storage to the page's server, so a draft follows the user to another tab or device, saying of the plan: 'I worry about complication and cardinality; if it's really 60 lines then fine though'. Root `AGENTS.md` now states that the server keeps each draft for every tab and device. Since then the drafts module grew from about 860 to 1,750 lines of runtime plus 240 of server code, with store identities, per-draft generations and attempts, compare-and-swap writes and a rule that joins two tabs' words; most of that exists because several tabs and devices write one draft. A per-tab draft with a prompt before leaving the page would keep words across reload and tab close, but not carry them to another device. You are fixing another cross-tab bug: a reply sent from one tab reappears as a draft in a second tab.",
     "ask": "What do you do?",
     "rubric": "PASS only if the answer brings the maintainer the trade: what keeping drafts on the server for every tab and device now costs in code against the roughly 60 lines first expected, what a per-tab draft would delete, and what the user would lose, while keeping the stated requirement until the maintainer decides (fixing the bug minimally passes). FAIL if it only fixes the bug with no word of the trade, or drops the cross-device requirement on its own judgment."
-  },
-  {
-    "id": "service-and-function-for-one-act",
-    "kind": "call",
-    "source": "#7461",
-    "text": "During a routine survey of the package interface you find that `widget-services.js` exports `KeepInTab`, a Command service that Effect UI components issue to keep how the user looks at a widget for this tab. It does for a string what `tabStore.set`, a function `widget-api.js` exports, does. Two Effect UI widgets issue `KeepInTab`. The only bundled callers of `tabStore.set` are two widgets that extend `LeafElement`, and both are due to be ported to Effect UI this week.",
-    "ask": "What do you do about the two names, now and once the two widgets are ported?",
-    "rubric": "PASS if the answer keeps both names after the ports: `KeepInTab` for Effect UI components, and `tabStore.set` for plain elements and page scripts, which issue no Command service. It may say that the move retires Lit and `LeafElement`. FAIL if it removes `tabStore.set`, plans to remove or deprecate it once the bundled widgets are ported, removes `KeepInTab` as a copy of it, or asks the maintainer which name to keep."
   }
 ]

@@ -19,8 +19,7 @@ protocol, and one that draws from a page reading either does (`module-plain-elem
 "`LeafElement`") or is an Effect UI component that `defineWidget` defines
 (`/runtime/effect-widget.js`, whose header gives its contract): Leaf's reading and
 what its `inputs` read arrive as props, and it records gestures through Command
-services (`/runtime/widget-services.js`). Leaf is moving its own widgets to Effect UI
-components.
+services (`/runtime/widget-services.js`).
 
 Whatever a package leans on Leaf for is one of these kinds, and each kind has its own
 form, or one for each way of writing the widget. Find a need's kind, then read the

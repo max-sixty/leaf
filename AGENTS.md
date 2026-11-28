@@ -540,20 +540,12 @@ declaration, the widget protocol, Leaf's own elements, the data contracts Leaf's
 packages declare, the public modules and the names each exports, and the styling
 names the references declare. The public modules are those `$public-modules` in the
 kernel registry lists outside the library: Leaf's own, such as `widget-api.js` and
-`effect-widget.js`, and the dependencies Leaf serves, such as Lit. Another author's
-package has nothing else, so Leaf's bundled widgets use nothing else. The interface
-sprawls through names that each look reasonable alone, and every later change keeps
-each name working, so Leaf keeps it small and coherent. A change meets a widget's
-need without a new name where it can, and `packages/AGENTS.md`, "A widget's need of
-Leaf", says how to choose where it can't.
-
-Leaf is moving every view it draws, its widgets and its chrome, to Effect UI
-(`browser/AGENTS.md`, "Renderers"). Until the move ends, the interface holds two ways
-to write a widget, and Lit and `LeafElement` leave it once Leaf's packages and example
-pages no longer draw with them. An Effect UI component asks Leaf for some acts through
-the Command services of `widget-services.js`. A plain element or a page script asks
-for the same acts through the protocol's events and `widget-api.js` functions, which
-stay after the move, since neither can issue a Command service.
+`effect-widget.js`, and the dependencies Leaf serves, such as Effect UI. Another
+author's package has nothing else, so Leaf's bundled widgets use nothing else. The
+interface sprawls through names that each look reasonable alone, and every later
+change keeps each name working, so Leaf keeps it small and coherent. A change meets a
+widget's need without a new name where it can, and `packages/AGENTS.md`, "A widget's
+need of Leaf", says how to choose where it can't.
 
 A smaller interface is worth a small visible difference. Where a name's work is to
 keep a look, a first paint or a behaviour exactly as it was, the name goes, and the

@@ -277,9 +277,11 @@ PASSAGE = """(nth) => {
   const box = passage.getBoundingClientRect();
   return [box.x, box.y];
 }"""
-# A tab set's tab controls, which it draws in its shadow tree, each naming its panel by
-# reference (`ariaControlsElements`).
-TABS = """const tabsOf = (set) => [...set.shadowRoot.querySelectorAll("[role=tab]")];"""
+# A tab set's tab controls, each naming its panel by reference (`ariaControlsElements`,
+# which reflects a light tab's `aria-controls`). The set draws them in its shadow tree,
+# and a base from before that in its own children.
+TABS = """const tabsOf = (set) =>
+  [...(set.shadowRoot ?? set).querySelectorAll("[role=tab]")];"""
 # The centre of the control of the tab whose panel is `panel`, brought into view.
 TAB_CONTROL = f"""(id) => {{
   {TABS}
@@ -316,9 +318,12 @@ MENU_ROWS = (
     '.lf-fp-item[data-lf-row="command:capture.region.open"]',
 )
 # The number of the document `side_documents` shows, in the tab open now.
-SHOWN_DOCUMENT = """() => Number(document.querySelector("#docs").shadowRoot
-  .querySelector('[role=tab][aria-selected="true"]')
-  .ariaControlsElements[0].id.slice(1))"""
+SHOWN_DOCUMENT = f"""() => {{
+  {TABS}
+  return Number(tabsOf(document.querySelector("#docs"))
+    .find((tab) => tab.getAttribute("aria-selected") === "true")
+    .ariaControlsElements[0].id.slice(1));
+}}"""
 # Whether document `d`'s first line shows in its syntax colour.
 COLOURED = """(d) => {
   const row = document.querySelector(`#d${d} .lf-text-document-run > div`);
@@ -1454,7 +1459,7 @@ def open_tabs(tab: Tab) -> Goals:
     if tab.page.evaluate("() => window.__leafBench.met('searching')"):
         tab.page.keyboard.press("Escape")
     count = tab.page.evaluate(
-        "() => document.querySelector('#docs').shadowRoot.querySelectorAll('[role=tab]').length"
+        f"() => {{ {TABS} return tabsOf(document.querySelector('#docs')).length; }}"
     )
     for d in range(1, count):
         tab.page.mouse.click(*tab.page.evaluate(TAB_CONTROL, f"t{d}"))

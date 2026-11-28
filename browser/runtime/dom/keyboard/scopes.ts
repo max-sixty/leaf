@@ -69,6 +69,8 @@ import { nativeActivationAt, nativeClaimAt } from "./text-entry.js";
 import {
   eachRenderedElement,
   isElement,
+  isHTML,
+  isShadowRoot,
   composedParentNode,
   renderedParent,
 } from "../../lib/shadow-tree.js";
@@ -852,7 +854,8 @@ export const commandsOn = directive(
 // the element reads its rows again (`mark`), and so does every reader of the register's
 // availability. An element that says it drew (`detail.within`) has every scope at or
 // under it read its rows again instead (`paintKeysWithin`), since what they read from
-// the nodes it drew may have changed. A malformed declaration is refused as `keys`
+// the nodes it drew may have changed; the light children a slot of its shadow tree
+// shows are their own renderers' to say (`markPaintedIn`). A malformed declaration is refused as `keys`
 // refuses one, and since a listener's exception never reaches the element that
 // dispatched, the refusal is reported as that element's failure.
 //
@@ -1297,6 +1300,26 @@ function eachRendered(node: Node, visit: (element: Element) => void) {
   eachRenderedElement(node, (child) => eachRendered(child, visit), stagedRoot);
 }
 const stagedRoot = (host: Element) => host.shadowRoot ?? stageOf(host);
+// The scoped elements a renderer painted at `root`: as `markScopedIn`, short of the
+// light children a slot in its shadow tree shows, which their own renderers paint. A
+// set of tabs shows a page's panels through one slot, and its strip draws again on
+// every answer, which would otherwise read every scope on the page again.
+const markPaintedIn = (root: Node) =>
+  eachPainted(root, (element) => {
+    if (!scopeRefFor.has(element)) return;
+    mark(element);
+    dirtyButtons.add(element);
+  });
+function eachPainted(node: Node, visit: (element: Element) => void) {
+  if (isElement(node)) visit(node);
+  if (
+    isHTML(node, "slot") &&
+    isShadowRoot(node.getRootNode()) &&
+    node.assignedNodes().length
+  )
+    return;
+  eachRenderedElement(node, (child) => eachPainted(child, visit), stagedRoot);
+}
 function claimPaintedRoots() {
   if (!paintedRoots.size) return;
   // Whether a node is a painted root or stands in one, remembered for every node a climb
@@ -1323,7 +1346,7 @@ function claimPaintedRoots() {
   const around = new Set<Element>();
   for (const root of paintedRoots) {
     if (coveredFrom(composedParentNode(root))) continue;
-    markScopedIn(root);
+    markPaintedIn(root);
     // A paint changes what the elements around it hold, so a declaration querying its
     // own subtree for a control reads again; a shared ancestor is climbed once.
     for (

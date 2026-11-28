@@ -61,7 +61,7 @@ def test_color_cues_fade_to_the_live_surface(request, serve, engine):
     expect(page.locator("#ask-first")).to_be_focused()
     page.keyboard.press("m")
     expect(page.locator("#ask-second")).to_be_focused()
-    cue_target = page.locator('#views [aria-controls="second"] .lf-tab-name')
+    cue_target = page.locator('#views [data-lf-carry="tab-second"] .lf-tab-name')
     colours = cue_target.evaluate(
         """async node => {
           const cue = node.getAnimations()[0];

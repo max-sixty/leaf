@@ -56,8 +56,10 @@ def test_a_reconnected_settled_obligation_restores_its_comparison_reading(
     page = open_page(browser, url.replace("v1.html", "v2.html"))
     compare_with(page, 1)
     expect(page.locator("#transport .lf-settled-diff")).to_have_text("Δ1")
-    expect(page.locator('[aria-controls="decision"] .lf-tabdiff')).to_have_text("Δ1")
-    expect(page.locator('[aria-controls="notes"] .lf-tabdiff')).to_have_text("")
+    expect(page.locator('[data-lf-carry="tab-decision"] .lf-tabdiff')).to_have_text(
+        "Δ1"
+    )
+    expect(page.locator('[data-lf-carry="tab-notes"] .lf-tabdiff')).to_have_text("")
 
     page.evaluate("""() => {
         window.detachedViews = document.getElementById('views');
@@ -72,13 +74,13 @@ def test_a_reconnected_settled_obligation_restores_its_comparison_reading(
     page.evaluate("() => document.querySelector('main').append(window.detachedViews)")
     expect(page.locator("#transport .lf-settled")).to_have_count(1)
     expect(page.locator("#transport .lf-settled-diff")).to_have_count(0)
-    expect(page.locator('[aria-controls="decision"] .lf-tabdiff')).to_have_text("")
+    expect(page.locator('[data-lf-carry="tab-decision"] .lf-tabdiff')).to_have_text("")
 
 
 def test_a_comparison_mark_that_failed_on_return_keeps_following_the_comparison(
     browser, serve
 ):
-    """A tab strip whose render throws on its return reports that once
+    """A tab strip whose reading throws on its return reports that once
     and still paints the next comparison: the failed reading stands, not the failure."""
     first = SETTLED_PAGE.replace(
         '<section id="transport-decision">',
@@ -99,19 +101,18 @@ def test_a_comparison_mark_that_failed_on_return_keeps_following_the_comparison(
         "Revise the settled answer",
     )
     page = open_page(browser, url.replace("v1.html", "v2.html"))
-    mark = page.locator('[aria-controls="decision"] .lf-tabdiff')
+    mark = page.locator('[data-lf-carry="tab-decision"] .lf-tabdiff')
     compare_with(page, 1)
     expect(mark).to_have_text("Δ1")
     # Turn off the settled comparison while the tabs are away. Returning to that
-    # changed reading throws once; the next comparison must still update its mark.
+    # changed reading throws once, as the set reads its panels' labels; the next
+    # comparison must still update its mark.
     page.evaluate("""() => {
         const views = document.getElementById('views');
-        const render = views.render;
-        views.render = function () {
-          // Subscribe before the deliberate failure so the next comparison can
-          // retry this same Lit element through its normal render boundary.
-          render.call(this);
-          delete this.render;
+        const panel = document.getElementById('decision');
+        panel.getAttribute = function (name) {
+          if (name !== 'label') return Element.prototype.getAttribute.call(this, name);
+          delete this.getAttribute;
           throw new Error('the marks failed once');
         };
         window.detachedViews = views;

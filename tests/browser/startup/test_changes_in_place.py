@@ -659,8 +659,8 @@ def test_a_removal_stands_in_the_part_of_the_page_it_left(browser, serve):
     page = open_page(browser, url)
     compare_with(page, 1)
     page.keyboard.press("Escape")
-    expect(page.locator('[aria-controls="notes"] .lf-tabdiff')).to_have_text("Δ1")
-    expect(page.locator('[aria-controls="others"] .lf-tabdiff')).to_have_text("")
+    expect(page.locator('[data-lf-carry="tab-notes"] .lf-tabdiff')).to_have_text("Δ1")
+    expect(page.locator('[data-lf-carry="tab-others"] .lf-tabdiff')).to_have_text("")
 
     pane = page.locator("#pane")
     pane.evaluate("pane => { pane.scrollTop = pane.scrollHeight; }")

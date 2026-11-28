@@ -808,7 +808,9 @@ AIM_POINT = """(el) => {
   const spots = [[r.left + Math.min(8, r.width / 2), r.top + Math.min(8, r.height / 2)],
                  [r.left + r.width / 2, r.top + r.height / 2]];
   for (const [x, y] of spots) {
-    const at = document.elementFromPoint(x, y);
+    // Asked of the target's own tree, which a control a widget drew in its shadow root
+    // stands in, since the document's answer there is the widget.
+    const at = el.getRootNode().elementFromPoint(x, y);
     if (at && (at === el || el.contains(at))) return [x, y];
   }
   return null;

@@ -461,7 +461,9 @@ export function createGoToSequence({
       ) ||
       candidate.member.id ||
       candidate.member.getAttribute("data-lf-margin-for") ||
-      candidate.member.getAttribute("aria-controls");
+      // The panel a tab opens, by the reference a tab in a shadow tree holds, which
+      // also reflects an authored `aria-controls`.
+      candidate.member.ariaControlsElements?.[0]?.id;
     return Object.freeze({
       key: hintRenderKey(candidate.member),
       className: `lf-key-badge lf-key-hint lf-go-to-hint${current ? " lf-current" : ""}`,

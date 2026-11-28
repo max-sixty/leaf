@@ -985,20 +985,21 @@ visible change").
 
 ## Renderers
 
-Leaf is moving every view it draws to Effect UI, so that each is written, tested and
-maintained one way. Every widget, Leaf's bundled widgets and other authors' alike, ends
-as an Effect UI component that `defineWidget` defines (`runtime/effect-widget.js`), so
-the package interface holds one way to write one, and a new widget is written that
-way. Leaf's chrome, the runtime's own views, follows one component at a time, since a
-component keeps one renderer (below). Until the move ends, a bundled widget may still
-be a `LeafElement` (`runtime/lib/leaf-element.js`), which draws with Lit, or a plain
-custom element, the chrome draws with Lit, and each module's header gives its
-contract.
+Leaf is moving everything it draws to Effect UI, so that every view is written,
+tested and maintained one way, and Lit and `LeafElement` leave the tree. Every widget,
+Leaf's bundled widgets and other authors' alike, becomes an Effect UI component
+defined with `defineWidget` (`runtime/effect-widget.js`). So the package interface
+holds one way to write a widget, and a new widget is written that way. Leaf's chrome,
+the views the runtime draws itself, such as the floating panel and Threads, moves too,
+one component at a time, since each component keeps one renderer (below). Until the
+move ends, a widget may still be a `LeafElement` (`runtime/lib/leaf-element.js`),
+which draws with Lit, or a plain custom element, and the chrome still draws with Lit.
+Each module's header gives its contract.
 
-Each port, the change that moves a view to Effect UI, leaves the view no harder to
-work on and no slower on a large page. A widget's port pays for itself by bringing
-every widget to one way of being written, whatever else it makes easier; a chrome
-view's port pays by what it makes easier in that view. Ports follow this rule:
+Each port, the change that moves one view to Effect UI, is worth making because it
+brings Leaf closer to drawing everything one way, whatever else it makes easier. It
+leaves the view no harder to work on and no slower on a large page, and follows this
+rule:
 
 - **A port deletes the view it replaces**, and a service it adds to
   `runtime/widget-services.js` calls the same owner as the `widget-api.js` function or

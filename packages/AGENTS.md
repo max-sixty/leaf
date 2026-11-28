@@ -23,11 +23,10 @@ needing something of Leaf asks, before it adds a name:
   the page's state, which belongs in the library (`../browser/AGENTS.md`, "The library
   of shared web code").
 - **Whether Leaf can do it without the widget's help.** Every widget moves to
-  `defineWidget` (`../browser/AGENTS.md`, "Renderers"), and Leaf drives the element it
-  defines: it sets properties, hears events, and reads what the element and its
-  stylesheet state. A promise Leaf keeps there, in that adapter or by driving the
-  element, holds for every widget without a line of the widget's, so prefer it to a
-  function or service the widget calls.
+  `defineWidget` (`../browser/AGENTS.md`, "Renderers"), and Leaf sets the properties of
+  the element it defines, hears its events, and reads what the element and its
+  stylesheet state. Work Leaf does there holds for every widget with no code in the
+  widget, so prefer it to a function or service the widget calls.
 - **Which kind of thing it is.** Each kind of thing a package leans on Leaf for takes
   one form (`../skills/leaf/references/module-authoring.md`, "The interface"). A need
   takes its kind's form. One that fits no kind is a gap in the contract, to put to the

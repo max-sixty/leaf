@@ -441,7 +441,9 @@ test("a row a new state moves or removes lands the user on the row, never on a c
         ),
     }),
   );
-  const el = /** @type {HTMLElement & {state: unknown}} */ (document.createElement(tag));
+  const el = /** @type {HTMLElement & {state: unknown}} */ (
+    document.createElement(tag)
+  );
   el.state = { shelves: [["a", "b", "c"], []] };
   document.body.append(el);
   /** @type {PromiseLike<unknown>[]} */
@@ -452,7 +454,10 @@ test("a row a new state moves or removes lands the user on the row, never on a c
   const row = (/** @type {string} */ item) =>
     el.querySelector(`[data-lf-datum="${item}"]`);
   try {
-    /** @type {HTMLButtonElement} */ (row("b")?.querySelectorAll(".act")[1]).focus();
+    const remove = /** @type {HTMLButtonElement} */ (
+      el.querySelectorAll('[data-lf-datum="b"] .act')[1]
+    );
+    remove.focus();
     el.state = { shelves: [["a", "c"], ["b"]] };
     await Promise.all(pending);
     assert.equal(document.activeElement, row("b"));
@@ -510,7 +515,9 @@ test("a nested widget's hold that puts the user back ends the hold of the widget
         ),
     }),
   );
-  const el = /** @type {HTMLElement & {state: unknown}} */ (document.createElement(tag));
+  const el = /** @type {HTMLElement & {state: unknown}} */ (
+    document.createElement(tag)
+  );
   el.state = { label: "before" };
   document.body.append(el);
   const rows = /** @type {HTMLElement & {state: unknown}} */ (el.querySelector(inner));
@@ -566,7 +573,9 @@ test("a widget's hold finds the user's item among its own, not a nested widget's
       },
     }),
   );
-  const el = /** @type {HTMLElement & {state: unknown}} */ (document.createElement(tag));
+  const el = /** @type {HTMLElement & {state: unknown}} */ (
+    document.createElement(tag)
+  );
   el.state = {};
   document.body.append(el);
   /** @type {PromiseLike<unknown>[]} */

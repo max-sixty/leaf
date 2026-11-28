@@ -5,8 +5,8 @@ to write in a package: `drawing`, widgets that draw, and `drawless`, widgets tha
 nothing. It reads the saved page directory with the readers Leaf and `leaf-dev` already
 have: the page's markup through `SourceDocument`, each package's declarations and the
 module each declared tag has among its `widgets/` (`module_paths`, as the layer
-resolves them), and each module's syntax tree (the JavaScript reader Leaf reads
-module imports with), so spacing, comments and the name a module imports under don't change a
+resolves them), and each module's syntax tree (`javascript_language`, the grammar Leaf
+reads module imports with), so spacing, comments and the name a module imports under don't change a
 grade.
 
 Every named tag must be declared by a package the page selects, whose copy it holds
@@ -20,11 +20,11 @@ imports Lit or Leaf's Lit element fails the sample.
 from collections.abc import Iterator
 from pathlib import Path
 
-from tree_sitter import Node
+from tree_sitter import Node, Parser
 
 from leaf.source.registry.contract import module_paths, read_registry_declarations
 from leaf.source.registry.storage import layer_packages
-from leaf.source.resource_urls import _javascript_reader
+from leaf.source.resource_urls import javascript_language
 from leaf.source.structure import SourceDocument
 
 ADAPTER = "/runtime/effect-widget.js"
@@ -49,8 +49,7 @@ def definitions(module: Path) -> dict[str, set[str]]:
     as; `plain` for a call to `customElements.define`, on whatever object; and `old` for
     each Lit module it imports, statically or with `import()`."""
     found = {"component": set(), "plain": set(), "old": set()}
-    parser, _ = _javascript_reader()
-    script = parser.parse(module.read_bytes()).root_node
+    script = Parser(javascript_language()).parse(module.read_bytes()).root_node
     adapter = set()
     for statement in nodes(script, "import_statement"):
         specifier = said(statement.child_by_field_name("source"))[1:-1]

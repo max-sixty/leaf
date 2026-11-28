@@ -118,13 +118,12 @@ from functools import cache, cached_property
 from pathlib import Path
 
 import click
-import tree_sitter_javascript
 import turbohtml
 from markdown_it import MarkdownIt
-from tree_sitter import Language, Node, Parser, Query, QueryCursor
+from tree_sitter import Node, Parser, Query, QueryCursor
 
 from leaf.source.registry.contract import element_declarations, is_element_name
-from leaf.source.resource_urls import javascript_imports
+from leaf.source.resource_urls import javascript_imports, javascript_language
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     arm_commit,
@@ -177,7 +176,7 @@ FUNCTIONS = {
     "function_expression",
     "arrow_function",
 }
-LANGUAGE = Language(tree_sitter_javascript.language())
+LANGUAGE = javascript_language()
 # Each call's first argument, a string or a name, and the function it calls.
 CALLS = Query(
     LANGUAGE,

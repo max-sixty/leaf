@@ -82,10 +82,9 @@ adjusts it, or refuses it with `event.preventDefault()` inside its `command` lis
 So the asker draws the target's value, never what it asked for, and draws again from
 that value after every request, taken or not. The target moves its value in the task
 that takes the request, so Leaf sets the asker's input before the page draws, perhaps
-after `dispatchEvent` returns, and sets nothing where the value stays as it was. So a
-rent slider that asks a budget table for 60, when the table already holds rent at its
-cap of 40, gets no set, and one that kept its thumb where the user dragged it would
-show 60 beside 40.
+after `dispatchEvent` returns, and sets nothing where the value stays. So a rent slider
+that asks a budget table for 60, when the table holds rent at its cap of 40, gets no
+set, and one that kept its thumb where the user dragged it would show 60 beside 40.
 
 A request no button on the page makes, such as a dragged handle, a typed number or a
 drop on a board, is the same event. The module dispatches it on the target, found

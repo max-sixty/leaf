@@ -174,9 +174,11 @@ export function declare(node, declarations) {
   while (at && !elementOf.has(at)) at = at.parentNode;
   const element = at && elementOf.get(at);
   if (!element) throw new Error("declare: the node stands in no widget's root");
-  const keys = Object.keys(declarations);
+  // Every own key, symbols included, since `Object.assign` copies those too.
+  const keys = Reflect.ownKeys(declarations);
   const unread = keys.find((key) => !DECLARED.includes(key));
-  if (unread) throw new TypeError(`declare: Leaf reads no ${unread} off an element`);
+  if (unread !== undefined)
+    throw new TypeError(`declare: Leaf reads no ${String(unread)} off an element`);
   Object.assign(element, declarations);
   const declared = declaredOn.get(element) ?? new Set();
   for (const key of keys) declared.add(key);

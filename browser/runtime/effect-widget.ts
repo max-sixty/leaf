@@ -189,12 +189,14 @@ export function declare(node: Node, declarations: Declarations) {
   while (at && !elementOf.has(at)) at = at.parentNode;
   const element = at && elementOf.get(at);
   if (!element) throw new Error("declare: the node stands in no widget's root");
-  const keys = Object.keys(declarations);
-  const unread = keys.find((key) => !(DECLARED as readonly string[]).includes(key));
-  if (unread) throw new TypeError(`declare: Leaf reads no ${unread} off an element`);
+  // Every own key, symbols included, since `Object.assign` copies those too.
+  const keys = Reflect.ownKeys(declarations);
+  const unread = keys.find((key) => !(DECLARED as readonly PropertyKey[]).includes(key));
+  if (unread !== undefined)
+    throw new TypeError(`declare: Leaf reads no ${String(unread)} off an element`);
   Object.assign(element, declarations);
   const declared = declaredOn.get(element) ?? new Set();
-  for (const key of keys) declared.add(key);
+  for (const key of keys) declared.add(key as string);
   declaredOn.set(element, declared);
   if (keys.includes("lfCommands"))
     element.dispatchEvent(new CustomEvent(COMMANDS, { bubbles: true, composed: true }));

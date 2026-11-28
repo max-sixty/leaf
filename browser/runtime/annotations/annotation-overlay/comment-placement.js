@@ -198,7 +198,7 @@ import { floatingGeometry, positioningScale } from "./floating.js";
 /** @typedef {readonly [number, number, number, number]} BoundaryKey */
 /** @typedef {DOMRectReadOnly & {holders: {top: Element | null, bottom: Element | null}}} Room */
 /** @typedef {Room & {across: (columns: Columns | null) => Room,
- * cut: Box | null, scroller: Element, key: BoundaryKey}} Boundary */
+ * cut: (beside: boolean) => Box | null, scroller: Element, key: BoundaryKey}} Boundary */
 /** @import { CapturedPlacement } from "../../records/thread/destination.js" */
 /** @typedef {{box: Extent, placement: CapturedPlacement}} AdoptedFrame */
 /** @typedef {{top: number, height: number, under: number}} HeldBox */
@@ -340,9 +340,11 @@ const AXES = ["x", "y"];
 // boundary names the box that scrolls that room (`scroller`), which makes room for a
 // surface, and the edges that cut the card (`cut`), or null where none do: the
 // region's, and each edge of a bounded block around the row that the attachment `at`
-// (the row's line and column) has crossed. Its top cuts once the card's own top, its
-// head line and a gap above the line (`place-beside`), has passed it, so the cut grows
-// from nothing. Crossing an edge cuts
+// (the row's line and column) has crossed, for a card on the side `cut` is asked of.
+// Beside the row, its top cuts once the card's own top, a head line and a gap above
+// the line (`place-beside`), has passed it, so the cut grows from nothing. Over or
+// under the row, where nothing of the card stands level with the row, it cuts once the
+// line comes within a gap of it. Crossing an edge cuts
 // the card and never moves it: bounding the room there pushed a card hanging past a
 // log's foot up over its row once the row's line passed the foot. Its
 // `key` is what holds the side (`choose`): the window's edges, or the region's whole box
@@ -383,24 +385,30 @@ export function commentBoundary({ scroller = pageScroller, at = null } = {}) {
     region.room.height >= LEAST_HEIGHT
       ? region
       : null;
-  const cut = inRegion
-    ? {
-        left: inRegion.bounds.left,
-        top: inRegion.bounds.top,
-        right: inRegion.bounds.right,
-        bottom: inRegion.bounds.bottom,
+  const shownBlocks = at
+    ? blocks.flatMap((block) => shownRect(block, new Map()) ?? [])
+    : [];
+  /** @param {boolean} beside */
+  const cut = (beside) => {
+    const edges = inRegion
+      ? {
+          left: inRegion.bounds.left,
+          top: inRegion.bounds.top,
+          right: inRegion.bounds.right,
+          bottom: inRegion.bounds.bottom,
+        }
+      : { left: -Infinity, top: -Infinity, right: Infinity, bottom: Infinity };
+    if (at) {
+      const top = at.y - COMMENT_GAP - (beside ? cardLine() : 0);
+      for (const shown of shownBlocks) {
+        if (top < shown.top) edges.top = Math.max(edges.top, shown.top);
+        if (at.y > shown.bottom) edges.bottom = Math.min(edges.bottom, shown.bottom);
+        if (at.x < shown.left) edges.left = Math.max(edges.left, shown.left);
+        if (at.x > shown.right) edges.right = Math.min(edges.right, shown.right);
       }
-    : { left: -Infinity, top: -Infinity, right: Infinity, bottom: Infinity };
-  if (at)
-    for (const block of blocks) {
-      const shown = shownRect(block, new Map());
-      if (!shown) continue;
-      if (at.y - COMMENT_GAP - cardLine() < shown.top)
-        cut.top = Math.max(cut.top, shown.top);
-      if (at.y > shown.bottom) cut.bottom = Math.min(cut.bottom, shown.bottom);
-      if (at.x < shown.left) cut.left = Math.max(cut.left, shown.left);
-      if (at.x > shown.right) cut.right = Math.min(cut.right, shown.right);
     }
+    return inRegion || Object.values(edges).some(Number.isFinite) ? edges : null;
+  };
   const shell = inRegion ? inRegion.room : room({ right: shellRight() });
   const whole = inRegion ? flow.getBoundingClientRect() : shell;
   /** @type {BoundaryKey} */
@@ -408,7 +416,7 @@ export function commentBoundary({ scroller = pageScroller, at = null } = {}) {
     ? [whole.width, whole.height, visualViewport.width, visualViewport.height]
     : [whole.left, whole.top, whole.right, whole.bottom];
   return Object.assign(shell, {
-    cut: inRegion || Object.values(cut).some(Number.isFinite) ? cut : null,
+    cut,
     scroller: flow,
     key,
   });

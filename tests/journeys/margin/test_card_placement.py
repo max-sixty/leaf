@@ -260,7 +260,9 @@ SWEEP_READ = """async (id) => {
         right: box.right - cut.right, bottom: box.bottom - cut.bottom}, win);
   const list = card.querySelector('.lf-thread-transcript');
   const pane = row.closest('lf-pane');
-  return {gap, row: plain(row.getBoundingClientRect()), line: row.getBoundingClientRect().top,
+  const head = parseFloat(getComputedStyle(document.documentElement)
+    .getPropertyValue('--lf-card-line'));
+  return {gap, head, row: plain(row.getBoundingClientRect()), line: row.getBoundingClientRect().top,
     shown, boxes, win, box, cut, seen,
     side: card.getAttribute('data-lf-thread-placement'),
     scrolls: list.scrollHeight > list.clientHeight + 1,
@@ -290,9 +292,12 @@ def sweep_findings(read):
             and box["right"] <= win["right"] + 1
         ):
             found.append((IN_WINDOW, box))
-        # Beside, its top stands a gap above the row's line, so it passes an edge a
-        # gap before the line does, and the cut grows from nothing there.
-        if read["cut"]["top"] > read["gap"] + 0.5 or any(
+        # Beside the row its top stands a head line and a gap above the row's line, so it
+        # passes an edge that much before the line does, and the cut grows from nothing
+        # there. Over or under the row, a block's top cuts it only once the row's line
+        # comes within a gap of that top.
+        lead = read["gap"] + (read["head"] if read["side"] in ("left", "right") else 0)
+        if read["cut"]["top"] > lead + 0.5 or any(
             read["cut"][edge] for edge in ("right", "bottom", "left")
         ):
             found.append((UNCUT, read["cut"]))

@@ -18,15 +18,16 @@
  *
  * The editor holds its files as its `files` output, each named by the label the
  * page's server gives it and keyed by its binding, with the open one `current`, so a
- * navigator beside it lists them, and the open file's name and text, as last read or
- * saved, as its `text` output, so a reading bound to it, such as a Markdown preview,
- * shows each save (`holdText`). A reveal of a binding (`navigateToDatum`, a link to
- * `#<editor>:<binding>`) opens that file. Which file is open is how this tab looks at
- * the files, not a change to them, so it enters no log; a reload opens the one its
- * address names, else the first. Each file keeps its own text, selection, history and
- * scroll while another is open, and leaving a file saves what it holds at once. A file
- * the reader has left settles its requests as the open one does; a failure or conflict
- * there is announced by the file's name and stands in the status when it is opened.
+ * navigator beside it lists them, and the open file's name and its text as the reader
+ * has it, saved or not, as its `text` output, so a reading bound to it, such as a
+ * Markdown preview, follows their typing once it rests (`holdText`). A reveal of a
+ * binding (`navigateToDatum`, a link to `#<editor>:<binding>`) opens that file. Which
+ * file is open is how this tab looks at the files, not a change to them, so it enters
+ * no log; a reload opens the one its address names, else the first. Each file keeps
+ * its own text, selection, history and scroll while another is open, and leaving a
+ * file saves what it holds at once. A file the reader has left settles its requests as
+ * the open one does; a failure or conflict there is announced by the file's name and
+ * stands in the status when it is opened.
  *
  * Autosave serializes snapshots, retaining later typing while each receipt adopts
  * exactly the submitted snapshot. A clean editor follows external revisions through
@@ -113,6 +114,9 @@ import { createEditor, followKept, mergeKept } from "./editor.js";
  *   slowTimer: number | null,
  *   kept: import("./editor.js").KeptFile | null, named: string | null,
  * }} OpenFile */
+
+// How long typing rests before the editor saves it and its `text` output moves, in ms.
+const PAUSE = 500;
 
 customElements.define(
   "lf-file-editor",
@@ -430,34 +434,37 @@ customElements.define(
           : null;
         this.dispatchEvent(new Event("change"));
       };
-      // The `text` output: the open file's name, its binding as the key that names it
-      // however the names of the page's files change, and its text as last read or
-      // saved, the version on disk where that differs from the draft's (`latest`), or
-      // `null` until it is read. It changes with each save rather than each key, since
-      // a reading bound to it redraws from the whole text, and a keystroke's work would
-      // otherwise grow with the file.
+      // The `text` output (the registry's `text-document` contract): the open file's
+      // name, its binding as the key that names it however the names of the page's
+      // files change, and its text as the reader has it, saved or not, so a reading
+      // follows the draft while a save fails or a conflict stands, or `null` until it
+      // is read. Typing moves it once it has rested for the pause autosave waits
+      // (`PAUSE`), since a reading bound to it redraws from the whole text: moved at
+      // each key, a keystroke's work grew with the file, past the frame's budget at a
+      // thousand lines. Every other change moves it at once.
       /** @type {{key: string, name: string, text: string} | null} */
       this.text = null;
+      let rests = 0;
       const holdText = () => {
-        const read = file.latest ?? file.base;
+        clearTimeout(rests);
+        rests = 0;
         const name = label(file);
         const held = this.text;
+        const text = file.base ? editor.value : null;
         if (
-          read
-            ? held?.text === read.text &&
-              held.name === name &&
-              held.key === file.binding
-            : held === null
+          text === null
+            ? held === null
+            : held?.text === text && held.name === name && held.key === file.binding
         )
           return;
-        this.text = read ? { key: file.binding, name, text: read.text } : null;
+        this.text = text === null ? null : { key: file.binding, name, text };
         this.dispatchEvent(new Event("change"));
       };
       // What follows each draw: the editor's own state, the host's, the menu, the news
       // and the comparison's editor, all of which read the controls the draw made.
       this.#drawn = () => {
         const of = file;
-        holdText();
+        if (!rests) holdText();
         const name = label(of);
         editor.setLabel(name);
         editor.readOnly = readOnly(of);
@@ -640,6 +647,8 @@ customElements.define(
         onChange() {
           file.generation++;
           remember(file);
+          clearTimeout(rests);
+          rests = setTimeout(holdText, PAUSE);
           paint();
           schedule(file);
         },
@@ -650,7 +659,7 @@ customElements.define(
         },
       });
       /** @param {OpenFile} of */
-      function schedule(of, delay = 500) {
+      function schedule(of, delay = PAUSE) {
         clearTimeout(of.timer);
         if (connected && of.api.writable && !of.latest && !of.failure && dirty(of))
           of.timer = setTimeout(() => void flush(of), delay);
@@ -872,6 +881,7 @@ customElements.define(
         file.kept = null;
         remember(leaving);
         void flush(leaving);
+        holdText();
         paint();
         holdFiles();
         opening = connected ? refresh(file) : null;

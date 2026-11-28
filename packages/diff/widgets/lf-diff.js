@@ -1527,7 +1527,7 @@ customElements.define(
     // `source`, and reports it. A manifest names the field each datum came from; a
     // patch text's datums take the whole delivery's origin, and an inline patch has no
     // delivery. Two compared texts report the `afterText` they drew, since a widget's
-    // marks carry one input's origin: the current text is the one each save moves, so a
+    // marks carry one input's origin: the current text is the one each edit moves, so a
     // comment on a row records the save it saw. A deleted row's words are the earlier
     // text's, which that origin leaves unnamed.
     /** @param {DiffSource | null | undefined} source */

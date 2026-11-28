@@ -84,11 +84,11 @@ def test_a_markdown_preview_follows_the_editor_and_a_line_link_centres_its_line(
     browser, serve, tmp_path
 ):
     """A rendered copy bound to the editor with `for` follows what the reader types once
-    it saves, and its passages name the file, so a comment on one says which file it is
-    about. Its code is coloured and its formulas typeset while the editor colours the
-    same file beside it, and the file's link to one of its headings lands there. A link
-    naming a line far down the file, followed or loaded, brings that line to the middle
-    of the editor rather than its foot."""
+    the typing rests, and its passages name the file, so a comment on one says which
+    file it is about. Its code is coloured and its formulas typeset while the editor
+    colours the same file beside it, and the file's link to one of its headings lands
+    there. A link naming a line far down the file, followed or loaded, brings that line
+    to the middle of the editor rather than its foot."""
     file = tmp_path / "README.md"
     file.write_text(
         "# Notes\n\nCost: $`c(x) = h\\,x`$ a request, [as at the end](#the-end), "
@@ -147,7 +147,14 @@ def test_a_markdown_preview_follows_the_editor_and_a_line_link_centres_its_line(
     expect(editor.locator(".cm-activeLine")).to_have_text("Paragraph 150.")
     page.wait_for_function(centred)
 
-    page.keyboard.insert_text("Typed here. ")
+    with page.expect_response(
+        lambda response: (
+            response.request.method == "POST"
+            and response.url.endswith("/api/files/notes")
+            and "Typed here. Paragraph 150." in response.request.post_data_json["text"]
+        )
+    ):
+        page.keyboard.insert_text("Typed here. ")
     expect(preview).to_contain_text("Typed here. Paragraph 150.")
     assert "Typed here. Paragraph 150." in file.read_text()
 

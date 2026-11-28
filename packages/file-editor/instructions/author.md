@@ -36,13 +36,14 @@ Each file is labelled by its path below the deepest folder holding every file th
 page binds, here `deploy/values.yaml`, `deploy/alerts.yaml` and `docs/runbook.md`;
 `leaf file bind` prints the label it gives.
 
-A reading of the file beside its editor, such as a Markdown preview, binds the editor
-with `for`. The editor holds the open file's name and text, as last read or saved, as
-its `text` output, so the preview shows each save, about half a second after the
-reader stops typing, follows whichever file an editor of several has open, and takes
-a double-click on a word to the editor. A Markdown file beside its rendered copy,
-where the reader comments on passages or suggests new wording, takes two elements,
-each in a pane of a workspace so both fill the window's height:
+A reading of the file beside its editor, such as a Markdown preview or a diff against
+its committed text, binds the editor with `for`. The editor holds the open file's name
+and its text as the reader has it, saved or not, as its `text` output, so the reading
+follows the typing about half a second after the reader stops, and whichever file an
+editor of several has open. A preview takes a double-click on a word to the editor. A
+Markdown file beside its rendered copy, where the reader comments on passages or
+suggests new wording, takes two elements, each in a pane of a workspace so both fill
+the window's height:
 
 ```html
 <lf-file-editor id="readme-editor" binding="readme"></lf-file-editor>

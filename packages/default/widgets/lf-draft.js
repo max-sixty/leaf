@@ -71,6 +71,12 @@
  * a closed box holding words it gave no sign of; and a Changes list that restored
  * earlier versions, which the page's undo already does.
  *
+ * The draft holds its source as its `text` output (the registry's `text-document`
+ * contract), named as the Markdown file it reads as, `<id>.md`, so a reading bound to
+ * it, such as a diff against an earlier text, shows it as it would a file's: the saved
+ * text, the words a save sends while it travels, or the open editor's unsent words once
+ * typing in them rests.
+ *
  * The shared draft store holds an open editor's words, so they survive a reload, a live
  * revision that replaces this element, the element leaving the page and coming back,
  * and the tab closing, and every tab's open editor shows the same words. Another tab's
@@ -88,7 +94,8 @@
  * - `EditDraft` owns the editor, a `leaf-text` (CodeMirror inside), on a box of its
  *   own, together with what has to reach that editor synchronously: the draft store's
  *   words, the command rows whose Save reads them, the press away and Android's back,
- *   the caret a click carries in, focus as the editor opens and closes, and the send.
+ *   the caret a click carries in, focus as the editor opens and closes, the send, and
+ *   the `text` output, which `defineWidget` has no option for.
  *   Its args are Leaf's reading; it reports what the user did and what became of a
  *   save as messages. The editor's words and caret live only in the editor and the
  *   store, so no redraw, new reading or revision touches them.
@@ -134,6 +141,10 @@ import {
   markdownSourceOffset,
   markdownWords,
 } from "/runtime/lib/markdown.js";
+
+// How long typing in the editor rests before the `text` output takes its words, in ms,
+// the pause a file editor waits before it saves.
+const PAUSE = 500;
 
 const DraftProps = Schema.Struct({
   ...widgetProps,
@@ -235,6 +246,9 @@ class DraftEditing {
   #failed = false;
   #typing = false;
   #cancelSize = null;
+  #rests = 0;
+  // The words a save in flight sends, which the `text` output holds meanwhile.
+  #submitted = null;
   #returnMotion = null;
   #stopPressAway = null;
   #stops = [];
@@ -316,6 +330,24 @@ class DraftEditing {
     // loaded, startup hands the focus to the page after this runs either way.
     const pending = this.#edit.read();
     if (pending) this.#open(pending.text, undefined, false);
+    this.#holdText();
+  }
+
+  // Hold the source the box shows as the `text` output.
+  #holdText() {
+    clearTimeout(this.#rests);
+    this.#rests = 0;
+    const host = this.#host;
+    const text = this.#editor?.value ?? this.#submitted ?? this.#args.saved;
+    if (host.text?.text === text) return;
+    host.text = { name: `${host.id}.md`, text };
+    host.dispatchEvent(new Event("change"));
+  }
+
+  // Typing moves the output once it rests.
+  #restText() {
+    clearTimeout(this.#rests);
+    this.#rests = window.setTimeout(() => this.#holdText(), PAUSE);
   }
 
   #listen() {
@@ -377,8 +409,10 @@ class DraftEditing {
       this.#edit.watch(
         (text) => {
           if (text === null) this.#close(false);
-          else if (this.#editor && this.#editor.value !== text)
+          else if (this.#editor && this.#editor.value !== text) {
             this.#editor.value = text;
+            this.#restText();
+          }
         },
         {
           input: () => this.#editor,
@@ -407,11 +441,13 @@ class DraftEditing {
       args.editing !== this.#args.editing || args.failed !== this.#args.failed;
     this.#args = args;
     if (this.#editor) this.#editor.readOnly = !args.available;
+    if (!this.#rests) this.#holdText();
     // The toolbar has drawn the controls and title the rows name: Leaf reads them again.
     if (drew) declare(this.#room, { lfCommands: this.#commands });
   }
 
   close() {
+    clearTimeout(this.#rests);
     this.#returnMotion?.cancel();
     this.#stopPressAway?.();
     for (const stop of this.#stops.splice(0)) stop();
@@ -457,6 +493,7 @@ class DraftEditing {
     editor.addEventListener("input", () => {
       this.#arming.reset();
       this.#edit.save(editor.value);
+      this.#restText();
       this.#typing = true;
       this.#failed = false;
       this.#send(DraftMessage.TypedInEditor());
@@ -467,6 +504,7 @@ class DraftEditing {
     this.#editor = editor;
     editor.lfCommands = this.#commands;
     this.#room.append(editor);
+    this.#holdText();
     this.#send(DraftMessage.OpenedEditor());
     editor.dispatchEvent(
       new CustomEvent("lf-commands", { bubbles: true, composed: true }),
@@ -515,6 +553,7 @@ class DraftEditing {
     const mayReturn = retainUserIntent({ source: left });
     editor.remove();
     this.#editor = null;
+    this.#holdText();
     this.#arming.reset();
     this.#typing = false;
     this.#failed = false;
@@ -543,6 +582,7 @@ class DraftEditing {
       return;
     }
     this.#sending = true;
+    this.#submitted = text;
     this.#send(DraftMessage.StartedSave());
     this.#close(false);
     this.#host.setAttribute("aria-busy", "true");
@@ -561,8 +601,10 @@ class DraftEditing {
         ),
     );
     this.#sending = false;
+    this.#submitted = null;
     this.#host.removeAttribute("aria-busy");
     if (ok) {
+      this.#holdText();
       this.#send(DraftMessage.CompletedSave());
       return;
     }
@@ -574,6 +616,7 @@ class DraftEditing {
     // must not overwrite it with the stale pre-send snapshot.
     const stored = this.#edit.read();
     if (!stored) {
+      this.#holdText();
       this.#send(DraftMessage.CompletedSave());
       return;
     }

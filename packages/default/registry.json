@@ -4,7 +4,7 @@
       "choice": {
         "description": "A pick among options, shaped like a `<select>`'s. `value` is the value of the picked option, the one value every picked option carries where the pick holds several, and the empty string where the pick is empty or its options carry different values. `options` lists each option in order, with the `value` it answers with and the `label` that names it. `disabled` is true while the user can't change the pick.",
         "instructions": {
-          "producer": "Take the invoker command `--choose`, whose button's `value` is an option's value, or the empty string for the empty pick. Where `disabled` is false and exactly one option carries that value, make the pick that option, or empty it, and record it as the user's change, named by the button's words. Refuse any other request with `preventDefault()`: a value two options carry doesn't say which the user picks. Set `choice` and say `change` before the command's listener returns, and whenever else the published value changes."
+          "producer": "Take the invoker command `--choose`, whose button's `value` is an option's value, or the empty string for the empty pick. Where `disabled` is false and exactly one option carries that value, make the pick that option, or empty it, and record it as the user's change, named by the button's words. Refuse any other request with `preventDefault()`, inside the command's listener: a value two options carry doesn't say which the user picks. Move `choice` and say `change` in the task that takes the request, and whenever else the published value changes."
         },
         "schema": {
           "type": "object",
@@ -74,9 +74,9 @@
         }
       },
       "text-document": {
-        "description": "UTF-8 text from a file or a selected line range: the text, or the text with the file's `name` where one document shows several files in turn, such as the one an editor has open, a `key` that names the file however its name changes, and an opaque `revision` naming the version of the file the text is, such as the one a save to a file the page binds names.",
+        "description": "UTF-8 text from a file, a selected line range or an editor: the text, or the text with the file's `name` where one document shows several files in turn, such as the one an editor has open, a `key` that names the file however its name changes, and an opaque `revision` naming the version of the file the text is, such as the one a save to a file the page binds names.",
         "instructions": {
-          "producer": "Where the value names its file by `key`, reveal the address `<key>:<line>`, which `navigateToDatum` or a link to `#<id>:<key>:<line>` asks for: show that file with the caret at the start of its 1-based line, and `<key>` alone shows the file."
+          "producer": "Where the value names its file by `key`, reveal the address `<key>:<line>`, which `navigateToDatum` or a link to `#<id>:<key>:<line>` asks for: show that file with the caret at the start of its 1-based line, and `<key>` alone shows the file.\n\nA widget the user edits the text in holds the text as they have it, saved or not. Set the output and say `change` once their typing has paused for about half a second, never at each key, since a reader draws from the whole text; say it at once for any other change."
         },
         "schema": {
           "type": ["string", "object"],
@@ -560,6 +560,9 @@
     },
     "content": "markdown",
     "verbatim": true,
+    "outputs": {
+      "text": { "contract": "text-document" }
+    },
     "awaits": {
       "value": "edit",
       "when": {

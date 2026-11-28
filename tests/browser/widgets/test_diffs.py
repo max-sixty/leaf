@@ -907,11 +907,11 @@ def diff_refresh_keeps_selection(page, serve, diff, source, value, edit):
     ), gutters
 
 
-def test_a_diff_of_a_file_and_its_committed_text_follows_each_save(
+def test_a_diff_of_a_file_and_its_committed_text_follows_the_typing(
     browser, serve, tmp_path
 ):
-    """A diff given a file's committed text and the file's editor compares the two after
-    each save, as `git diff` would: Git's three lines of context and only the rows that
+    """A diff given a file's committed text and the file's editor compares the two once
+    the typing rests, as `git diff` would: Git's three lines of context and only the rows that
     patch holds, so the one unchanged line on either side of the change stays out of the
     drawing, with no control to bring it in. Two equal texts say there are no changes,
     and two plain strings, which name no file, compare as the unnamed file. A patch
@@ -947,7 +947,15 @@ def test_a_diff_of_a_file_and_its_committed_text_follows_each_save(
 
     page.locator("lf-file-editor .cm-line", has_text="Line 5").click()
     page.keyboard.press("End")
-    page.keyboard.type(" edited")
+    edited = text.replace("Line 5", "Line 5 edited")
+    with page.expect_response(
+        lambda response: (
+            response.request.method == "POST"
+            and response.url.endswith("/api/files/notes")
+            and response.request.post_data_json["text"] == edited
+        )
+    ):
+        page.keyboard.type(" edited")
     expect(diff.locator(".lf-diff-head")).to_contain_text("notes.md")
     expect(diff.locator(".lf-diff-line")).to_have_count(8)
     sides = diff.evaluate("""d => [...d.shadowRoot.querySelectorAll('[data-lf-datum]')]
@@ -965,7 +973,7 @@ def test_a_diff_of_a_file_and_its_committed_text_follows_each_save(
     ]
     expect(diff.locator("[data-separator]")).to_have_text(["1 unmodified line"])
     expect(diff.locator("[data-expand-button]")).to_have_count(0)
-    assert file.read_text() == text.replace("Line 5", "Line 5 edited")
+    assert file.read_text() == edited
 
 
 def test_a_closed_diff_file_reads_current_evidence_across_source_forms(browser, serve):

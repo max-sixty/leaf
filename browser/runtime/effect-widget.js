@@ -139,10 +139,13 @@
      asks to move issues it on its own control, since a ref reaches only the instance
      that issues the Command. It lands the user there in Chromium and Firefox, and
      needs `HtmlCommand`, which `/vendor/effect-ui.js` doesn't export yet.
-   - The controlled `.open()` writes the Model's value on every draw, over a fold the
-     browser made whose `toggle` hasn't arrived, as a script's reveal, a summary press
-     or find in page makes one: a draw in that task closes it again, and the Model
-     never hears it. So a widget leaves `open` to the browser (Focus, above).
+   - The controlled `.open()` writes the Model's value on every draw and in the frame
+     after each `toggle`. The browser reports a fold a task after making it, so a
+     write in between undoes a fold whose `toggle` hasn't arrived, as a summary press,
+     a script's reveal or find in page makes one, and the browser merges the queued
+     `toggle` into one reporting no change, so the Model never hears of the fold. A
+     Model that follows `toggle` loses the fold the same way. So a widget leaves
+     `open` to the browser (Focus, above).
    - A keep-alive child moved to another parent keeps its nodes and the words in them,
      but focus in it drops to the body: the kernel takes the nodes out of the old
      parent before it puts them in the new one, and `insert` uses `moveBefore` only

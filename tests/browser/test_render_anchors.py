@@ -781,30 +781,26 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
     # at rest, since a hover state read against a resting one compares nothing.
     page.mouse.move(4, 4)
 
-    # The slotted shortcut hint keeps the text field's quiet placeholder ink, so
+    # The slotted shortcut hint keeps a text field's quiet placeholder ink, so
     # typography shared with sent messages doesn't turn an empty hint into prose, and
-    # its key wears the keycap ink of every other key badge.
-    hint_ink = """hint => {
-        const ink = (el, token) => {
-            const probe = el.appendChild(document.createElement('span'));
-            probe.style.color = `var(${token})`;
-            const color = getComputedStyle(probe).color;
-            probe.remove();
-            return color;
-        };
-        const key = hint.querySelector('kbd');
+    # its key wears the keycap ink of every other key badge. The panel's own field,
+    # rendered beside it, shows both: its empty placeholder and the key of the press
+    # its end offers.
+    hint_ink = """() => {
+        const ink = sel => getComputedStyle(document.querySelector(sel)).color;
         return {
-            hint: getComputedStyle(hint).color,
-            quiet: ink(hint, '--lf-quiet'),
-            key: getComputedStyle(key).color,
-            keycap: ink(hint, '--lf-ink-2'),
+            hint: ink('.lf-fab-input .lf-compose-placeholder'),
+            key: ink('.lf-fab-input .lf-compose-placeholder > kbd'),
+            placeholder: ink('.lf-fp-field .lf-compose-placeholder'),
+            keycap: ink('.lf-fp-field .lf-compose-press kbd'),
         };
     }"""
     hint = page.locator(".lf-fab-input .lf-compose-placeholder")
     expect(hint).to_be_visible()
-    inks = hint.evaluate(hint_ink)
-    assert inks["hint"] == inks["quiet"], inks
-    assert inks["key"] == inks["keycap"], inks
+    expect(page.locator(".lf-fp-field .lf-compose-press kbd")).to_be_visible()
+    resting = page.evaluate(hint_ink)
+    assert resting["hint"] == resting["placeholder"], resting
+    assert resting["key"] == resting["keycap"], resting
 
     # The editor's frame is drawn by the moving surface. Compare that paint with
     # the button's own border and fill, rather than the transparent editor's CSS.
@@ -844,10 +840,14 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
         page.locator(".lf-fab-ground").evaluate("el => getComputedStyle(el).filter")
         != "none"
     ), "the field that floats over the page says nothing about its elevation"
+    # The panel's press leaves once the field is entered, so the entered hint is read
+    # against its own resting face.
     page.locator(".lf-fab-input").click()
-    inks = hint.evaluate(hint_ink)
-    assert inks["hint"] == inks["quiet"], inks
-    assert inks["key"] == inks["keycap"], inks
+    focused = hint.evaluate(
+        "hint => ({hint: getComputedStyle(hint).color,"
+        " key: getComputedStyle(hint.querySelector('kbd')).color})"
+    )
+    assert focused == {"hint": resting["hint"], "key": resting["key"]}, focused
 
 
 # One rendered key face: the geometry a physical press claims wherever Leaf draws it, and

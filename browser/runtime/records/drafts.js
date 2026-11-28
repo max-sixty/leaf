@@ -105,9 +105,9 @@
    recently touched draft. Different passages may therefore hold independent
    unfinished comments.
 
-   An `lf-draft` editor is a live gesture. It defers the widget's drawing while the
-   editor is open, so remote edits and refusal correction wait rather than overwriting
-   the textarea. Closing the editor lets the authoritative projection apply in order.
+   An `lf-draft` editor is a live gesture. Its words are the editor's and this store's,
+   never the widget's reading: remote edits and refusal correction draw the saved body
+   under the open editor and leave its field alone.
 
    The comment over the store below says where it came from. */
 

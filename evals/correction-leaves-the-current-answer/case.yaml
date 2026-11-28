@@ -1,17 +1,15 @@
-# Scores threads.md, "Progress messages", its paragraph that sends a correction of
-# the agent's own unanswered reply into that reply by `leaf thread edit`. The
-# deliveries are real, frozen by `leaf.agents.delivery` from a scratch page at the
-# commit that adds this case, with the page path rewritten and the handling the
-# kernel registry gives at 43fed2e7e172, where the default context passed 3 of 3 on
-# Claude Code; regenerate them to score a change to the handling they carry. The
-# default context is the correction the paragraph is for, where an agent can post a
-# new reply instead; `promised-result` and `delivered-update` are the two cases it
-# keeps as new replies.
-description: correction-edits-the-standing-reply
+# Scores threads.md, "Keeping a thread current": once the agent finds its own
+# unanswered reply wrong, the thread ends on the corrected answer with the wrong one no
+# longer standing, by whatever route the agent chooses. The deliveries are
+# real, frozen by `leaf.agents.delivery` from a scratch page, with the page path
+# rewritten and the handling the kernel registry gave at 43fed2e7e172; regenerate them
+# to score a change to the handling they carry. `delivered-update` keeps a guardrail:
+# an edit answers no update the user handed over.
+description: correction-leaves-the-current-answer
 metadata:
-  purpose: A correction of the agent's own reply, while it is still the thread's latest
-    message and unanswered, goes into that reply by edit; a promised result and the
-    answer to a delivered update stay new replies.
+  purpose: A thread whose agent reply turned out wrong ends on the corrected answer,
+    with the wrong one no longer standing beside it; the answer to a delivered update
+    is a reply.
   tags:
     - threads
 vars:
@@ -110,120 +108,15 @@ vars:
     The page and services are unreachable in this exercise. Write out the Leaf commands you would run now, with the full text of any message, then end your answer.
 assert:
   - type: llm-rubric
-    metric: edits-the-standing-reply
-    value: Pass only if the agent corrects its earlier answer by editing message
-      `aaab97a2` with `leaf thread edit`, so the thread's reply now says the cause is
-      the coupon lookup's per-line queries rather than the cache. Fail if it posts the
-      correction as a new message in the thread (any `leaf thread reply`, or a new
-      thread), whether or not it also edits. Other commands, such as page edits, and
-      the wording don't matter.
+    metric: ends-on-the-current-answer
+    value: Pass only if, after the agent's commands, the thread ends on the corrected
+      cause, the coupon lookup's per-line queries, and no message the user reads there
+      still gives the cache as the cause. Any route or combination passes, among
+      editing message `aaab97a2`, folding it with or without a summary, and replying. Fail if
+      `aaab97a2` still reads as the cache answer, unedited and unfolded, whether or not
+      a new reply corrects it. Other commands, such as page edits, and the wording
+      don't matter.
 variants:
-  promised-result:
-    metadata:
-      purpose: A result the agent promised arrives as a new reply.
-    vars:
-      now: "2026-11-09T00:45:00-08:00"
-      prompt: |
-        You are a Claude Code session using Leaf, an hour into a checkout-latency investigation page with the user at /Users/max/.local/state/leaf/pages/checkout-latency.
-
-
-        Earlier this turn, Leaf's prompt hook handed you this complete inline delivery:
-
-        ```json
-        {
-         "format": "leaf-delivery/59",
-         "id": "e7c6f4a1",
-         "created_at": 1794213069.5478764,
-         "acknowledge": "If the output was cut off, reread it with `leaf delivery read e7c6f4a1` and follow any `next` commands. Then, before any other work, start `leaf delivery ack e7c6f4a1 && leaf wait` as the next background task, which confirms this delivery and waits for the next. If you forward the delivery instead of handling it, acknowledge once it arrives where you sent it.",
-         "batches": [
-          {
-           "page": "/Users/max/.local/state/leaf/pages/checkout-latency",
-           "claim": null,
-           "through_seq": 2,
-           "threads": [
-            {
-             "id": "0d51a6d4",
-             "title": null,
-             "anchor": {
-              "section": "p95-figure"
-             },
-             "detached_from": null,
-             "rewritten_from": null,
-             "resolved": null,
-             "elided": {
-              "messages": 0,
-              "actions": 0
-             },
-             "messages": [],
-             "summaries": [],
-             "actions": []
-            }
-           ],
-           "handling": {
-            "h1": "The thread has no title yet. Name its subject with `--title \"<a few words>\"` on your reply.",
-            "h2": "If the event asks for work, first post one line in its thread saying what you will do, before any other command, even a read: `leaf thread reply <answer.ref> --ephemeral --text \"<what you will do, in a line>\"`. Then do the work, put the result on the page with what shows it (captures, a figure, the numbers), and answer with `leaf thread reply <answer.ref> <declaration> --file reply.md`: what changed and where it shows, in a sentence or two. If the event asks for no work, answer it with that reply at once. The reply checks your saved page edit and makes it live before posting. The declaration says whose move your answer leaves, which delivering what was asked doesn't settle. `--obligation` when it is the user's: it leaves them a decision, or something to try or review before making one, or asks them for an answer or permission. That puts your answer on their On Me list until they reply or resolve the thread, even where the decision itself is already there. Where your answer asks a question of its own whose answers you can list, such as which of two ways to proceed or whether to take an action, put them in your reply in place of `--obligation`, in a widget that asks, such as `<lf-options id=\"…\">` holding an `<lf-option id=\"…\">` for each answer: the user answers with a press, and the choice waits on them by itself (`references/threads.md`, \"Ask for a pick\"). `--todo \"<what you owe>\"` when it is yours, promising work beyond this turn, with `--waiting-on \"<what>\"` where it can't start until something you don't control happens. `--done` when it leaves nobody a move.",
-            "h3": "Your reply renders as Markdown in a narrow card or panel. The thread already reaches the passage or section it is on, as a card beside it or by Show on page, so say in words what changed there, and link a page section elsewhere as `[its name](#section-id)`. Give each point its own short paragraph or list item, and fence code or markup. Where your answer rests on a source, such as a rule, a file or a message, quote the whole passage it turns on, conditions included, so the user can check your answer against it there; put a passage longer than a few lines in a `<details>` in your reply."
-           },
-           "events": [
-            {
-             "attention": true,
-             "author": "user",
-             "revision": 1,
-             "kind": "comment",
-             "text": "Why did checkout p95 jump to 340 ms?",
-             "anchor": {
-              "section": "p95-figure"
-             },
-             "id": "0d51a6d4",
-             "ts": "2026-11-09T08:31:09.545+00:00",
-             "seq": 2,
-             "subject": {
-              "kind": "thread",
-              "id": "0d51a6d4"
-             },
-             "threads": [
-              "0d51a6d4"
-             ],
-             "handling": [
-              "h1",
-              "h2",
-              "h3"
-             ],
-             "answer": {
-              "kind": "reply",
-              "parent": "0d51a6d4",
-              "responds": "0d51a6d4",
-              "ref": "e7c6f4a1:0:0d51a6d4",
-              "writer": "agent"
-             }
-            }
-           ]
-          }
-         ]
-        }
-        ```
-
-
-        You answered it with:
-
-        leaf thread reply e7c6f4a1:0:0d51a6d4 --todo "Rerun the checkout load test" --text "The coupon lookup now runs one query per cart line since Tuesday's deploy, which fits the jump. I'm rerunning the checkout load test with that query batched and will post the p95 here when it finishes."
-
-        which posted your reply as message ac4a838a.
-
-
-        The load test has now finished with the coupon query batched: checkout p95 is 185 ms, against 340 ms without the change. The user has not written anything in the thread since your reply.
-
-
-        The page and services are unreachable in this exercise. Write out the Leaf commands you would run now, with the full text of any message, then end your answer.
-    assert:
-      - type: llm-rubric
-        metric: promised-result-replies
-        value:
-          Pass only if the agent posts the load test's result (185 ms against 340 ms)
-          as a new message in the thread, with `leaf thread reply`, rather than only by
-          editing its earlier message `ac4a838a`. Ending the to-do with `leaf task
-          end` is expected but doesn't decide the grade; editing the earlier message
-          as well doesn't fail it. The wording doesn't matter.
   delivered-update:
     metadata:
       purpose: The user's update is answered by a reply, not by editing the earlier answer.

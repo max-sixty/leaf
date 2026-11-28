@@ -588,14 +588,7 @@ def test_firefox_paints_the_author_and_words_in_the_same_send_flash(
               cue.finished.then(() => {
                 const head = message.querySelector('.lf-msg-head').getBoundingClientRect();
                 const body = message.querySelector('.lf-msg-body').getBoundingClientRect();
-                // Clear of the card's actions, whose controls stand beside the heads
-                // of the messages they are level with.
-                const actions = root.querySelector('.lf-margin-thread-controls')
-                  ?.getBoundingClientRect();
-                const beside = actions && actions.top < head.bottom
-                  && actions.bottom > head.top;
-                const x = Math.min(head.left + head.width * 0.7,
-                  beside ? actions.left - 6 : Infinity);
+                const x = head.left + head.width * 0.7;
                 // The words' row is read at its middle, beside the short sentence,
                 // clear of the message's foot while the card grows to hold it.
                 const rows = {head: head.top + 3, body: (body.top + body.bottom) / 2};
@@ -722,7 +715,7 @@ def test_a_settlement_in_a_reply_leaves_its_own_anchor_on_the_page(browser, serv
                 "widget": wid,
                 "action": "decide",
                 "detail": {"outcome": "accept"},
-                "facts": {"answered": True},
+                "answered": True,
             },
         )
         page = open_page(browser, url)

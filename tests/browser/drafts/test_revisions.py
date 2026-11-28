@@ -86,14 +86,14 @@ def test_an_automatic_revision_keeps_the_empty_panel_reply_focused(
     assert editor.evaluate("el => el.value") == ""
 
 
-def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, serve):
+def test_foreign_edits_replay_in_order_under_a_live_draft(browser, serve):
     """Replay never replaces words while the user is typing them.
 
-    Deferring one edit must also hold later edits for that draft: otherwise the
-    later absolute value lands first and the deferred earlier value overwrites it
-    when the box closes. An unrelated board move proves the poll saw the same
-    batch while the editor was open, without making the test depend on time.
-    Reconnecting the same editor restores its local deferral before semantic catchup.
+    The edits land in order under the open editor, so the later absolute value is
+    the one the box shows once it closes. An unrelated board move proves the poll saw
+    the same batch while the editor was open, without making the test depend on time.
+    The draft leaving the page and coming back opens its editor again on the same
+    unsent words, from the draft store, before semantic catchup.
     """
     page = open_page(browser, serve(JOURNEY_V1))
     draft = page.locator("#draft-ops")
@@ -105,7 +105,6 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
         """node => {
           window.__lfEditingDraft = {
             node, parent: node.parentNode, next: node.nextSibling,
-            editor: node.querySelector('leaf-text'),
           };
           node.remove();
         }"""
@@ -120,7 +119,7 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
           parent.insertBefore(node, next);
         }"""
     )
-    assert editor.evaluate("node => node === window.__lfEditingDraft.editor")
+    expect(editor).to_have_js_property("value", "Local unsent words.")
     editor.focus()
 
     d = serve.page_dir
@@ -134,7 +133,7 @@ def test_a_foreign_edit_waits_for_a_live_draft_and_replays_in_order(browser, ser
                 "widget": "draft-ops",
                 "action": "edit",
                 "detail": {"value": text},
-                "facts": {"answered": True},
+                "answered": True,
             },
         )
     append_command(
@@ -809,7 +808,7 @@ def test_saved_widget_words_cannot_dismiss_an_unfinished_comment(
                 "widget": "mutable",
                 "action": "edit",
                 "detail": {"value": value},
-                "facts": {"answered": bool(value)},
+                "answered": bool(value),
             },
         )
 

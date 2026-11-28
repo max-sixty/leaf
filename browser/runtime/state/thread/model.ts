@@ -15,7 +15,6 @@
    workflow, placement, and view names it by. Its `root` is its opening message, a
    message like any other, and what a reply or settlement addresses as its `parent`. A
    thread this tab opened goes by its pending message's id until the log answers. */
-import { sameAnchor } from "../../base/anchor-coordinate.js";
 import { PENDING } from "./identity.js";
 import { kept, keptEach } from "../kept.js";
 import type {
@@ -432,18 +431,16 @@ export function foldThreads(
   return [...copies, ...opened];
 }
 
-// The user's reactions in force on exactly this anchor — the bar's own question, asked
-// so its chips can say which emoji are already there and a press can take one back:
-// the root of each open thread a reaction of theirs opened there, whether or not the
-// agent has answered it. Anchors are compared as records, the way the file compares
-// them.
+// The user's reactions in force where `standsHere` says a thread stands on the bar's
+// target — the bar's own question, asked so its chips can say which emoji are already
+// there and a press can take one back: the root of each open thread a reaction of
+// theirs opened there, whether or not the agent has answered it. Where a thread stands
+// is the page's to say (annotations/reactions.js, `standsOn`).
 export const reactionsAt = <
-  T extends Pick<Thread, "resolved" | "anchor"> & {
-    root: { emoji?: string; author?: string };
-  },
+  T extends Pick<Thread, "resolved"> & { root: { emoji?: string; author?: string } },
 >(
   threads: readonly T[],
-  anchor: Anchor,
+  standsHere: (thread: T) => boolean,
 ): T["root"][] =>
   threads
     .filter(
@@ -451,7 +448,7 @@ export const reactionsAt = <
         isReaction(thread.root) &&
         thread.root.author === "user" &&
         !thread.resolved &&
-        sameAnchor(thread.anchor, anchor),
+        standsHere(thread),
     )
     .map((thread) => thread.root);
 

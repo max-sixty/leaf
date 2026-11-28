@@ -39,6 +39,12 @@ lf-draft > .lf-markdown-body > :last-child {
 }
 /* The shared source primitive owns fallback presentation, which a draft's source
  * does not wear: it reads as prose lines. */
+/* The component's boxes draw nothing of their own: the editor and toolbar inside them
+ * stand in the draft's grid and corner (lf-draft.js). */
+.lf-draft-face,
+.lf-draft-room {
+  display: contents;
+}
 lf-draft > pre {
   white-space: pre-line;
   background: none;
@@ -76,13 +82,14 @@ lf-draft > pre {
   /* The reading and its editor share a place while the field connects. Stacking
      them in flow lets native scroll anchoring follow the editor upward when the
      ready field replaces the reading, taking the reader away from the clicked word. */
-  lf-draft > :is(.lf-draft-body, .lf-markdown-body, .lf-draft-edit) {
+  lf-draft > :is(.lf-draft-body, .lf-markdown-body),
+  lf-draft .lf-draft-edit {
     grid-area: 1 / 1;
   }
   lf-draft:has(.lf-draft-edit) {
     border-color: var(--lf-muted);
   }
-  lf-draft > .lf-draft-edit {
+  lf-draft .lf-draft-edit {
     --lf-focus-box: lf-draft;
   }
   lf-draft[data-lf-control-focus-visible] {
@@ -100,10 +107,10 @@ lf-draft > pre {
      always, since there Edit is the way to answer, until the user types. While it
      shows it covers the first line's last words, the editor's too: the user chose one
      seat for every block's marks over keeping the edited line clear by standing the
-     toolbar on the top border. So typing puts it away at once (`:state(typing)`,
+     toolbar on the top border. So typing puts it away at once (`data-lf-typing`,
      lf-draft.js), as a document editor's block handles go, since the user asked that
      it not cover the words they type. The pointer coming to its corner shows it again
-     (`:state(pointed)`), and it takes presses once the pointer has rested there, as a
+     (`data-lf-pointed`), and it takes presses once the pointer has rested there, as a
      composer's Send over its last line does, so a press aimed at the first line's end
      places the caret rather than pressing a Discard that has only begun to show. Focus
      leaving the editor, or a refused save's status, shows it and gives its presses
@@ -130,23 +137,18 @@ lf-draft > pre {
     font: var(--lf-font-ui);
     white-space: nowrap;
   }
-  lf-draft:not(:state(typing)):is(
-      :hover,
-      [data-lf-focus-within],
-      [required],
-      :has(> .lf-draft-edit)
-    )
-    .lf-draft-tools,
-  lf-draft:state(pointed) .lf-draft-tools,
+  lf-draft:is(:hover, [data-lf-focus-within], [required], :has(.lf-draft-edit))
+    .lf-draft-tools:not([data-lf-typing]),
+  .lf-draft-tools[data-lf-pointed],
   .lf-draft-tools[data-lf-focus-within],
   .lf-draft-tools:has(> .lf-draft-status:not([hidden])) {
     opacity: 1;
   }
   @media (hover: hover) {
-    lf-draft:state(typing) .lf-draft-tools {
+    .lf-draft-tools[data-lf-typing] {
       pointer-events: none;
     }
-    lf-draft:state(typing):not(:state(pointed)) .lf-draft-tools {
+    .lf-draft-tools[data-lf-typing]:not([data-lf-pointed]) {
       transition: none;
     }
   }

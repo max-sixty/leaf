@@ -467,9 +467,14 @@ cost.</lf-option>
     )
 
 
+# The title the agent gives each thread, as `leaf thread` requires: the one it opens,
+# and the reader's with its first reply there.
+TITLE = "Card placement"
+
+
 def log_lines(case: Case) -> list[dict]:
-    """The agent's question that opens the thread, as `leaf-dev probe --log` takes
-    it; `converse` adds the turns after it."""
+    """The agent's question that opens the thread, titled, as `leaf-dev probe --log`
+    takes it; `converse` adds the turns after it."""
     if not case.thread:
         return []
     anchor = {
@@ -483,6 +488,7 @@ def log_lines(case: Case) -> list[dict]:
             "author": "agent",
             "revision": 1,
             "text": case.thread[0],
+            "title": TITLE,
             "anchor": anchor,
             "obligation": True,
         }
@@ -687,9 +693,7 @@ def answer(words: str, leaves: str) -> None:
         if "answer" in event
     )
     served.leaf("delivery", "ack", delivery["id"])
-    served.leaf(
-        "thread", "reply", "--title", "Card placement", ref, leaves, "--text", words
-    )
+    served.leaf("thread", "reply", "--title", TITLE, ref, leaves, "--text", words)
 
 
 def caught_up(page: Page) -> None:

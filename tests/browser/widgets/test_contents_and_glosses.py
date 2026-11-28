@@ -695,7 +695,7 @@ def test_generated_page_interface_reconciles_before_semantic_interaction(
                     f"Migration checkpoint {number}." for number in range(1, 17)
                 )
             },
-            "facts": {"answered": True},
+            "answered": True,
         },
     )
     held = []

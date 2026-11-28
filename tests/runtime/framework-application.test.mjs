@@ -1768,7 +1768,6 @@ test("An obligation contains the local typed answer while completion waits for a
     declaration: {
       ...descriptor.declaration,
       awaits: { value: "decide" },
-      facts: { answered: { type: "boolean" } },
     },
   };
   const app = capture([[declared.id, declared]]);
@@ -1803,7 +1802,6 @@ test("empty completed answer and wrapper changes preserve obligation identity", 
     declaration: {
       verbs: { choose },
       awaits: { value: "choose" },
-      facts: { answered: { type: "boolean" } },
     },
   };
   const app = capture(
@@ -1851,7 +1849,6 @@ test("a pending undo's word reopens a completed empty answer and refusal restore
       declaration: {
         verbs: { choose, answer },
         awaits: { value: "choose" },
-        facts: { answered: { type: "boolean" } },
       },
     };
     const app = capture(
@@ -1895,7 +1892,7 @@ test("a pending undo's word reopens a completed empty answer and refusal restore
     assert.deepEqual(app.read().effective.obligations.all[0].answer.value, value);
     app.enqueue({ kind: "undo", undoes: accepted.id, attempt: "undo-empty" }, "now");
     // The widget says the undo leaves its question open, as the runtime asks it.
-    app.sayFacts("undo-empty", () => ({ answered: false }));
+    app.answer("undo-empty", () => false);
     assert.equal(app.read().effective.obligations.all[0].state, "waiting");
     assert.equal(app.read().effective.obligations.all[0].answer, null);
     assert.equal(app.read().effective.queues.on_user[0].obligation.answer, null);
@@ -1910,7 +1907,6 @@ test("pending undo withdraws a decision an earlier Leaf recorded with another fi
     declaration: {
       ...descriptor.declaration,
       awaits: { value: "decide" },
-      facts: { answered: { type: "boolean" } },
     },
   };
   const app = capture([[declared.id, declared]]);
@@ -1946,7 +1942,6 @@ test("pending undo removes a custom obligation answer before authoritative compl
     declaration: {
       ...descriptor.declaration,
       awaits: { value: "decide" },
-      facts: { answered: { type: "boolean" } },
     },
   };
   const app = capture([[declared.id, declared]]);

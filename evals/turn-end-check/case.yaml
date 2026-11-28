@@ -95,11 +95,15 @@ variants:
   overtaken-correction:
     metadata:
       scenario: overtaken-correction
-      purpose: A reply correcting the agent's own unanswered reply, rather than edited into it, is named overtaken.
+      purpose: A reply contradicting the agent's own earlier reply, both standing, is named overtaken.
   overtaken-news:
     metadata:
       scenario: overtaken-news
       purpose: A reply bringing the result the agent's earlier reply promised overtakes nothing.
+  overtaken-awaited:
+    metadata:
+      scenario: overtaken-awaited
+      purpose: A reply bringing the news the agent's unanswered question waited on overtakes nothing.
   overtaken-question:
     metadata:
       scenario: overtaken-question

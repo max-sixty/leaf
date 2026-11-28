@@ -91,7 +91,7 @@ def test_what_the_user_does_in_a_thread_acknowledges_what_it_said(page_dir, serv
             "widget": "order",
             "action": "choose",
             "detail": {"value": ["mounts"]},
-            "facts": {"answered": True},
+            "answered": True,
         },
     )
     assert status == 200, answer

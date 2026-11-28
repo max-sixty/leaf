@@ -2,7 +2,6 @@
 reply editor's growth, and what a sent or arriving turn leaves in view."""
 
 import base64
-from datetime import datetime
 from io import BytesIO
 from itertools import pairwise
 
@@ -202,22 +201,35 @@ def test_floating_thread_pages_on_to_its_page(browser, serve, long):
 def test_the_margin_reply_outside_the_transcript_shows_its_whole_ring(
     browser, serve, height
 ):
-    """Scrolling moves turns under the actions while both stay put, the reply row stays
+    """Scrolling moves turns under the head line while it and the reply row stay put,
     outside the scrollport, and at the transcript's end its last turn stops above the
     row."""
     page, preview, transcript = open_long_thread(browser, serve, height)
     header = preview.locator(".lf-margin-thread-controls")
     row = preview.locator(".lf-thread-reply")
+    transcript.evaluate("list => list.scrollTop = 0")
+    rendered(page)
+    # The clip starts a ring's room above the first head, the room the transcript keeps
+    # over its turns, so a focus ring stays whole.
+    ring_top = transcript.evaluate(
+        "list => parseFloat(getComputedStyle(list).paddingTop)"
+    )
+    first = preview.locator(".lf-thread-transcript .lf-msg-head").first.bounding_box()
+    assert first["y"] - transcript.bounding_box()["y"] >= ring_top - 0.5
     original = [header.bounding_box(), row.bounding_box()]
+    assert original[0]["y"] + original[0]["height"] <= transcript.bounding_box()["y"]
+    # A message's name rides with its words: neither sticks.
+    tops = """list => ['.lf-msg-head', '.lf-msg-body'].map(
+      (part) => list.querySelector(`:scope > .lf-msg ${part}`).getBoundingClientRect().top)"""
+    before = transcript.evaluate(tops)
     transcript.evaluate("list => list.scrollTop = 40")
     rendered(page)
     assert header.bounding_box() == pytest.approx(original[0], abs=0.5)
     assert row.bounding_box() == pytest.approx(original[1], abs=0.5)
-    # The clip starts a ring's room above the heads' line, so a focus ring stays whole.
-    ring_top = transcript.evaluate(
-        "list => parseFloat(getComputedStyle(list).scrollPaddingTop)"
-    )
-    assert header.bounding_box()["y"] - transcript.bounding_box()["y"] >= ring_top - 0.5
+    after = transcript.evaluate(tops)
+    assert [b - a for a, b in zip(after, before, strict=True)] == pytest.approx(
+        [40, 40], abs=0.5
+    ), (before, after)
 
     reply = text_field(preview, name="Reply", exact=True)
     page.keyboard.press("Tab")
@@ -724,8 +736,8 @@ def sending_from_a_full_card(browser, serve):
 def test_a_send_from_a_full_card_rides_its_turns_and_names_up(browser, serve):
     """A send from a card at its cap scrolls its transcript to the new turn, which the
     card presents as the turns riding up together. At the first frame every turn and
-    every name, the one stuck at the top included, stands where it stood, and the
-    outline and head row stay put; at rest the turns have all moved up one shared
+    every name stands where it stood, and the outline and head row stay put; at rest
+    the turns have all moved up one shared
     distance and the transcript stands at its end."""
     page, preview, transcript, stood = sending_from_a_full_card(browser, serve)
     drawn = preview.evaluate(FULL_CARD_DRAWN)
@@ -2866,14 +2878,12 @@ def test_a_card_offers_next_unread_for_a_reply_its_opening_left_unread(browser, 
 
 
 @pytest.mark.parametrize("pointer", ["mouse", "finger"])
-def test_next_unread_beside_previous_and_next_leaves_a_head_its_words(
+def test_next_unread_beside_previous_and_next_stands_on_its_symbol(
     browser, serve, pointer
 ):
     """Beside Previous and Next, Next unread stands on its symbol, its words its name, so
-    the first head keeps its author and time, which its words cut to "Me ju". The time,
-    written on another day, keeps that day whole and gives up its time of day whole,
-    where a cut read "18 Sep, …" (`saidTime`, records/thread/messages.js). Under a finger, where each
-    press is a finger wide, a card draws none there (annotation-chrome.css)."""
+    the head line leaves the thread's title room. Under a finger, where each press is a
+    finger wide, a card draws none there (annotation-chrome.css)."""
     second = {**LONG_THREAD_ROOT, "text": "A second question.", "id": "e" * 32}
     url = serve(LONG_THREAD_PAGE, events=[LONG_THREAD_ROOT, LONG_THREAD[1], second])
     context = browser.new_context(
@@ -2896,16 +2906,6 @@ def test_next_unread_beside_previous_and_next_leaves_a_head_its_words(
         preview.get_by_role("button", name="Next unread", exact=True)
     ).to_be_visible()
     assert press.bounding_box()["width"] == 24
-    head = preview.locator(".lf-msg-head").first
-    time = head.locator(".lf-msg-meta > time")
-    for part in (head.locator(":scope > b"), time, time.locator(":scope > span").first):
-        assert part.evaluate("part => part.scrollWidth <= part.clientWidth")
-    # The day in the reader's zone, as the browser reads it.
-    said = datetime.fromisoformat(str(LONG_THREAD_ROOT["ts"])).astimezone()
-    year = "" if said.year == datetime.now().year else f", {said.year}"
-    expect(time.locator(":scope > span").first).to_have_text(
-        f"{said:%b} {said.day}{year}"
-    )
 
 
 def test_next_unread_never_shows_in_a_card_whose_opening_reads_its_reply(

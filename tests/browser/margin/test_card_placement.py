@@ -289,24 +289,27 @@ NOTICE_WHOLE = """notice => {
 }"""
 
 
-def test_a_card_s_head_row_cuts_a_long_name_beside_a_whole_notice(browser, serve):
+def test_a_card_s_head_line_cuts_its_title_beside_a_whole_notice(browser, serve):
     """A card at its least width, with Previous and Next for its target's two threads,
-    holding news while the user writes: the notice reads whole beside the actions, and
-    the head beside them gives up its parts in their order (surfaces.css), cutting a
-    long name at its cap with an ellipsis."""
+    holding news while the user writes: the notice reads whole on the head line, and
+    the thread's title gives way before it, cut with an ellipsis."""
     url = serve(PANEL_PAGE)
-    # Supply the overflow this test needs: a short author can fit as the other
-    # header content changes.
     root = append_carried_log_record(
         serve.page_dir,
         {
             "kind": "comment",
-            "author": "agent",
-            "agent": "The release review and accessibility assistant",
+            "author": "user",
+            "revision": 1,
             "text": "Make the banner quieter",
             "anchor": {"section": "h-how"},
         },
     )["id"]
+    thread_model.post_reply(
+        serve.page_dir,
+        {"parent": root},
+        "Quieter how?",
+        title="The banner's weight against the status line and the logo",
+    )
     panel_comment(serve.page_dir, "Keep the logo where it is", {"section": "h-how"})
     page = open_page(browser, url)
     resized(page, 1200, 900)
@@ -329,38 +332,52 @@ def test_a_card_s_head_row_cuts_a_long_name_beside_a_whole_notice(browser, serve
     expect(notice).to_have_text("2 new")
     rendered(page)
     assert notice.evaluate(NOTICE_WHOLE)
-    card = preview.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
-    name = card.locator(".lf-msg-head b").first
-    assert name.evaluate("node => node.scrollWidth > node.clientWidth")
-    assert name.evaluate("node => getComputedStyle(node).textOverflow") == "ellipsis"
+    title = preview.locator(".lf-margin-thread-title")
+    expect(title).to_have_text(
+        "The banner's weight against the status line and the logo"
+    )
+    assert title.evaluate("node => node.scrollWidth > node.clientWidth")
+    assert title.evaluate("node => getComputedStyle(node).textOverflow") == "ellipsis"
+    assert (
+        title.bounding_box()["x"] + title.bounding_box()["width"]
+        <= notice.bounding_box()["x"] + 0.5
+    )
 
 
-# Where a card's notice stands against the user's head beside it: the notice's start,
-# and the head's end, its Edit's symbol and its time's end.
-NEWS_BESIDE_HEAD = """([notice, head]) => {
-  const box = (node) => node?.getBoundingClientRect();
+# Where a card's head line and what it holds stand: the line's box, the notice's
+# start, the last press's end, and the first message's head's top; and on that head,
+# its Edit's symbol and its time's end.
+HEAD_LINE = """([line, notice]) => {
+  const box = (node) => node.getBoundingClientRect();
+  const presses = line.querySelector('.lf-thread-meta-actions');
   return {
+    left: box(line).left,
+    right: box(line).right,
+    bottom: box(line).bottom,
     notice: box(notice).left,
-    head: box(head).right,
-    edit: box(head.querySelector('.lf-msg-controls > .lf-msg-edit svg')).left,
-    time: box(head.querySelector('time')).right,
+    end: box(presses.lastElementChild).right,
+    head: box(line.parentElement.querySelector('.lf-thread-transcript .lf-msg-head')).top,
+    edit: box(line.parentElement.querySelector(
+      '.lf-thread-transcript .lf-msg-head .lf-msg-controls > .lf-msg-edit svg')).left,
+    time: box(line.parentElement.querySelector('.lf-thread-transcript .lf-msg-head time'))
+      .right,
   };
 }"""
 
 
 @pytest.mark.parametrize("finger", [False, True])
-def test_a_card_s_head_stands_whole_beside_news(browser, serve, finger):
+def test_a_card_s_head_line_holds_a_whole_notice_and_its_presses(
+    browser, serve, finger
+):
     """A card at its least width holding news while the user writes, an agent's edit
     above the thread's end with a new reply, which waits wherever the card stands: the
-    notice says one count, "2 new", whole, and stands clear of the head of the user's
-    message, which gives up its parts beside it in their order (surfaces.css). On a
-    desktop card, with Previous and Next for its target's two threads, and on one under
-    a finger, whose three controls, the notice and the head's Edit each take a finger's
-    width, the head keeps "Me" whole and its time gives up its clock whole, keeping its
-    day, as any narrow head gives up its time before its name, where a cut read
-    "25 Sep, …"; a touch screen as wide as 1408 stands that card beside its words.
-    Under a finger, where the controls always show, the head holds their room, so Edit
-    stands clear of the time."""
+    notice says one count, "2 new", whole, and it and the card's presses stand inside
+    the head line, over the first message's head. On a desktop card, with Previous and
+    Next for its target's two threads, and on one under a finger, whose presses and
+    notice each take a finger's width; a touch screen as wide as 1408 stands that card
+    beside its words. The user's message under them keeps "Me" whole and its time
+    gives up its clock whole, keeping its day, where a cut read "25 Sep, …"; under a
+    finger, where the controls always show, Edit stands clear of the time."""
     url = serve(PANEL_PAGE)
     # Written 51 days ago, so its time names its day, the widest a time reads.
     root = append_carried_log_record(
@@ -403,24 +420,22 @@ def test_a_card_s_head_stands_whole_beside_news(browser, serve, finger):
     )
     append_agent_reply(serve.page_dir, root, "And the banner can keep its own.")
     told(page)
-    notice = preview.locator(".lf-margin-thread-controls .lf-thread-news")
+    line = preview.locator(".lf-margin-thread-controls")
+    notice = line.locator(".lf-thread-news")
     expect_preview_words(notice, re.compile("1 new reply"))
     expect(notice).to_have_text("2 new")
     rendered(page)
-    card = preview.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
-    head = card.locator(".lf-msg-head").first
-    stands = page.evaluate(
-        NEWS_BESIDE_HEAD, [notice.element_handle(), head.element_handle()]
-    )
     assert notice.evaluate(NOTICE_WHOLE)
-    assert stands["notice"] >= stands["head"] - 0.5, stands
+    stands = page.evaluate(HEAD_LINE, [line.element_handle(), notice.element_handle()])
+    assert stands["left"] <= stands["notice"], stands
+    assert stands["end"] <= stands["right"] + 0.5, stands
+    assert stands["bottom"] <= stands["head"] + 0.5, stands
     if finger:
         assert stands["time"] <= stands["edit"] + 0.5, stands
+    card = preview.locator(f'.lf-page-thread[data-lf-thread="{root}"]')
     times = card.evaluate(TIMES_WHOLE)
-    # The user's message, the head beside the notice.
     assert times and times[0]["whole"], times
-    assert len(times[0]["shown"]) == 1, times
-    name = head.locator("b")
+    name = card.locator(".lf-msg-head").first.locator("b")
     expect(name).to_have_text("Me")
     assert name.evaluate("node => node.scrollWidth <= node.clientWidth")
 

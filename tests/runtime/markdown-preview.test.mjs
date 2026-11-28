@@ -34,6 +34,7 @@ const EMITS = {
   fence: ["fence"],
   blockquote: ["blockquote_open"],
   hr: ["hr"],
+  table: ["table_open", "tr_open"],
   list: ["bullet_list_open", "ordered_list_open", "list_item_open"],
   heading: ["heading_open"],
   lheading: ["heading_open"],
@@ -57,7 +58,6 @@ const EMITS = {
 
 // The rules whose constructs stay as typed in the draft, and why.
 const AS_TYPED = {
-  table: "a table's grid is more than the editor's lines can draw",
   reference: "a reference definition shows as typed, though the message drops its line",
   html_block: "html is off, so the rule matches nothing and its markup reads as text",
   html_inline: "html is off, so the rule matches nothing and its markup reads as text",

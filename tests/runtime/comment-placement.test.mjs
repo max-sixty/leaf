@@ -18,6 +18,10 @@ import { floatingPlacement } from "/runtime/annotations/annotation-overlay/float
 // root.
 document.documentElement.style.setProperty("--lf-thread-card-min", "320px");
 document.documentElement.style.setProperty("--lf-thread-card", "592px");
+// How far a card's first message stands below its top (surfaces.css): beside its
+// subject, a card stands that message, not its top, level with the subject's row.
+const CARD_LINE = 33;
+document.documentElement.style.setProperty("--lf-card-line", `${CARD_LINE}px`);
 // The room the marks round a paragraph take past it on each side, their gap and band,
 // as the attachment reads it (dom/geometry.js, `markedBox`).
 const paragraph = { left: 8, top: 8, right: 8, bottom: 8 };
@@ -474,10 +478,10 @@ test("held in at the window's foot, a card may grow back to the tallest it stood
   // Shrunk, as a rewrite opening over long words shrinks it, it falls back level with
   // its line, and may still grow back to the height it stood at.
   height = 150;
-  assert.equal(await place(), 700 - 8);
+  assert.equal(await place(), 700 - 8 - CARD_LINE);
   assert.equal(stood, 300);
   // Repeated fitting at the smaller size must not ratchet the growth room down.
-  assert.equal(await place(), 700 - 8);
+  assert.equal(await place(), 700 - 8 - CARD_LINE);
   assert.equal(stood, 300);
   height = 300;
   assert.equal(await place(), boundary.bottom - 300);
@@ -532,15 +536,15 @@ test("a rising card has the window's height and keeps the top it stood at", asyn
   await place();
   // Holding its top, a card is offered the room below it.
   height = 150;
-  assert.equal(await place(), 692);
-  assert.equal(room, boundary.bottom - 692);
+  assert.equal(await place(), 692 - CARD_LINE);
+  assert.equal(room, boundary.bottom - (692 - CARD_LINE));
   // Rising, it is offered the window's height, and the boundary lifts it.
   height = 400;
   assert.equal(await place(true), boundary.bottom - 400);
   assert.equal(room, boundary.height);
   // Shorter again, it comes back down to the top it held.
   height = 150;
-  assert.equal(await place(true), 692);
+  assert.equal(await place(true), 692 - CARD_LINE);
 });
 
 test("a card keeping a line of its own grows up over it and down under it", async () => {
@@ -600,22 +604,22 @@ test("a card keeping a line of its own grows up over it and down under it", asyn
     return answer.y;
   };
   // Read, it keeps its top, level with its row.
-  assert.equal(await place("top"), 392);
+  assert.equal(await place("top"), 392 - CARD_LINE);
   // A line the draft gains stands under the line: the top stays and the foot drops.
   // The card is offered the room over its line and what stands under it.
   under = 61;
-  assert.equal(await place("line"), 392);
-  assert.equal(room, 392 + 200 + 61 - boundary.top);
+  assert.equal(await place("line"), 392 - CARD_LINE);
+  assert.equal(room, 392 - CARD_LINE + 200 + 61 - boundary.top);
   // A turn joining the transcript stands over the line, and lifts the top by its height.
   over = 300;
-  assert.equal(await place("line"), 292);
+  assert.equal(await place("line"), 292 - CARD_LINE);
   // A line taken from the draft lifts the foot again.
   under = 40;
-  assert.equal(await place("line"), 292);
+  assert.equal(await place("line"), 292 - CARD_LINE);
   // Solved for the size it stood at, it stands where it landed, whatever is under its
   // line now (floating.js, `position`).
   under = 82;
-  assert.equal(await place("line", 0, 300 + 40), 292);
+  assert.equal(await place("line", 0, 300 + 40), 292 - CARD_LINE);
   under = 40;
   // A scroll carries its rule's top past the window's head, which holds it in. A line
   // the draft gains there may still grow it, by as much as stands under its line.

@@ -266,7 +266,7 @@ def build_resume(run: Run, page: Path) -> None:
     admit(run, page, {"kind": "resolve", "parent": rerun})
     admit(run, page, {
         "kind": "action", "revision": 2, "widget": "rollout", "action": "choose",
-        "detail": {'value': ["opt-per-tenant"]}, "facts": {"answered": True},
+        "detail": {'value': ["opt-per-tenant"]}, "answered": True,
     })  # fmt: skip
     admit(run, page, {
         "kind": "comment", "revision": 2,
@@ -307,7 +307,7 @@ def build_constructs(run: Run, page: Path) -> None:
     )
     admit(run, page, {
         "kind": "action", "revision": 1, "widget": "release-note", "action": "edit",
-        "detail": {'value': FIXTURE_INPUTS["constructs"]["draft"]}, "facts": {"answered": True},
+        "detail": {'value': FIXTURE_INPUTS["constructs"]["draft"]}, "answered": True,
     })  # fmt: skip
     run.leaf("data", "set", str(page), "checkout-p95", input_text="231", check=True)
 
@@ -550,7 +550,7 @@ def build_plan_resume(run: Run, page: Path) -> None:
     )  # fmt: skip
     admit(run, page, {
         "kind": "action", "revision": 1, "widget": "first-region", "action": "choose",
-        "detail": {"value": [inputs["choice"]]}, "facts": {"answered": True},
+        "detail": {"value": [inputs["choice"]]}, "answered": True,
     })  # fmt: skip
 
 

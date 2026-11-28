@@ -79,13 +79,15 @@ was written rather than by the turn it names. Restating lines needs that changed
 The user chose to try findings for what long sessions forget once compaction drops
 the rule a reference states, each kept only if replays of the turns where it should
 have fired catch it, a replay of ordinary recent turns stays near the noise without
-it, and the fork takes no longer. `overtaken` applies the agent's own guidance for
-threads (`GUIDANCE`) to two: a correction posted as a new reply to the agent's
-unanswered one rather than edited into it, and a thread question or state later
-work overtook. Leaf asks for no finding of a section reporting a finding without the
-material it rests on: that question misses the case it is for, and on other turns
-asks for the run or script behind a count far more often than the user asks for
-material.
+it, and the fork takes no longer. `overtaken` names a thread the user would misread:
+one whose question or state later work overtook, or where an earlier agent message
+still gives an answer a later one shows was wrong. The user chose that it say what is
+misread and leave the repair to the agent, who can edit, reply or fold. When the fork
+named the remedy, the agent rewrote a merge question and folded away the reply
+bringing the news that question waited on. Leaf asks for no finding of a section reporting a
+finding without the material it rests on: that question misses the case it is for,
+and on other turns asks for the run or script behind a count far more often than the
+user asks for material.
 
 This module is the fork's one home, shared by every harness: what it is asked
 (`fork_prompt`, with each page's On Me and started items as `page_facts` selects them
@@ -245,16 +247,14 @@ from leaf.source.registry.kernel import title_limit
 REFERENCES = SKILL_FILE.parent / "references"
 # What the fork is asked, as the skill ships it.
 REFERENCE = REFERENCES / "turn-end-check.md"
-# The agent's own guidance the fork follows for its asks and its overtaken threads,
-# each a paragraph of a reference named by the words that open it: what goes On Me,
-# which action asks for permission and which is a step, what a question holds, how
-# HTML in a message draws, when it asks with a choice, how a message reads in a
-# thread's narrow card, what it links, where a correction to an unanswered reply
-# goes, and the reply a thread is owed once the work it discusses is done. The fork
-# opens no file, so it can't follow a pointer in one of these paragraphs to another
-# reference: what it needs to write the message is in the paragraph, or in the example
-# right after it, which it gets with the paragraph and which shows the markup, such
-# as `recommended` on the option the agent advises.
+# The agent's own guidance the fork follows for its asks, each a paragraph of a
+# reference named by the words that open it: what goes On Me, which action asks for
+# permission and which is a step, what a question holds, how HTML in a message draws,
+# when it asks with a choice, how a message reads in a thread's narrow card, and what
+# it links. The fork opens no file, so it can't follow a pointer in one of these
+# paragraphs to another reference: what it needs to write the message is in the
+# paragraph, or in the example right after it, which it gets with the paragraph and
+# which shows the markup, such as `recommended` on the option the agent advises.
 GUIDANCE = (
     ("conversation-loop.md", "The user's **On Me** list holds"),
     ("conversation-loop.md", "For an action you take once the user agrees"),
@@ -263,8 +263,6 @@ GUIDANCE = (
     ("threads.md", "When a message asks the user to choose among answers"),
     ("threads.md", "A thread shows in a narrow card"),
     ("page-authoring.md", "Link each pull request"),
-    ("threads.md", "While your reply is still the thread's latest message"),
-    ("authoring-revisions.md", "The user reads threads to find out"),
 )
 
 _WORDS = {"type": "string", "minLength": 1, "pattern": r"\S"}
@@ -275,7 +273,8 @@ FOUND = {
     "stale": "the page holding what no longer fits the work",
     "settled": "an On Me item already settled",
     "unshown": "work no page shows",
-    "overtaken": "a thread of yours the user would misread",
+    "overtaken": 'a thread of yours the user would misread (threads.md, "Keeping a '
+    'thread current")',
 }
 
 ANSWER = {

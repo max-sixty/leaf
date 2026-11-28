@@ -31,7 +31,7 @@
       "/vendor/codemirror.esm.js": [
         "../../build/entries/codemirror/entry.mjs"
       ],
-      "/vendor/extensions.esm.js": [
+      "/vendor/file-editor.esm.js": [
         "../../build/entries/file-editor/entry.mjs"
       ],
       "/vendor/floating-ui.esm.js": [
@@ -93,6 +93,9 @@
       ],
       "/vendor/jsdiff.esm.js": [
         "../../build/entries/jsdiff/entry.mjs"
+      ],
+      "/vendor/array-diff.esm.js": [
+        "../../build/entries/array-diff/entry.mjs"
       ],
       "/vendor/density-clustering.esm.js": [
         "../../build/entries/density-clustering/entry.mjs"

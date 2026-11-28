@@ -13,8 +13,8 @@
    sets it, and does nothing where that is null. Each runs in the task of the input
    that asked.
 
-   Each service is one of the widget protocol's calls (module-plain-elements.md) or a
-   function `widget-api.js` exports, under one name:
+   Each service makes one of the widget protocol's calls (module-plain-elements.md) or
+   does what a function of Leaf's does, as its entry says:
 
    - `RecordAction` is `lf-action`. Its success is the delivery Leaf gives the event:
      `admitted` once the server admits it, `refused` where the server refuses it and
@@ -31,8 +31,9 @@
      `missing`. Focus stays where the user is, unless `focus` takes it to the datum,
      as a followed link takes it to its destination.
    - `Announce` is `lf-announce`: words a listener should hear now.
-   - `KeepInTab` is `tabStore.set`: how the user looks at the widget, kept for this
-     tab, which the widget's inputs read back with `tabStore.get`.
+   - `KeepInTab` writes a string through `tabStore.set` and drops its result: how the
+     user looks at the widget, kept for this tab, which the widget's inputs read back
+     with `tabStore.get`.
    - `OpenThread` opens the thread whose id is `id` where Leaf opens it, inline or in
      Threads, as `threadActions.open` does. A thread Threads no longer lists opens
      nothing.

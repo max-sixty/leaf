@@ -31,8 +31,8 @@
    infer prose from a field, verb, or widget name. The state boundary exposes it once.
 
    `readReports` filters the server-normalized report feed, and `readHistory` selects
-   the history reading. A LeafElement reads them in render(), so Lit follows both
-   initial state and later publications. A reading's `phase` is the page's, as
+   the history reading. A LeafElement's render() or an Effect UI component's inputs
+   reads them, so the widget follows both initial state and later publications. A reading's `phase` is the page's, as
    `readHistory`'s is, so a render never narrates the empty feed a page holds before the
    server's reading. A widget's reading, which it makes as it draws its `state`, in a
    render or a plain element's setter, also waits until the projection has committed
@@ -46,7 +46,7 @@
    recorded with what else the paint read (`state/presence.js`), and the shared tick repaints
    only paints whose reading changed, while their owners stand, so a new widget owes no
    entry in a kernel list of clock consumers. A held state does not reset the
-   measured server clock offset. Lit owns the rendering subscription and its connection
+   measured server clock offset. The renderer owns the subscription and its connection
    lifetime.
 
    `active.revision` identifies the immutable document currently shown; `active.version`

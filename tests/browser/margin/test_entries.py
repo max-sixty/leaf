@@ -1155,7 +1155,7 @@ def test_threads_on_two_parts_of_a_picture_stand_an_entry_each_tracing_its_part(
     """Threads on two points of a chart, and on two nodes of a diagram, stand a margin
     entry each, named by its part as the comment box names it, and pointing at one
     traces that part alone rather than the picture: the ring round the chart's point,
-    which the chart finds by its datum, and the node the diagram lists."""
+    which the chart finds by its datum, and the frame the diagram's node is drawn in."""
     parts = {
         "weeks": ("point:0;x=2;y=5200", "point:0;x=3;y=8412"),
         "flow": ("node:S", "node:U"),
@@ -1187,7 +1187,7 @@ def test_threads_on_two_parts_of_a_picture_stand_an_entry_each_tracing_its_part(
             "diagram",
             ["Start request", "Result"],
             "Result",
-            page.locator('#flow g[data-id="U"]'),
+            page.locator('#flow g[data-id="U"] > rect'),
         ),
     ):
         markers = page.locator(

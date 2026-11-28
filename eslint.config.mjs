@@ -1852,9 +1852,8 @@ export default [
           // it is no new entry.
           "browser/runtime/records/thread/replies.js": ["focusin"],
           // A widget's own subtree, whose controls stand in its tree: whether focus is
-          // within the gloss, and the contents link the user last stood on.
+          // within the gloss.
           "packages/default/widgets/lf-gloss.js": ["focusin", "focusout"],
-          "packages/default/widgets/lf-toc.js": ["focusin"],
           // The text field's empty line hands focus that lands on it to the editor it
           // builds, in its own shadow tree.
           "browser/runtime/annotations/composing/text-field.js": ["focusin"],

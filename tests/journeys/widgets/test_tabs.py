@@ -115,6 +115,7 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
     """A tab switch is not fragment travel. The strip stays where it is on screen: a view
     never read opens at its start when the strip is stuck and leaves the shared header
     alone when it is not, and a view read past its start reopens where the user left it.
+    A view too short to fill the window under the stuck strip shows the page's end.
     Pointer and keyboard agree. Back and Forward open their entry's view where the user
     was on that entry, and a fresh load of the remembered view shows the page's top.
 
@@ -168,13 +169,15 @@ def test_root_tabs_switch_views_without_moving_the_strip_and_follow_history(
     # Read Evidence past its start; Plan, never read, opens at its start under the
     # stuck strip rather than at the top of the page.
     evidence_read = read_at(450)
-    # Even a view shorter than the window keeps enough page below the sticky strip
-    # for the browser to land its start without pulling the strip downward.
-    assert 0 < switch(summary) < evidence_read
-    stuck_at_start("#summary-tab")
     plan_start = switch(plan)
     assert 0 < plan_start < evidence_read
     stuck_at_start("#plan-tab")
+    # A view too short to reach the window's foot under the stuck strip shows the
+    # page's end, since a document ends at its last line (layouts.css).
+    assert switch(summary) == page.evaluate(
+        "Math.max(0, document.scrollingElement.scrollHeight - innerHeight)"
+    )
+    expect(page.locator("#release-summary")).to_be_in_viewport(ratio=1)
     # Evidence reopens where the user left it, and pressing the open tab moves nothing.
     assert switch(evidence) == pytest.approx(evidence_read, abs=2)
     assert switch(evidence) == pytest.approx(evidence_read, abs=2)

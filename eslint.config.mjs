@@ -594,8 +594,9 @@ const placementsRule = {
       arg.type === "SpreadElement" ||
       (arg.type === "Identifier" && /^opt/u.test(arg.name));
     // CodeMirror's imported state effect asks its view's scroll handler to reveal;
-    // it is not the browser method. Resolve the binding so aliases work and a local
-    // element merely named EditorView does not gain an exception.
+    // it is not the browser method. Resolve the binding to an `EditorView` a vendored
+    // bundle exports, the runtime's CodeMirror or a package's own, so aliases work and
+    // a local element merely named EditorView does not gain an exception.
     const editorReveal = (callee) => {
       if (callee.object.type !== "Identifier") return false;
       for (
@@ -609,7 +610,7 @@ const placementsRule = {
           (definition) =>
             definition.type === "ImportBinding" &&
             definition.node.imported?.name === "EditorView" &&
-            /(?:^|\/)vendor\/codemirror\.esm\.js$/u.test(
+            /(?:^|\/)vendor\/[^/]+\.js$/u.test(
               definition.parent.source.value,
             ),
         );

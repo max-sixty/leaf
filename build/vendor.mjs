@@ -123,6 +123,79 @@ const bindTo = (filter, target) => ({
 });
 
 /**
+ * Leaf's edits to CodeMirror, which every bundle holding CodeMirror's core applies:
+ * the runtime's, for its composers, and the file editor's own.
+ */
+const codemirrorAdaptations = [
+  // The view's wrapping estimates must refresh when the content width changes.
+  // CodeMirror 6.43.13 overwrites its previous width before comparing the two,
+  // leaving the height oracle at the old measure. An expanding composer can then
+  // exhaust the measurement loop as each newly rendered line corrects that guess.
+  // Compare against the oracle's measured line length, with its five-column
+  // floor, so sub-character resizes accumulate until they warrant a measurement.
+  //
+  // CodeMirror scroll walk: the view finds the boxes that scroll an editor by
+  // walking up from it until `body`, and takes the window where it finds none. A
+  // drag selection scrolls the nearest one on each axis while the pointer stands
+  // past its edge, and the view's measure keeps the nearest vertical one at its
+  // end, if it stood there, as the editor changes height. No scroll outside a box
+  // fixed to the window moves the words inside it, so the walk ends at such a box
+  // and takes it for each axis it found no scroller on. That box doesn't scroll, so
+  // the page stays still under every editor in Leaf's chrome, each of which stands
+  // in one. A fixed box whose containing block is an ancestor, as a transform or
+  // paint containment makes one, has that ancestor for its `offsetParent` and
+  // moves with that ancestor's scrollers, so the walk passes it. Walking on from
+  // the chrome, which stands after `body` (runtime/base/chrome.js), the walk would reach
+  // the root, whose own box moves up as the page scrolls: a press whose pointer
+  // drifted a pixel would read the pointer as far below that box and scroll the
+  // page to its end. Ending the walk at the root would give these editors the
+  // window, which a drag at the window's foot would scroll, and which the measure
+  // would scroll by the height a draft gives up at the page's end.
+  // CodeMirror 6.43.15.
+  {
+    file: /@codemirror\/view\/dist\/index\.js$/,
+    edit: (source) =>
+      seam(
+        seam(
+          source,
+          "Math.abs(contentWidth - this.contentDOMWidth) > oracle.charWidth",
+          "Math.abs(Math.max(5, contentWidth / oracle.charWidth) - oracle.lineLength) > 1",
+          "CodeMirror wrapping measurement",
+        ),
+        "                x = cur;\n            cur = cur.assignedSlot || cur.parentNode;",
+        `                x = cur;
+            if (getComputedStyle(cur).position == "fixed" && !cur.offsetParent) {
+                y = y || cur;
+                if (getX) x = x || cur;
+                break;
+            }
+            cur = cur.assignedSlot || cur.parentNode;`,
+        "CodeMirror scroll walk",
+      ),
+  },
+  // CodeMirror's style-mod provider expands its selectors and mounts its sheets,
+  // and has no cascade-layer option. Wrap each module's rules once generated, so
+  // base themes and syntax highlights share Leaf's `lf-base` tier and page CSS
+  // takes part in the ordinary cascade. Wrapping the input spec instead would
+  // expand CodeMirror's &light/&dark selectors against the at-rule rather than
+  // their editor class.
+  {
+    file: /style-mod\/src\/style-mod\.js$/,
+    edit: (source) => {
+      const generation =
+        "for (let prop in spec) render(splitSelector(prop), spec[prop], this.rules)";
+      return seam(
+        source,
+        generation,
+        generation +
+          '\n    this.rules = ["@layer lf-base {\\n" + this.getRules() + "\\n}"]',
+        "CodeMirror style-module generation",
+      );
+    },
+  },
+];
+
+/**
  * Each bundle, by name. A row's `out` is its first output, which names the bundle's
  * license notices. Rows give esbuild either `entry`, a module's source, or their own
  * entry points, and may add `adapt`ations, esbuild options, and a `place` for an
@@ -374,106 +447,32 @@ const bundles = {
     },
   }),
 
-  // One CodeMirror 6 core for runtime composers and optional file editors.
-  //
-  // One bundle holds the editor core, exporting the names composers and the
-  // file-editor adapter import. Optional autocomplete and merge live in the
-  // file-editor package and import this same state/view/language implementation.
-  // The runtime owns the live-preview decorations and reads a draft with markdown-it
-  // alone, and the file editor colours every language with the syntax module, so the
-  // core carries no language of its own.
+  // The CodeMirror 6 core for the runtime's composers. The runtime owns the
+  // live-preview decorations and reads a draft with markdown-it alone, so the core
+  // carries no language of its own.
   codemirror: () => ({
     out: `${assets}/vendor/codemirror.esm.js`,
     entryPoints: [input("entries/codemirror/entry.mjs")],
     banner: {
       js: `/*! CodeMirror ${version("@codemirror/view")} — MIT — https://codemirror.net */`,
     },
-    adapt: [
-      // The view's wrapping estimates must refresh when the content width changes.
-      // CodeMirror 6.43.13 overwrites its previous width before comparing the two,
-      // leaving the height oracle at the old measure. An expanding composer can then
-      // exhaust the measurement loop as each newly rendered line corrects that guess.
-      // Compare against the oracle's measured line length, with its five-column
-      // floor, so sub-character resizes accumulate until they warrant a measurement.
-      //
-      // CodeMirror scroll walk: the view finds the boxes that scroll an editor by
-      // walking up from it until `body`, and takes the window where it finds none. A
-      // drag selection scrolls the nearest one on each axis while the pointer stands
-      // past its edge, and the view's measure keeps the nearest vertical one at its
-      // end, if it stood there, as the editor changes height. No scroll outside a box
-      // fixed to the window moves the words inside it, so the walk ends at such a box
-      // and takes it for each axis it found no scroller on. That box doesn't scroll, so
-      // the page stays still under every editor in Leaf's chrome, each of which stands
-      // in one. A fixed box whose containing block is an ancestor, as a transform or
-      // paint containment makes one, has that ancestor for its `offsetParent` and
-      // moves with that ancestor's scrollers, so the walk passes it. Walking on from
-      // the chrome, which stands after `body` (runtime/base/chrome.js), the walk would reach
-      // the root, whose own box moves up as the page scrolls: a press whose pointer
-      // drifted a pixel would read the pointer as far below that box and scroll the
-      // page to its end. Ending the walk at the root would give these editors the
-      // window, which a drag at the window's foot would scroll, and which the measure
-      // would scroll by the height a draft gives up at the page's end.
-      // CodeMirror 6.43.15.
-      {
-        file: /@codemirror\/view\/dist\/index\.js$/,
-        edit: (source) =>
-          seam(
-            seam(
-              source,
-              "Math.abs(contentWidth - this.contentDOMWidth) > oracle.charWidth",
-              "Math.abs(Math.max(5, contentWidth / oracle.charWidth) - oracle.lineLength) > 1",
-              "CodeMirror wrapping measurement",
-            ),
-            "                x = cur;\n            cur = cur.assignedSlot || cur.parentNode;",
-            `                x = cur;
-            if (getComputedStyle(cur).position == "fixed" && !cur.offsetParent) {
-                y = y || cur;
-                if (getX) x = x || cur;
-                break;
-            }
-            cur = cur.assignedSlot || cur.parentNode;`,
-            "CodeMirror scroll walk",
-          ),
-      },
-      // CodeMirror's style-mod provider expands its selectors and mounts its sheets,
-      // and has no cascade-layer option. Wrap each module's rules once generated, so
-      // base themes and syntax highlights share Leaf's `lf-base` tier and page CSS
-      // takes part in the ordinary cascade. Wrapping the input spec instead would
-      // expand CodeMirror's &light/&dark selectors against the at-rule rather than
-      // their editor class.
-      {
-        file: /style-mod\/src\/style-mod\.js$/,
-        edit: (source) => {
-          const generation =
-            "for (let prop in spec) render(splitSelector(prop), spec[prop], this.rules)";
-          return seam(
-            source,
-            generation,
-            generation +
-              '\n    this.rules = ["@layer lf-base {\\n" + this.getRules() + "\\n}"]',
-            "CodeMirror style-module generation",
-          );
-        },
-      },
-    ],
+    adapt: codemirrorAdaptations,
   }),
 
-  // File editing extensions sharing the runtime's CodeMirror implementation: merge
-  // and autocomplete, which live in this optional package. The editor colours every
-  // language with the syntax module (file-editor's editor.js). Their
-  // state/view/language and Lezer imports bind to the core Leaf's composers use, so
-  // extensions never mix CodeMirror identities.
+  // The file editor's own CodeMirror: the core the runtime's bundle holds, with the
+  // merge view and autocomplete, which only this package uses. A package brings the
+  // libraries its widgets draw with, so the file editor doesn't import the runtime's
+  // copy, and its editor colours every language with the syntax module
+  // (file-editor's editor.js).
   "file-editor": () => ({
-    out: `${packageVendor("file-editor")}/extensions.esm.js`,
+    out: `${packageVendor("file-editor")}/file-editor.esm.js`,
     entryPoints: [input("entries/file-editor/entry.mjs")],
     platform: "browser",
     target: "es2022",
-    plugins: [
-      bindTo(
-        /^(?:@codemirror\/(?:state|view|language)|@lezer\/(?:highlight|common))$/,
-        "/vendor/codemirror.esm.js",
-      ),
-    ],
+    banner: {
+      js: `/*! CodeMirror ${version("@codemirror/view")} — MIT — https://codemirror.net */`,
+    },
+    adapt: codemirrorAdaptations,
   }),
 
   // The browser's anchored-positioning primitive. Floating UI's DOM package leaves
@@ -555,6 +554,16 @@ const bundles = {
   jsdiff: () => ({
     out: `${assets}/vendor/jsdiff.esm.js`,
     entryPoints: [input("entries/jsdiff/entry.mjs")],
+    banner: {
+      js: `/*! jsdiff ${version("diff")} — BSD-3-Clause — https://github.com/kpdecker/jsdiff */`,
+    },
+  }),
+
+  // The same array comparison for the default package's text documents, which bring
+  // their own copy rather than import the runtime's.
+  "array-diff": () => ({
+    out: `${packageVendor("default")}/array-diff.esm.js`,
+    entryPoints: [input("entries/array-diff/entry.mjs")],
     banner: {
       js: `/*! jsdiff ${version("diff")} — BSD-3-Clause — https://github.com/kpdecker/jsdiff */`,
     },

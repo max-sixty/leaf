@@ -4,7 +4,7 @@
 import { langForPath, leafEditorView } from "/runtime/widget-api.js";
 import { sizeObserver } from "/runtime/lib/frame-pass.js";
 import { syntaxNow } from "/runtime/lib/syntax-tokens.js";
-import * as codemirror from "/vendor/codemirror.esm.js";
+import * as codemirror from "/vendor/file-editor.esm.js";
 import {
   Annotation,
   ChangeSet,
@@ -36,8 +36,6 @@ import {
   indentOnInput,
   placeholder,
   bracketMatching,
-} from "/vendor/codemirror.esm.js";
-import {
   diff,
   unifiedMergeView,
   getOriginalDoc,
@@ -46,7 +44,7 @@ import {
   closeBrackets,
   closeBracketsKeymap,
   completionKeymap,
-} from "/vendor/extensions.esm.js";
+} from "/vendor/file-editor.esm.js";
 import { scrollMoves } from "/runtime/lib/scroll-range.js";
 
 const LeafEditorView = leafEditorView(codemirror);

@@ -57,12 +57,17 @@ function travel(
     : end - high + margin;
 }
 
-const classes: WeakMap<
+/** What the view is built from: these exports of a CodeMirror 6 bundle, the runtime's
+ * `/vendor/codemirror.esm.js` or one a package ships. */
+type CodeMirrorCore = Pick<
   typeof CodeMirror,
-  ReturnType<typeof editorViewOver>
-> = new WeakMap();
-/** The view class over `codemirror`, the namespace of `/vendor/codemirror.esm.js`. */
-export function leafEditorView(codemirror: typeof CodeMirror) {
+  "Compartment" | "Direction" | "EditorState" | "EditorView" | "StateEffect"
+>;
+
+const classes: WeakMap<CodeMirrorCore, ReturnType<typeof editorViewOver>> =
+  new WeakMap();
+/** The view class over `codemirror`, a CodeMirror 6 bundle's namespace. */
+export function leafEditorView(codemirror: CodeMirrorCore) {
   let made = classes.get(codemirror);
   if (!made) classes.set(codemirror, (made = editorViewOver(codemirror)));
   return made;
@@ -74,7 +79,7 @@ function editorViewOver({
   EditorState,
   EditorView,
   StateEffect,
-}: typeof CodeMirror) {
+}: CodeMirrorCore) {
   // The caret at `at`, as a node a reveal can land and its rectangle, read from the DOM
   // so a scroll handler may call it while the view updates (`LeafEditorView.caretAt`).
   function caretAt(view: EditorView, at: number) {

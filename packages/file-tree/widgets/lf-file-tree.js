@@ -19,11 +19,13 @@
  * included; every other folder, a new one included, opens.
  *
  * Search clears on blur or activation. Enter in search chooses a row; Enter on that
- * row opens its file. Upstream reports selection changes rather than activation, and
- * a repeated selection reports nothing, so a row's activation is an ordinary click or
- * the row's declared keys, reading the focused item through Trees' model. Each row is
- * a native button whose own key scope must precede native activation, so the scope
- * stands on the focused row. */
+ * row opens its file. Trees keeps its search open after either, so activation closes
+ * it, and Enter in search selects the focused match and moves focus to its row, which
+ * closes the search as the field blurs. Upstream reports selection changes rather
+ * than activation, and a repeated selection reports nothing, so a row's activation is
+ * an ordinary click or the row's declared keys, reading the focused item through
+ * Trees' model. Each row is a native button whose own key scope must precede native
+ * activation, so the scope stands on the focused row. */
 import {
   Effect,
   Html,
@@ -141,6 +143,7 @@ const DrawTrees = Mount.makeStream(
             if (toggleDirectory) item.toggle();
             return;
           }
+          tree.closeSearch();
           selectOnly(tree, item.getPath());
           send(FileTreeMessage.OpenedFile({ path: item.getPath() }));
         };
@@ -248,6 +251,34 @@ const DrawTrees = Mount.makeStream(
                   activate(false);
               },
               { signal },
+            );
+            // Enter in search chooses the focused match: Leaf selects it and puts the
+            // reader on its row, and the field's blur closes Trees' search.
+            node.addEventListener(
+              "keydown",
+              (event) => {
+                const path = tree.getFocusedPath();
+                if (
+                  event.key !== "Enter" ||
+                  event.altKey ||
+                  event.ctrlKey ||
+                  event.metaKey ||
+                  event.shiftKey ||
+                  !tree.isSearchOpen() ||
+                  path == null ||
+                  stage.activeElement !== stage.querySelector("input")
+                )
+                  return;
+                const row = stage.querySelector(
+                  `[role="treeitem"][data-item-path="${CSS.escape(path)}"]`,
+                );
+                if (!row) return;
+                event.preventDefault();
+                event.stopPropagation();
+                selectOnly(tree, path);
+                focusDestination(row, "move");
+              },
+              { signal, capture: true },
             );
             // Trees scrolls its virtualized list and focuses with preventScroll. The
             // row can still lie outside Leaf's outer reading viewport, so that reveal

@@ -127,10 +127,9 @@ def test_a_title_on_its_way_reads_as_one(browser, serve, request):
     on its way (thread_titles.py), so every surface drawing the thread's name says so
     rather than naming the thread with its opening words, until the title lands:
     Threads' row, Page Map's row, the agent's card in On, and the heading over the
-    thread's view and on its margin card's head line, which shows only while the title
-    is on its way, since otherwise it would repeat the opening message under it, the
-    card drawing none then. A page nobody holds is sent no title, so there the thread
-    reads its opening words."""
+    thread's view and on its margin card's head line. A page nobody holds is sent no
+    title, so there the thread's rows read its opening words, and the two head lines,
+    over the opening message those words would repeat, read Untitled."""
     url = serve(PANEL_PAGE)
     opening = "Is the workshop room accessible?"
     pending = "Generating thread name…"
@@ -143,7 +142,8 @@ def test_a_title_on_its_way_reads_as_one(browser, serve, request):
     expect(
         card.get_by_role("button", name="Resolve thread", exact=True)
     ).to_be_visible()
-    expect(heading).to_be_hidden()
+    expect(heading).to_have_text("Untitled")
+    expect(heading.locator(".lf-thread-name-untitled")).to_be_visible()
     card.get_by_role("button", name="Dismiss thread view", exact=True).click()
     expect(card).to_be_hidden()
     label = thread_row(page, root).locator(".lf-fp-label")

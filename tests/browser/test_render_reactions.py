@@ -351,6 +351,30 @@ def test_a_reaction_stays_pressed_on_its_words_after_an_edit_beside_them(
     assert withdrawn["kind"] == "undo" and withdrawn["undoes"] == sent["id"], withdrawn
 
 
+def test_an_open_picker_shows_a_reaction_another_tab_puts_on(browser, serve):
+    """The picker's chips say what a press does while it stays open. A reaction another
+    tab puts on the same words shows pressed as it arrives, so a press here takes it
+    back, as the chip says."""
+    url = serve(PANEL_PAGE)
+    here, there = open_page(browser, url), open_page(browser, url)
+    thumbs = []
+    for page in (here, there):
+        select_paragraph(page, "#how-store")
+        bar = page.locator(".lf-fab-bar")
+        expect(bar).to_be_visible()
+        page.evaluate(RELEASE_FOCUS)
+        page.keyboard.press("e")
+        thumb = bar.locator('.lf-react[data-lf-emoji="👍"]')
+        expect(thumb).to_have_attribute("aria-pressed", "false")
+        thumbs.append(thumb)
+    with sending(there, "the other tab's reaction"):
+        thumbs[1].click()
+    sent = events_model.read_events(serve.page_dir)[-1]
+    assert sent["kind"] == "comment" and sent["emoji"] == "👍", sent
+    told(here)
+    expect(thumbs[0]).to_have_attribute("aria-pressed", "true")
+
+
 def test_e_immediately_opens_the_selection_s_reactions_and_digit_chooses(
     browser, serve
 ):

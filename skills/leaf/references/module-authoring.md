@@ -18,17 +18,19 @@ nothing. One that draws with Lit usually extends `LeafElement`, the Lit element 
 protocol, and one that draws from a page reading either does (`module-plain-elements.md`,
 "`LeafElement`") or is an Effect UI component that `defineWidget` defines
 (`/runtime/effect-widget.js`, whose header gives its contract): Leaf's reading and
-what its `inputs` read arrive as props, and its events record.
+what its `inputs` read arrive as props, and it records gestures through Command
+services (`/runtime/widget-services.js`).
 
 Whatever a package leans on Leaf for is one of these kinds, and each kind has its own
-form. Find a need's kind, then read the section that describes its form:
+form, or one for each way of writing the widget. Find a need's kind, then read the
+section that describes its form:
 
 | A package leans on Leaf for                    | The form it takes                       | Described in                               |
 | ---------------------------------------------- | --------------------------------------- | ------------------------------------------ |
 | What Leaf must know before any module runs     | A key of the tag's declaration          | `packages.md`, "A widget"                  |
 | What changes while the page runs               | The widget protocol                     | `module-plain-elements.md`                 |
 | What a widget and a page's author both need    | An element Leaf defines on every page   | `module-state.md`, "Time readings"         |
-| What only Leaf can do or know                  | A function from `widget-api.js`         | "Functions", below                         |
+| What only Leaf can do or know                  | A function or a Command service         | "Functions"; `widget-services.js`          |
 | A theme's choice                               | A custom property the sheet reads       | `package-themes.md`, "Theme tokens"        |
 | A fact about where the widget's box stands     | A custom property Leaf or a Layout sets | `packages.md`, "Styles and composition"    |
 | What the widget's box tells Leaf               | A custom property the sheet sets        | `package-themes.md`, "A theme change"      |
@@ -45,11 +47,16 @@ library ("Shared web code").
 Whatever an element can't do through the protocol, such as reading the page's words or
 its obligations, keeping the user's place, moving focus or keeping a draft, is a
 function it imports from `/runtime/widget-api.js`, as a page script does; "Functions"
-lists them all. Lit's templates come from `/vendor/lit.js`, Lit's own module, the one path its names
-come from, such as `render`, `html`, `svg`, `nothing`, `repeat`, `keyed`, `live`,
-`ref`, `createRef`, `classMap`, `styleMap`, `guard`, `unsafeHTML` and `noChange`. Of
-the runtime's other modules, import only the library's ("Shared web code"). Don't query
-Leaf's own chrome or copy a runtime helper.
+lists them all. An Effect UI component asks for some of these acts through a Command
+service. Lit's templates come from `/vendor/lit.js`, Lit's own module, the one path its
+names come from, such as `render`, `html`, `svg`, `nothing`, `repeat`, `keyed`,
+`live`, `ref`, `createRef`, `classMap`, `styleMap`, `guard`, `unsafeHTML` and
+`noChange`. Of the runtime's other modules, import only those the kernel registry
+(`browser/runtime/kernel-registry.json`) lists in `$public-modules`: `portable-api.js`
+("A widget that also runs off Leaf"), the library's ("Shared web code"), and, for an
+Effect UI component, `effect-widget.js` and `widget-services.js`. Each module's header
+gives its contract.
+Don't query Leaf's own chrome or copy a runtime helper.
 
 ### Functions
 
@@ -200,6 +207,7 @@ script", lists.
 
 - Build once, behind a first-connection guard, and hold each connection's listeners,
   observers and registrations in `whileConnected` ("Upgrade", "Connection lifetimes").
+  For an Effect UI component, `defineWidget` owns the build and its lifetime.
 - Wire no input inside an exhibit, which Leaf marks `data-lf-exhibit` ("Upgrade").
 - Read the page's words with `says()`, and name a part with `named()`,
   never with `textContent` (`module-reading.md`, "Reading the page"). A widget that
@@ -358,7 +366,8 @@ now would move what the user sees, say the work with a `pending-task` event inst
 Each widget renders when its module loads, then updates that same view from Leaf's
 readings.
 
-- Draw a widget's complete view in one place, its `state` setter or its one `render()`.
+- Draw a widget's complete view in one place: its `state` setter, its one `render()`
+  or its component's view.
   The same drawing handles fresh mounts, thread messages and later updates; do not add
   a second initial renderer or transfer generated nodes between renderers.
 - Size the widget in the package theme, including its initial authored drawing.

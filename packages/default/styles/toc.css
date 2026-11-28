@@ -263,8 +263,14 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
  * disclosure. Under a mouse the Layout lets a track lay the labels over the body
  * where its aside before the body is narrower than 128px (layouts.css). A sticking
  * track stands its 16px focus room inside its aside, so a track narrower than 96px
- * is always one the Layout lifts, and the map rests as a spine only there, under a
- * mouse. Elsewhere a track narrower than the outline's 8rem holds the disclosure. The
+ * stands in an aside narrower than 128px, and the map rests as a spine only there,
+ * under a mouse. The Layout lifts that track where its aside is the sidebar's one and
+ * comes before the body, as page-layout.md's rule places it. A narrow aside after the
+ * body, or beside a second aside, keeps its clip, so the map's labels show clipped
+ * there: the map reads only its own track's width, and telling it which tracks the
+ * Layout lifts would take a name the Layout sets, as `--lf-track-spine` was, which
+ * the user chose against. Elsewhere a track narrower than the outline's 8rem holds
+ * the disclosure. The
  * map's box is the track's width, where it takes the
  * pointer and draws its spine, markers and marks; its labels keep their own measure
  * past it, toward the body, faded out and taking no pointer until it reveals them.

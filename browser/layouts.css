@@ -22,9 +22,9 @@
    * document Layouts in one list (Breakouts, below). A workspace does neither: its grid
    * sizes its regions.
    * A document ends at its last line, as a web page does. So where the window shows
-   * that line, a block that shrinks, such as a deck's next card or a closing
-   * disclosure, moves what stands above it down, since the browser scrolls no further
-   * than the page's end. Rejected, by the user's choice: room below the last line for
+   * that line, a block that shrinks, such as a closing disclosure, moves what stands
+   * above it down, since the browser scrolls no further than the page's end. A deck
+   * holds its tallest card's height for that reason (lf-deck.js). Rejected, by the user's choice: room below the last line for
    * it to rise to the window's head, as an editor's does, which held those blocks
    * still but left most of a window blank below every page.
    */

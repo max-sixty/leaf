@@ -340,8 +340,9 @@ const AXES = ["x", "y"];
 // boundary names the box that scrolls that room (`scroller`), which makes room for a
 // surface, and the edges that cut the card (`cut`), or null where none do: the
 // region's, and each edge of a bounded block around the row that the attachment `at`
-// (the row's line and column) has crossed. Its top cuts once the card's own top, a gap
-// above the line, has passed it, so the cut grows from nothing. Crossing an edge cuts
+// (the row's line and column) has crossed. Its top cuts once the card's own top, its
+// head line and a gap above the line (`place-beside`), has passed it, so the cut grows
+// from nothing. Crossing an edge cuts
 // the card and never moves it: bounding the room there pushed a card hanging past a
 // log's foot up over its row once the row's line passed the foot. Its
 // `key` is what holds the side (`choose`): the window's edges, or the region's whole box
@@ -394,7 +395,8 @@ export function commentBoundary({ scroller = pageScroller, at = null } = {}) {
     for (const block of blocks) {
       const shown = shownRect(block, new Map());
       if (!shown) continue;
-      if (at.y - COMMENT_GAP < shown.top) cut.top = Math.max(cut.top, shown.top);
+      if (at.y - COMMENT_GAP - cardLine() < shown.top)
+        cut.top = Math.max(cut.top, shown.top);
       if (at.y > shown.bottom) cut.bottom = Math.min(cut.bottom, shown.bottom);
       if (at.x < shown.left) cut.left = Math.max(cut.left, shown.left);
       if (at.x > shown.right) cut.right = Math.min(cut.right, shown.right);
@@ -553,6 +555,11 @@ const rootLength = (name) =>
   parseFloat(getComputedStyle(document.documentElement).getPropertyValue(name));
 export const cardMinimum = () => rootLength("--lf-thread-card-min");
 export const cardMeasure = () => rootLength("--lf-thread-card");
+// How far a card's first message stands below its top (`--lf-card-line`,
+// surfaces.css). Beside its passage the card stands that message level with the
+// passage's row (`place-beside`), and a comment box, whose frame reserves the same
+// line, stands where its card will.
+const cardLine = () => rootLength("--lf-card-line");
 // Where `size-width` widens a card by its text: a block of words wider than it is tall
 // reads at a glance at the least width; a taller one reads as a column, which the
 // measure's lines halve. The shape needs no constant, so it follows the card's width
@@ -1021,7 +1028,7 @@ export function commentPlacement() {
         }
         return {
           mainAxis,
-          crossAxis: across ? 0 : (row - COMMENT_GAP - box.top) / scale.y,
+          crossAxis: across ? 0 : (row - COMMENT_GAP - box.top) / scale.y - cardLine(),
         };
       }),
       holding,

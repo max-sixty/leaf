@@ -300,6 +300,8 @@ seeked = "seeked"
 udid = "udid"
 # A variable in Pele's minified bundle that a seam in build/vendor.mjs names.
 ue = "ue"
+# markdown-it's table row token, which a seam in build/vendor.mjs names.
+tro = "tro"
 
 [tool.typos.default.extend-identifiers]
 # typos splits the plural of PNG into `PN` + `Gs` and "corrects" it to ONGs.

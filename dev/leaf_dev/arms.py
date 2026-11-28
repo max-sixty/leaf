@@ -141,7 +141,8 @@ def environment(*, payload: Path | str | None = None, **extra: str) -> dict[str,
     command would sign events as that session, and a child would use its transport
     and settings. Inherited LEAF and LEAF_HOST_LAUNCHER would point at the parent's
     launcher instead of the arm's.
-    `CLAUDE_CONFIG_DIR` stays, since it names where the login lives. Nor does PATH
+    `CLAUDE_CONFIG_DIR` and `CLAUDE_CODE_OAUTH_TOKEN` stay, since one names where
+    the login lives and the other is a login, such as CI's. Nor does PATH
     keep `uv run`'s environment or the bin directory of a Leaf tree, such as the
     one the session's harness added for its own Leaf plugin: the `leaf` in either
     would shadow the launcher a child harness puts on PATH for the arm's plugin.
@@ -176,7 +177,8 @@ def environment(*, payload: Path | str | None = None, **extra: str) -> dict[str,
         )
         # The session's own, and its Codex companion plugin's.
         and not (
-            key.startswith(("CLAUDE", "CODEX_COMPANION")) and key != "CLAUDE_CONFIG_DIR"
+            key.startswith(("CLAUDE", "CODEX_COMPANION"))
+            and key not in ("CLAUDE_CONFIG_DIR", "CLAUDE_CODE_OAUTH_TOKEN")
         )
         and (key == "PATH" or str(ROOT) not in value)
     }

@@ -165,10 +165,11 @@ def markdown_dialect(message: bool, html: bool = False):
     # Nested image labels may retain entity/escape tokens after text joining.
     renderer.rules["text_special"] = renderer.rules["text"]
 
+    # A picture with no alt text, `![](src)`, has no children.
     def safe_image(_renderer, tokens, idx, options, env):
         token = tokens[idx]
         alt = _rendered_words(
-            renderer.renderInline(token.children, options, env), image_alt=True
+            renderer.renderInline(token.children or [], options, env), image_alt=True
         )
         token.attrSet("alt", alt)
         if urlsplit(token.attrGet("src") or "").scheme not in (

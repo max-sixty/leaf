@@ -92,6 +92,13 @@
      and `setProps`, and the per-flush `commit` is the host's own. So the adapter
      hears only the draws it starts, and a draw from the component's own messages is
      said by the widget's Mount (Declarations).
+   - A keyed child is matched only among its parent's children (`patchList`), so a
+     keyed node that a draw moves to another parent is a new node there, and focus on
+     the old one drops to the body. Around each draw it starts, the adapter holds the
+     user's place by the key of the drawn datum they are on (`data-lf-datum`,
+     module-state.md, "Marking drawn data"). Once the draw has landed, it puts them on
+     the node that now carries that key, or on the nearest datum still drawn
+     (`holdFocus`).
    - A render that changes a node's attributes removes the ones it drops before it
      sets the new ones (`patchAttrs`), so an `<a>` that trades `href` for `tabindex`
      loses focusability for an instant and Chromium blurs it. A widget keeps such a
@@ -107,8 +114,8 @@ import {
   Scope,
 } from "/vendor/effect-ui.js";
 import { signal, effect as watch, untracked } from "/vendor/signals-core.js";
+import { holdFocus } from "./dom/focus.js";
 import { failSoft, placesFailure } from "./lib/failure.js";
-import { inWindowDocument } from "./lib/once.js";
 import { PendingTaskEvent } from "./lib/pending-task.js";
 import { COMMANDS, CONNECT, layoutChanged } from "./lib/widget-events.js";
 import { leafServices } from "./widget-services.js";
@@ -279,7 +286,7 @@ export function defineWidget(
     }
 
     connectedCallback() {
-      if (!inWindowDocument(this) || this.#root) return;
+      if (this.#root) return;
       untracked(() => {
         this.#hosted ||= !this.dispatchEvent(
           new Event(CONNECT, { bubbles: true, composed: true, cancelable: true }),
@@ -405,9 +412,14 @@ export function defineWidget(
     }
 
     // The root draws a change in Effect UI's flush, the microtask that `setProps` or
-    // `send` queued, so a task queued now runs after it.
+    // `send` queued, so a task queued now runs after it. The user's place is held
+    // across it by the key of the datum they are on (Effect UI's limits, above).
     #redraws() {
-      const drawn = Promise.resolve().then(() => this.#drawn());
+      const restore = holdFocus(this, { key: "data-lf-datum" });
+      const drawn = Promise.resolve().then(() => {
+        restore?.();
+        this.#drawn();
+      });
       this.dispatchEvent(new PendingTaskEvent(drawn));
     }
 

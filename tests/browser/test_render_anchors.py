@@ -184,7 +184,9 @@ def test_a_comment_box_follows_its_passage_and_resume_returns_the_writer(
     """Resume writing recovers the same native field and words with its passage."""
     source = named_source("triage-board")
     page = open_page(browser, serve(source))
-    resized(page, 1280, 500)
+    # Short enough that the page scrolls the box out with its passage: past the
+    # passage's foot, the box leaves with it, its own foot hanging below it.
+    resized(page, 1280, 400)
     box = page.locator("#triage-lede").bounding_box()
     y = box["y"] + 10
     select(page, (box["x"] + 2, y), (box["x"] + 200, y))
@@ -653,13 +655,23 @@ def test_a_selection_around_a_targets_buttons_does_not_deaden_them(browser, serv
     expect(page.locator("#sug-in-card")).to_have_attribute("data-lf-state", "accept")
 
 
+# The comment box opens under its passage over whatever stands there, so prose keeps
+# the board's controls out of that room whichever font sets the lines above it.
+CLEAR_BELOW_PAGE = SUGGESTION_PAGE.replace(
+    "<lf-board",
+    "<p>The south feeder runs off the porch circuit, which also feeds the light over "
+    "the steps.</p>\n<lf-board",
+    1,
+)
+
+
 def test_the_comment_button_stands_on_no_control(browser, serve):
     """The immediate comment field must not cover an authored control in the margin.
 
     Check the controls' corners as well as their centres, then make the press. The hit
     test proves what receives the pointer; the click proves that the decision, rather
     than the floating response UI, handles it."""
-    page = open_page(browser, serve(SUGGESTION_PAGE))
+    page = open_page(browser, serve(CLEAR_BELOW_PAGE))
     # Wide enough that the suggestion's row stands in the rail, beside the column the
     # comment bar opens over: the room beside a column holds the rail from about 960px.
     resized(page, 1000, 900)

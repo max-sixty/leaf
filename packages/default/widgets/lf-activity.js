@@ -112,25 +112,41 @@ const topicOf = (served) => {
   return thread ? excerptWords(nameOf(thread), 48) : "a thread";
 };
 
-/** @param {import("../../../browser/types/contract.js").ServedGesture} gesture */
+// What a widget gesture did, as the words before its widget and any after it.
+/** @param {import("../../../browser/types/contract.js").ServedGesture} gesture
+ * @returns {{what: string, after?: string}} */
 function gesturePhrase(gesture) {
   switch (gesture.form) {
     case "choice":
-      return `chose ${gesture.chosen.map(named).join(", ") || "nothing"} in`;
+      return { what: `chose ${gesture.chosen.map(named).join(", ") || "nothing"} in` };
     case "move":
-      return `moved ${named(gesture.unit)}${gesture.to ? ` to ${named(gesture.to)}` : ""} in`;
+      return {
+        what: `moved ${named(gesture.unit)}${gesture.to ? ` to ${named(gesture.to)}` : ""} in`,
+      };
     case "edit":
-      return "edited";
+      return { what: "edited" };
     case "add":
-      return `added ${named(gesture.words)} to`;
+      return { what: `added ${named(gesture.words)} to` };
+    case "set": {
+      const value = excerptWords(gesture.value, NAME);
+      return value
+        ? { what: "set", after: `to ${quoted(value)}` }
+        : { what: "cleared" };
+    }
+    case "answer": {
+      const chosen = gesture.chosen.map(named).join(", ");
+      return chosen
+        ? { what: "answered", after: `with ${chosen}` }
+        : { what: "answered" };
+    }
     default:
-      return `recorded ${quoted(gesture.verb)} on`;
+      return { what: `recorded ${quoted(gesture.verb)} on` };
   }
 }
 
 // One served row as the words and the way there it is drawn with.
 /** @param {import("../../../browser/types/contract.js").ServedHistoryRow} row
- * @returns {{what: string, widget?: string | null, thread?: string | undefined, label?: string}} */
+ * @returns {{what: string, after?: string, widget?: string | null, thread?: string | undefined, label?: string}} */
 function describe(row) {
   const thread = (
     /** @type {string} */ what,
@@ -158,7 +174,7 @@ function describe(row) {
     case "unresolve":
       return thread("reopened");
     case "action":
-      return { what: gesturePhrase(row.gesture), widget: row.widget };
+      return { ...gesturePhrase(row.gesture), widget: row.widget };
     case "report":
       return { what: `reported ${quoted(row.value)} on`, widget: row.widget };
     case "note":
@@ -171,6 +187,7 @@ const ActivityRow = Schema.Struct({
   ts: Schema.String,
   actor: Schema.String,
   what: Schema.String,
+  after: Schema.optional(Schema.String),
   label: Schema.optional(Schema.String),
   widget: Schema.optional(Schema.NullOr(Schema.String)),
   thread: Schema.optional(Schema.String),
@@ -351,6 +368,10 @@ export const Activity = Html.component({
                     h.span.class("lf-activity-what").children(row.what),
                     " ",
                     target(row),
+                    row.after ? " " : null,
+                    row.after
+                      ? h.span.class("lf-activity-what").children(row.after)
+                      : null,
                     " ",
                     h
                       .el("lf-age")

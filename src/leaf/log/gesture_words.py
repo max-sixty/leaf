@@ -26,6 +26,11 @@ Two readings of an element come out of that document. `says` is its whole words.
 `$attributes`), else plain markup's caption (`passages.caption_node`). It is the
 rule the browser's `addressableName` reads off the live page, read here off the
 document the gesture was made in.
+
+A gesture setting a value record (`gesture`, form `set`) carries the value as
+logged. The page states no words for it: the record is one attribute of the widget,
+which no relation HTML defines ties to another element's words, so a pick from a
+library's select reads as its option's `value`, not the words the option shows.
 """
 
 from collections.abc import Callable
@@ -332,8 +337,14 @@ class GestureWords:
             }
         if record.get("kind") == "body":
             return {"form": "edit"}
+        if record.get("kind") == "value":
+            return {"form": "set", "value": detail["value"]}
         if spec.get("creates"):
             return {"form": "add", "words": self.name(event, detail[spec["unit"]])}
+        if self._value_verb(event):
+            # Done, by the pick it answered with (`_voice`).
+            _, picked = self._voice(event)
+            return {"form": "answer", "chosen": [self.name(event, i) for i in picked]}
         return {"form": "verb", "verb": event["action"]}
 
     def declaration(self, event: dict) -> dict:

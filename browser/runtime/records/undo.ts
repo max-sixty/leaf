@@ -156,7 +156,7 @@ import {
 import { surfaceFocusTarget } from "./thread/surfaces.js";
 import { drawnThreadId, THREAD } from "./thread/selectors.js";
 import { ago, saidNow } from "../state/presence.js";
-import { quotedWords as quoted } from "../lib/words.js";
+import { labelWords, quotedWords as quoted } from "../lib/words.js";
 import { retainUserIntent } from "../dom/user-intent.js";
 import { raiseError } from "../transport/errors.js";
 import { dragHeld } from "../dom/widget-elements.js";
@@ -263,6 +263,10 @@ function actionWords(
       return `edited ${widget}`;
     case "add":
       return `added ${quoted(gesture.words)} to ${widget}`;
+    case "set": {
+      const value = labelWords(gesture.value);
+      return value ? `set ${widget} to ${quoted(value)}` : `cleared ${widget}`;
+    }
     case "verb":
       return `recorded “${gesture.verb}” on ${widget}`;
     default:

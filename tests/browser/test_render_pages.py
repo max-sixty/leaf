@@ -2946,7 +2946,8 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
     resized(page, 1280, 900)
     boxes = page.evaluate("""() => {
         const box = (sel) => {
-            const r = document.querySelector(sel).getBoundingClientRect();
+            const r = (typeof sel === 'string' ? document.querySelector(sel) : sel)
+                .getBoundingClientRect();
             return { left: r.left, right: r.right, width: r.width };
         };
         const main = document.querySelector('main');
@@ -2960,7 +2961,8 @@ def test_a_wide_widget_stays_inside_a_box_that_frames_it(browser, serve):
                  task: box('#t-inner'), inTask: box('#in-task'),
                  note: box('lf-code pre > lf-note'), inNote: box('#in-note'),
                  rowGroup: box('#row-pick'), rowCell: box('#row-a'),
-                 inRow: box('#in-row'), rowPick: box('#row-a .lf-pick'),
+                 inRow: box('#in-row'), rowPick: box(document.querySelector('#row-a').shadowRoot
+                     .querySelector('.lf-pick')),
                  ownBox: box('#own-box'), inOwnBox: box('#in-own-box') };
     }""")
 

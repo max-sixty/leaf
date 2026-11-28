@@ -890,7 +890,8 @@ def test_one_key_keeps_one_keyboard_face_across_the_page(browser, serve):
     page.keyboard.press("ArrowUp")
     picked = page.locator(f"{item} .lf-key-badge").first
     expect(picked).to_be_visible()
-    option = faces(page, f"{item} .lf-key-badge")[0]
+    # The badge stands in its option's shadow root, which the locator reaches.
+    option = picked.evaluate(FACE)
     page.keyboard.press("g")
     sequence_step = page.locator(CHIPS).first.locator("kbd").last
     expect(sequence_step).to_be_visible()

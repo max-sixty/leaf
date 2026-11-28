@@ -7,8 +7,9 @@
 
    - `renderQuiet` gives state provenance a clipped spoken reading.
    - Declared marks expose the width model, inline run, quoting, own height, and
-     reading role to the theme: delivery paints a page's document, and `markDeclared`
-     a message.
+     reading role to the theme, and a reading role's ARIA role and name to assistive
+     technology: delivery paints a page's document, and `markDeclared` a message.
+   - `watchPanes` marks each pane's body as its reading region.
    - `paintSettlements` (projection/presentation.js) paints every holder's
      authoritative settlement, whether or not its module renders anything.
    - `renderRetired` marks slots retired by the declared holder relation.
@@ -101,6 +102,29 @@ export function watchQuietWords() {
   watchArrivals(`[${quiet}]`, [quiet], {
     arrive: (el) => quietWord(el, el.getAttribute(quiet)),
     leave: (el) => quietWord(el, ""),
+  });
+}
+
+// A pane (`reading-role: pane`) is one reading region: its body, the one child that is
+// neither its `header` nor its `footer`, is the region's box, and the pane its host,
+// so focus in the header counts as in the region (module-scroll-and-motion.md,
+// "Reading regions"). The pane's stylesheet finds the body the same way (elements.css).
+// These marks are the runtime's paint, which a revision's source leaves out
+// (features/version.js, `authoredMarkup`), so they are written as a pane arrives rather
+// than delivered with the role: a body a revision brings in, or a pane in a message,
+// takes the region too. A box a module generates in the pane role marks its own regions
+// under its own names, so only a tag that declares the role is a pane here.
+export function watchPanes() {
+  const { scrollSurface, scrollHost } = PAGE_PAINT_ATTRIBUTE;
+  const panes = tagsDeclaring((entry) => entry["reading-role"] === "pane");
+  if (!panes.length) return;
+  watchArrivals(panes.join(","), [], {
+    arrive: (pane) => {
+      keeps(pane, scrollHost, "body");
+      const body = [...pane.children].find((child) => !child.matches("header, footer"));
+      keeps(body, scrollSurface, "body");
+    },
+    leave: () => {},
   });
 }
 
@@ -211,6 +235,10 @@ export function markDeclared(root: Scope) {
           attribute,
           !value ? null : value === true || mark.presence ? "" : String(value),
         );
+        const role = mark.role?.[String(value)];
+        if (role && !el.hasAttribute("role")) keeps(el, "role", role);
+        if (role && !el.hasAttribute("aria-label"))
+          keeps(el, "aria-label", el.getAttribute("label"));
       }
     }
     // Message markup is all content (`authored_on`, `$marks`), so only a

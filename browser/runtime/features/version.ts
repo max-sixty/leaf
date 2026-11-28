@@ -760,6 +760,10 @@ const diffBlockSel = () =>
     // suggestion's slots stay blocks: the decision retiring one makes the suggestion
     // opaque, and its paragraph's words would run across it.
     ...tagsDeclaring((e) => !e.inline && e.verbatim),
+    // A pane or a named group (`reading-role`) is one part of the page, so one that
+    // holds no other block is the block of its words, such as a pane's bare header and
+    // footer beside a widget that draws its own body.
+    ...tagsDeclaring((e) => e["reading-role"] !== undefined),
   ].join(",");
 // Opaque: a widget whose upgrade renders its data body or its bound data, so the text on
 // screen is the module's and can't compare; and one whose slots a decision retires,

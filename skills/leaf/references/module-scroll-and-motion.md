@@ -15,8 +15,10 @@ To bound a box inside the widget instead, as under a caption, see `package-theme
 
 A pane widget declares `reading-role: pane` and `content: markup`, and holds one
 body element, with an optional native `header` before it and `footer` after. Whether a
-pane's body scrolls is the workspace Layout's decision (`layouts.css`), not the
-module's, and either way the module marks the body as a reading region, below.
+pane's body scrolls is the workspace Layout's decision (`layouts.css`), and either way
+Leaf marks the body as the pane's reading region, named `body`, with the pane as its
+host (below), so a pane needs no module, and a pane's module marks only the other boxes
+it may scroll.
 
 While the workspace fills the window, the Layout sets `--lf-full-height: 1` on `main` and
 on a grid of panes, telling their children they have a definite height to fill. A
@@ -55,12 +57,11 @@ its CSS still decides whether the region scrolls or flows.
 Sticky headers set `--lf-head-inset: 0px` beside their `position: sticky` rule so
 keyboard focus counts the header's own inset as visible.
 
-Mark the pane's body, and any other box the widget may scroll,
-`data-lf-scroll="NAME"`. A box that wears the mark with a name is a reading region for
-as long as it stands in the page: Leaf keeps the user's place in it, and knows the
-region in the task that marks the box. Where focus beside the box should count as being
-in the region, as in a pane's header, mark the box around both
-`data-lf-scroll-host="NAME"`. Leaf looks for that host between the box and the next
+Mark each box the widget may scroll `data-lf-scroll="NAME"`. A box that wears the mark
+with a name is a reading region for as long as it stands in the page: Leaf keeps the
+user's place in it, and knows the region in the task that marks the box. Where focus
+beside the box should count as being in the region, as in a pane's header, mark the box
+around both `data-lf-scroll-host="NAME"`. Leaf looks for that host between the box and the next
 box around it that wears `data-lf-scroll` with a name.
 
 To return the user to their place after a revision, Leaf knows a region by `NAME` and

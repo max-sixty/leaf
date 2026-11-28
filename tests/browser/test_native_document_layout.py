@@ -365,8 +365,7 @@ def test_a_sidebar_among_a_column_s_blocks_keeps_its_track_off_what_follows(
 ):
     """A sidebar among a column page's blocks isn't the page's Layout box, so its stuck
     track ends with the sidebar rather than hanging over the column's blocks after
-    it. The contents map's track, which stands fixed in the window where its sidebar
-    spans the page, sticks here as any other does."""
+    it, the contents map's narrow track included."""
     if held == "contents map":
         track = '<lf-toc id="contents"></lf-toc>'
         body = (
@@ -402,95 +401,6 @@ def test_a_sidebar_among_a_column_s_blocks_keeps_its_track_off_what_follows(
         - document.getElementById('after').getBoundingClientRect().top;
     }""")
     assert overlap <= 0.5, overlap
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-@pytest.mark.parametrize(
-    "header", ["in the sidebar", "before the sidebar", "before main"]
-)
-def test_a_header_above_a_contents_map_keeps_the_map_below_it(
-    request, serve, engine, header
-):
-    """The contents map's track stands fixed in the window only where its sidebar is
-    the page's `main` with nothing above it. A header in the sidebar, before the
-    sidebar inside `main`, or before `main` as a site header keeps the map below the
-    header as the page opens."""
-    head = '<header id="head"><h1>Release review</h1><p>Three parts.</p></header>'
-    regions = (
-        '<aside><div class="layout-track" id="track"><lf-toc id="contents"></lf-toc>'
-        '</div></aside><div class="layout-column">'
-        + "".join(
-            f'<h2 id="part-{n}">Part {n}</h2>'
-            + "".join(f"<p>Paragraph {k} of part {n}.</p>" for k in range(20))
-            for n in range(3)
-        )
-        + "</div>"
-    )
-    spine = spine_sidebar(".layout-sidebar")
-    if header == "in the sidebar":
-        source = leaf_page(
-            "header above a map", head + regions, head=spine, layout="sidebar"
-        )
-    elif header == "before the sidebar":
-        source = leaf_page(
-            "header above a map",
-            f'{head}<div class="layout-sidebar">{regions}</div>',
-            head=spine,
-            layout=None,
-        )
-    else:
-        source = leaf_page(
-            "header above a map", regions, head=spine, layout="sidebar"
-        ).replace("<main", f"{head}<main", 1)
-    page = open_page(request.getfixturevalue(engine), serve(source))
-    resized(page, 1400, 900)
-    gap = page.evaluate("""() =>
-      document.getElementById('track').getBoundingClientRect().top
-        - document.getElementById('head').getBoundingClientRect().bottom""")
-    assert gap >= 0, gap
-
-
-@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_a_contents_map_stays_fixed_beside_what_extensions_append(
-    request, serve, engine
-):
-    """After `main`, only a footer unpins the contents map's fixed track. An element a
-    browser extension appends to the body, as password managers do, leaves the track
-    fixed, so the rubber band past either end still slides the page under the map."""
-    regions = (
-        '<aside><div class="layout-track" id="track"><lf-toc id="contents"></lf-toc>'
-        '</div></aside><div class="layout-column">'
-        + "".join(
-            f'<h2 id="part-{n}">Part {n}</h2>'
-            + "".join(f"<p>Paragraph {k} of part {n}.</p>" for k in range(20))
-            for n in range(3)
-        )
-        + "</div>"
-    )
-    source = leaf_page(
-        "map beside appended elements", regions, head=spine_sidebar(), layout="sidebar"
-    )
-    page = open_page(request.getfixturevalue(engine), serve(source))
-    resized(page, 1400, 900)
-    positions = page.evaluate("""async () => {
-      const track = document.getElementById('track');
-      const beside = async (node) => {
-        if (node) document.body.append(node);
-        await new Promise(requestAnimationFrame);
-        const position = getComputedStyle(track).position;
-        node?.remove();
-        return position;
-      };
-      const extension = document.createElement('div');
-      extension.setAttribute('aria-live', 'polite');
-      return {alone: await beside(null), extension: await beside(extension),
-              footer: await beside(document.createElement('footer'))};
-    }""")
-    assert positions == {
-        "alone": "fixed",
-        "extension": "fixed",
-        "footer": "sticky",
-    }, positions
 
 
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])

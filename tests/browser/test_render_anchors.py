@@ -4760,6 +4760,63 @@ def test_a_thread_in_a_view_not_shown_stands_by_the_name_that_shows_it(
         )
 
 
+def test_the_threads_a_part_not_shown_holds_stand_one_marker_counting_them(
+    browser, serve
+):
+    """Threads on several passages of a part not shown stand one marker by the part's
+    name, badged with how many there are, rather than a marker each crowding the name.
+    A press opens the part, where each stands by its own words, and choosing another
+    part gathers them again."""
+    url = serve(
+        leaf_page(
+            "Gathered threads",
+            '<header><h1 id="title">Review</h1></header><lf-parts id="parts">'
+            '<lf-part id="part-one" label="One" summary="The part on screen">'
+            '<article class="layout-column"><p>Shown first.</p></article></lf-part>'
+            '<lf-part id="part-two" label="Two" summary="A part not shown">'
+            '<article class="layout-column"><p id="two-a">First words of two.</p>'
+            '<p id="two-b">Second words of two.</p></article></lf-part></lf-parts>',
+            layout=None,
+        )
+    )
+    for section in ("two-a", "two-b"):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": f"About {section}.",
+                "anchor": {"section": section},
+            },
+        )
+    page = open_page(browser, url)
+
+    def row(key):
+        return page.locator(f'[data-lf-margin-for="{key}"]')
+
+    gathered = row("two-a").locator(".lf-margin-marker")
+    expect(gathered.locator(".lf-badge-count")).to_have_text("2")
+    expect(row("two-b").locator(".lf-margin-marker")).to_be_hidden()
+    tab = page.locator('[role="tab"][aria-controls="part-two"]').bounding_box()
+    top = gathered.bounding_box()["y"]
+    assert tab["y"] - 2 <= top <= tab["y"] + tab["height"] / 2, (
+        "the gathered marker stands apart from the part's name"
+    )
+
+    gathered.click()
+    expect(page.locator("#two-a")).to_be_in_viewport()
+    for key in ("two-a", "two-b"):
+        expect(row(key).locator(".lf-margin-marker")).to_be_visible()
+    expect(gathered.locator(".lf-badge-count")).to_have_count(0)
+
+    # The press opened the first thread's card, which holds the user in part two.
+    page.locator(".lf-margin-preview-close").click()
+    page.locator('[role="tab"][aria-controls="part-one"]').click()
+    expect(row("two-b").locator(".lf-margin-marker")).to_be_hidden()
+    expect(gathered.locator(".lf-badge-count")).to_have_text("2")
+
+
 def test_back_while_a_thread_s_file_loads_leaves_the_user_where_back_took_them(
     browser, serve
 ):

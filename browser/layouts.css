@@ -835,19 +835,21 @@
    * whatever its z-index. A wider track takes no z-index, so a box the body fixes over
    * it, such as a bar across the window's foot, stays on top. The narrow track doesn't
    * clip, and so doesn't scroll: it suits an element that fits its height, as the map
-   * fills it (toc.css). Where the sidebar spans the page
-   * (`--lf-sidebar-spans-page`, below), it stands fixed in the window at its sticking
-   * line, from the page's top to its end and through the rubber band past either, which
-   * moves a stuck sticky box with the page in Firefox and Chrome
-   * (notes/browser-support.md). Elsewhere it sticks, below a header above the aside and
-   * clear of a footer after it, and wrapped above the body it keeps its place in flow.
-   * Every other track keeps clipping: one in an aside after the body, since what it
-   * revealed would spread past the window's edge; every track under touch, where
-   * nothing reaches in by pointing; and paper, where nothing reaches in at all and a
-   * fixed track would stand on every sheet. The width is in pixels, as the sidebar's
-   * own widths are, so the 240px sidebar a page leaves alone stays a scrolling track
-   * whatever the reader's text size. Rejected: 8rem, under which a 32px root font
-   * lifted that sidebar's track and fixed it with no scroll.
+   * fills it (toc.css). It sticks as every track does (below), and wrapped above the
+   * body it keeps its place in flow. Every other track keeps clipping: one in an aside
+   * after the body, since what it revealed would spread past the window's edge; every
+   * track under touch, where nothing reaches in by pointing; and paper, where nothing
+   * reaches in at all. The width is in pixels, as the sidebar's own widths are, so the
+   * 240px sidebar a page leaves alone stays a scrolling track whatever the reader's
+   * text size. Rejected: 8rem, under which a 32px root font lifted that sidebar's track
+   * so it no longer scrolled.
+   * Rejected, by the user: fixing the narrow track in the window where the sidebar was
+   * the page's `main` with no header or footer, so the map held still through the
+   * rubber band past the page's ends, which moves a stuck sticky box with the page in
+   * Firefox and Chrome (notes/browser-support.md). It took four rules reading the
+   * page's header and footer, and held only the spine of a page that narrowed its own
+   * sidebar. Fixing the open outline as well stood it 40px above the page's first line
+   * as the page opened.
    * The Layout narrows no sidebar itself: the aside is a size container and takes no
    * width from its content, so a page that wants the map's spine narrows its own
    * sidebar with `--lf-aside`, under a mouse, where a pointer rests on the spine
@@ -864,15 +866,6 @@
         @container (width < 128px) {
           overflow: visible;
           z-index: 1;
-        }
-        /* Beside the body, and where the window scrolls the page rather than a
-         * scroller round the sidebar. */
-        @media (min-height: 480px) {
-          @container (width < 128px) and style(--lf-sidebar-spans-page: 1) and (not style(--lf-track-scroll-behavior: flow)) {
-            position: fixed;
-            inline-size: 100cqi;
-            margin-block: 0;
-          }
         }
       }
     }
@@ -964,28 +957,12 @@
     /* The room below a sidebar's aside that holds nothing of the page's, which its
      * stuck track hangs through (below), so the track stands where it sticks to the
      * sidebar's end: the sidebar's own end padding. A footer in the sidebar leaves no
-     * room. A sidebar that is the page's `main`, with no header in it or before it and
-     * no footer in it or after it, spans the page (`--lf-sidebar-spans-page: 1`), where
-     * the contents map's track stands fixed (above). A fixed track would stand over a
-     * header or footer, or over the blocks beside a sidebar inside `main` or a part.
-     * After `main`, only a footer, as a site footer (page-layout.md), counts, since
-     * browser extensions append elements of their own to `body`. The first rule has no
-     * specificity, so each condition overrides it. */
+     * room. */
     :where(.layout-sidebar) {
       --lf-track-end-room: var(--lf-page-pad-end);
-      --lf-sidebar-spans-page: 0;
-    }
-    :where(body > main).layout-sidebar {
-      --lf-sidebar-spans-page: 1;
-    }
-    .layout-sidebar:has(~ footer),
-    .layout-sidebar:has(> header),
-    :where(body > header ~ main).layout-sidebar {
-      --lf-sidebar-spans-page: 0;
     }
     .layout-sidebar:has(> footer) {
       --lf-track-end-room: 0px;
-      --lf-sidebar-spans-page: 0;
     }
     @container not style(--lf-track-scroll-behavior: flow) {
       .layout-track,

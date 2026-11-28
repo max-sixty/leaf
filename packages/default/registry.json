@@ -212,7 +212,6 @@
     },
     "reading-role": "group",
     "flow": true,
-    "verbatim": true,
     "instructions": "Group what belongs together under a name. `label` names the group wherever Leaf names it, such as On Me, a link to it or a thread on it. The group draws none of it: give the group the heading the page needs inside it, as for any other part of the page. A widget that asks the user, such as `lf-options`, stands in the group whose label asks its question, with the premise and evidence the answer rests on (`references/authoring-on-me.md`, \"On the page\"); the innermost group round it is its question. A group asks nothing itself, and one holding no question is a named part of the page like any other.",
     "example": "<lf-group id=\"cache-q\" label=\"Which cache should the importer use?\">\n  <h3>Which cache should the importer use?</h3>\n  <p>Both hold a day of results; only Redis survives a restart.</p>\n  <lf-options id=\"cache\">\n    <lf-option id=\"cache-memory\" label=\"In memory\"><strong>In memory</strong> Nothing new to run.</lf-option>\n    <lf-option id=\"cache-redis\" label=\"Redis\" recommended><strong>Redis</strong> One more service, and no cold start after a deploy.</lf-option>\n  </lf-options>\n</lf-group>"
   },
@@ -610,7 +609,6 @@
       "required": ["id", "label"]
     },
     "reading-role": "pane",
-    "verbatim": true,
     "instructions": "For independent scrolling, place the pane as a full-height workspace\u2019s body or a direct cell; elsewhere the page scrolls. Wrap multiple body blocks in one div or section. Use label to name the region accessibly and its header for the visible heading. Put action widgets in the direct footer when they should remain reachable as the body scrolls.",
     "example": "<lf-pane id=\"detail\" label=\"Selected record\"><p>Read the selected record.</p></lf-pane>"
   },

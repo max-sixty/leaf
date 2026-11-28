@@ -132,9 +132,24 @@ A test that failed with the same message, passed on code that didn't fix it, the
 failed again is non-deterministic, so fix the cause.
 A watch finding that fails on CI and passes locally needs a slower CPU rather than
 reruns to reproduce (`tests/AGENTS.md`, **Races**).
-Different messages across runs call for checking the intervening changes and the
-behavior each failure caught; simplify a test that unrelated changes repeatedly break
-without changing that behavior.
+
+The issues that name the test, such as its cause issues and CI failure reports, say
+what broke it each time, and the pull requests that closed them say what each repair
+changed. Merged pull requests that name it add the repairs made without an issue.
+Search both by the test's function name, and read the diagnoses and the repairs they
+link:
+
+```bash
+gh issue list --state all --limit 100 --search "<test function>" \
+  --json number,title,labels,closedByPullRequestsReferences
+gh pr list --state merged --limit 100 --search "<test function>"
+```
+
+Where the test keeps failing, compare what each failure caught and what each repair
+changed, and ask whether a fix in the test, or in the code it exercises, would end the
+failures rather than this one (`tests/AGENTS.md`, **Failing tests**; `AGENTS.md`, **Fix
+the underlying issue**). Where one would, make it instead of repairing this instance
+once more.
 
 Two test-owned failures recur:
 

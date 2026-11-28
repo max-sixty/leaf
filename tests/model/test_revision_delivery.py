@@ -708,8 +708,10 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     `data-bound` or `data-height` says it for that occurrence. An element naming page
     media carries the box that holds all of it, read from the images, so a frame stands
     in their shape before they decode. A mark is its tag's, so a selector idiom declares
-    none. Markup inside a template is inert, and everything else in the source stays
-    as written."""
+    none. A reading role also gives its element an ARIA role, named by its `label`, so
+    a pane or a group needs no module to say what it is, and an element that writes
+    its own name keeps it. Markup inside a template is inert, and everything else in
+    the source stays as written."""
 
     def png(width, height):
         return Resource(
@@ -720,6 +722,9 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
     registry = {
         "lf-zone": {
             "reading-role": "pane",
+        },
+        "lf-set": {
+            "reading-role": "group",
         },
         "lf-board": {
             "space": "wide",
@@ -744,6 +749,7 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         '<aside class="lf-callout warn" id="note">Paused.</aside>'
         '<aside class="lf-callout" id="chart-note" data-width="wide">Chart.</aside>'
         '<lf-zone id="queue" label="Queue"><div><lf-label>new</lf-label></div></lf-zone>'
+        '<lf-set id="kit" label="Kit" aria-label="Field kit"><p>Maps.</p></lf-set>'
         '<lf-board id="board" data-width="available"></lf-board>'
         '<lf-feed id="feed" class="selected"></lf-feed><section id="wide" data-width="wide"></section>'
         '<table id="native"></table>'
@@ -792,10 +798,20 @@ def test_a_delivered_document_carries_its_declared_marks_in_the_source():
         "data-lf-media-height": "800",
     }
     assert marks[("lf-zone", "later")] == {}
+    assert marks[("lf-set", "kit")] == {"data-lf-reading-role": "group"}
+    assert {
+        element.attrs.get("id"): (
+            element.attrs.get("role"),
+            element.attrs["aria-label"],
+        )
+        for element in body.find_all(True)
+        if element.tag in {"lf-zone", "lf-set"} and "aria-label" in element.attrs
+    } == {"queue": ("region", "Queue"), "kit": ("group", "Field kit")}
     for mark in (
         ' data-lf-space="wide"',
         ' data-lf-space="wide"',
-        ' data-lf-reading-role="pane"',
+        ' data-lf-reading-role="pane" role="region" aria-label="Queue"',
+        ' data-lf-reading-role="group" role="group"',
         ' data-lf-inline=""',
         ' data-lf-space="available"',
         ' data-lf-bound="end"',

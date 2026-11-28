@@ -68,7 +68,9 @@
    column's flow. A target or its rendered part leaving
    withholds the row before the next paint; layout withholds it when its region hides it.
    A row whose threads a closed disclosure or an unchosen tab hides stands by the box
-   the page shows for it, which the user can open (`face`, `closedFaceOver`).
+   the page shows for it, which the user can open (`face`, `closedFaceOver`), and a
+   row another row stands for meanwhile, as one marker counts every thread the box
+   hides, stands nowhere (`gathered`).
 
    A control carries its label as a native descendant. This owner chooses its place
    before CSS reveals it and clears that readiness while the label is inactive, so a
@@ -159,7 +161,7 @@ import { inChrome } from "../../base/ui-marks.js";
 /** @typedef {import("../../base/box.js").Box} Box
  * @typedef {import("../../readings/resolved-target.js").ResolvedTarget} ResolvedTarget
  * @typedef {{able: () => boolean, controls: () => number, open: () => boolean, changed: () => void}} Fold
- * @typedef {{anchor: () => Element | null, point: () => Element | null, passage: () => ResolvedTarget | null, face: () => Element | null, order: number, fold: Fold}} RowOptions
+ * @typedef {{anchor: () => Element | null, point: () => Element | null, passage: () => ResolvedTarget | null, face: () => Element | null, gathered: () => boolean, order: number, fold: Fold}} RowOptions
  * @typedef {{root: HTMLElement, projection: HTMLElement, lanes: Map<Element, HTMLElement>, sizes: ResizeObserver}} Layer
  */
 /** @typedef {import("../../dom/css-anchors.js").Anchor} Anchor
@@ -200,14 +202,16 @@ const rows = new Map();
 // Withhold its row at the mutation checkpoint, before another frame can paint it.
 /** @type {WeakMap<HTMLElement, Element>} */
 const anchors = new WeakMap();
-// The rows withheld now, kept where they are withheld, so a scroll of the document,
-// which carries every other row, reads only these again (`scheduleStirReading`).
+// The rows withheld now that a scroll can bring back, kept where they are withheld, so
+// a scroll of the document, which carries every other row, reads only these again
+// (`scheduleStirReading`). A row another row stands for (`gathered`) comes back only
+// with a pass, so a scroll reads none of those.
 /** @type {Set<HTMLElement>} */
 const withheldRows = new Set();
-/** @param {HTMLElement} row @param {boolean} on */
-function withhold(row, on) {
+/** @param {HTMLElement} row @param {boolean} on @param {boolean} [scrollReturns] */
+function withhold(row, on, scrollReturns = on) {
   row.classList.toggle("lf-withheld", on);
-  if (on) withheldRows.add(row);
+  if (scrollReturns) withheldRows.add(row);
   else withheldRows.delete(row);
 }
 /** @param {Element} target */
@@ -1071,20 +1075,49 @@ function drawnChildren(node) {
 // over each run of them skips every run that ends above the band's top, however the page
 // lays them out: a tall early sibling, such as a sidebar beside the rest, costs one more
 // child per band rather than every child before the band. A child with no box, such as
-// a `display: contents` wrapper, meets every band. A sticky box is read where it is
+// a `display: contents` wrapper, spans what it draws (`drawnSpan`), so it meets only
+// the bands that reach that. A sticky box is read where it is
 // drawn and where it stands in its own place (`stuckShift`), and meets a band either
 // reaches: the walk reads it at its own place unless it holds the target.
 /** @typedef {{x: number, y: number}} Shift
  * @typedef {{node: Text, order: number, box: Box, lines: DOMRect[], span: Box} | {node: Element, order: number, box: DOMRect, lines: null, span: Box, shift: Shift | null}} Child */
+
+// What a boxless element draws, through each boxless descendant, as one span, or null
+// where it draws nothing: its words' line boxes and its boxed descendants', each sticky
+// one where it is drawn and where it stands in its own place, as `childIndex` reads them.
+// The caller has asked `skipped` of `node`, and a child of a box that draws none skips
+// only where that box does, so the walk below asks it of nothing: asked of a boxless
+// element, it climbs every ancestor.
+/** @param {Element} node @returns {Box | null} */
+function drawnSpan(node) {
+  /** @type {Box[]} */
+  const parts = [];
+  eachRenderedChild(node, (child) => {
+    if (child instanceof Text) {
+      if (!child.data.trim()) return;
+      const box = union(contentsRects(child));
+      if (box) parts.push(box);
+      return;
+    }
+    if (!(child instanceof Element) || child.matches(SURFACES)) return;
+    const box = child.getBoundingClientRect();
+    if (!box.width && !box.height) {
+      const inner = drawnSpan(child);
+      if (inner) parts.push(inner);
+      return;
+    }
+    const moved = stuckShift(child);
+    parts.push(moved.x || moved.y ? union([box, shifted(box, moved.x, moved.y)]) : box);
+  });
+  return parts.length ? union(parts) : null;
+}
 function childIndex() {
-  /** @type {Map<Element, {sized: Child[], tops: number[], lowest: Float64Array, leaves: number, boxless: Child[]}>} */
+  /** @type {Map<Element, {sized: Child[], tops: number[], lowest: Float64Array, leaves: number}>} */
   const read = new Map();
   /** @param {Iterable<Node>} children */
   const index = (children) => {
     /** @type {Child[]} */
     const sized = [];
-    /** @type {Child[]} */
-    const boxless = [];
     let order = 0;
     for (const node of children) {
       order += 1;
@@ -1101,14 +1134,22 @@ function childIndex() {
       const box = node.getBoundingClientRect();
       const moved = stuckShift(node);
       const shift = moved.x || moved.y ? moved : null;
-      (box.width || box.height ? sized : boxless).push({
-        node,
-        order,
-        box,
-        lines: null,
-        span: shift ? union([box, shifted(box, shift.x, shift.y)]) : box,
-        shift,
-      });
+      if (box.width || box.height) {
+        sized.push({
+          node,
+          order,
+          box,
+          lines: null,
+          span: shift ? union([box, shifted(box, shift.x, shift.y)]) : box,
+          shift,
+        });
+        continue;
+      }
+      // A child that draws no box, such as a `display: contents` wrapper, stands where
+      // what it draws stands, so it meets only the bands that reach that; one that draws
+      // nothing meets none.
+      const drawn = drawnSpan(node);
+      if (drawn) sized.push({ node, order, box, lines: null, span: drawn, shift });
     }
     sized.sort((a, b) => a.span.top - b.span.top);
     // A binary tree over the sorted children: leaf `leaves + i` holds child i's bottom,
@@ -1122,7 +1163,7 @@ function childIndex() {
         /** @type {number} */ (lowest[2 * node]),
         /** @type {number} */ (lowest[2 * node + 1]),
       );
-    return { sized, tops: sized.map(({ span }) => span.top), lowest, leaves, boxless };
+    return { sized, tops: sized.map(({ span }) => span.top), lowest, leaves };
   };
   // The first index of an ascending list whose value is `past` a bound.
   /** @param {readonly number[]} values @param {(value: number) => boolean} past */
@@ -1140,10 +1181,10 @@ function childIndex() {
   return (parent, children, band) => {
     let held = read.get(parent);
     if (!held) read.set(parent, (held = index(children())));
-    const { sized, tops, lowest, leaves, boxless } = held;
+    const { sized, tops, lowest, leaves } = held;
     const to = firstPast(tops, (top) => top >= band.bottom);
     /** @type {Child[]} */
-    const meeting = [...boxless];
+    const meeting = [];
     // The children before `to` in the run node `at` covers, [start, end), that reach
     // below the band's top.
     /** @param {number} at @param {number} start @param {number} end */
@@ -1640,16 +1681,18 @@ function drawnAgain(event) {
 }
 
 // Each row states its target (`anchor`), the row inside it it stands level with, if any
-// (`point`, readings/pointed-place.js), and its place among the others in the layer (`order`).
-// The projection registers every row each time it renders, so a pass is asked for only
-// where a row is new or names another target, point, passage or place in the order, and
-// it reads again only a row that is new or names another target, point or passage.
+// (`point`, readings/pointed-place.js), whether another row stands for it (`gathered`),
+// and its place among the others in the layer (`order`). The projection registers every
+// row each time it renders, so a pass is asked for only where a row is new or names
+// another target, point, passage, gathering or place in the order, and it reads again
+// only a row that is new or names another target, point, passage or gathering.
 /** @param {HTMLElement} row @param {RowOptions} options */
 export function registerMarginRow(row, options) {
   const named = {
     target: options.anchor(),
     point: options.point(),
     passage: options.passage(),
+    gathered: options.gathered(),
     order: options.order,
   };
   const was = registered.get(row);
@@ -1669,6 +1712,7 @@ export function registerMarginRow(row, options) {
     was &&
     was.target === named.target &&
     was.point === named.point &&
+    was.gathered === named.gathered &&
     samePassages(was.passage, named.passage)
   ) {
     // A new place in the order moves the row among its lane's children, not its seat.
@@ -1679,7 +1723,7 @@ export function registerMarginRow(row, options) {
   scheduleRowLayout();
 }
 // What each row named when it was last registered (`registerMarginRow`).
-/** @type {WeakMap<HTMLElement, {target: Element | null, point: Element | null, passage: ResolvedTarget | null, order: number | undefined}>} */
+/** @type {WeakMap<HTMLElement, {target: Element | null, point: Element | null, passage: ResolvedTarget | null, gathered: boolean, order: number | undefined}>} */
 const registered = new WeakMap();
 // Whether two resolved passages are the same words.
 /** @param {ResolvedTarget | null} a @param {ResolvedTarget | null} b */
@@ -1797,8 +1841,9 @@ function scheduleStirReading() {
     const documentOnly = boxes.every((box) => box === pageScroller);
     for (const row of documentOnly ? [...withheldRows] : [...rows.keys()]) {
       const options = rows.get(row);
-      const anchored = options?.anchor();
-      if (!options || !anchored?.isConnected) continue;
+      if (!options || options.gathered()) continue;
+      const anchored = options.anchor();
+      if (!anchored?.isConnected) continue;
       const withheld = row.classList.contains("lf-withheld");
       // A box inside the target that scrolls a passage's words moves them too, and so
       // does one round the box the row last stood by (`anchors`): a face may stand
@@ -2080,8 +2125,10 @@ function layoutMountedRows(layer) {
     // reading below would force that content's style and layout to say so. Withheld
     // like a target that has gone, it is anchored by the pass that runs once it is
     // drawn (`skippedUntilDrawn`), and keeps the lane it stands in meanwhile.
+    // A row another row stands for, as one marker stands for every thread a closed box
+    // hides (margin-projection.js, `gatherFaces`), stands nowhere of its own meanwhile.
     const face = options.face();
-    if (!face && unshown(anchored)) {
+    if (options.gathered() || (!face && unshown(anchored))) {
       present.push({ row, at: null });
       const home = row.parentElement ?? layer.root;
       const container = isCarrier(home) ? home.parentElement : home;
@@ -2179,9 +2226,9 @@ function layoutMountedRows(layer) {
   came = arrivals(came, present, pass);
   // Posture determines row size. Write every posture before measuring those sizes;
   // every coordinate is then written together after packing.
-  for (const { row, target, shown, place } of reads) {
+  for (const { row, options, target, shown, place } of reads) {
     if (keeping.has(row)) continue;
-    withhold(row, !shown);
+    withhold(row, !shown, !shown && !options.gathered());
     if (!target) continue;
     if (row.dataset.lfPlace !== place) {
       // A push in one posture says nothing of where the row stands in the other.

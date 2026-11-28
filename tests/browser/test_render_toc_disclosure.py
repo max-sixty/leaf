@@ -290,7 +290,7 @@ def test_a_contents_spine_rests_beside_the_prose_and_reveals_its_labels_over_it(
     browser, serve, direction
 ):
     """A sidebar the page narrows by the rule page-layout.md gives stands at the body's
-    inline start in either direction, its track fixed in the window, and the prose
+    inline start in either direction, its track sticking, and the prose
     stands centred in the window, as a column page's does. At rest the map lays nothing
     over the prose, and pointing at its spine shows its labels over the page past the
     spine's track, inside the window. On paper, where nothing points at it, the rule
@@ -304,7 +304,7 @@ def test_a_contents_spine_rests_beside_the_prose_and_reveals_its_labels_over_it(
     ).replace('<html lang="en">', f'<html lang="en" dir="{direction}">')
     page = open_page(browser, live_url(serve(source)))
     resized(page, 1440, 900)
-    expect(page.locator("#route > .layout-track")).to_have_css("position", "fixed")
+    expect(page.locator("#route > .layout-track")).to_have_css("position", "sticky")
     geometry = page.evaluate("""() => {
       const box = selector => document.querySelector(selector).getBoundingClientRect();
       const aside = box('#route'), prose = box('#body p'), rows = box('#contents .lf-toc-rows');

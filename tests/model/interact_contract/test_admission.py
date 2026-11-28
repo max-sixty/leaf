@@ -525,6 +525,91 @@ def test_history_words_a_pick_of_an_added_option_by_what_the_user_wrote():
     ]
 
 
+def test_history_and_undo_say_the_value_a_user_set():
+    """A gesture on a value record says the value the user set, in history and in
+    the undo offer. The page states no words for a value, so a pick from a
+    library's select reads as its option's `value`, not the words the option shows."""
+    registry = deepcopy(model_layer())
+    value = {"unit": "widget", "record": {"kind": "value", "attr": "value"}}
+    for tag, verb in (("lf-select", "choose"), ("lf-level", "set")):
+        registry[tag] = {
+            "attributes": {
+                "properties": {"value": {"type": "string"}},
+                "required": ["id"],
+            },
+            "verbs": {verb: value},
+        }
+    page = model.leaf_page(
+        "Plan",
+        """<lf-select id="plan"><wa-select>
+  <wa-option value="starter">Starter</wa-option><wa-option value="team">Team</wa-option>
+</wa-select></lf-select>
+<lf-level id="detail" value="3"></lf-level>
+<lf-activity id="feed"></lf-activity>""",
+    )
+    events = (
+        {
+            "kind": "action",
+            "widget": "plan",
+            "action": "choose",
+            "detail": {"value": "team"},
+        },
+        {
+            "kind": "action",
+            "widget": "detail",
+            "action": "set",
+            "detail": {"value": "7"},
+        },
+    )
+
+    reading = model.reading(page, events, registry=registry)
+    for row in reading["history"]:
+        assert served_state_error(row, "HistoryRow") is None
+    assert [(row["id"], row["gesture"]) for row in reading["history"]] == [
+        ("e2", {"form": "set", "value": "7"}),
+        ("e1", {"form": "set", "value": "team"}),
+    ]
+    [view] = reading["views"].values()
+    assert view["undo"][0]["gesture"] == {"form": "set", "value": "7"}
+
+
+def test_history_and_undo_say_what_done_answered_with():
+    """Done names no option of its own, so history and the undo offer word it by the
+    pick it answered with, as that pick's own document names the options."""
+    page = model.leaf_page(
+        "Route",
+        """<lf-options id="route" multiple>
+  <lf-option id="fast" label="Fast path"><strong>Fast path</strong> Ships on Friday.</lf-option>
+  <lf-option id="slow">Slow path</lf-option>
+</lf-options>
+<lf-activity id="feed"></lf-activity>""",
+    )
+    events = (
+        {
+            "kind": "action",
+            "widget": "route",
+            "action": "choose",
+            "detail": {"value": ["fast", "slow"]},
+            "answered": False,
+        },
+        {
+            "kind": "action",
+            "widget": "route",
+            "action": "answer",
+            "detail": {},
+            "answered": True,
+        },
+    )
+
+    reading = model.reading(page, events)
+    answered = {"form": "answer", "chosen": ["Fast path", "Slow path"]}
+    for row in reading["history"]:
+        assert served_state_error(row, "HistoryRow") is None
+    assert reading["history"][0]["gesture"] == answered
+    [view] = reading["views"].values()
+    assert view["undo"][0]["gesture"] == answered
+
+
 def test_a_widget_that_asks_says_on_each_gesture_whether_it_is_answered():
     """A gesture of a widget that asks without its word would answer nothing however
     the user acted, so the door refuses an act or an undo of it that leaves the word

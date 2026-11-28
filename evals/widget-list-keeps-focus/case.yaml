@@ -7,11 +7,13 @@
 # element `defineWidget` defines lands the user on the row carrying that key after a
 # move, or on the nearest row after a removal (`module-input.md`, "Focus and layers"),
 # and writes a row that moves to another section as a keep-alive child (`h.keepAlive`)
-# where the user should stay on its control, so it writes no focus code for either. The Add item popover is the widget's
-# own layer: a choice in it closes it, and the widget puts the user back on Add item with
-# `focusDestination`, since a pointer press in Safari or Firefox on macOS leaves no focus
-# inside the popover for the browser's own return. The page test reads the rows once the
-# change has drawn, which a component does in Effect UI's flush, before the next frame.
+# where the user should stay on its control, so it writes no focus code for either.
+# Where a removal leaves no row, Leaf has nowhere to land the user, and where they go
+# is the author's choice. The Add item popover is the widget's own layer: a choice in
+# it closes it, and the widget puts the user back on Add item with `focusDestination`,
+# since a pointer press in Safari or Firefox on macOS leaves no focus inside the
+# popover for the browser's own return. The page test reads the rows once the change
+# has drawn, which a component does in Effect UI's flush, before the next frame.
 description: widget-list-keeps-focus
 metadata:
   purpose: A list widget written as a defineWidget component writes no focus code for a draw that moves or removes rows, and returns the user to Add item when a choice closes its own popover.
@@ -53,9 +55,12 @@ assert:
         keeps the row's nodes, because the row is a keep-alive child (`h.keepAlive`),
         whose nodes move with it, or because the Move button itself carries the row's
         `data-lf-datum`, on which the element lands them;
-      - the module has no focus code for a move or a removal: it calls neither
-        `holdFocus` nor `focusDestination` nor `.focus()` around one, keeps no record
-        of the focused row to restore, and adds no focus or keydown listeners;
+      - the module has no focus code for a move, or for a removal that leaves rows:
+        it calls neither `holdFocus` nor `focusDestination` nor `.focus()` around one,
+        keeps no record of the focused row to restore, and adds no focus or keydown
+        listeners. Code that places the user only once no row remains, such as on
+        Add item after the last row goes, passes, since no row is left for Leaf to
+        land them on;
       - the popup is a native popover that Add item opens through `popovertarget`, or
         with itself as `showPopover`'s `source`; a choice hides it with
         `hidePopover()` and puts the user back on Add item with
@@ -64,7 +69,7 @@ assert:
         pointer press in Safari or Firefox on macOS doesn't keep; Escape, if the
         module handles it, is the browser's own for an auto popover or a command row
         in an element's `lfCommands`, not a listener.
-      Fail if it holds or moves focus by hand after a move or removal, computes the
-      nearest surviving row itself, calls `.focus()` anywhere, or closes the popup by
-      any means but a native popover.
+      Fail if it holds or moves focus by hand after a move or a removal that leaves
+      rows, computes the nearest surviving row itself, calls `.focus()` anywhere, or
+      closes the popup by any means but a native popover.
       Execution is unavailable, so not running checks is not a failure.

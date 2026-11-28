@@ -1,30 +1,38 @@
 diff --git a/dist/html/internal/dom.js b/dist/html/internal/dom.js
-index 3e24a46dfb5178ef7517bc89b29b0e67f35344b6..db06937ea5a18d08641a0cea94e04a1239c9eef1 100644
+index 3e24a46dfb5178ef7517bc89b29b0e67f35344b6..6bc46fcb10615cf2cd18824c60f6364088e39aa0 100644
 --- a/dist/html/internal/dom.js
 +++ b/dist/html/internal/dom.js
-@@ -180,6 +180,12 @@ export const makeHost = (container, options) => {
+@@ -180,6 +180,20 @@ export const makeHost = (container, options) => {
    let held = false;
    const heldNodes = new Set();
    const reported = new WeakMap();
-+  // The state each node's latest `toggle` reported. A `details` whose `open`
-+  // differs from it has a `toggle` still queued: the user toggled it again before
-+  // the Model heard of the last one. Writing the Model's value back then would undo
-+  // that toggle, and the browser would merge the queued event into one reporting
-+  // no change, so the restore waits for that event instead.
++  // The `open` each `details` last had as far as the host knows: the state its
++  // latest `toggle` reported, or the value the host itself wrote or found. A
++  // `details` whose `open` differs from it has a `toggle` still queued: the user
++  // toggled it before the Model heard of it. Writing the Model's value then, from a
++  // restore or a render, would undo that toggle, and the browser would merge the
++  // queued event into one reporting no change, so the write waits for that event;
++  // the restore the event brings writes the Model's value if the Model refuses it.
 +  const toggledTo = new WeakMap();
++  const togglePending = node => toggledTo.has(node) && node.open !== toggledTo.get(node);
++  const writeOpen = (node, value) => {
++    if (togglePending(node)) return;
++    if (node.open !== value) writeControlled(node, "open", value);
++    toggledTo.set(node, value);
++  };
    const holdNode = node => {
      heldNodes.add(node);
      if (listening.has("toggle") && !reported.has(node)) {
-@@ -213,6 +219,8 @@ export const makeHost = (container, options) => {
+@@ -213,6 +227,8 @@ export const makeHost = (container, options) => {
          if (node.getAttribute("popover") === "manual") {
            applyPopover(node, value, true);
          }
-+      } else if (name === "open" && toggledTo.has(node) && node.open !== toggledTo.get(node)) {
-+        continue;
++      } else if (name === "open") {
++        writeOpen(node, value);
        } else if (node[name] !== value) {
          writeControlled(node, name, value);
        }
-@@ -455,6 +463,7 @@ export const makeHost = (container, options) => {
+@@ -455,6 +471,7 @@ export const makeHost = (container, options) => {
      }
      if ((moves !== undefined || flushing !== undefined) && (name === "pointerdown" || name === "pointerup" || name === "pointercancel")) endMove(name, event);
      const target = path[0] ?? event.target;
@@ -32,3 +40,12 @@ index 3e24a46dfb5178ef7517bc89b29b0e67f35344b6..db06937ea5a18d08641a0cea94e04a12
      const entry = name === "toggle" ? reported.get(target) : undefined;
      if (entry !== undefined) {
        entry.state ??= event.oldState;
+@@ -639,7 +656,7 @@ export const makeHost = (container, options) => {
+           }
+           values.set(name, value);
+         }
+-        if (element[name] !== value) writeControlled(element, name, value);
++        if (name === "open") writeOpen(element, value);else if (element[name] !== value) writeControlled(element, name, value);
+         if (name === "value" && !composing.has(node)) edits.delete(node);
+         return;
+       }

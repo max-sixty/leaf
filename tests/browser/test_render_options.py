@@ -1077,6 +1077,59 @@ def test_a_first_obligation_starts_at_the_pages_content_edge_even_in_a_live_samp
     )
 
 
+def test_an_element_that_never_renders_does_not_stand_at_a_frames_edge(browser, serve):
+    """A frame trims the margins of the first and last blocks it shows, whatever
+    `style`, `script` or `template` stands beside them: in an author's frame, and in an
+    option's shadow root, where a capture tool appends a `<style>` of its own."""
+    page = open_page(
+        browser,
+        serve(
+            leaf_page(
+                "Frame edges",
+                """<div id="frame" style="padding: 24px; border: 1px solid; --lf-block-frame: 1">
+  <style>#first { color: inherit; }</style>
+  <p id="first">The first block.</p>
+  <p id="last">The last block.</p>
+  <template><p>Never shown.</p></template>
+</div>
+<lf-group id="ask" label="Pick one"><h2 id="ask-h">Pick one</h2>
+<lf-options id="opts"><lf-option id="opt"><strong>Seal the hatch</strong>
+<p>One afternoon.</p></lf-option></lf-options></lf-group>""",
+            )
+        ),
+    )
+
+    gaps = page.locator("#frame").evaluate(
+        """frame => {
+            const box = frame.getBoundingClientRect();
+            const style = getComputedStyle(frame);
+            const inset = (side) =>
+              parseFloat(style[`border${side}Width`]) + parseFloat(style[`padding${side}`]);
+            return {
+              top: document.querySelector('#first').getBoundingClientRect().top
+                - box.top - inset('Top'),
+              bottom: box.bottom - inset('Bottom')
+                - document.querySelector('#last').getBoundingClientRect().bottom,
+            };
+        }"""
+    )
+    assert abs(gaps["top"]) < 1 and abs(gaps["bottom"]) < 1, (
+        f"the frame leaves {gaps} beside its first and last blocks"
+    )
+
+    grown = page.locator("#opt").evaluate(
+        """option => {
+            const before = option.getBoundingClientRect().height;
+            const style = document.createElement('style');
+            option.shadowRoot.append(style);
+            const after = option.getBoundingClientRect().height;
+            style.remove();
+            return after - before;
+        }"""
+    )
+    assert abs(grown) < 1, f"a style in the option's shadow root grows it by {grown}px"
+
+
 WIDE_PROSE = (
     "Each alternative was measured against the same traffic and the same failover "
     "days, so the figures in the cards below compare directly with one another."

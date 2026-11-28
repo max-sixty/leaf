@@ -1075,20 +1075,49 @@ function drawnChildren(node) {
 // over each run of them skips every run that ends above the band's top, however the page
 // lays them out: a tall early sibling, such as a sidebar beside the rest, costs one more
 // child per band rather than every child before the band. A child with no box, such as
-// a `display: contents` wrapper, meets every band. A sticky box is read where it is
+// a `display: contents` wrapper, spans what it draws (`drawnSpan`), so it meets only
+// the bands that reach that. A sticky box is read where it is
 // drawn and where it stands in its own place (`stuckShift`), and meets a band either
 // reaches: the walk reads it at its own place unless it holds the target.
 /** @typedef {{x: number, y: number}} Shift
  * @typedef {{node: Text, order: number, box: Box, lines: DOMRect[], span: Box} | {node: Element, order: number, box: DOMRect, lines: null, span: Box, shift: Shift | null}} Child */
+
+// What a boxless element draws, through each boxless descendant, as one span, or null
+// where it draws nothing: its words' line boxes and its boxed descendants', each sticky
+// one where it is drawn and where it stands in its own place, as `childIndex` reads them.
+// The caller has asked `skipped` of `node`, and a child of a box that draws none skips
+// only where that box does, so the walk below asks it of nothing: asked of a boxless
+// element, it climbs every ancestor.
+/** @param {Element} node @returns {Box | null} */
+function drawnSpan(node) {
+  /** @type {Box[]} */
+  const parts = [];
+  eachRenderedChild(node, (child) => {
+    if (child instanceof Text) {
+      if (!child.data.trim()) return;
+      const box = union(contentsRects(child));
+      if (box) parts.push(box);
+      return;
+    }
+    if (!(child instanceof Element) || child.matches(SURFACES)) return;
+    const box = child.getBoundingClientRect();
+    if (!box.width && !box.height) {
+      const inner = drawnSpan(child);
+      if (inner) parts.push(inner);
+      return;
+    }
+    const moved = stuckShift(child);
+    parts.push(moved.x || moved.y ? union([box, shifted(box, moved.x, moved.y)]) : box);
+  });
+  return parts.length ? union(parts) : null;
+}
 function childIndex() {
-  /** @type {Map<Element, {sized: Child[], tops: number[], lowest: Float64Array, leaves: number, boxless: Child[]}>} */
+  /** @type {Map<Element, {sized: Child[], tops: number[], lowest: Float64Array, leaves: number}>} */
   const read = new Map();
   /** @param {Iterable<Node>} children */
   const index = (children) => {
     /** @type {Child[]} */
     const sized = [];
-    /** @type {Child[]} */
-    const boxless = [];
     let order = 0;
     for (const node of children) {
       order += 1;
@@ -1105,14 +1134,22 @@ function childIndex() {
       const box = node.getBoundingClientRect();
       const moved = stuckShift(node);
       const shift = moved.x || moved.y ? moved : null;
-      (box.width || box.height ? sized : boxless).push({
-        node,
-        order,
-        box,
-        lines: null,
-        span: shift ? union([box, shifted(box, shift.x, shift.y)]) : box,
-        shift,
-      });
+      if (box.width || box.height) {
+        sized.push({
+          node,
+          order,
+          box,
+          lines: null,
+          span: shift ? union([box, shifted(box, shift.x, shift.y)]) : box,
+          shift,
+        });
+        continue;
+      }
+      // A child that draws no box, such as a `display: contents` wrapper, stands where
+      // what it draws stands, so it meets only the bands that reach that; one that draws
+      // nothing meets none.
+      const drawn = drawnSpan(node);
+      if (drawn) sized.push({ node, order, box, lines: null, span: drawn, shift });
     }
     sized.sort((a, b) => a.span.top - b.span.top);
     // A binary tree over the sorted children: leaf `leaves + i` holds child i's bottom,
@@ -1126,7 +1163,7 @@ function childIndex() {
         /** @type {number} */ (lowest[2 * node]),
         /** @type {number} */ (lowest[2 * node + 1]),
       );
-    return { sized, tops: sized.map(({ span }) => span.top), lowest, leaves, boxless };
+    return { sized, tops: sized.map(({ span }) => span.top), lowest, leaves };
   };
   // The first index of an ascending list whose value is `past` a bound.
   /** @param {readonly number[]} values @param {(value: number) => boolean} past */
@@ -1144,10 +1181,10 @@ function childIndex() {
   return (parent, children, band) => {
     let held = read.get(parent);
     if (!held) read.set(parent, (held = index(children())));
-    const { sized, tops, lowest, leaves, boxless } = held;
+    const { sized, tops, lowest, leaves } = held;
     const to = firstPast(tops, (top) => top >= band.bottom);
     /** @type {Child[]} */
-    const meeting = [...boxless];
+    const meeting = [];
     // The children before `to` in the run node `at` covers, [start, end), that reach
     // below the band's top.
     /** @param {number} at @param {number} start @param {number} end */

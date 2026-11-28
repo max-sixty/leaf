@@ -292,9 +292,10 @@ def sweep_findings(read):
             and box["right"] <= win["right"] + 1
         ):
             found.append((IN_WINDOW, box))
-        # Its top stands a gap above the row's line, and beside the row a head line
-        # higher, so it passes an edge that much before the line does, and the cut
-        # grows from nothing there.
+        # Beside the row its top stands a head line and a gap above the row's line, so it
+        # passes an edge that much before the line does, and the cut grows from nothing
+        # there. Over or under the row, a block's top cuts it only once the row's line
+        # comes within a gap of that top.
         lead = read["gap"] + (read["head"] if read["side"] in ("left", "right") else 0)
         if read["cut"]["top"] > lead + 0.5 or any(
             read["cut"][edge] for edge in ("right", "bottom", "left")

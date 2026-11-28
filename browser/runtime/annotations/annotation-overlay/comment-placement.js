@@ -341,10 +341,10 @@ const AXES = ["x", "y"];
 // surface, and the edges that cut the card (`cut`), or null where none do: the
 // region's, and each edge of a bounded block around the row that the attachment `at`
 // (the row's line and column) has crossed, for a card on the side `cut` is asked of.
-// Its top cuts once the card's own top has passed it, so the cut grows from nothing:
-// beside the row that top stands a head line and a gap above the line
-// (`place-beside`); over or under the row, a gap above it, since nothing of the card
-// stands level with the row there. Crossing an edge cuts
+// Beside the row, its top cuts once the card's own top, a head line and a gap above
+// the line (`place-beside`), has passed it, so the cut grows from nothing. Over or
+// under the row, where nothing of the card stands level with the row, it cuts once the
+// line comes within a gap of it. Crossing an edge cuts
 // the card and never moves it: bounding the room there pushed a card hanging past a
 // log's foot up over its row once the row's line passed the foot. Its
 // `key` is what holds the side (`choose`): the window's edges, or the region's whole box

@@ -21,8 +21,8 @@ Each part is read from the list that defines it, as the check that guards it rea
   each attribute the kernel registry's `$marks` paints for a declaration key. A focus
   mark's shadow part, its name less `data-` (`module-input.md`), is the mark's twin,
   so the census lists the mark alone, with the mark's own uses. The members and the
-  other events are read from the protocol's index, `module-plain-elements.md`, "The
-  widget protocol": each entry's lead name, and each name the section gives in code of
+  other events are read from the protocol's index, the part of `module-widgets.md`
+  before its first section: each entry's lead name, and each name it gives in code of
   a member of the element or its class (`lf` then a capital, `static name`, or
   `name()` where no function has that name), or of an event Leaf's runtime listens for
   or makes. A lead named by a registry field, as `record.property` is, belongs to the
@@ -118,13 +118,12 @@ from functools import cache, cached_property
 from pathlib import Path
 
 import click
-import tree_sitter_javascript
 import turbohtml
 from markdown_it import MarkdownIt
-from tree_sitter import Language, Node, Parser, Query, QueryCursor
+from tree_sitter import Node, Parser, Query, QueryCursor
 
 from leaf.source.registry.contract import element_declarations, is_element_name
-from leaf.source.resource_urls import javascript_imports
+from leaf.source.resource_urls import javascript_imports, javascript_language
 from leaf_dev import ROOT
 from leaf_dev.arms import (
     arm_commit,
@@ -177,7 +176,7 @@ FUNCTIONS = {
     "function_expression",
     "arrow_function",
 }
-LANGUAGE = Language(tree_sitter_javascript.language())
+LANGUAGE = javascript_language()
 # Each call's first argument, a string or a name, and the function it calls.
 CALLS = Query(
     LANGUAGE,
@@ -584,7 +583,7 @@ def elements(tree: Tree) -> dict[str, Name]:
 
 
 def protocol(tree: Tree, functions: dict[str, Name]) -> dict[str, Name]:
-    index = tree.text(f"{REFERENCES}/module-plain-elements.md").split("\n## ", 1)[0]
+    index = tree.text(f"{REFERENCES}/module-widgets.md").split("\n## ", 1)[0]
     leads = set(re.findall(r"^- \*\*`([^`]+)`", index, re.M))
     # The events Leaf hears or makes that the library exports by name are the
     # protocol's whether or not the index names them.

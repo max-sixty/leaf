@@ -779,7 +779,7 @@ _TEXT = {
             f"{at} sets lfCommands, but no lf-commands event from it reached Leaf, so"
             " its keys bind nothing and the buttons its rows name do nothing; dispatch"
             " a bubbling, composed lf-commands event on the element once it stands in"
-            " the page (module-plain-elements.md, lf-commands)"
+            " the page (module-widgets.md, lf-commands)"
         ),
     ),
     "unmarkable": _fails(

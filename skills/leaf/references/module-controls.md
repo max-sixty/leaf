@@ -33,13 +33,13 @@ ordinary elements, which the library's
 [`elements.js`](../../../browser/runtime/lib/elements.js) makes in one call.
 
 Words a module writes into the page are the page's words unless it marks them apart
-(`module-plain-elements.md`, "Words it writes").
+(`module-widgets.md`, "Words it writes").
 
 A widget can upgrade inside a shut panel where every box measures zero, so take a
 measurement only once the element shows a box, which the library's
 [`shown-box.js`](../../../browser/runtime/lib/shown-box.js) waits for. After a view swap
 that rearranges a widget's contents without resizing it, dispatch an `lf-layout` event
-on the element (`module-plain-elements.md`, "`lf-layout`"); a widget that measures
+on the element (`module-widgets.md`, "`lf-layout`"); a widget that measures
 what it holds listens for the event and reads again.
 
 `searchField(className, {name, label, placeholder})` builds a search or filter field
@@ -55,33 +55,33 @@ Leaf's faces by writing one of these classes, and the widget's sheet may select 
 class to place the part. A class of Leaf's that no reference names is Leaf's own and
 can change in any update.
 
-| Class              | The module writes it on                                                                          | It gives                                                                                                                                  |
-| ------------------ | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
-| `.lf-ui`           | a box of apparatus the module builds itself                                                      | words that are apparatus and take no comment; the library's constructors write it, with the marks that also keep a box off a printed page |
-| `.lf-label`        | a region's name, in the document                                                                 | the label font, in small capitals                                                                                                         |
-| `.lf-label-hidden` | a Web Awesome form control                                                                       | a label that a screen reader says and the screen doesn't show                                                                             |
-| `.lf-choice`       | a label that holds a radio or checkbox before its words                                          | a choice's face, its mark and words one target; a rule on the label reads its padding as `--lf-choice-pad`                                |
-| `.lf-key-badge`    | a command's `bindingBadge` (`module-input.md`)                                                   | a key's face, in a box `--lf-key-badge-size` high                                                                                         |
-| `.lf-action-icon`  | a symbol drawn in a press with `actionTemplate` or `iconTemplate`, from the library's `icons.js` | a symbol that passes the pointer to its press                                                                                             |
-| `.lf-media-frame`  | a box that frames a picture                                                                      | the ring and lift a picture in markup wears                                                                                               |
-| `.lf-error`        | a box that says a part of the widget failed; the `lf-error` event draws none                     | the face of the box the library's `failure.js` shows                                                                                      |
-| `.lf-rows`         | a list whose rows are presses built in the `row` role                                            | one set of columns for every row                                                                                                          |
-| `.lf-row-lead`     | a child of a row that marks it: a dot, a symbol, a number or a time                              | the first column, muted                                                                                                                   |
-| `.lf-row-main`     | a child of a row that names it                                                                   | the column that takes the width the others leave                                                                                          |
-| `.lf-row-end`      | a child of a row that holds its status, time, key or arrow                                       | the last column, muted, in the small font                                                                                                 |
-| `.lf-rows-head`    | the heading of a group of rows                                                                   | the group heading's font                                                                                                                  |
-| `.lf-rows-empty`   | the line a list shows while it has no rows                                                       | a muted line where the first row would stand                                                                                              |
+| Class              | The module writes it on                                                                    | It gives                                                                                                                                  |
+| ------------------ | ------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------- |
+| `.lf-ui`           | a box of apparatus the module builds itself                                                | words that are apparatus and take no comment; the library's constructors write it, with the marks that also keep a box off a printed page |
+| `.lf-label`        | a region's name, in the document                                                           | the label font, in small capitals                                                                                                         |
+| `.lf-label-hidden` | a Web Awesome form control                                                                 | a label that a screen reader says and the screen doesn't show                                                                             |
+| `.lf-choice`       | a label that holds a radio or checkbox before its words                                    | a choice's face, its mark and words one target; a rule on the label reads its padding as `--lf-choice-pad`                                |
+| `.lf-key-badge`    | a command's `bindingBadge` (`module-input.md`)                                             | a key's face, in a box `--lf-key-badge-size` high                                                                                         |
+| `.lf-action-icon`  | a press's symbol, which `offerActionElement` draws from a Mount on the press the view drew | a symbol that passes the pointer to its press                                                                                             |
+| `.lf-media-frame`  | a box that frames a picture                                                                | the ring and lift a picture in markup wears                                                                                               |
+| `.lf-error`        | a box that says a part of the widget failed; the `lf-error` event draws none               | the face of the box the library's `failure.js` shows                                                                                      |
+| `.lf-rows`         | a list whose rows are presses built in the `row` role                                      | one set of columns for every row                                                                                                          |
+| `.lf-row-lead`     | a child of a row that marks it: a dot, a symbol, a number or a time                        | the first column, muted                                                                                                                   |
+| `.lf-row-main`     | a child of a row that names it                                                             | the column that takes the width the others leave                                                                                          |
+| `.lf-row-end`      | a child of a row that holds its status, time, key or arrow                                 | the last column, muted, in the small font                                                                                                 |
+| `.lf-rows-head`    | the heading of a group of rows                                                             | the group heading's font                                                                                                                  |
+| `.lf-rows-empty`   | the line a list shows while it has no rows                                                 | a muted line where the first row would stand                                                                                              |
 
 ## A time axis
 
-A widget with a time axis draws its ruler and gridlines with `timeAxis`, from the
-library's [`time-axis.js`](../../../browser/runtime/lib/time-axis.js), whose header
-shows a whole drawing. The widget draws its own marks, labels and playhead. Each of
-them has the class `lf-on-axis` and states its time as `--lf-axis-at`, a fraction of
-the axis from 0 to 1. Leaf stands the element at that time in the nearest positioned
-box, which the widget makes as wide as the axis. The axis starts and ends a margin
-inside that box, the library's `AXIS_EDGE` in pixels, and the widget states the margin
-as `--lf-axis-edge` on a box that holds the whole drawing. Leaf also states the
+A widget with a time axis uses `axisMarks`, from the library's
+[`time-axis.js`](../../../browser/runtime/lib/time-axis.js), for the ruler ticks and
+gridlines, as `lf-timeline` does. The widget draws its own marks, labels and playhead.
+Each of them has the class `lf-on-axis` and states its time as `--lf-axis-at`, a
+fraction of the axis from 0 to 1. Leaf stands the element at that time in the nearest
+positioned box, which the widget makes as wide as the axis. The axis starts and ends a
+margin inside that box, the library's `AXIS_EDGE` in pixels, and the widget states the
+margin as `--lf-axis-edge` on a box that holds the whole drawing. Leaf also states the
 element's distance from the start of its box as `--lf-axis-x`, a share of the box's
-width, which a rule for the element reads in its own `max-inline-size` to fit a label
-to the room on either side.
+width, which a rule for the element reads in its own `max-inline-size` to fit a label to
+the room on either side.

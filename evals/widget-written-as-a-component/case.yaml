@@ -1,0 +1,47 @@
+# An author asked for two new widgets in a package, one that draws controls and records
+# what the user presses and one that only frames what the author writes in it, is
+# pulled toward whichever way of writing a widget it has seen most: a plain custom
+# element drawing with Lit, or a Lit element. A widget is its declaration, plus an
+# Effect UI component `defineWidget` defines if it draws anything, and a widget that
+# draws nothing has no module (`module-widgets.md`). `widget_form.py` reads the saved
+# page's packages for that form, and `draw_failures.py` reads the final render check
+# for a widget that failed to draw.
+description: widget-written-as-a-component
+metadata:
+  purpose: A new widget that draws is its declaration and a defineWidget component, one that draws nothing is a declaration with no module, and both draw.
+  authoring: true
+  tags:
+    - packages
+    - widgets
+    - package-interface
+vars:
+  prompt: |
+    Our design-review pages need two elements the page vocabulary doesn't have. Put
+    them in a package at ./review-kit, so I can reuse them on other review pages:
+
+    - `lf-rating`: the reviewer rates the design it sits under from 1 to 5 by pressing
+      one of five buttons, and can change the rating later. The rating has to survive
+      a reload, show on the reviewer's other laptop, and reach you when you next
+      revise the page.
+    - `lf-margin-note`: sets apart a short note the author writes inside it, such as a
+      caveat beside a claim, as a quieter box with a thin rule on its left. Nothing in
+      it is interactive.
+
+    Then make a page that uses both: a short review of the two caching designs below,
+    with a rating under each design and a margin note on the riskier one.
+
+    - Write-through: every write goes to the cache and the database in the same
+      request. Reads never see stale data; writes take about 2 ms longer.
+    - Write-behind: writes go to the cache and a queue flushes them to the database
+      every 500 ms. Writes are fast, but a cache node that dies loses up to half a
+      second of writes.
+assert:
+  - type: python
+    metric: widget-form
+    value: file://../dev/leaf_dev/widget_form.py
+    config:
+      drawing: [lf-rating]
+      drawless: [lf-margin-note]
+  - type: python
+    metric: widgets-draw
+    value: file://../dev/leaf_dev/draw_failures.py

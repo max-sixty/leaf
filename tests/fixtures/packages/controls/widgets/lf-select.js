@@ -3,7 +3,7 @@
 // find it by. Nothing in the library is written for Leaf: the declaration's `record`
 // names `value`, this element keeps that property on the select it holds, and the
 // select's `change` reaches it by bubbling
-// (module-plain-elements.md, "A third-party component").
+// (module-widgets.md, "A third-party component").
 import "/vendor/webawesome.esm.js";
 
 customElements.define(

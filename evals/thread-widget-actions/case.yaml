@@ -19,8 +19,9 @@ assert:
     metric: judgment
     value: |
       Pass only if the JavaScript reads the shared Thread collection with `readThreads()`
-      in `LeafElement.render()`,
+      in the `inputs` of a component `defineWidget` defines,
       keeps its own selected Thread by `thread.key`, calls `threadActions.reply` for Send
-      and `threadActions.resolve` or `threadActions.reopen` for settlement, and stops its
-      subscription on disconnect. It must not post raw events, use a private runtime
+      and `threadActions.resolve` or `threadActions.reopen` for settlement, and its
+      subscription ends as the element leaves, as the element `defineWidget` defines
+      ends what `options.inputs` follows. It must not post raw events, use a private runtime
       module, or mount Leaf's built-in Thread view.

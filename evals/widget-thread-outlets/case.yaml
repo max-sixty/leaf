@@ -20,8 +20,9 @@ assert:
   - type: llm-rubric
     metric: resolves-local-outlets
     value: |
-      Pass only if the widget implements threadOutlets(targets) on the element, which
-      Leaf calls, rather than registering or unregistering a surface itself, and says
+      Pass only if the widget gives its element threadOutlets(targets), through
+      `declare(node, { threadOutlets })` from a Mount where it is a component
+      `defineWidget` defines, which Leaf calls, rather than registering or unregistering a surface itself, and says
       no registry key declares it. threadOutlets uses Leaf's ordered target batch,
       returns a matching array of outlets or null, and runs beginThreadSurface and
       endThreadSurface around the batch. It must let core retain the Thread/composer

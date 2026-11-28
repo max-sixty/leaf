@@ -5,7 +5,7 @@
 # `lf-action` event, and Leaf keeps the record for every tab and device, for Undo and for
 # the agent; a store of the module's own reaches none of them.
 # `module-state.md`, "Where a widget keeps its state", and `package-data.md`, "User
-# state", say so, and `module-plain-elements.md` gives the protocol.
+# state", say so, and `module-widgets.md` gives the protocol.
 description: widget-ratings-recorded-by-leaf
 metadata:
   purpose: A widget ported from a site that stores what the user makes records it through Leaf's state and lf-action instead of a store of its own.
@@ -59,13 +59,14 @@ assert:
     value: |
       Pass only if Leaf keeps the ratings: the registry entry declares a verb under
       `verbs` for a rating, the module draws each answer's rating from the `state`
-      Leaf sets on the element, and it records each rating as the reviewer gives it
-      with an `lf-action` event naming that verb, dispatched directly or through
-      `LeafElement`'s `record()`. Rating one answer
+      Leaf sets, and it records each rating as the reviewer gives it with an
+      `lf-action` event naming that verb, as a `RecordAction` Command issues one or a
+      dispatch on the element does. Rating one answer
       leaves the others' ratings in force: the verb's `unit` names the answer, each
       answer is a widget of its own, or each action carries every answer's rating.
       Fail if the module still keeps the ratings in `localStorage`, `sessionStorage`,
       IndexedDB, a cookie, `tabStore`, or a copy of its own that it draws from in
       place of `state`, whether instead of the recorded action or beside it; or if it
-      sends them anywhere itself, with `fetch`, XHR, a WebSocket or `connection()`.
+      sends them anywhere itself, with `fetch`, XHR, a WebSocket or `connection()`;
+      or if the module imports Lit or extends `LeafElement`.
       Execution is unavailable, so not running checks is not a failure.

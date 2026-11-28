@@ -4,7 +4,7 @@
 // `level-change` at every change of its value, a script's set included, and the range
 // keeps a value it is set within its scale, so what it says after a set can be
 // another value than the set gave it. Its declaration's `record` names `value` and
-// that event (module-plain-elements.md, "`record.property`").
+// that event (module-widgets.md, "`record.property`").
 customElements.define(
   "lf-level",
   class extends HTMLElement {

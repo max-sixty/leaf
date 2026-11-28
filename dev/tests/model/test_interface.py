@@ -48,7 +48,7 @@ def test_each_part_reads_its_list_and_its_users():
 
 def test_the_protocol_index_lists_each_protocol_name_a_reference_gives():
     """The census reads the widget protocol's members and events from its index in
-    `module-plain-elements.md`, so a name another reference describes and the index
+    `module-widgets.md`, so a name another reference describes and the index
     leaves out is one the census misses. A reference gives such a name in code, by a
     shape that says what it is: a member Leaf reads off an element, `lf` then a
     capital, or an event Leaf's runtime makes or hears whose name holds a hyphen, as
@@ -68,7 +68,7 @@ def test_the_protocol_index_lists_each_protocol_name_a_reference_gives():
         if name not in indexed
     )
     assert not missing, (
-        "these references give a protocol name the index in module-plain-elements.md "
+        "these references give a protocol name the index in module-widgets.md "
         "leaves out; list each there, pointing at the section that describes it:\n  "
         + "\n  ".join(missing)
     )

@@ -5,7 +5,7 @@
    A widget calls `failSoft(el, err, source)` for an upgrade or a part of one that
    failed, which does both, so the rest of the page stays usable rather than blank. A
    widget that shows a failure its own way dispatches the event itself
-   (module-plain-elements.md, "`error`"). `showFailure` and `reportFailure`, the box
+   (module-widgets.md, "`error`"). `showFailure` and `reportFailure`, the box
    alone and the event alone, are for a host that catches a failure on an element it
    drives, as Leaf does for a setter that threw.
 

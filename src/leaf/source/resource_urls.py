@@ -186,7 +186,7 @@ def _javascript_imports(data: bytes, path: str):
         return (), (capture_finding("script-not-utf8", path),)
     from tree_sitter import QueryCursor
 
-    parser, import_nodes = _javascript_reader()
+    parser, import_nodes = _import_reader()
     tree = parser.parse(data)
     # Document order, a node before the nodes it holds, as a walk of the tree meets
     # them, so the spans come back in the order the file states them.
@@ -232,15 +232,24 @@ def _javascript_imports(data: bytes, path: str):
 
 
 @cache
-def _javascript_reader():
-    """Tree-sitter's JavaScript parser and the query for the nodes `javascript_imports`
-    reads, matched in the parser's own code rather than by visiting every node of a
-    vendored bundle in Python. Built when a module is first read: most processes
+def javascript_language():
+    """Tree-sitter's JavaScript grammar, which every reader of a module's syntax builds
+    its parser and queries from. Built when a module is first read: most processes
     (every hook) never read one, and the imports cost tens of milliseconds."""
     import tree_sitter_javascript
-    from tree_sitter import Language, Parser, Query
+    from tree_sitter import Language
 
-    language = Language(tree_sitter_javascript.language())
+    return Language(tree_sitter_javascript.language())
+
+
+@cache
+def _import_reader():
+    """A parser and the query for the nodes `javascript_imports` reads, matched in the
+    parser's own code rather than by visiting every node of a vendored bundle in
+    Python."""
+    from tree_sitter import Parser, Query
+
+    language = javascript_language()
     query = Query(
         language,
         "(import_statement) @node (export_statement) @node "

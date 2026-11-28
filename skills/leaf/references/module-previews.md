@@ -21,8 +21,10 @@ and that no key reaches previews nothing. Its
 `aria-description` stays a screen reader's; a line the eye should read too goes in
 `detail`.
 
-A widget adds to that, or previews an element that isn't a control, by declaring the
-element's `lfPreview(route)`, with no import, as it declares `lfCommands`. Leaf calls it
+A widget adds to that, or previews an element that isn't a control, by giving the
+element an `lfPreview(route)` method, with no import: a component's view sets it on a
+node it draws (`.prop("lfPreview", …)`), and declares it on the widget's own element
+(`module-widgets.md`). Leaf calls it
 once each time the preview shows, with the route that asked: `"pointer"`, `"focus"` or
 `"hold"`, and again for each new presentation of the document while the preview
 stands, so what it says follows the page without tracking its own inputs; words that
@@ -35,7 +37,7 @@ come back the same leave the preview as it is. It returns:
   names. Each press is a list of bindings, one for a single key and one for each step
   of a sequence, spelled as a command row's `keys` are (`module-input.md`, "Command
   rows"), as in `keys: [["Enter"], [" "]]`, and Leaf draws each binding as a key chip. `detail` is lines under the name, each words or
-  an `html` template; a falsy line is left out. `at` is where the preview stands, the
+  a DOM node; a falsy line is left out. `at` is where the preview stands, the
   declaring element by default: another element, as a message stands its preview by
   the `<time>` in its head, or a box in client coordinates (`{left, top, right, bottom}`, such as
   a `DOMRect`) inside the element, as a chart's value stands over its point, which the
@@ -49,7 +51,7 @@ come back the same leave the preview as it is. It returns:
   `excerpt: true` gives a preview that quotes a block of the page the face's wider room. A preview taller than the room beside its element shows the
   lines that fit and ends the last in an ellipsis; no preview scrolls, so what pressing
   the element opens says the rest. `list: {items, more}` is items under the lines, each
-  words or a template, as the threads standing at one place: Leaf shows as many as the
+  words or a DOM node, as the threads standing at one place: Leaf shows as many as the
   room holds, through every resize, and under them `more(count)`'s words for the rest,
   such as "and 26 more threads", so the items need no measuring of their own; the rest
   are hidden from sight and from a screen reader alike. `unseen: true` keeps the face

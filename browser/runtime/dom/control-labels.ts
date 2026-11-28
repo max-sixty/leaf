@@ -66,7 +66,7 @@ export function searchField(
 // mark would be a press again, and only lf-options' own guard on the card would stand
 // between that and clearing the pick.
 //
-// A module writes these markers on its own nodes (module-plain-elements.md, "Words it
+// A module writes these markers on its own nodes (module-widgets.md, "Words it
 // writes"), and the runtime marks a box whose contents it writes with
 // `generatedElement` (base/element-markers.js). Words a module writes unmarked are the
 // page's: the version comparison reads sources (`features/version.js`), so they never read as

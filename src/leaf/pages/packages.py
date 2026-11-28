@@ -113,13 +113,12 @@ def rollback_package_files(created: list) -> None:
 
 # The starter `package init --widget` writes is one working widget, a yes-or-no choice,
 # in the three parts a widget with behavior has: its declaration, its module and its
-# style rule. It holds the widget protocol's one round trip and nothing else: Leaf sets
-# `state`, the module draws it, and a press records an action. An author reads all of
-# it and changes it into the widget they need, so each key of the declaration is one
-# this widget uses, and `package check --render` finds nothing to advise in it. It is
-# a plain custom element, as the protocol reference's opening example is
-# (module-plain-elements.md). A `LeafElement` subclass would be shorter, but only by
-# putting the event the starter is there to show behind `record()`.
+# style rule. It holds the widget's one round trip with Leaf and nothing else: Leaf
+# sets `state`, the component's view draws it, and a press records an action. An
+# author reads all of it and changes it into the widget they need, so each key of the
+# declaration is one this widget uses, and `package check --render` finds nothing to
+# advise in it. It is an Effect UI component that `defineWidget` defines, the one way
+# a widget that draws is written (module-widgets.md).
 
 
 def starter_element_declaration(tag: str) -> dict:
@@ -138,34 +137,44 @@ def starter_element_declaration(tag: str) -> dict:
 
 
 def starter_widget_module(tag: str) -> bytes:
-    """The starter's module: the `state` setter draws a button for each value, and a
-    press dispatches `lf-action`."""
+    """The starter's module: the component's view draws a button for each value from
+    `state`, and a press records the value with `RecordAction`."""
     return f"""\
-import {{ html, render }} from "/vendor/lit.js";
+import {{ Command, Html, Schema, UiSchema }} from "/vendor/effect-ui.js";
+import {{ defineWidget, widgetProps }} from "/runtime/effect-widget.js";
+import {{ RecordAction }} from "/runtime/widget-services.js";
+import {{ pressAttributes }} from "/runtime/lib/controls.js";
 
-// The widget protocol: references/module-plain-elements.md in the Leaf skill.
-customElements.define(
-  "{tag}",
-  class extends HTMLElement {{
-    set state({{ choose }}) {{
-      const button = (value, label) =>
-        html`<button
-          type="button"
-          aria-pressed=${{choose.value === value}}
-          aria-disabled=${{!choose.available}}
-          @click=${{() => this.press(value)}}
-        >
-          ${{label}}
-        </button>`;
-      render([button("yes", "Yes"), button("no", "No")], this);
-    }}
+// A widget's module: references/module-widgets.md in the Leaf skill.
+const Message = UiSchema.TaggedEnum({{ Pressed: {{ value: Schema.String }} }});
 
-    press(value) {{
-      const action = {{ verb: "choose", detail: {{ value }} }};
-      this.dispatchEvent(new CustomEvent("lf-action", {{ detail: action }}));
-    }}
+const Choice = Html.component({{
+  name: "Choice",
+  props: Schema.Struct(widgetProps),
+  model: Schema.Struct({{}}),
+  message: Message,
+}}).make({{
+  init: () => ({{}}),
+  update: {{
+    Pressed: ($, {{ value }}) =>
+      $.run(
+        RecordAction.make({{ verb: "choose", detail: {{ value }} }}).pipe(Command.asNoop),
+      ),
   }},
-);
+  view: (h) => {{
+    const choose = h.props.state?.choose;
+    const button = (value, label) =>
+      h.button
+        .attrs(pressAttributes("answer"))
+        .attr("aria-pressed", String(choose?.value === value))
+        .attr("aria-disabled", String(!choose?.available))
+        .on("click", Message.Pressed({{ value }}))
+        .children(label);
+    return h.div.children(button("yes", "Yes"), button("no", "No"));
+  }},
+}});
+
+defineWidget("{tag}", Choice);
 """.encode()
 
 

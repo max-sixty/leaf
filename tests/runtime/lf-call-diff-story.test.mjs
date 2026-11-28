@@ -57,12 +57,14 @@ test("the toggle folds every root, then opens them all once any is folded", () =
     s.send(CallDiffMessage.ClickedToggle())
       .expectExact(Announce.make({ words: "Collapsed all call-tree roots" }))
       .resolve(Announce, Component.noop);
-    assert.deepEqual(s.model.closed, keys);
+    assert.deepEqual(s.model.fold, { open: false, press: 1 });
+    // The browser folds each root through its node, and tells the Model with `toggle`.
+    for (const key of keys) s.send(CallDiffMessage.ToggledGroup({ key, open: false }));
     s.send(CallDiffMessage.ToggledGroup({ key: keys[1], open: true }));
     s.send(CallDiffMessage.ClickedToggle())
       .expectExact(Announce.make({ words: "Expanded all call-tree roots" }))
       .resolve(Announce, Component.noop);
-    assert.deepEqual(s.model.closed, []);
+    assert.deepEqual(s.model.fold, { open: true, press: 2 });
   });
 });
 

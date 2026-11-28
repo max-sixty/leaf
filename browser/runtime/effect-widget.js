@@ -62,7 +62,9 @@
    declares on each change of them (the Mount's `changes`), the one hook Effect UI
    gives on a draw the component's own Model starts. After a draw the adapter started,
    from a set of `state`, an input or a member, the element also says `lf-commands`
-   for everything under it, and `lf-layout` where it declares parts.
+   for everything under it, and `lf-layout` where it declares parts. A member Leaf
+   reads off a node the view draws, such as a child outlet's `lfHold` or a row's
+   `lfPreview`, the view sets on that node with `.prop`.
 
    Drawing follows the protocol's "Drawing" rule. The root mounts once the element has
    connected and the host has made its sets for this connection, so its first props
@@ -74,23 +76,32 @@
    UI's flush, a microtask later and before the next frame, so each set that gives new
    props dispatches a `pending-task` whose promise settles after that flush.
 
-   Focus, typed words and moves are Effect UI's. A draw patches the nodes it keeps, so
-   focus, a field's words and its caret stay where they are, and a keyed node moved
-   among its parent's children moves with `moveBefore`, which keeps them too (the
-   selection in a contenteditable collapses, in every engine). The adapter holds
-   nothing of its own around a draw. A keyed node is matched only among its parent's
-   children, so a node a draw moves to another parent is a new node there, with no
-   focus or words, and a removed node takes focus with it. Around each draw it starts,
-   from a set or a member, the adapter holds the user's place by the key of the drawn
-   datum they are in (`data-lf-datum`, module-state.md, "Marking drawn data"), which
-   the widget declares: on their own node where it survived the draw, else on the
-   datum now carrying that key among its own, else the nearest one still drawn, on the
-   datum itself and never on a control in it chosen by its look (`holdFocus`,
-   `alike: false`). A widget that keeps the user on their control across a move to
-   another parent writes the row as a keep-alive child, whose nodes survive. A draw the component's own message starts has no
-   such hold, since Effect UI gives no hook before its flush. A widget whose rows move
-   between parents writes each row as a keep-alive child (`h.keepAlive`), whose nodes
-   move with it and keep the user's words.
+   Focus, typed words and moves. A draw patches the nodes it keeps, so focus, a field's
+   words and its caret stay where they are, and a keyed node moved among its parent's
+   children moves with `moveBefore`, which keeps them too (the selection in a
+   contenteditable collapses, in every engine). A keyed node is matched only among its
+   parent's children, so a node a draw moves to another parent is a new node there,
+   with no focus or words, and a removed node takes focus with it. So:
+
+   - Around each draw it starts, from a set or a member, the adapter holds the user's
+     place by the key of the drawn datum they are in (`data-lf-datum`, module-state.md,
+     "Marking drawn data"), which the widget declares: on their own node where it
+     survived the draw, else on the datum now carrying that key among the widget's own,
+     else on the nearest one still drawn. It lands on the datum itself, a stop lent
+     where it is no control, never on a control in it chosen by its look nor on the
+     first one a boxless datum draws; where a datum takes no focus, it tries the next
+     node its key marks, then the next key's (`holdFocus`, `alike: false`).
+   - A row the widget moves to another parent, and whose user should stay on their
+     control with their words and caret, it writes as a keep-alive child
+     (`h.keepAlive`): its nodes move with it, and the hold puts the user back on theirs.
+   - A draw the component's own message starts has no hold (Effect UI's limits,
+     below), so where it removes or moves the user's row, the user lands on the body
+     unless the component says where they go.
+   - A native disclosure's `open` is the browser's until a gesture makes the fold part
+     of the page's state (root AGENTS.md). The view writes `open` as an attribute that
+     doesn't change, which Effect UI writes only as the element arrives, hears folds
+     with `toggle`, and folds through the node from a Mount where the widget folds
+     (lf-call-diff.js, lf-toc.js).
 
    Failure. A root that fails, or inputs that throw, report the failure as the
    element's `error` and show Leaf's failure box beside the authored children, which
@@ -115,11 +126,22 @@
    - A root gives its owner no hook on a flush: `Renderer.Root` has `model`, `send`
      and `setProps`, and the per-flush `commit` is the host's own. So the adapter
      hears only the draws it starts, and a draw from the component's own messages is
-     said by the widget's Mount (Declarations).
+     said by the widget's Mount (Declarations), and holds the user's place by no key.
+     The idiom tried for that place: the update that removes or moves the user's row
+     issues `HtmlCommand.focus` on a ref to the control they go to (`Html.ref`,
+     `.ref(ref.at(key))`), which focuses it once the draw lands; a keep-alive row that
+     asks to move issues it on its own control, since a ref reaches only the instance
+     that issues the Command. It lands the user there in Chromium and Firefox, and
+     needs `HtmlCommand`, which `/vendor/effect-ui.js` doesn't export yet.
+   - The controlled `.open()` writes the Model's value on every draw, over a fold the
+     browser made whose `toggle` hasn't arrived, as a script's reveal, a summary press
+     or find in page makes one: a draw in that task closes it again, and the Model
+     never hears it. So a widget leaves `open` to the browser (Focus, above).
    - A keep-alive child moved to another parent keeps its nodes and the words in them,
      but focus in it drops to the body: the kernel takes the nodes out of the old
      parent before it puts them in the new one, and `insert` uses `moveBefore` only
-     within one parent.
+     within one parent. The adapter's hold puts the user back for a draw it starts;
+     for the component's own move, only the row's own `HtmlCommand.focus` does.
    - A render that changes a node's attributes removes the ones it drops before it
      sets the new ones (`patchAttrs`), so an `<a>` that trades `href` for `tabindex`
      loses focusability for an instant and Chromium blurs it. A widget keeps such a
@@ -147,9 +169,9 @@ export const widgetProps = { state: Schema.optional(Schema.Unknown) };
 
 /** A property that reads and writes the component's Model. */
 
-// Every member Leaf reads off a widget's element (runtime-globals.d.ts). A member Leaf
-// reads off a node the view draws, as `lfPreview` and an outlet's `lfHold` are, the view
-// sets there (`.prop`).
+// Every member Leaf reads off a widget's element (runtime-globals.d.ts), `lfHold`
+// included, which Leaf reads off the outlet a widget returns, the element itself where
+// the widget is its own outlet.
 const DECLARED = [
   "lfCommands",
   "lfParts",
@@ -163,6 +185,7 @@ const DECLARED = [
   "lfDataDatum",
   "lfDatumLabel",
   "threadOutlets",
+  "lfHold",
 ];
 
 /** What a widget states on its element for Leaf to read. */

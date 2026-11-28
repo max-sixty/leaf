@@ -184,7 +184,7 @@ export const focusElement = (destination) =>
 export function focusDestination(
   destination,
   cause,
-  { caret = null, ...unknown } = {},
+  { caret = null, itself = false, ...unknown } = {},
 ) {
   if (!CAUSES.has(cause)) throw new TypeError(`focusDestination: no cause ${cause}`);
   const unexpected = Object.keys(unknown);
@@ -201,7 +201,7 @@ export function focusDestination(
   };
   const landed = placed(cause, () => {
     if (!isElement(destination) && drawn(element)) destination.settle();
-    return placeOn(element, options);
+    return placeOn(element, options, itself);
   });
   if (caret && holdsCaret(element)) element.setSelectionRange(...caret);
   return landed;
@@ -210,12 +210,14 @@ export function focusDestination(
 // out `display: contents` draws no box, and no engine focuses one unless it hands focus
 // on, as a host delegating its focus does, so the user stands on the first thing it
 // draws that takes them: where its content starts, past anything hidden or disabled.
-function placeOn(node, options) {
+// With `itself`, the placement goes no further than `node`, for a caller that tries
+// another place where `node` takes no focus.
+function placeOn(node, options, itself = false) {
   nativeFocusTarget(node).focus(options);
   if (!landedOn(node) && lendable(node)) lendStop(node, options);
   if (landedOn(node)) return node;
   let landed = null;
-  if (boxless(node))
+  if (boxless(node) && !itself)
     eachRenderedElement(node, (child) => {
       if (!landed && placeable(child) && hasNativeFocus(child))
         landed = placeOn(child, options);
@@ -1389,13 +1391,15 @@ export const likeSelector = (control) =>
 // stand-ins: the user is never left on the body because the row they were on left the
 // list. Where focus won't land on one, the restore goes on to the next. With `alike`
 // false it lands on the item itself, a stop lent where it is no control, and never on
-// a control in it chosen by its tag and classes. `owns` says which keyed items are the
+// a control in it chosen by its tag and classes nor on one a boxless item draws first:
+// where an item takes no focus, it tries the next node its key marks, then the next
+// key's. `owns` says which keyed items are the
 // scope's own, where a scope holds another's, as a widget holds a nested widget whose
 // keys are its own.
 export function holdFocus(scope, { key = null, alike = true, owns = () => true } = {}) {
   const node = heldIn(scope);
   if (!node) return null;
-  const restore = holdOn(node);
+  const restore = holdOn(node, { itself: !alike });
   if (!key) return restore;
   const isItem = (each) => each.matches(`[${key}]`) && owns(each);
   let item = node;
@@ -1462,7 +1466,6 @@ export function holdFocus(scope, { key = null, alike = true, owns = () => true }
     };
     const find = (value) => {
       const found = keyed(value).filter(placeable);
-      if (!alike) return found[0] ?? null;
       return (
         found.find((each) => each.matches(like)) ??
         found.map(matching).find(Boolean) ??
@@ -1473,9 +1476,20 @@ export function holdFocus(scope, { key = null, alike = true, owns = () => true }
     // The item keyed the same is the same place, so the caret goes with the user; a
     // neighbour is another place, which this hold lands on with no caret.
     const neighbour = (value) => () => {
+      if (!alike)
+        return keyed(value).some(
+          (each) =>
+            placeable(each) && focusDestination(each, "return", { itself: true }),
+        );
       const place = find(value);
       return Boolean(place && focusDestination(place, "return"));
     };
+    if (!alike)
+      return restore(
+        ...keyed(same).filter(placeable),
+        ...rest.map(neighbour),
+        ...standIns,
+      );
     return restore(() => find(same), ...rest.map(neighbour), ...standIns);
   };
 }
@@ -1594,7 +1608,7 @@ const isCompletion = (value) =>
   typeof value === "object" &&
   "then" in value &&
   typeof value.then === "function";
-function holdOn(held) {
+function holdOn(held, { itself = false } = {}) {
   const caret = readCaret(held);
   const began = placements;
   return (...standIns) => {
@@ -1625,7 +1639,7 @@ function holdOn(held) {
       if (place === true) return true;
       if (!isElement(place) || !placeable(place)) continue;
       if (place === held && deepFocus() === held) return true;
-      const landed = land(() => focusDestination(place, "return", { caret }));
+      const landed = land(() => focusDestination(place, "return", { caret, itself }));
       if (landed) {
         // Two holds in a row with no input between carry the same place on, so the
         // record names the node the first one held.

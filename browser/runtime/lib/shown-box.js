@@ -40,9 +40,9 @@ export const draws = (element) =>
 // (0,0) at the document's origin, which is not a degenerate box but a wrong one: it
 // reads as a real place at the top of the page, so whatever measured it travelled there.
 //
-// No widget in the vocabulary displays as contents, but the wrong answer is the
-// platform's rather than any widget's: a page or a project layer styles any wrapper
-// this way in a line. So the answer is a fact about elements, kept here rather than in
+// Every light widget `defineWidget` draws stands in a box that displays as contents
+// (runtime/effect-widget.js), and the wrong answer is the platform's rather than any
+// widget's: a page or a project layer styles any wrapper this way in a line. So the answer is a fact about elements, kept here rather than in
 // one reader, and every reader asks this one function, or dom/geometry.js's `shownBox`
 // built on it, where an element is.
 export function elementBox(el) {

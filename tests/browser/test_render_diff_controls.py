@@ -1064,9 +1064,6 @@ def test_evidence_close_folds_room_but_retires_controls_immediately(
     assert height() == pytest.approx(full, abs=1)
 
 
-import pytest
-
-
 def test_a_second_toggle_before_the_next_frame_holds(browser, serve):
     """A fold pressed again before the frame after its first press's `toggle` ends
     where the second press left it; Effect UI's write-back of `open` doesn't undo it."""
@@ -1098,20 +1095,27 @@ def test_a_second_toggle_before_the_next_frame_holds(browser, serve):
     first = details.evaluate("d => d.open")
     # The second press runs in a frame callback queued before the first `toggle`
     # reaches the widget, so it runs in the same frame as Effect UI's write-back of
-    # the Model's `open` and just before it.
-    ended = details.evaluate("""d => new Promise(done => {
+    # the Model's `open` and just before it. Effect UI hears each `toggle` in a capture
+    # listener on its container and queues that toggle's restore there, so the frame
+    # this listener queues on the second `toggle` runs after that restore.
+    details.evaluate("""d => {
       const summary = d.querySelector(':scope > summary');
       let heard = false;
       d.addEventListener('toggle', () => { heard = true }, {once: true});
       const again = () => {
         if (!heard) return requestAnimationFrame(again);
+        d.addEventListener('toggle', event => requestAnimationFrame(() => {
+          window.secondToggle = event.newState;
+        }), {once: true});
         summary.click();
-        requestAnimationFrame(() => requestAnimationFrame(() =>
-          setTimeout(() => done(d.open), 50)));
       };
       summary.click();
       requestAnimationFrame(again);
-    })""")
-    assert ended == first
+    }""")
+    page.wait_for_function("() => window.secondToggle !== undefined")
+    # The second `toggle` reports the press's own change rather than one the
+    # write-back merged away.
+    assert page.evaluate("window.secondToggle") == ("open" if first else "closed")
+    # The Model's render of what it heard has run too, so `open` now stays.
     rendered(page)
-    expect(details).to_have_js_property("open", first)
+    assert details.evaluate("d => d.open") == first

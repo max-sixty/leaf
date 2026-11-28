@@ -5,6 +5,7 @@ import { isElement } from "../lib/shadow-tree.js";
 import {
   paintDeclaredWords,
   watchNativeContent,
+  watchPanes,
   watchQuietWords,
 } from "./declared-words.js";
 import { watchCodeBlocks } from "./code-copy.js";
@@ -138,6 +139,7 @@ async function installDocument(scope: Element) {
   try {
     watchNativeContent();
     watchQuietWords();
+    watchPanes();
     watchCodeBlocks();
     watchHeadingLinks();
     watchRootHeaders();

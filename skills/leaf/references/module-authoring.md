@@ -318,7 +318,7 @@ Without either declaration the module keeps its first drawing of a child the rev
 changed. Leaf compares only each direct child's tag and attributes, and a revision
 doesn't redraw a widget it keeps. So a module that draws from what its children hold,
 or can declare neither, reads them again when they change, from a `MutationObserver`
-on the children the author wrote, as `lf-pane` does, and never on the nodes the module
+on the children the author wrote, and never on the nodes the module
 draws, whose changes would call it again without end. A widget that draws its own content (`content` `data`, `markdown` or `empty`) is
 always replaced.
 

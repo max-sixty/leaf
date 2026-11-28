@@ -47,6 +47,7 @@ type Mark = {
   authored?: string;
   authored_on?: string;
   presence?: boolean;
+  role?: Record<string, string>;
 };
 export const marks: Record<keyof typeof declaredMarks, Mark> & Record<string, Mark> =
   declaredMarks;

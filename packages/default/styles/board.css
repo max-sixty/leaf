@@ -128,7 +128,6 @@ lf-column {
 @media screen and (pointer: coarse) {
   @container lf-board (width <= 640px) {
     .lf-board-destinations {
-      clear: right;
       display: flex;
       align-items: center;
       flex-wrap: wrap;

@@ -1421,7 +1421,7 @@ def lift_card(tab: Tab) -> Goals:
     if found is None:
         raise click.ClickException("no card on the page has a column left of it")
     card, to = found
-    tab.page.locator(f"#{card} .lf-grip").focus()
+    tab.page.locator(f"#{card} > .lf-grip").focus()
     tab.page.keyboard.press("Enter")
     tab.page.keyboard.press("ArrowLeft")
     return {

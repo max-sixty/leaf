@@ -307,8 +307,6 @@ export function placementOf(props: Props): Placement | null {
 const columnOf = (placement: Placement, card: string) =>
   Object.keys(placement).find((id) => placement[id]?.includes(card)) ?? null;
 
-// `placement` with `card` at `index` in `column`, past the column's end where it
-// holds fewer.
 const samePlacement = (a: Placement, b: Placement) =>
   Object.keys(a).length === Object.keys(b).length &&
   Object.entries(a).every(
@@ -317,6 +315,8 @@ const samePlacement = (a: Placement, b: Placement) =>
       cards.every((card, index) => b[column]![index] === card),
   );
 
+// `placement` with `card` at `index` in `column`, past the column's end where it
+// holds fewer.
 const withCard = (
   placement: Placement,
   card: string,

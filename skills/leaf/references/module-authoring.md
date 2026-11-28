@@ -51,10 +51,11 @@ lists them all. An Effect UI component asks for some of these acts through a Com
 service. Lit's templates come from `/vendor/lit.js`, Lit's own module, the one path its
 names come from, such as `render`, `html`, `svg`, `nothing`, `repeat`, `keyed`,
 `live`, `ref`, `createRef`, `classMap`, `styleMap`, `guard`, `unsafeHTML` and
-`noChange`. Of the runtime's other modules, import only those `$public-modules` in the kernel registry
-(`browser/runtime/kernel-registry.json`) lists: `portable-api.js` ("A widget that also
-runs off Leaf"), the library's ("Shared web code"), and, for an Effect UI component,
-`effect-widget.js` and `widget-services.js`. Each module's header gives its contract.
+`noChange`. Of the runtime's other modules, import only those the kernel registry
+(`browser/runtime/kernel-registry.json`) lists in `$public-modules`: `portable-api.js`
+("A widget that also runs off Leaf"), the library's ("Shared web code"), and, for an
+Effect UI component, `effect-widget.js` and `widget-services.js`. Each module's header
+gives its contract.
 Don't query Leaf's own chrome or copy a runtime helper.
 
 ### Functions

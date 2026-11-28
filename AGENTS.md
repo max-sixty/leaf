@@ -538,8 +538,8 @@ advice rather than Leaf's, so it may name any widget.
 A package leans on Leaf only through the package interface: the keys of an element
 declaration, the widget protocol, Leaf's own elements, the data contracts Leaf's
 packages declare, the public modules and the names each exports, and the styling
-names the references declare. The public modules are those `$public-modules` in the
-kernel registry lists outside the library: Leaf's own, such as `widget-api.js` and
+names the references declare. The public modules are those the kernel registry lists
+in `$public-modules` outside the library: Leaf's own, such as `widget-api.js` and
 `effect-widget.js`, and the dependencies Leaf serves, such as Effect UI. Another
 author's package has nothing else, so Leaf's bundled widgets use nothing else. The
 interface sprawls through names that each look reasonable alone, and every later

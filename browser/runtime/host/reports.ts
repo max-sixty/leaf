@@ -63,7 +63,7 @@ import {
 } from "../state/semantic-state.js";
 import { closestAcross } from "../lib/shadow-tree.js";
 import { runtime } from "../state/context.js";
-import { stateAgain } from "./element-integration.js";
+import { followStateAgain, stateAgain } from "./element-integration.js";
 import type { ServedView } from "../../types/contract.js";
 
 type ReportTarget = { kind: "widget" | "thread"; id: string };
@@ -140,7 +140,9 @@ export const readHistory = readPart((root) => ({
 // begins preparation before it reads would never find the region free. An element
 // that left is set as it returns, and asks afresh then. An element Leaf sets no
 // `state` on has no report of its own and no draw Leaf can start, so it waits on
-// nothing here.
+// nothing here. A reading told no follows that request (`followStateAgain`), so a
+// reader that follows signals, as an Effect UI component's inputs do, reads again as
+// it is made, where the set of `state` alone would draw the reading it kept.
 const proven = new WeakSet<Element>();
 const waiting = new WeakSet<Element>();
 const committed = (target: Element) =>
@@ -149,6 +151,7 @@ const committed = (target: Element) =>
 const reportsReady = (target: Element) => {
   const again = stateAgain(target);
   if (!again || proven.has(target) || committed(target)) return true;
+  followStateAgain(target);
   if (waiting.has(target)) return false;
   waiting.add(target);
   // The watch's first call comes before it has returned its stop.

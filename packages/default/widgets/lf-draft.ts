@@ -321,7 +321,7 @@ class DraftEditing {
         },
       ],
     };
-    declare(host, { lfCommands: this.#commands });
+    declare(room, { lfCommands: this.#commands });
     // Leaf stands Copy last in the toolbar (`lfBar`), so Tab from the editor reaches
     // Save first. It copies the source the box shows, the editor's while it is open.
     host.lfCopy = () => this.#editor?.value ?? this.#args.saved;
@@ -433,7 +433,7 @@ class DraftEditing {
     this.#args = args;
     if (this.#editor) this.#editor.readOnly = !args.available;
     // The toolbar has drawn the controls and title the rows name: Leaf reads them again.
-    if (drew) declare(this.#host, { lfCommands: this.#commands });
+    if (drew) declare(this.#room, { lfCommands: this.#commands });
   }
 
   close() {

@@ -303,7 +303,18 @@ test("inputs that throw show the box beside the authored children until they rea
 });
 
 // A widget that draws the items `state.shelves` names, each list on a shelf of its
-// own, as its drawn data: each item is keyed by its name and marked with it.
+// own, each item a field keyed by its name. With `kept`, each item is a keep-alive
+// child, which Effect UI moves between shelves with its nodes.
+const ShelfItem = Html.component({
+  name: "ShelfItem",
+  props: Schema.Struct({ name: Schema.String }),
+  model: Schema.Struct({}),
+  message: Schema.Never,
+}).make({
+  init: () => ({}),
+  update: {},
+  view: (h) => h.input.attr("data-lf-datum", h.props.name),
+});
 const Shelves = Html.component({
   name: "Shelves",
   props: Schema.Struct({ ...widgetProps }),
@@ -312,44 +323,74 @@ const Shelves = Html.component({
 }).make({
   init: () => ({}),
   update: {},
-  view: (h) =>
-    h.div.children(
-      .../** @type {{shelves: string[][]}} */ (h.props.state).shelves.map(
-        (items, shelf) =>
-          h.section
-            .key(`shelf-${shelf}`)
-            .children(
-              ...items.map((item) =>
-                h.button.key(item).attr("data-lf-datum", item).children(item),
-              ),
-            ),
+  view: (h) => {
+    const { shelves, kept } = /** @type {{shelves: string[][], kept?: boolean}} */ (
+      h.props.state
+    );
+    const items = (/** @type {string[]} */ list) =>
+      kept
+        ? h.keepAlive(
+            ({ key, props }) =>
+              /** @type {any} */ (props).state.shelves.flat().includes(key),
+            (s) => list.map((name) => ShelfItem(s, { key: name, props: { name } })),
+          )
+        : list.map((name) => h.input.key(name).attr("data-lf-datum", name));
+    return h.div.children(
+      ...shelves.map((list, shelf) =>
+        h.section.key(`shelf-${shelf}`).children(...items(list)),
       ),
-    ),
+    );
+  },
 });
 
-test("an item a new state moves to another shelf keeps the user on it", async () => {
+/** @param {{shelves: string[][], kept?: boolean}} state */
+function shelves(state) {
   const tag = `lf-effect-${++tags}`;
   defineWidget(tag, Shelves);
   const el = /** @type {HTMLElement & {state: unknown}} */ (
     document.createElement(tag)
   );
-  el.state = { shelves: [["kept", "moved"], []] };
+  el.state = state;
   document.body.append(el);
   /** @type {PromiseLike<unknown>[]} */
   const pending = [];
   el.addEventListener("pending-task", (event) =>
     pending.push(/** @type {any} */ (event).complete),
   );
-  const item = () => el.querySelector('[data-lf-datum="moved"]');
-  const before = /** @type {HTMLButtonElement} */ (item());
+  const item = (/** @type {string} */ name) =>
+    /** @type {HTMLInputElement | null} */ (
+      el.querySelector(`[data-lf-datum="${name}"]`)
+    );
+  return { el, pending, item };
+}
+
+test("an item a new state moves along its shelf keeps its node, the user and their words", async () => {
+  const { el, pending, item } = shelves({ shelves: [["moved", "kept"]] });
+  const before = /** @type {HTMLInputElement} */ (item("moved"));
   before.focus();
+  before.value = "unsent";
   try {
-    el.state = { shelves: [["kept"], ["moved"]] };
+    el.state = { shelves: [["kept", "moved"]] };
     await Promise.all(pending);
-    // Effect UI matches keys among one parent's children, so the item is a new node.
-    assert.notEqual(item(), before);
-    assert.equal(item()?.parentElement, el.querySelectorAll("section")[1]);
-    assert.equal(document.activeElement, item());
+    assert.equal(item("moved"), before);
+    assert.equal(el.querySelector("section")?.lastElementChild, before);
+    assert.equal(document.activeElement, before);
+    assert.equal(before.value, "unsent");
+  } finally {
+    el.remove();
+  }
+});
+
+test("a keep-alive item a new state moves to another shelf keeps its node and the words in it", async () => {
+  const { el, pending, item } = shelves({ shelves: [["moved"], []], kept: true });
+  const before = /** @type {HTMLInputElement} */ (item("moved"));
+  before.value = "unsent";
+  try {
+    el.state = { shelves: [[], ["moved"]], kept: true };
+    await Promise.all(pending);
+    assert.equal(item("moved"), before);
+    assert.equal(before.parentElement, el.querySelectorAll("section")[1]);
+    assert.equal(before.value, "unsent");
   } finally {
     el.remove();
   }

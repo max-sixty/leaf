@@ -123,6 +123,7 @@ import { tick } from "../state/version-signal.js";
 import type { WidgetReading } from "./widget-controller.js";
 import type { PresentationHandle, PresentationTicket } from "../base/presentation.js";
 import type { PendingTaskEvent } from "../lib/pending-task.js";
+import type { Signal } from "@preact/signals-core";
 
 let regions = 0;
 // What `state` holds on an element that only reads data, once its inputs are set.
@@ -139,8 +140,10 @@ const valueOf = (reading: WidgetReading | null, verb: string) => {
 const hosted = new WeakSet<Element>();
 // The elements that said `lf-connect`.
 const asked = new WeakSet<Element>();
-// The request that has each widget's `state` set again (`stateAgain`).
-const againBy: WeakMap<Element, () => void> = new WeakMap();
+// The request that has each widget's `state` set again (`stateAgain`), and the
+// signal it moves.
+const againBy: WeakMap<Element, { ask: () => void; asked: Signal<number> }> =
+  new WeakMap();
 
 // The `state`s a publication owes, each by its element. Every reading's own effect
 // claims its region and adds to them as the publication notifies it; writing `owed`
@@ -247,32 +250,42 @@ function host(element: Element) {
   let answered = 0;
   const askedAgain = signal(0);
   if (controller)
-    againBy.set(element, () => {
-      asks += 1;
-      if (element.isConnected) tick(askedAgain);
+    againBy.set(element, {
+      ask: () => {
+        asks += 1;
+        if (element.isConnected) tick(askedAgain);
+      },
+      asked: askedAgain,
     });
+  // Whether the element returned to the page since its last set of `state`, which is
+  // owed again then. `shown` stays, so a recorded property whose value stands keeps
+  // what the user changed it to while the element was away.
+  let returned = false;
   // Whether a pass owes `state`: a reading that moved or is asked for again, or, on an
-  // element with none that said `lf-connect`, the empty state that says its first
-  // inputs are set.
+  // element with none that said `lf-connect`, the empty state that says its inputs are
+  // set; and either one again on the element's return.
   const owesState = (reading: WidgetReading | null) =>
     reading
-      ? reading !== shown || asks !== answered
-      : !passed && asked.has(element) && !records;
+      ? reading !== shown || asks !== answered || returned
+      : (!passed || returned) && asked.has(element) && !records;
+  // `state` is the pass's last set, after the recorded properties, so an element that
+  // builds once its `state` arrives reads every set of the pass.
   const setState = (reading: WidgetReading | null, failures: unknown[]) =>
     attempt(failures, () => {
       const state = reading ? widgetState(reading) : NO_VERBS;
       const heard = asks;
       untracked(() => {
-        Object.assign(element, { state });
         for (const { verb, property } of properties) {
           const value = valueOf(reading, verb);
           if (shown && valueOf(shown, verb) === value) continue;
           if (text(Reflect.get(element, property)) !== value)
             setProperty(property, value);
         }
+        Object.assign(element, { state });
       });
       shown = reading;
       answered = heard;
+      returned = false;
     });
   // Whether Leaf is setting a recorded property, when an event the element dispatches
   // is its answer to that set. The element may dispatch no `change` for the set, so
@@ -397,6 +410,7 @@ function host(element: Element) {
       leave?.();
       leave = region = ticket = null;
       mounted = false;
+      returned = true;
     },
   });
 }
@@ -427,7 +441,13 @@ document.addEventListener(CONNECT, (event) => {
  * turning ready does (reports.js). Leaf makes the set before any microtask runs, in
  * its place among the sets a publication owes, and on an element that is away, as it
  * returns. */
-export const stateAgain = (element: Element) => againBy.get(element);
+export const stateAgain = (element: Element) => againBy.get(element)?.ask;
+
+/** Read, in a reader that follows signals, what moves as `stateAgain`'s request is made
+ * on `element` while it stands, so that reader reads again then too, as a draw told
+ * to wait does (reports.js). */
+export const followStateAgain = (element: Element) =>
+  void againBy.get(element)?.asked.value;
 
 /** Drive each element whose tag declares `verbs` or `inputs` from outside while it
  * stands. An element is driven only once its class is defined: a property set on an

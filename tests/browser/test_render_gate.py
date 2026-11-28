@@ -3462,6 +3462,38 @@ def test_the_squeeze_reading_follows_words_into_an_open_shadow_root(
     ), squeezed
 
 
+def test_a_clipped_control_in_a_widget_in_a_closed_disclosure_s_summary_is_reported(
+    browser, serve
+):
+    """A closed disclosure draws only its summary, so a control a widget draws in its
+    shadow root there is as reachable as any in the summary, and one its row clips is
+    reported. The same control in the closed body is drawn nowhere and asks nothing."""
+    row = "<div style='width: 120px; overflow: hidden'><div id='{}'></div></div>"
+    source = leaf_page(
+        "Clipped in a summary",
+        '<h1 id="t">Clipped in a summary</h1>'
+        f'<details id="shut"><summary>{row.format("in-summary")}</summary>'
+        f"{row.format('in-body')}</details>",
+    )
+    page = open_page(browser, serve(source))
+    page.evaluate(
+        """() => {
+          for (const id of ['in-summary', 'in-body']) {
+            const button = document.createElement('button');
+            button.id = `${id}-control`;
+            button.dataset.lfOffer = '';
+            button.textContent = 'Pick';
+            button.style.cssText = 'display: block; width: 300px';
+            document.getElementById(id).attachShadow({mode: 'open'}).append(button);
+          }
+        }"""
+    )
+
+    clipped = render_checks_model.evaluate_probe(page, "clippedControls")
+
+    assert [f["id"] for f in clipped] == ["in-summary-control"], clipped
+
+
 def test_a_table_held_open_by_a_cell_s_kept_spaces_is_reported_squeezed(
     browser, serve, subtests
 ):

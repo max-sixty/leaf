@@ -1084,7 +1084,7 @@ export function createThreadPreview({
         // so a scroll that moves it there writes nothing. Each
         // edge's cut is its own property, which the card's clip and its growth out of
         // the comment box both read (annotation-chrome.css).
-        const region = boundary.cut;
+        const region = boundary.cut(side === "left" || side === "right");
         if (region) {
           const cuts = {
             "--lf-cut-top": (region.top - card.top) / scale.y,

@@ -341,10 +341,16 @@ function listPart(list, parts) {
 // picks, marked as picked.
 function membersPart(element, parts) {
   // Each member is named, shown or not, as a set of tabs names each of its panels and
-  // a settled question its folded options.
-  const members = readingChildren(element).filter(
-    (member) => !member.matches(LEAF_DRAWN),
-  );
+  // a settled question its folded options. The members are the widget's own children,
+  // which its answer names, whether it draws them in place or through a slot of a
+  // root its controls stand in.
+  const members = [];
+  for (
+    let member = element.firstElementChild;
+    member;
+    member = member.nextElementSibling
+  )
+    if (!member.matches(LEAF_DRAWN)) members.push(member);
   const [first] = members;
   if (
     !first ||

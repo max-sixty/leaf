@@ -521,7 +521,8 @@ def test_open_draft_retains_words_when_responsive_layout_hides_its_target(
     browser, serve, reply
 ):
     url = serve(COMPOSER_ATTACHMENT_PAGE)
-    for target in ("#ordinary", "#bg-contents a"):
+    contents = "#bg-contents a[href='#first']"
+    for target in ("#ordinary", contents):
         page, words = _open_attachment_draft(browser, url, target)
         field = page.locator(".lf-fab-input")
         if reply:
@@ -551,7 +552,7 @@ def test_open_draft_retains_words_when_responsive_layout_hides_its_target(
                 assert _draft_in_view(page, words, panel_field)
                 continue
             expect(field).to_have_js_property("value", words)
-            if target == "#bg-contents a" and width == 480:
+            if target == contents and width == 480:
                 # Authored CSS hides the sidebar at this width. The editor retains
                 # its native node and draft until the page gives the target room.
                 expect(page.locator(target).first).not_to_be_visible()

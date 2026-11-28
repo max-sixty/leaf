@@ -223,6 +223,28 @@ test("a hold gives way to a placement, not to typing where it holds", () => {
   assert.equal(focused(), other);
 });
 
+test("a hold keeps its place across a closing layer's hand-back to its opener", () => {
+  const { box, first } = scene();
+  const strip = document.createElement("dialog");
+  const inside = document.createElement("button");
+  strip.append(inside);
+  box.append(strip);
+  strip.show();
+  focusDestination(inside, "move");
+  const restore = holdFocus(box);
+  // A render takes the strip away, which hands the user back to its opener as it
+  // closes, and draws its replacement.
+  strip.close();
+  first.focus();
+  const again = document.createElement("dialog");
+  const fresh = document.createElement("button");
+  again.append(fresh);
+  strip.replaceWith(again);
+  again.show();
+  assert.equal(restore(fresh), true);
+  assert.equal(focused(), fresh);
+});
+
 test("delayed work gives way to any input since its gesture", () => {
   const { first } = scene();
   focusDestination(first, "move");

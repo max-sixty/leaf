@@ -801,6 +801,9 @@ const TocProps = Schema.Struct({
 });
 
 const TocModel = Schema.Struct({
+  // Whether the author opened the disclosure, read once, as it arrives: from then on
+  // its fold is the browser's.
+  open: Schema.Boolean,
   // The row the reader is in, and the rows the map leaves off, by index.
   current: Schema.Number,
   offMap: Schema.Array(Schema.Number),
@@ -813,18 +816,25 @@ export const TocMessage = UiSchema.TaggedEnum({
 
 // The summary's box coming and going, heard as the form hides it, so the outline stands
 // open, and shows it again. As it hides, the disclosure's own state is the reader's
-// last choice, kept for its return; as it returns, that choice comes back, or the
-// outline stays open where focus is on a link in it.
+// last choice, kept for its return; while it stays hidden, a fold made from outside,
+// as by a script, is that choice, and the outline stands open still; as it returns,
+// that choice comes back, or the outline stays open where focus is on a link in it.
 const FollowPosture = Mount.make("FollowPosture", {}, (summary) =>
   Effect.gen(function* () {
     let exposed;
     let chosen = false;
+    const details = summary.parentElement;
+    const folded = () => {
+      if (!exposed || details.open) return;
+      chosen = false;
+      details.open = true;
+    };
+    details.addEventListener("toggle", folded);
     const sizes = sizeObserver(() => {
       const now = getComputedStyle(summary).display === "none";
       if (now === exposed) return;
       const was = exposed;
       exposed = now;
-      const details = summary.parentElement;
       let open = details.open;
       if (now) {
         chosen = details.open;
@@ -837,7 +847,12 @@ const FollowPosture = Mount.make("FollowPosture", {}, (summary) =>
       if (details.open !== open) details.open = open;
     });
     sizes.observe(summary);
-    yield* Effect.addFinalizer(() => Effect.sync(() => sizes.disconnect()));
+    yield* Effect.addFinalizer(() =>
+      Effect.sync(() => {
+        sizes.disconnect();
+        details.removeEventListener("toggle", folded);
+      }),
+    );
     return Component.noop;
   }),
 );
@@ -903,7 +918,7 @@ export const Toc = Html.component({
   model: TocModel,
   message: TocMessage,
 }).make({
-  init: () => ({ current: 0, offMap: [] }),
+  init: ($) => ({ open: $.props.open, current: 0, offMap: [] }),
   update: {
     Read: ($, { current }) => $.evolve({ current }),
     Fitted: ($, { offMap }) => $.evolve({ offMap }),
@@ -968,7 +983,7 @@ export const Toc = Html.component({
         head(h.p.class("lf-toc-heading lf-label")),
         h.details
           .class("lf-toc-disclosure")
-          .attr("open", h.props.open ? "" : undefined)
+          .attr("open", model.open ? "" : undefined)
           .children(
             head(
               h.summary.class("lf-toc-toggle lf-label lf-disclosure-marker"),

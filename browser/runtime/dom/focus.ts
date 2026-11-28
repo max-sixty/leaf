@@ -1552,8 +1552,11 @@ export function holdFocus(
       const place = find(value);
       return Boolean(place && focusDestination(place, "return"));
     };
-    if (!alike)
+    if (!alike) {
+      // The user's own node, where it survived, before any search of the items.
+      if (drawn(node) && restore()) return true;
       return restore(...keyed(same).filter(placeable), ...rest.map(neighbour), ...standIns);
+    }
     return restore(() => find(same), ...rest.map(neighbour), ...standIns);
   };
 }

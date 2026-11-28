@@ -228,24 +228,27 @@ leaf-text.lf-fab-input,
  * outranks it, the face's own on a quotation, a disclosure and a cell among them.
  *
  * Each edge rule checks that an element is neither chrome (`.lf-ui`), generated
- * (`data-lf-gen`) nor a popover, which stands over the page rather than at the frame's
- * edge, before it checks the element's position, in a `:where()` that adds no weight.
+ * (`data-lf-gen`), a popover, which stands over the page rather than at the frame's
+ * edge, nor one that never renders (`script`, `style`, `template`), before it checks
+ * the element's position, in a `:where()` that adds no weight.
  * Chromium matches these selectors against every element, whether or not
  * the frame's query holds, and once it has evaluated `:nth-child()` for a parent's
  * children, it restyles all of them whenever a child is inserted or removed. The
  * margin's rows are `.lf-ui` siblings, so without the check, sending a comment
  * restyled every row (test_sending_a_comment_restyles_only_the_rows_it_changes). */
 @container (style(--lf-block-frame: 1) or style(--lf-block-frame: trim) or style(--lf-frame-start: 1)) and (not style(--lf-holds-edge: 1)) {
-  :where(:not(.lf-ui, [data-lf-gen], [popover])):nth-child(
-    1 of :not(.lf-ui, [data-lf-gen], [popover])
+  :where(:not(.lf-ui, [data-lf-gen], [popover], script, style, template)):nth-child(
+    1 of :not(.lf-ui, [data-lf-gen], [popover], script, style, template)
   ) {
     margin-block-start: 0;
     --lf-frame-start: 1;
   }
 }
 @container (style(--lf-block-frame: 1) or style(--lf-block-frame: trim) or style(--lf-frame-end: 1)) and (not style(--lf-holds-edge: 1)) {
-  :where(:not(.lf-ui, [data-lf-gen], [popover])):nth-last-child(
-    1 of :not(.lf-ui, [data-lf-gen], [popover])
+  :where(
+    :not(.lf-ui, [data-lf-gen], [popover], script, style, template)
+  ):nth-last-child(
+    1 of :not(.lf-ui, [data-lf-gen], [popover], script, style, template)
   ) {
     margin-block-end: 0;
     --lf-frame-end: 1;

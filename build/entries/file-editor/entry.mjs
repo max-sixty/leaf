@@ -24,7 +24,12 @@ export {
   Transaction,
   countColumn,
 } from "@codemirror/state";
-export { defaultKeymap, history, historyKeymap } from "@codemirror/commands";
+export {
+  defaultKeymap,
+  history,
+  historyKeymap,
+  isolateHistory,
+} from "@codemirror/commands";
 export {
   HighlightStyle,
   StreamLanguage,

@@ -408,6 +408,62 @@ test("an item a new state moves to another shelf, or removes, leaves the user on
   }
 });
 
+test("a row a new state moves or removes keeps the user on the control at their control's place among those like it", async () => {
+  const tag = `lf-effect-${++tags}`;
+  defineWidget(
+    tag,
+    Html.component({
+      name: "Acts",
+      props: Schema.Struct({ ...widgetProps }),
+      model: Schema.Struct({}),
+      message: Schema.Never,
+    }).make({
+      init: () => ({}),
+      update: {},
+      view: (h) =>
+        h.div.children(
+          .../** @type {{shelves: string[][]}} */ (h.props.state).shelves.map(
+            (items, shelf) =>
+              h.section.key(`shelf-${shelf}`).children(
+                ...items.map((item) =>
+                  h.div
+                    .key(item)
+                    .attr("data-lf-datum", item)
+                    .children(
+                      h.button.class("act").children("Remove"),
+                      h.button.class("act").children("Move"),
+                    ),
+                ),
+              ),
+          ),
+        ),
+    }),
+  );
+  const el = /** @type {HTMLElement & {state: unknown}} */ (document.createElement(tag));
+  el.state = { shelves: [["a", "b", "c"], []] };
+  document.body.append(el);
+  /** @type {PromiseLike<unknown>[]} */
+  const pending = [];
+  el.addEventListener("pending-task", (event) =>
+    pending.push(/** @type {any} */ (event).complete),
+  );
+  const acts = (/** @type {string} */ item) =>
+    /** @type {NodeListOf<HTMLButtonElement>} */ (
+      el.querySelectorAll(`[data-lf-datum="${item}"] .act`)
+    );
+  try {
+    acts("b")[1].focus();
+    el.state = { shelves: [["a", "c"], ["b"]] };
+    await Promise.all(pending);
+    assert.equal(document.activeElement, acts("b")[1]);
+    el.state = { shelves: [["a", "c"], []] };
+    await Promise.all(pending);
+    assert.equal(document.activeElement, acts("c")[1]);
+  } finally {
+    el.remove();
+  }
+});
+
 test("a widget's hold finds the user's item among its own, not a nested widget's of the same key", async () => {
   const inner = `lf-effect-${++tags}`;
   defineWidget(

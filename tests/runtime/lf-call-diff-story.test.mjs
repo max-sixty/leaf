@@ -39,6 +39,19 @@ test("a root the reader folds stays folded until they open it", () => {
   });
 });
 
+test("a fold the Model already holds, as the toggle answering its own write, leaves the Model as it stands", () => {
+  story((s) => {
+    s.send(CallDiffMessage.ToggledGroup({ key: keys[0], open: false }));
+    const folded = s.model;
+    s.send(CallDiffMessage.ToggledGroup({ key: keys[0], open: false }));
+    assert.equal(s.model, folded);
+    s.send(CallDiffMessage.ToggledGroup({ key: keys[0], open: true }));
+    const opened = s.model;
+    s.send(CallDiffMessage.ToggledGroup({ key: keys[0], open: true }));
+    assert.equal(s.model, opened);
+  });
+});
+
 test("the toggle folds every root, then opens them all once any is folded", () => {
   story((s) => {
     s.send(CallDiffMessage.ClickedToggle())

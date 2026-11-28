@@ -209,7 +209,7 @@ const Folds = Mount.make(
           if (fold && fold.press !== press) {
             press = fold.press;
             for (const group of node.querySelectorAll("details.lf-call-group"))
-              group.open = fold.open;
+              if (group.open !== fold.open) group.open = fold.open;
             return;
           }
           // The folded root that now holds the row the commit took the user from.
@@ -221,7 +221,7 @@ const Folds = Mount.make(
                 .querySelector(`[data-lf-datum="${CSS.escape(key)}"]`)
                 ?.closest("details")
             : null;
-          if (group) group.open = true;
+          if (group && !group.open) group.open = true;
         }),
       );
       return Component.noop;

@@ -825,14 +825,16 @@ const FollowPosture = Mount.make("FollowPosture", {}, (summary) =>
       const was = exposed;
       exposed = now;
       const details = summary.parentElement;
+      let open = details.open;
       if (now) {
         chosen = details.open;
-        details.open = true;
+        open = true;
       } else if (was) {
         const rows = details.querySelector(".lf-toc-rows");
         const focused = summary.getRootNode().activeElement;
-        details.open = chosen || Boolean(focused && rows?.contains(focused));
+        open = chosen || Boolean(focused && rows?.contains(focused));
       }
+      if (details.open !== open) details.open = open;
     });
     sizes.observe(summary);
     yield* Effect.addFinalizer(() => Effect.sync(() => sizes.disconnect()));

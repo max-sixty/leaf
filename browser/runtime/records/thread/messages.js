@@ -186,7 +186,8 @@ export const threadName = (thread) => thread.title ?? messageWords(thread.root);
 // thread (thread_titles.py), so one comes while a session holds the page's claim and
 // the agent owes the thread work. A turn that ended, stalled or was never picked up
 // sends none. On a page nobody has claimed only an agent's reply names the thread, and
-// the page can't tell whether an agent hears it, so the thread reads its opening words.
+// the page can't tell whether an agent hears it, so the thread goes by its opening
+// words, and the head line over its view reads Untitled (`viewHeading`).
 const titlePending = (thread) =>
   thread.title == null &&
   thread.attention?.next_actor === "agent" &&
@@ -195,9 +196,9 @@ const titlePending = (thread) =>
   pageClaimed();
 
 // A thread's name wherever a surface draws it, as Threads, Page Map, On cards and the
-// thread's view do: while a title is on its way, a placeholder in the face of a step
-// under way (`.lf-thread-working-words`) rather than opening words that would read as
-// its title.
+// head line over the thread's view (`viewHeading`) do: while a title is on its way, a
+// placeholder in the face of a step under way (`.lf-thread-working-words`) rather than
+// opening words that would read as its title.
 // The opening words stay in its accessible name, after the placeholder, so a screen
 // reader still tells two pending threads apart.
 export const threadHeading = (thread) =>
@@ -206,12 +207,19 @@ export const threadHeading = (thread) =>
         ><span class="lf-quiet"> ${threadName(thread)}</span>`
     : threadName(thread);
 
-// Whether the head line over a view of the thread, the floating panel's or a margin
-// card's, shows its heading: where it has a title, or one is on its way. An untitled
-// thread's name is its opening words, which its first message reads just below, so
-// there the panel's heading names it to assistive tech alone, and a card, which its
-// own label names, draws none.
-export const titleShown = (thread) => thread.title != null || titlePending(thread);
+// What the head line over a thread's view reads where no title is on its way, in
+// Leaf's voice, as Deleted is.
+const UNTITLED = leafSays("Untitled");
+
+// The heading on the head line over a view of the thread, the floating panel's or a
+// margin card's: its heading (`threadHeading`) where it has a title or one is on its
+// way, and otherwise Untitled. Its name is then its opening words, which its first
+// message reads just below; the user ruled out both those words and an empty line
+// there.
+export const viewHeading = (thread) =>
+  thread.title != null || titlePending(thread)
+    ? threadHeading(thread)
+    : html`<span class="lf-thread-name-untitled">${voiced(UNTITLED)}</span>`;
 
 // A message's opening line, as a preview reads it: its first line of words, else
 // Drawing for one drawn without words.

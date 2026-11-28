@@ -113,6 +113,12 @@ def lead(page):
     return page.locator(".lf-fp-field .lf-compose-placeholder-lead")
 
 
+def opening(page):
+    """The first message of the thread open in the panel. These threads are untitled,
+    so their views' heads read Untitled, and the first message tells them apart."""
+    return page.locator(f"{panel_view('thread')} .lf-msg-text").first
+
+
 def test_one_field_starts_a_thread_takes_its_reply_and_settles_it(browser, serve):
     """The field clicked at rest is the field written in. Sending a page comment opens
     its new thread above the row and leaves the user on it, the same field now holding
@@ -391,11 +397,11 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     # Whichever thread stands open, as `r` moves on to the next.
     thread = page.locator(panel_view("thread"))
     expect(thread).to_be_visible()
-    first = page.locator(".lf-fp-head .lf-fp-title").inner_text()
+    first = opening(page).inner_text()
     thread.focus()
     with sending(page, "the first resolve"):
         page.keyboard.press("r")
-    expect(page.locator(".lf-fp-head .lf-fp-title")).not_to_have_text(first)
+    expect(opening(page)).not_to_have_text(first)
     expect(thread).to_be_visible()
     expect(thread).to_be_focused()
     expect(page.locator(".lf-fp-field leaf-text")).to_have_attribute(
@@ -425,11 +431,11 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     assert "button" not in {node["role"] for node in within(textbox)}, field
     [button] = [node for node in nodes if node["role"] == "button"]
     assert button["name"].startswith("Next thread"), field
-    second = page.locator(".lf-fp-head .lf-fp-title").inner_text()
+    second = opening(page).inner_text()
     # Taking the first resolve back returns the user to the thread they resolved.
     undo(page)
     assert events_model.read_events(serve.page_dir)[-1]["kind"] == "undo"
-    expect(page.locator(".lf-fp-head .lf-fp-title")).to_have_text(first)
+    expect(opening(page)).to_have_text(first)
     expect(thread).to_be_focused()
     with sending(page, "the second resolve"):
         page.keyboard.press("r")
@@ -438,7 +444,7 @@ def test_resolving_a_thread_from_threads_moves_on_to_the_next(browser, serve):
     ]
     assert len(resolved) == 2
     # The second thread is the one open thread left, so the user moves to it.
-    expect(page.locator(".lf-fp-head .lf-fp-title")).to_have_text(second)
+    expect(opening(page)).to_have_text(second)
     with sending(page, "the last resolve"):
         page.keyboard.press("r")
     threads = page.locator(panel_view("threads"))
@@ -489,7 +495,8 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     thread = page.locator(panel_view("thread"))
     title = page.locator(".lf-fp-head .lf-fp-title")
     expect(thread).to_be_visible()
-    expect(title).to_have_text(first)
+    expect(title).to_have_text("Untitled")
+    expect(opening(page)).to_have_text(first)
     said = page.locator(".lf-fp-field .lf-compose-placeholder-words")
     undo = field_press(page)
 
@@ -515,7 +522,7 @@ def test_a_resolve_s_notice_stands_for_that_resolve_alone(browser, serve):
     page_at_rest(page)
     held.pop().fulfill(json={"ok": False, "final": True, "error": "Please retry."})
     page.unroute("**/api/event")
-    expect(title).to_have_text(first)
+    expect(opening(page)).to_have_text(first)
     expect(undo).to_have_count(0)
     rendered(page)
 
@@ -579,7 +586,8 @@ def test_resolve_opens_the_next_thread_as_tall_as_it_holds(browser, serve):
     open_threads(page)
     page.locator(".lf-fp-thread", has_text="Is the window long enough?").click()
     title = page.locator(".lf-fp-head .lf-fp-title")
-    expect(title).to_have_text("Is the window long enough?")
+    expect(title).to_have_text("Untitled")
+    expect(opening(page)).to_have_text("Is the window long enough?")
     thread = page.locator(panel_view("thread"))
     settle = page.locator(".lf-fp-head .lf-resolve")
     fits = "(view) => view.scrollHeight - view.clientHeight < 1"
@@ -587,14 +595,14 @@ def test_resolve_opens_the_next_thread_as_tall_as_it_holds(browser, serve):
     short = thread.bounding_box()["height"]
     with sending(page, "the resolve"):
         settle.click()
-    expect(title).to_contain_text("Should the mobile cohort wait?")
+    expect(opening(page)).to_contain_text("Should the mobile cohort wait?")
     settled(page)
     assert thread.evaluate(fits)
     assert thread.bounding_box()["height"] > short
     expect(thread).to_be_focused()
     with sending(page, "the second resolve"):
         page.keyboard.press("r")
-    expect(title).to_have_text("Who watches the weekend?")
+    expect(opening(page)).to_have_text("Who watches the weekend?")
     settled(page)
     assert thread.evaluate(fits)
     assert thread.bounding_box()["height"] == short
@@ -755,16 +763,15 @@ def test_the_thread_walk_stands_on_each_thread_it_opens(browser, serve):
     panel_comment(serve.page_dir, "Should the rollout pause on Fridays?")
     page = floating(browser, url)
     view = page.locator(panel_view("thread"))
-    title = page.locator(".lf-fp-title")
     page.locator("body").focus()
     page.keyboard.press("t")
-    expect(title).to_have_text("Is the window long enough?")
+    expect(opening(page)).to_have_text("Is the window long enough?")
     expect(view).to_be_focused()
     page.keyboard.press("t")
-    expect(title).to_have_text("Should the rollout pause on Fridays?")
+    expect(opening(page)).to_have_text("Should the rollout pause on Fridays?")
     expect(view).to_be_focused()
     page.keyboard.press("Shift+t")
-    expect(title).to_have_text("Is the window long enough?")
+    expect(opening(page)).to_have_text("Is the window long enough?")
     expect(view).to_be_focused()
 
     # An answer too long for the view waits below its fold behind New reply.
@@ -987,9 +994,7 @@ def test_news_in_an_open_thread_moves_none_of_its_controls(browser, serve):
     open_threads(page)
     page.locator(".lf-fp-thread", has_text="About this bit.").click()
     title = page.locator(".lf-fp-head .lf-fp-title")
-    # Untitled, the name repeats the opening message, so only assistive tech hears it.
-    expect(title).to_have_text("About this bit.")
-    expect(title).to_have_class(re.compile(r"\blf-quiet\b"))
+    expect(title).to_have_text("Untitled")
     settled(page)
     untitled = page.evaluate(SEATS)
 
@@ -5657,7 +5662,7 @@ def test_a_thread_s_words_start_on_its_head_s_edge(browser, serve):
         "Is the window long enough?",
         anchor={"section": "p3", "quote": "Paragraph 3."},
     )
-    # Untitled threads hide the repeated heading; measure an actual thread title.
+    # An untitled thread's head reads Untitled; measure an actual thread title.
     append_carried_log_record(
         serve.page_dir,
         {

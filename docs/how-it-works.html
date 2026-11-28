@@ -3694,9 +3694,11 @@ EOF</code></pre>
               Pi, a print-mode run of the model the user configured. The request holds
               only the thread's passage and first message, nothing from the agent's
               conversation, and runs in parallel with the agent's work. Leaf uses the
-              first title it receives. While the agent is working on an untitled thread,
-              the panel shows animated dots in place of the title; a thread nobody named
-              shows its opening words.
+              first title it receives. Until the title arrives, the thread reads
+              “Generating thread name…” wherever it is named. A thread no title is
+              coming to, as on a page no session holds, goes by its opening words in
+              lists, and reads “Untitled” over its card and its view in the panel, where
+              those words open the first message just below.
             </p>
             <details id="title-prompt">
               <summary>The title request</summary>

@@ -806,11 +806,8 @@ def test_the_feature_gallery_exercises_its_core_journeys(browser, serve, live_le
         ("resolved", "bab3cdfcfb8c02aacbb27da731de947a", "Projector map"),
         ("summary", "9ee465bb3f9c1fa309ea9cb1767fa365", "Afternoon workshop"),
         ("progress", "bg-progress-question", "Schedule checks"),
-        (
-            "overview",
-            "72e031c5bf0d485ba9054628e09869d4",
-            "Is lunch provided, or should attendees make their own plans?",
-        ),
+        # An untitled thread no title is coming to: its view's head reads Untitled.
+        ("overview", "72e031c5bf0d485ba9054628e09869d4", "Untitled"),
     ):
         page.locator(f'#bg-panel-presets [data-view="{view}"]').click()
         expect(shown).to_have_attribute("data-lf-thread", thread)

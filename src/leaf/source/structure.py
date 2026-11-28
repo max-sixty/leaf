@@ -204,6 +204,23 @@ def _start(element) -> tuple[int, int]:
     return (start.start_line, start.start_col)
 
 
+def _radio_group(element, attrs: dict) -> tuple | None:
+    """The radio button group HTML keeps to one checked radio: radios of one name in
+    one form, or in one tree where they have none, as the browser's arrival reads it
+    (`runtime/base/document-inputs.js`). None for any other element."""
+    name = attrs.get("name")
+    if (attrs.get("type") or "").lower() != "radio" or not name:
+        return None
+    if owner := attrs.get("form"):
+        return (owner, name)
+    form = element.parent
+    while isinstance(form, turbohtml.Element) and form.tag != "form":
+        form = form.parent
+    if not isinstance(form, turbohtml.Element):
+        return (None, name)
+    return (form.attrs.get("id") or _start(form), name)
+
+
 def element_attrs(element) -> dict:
     """An element's attributes as its source spells them, a token list joined."""
     return {
@@ -378,11 +395,14 @@ class SourceDocument:
         self.data = source.encode("utf-8")
         self.digest = f"sha256:{hashlib.sha256(self.data).hexdigest()}"
         self.all_ids = []
-        # {tag, line, attrs, parent, direct, children, text, body, holder, native}.
-        # `native` holds, by id, each native element an attribute record takes as a
-        # member (`kernel.native_marks`) for which this is the nearest lf-* element
-        # with an id: {tag, attrs, marks, holder}, `marks` the attributes HTML marks
-        # it with and `holder` its own nearest lf-* element.
+        # {tag, line, attrs, parent, direct, children, text, body, holder, native,
+        # unnamed}. `native` holds, by id, each native element an attribute record
+        # takes as a member (`kernel.native_marks`) for which this is the nearest lf-*
+        # element with an id: {tag, attrs, marks, holder, group}, `marks` the
+        # attributes HTML marks it with, `holder` its own nearest lf-* element and
+        # `group` its radio button group (`_radio_group`). `unnamed` lists such
+        # elements that have no id, each with its `line`, which no pick can name.
+        # An element inside an SVG is none: the reading keeps an SVG whole.
         self.lf_elements = []
         self.samples = []
         # id → the record of the innermost lf-* element standing around it, an
@@ -470,24 +490,32 @@ class SourceDocument:
                     "body": "",
                     "holder": holder,
                     "native": {},
+                    "unnamed": [],
                 }
                 self.lf_elements.append(record)
                 self._records[_start(element)] = record
                 if identity:
                     self.holders[identity] = record
-            elif identity and (marks := native_marks(tag, attrs)):
-                # Kept by the nearest lf-* element that has an id, which `by_id`
-                # reaches; the member's own holder is the nearest of any.
-                keeper = holder
-                while keeper and not keeper["attrs"].get("id"):
-                    keeper = keeper["holder"]
-                if keeper:
-                    keeper["native"][identity] = {
-                        "tag": tag,
-                        "attrs": attrs,
-                        "marks": marks,
-                        "holder": holder,
-                    }
+        if (
+            located
+            and not in_svg
+            and record is None
+            and (marks := native_marks(tag, element.attrs))
+        ):
+            # Kept by the nearest lf-* element that has an id, which `by_id` reaches;
+            # the member's own holder is the nearest of any.
+            keeper = holder
+            while keeper and not keeper["attrs"].get("id"):
+                keeper = keeper["holder"]
+            attrs = element_attrs(element)
+            native = {"tag": tag, "attrs": attrs, "marks": marks, "holder": holder}
+            if keeper and (identity := attrs.get("id")):
+                keeper["native"][identity] = {
+                    **native,
+                    "group": _radio_group(element, attrs),
+                }
+            elif keeper:
+                keeper["unnamed"].append({**native, "line": self._position(element)[0]})
 
         if in_svg or (located and tag == "svg"):
             for child in element.children:

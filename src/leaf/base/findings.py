@@ -1164,6 +1164,22 @@ _TEXT = {
     "attribute-schema": _refuses(
         _SHOWS, lambda at, v: f"{_line(at, v)}: {v['reason']}"
     ),
+    "unnamed-member": _refuses(
+        _DECIDES,
+        lambda at, v: (
+            f"{_line(at, v)}: {v['owner']!r} records each input's `{v['attr']}` by"
+            " its id, so this input needs an `id`"
+        ),
+    ),
+    "split-radio-group": _refuses(
+        _DECIDES,
+        lambda at, v: (
+            f"{_line(at, v)}: radio group {v['name']!r} stands in"
+            f" {' and '.join(map(repr, v['owners']))}, which each record a pick, while"
+            " HTML checks one radio of the group; give each widget's radios a name"
+            " of their own"
+        ),
+    ),
     "member-record-slot": _refuses(
         _DECIDES,
         lambda at, v: (
@@ -2097,6 +2113,13 @@ _TEXT = {
         lambda at, v: (
             f"{_invalid_record(v)}{', '.join(v['strangers'])} name no member of"
             f" {v['widget']!r}"
+        ),
+    ),
+    "one-radio": _refuses(
+        _ADMITS,
+        lambda at, v: (
+            f"{_invalid_record(v)}{', '.join(v['radios'])} are radios of one group,"
+            " of which HTML checks one"
         ),
     ),
     "stale-move": _refuses(

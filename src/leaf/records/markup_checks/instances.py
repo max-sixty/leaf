@@ -7,7 +7,7 @@ import turbohtml
 
 from leaf.base.findings import Finding, element_at
 from leaf.base.schema import INPUT_BINDINGS
-from leaf.log.projection import recorded_owner
+from leaf.log.projection import owner_above, recorded_owner
 from leaf.records.markup_checks.markup import (
     document_declaration_errors,
     found_at,
@@ -167,7 +167,39 @@ def widget_errors(lf_elements: list, registry: dict) -> list[Finding]:
             if rec["text"]:
                 errors.append(found_at("loose-text", rec))
     byid = {rec["attrs"]["id"]: rec for rec in lf_elements if rec["attrs"].get("id")}
-    return errors + attribute_slot_errors(lf_elements, byid, registry)
+    return (
+        errors
+        + attribute_slot_errors(lf_elements, byid, registry)
+        + native_member_errors(lf_elements, registry)
+    )
+
+
+def native_member_errors(lf_elements: list, registry: dict) -> list[Finding]:
+    """A native input a widget records (`structure.SourceDocument`'s `native`) is named
+    in a pick by its id, so one without an id would take the user's pick and record
+    nothing. A radio group's radios all belong to one widget, since HTML checks one
+    radio of the group and tells only the radio it checks."""
+    errors = []
+    groups: dict[tuple, dict[str, tuple[dict, str]]] = {}
+    for rec in lf_elements:
+        for native in rec["unnamed"]:
+            for attr in native["marks"]:
+                record = {"kind": "attribute", "attr": attr}
+                if owner := owner_above(native, record, registry, {}):
+                    errors.append(
+                        found_at("unnamed-member", native, owner=owner, attr=attr)
+                    )
+        for native in rec["native"].values():
+            record = {"kind": "attribute", "attr": "checked"}
+            if native["group"] and (owner := owner_above(native, record, registry, {})):
+                groups.setdefault(native["group"], {}).setdefault(owner, (rec, owner))
+    for (_, name), owners in groups.items():
+        if len(owners) > 1:
+            rec, _ = next(iter(owners.values()))
+            errors.append(
+                found_at("split-radio-group", rec, name=name, owners=sorted(owners))
+            )
+    return errors
 
 
 def attribute_slot_errors(

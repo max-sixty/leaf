@@ -1,0 +1,32 @@
+[
+  {
+    "id": "a label names the control it holds",
+    "markup": "<label><input type=\"checkbox\" id=\"pick\"> Ship</label>",
+    "labels": { "pick": "Ship" }
+  },
+  {
+    "id": "a label names the control its for gives",
+    "markup": "<label for=\"pick\">Ship</label> <input type=\"checkbox\" id=\"pick\">",
+    "labels": { "pick": "Ship" }
+  },
+  {
+    "id": "a hidden input is no control a label names",
+    "markup": "<label><input type=\"hidden\" id=\"token\"><input type=\"checkbox\" id=\"pick\">Ship</label>",
+    "labels": { "token": "", "pick": "Ship" }
+  },
+  {
+    "id": "a label whose for names an element no label can name names nothing",
+    "markup": "<label for=\"ship\">Unrelated</label><lf-option id=\"ship\" label=\"Ship\"></lf-option>",
+    "labels": { "ship": "" }
+  },
+  {
+    "id": "a label with an empty for names nothing, not the control it holds",
+    "markup": "<label for=\"\"><input type=\"checkbox\" id=\"pick\">Ship</label>",
+    "labels": { "pick": "" }
+  },
+  {
+    "id": "of two labels, the first in the page names the control",
+    "markup": "<label for=\"pick\">Ship</label> <input type=\"checkbox\" id=\"pick\"> <label for=\"pick\">on Friday</label>",
+    "labels": { "pick": "Ship" }
+  }
+]

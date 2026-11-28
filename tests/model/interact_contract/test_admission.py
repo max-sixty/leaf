@@ -11,6 +11,7 @@ from conftest import hooks_run_this_tree
 from interact_support import (
     PAGE,
     PAGE_GROUP,
+    ROOT,
     STATED_TIMEOUT,
     ModelPage,
     append_carried_log_record,
@@ -35,7 +36,12 @@ from leaf.base.findings import Finding
 from leaf.log import event_log as events_model
 from leaf.log import events as event_folds_model
 from leaf.log.gesture_words import GestureWords
-from leaf.log.projection import attribute_marks, page_reading, retirement_outcomes
+from leaf.log.projection import (
+    attribute_marks,
+    page_reading,
+    record_members,
+    retirement_outcomes,
+)
 from leaf.records import event_contracts as event_contracts_model
 from leaf.records.markup_checks.instances import widget_errors
 from leaf.source import passages as passages_model
@@ -446,7 +452,12 @@ STATED_FORMS = model.leaf_page(
     <label id="platforms-label"><input type="checkbox" id="platforms-mac" checked /> macOS</label>
     <label><input type="CHECKBOX" id="platforms-linux" /> Linux</label>
     <label><input type="radio" name="tier" id="platforms-free" /> Free tier</label>
+    <label><input type="radio" name="tier" id="platforms-paid" /> Paid tier</label>
     <label><input type="text" id="platforms-other" /></label>
+    <lf-sample id="platforms-sample" label="Last year's form">
+      <input type="checkbox" id="platforms-quoted" checked />
+    </lf-sample>
+    <svg><foreignObject><input type="checkbox" id="platforms-drawn" /></foreignObject></svg>
     <lf-pick-form id="arch">
       <label><input type="checkbox" id="arch-arm" checked /> ARM</label>
     </lf-pick-form>
@@ -466,10 +477,11 @@ def test_a_set_names_the_native_inputs_html_marks_with_its_attribute():
     native elements HTML marks with the record's attribute: a checkbox or a radio,
     for `checked`. So a form of native inputs is held to its own inputs: a pick names
     any of them, and is refused an id that is none, whether the form lacks it or it
-    names a text input, a label, or the checkbox of a form inside this one that
-    records its own set. The inputs written `checked` are the set the markup shows. A
-    native control in an option's card stays its author's: neither its `selected` nor
-    its `checked` makes it a pick of the group round it."""
+    names a text input, a label, the checkbox of a form inside this one that records
+    its own set, one a sample inside the form quotes, or one inside an SVG. A pick
+    names at most one radio of a group, since HTML checks no more. A native control in
+    an option's card stays its author's: neither its `selected` nor its `checked`
+    makes it a pick of the group round it."""
     registry = model_layer("./tests/fixtures/packages/controls")
     page = ModelPage(STATED_FORMS, registry=registry)
 
@@ -493,6 +505,8 @@ def test_a_set_names_the_native_inputs_html_marks_with_its_attribute():
         ("platforms", "platforms-other"),
         ("platforms", "platforms-label"),
         ("platforms", "arch-arm"),
+        ("platforms", "platforms-quoted"),
+        ("platforms", "platforms-drawn"),
         ("size", "unit-m"),
         ("size", "small-gift"),
     ):
@@ -503,12 +517,72 @@ def test_a_set_names_the_native_inputs_html_marks_with_its_attribute():
             "unknown-members",
             [stranger],
         ), (widget, stranger)
+    with pytest.raises(events_model.EventRefused) as refused:
+        pick("platforms", "platforms-free", "platforms-paid")
+    radios = refused_on(refused.value)
+    assert (radios.code, radios.values["radios"]) == (
+        "one-radio",
+        ["platforms-free", "platforms-paid"],
+    )
 
-    reading = page.reading(1, registry)
-    assert attribute_marks(reading.document.by_id, reading.spoken, registry) == {
-        "checked": {"platforms": ["platforms-mac"], "arch": ["arch-arm"]},
-        "selected": {"size": ["small"]},
-    }
+
+MEMBER_CASES = json.loads((ROOT / "tests" / "native_member_cases.json").read_text())
+
+
+@pytest.mark.parametrize(
+    "case", MEMBER_CASES["cases"], ids=[case["id"] for case in MEMBER_CASES["cases"]]
+)
+def test_a_set_has_the_members_the_shared_cases_name(case):
+    """Which elements each attribute record's widget holds, and which of them its
+    markup marks as in its set, as the browser reads the same pages
+    (`tests/native_member_cases.json`, `authored-capture.test.mjs`)."""
+    registry = model_layer("./tests/fixtures/packages/controls")
+    page = ModelPage(model.leaf_page("Cases", case["markup"]), registry=registry)
+    reading = page_reading(page.reading(1, registry), [], 1)
+    byid = reading.document.by_id
+    members = {}
+    for attr in ("checked", "selected"):
+        record = {"kind": "attribute", "attr": attr}
+        for owner, ids in record_members(
+            record, reading.projection, byid, registry
+        ).items():
+            if ids:
+                members[owner] = sorted(ids)
+    marks = attribute_marks(byid, reading.spoken, registry)
+    assert members == case["members"]
+    assert {owner: ids for slots in marks.values() for owner, ids in slots.items()} == (
+        case["marks"]
+    )
+
+
+def test_page_check_finds_a_native_input_no_pick_could_name():
+    """A widget records a native input by its id, so `page check` refuses a checkbox it
+    would record that has none: the user's pick of it would record nothing. It also
+    refuses a radio group whose radios stand in two recording widgets, since HTML
+    checks one radio of the group and tells only the radio it checked. A checkbox no
+    widget records, outside any form, is the author's own."""
+    registry = model_layer("./tests/fixtures/packages/controls")
+    document = structure_model.SourceDocument(
+        """<lf-pick-form id="ship">
+  <label><input type="radio" name="when" id="ship-now" /> Now</label>
+  <label><input type="checkbox" /> Unnamed</label>
+</lf-pick-form>
+<lf-pick-form id="hold">
+  <label><input type="radio" name="when" id="hold-later" /> Later</label>
+</lf-pick-form>
+<lf-pick-form id="apart"><form>
+  <label><input type="radio" name="when" id="apart-now" /> Now</label>
+</form></lf-pick-form>
+<label><input type="checkbox" /> Mine</label>"""
+    )
+    found = [
+        (finding.code, finding.values)
+        for finding in widget_errors(document.lf_elements, registry)
+    ]
+    assert found == [
+        ("unnamed-member", {"line": 3, "owner": "ship", "attr": "checked"}),
+        ("split-radio-group", {"line": 1, "name": "when", "owners": ["hold", "ship"]}),
+    ]
 
 
 def test_history_reaches_only_a_page_that_renders_it_and_keeps_a_pick_as_made():
@@ -643,6 +717,20 @@ def test_a_pick_of_native_inputs_reads_by_the_labels_html_names_them_with():
         "platforms-mac": "macOS",
         "platforms-linux": "Linux",
     }
+
+
+LABEL_CASES = json.loads((ROOT / "tests" / "label_cases.json").read_text())
+
+
+@pytest.mark.parametrize("case", LABEL_CASES, ids=[case["id"] for case in LABEL_CASES])
+def test_a_control_reads_by_the_label_html_names_it_with(case):
+    """Which `<label>` names a control, as the browser reads it off the control's
+    `labels` (`tests/label_cases.json`, `test_plain_elements.py`)."""
+    page = structure_model.SourceDocument(model.leaf_page("Labels", case["markup"]))
+    labels = passages_model.control_labels(page.authoring.content)
+    assert {control: labels.get(control, "") for control in case["labels"]} == (
+        case["labels"]
+    )
 
 
 def test_a_widget_that_asks_says_on_each_gesture_whether_it_is_answered():

@@ -155,10 +155,12 @@ this.dispatchEvent(hold);
   element needs no code for that either (`package-data.md`, "Widget outputs").
 - **Members.** An `attribute` record keeps a set of the widget's members, by id. A
   member is an element that has an `id` and stands inside the widget, with no other
-  widget recording the same attribute between them. Any Leaf element can be a member,
-  and so can a native element HTML marks with the attribute, which for `checked` is a
-  checkbox or a radio. Leaf refuses an action that names any other id, so an answer
-  names only members the widget holds.
+  widget recording the same attribute, and no exhibit, between them. Any Leaf element
+  can be a member, and so can a native element HTML marks with the attribute, which
+  for `checked` is a checkbox or a radio outside an SVG. Leaf refuses an action that
+  names any other id, or two radios of one group, so an answer names only members the
+  widget holds and a set the page can show. `page check` refuses such an input with
+  no `id`, and a radio group whose radios stand in two recording widgets.
 - **A form of native inputs.** An `attribute` record may name a property and an event
   as a value record does. The property is then each member's, and reads true while
   the member is in the set, as a checkbox's or a radio's `checked` does. With

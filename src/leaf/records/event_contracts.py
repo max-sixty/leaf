@@ -33,6 +33,7 @@ from leaf.log.projection import (
     AuthoredOrders,
     container_owner,
     generated_children,
+    member_records,
     projected_action_holders,
     record_members,
     recorded_owner,
@@ -445,6 +446,13 @@ def record_contract_error(view, event, spec, readings, page_owned=True):
         named = event["detail"]["value"]
         if strangers := sorted(set(named) - members):
             return Finding("unknown-members", values={**record, "strangers": strangers})
+        # HTML checks at most one radio of a group (`structure._radio_group`).
+        groups: dict[tuple, list[str]] = {}
+        for oid, node in member_records(byid):
+            if oid in named and node.get("group"):
+                groups.setdefault(node["group"], []).append(oid)
+        if radios := next((ids for ids in groups.values() if len(ids) > 1), None):
+            return Finding("one-radio", values={**record, "radios": sorted(radios)})
     return None
 
 

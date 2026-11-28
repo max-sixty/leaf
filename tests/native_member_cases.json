@@ -1,0 +1,56 @@
+{
+  "registry": {
+    "lf-options": {
+      "verbs": {
+        "choose": {
+          "unit": "widget",
+          "record": { "kind": "attribute", "attr": "selected" }
+        }
+      }
+    },
+    "lf-option": {},
+    "lf-pick-form": {
+      "verbs": {
+        "choose": {
+          "unit": "widget",
+          "record": { "kind": "attribute", "attr": "checked", "property": "checked" }
+        }
+      }
+    },
+    "lf-sample": { "exhibit": { "when": { "interactive": [false] } } }
+  },
+  "cases": [
+    {
+      "id": "Leaf elements and the native inputs HTML marks with the record's attribute are members",
+      "markup": "<lf-options id=\"size\"><lf-option id=\"small\" selected>Small <select id=\"unit\"><option id=\"unit-m\" selected>m</option></select> <input type=\"checkbox\" id=\"small-gift\" checked></lf-option><lf-option id=\"large\">Large</lf-option></lf-options><lf-pick-form id=\"platforms\"><form><label id=\"platforms-label\" checked><input type=\"checkbox\" id=\"platforms-mac\" checked> macOS</label><input type=\"CHECKBOX\" id=\"platforms-linux\"><input type=\"radio\" name=\"tier\" id=\"platforms-free\" checked><input type=\"text\" id=\"platforms-other\" checked><lf-pick-form id=\"arch\"><input type=\"checkbox\" id=\"arch-arm\" checked></lf-pick-form></form></lf-pick-form>",
+      "members": {
+        "size": ["large", "small"],
+        "platforms": ["arch", "platforms-free", "platforms-linux", "platforms-mac"],
+        "arch": ["arch-arm"]
+      },
+      "marks": {
+        "size": ["small"],
+        "platforms": ["platforms-free", "platforms-mac"],
+        "arch": ["arch-arm"]
+      }
+    },
+    {
+      "id": "an input inside an exhibit is quoted, and no widget round the exhibit records it",
+      "markup": "<lf-pick-form id=\"p\"><input type=\"checkbox\" id=\"live\"><lf-sample id=\"s\" label=\"A quoted form\"><input type=\"checkbox\" id=\"quoted\" checked></lf-sample></lf-pick-form>",
+      "members": { "p": ["live", "s"] },
+      "marks": {}
+    },
+    {
+      "id": "an input inside an SVG, or an SVG element named input, is no member",
+      "markup": "<lf-pick-form id=\"f\"><input type=\"checkbox\" id=\"out\"><svg><foreignObject><input type=\"checkbox\" id=\"inside\" checked></foreignObject><input type=\"checkbox\" id=\"drawn\" checked></svg></lf-pick-form>",
+      "members": { "f": ["out"] },
+      "marks": {}
+    },
+    {
+      "id": "of a radio group's radios the markup marks, the last is checked",
+      "markup": "<lf-pick-form id=\"r\"><form><input type=\"radio\" name=\"ship\" id=\"r-now\" checked><input type=\"radio\" name=\"ship\" id=\"r-later\" checked></form><input type=\"radio\" name=\"ship\" id=\"r-free\" checked></lf-pick-form>",
+      "members": { "r": ["r-free", "r-later", "r-now"] },
+      "marks": { "r": ["r-free", "r-later"] }
+    }
+  ]
+}

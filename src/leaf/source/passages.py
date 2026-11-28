@@ -714,31 +714,46 @@ def elements(content: list):
             yield from elements(node["content"])
 
 
-# The form controls a `<label>` can name (HTML's labelable elements).
+# The form controls a `<label>` can name (HTML's labelable elements), a hidden input
+# aside.
 LABELABLE_TAGS = frozenset(
     {"button", "input", "meter", "output", "progress", "select", "textarea"}
 )
 
 
+def _labelable(node: dict | None) -> bool:
+    return bool(node) and (
+        node["tag"] in LABELABLE_TAGS
+        and (
+            node["tag"] != "input"
+            or (node["attrs"].get("type") or "").lower() != "hidden"
+        )
+    )
+
+
 def control_labels(content: list) -> dict[str, str]:
     """id → the words of the first `<label>` that names each control in `content`, by
-    HTML's rule: a label names the control its `for` gives, else the first labelable
-    element inside it. The browser reads the same relation off a control's `labels`
-    (readings/addressable-names.js, `accessibleName`)."""
+    HTML's rule: a label with `for` names the element that id names first, where that
+    element is labelable, and one without names the first labelable element inside
+    it. The browser reads the same relation off a control's `labels`
+    (readings/addressable-names.js, `accessibleName`); `tests/label_cases.json` holds
+    the two to the same cases."""
+    first: dict[str, dict] = {}
+    for node in elements(content):
+        if identity := node["attrs"].get("id"):
+            first.setdefault(identity, node)
     labels: dict[str, str] = {}
     for label in elements(content):
         if label["tag"] != "label":
             continue
-        control = label["attrs"].get("for") or next(
-            (
-                inner["attrs"].get("id")
-                for inner in elements(label["content"])
-                if inner["tag"] in LABELABLE_TAGS
-            ),
-            None,
-        )
-        if control and (words := collapse(_text(label))):
-            labels.setdefault(control, words)
+        if "for" in label["attrs"]:
+            named = first.get(label["attrs"]["for"])
+            control = named if _labelable(named) else None
+        else:
+            control = next(filter(_labelable, elements(label["content"])), None)
+        identity = control["attrs"].get("id") if control else None
+        if identity and (words := collapse(_text(label))):
+            labels.setdefault(identity, words)
     return labels
 
 

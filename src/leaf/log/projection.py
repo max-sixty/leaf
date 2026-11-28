@@ -21,6 +21,7 @@ from leaf.source.reading import SourceReading
 from leaf.source.registry.contract import (
     decides,
     event_spec,
+    exhibits,
     retirement_slots,
     same_state_definition,
     same_state_operation,
@@ -505,12 +506,13 @@ def recorded_owner(
     A member's own records never claim its membership from its parent. Optional
     holder overrides read current membership after position records in force.
     """
-    return _owner_above(byid.get(unit), record, registry, holders or {})
+    return owner_above(byid.get(unit), record, registry, holders or {})
 
 
-def _owner_above(node: dict | None, record: dict, registry: dict, holders: dict):
+def owner_above(node: dict | None, record: dict, registry: dict, holders: dict):
     """`recorded_owner` of the element `node` records, a native member's included
-    (`member_records`)."""
+    (`member_records`). An exhibit round the element quotes it (`structure.quoted_in`),
+    so no widget beyond the exhibit records it."""
     while node is not None:
         node = holders.get(node["attrs"].get("id"), node.get("holder"))
         if node is None:
@@ -522,6 +524,8 @@ def _owner_above(node: dict | None, record: dict, registry: dict, holders: dict)
             for _, spec in state_specs(entry)
         ):
             return node["attrs"].get("id")
+        if exhibits(node["attrs"], entry):
+            return None
     return None
 
 
@@ -577,14 +581,18 @@ def attribute_marks(byid: dict, spk: dict, registry: dict) -> dict[str, dict]:
         if (record := spec.get("record") or {}).get("kind") == "attribute"
         and (attr := record.get("attr")) is not None
     }
+    # HTML checks one radio of a group, the last its markup marks.
+    checked = {
+        node["group"]: oid
+        for oid, node in member_records(byid)
+        if node.get("group") and "checked" in node["attrs"]
+    }
     marks: dict[str, dict[str, list[str]]] = {}
     for oid, orec in member_records(byid):
         for attr in declared.intersection(orec["attrs"]):
-            if not takes_mark(orec, attr):
+            if not takes_mark(orec, attr) or checked.get(orec.get("group"), oid) != oid:
                 continue
-            owner = _owner_above(
-                orec, {"kind": "attribute", "attr": attr}, registry, {}
-            )
+            owner = owner_above(orec, {"kind": "attribute", "attr": attr}, registry, {})
             if owner is not None and owner in spk.get(oid, EMPTY).within[:-1]:
                 marks.setdefault(attr, {}).setdefault(owner, []).append(oid)
     for owners in marks.values():
@@ -955,7 +963,7 @@ def record_members(
     members: dict[str, set] = {}
     for oid, node in member_records(byid):
         if takes_mark(node, record["attr"]) and (
-            owner := _owner_above(node, record, registry, holders)
+            owner := owner_above(node, record, registry, holders)
         ):
             members.setdefault(owner, set()).add(oid)
     for owner in byid:

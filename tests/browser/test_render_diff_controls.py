@@ -1119,3 +1119,52 @@ def test_a_second_toggle_before_the_next_frame_holds(browser, serve):
     # The Model's render of what it heard has run too, so `open` now stays.
     rendered(page)
     assert details.evaluate("d => d.open") == first
+
+
+def test_a_fold_redrawn_before_its_toggle_holds(browser, serve):
+    """A fold the widget redraws before its press's `toggle` arrives stays where the
+    press left it; the redraw doesn't write the Model's older `open` over it."""
+    from render_cases_navigation import call_diff, call_node
+
+    url = serve(
+        leaf_page(
+            "Fold then follow",
+            '<lf-call-diff id="evidence" source="change" diff="patch"></lf-call-diff>'
+            '<lf-diff id="patch" source="patch-data"></lf-diff>',
+        ),
+        packages=("diff",),
+    )
+    page_data_model.cmd_data_set(
+        serve.page_dir,
+        "change",
+        call_diff(call_node("root", "app.py", 1, children=[call_node("step")])),
+    )
+    page_data_model.cmd_data_set(
+        serve.page_dir,
+        "patch-data",
+        patch_manifest(
+            "diff --git a/app.py b/app.py\n--- a/app.py\n+++ b/app.py\n@@ -1 +1 @@\n-old\n+new\n"
+        ),
+    )
+    page = open_page(browser, url)
+    details = page.locator("#evidence details").first
+    expect(details).to_have_attribute("open", "")
+    location = page.locator("#evidence .lf-call-root-location .lf-call-location")
+    expect(location).to_be_visible()
+    # The browser queues `toggle` as a task, so a press on the root's location in the
+    # same task as the fold sends the widget a message, and the redraw it brings, before
+    # the widget hears of the fold.
+    details.evaluate(
+        """(d, location) => {
+      d.addEventListener('toggle', event => { window.foldToggle = event.newState },
+        {once: true});
+      d.querySelector(':scope > summary').click();
+      location.click();
+    }""",
+        location.element_handle(),
+    )
+    page.wait_for_function("() => window.foldToggle !== undefined")
+    # The `toggle` reports the fold rather than one the redraw merged away.
+    assert page.evaluate("window.foldToggle") == "closed"
+    rendered(page)
+    assert details.evaluate("d => d.open") is False

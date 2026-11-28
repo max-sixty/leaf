@@ -249,11 +249,12 @@ const bundles = {
   // checks and hot reload, which read session storage and scan every root at each
   // mount.
   //
-  // `build/@effect__ui.patch` keeps a `details` toggled twice within a frame where
-  // the second toggle left it. Unpatched, the host's write-back of the Model's `open`,
-  // a frame after a `toggle`, lands while the second `toggle` is still queued: it
-  // undoes that toggle and the browser merges the queued event into one reporting no
-  // change. The hunk goes once Effect UI ships the fix.
+  // `build/@effect__ui.patch` keeps a `details` where the user's press left it until
+  // the Model hears the press. Unpatched, the host writes the Model's `open` while
+  // the press's `toggle` is still queued, from the restore a frame after an earlier
+  // `toggle` or from a render a message brings: it undoes the press and the browser
+  // merges the queued event into one reporting no change. The hunk goes once Effect
+  // UI ships the fix.
   "effect-ui": () => ({
     out: `${assets}/vendor/effect-ui.js`,
     entryPoints: [input("entries/effect-ui/entry.mjs")],

@@ -338,24 +338,31 @@ span.lf-diff-line-number {
 .lf-diff-revert::after {
   content: none;
 }
-/* A change's Revert (lf-diff.js, `revertButton`): Leaf's U-turn in the room its first
-   row's gutter keeps before the numbers, where the comment press draws its + on other
-   rows, a line tall and that room wide, in the ink of its row's numbers (below). The
-   row's numbers still take a comment. */
+/* A change's Revert (lf-diff.js, `revertButton`): Leaf's U-turn in the box the
+   comment press draws its + in on other rows (controls.css, `.lf-gutter::before`),
+   inside the room the gutter keeps before the numbers and a pixel short of them, in the
+   code's `ch` and the ink of its row's numbers (below). Its icon is drawn to that box,
+   so a number that fills its column stands clear of it. The row's numbers still take a
+   comment. Its ring stands inside its edge, clear of the numbers. */
 .lf-diff-revert {
   position: absolute;
   z-index: 3;
-  inset-block-start: 0;
-  inset-inline-start: 0;
-  --lf-icon-action-face: var(--lf-code-line);
-  --lf-icon-action-hit: 2ch;
+  inset-block-start: var(--lf-focus-ring-w);
+  inset-inline-start: var(--lf-focus-ring-w);
+  font: inherit;
+  --lf-icon-action-face: calc(var(--lf-code-line) - 2 * var(--lf-focus-ring-w));
+  --lf-icon-action-hit: calc(2ch - 1px - var(--lf-focus-ring-w));
+  --lf-ring-at: var(--lf-focus-ring-inset);
+}
+.lf-diff-revert > svg {
+  inline-size: 12px;
+  block-size: 12px;
 }
 .lf-diff-line:has(> .lf-diff-revert) > .lf-diff-line-comment::before {
   content: none;
 }
 /* For the same reason its ring stands on its edge (base.css, "Where it stands"). */
-.lf-diff-comment,
-.lf-diff-revert {
+.lf-diff-comment {
   --lf-ring-at: 0px;
 }
 /* The file's own row, and the box it opens clips (overflow above), so the ring it wears

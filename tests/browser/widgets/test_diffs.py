@@ -1001,7 +1001,7 @@ def test_a_revert_takes_back_one_change_and_lands_in_the_file_there(
     on other lines and is refused over typing on the change's own lines, which stays,
     and the page says it wasn't reverted. A diff bound to the file's binding follows the
     file on disk, which takes no request, so it offers none. The row Revert stands on
-    still takes a comment by its number."""
+    still takes a comment by its number, and each Revert is named by that line."""
     earlier = "".join(f"Line {number}.\n" for number in range(1, 41))
     # Two changes three lines apart, which one hunk holds, and one in a hunk of its own.
     current = (
@@ -1031,6 +1031,9 @@ def test_a_revert_takes_back_one_change_and_lands_in_the_file_there(
     )
     reverts = page.locator("#changes .lf-diff-revert")
     expect(reverts).to_have_count(3)
+    expect(reverts.first).to_have_accessible_name(
+        "Revert the change at notes.md · old line 5"
+    )
     expect(page.locator("#changes .lf-diff-line")).to_have_count(20)
     expect(page.locator("#on-disk .lf-diff-line")).not_to_have_count(0)
     expect(page.locator("#on-disk .lf-diff-revert")).to_have_count(0)

@@ -41,7 +41,9 @@ follows a source and when it keeps a snapshot.
 
 Where the reader edits a file on the page, `lf-diff` can show what they changed
 since an earlier text of it, such as the version last committed. It compares the two
-texts itself, so it needs no patch:
+texts itself, line by line with their line endings set aside, so it needs no patch, and
+a text that changes only CRLF to LF shows no change; supply git's patch to show a
+change of line endings:
 
 ```html
 <lf-diff id="readme-changes" before="readme-committed" for="readme-editor"></lf-diff>

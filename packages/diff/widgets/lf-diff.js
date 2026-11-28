@@ -602,13 +602,17 @@ function commentButton(label, opened, className) {
 }
 
 // A change's Revert, Leaf's U-turn standing in its first row's gutter
-// (widget-shadow.css), after the row's words, keyed as the line is, so a redraw that
-// takes it away hands its focus to the nearest line that stays.
+// (widget-shadow.css), after the row's words, named by that line as the line's comment
+// press is, and keyed as the line is, so a redraw that takes it away hands its focus to
+// the nearest line that stays.
 /** @param {RenderedLine} line */
 function revertButton(line) {
-  const button = offerAction("symbol", "lf-diff-revert", undefined, {
-    action: "revert",
-  });
+  const button = offerAction(
+    "symbol",
+    "lf-diff-revert",
+    `Revert the change at ${lineLabel(line)}`,
+    { action: "revert" },
+  );
   button.setAttribute(LINE_KEY, diffDatumKey(line));
   line.row.append(button);
 }

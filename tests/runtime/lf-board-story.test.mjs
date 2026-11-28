@@ -7,7 +7,11 @@ import test from "node:test";
 import { Story } from "@effect/ui/testing";
 import { Component, Effect } from "/vendor/effect-ui.js";
 import { Announce, RecordAction } from "/runtime/widget-services.js";
-import { AskOwner, Board } from "../../packages/default/widgets/lf-board.js";
+import {
+  AskOwner,
+  Board,
+  BoardMessage,
+} from "../../packages/default/widgets/lf-board.js";
 
 const host = { id: "sprint" };
 
@@ -143,16 +147,24 @@ test("a pointer drag records where it ends, and nothing where it began", () =>
 
 test("a phone's button moves the card to the end of its column, and the user with it", () =>
   tell({}, (s) => {
-    s.send({ _tag: "MovedTo", card: "heater", column: "doing" })
+    const sent = s
+      .send({ _tag: "MovedTo", card: "heater", column: "doing" })
       .expectExact(
         RecordAction.make({
           verb: "move",
           detail: { unit: "heater", value: "doing", rank: "b" },
           says: "Moved to Doing",
         }),
-      )
-      .resolve(RecordAction, Component.noop);
+      );
     assert.equal(s.model.reveal.card, "heater");
+    // Until the record settles, a `state` that still places the cards as they stood
+    // draws where the move lands.
+    assert.deepEqual(s.model.landed, {
+      placement: { todo: ["baffle"], doing: ["camera", "heater"], done: [] },
+      from: { todo: ["heater", "baffle"], doing: ["camera"], done: [] },
+    });
+    sent.resolve(RecordAction, BoardMessage.Settled());
+    assert.equal(s.model.landed, null);
   }));
 
 const choice = (/** @type {string} */ value) => ({

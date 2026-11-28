@@ -76,14 +76,15 @@
  * - The authored children are the author's, and the page's record: each card stands in
  *   the column and at the rank the `move` record places it (the verb's record form), and
  *   the board adds only the roles and headings above.
- * - Each card is a small widget of its own, `lf-card` (lf-card.js), whose root draws its
- *   grip and its phone buttons in `defineWidget`'s box after the card's words, since
- *   they stand inside the card's box. The board's own root draws one hidden node.
+ * - Each card is an element of its own, `lf-card` (lf-card.js), which draws its grip and
+ *   its phone buttons as its own children after the card's words, since they stand
+ *   inside the card's box; lf-card.js says why it is not an Effect UI component. The
+ *   board's own root draws one hidden node.
  * - The board's component holds what the user is doing (the grab, the drag, the
  *   placement held under the hand) and its `update` turns gestures into Leaf's services
  *   (`RecordAction`, `Announce`). One Mount on that node (`ShowBoard`) does what only a
  *   host's own code can: it places the cards, says the headings and counts, gives each
- *   card its face (the `face` property the card's widget declares, as a host sets
+ *   card its face (the `face` property the card declares, as a host sets
  *   `state`), owns the Sortable instances, holds the page while the user does, and
  *   hears the host's events (a press of a phone button, focus leaving a held grip, a
  *   drag's start and end) as messages.
@@ -180,12 +181,14 @@ const BoardModel = Schema.Struct({
   // each ask is spent once.
   reveal: Schema.NullOr(Schema.Struct({ card: Schema.String, ask: Schema.Number })),
   asks: Schema.Number,
-  // The placement a recorded move leaves, with the `state` it was recorded against.
-  // A draw commits before its Commands run, so the draw that ends the gesture still
-  // has that `state`; it draws this placement, as the `state` the move then sets
-  // will, rather than put the card back for one draw. Any later `state` places the
-  // cards itself.
-  landed: Schema.NullOr(Schema.Struct({ placement: Placement, state: Schema.Unknown })),
+  // The placement a recorded move leaves, with the placement it was recorded from,
+  // until the record settles. A draw commits before its Commands run, so the draw that
+  // ends the gesture still has the old `state`, and Leaf may set that `state` again
+  // before the move's (a card's connecting asks it to); each such draw shows the
+  // placement the move leaves, as the move's `state` will, rather than put the card
+  // back for one draw. A `state` that places the cards otherwise places them itself,
+  // and so does the server's, set again over a refused move.
+  landed: Schema.NullOr(Schema.Struct({ placement: Placement, from: Placement })),
 });
 
 export const BoardMessage = UiSchema.TaggedEnum({
@@ -199,6 +202,8 @@ export const BoardMessage = UiSchema.TaggedEnum({
   DragEnded: { to: Schema.String, index: Schema.Number },
   DragCancelled: {},
   MovedTo: { card: Schema.String, column: Schema.String },
+  // The move's record settled, admitted, refused or unrecorded (`landed`).
+  Settled: {},
 });
 
 /** Ask the widget whose choice `card` shows to pick `value`, from a button the board
@@ -288,6 +293,14 @@ const columnOf = (placement, card) =>
 
 // `placement` with `card` at `index` in `column`, past the column's end where it
 // holds fewer.
+const samePlacement = (a, b) =>
+  Object.keys(a).length === Object.keys(b).length &&
+  Object.entries(a).every(
+    ([column, cards]) =>
+      b[column]?.length === cards.length &&
+      cards.every((card, index) => b[column][index] === card),
+  );
+
 const withCard = (placement, card, column, index) => {
   const next = Object.fromEntries(
     Object.entries(placement).map(([id, cards]) => [
@@ -362,7 +375,7 @@ function send($, next, card, from, to, index) {
       return [column, column === to ? rest.toSpliced(index, 0, card) : rest];
     }),
   );
-  return $.evolve({ ...next, landed: { placement, state: props.state } }).run(
+  return $.evolve({ ...next, landed: { placement, from: current } }).run(
     RecordAction.make({
       verb: "move",
       detail: {
@@ -372,7 +385,7 @@ function send($, next, card, from, to, index) {
         rank: rankAt({ ...position(props), value: current }, to, index, card),
       },
       says: `${to === from ? "Reordered in" : "Moved to"} ${label}`,
-    }).pipe(Command.asNoop),
+    }).pipe(Command.as(BoardMessage.Settled())),
   );
 }
 
@@ -503,14 +516,16 @@ export const Board = Html.component({
       const index = (placement[column] ?? []).filter((c) => c !== card).length;
       return send($, revealing($.model, card), card, from, column, index);
     },
+    Settled: ($) => ($.model.landed ? $.evolve({ landed: null }) : $.model),
   },
   view: (h, model) => {
     const props = h.props;
+    const recorded = placementOf(props);
     const placement =
       model.held ??
-      (model.landed && model.landed.state === props.state
+      (model.landed && recorded && samePlacement(recorded, model.landed.from)
         ? model.landed.placement
-        : placementOf(props));
+        : recorded);
     const faces = {};
     if (!props.exhibit)
       for (const card of props.cards) {

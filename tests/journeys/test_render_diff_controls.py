@@ -738,6 +738,12 @@ def test_file_tree_opens_current_diff_files_by_pointer_and_keyboard(
         ]:
             search.fill(path)
             search.press("ArrowDown")
+            # An Enter that confirms an IME candidate stays in the field.
+            search.dispatch_event(
+                "keydown", {"key": "Enter", "isComposing": True, "bubbles": True}
+            )
+            expect(search).to_have_value(path)
+            expect(search).to_be_focused()
             search.press("Enter")
             expect(search).to_have_value("")
             expect(tree.locator(f'[data-item-path="{path}"]')).to_be_focused()

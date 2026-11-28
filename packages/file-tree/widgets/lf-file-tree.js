@@ -253,13 +253,15 @@ const DrawTrees = Mount.makeStream(
               { signal },
             );
             // Enter in search chooses the focused match: Leaf selects it and puts the
-            // reader on its row, and the field's blur closes Trees' search.
+            // reader on its row, and the field's blur closes Trees' search. An Enter
+            // that confirms an IME candidate belongs to the field, so search stays open.
             node.addEventListener(
               "keydown",
               (event) => {
                 const path = tree.getFocusedPath();
                 if (
                   event.key !== "Enter" ||
+                  event.isComposing ||
                   event.altKey ||
                   event.ctrlKey ||
                   event.metaKey ||

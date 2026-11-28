@@ -4100,9 +4100,8 @@ STATES = (
         topic_contents,
         region="#bg-topic-contents",
     ),
-    # The contents map draws only in a document's sidebar narrowed to it, beside a
-    # `.layout-column` under a mouse. No example draws one, so these states read a
-    # fixture built that way.
+    # The contents map draws only in a sidebar the page narrows to it (page-layout.md,
+    # "A sidebar page"), as the sidebar-contents fixture's page does.
     State(
         "contents-map-keyboard",
         "sidebar-contents",

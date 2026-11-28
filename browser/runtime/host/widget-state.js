@@ -1,8 +1,8 @@
 // Compiled from widget-state.ts by build/typescript.mjs; edit that file.
 /* A widget's reading as Leaf hands it to the widget's element: the immutable `state`
    Leaf sets on it (`widgetState`), the Undo each of its units offers
-   (`undoCandidates`), and what the widget works out of that state for the page to keep
-   (`widgetFacts`), which each gesture of it carries to the log. */
+   (`undoCandidates`), and what the widget says of its obligation as that state stands
+   (`widgetAnswered`), which each gesture of it carries to the log. */
 import { applicationState, readApplication } from "../state/semantic-state.js";
 import { holdsState } from "../state/projection/model.js";
 import { registry } from "../state/registry.js";
@@ -63,66 +63,45 @@ export const widgetState = ({ state, actions }) =>
     ),
   );
 
-// What a widget works out of its state and markup for the page to keep (`facts`), as
-// that state now stands: each fact its declaration lists, by name. Each of its actions
-// and each undo of one carries them (records/pending/dispatch.js), and a tab sends them
-// again where the state or markup moves without a gesture of its own
-// (host/widget-facts.js). Each is the class's static of the fact's name, given the
-// `state` Leaf sets (`widgetState`) and the widget's authored markup as `answerWords`
-// is (`widgetStatic`), so a fact needs no drawing of the widget, as one in a thread
-// nobody has open has none. Where the class says nothing of `answered`, Leaf says
-// whether the user's acts hold a state at the verb `awaits.value` names
-// (`holdsState`). A static that throws, a fact with no static, and a widget with no
-// markup to work from are the widget's failure, reported as one, and the fact goes
-// unsaid, apart from `answered`, which says the question is open rather than waiting
-// on a widget that can't say, so a failing widget leaves its question on On Me rather
-// than closing it. `tag` names the widget's kind where no captured descriptor does, as
-// for an undo of an action in a message nobody has drawn. A widget that declares no
-// facts says none.
-export function widgetFacts(widget, tag) {
+// What a widget that asks says of its obligation as its state now stands, which each
+// of its actions and each undo of one carries (records/pending/dispatch.js): its
+// class's static `answered(state, element)`, given the `state` Leaf sets
+// (`widgetState`) and the widget's authored markup as `answerWords` is
+// (`widgetStatic`), so the word needs no drawing of the widget, as one in a thread
+// nobody has open has none; or, where the class says nothing, whether the user's acts
+// hold a state at the verb `awaits.value` names (`holdsState`). A class's `answered`
+// that throws is the widget's failure, reported as one, and the gesture goes saying
+// the question is open rather than waiting on a widget that can't say, so a failing
+// widget leaves its question on On Me rather than closing it; a class that says never
+// has the default rule speak for it. `tag` names the widget's
+// kind where no captured descriptor does, as for an undo of an action in a message
+// nobody has drawn. A widget that asks always says, and one that asks nothing says
+// nothing.
+export function widgetAnswered(widget, tag) {
   const root = readApplication();
   const descriptor = root.document.descriptors.get(widget);
   const kind = descriptor?.tag ?? tag;
-  const entry = kind ? registry[kind] : undefined;
-  if (!kind || !entry?.facts) return undefined;
+  const verb = kind ? registry[kind]?.awaits?.value : undefined;
+  if (!kind || !verb) return undefined;
   const folded = root.effective.widgets.get(widget);
+  const byDefault = () => Boolean(folded && holdsState(folded, verb));
+  const own = widgetStatic(kind, widget, "answered");
+  if (!own) return byDefault();
   // A widget no page has captured has no reading: its folded state, or none, is all
-  // there is to work from.
+  // there is to say from.
   const state = descriptor
     ? widgetState(applicationState.selectWidget(descriptor).read())
     : (folded?.state ?? {});
-  const facts = {};
-  for (const name of Object.keys(entry.facts)) {
-    const own = widgetStatic(kind, widget, name);
-    const verb = entry.awaits?.value;
-    if (!own && name === "answered" && verb) {
-      facts.answered = Boolean(folded && holdsState(folded, verb));
-      continue;
-    }
-    const value = workedOut(own, `<${kind} id="${widget}">`, name, state);
-    if (name === "answered") facts.answered = Boolean(value);
-    else if (value !== undefined) facts[name] = value;
-  }
-  return facts;
-}
-
-/** One fact as `own` works it out of `state`, or undefined where it can't. */
-function workedOut(own, widget, name, state) {
-  if (!own?.element) {
+  if (!own.element) {
     console.error(
-      own
-        ? `leaf: ${widget} has no markup to work its ${name} out from`
-        : `leaf: ${widget} lists the fact ${name}, but its class has no static ${name}`,
+      `leaf: <${kind} id="${widget}"> has no markup to say its answer from`,
     );
-    return undefined;
+    return false;
   }
   try {
-    const value = own.call(state, own.element);
-    // A value the event can't carry fails here, where the widget's failure is named.
-    JSON.stringify(value);
-    return value;
+    return Boolean(own.call(state, own.element));
   } catch (error) {
     reportFailure(own.element, error);
-    return undefined;
+    return false;
   }
 }

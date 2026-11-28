@@ -3,8 +3,6 @@ import "/runtime/stage-integration.js";
    nodes without changing the document coordinates those inputs established. */
 import assert from "node:assert/strict";
 import test from "node:test";
-import { render } from "/vendor/lit.js";
-import { drawToc } from "../../packages/default/widgets/toc-view.js";
 import "../../packages/diff/widgets/lf-worktree.js";
 import "../../packages/diff/widgets/lf-worktree-diffs.js";
 import { adoptRegistry } from "/runtime/state/registry.js";
@@ -152,56 +150,6 @@ test("member state owns each physical slot independently across a hierarchy", ()
   assert.deepEqual(states.get("outer").state.move.value, { one: ["card"], two: [] });
   assert.deepEqual(states.get("one").state.choose.value, ["card"]);
   assert.deepEqual(states.get("inner-zone").state.choose.value, ["inner-card"]);
-});
-
-test("the contents drawing keeps its native state and keyed rows through revisions", () => {
-  document.body.innerHTML =
-    '<header><lf-toc id="contents"></lf-toc></header><main><h1>Field guide</h1>' +
-    '<h2 id="first">Take inventory</h2><h3>Save a snapshot</h3></main>';
-  const host = document.querySelector("lf-toc");
-  const reading = { label: (heading) => heading.textContent };
-  const live = drawToc(host, reading);
-  render(live.render(reading), host, { host });
-  const disclosure = host.querySelector("details");
-  const summary = host.querySelector("summary");
-  const links = [...host.querySelectorAll("a")];
-  assert.deepEqual(
-    links.map((link) => link.getAttribute("href")),
-    ["#lf-contents-section-0", "#first", "#lf-contents-section-2"],
-  );
-  disclosure.open = true;
-  links[1].focus();
-
-  render(live.render(reading), host, { host });
-  const sections = live.sections();
-  assert.equal(host.querySelector("details"), disclosure);
-  assert.equal(host.querySelector("summary"), summary);
-  assert.equal(disclosure.open, true);
-  assert.deepEqual(
-    sections.map(({ link }) => link),
-    links,
-  );
-  assert.equal(document.activeElement, links[1]);
-  assert.equal(links[2].getAttribute("href"), "#lf-contents-section-2");
-
-  const first = document.querySelector("h2");
-  const next = document.querySelector("h3");
-  first.before(next);
-  first.textContent = "Read the inventory";
-  render(live.render(reading), host, { host });
-  const reordered = live.sections();
-  assert.deepEqual(
-    reordered.map(({ link }) => link),
-    [links[0], links[2], links[1]],
-  );
-  assert.equal(links[1].textContent, "Read the inventory");
-  assert.equal(disclosure.open, true);
-  host.remove();
-  assert.equal(live.scope(), null);
-  document.querySelector("main").append(host);
-  assert.equal(live.scope(), document.querySelector("main"));
-  render(live.render(reading), host, { host });
-  assert.equal(live.sections()[1].link, links[2]);
 });
 
 test("worktree presentation keeps native disclosure and authored evidence while totals change", async () => {

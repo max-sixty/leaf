@@ -2731,6 +2731,14 @@ gallery/
               </p>
               <lf-sample id="bg-topic-contents" label="topic contents" window>
                 <template id="bg-topic-contents-page" data-sample class="layout-column">
+                  <style>
+                    /* Each topic's contents rests as the map's spine under a mouse. */
+                    @media screen and (hover: hover) and (pointer: fine) {
+                      #bg-guide-topics > .layout-sidebar {
+                        --lf-aside: 56px;
+                      }
+                    }
+                  </style>
                   <h1>Release field guide</h1>
                   <lf-tabs id="bg-guide-topics" data-width="available">
                     <lf-tab

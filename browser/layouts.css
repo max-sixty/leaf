@@ -825,57 +825,66 @@
     max-inline-size: none;
     --lf-aside: calc(var(--lf-sidebar) - var(--lf-sp-4));
   }
-  /* A document's sidebar whose track holds only an element that rests as a spine
-   * (`spine`, painted `data-lf-spine`), as the contents map does, narrows to that
-   * spine on a screen where a fine pointer can reach into it, so the room a column
-   * would take goes to the body, whose prose stands as a column page's does (below).
-   * The aside comes before the body, so what the element reveals spreads from the spine
-   * toward the inline end, into the room before the prose and, on a narrower window,
-   * over the body. The narrowed track carries `--lf-track-spine: 1`, and only there
-   * does the element take its resting form (toc.css). The track doesn't clip, the aside
-   * paints over the body, and the body is one stacking context, so nothing it holds
-   * paints over what the element reveals, whatever its z-index. The spine is a scale
-   * of the whole document, so where the sidebar spans the page
-   * (`--lf-sidebar-spans-page`, below), its track stands fixed in the window at its
-   * sticking line, from the page's top to its end and through the rubber band past
-   * either, which moves a stuck sticky box with the page in Firefox and Chrome
+  /* A sidebar whose one aside comes before the body, on a screen where a fine pointer
+   * can reach into the aside, lets a track narrower than 128px lay what its
+   * element reveals over the body, as the contents map lays its
+   * labels from its spine (toc.css). What the element reveals spreads from the track
+   * toward the inline end, into the room before a column body's prose and, on a
+   * narrower window, over the body. The narrow track paints over the body, and the body
+   * is one stacking context, so nothing it holds paints over what the element reveals,
+   * whatever its z-index. A wider track takes no z-index, so a box the body fixes over
+   * it, such as a bar across the window's foot, stays on top. The narrow track doesn't
+   * clip, and so doesn't scroll: it suits an element that fits its height, as the map
+   * fills it (toc.css). Where the sidebar spans the page
+   * (`--lf-sidebar-spans-page`, below), it stands fixed in the window at its sticking
+   * line, from the page's top to its end and through the rubber band past either, which
+   * moves a stuck sticky box with the page in Firefox and Chrome
    * (notes/browser-support.md). Elsewhere it sticks, below a header above the aside and
    * clear of a footer after it, and wrapped above the body it keeps its place in flow.
-   * Every other sidebar keeps a column's room: a track holding anything else, an aside
-   * after the body, every track under touch, where nothing reaches in by pointing, and
-   * paper, where nothing reaches in at all.
-   * Rejected: narrowing every document sidebar. It broke a
-   * paragraph in one into a few letters a line, and the render check passed it.
-   * TODO: `spine` and the names it brings (`data-lf-spine`, `--lf-sidebar-spine`,
-   * `--lf-track-spine`) widen the public interface for one widget's look. Narrowing
-   * automatically needs some declaration, since the aside is a size container and takes
-   * no width from its content. Without one, the page would narrow its sidebar with
-   * `--lf-aside`, this rule would let any track narrower than words lay its overflow over
-   * the body, and the map would take its spine form from its own width, so the spine
-   * would be a look each page opts into. */
+   * Every other track keeps clipping: one in an aside after the body, since what it
+   * revealed would spread past the window's edge; every track under touch, where
+   * nothing reaches in by pointing; and paper, where nothing reaches in at all and a
+   * fixed track would stand on every sheet. The width is in pixels, as the sidebar's
+   * own widths are, so the 240px sidebar a page leaves alone stays a scrolling track
+   * whatever the reader's text size. Rejected: 8rem, under which a 32px root font
+   * lifted that sidebar's track and fixed it with no scroll.
+   * The Layout narrows no sidebar itself: the aside is a size container and takes no
+   * width from its content, so a page that wants the map's spine narrows its own
+   * sidebar with `--lf-aside`, under a mouse, where a pointer rests on the spine
+   * (page-layout.md, "A sidebar page"). A sidebar the page leaves alone keeps a
+   * column's room, where the map stands open as an outline. Rejected, by the user: a
+   * `spine` declaration from which this rule narrowed a document's sidebar whose track
+   * held only such an element, which put a declaration key, the mark it painted and two
+   * theme names in the package interface for one widget's look. Rejected: narrowing
+   * every document sidebar. It broke a paragraph in one into a few letters a line, and
+   * the render check passed it. */
   @media screen and (hover: hover) and (pointer: fine) {
-    .layout-sidebar:has(> aside:only-of-type ~ .layout-column):has(
-        > aside > .layout-track:only-child > [data-lf-spine]:only-child
-      ) {
-      --lf-aside: var(--lf-sidebar-spine);
-      & > aside {
-        z-index: 1;
-      }
+    .layout-sidebar:has(> aside:only-of-type ~ :not(header, footer)) {
       & > aside > .layout-track {
-        overflow: visible;
-        --lf-track-spine: 1;
-        /* Beside the body, where the map takes its spine form (toc.css), and where the
-         * window scrolls the page rather than a scroller round the sidebar. */
+        @container (width < 128px) {
+          overflow: visible;
+          z-index: 1;
+        }
+        /* Beside the body, and where the window scrolls the page rather than a
+         * scroller round the sidebar. */
         @media (min-height: 480px) {
-          @container (width < 8rem) and style(--lf-sidebar-spans-page: 1) and (not style(--lf-track-scroll-behavior: flow)) {
+          @container (width < 128px) and style(--lf-sidebar-spans-page: 1) and (not style(--lf-track-scroll-behavior: flow)) {
             position: fixed;
             inline-size: 100cqi;
             margin-block: 0;
           }
         }
       }
-      & > .layout-column {
-        isolation: isolate;
+    }
+    .layout-sidebar > aside ~ :not(header, footer) {
+      isolation: isolate;
+    }
+    /* A narrow track that doesn't stick is positioned, so its z-index holds. Where the
+     * track sticks, the sticking rule below, later in the same layer, sets its
+     * position instead. */
+    :where(.layout-sidebar > aside) > .layout-track {
+      @container (width < 128px) {
+        position: relative;
       }
     }
   }

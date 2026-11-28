@@ -1,4 +1,4 @@
-/* The one helper surface behavior modules import. Capabilities come from their
+/* The functions page scripts and widgets import from Leaf. Capabilities come from their
    domain owners; optional hosts load when requested. Owners import one another,
    and leaf.js only boots.
 

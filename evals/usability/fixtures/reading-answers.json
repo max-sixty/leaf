@@ -41,7 +41,7 @@
       "detail": {
         "value": ["mode-shard"]
       },
-      "facts": { "answered": true }
+      "answered": true
     },
     {
       "kind": "action",
@@ -51,12 +51,12 @@
       "detail": {
         "value": ["mode-dual"]
       },
-      "facts": { "answered": true }
+      "answered": true
     },
     {
       "kind": "undo",
       "undoes": "previous",
-      "facts": { "answered": true }
+      "answered": true
     }
   ]
 }

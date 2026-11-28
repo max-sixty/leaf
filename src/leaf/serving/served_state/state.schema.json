@@ -935,11 +935,6 @@
           "type": "array",
           "items": { "$ref": "#/$defs/Obligation" }
         },
-        "facts": {
-          "description": "Each widget's facts as the page keeps them, by widget id then fact name (`obligations.widget_facts`): the latest value a gesture or a `facts` event said, which a version restating the widget's decisions lapses. A widget with none kept is absent.",
-          "type": "object",
-          "additionalProperties": { "type": "object" }
-        },
         "reports": {
           "description": "The view's report feed, in log order (`projection.canonical_reports`).",
           "type": "array",
@@ -1023,7 +1018,6 @@
         "document",
         "thread",
         "obligations",
-        "facts",
         "reports",
         "undo",
         "published_at",
@@ -1067,7 +1061,9 @@
                 "description": "The operation the event was admitted under, by the immutable registry of the revision that interpreted it, which may differ from the active document's. Browser folds read this rather than reinterpreting history through whichever registry the current DOM selected.",
                 "$ref": "leaf:verb"
               },
-              "value": true,
+              "value": {
+                "description": "The record of the action as it stands, which the browser folds rather than the event's own detail: a version that rewrote a member of the set an `attribute` record holds leaves the set without that member."
+              },
               "scope": { "enum": ["document", "thread"] },
               "restated": { "type": "array", "items": { "type": "string" } },
               "absorbed": {

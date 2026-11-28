@@ -621,7 +621,7 @@ def test_a_section_handed_a_delivered_move_names_the_option_for_one(page_dir):
             "widget": "thread-picks",
             "action": "choose",
             "detail": {"value": ["thread-option"]},
-            "facts": {"answered": True},
+            "answered": True,
         },
     )
     events = events_model.read_events(page_dir)
@@ -923,12 +923,7 @@ def test_a_revision_leaves_a_thread_whose_section_a_decision_hides(page_dir):
     assert activate_source(page_dir).created
     append_command(
         page_dir,
-        {
-            "kind": "undo",
-            "author": "user",
-            "undoes": accepted["id"],
-            "facts": {"answered": False},
-        },
+        {"kind": "undo", "author": "user", "undoes": accepted["id"], "answered": False},
     )
     events = events_model.read_events(page_dir)
     assert not any(event["kind"] == "reanchor" for event in events)
@@ -1580,7 +1575,7 @@ def test_comments_reach_user_generated_choices_without_source_copying(page_dir):
                 "widget": "routes",
                 "action": action,
                 "detail": detail,
-                "facts": {"answered": answered},
+                "answered": answered,
             },
         )
 
@@ -2084,7 +2079,7 @@ def test_thread_obligations_share_one_projection_across_open_fragments(page_dir)
             "widget": "group-a",
             "action": "choose",
             "detail": {"value": ["option-a"]},
-            "facts": {"answered": True},
+            "answered": True,
         },
     )
     assert obligations_on_user(state_json(page_dir)) == [
@@ -2227,7 +2222,7 @@ def test_page_state_holds_a_decision_made_on_a_widget_an_agent_sent(page_dir):
             "widget": "ps-q",
             "action": "choose",
             "detail": {"value": ["ps-cookie"]},
-            "facts": {"answered": True},
+            "answered": True,
         },
     )
     out = CliRunner().invoke(cli_model.cli, ["page", "state", str(page_dir)])

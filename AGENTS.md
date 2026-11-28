@@ -411,9 +411,10 @@ the events still in force. Don't add a database, a current-state file or a
 per-widget replay list as a source of truth for page state, and don't treat the DOM
 as one.
 
-Each decision the user made carries over to later versions of the page. To withdraw
-a decision because a rewrite invalidated what it rests on, mark it `restated`;
-leaving the decision out of the new version withdraws nothing. An `undo` event names
+Each decision the user made carries over to later versions of the page. To ask the
+user again because a rewrite changed what a decision rests on, mark the changed
+element `restated`, which takes it out of the decisions resting on it (`events.md`,
+"Widget answers"); leaving the decision out of the new version withdraws nothing. An `undo` event names
 the gesture it withdraws, and never deletes an event or adds an opposite one.
 
 The registry gives each widget action and report a key of three parts: the widget,
@@ -430,7 +431,7 @@ holds no renderer nodes, promises or DOM attributes. Components read that value
 through selectors and never write it. Widgets draw the complete state, unset and
 undecided values included. Undo never rebuilds a widget or replays authored actions
 into the DOM. A page widget's state draws only on actions logged up to the version
-the page shows, and a `restated` mark withdraws the widget's earlier actions. A
+the page shows, as a `restated` mark leaves them. A
 widget in a thread message has neither bound: its state draws on actions from its
 whole thread, since its markup lives in the log rather than in a version.
 
@@ -536,20 +537,26 @@ advice rather than Leaf's, so it may name any widget.
 
 A package leans on Leaf only through the package interface: the keys of an element
 declaration, the widget protocol, Leaf's own elements, the data contracts Leaf's
-packages declare, the functions `widget-api.js` exports and the styling names the
-references declare. Another author's package has nothing else, so Leaf's bundled
-widgets use nothing else. The interface sprawls through names that each look
-reasonable alone, and every later change keeps each name working, so Leaf keeps it
-small and coherent. A change meets a widget's need without a new name where it can,
-and `packages/AGENTS.md`, "A widget's need of Leaf", says how to choose where it
-can't.
+packages declare, the public modules and the names each exports, and the styling
+names the references declare. The public modules are those the kernel registry lists
+in `$public-modules` outside the library: Leaf's own, such as `widget-api.js` and
+`effect-widget.js`, and the dependencies Leaf serves, such as Effect UI. Another
+author's package has nothing else, so Leaf's bundled widgets use nothing else. The
+interface sprawls through names that each look reasonable alone, and every later
+change keeps each name working, so Leaf keeps it small and coherent. A change meets a
+widget's need without a new name where it can, and `packages/AGENTS.md`, "A widget's
+need of Leaf", says how to choose where it can't.
 
 A smaller interface is worth a small visible difference. Where a name's work is to
 keep a look, a first paint or a behaviour exactly as it was, the name goes, and the
-change shows what a user will see differently. A promise the user is owed on every
-widget is Leaf's to keep from outside, for an element that imports nothing, so a name
-stays for a guarantee `SOUL.md` states only while Leaf can't keep it that way. A shift
-as a widget first draws on a loading page breaks no guarantee.
+change shows what a user will see differently. Some promises in `SOUL.md` hold on
+every widget, such as keeping focus on the control the user is using when the widget
+redraws. Leaf keeps such a promise in its own code, so a widget's author writes
+nothing for it: in `defineWidget`, which every widget that draws is moving to
+(`browser/AGENTS.md`, "Renderers"), or in the runtime code that sets the widget's
+properties and hears its events. A name that exists to help widgets keep such a
+promise, such as a function they call, stays only until Leaf can keep the promise
+itself. A shift as a widget first draws on a loading page breaks no guarantee.
 
 ### Wait for the event that ends the work
 

@@ -454,9 +454,77 @@ def board_sections(boards: int, cards: int, done: int = 0) -> str:
     )
 
 
-def prose_sections(n: int) -> str:
+def draft_sections(n: int) -> str:
+    """`n` sections, each a heading and a question asking for an edit of a required
+    `lf-draft` of a few Markdown blocks, so drafts, obligations on the user and
+    headings grow with `n`."""
+    return page(
+        "Drafts",
+        "".join(
+            f'<section id="s{g}"><h2>Draft {g}</h2>'
+            f'<lf-group id="q{g}" label="Edit release note {g}?">'
+            f'<lf-draft id="d{g}" required><pre>\n'
+            f"Release note {g}: adds `--dry-run` to every mutating command.\n\n"
+            f"- Prints each change step {g} would make.\n"
+            "- Writes nothing.\n\n"
+            f"See **section {g}** for the flags it takes.</pre></lf-draft>"
+            "</lf-group></section>"
+            for g in range(1, n + 1)
+        ),
+    )
+
+
+def call_diff(g: int) -> dict:
+    """Call diff `g`, CallDiff's native JSON for one entry point whose call tree keeps
+    two calls and changes a third, removed with its callee and added with another, at
+    lines of `PATCH`'s `steps.py`."""
+
+    def call(name: str, status: str, line: int, *children: dict) -> dict:
+        return {
+            "key": name,
+            "label": f"{name}()",
+            "status": status,
+            "kind": "call",
+            "file": "steps.py",
+            "line": line,
+            "children": list(children),
+        }
+
+    tree = call(
+        f"run_{g}",
+        "same",
+        1,
+        call("step_1", "same", 2),
+        call("step_3", "removed", 4, call("step_2", "removed", 3)),
+        call("step_3", "added", 4, call("step_5", "added", 6)),
+        call("step_8", "same", 9),
+    )
+    return {
+        "mode": "diff",
+        "from": "HEAD~",
+        "to": "HEAD",
+        "trees": [{"entry": f"run_{g}", "tree": tree}],
+    }
+
+
+def call_diff_sections(n: int) -> str:
+    """`PATCH`, then `n` sections, each a heading and an `lf-call-diff` of its own
+    source (`call_diff`) linked to the patch: call diffs and headings grow with `n`."""
+    return page(
+        "Call diffs",
+        PATCH
+        + "".join(
+            f'<section id="s{g}"><h2>Calls {g}</h2>'
+            f'<lf-call-diff id="cd{g}" source="c{g}" diff="patch"></lf-call-diff>'
+            "</section>"
+            for g in range(1, n + 1)
+        ),
+    )
+
+
+def prose_sections(n: int, track: str = "") -> str:
     """`n` sections of headings and paragraphs after one ask: the document grows, and
-    the widgets don't."""
+    the widgets don't. `track` is what a sidebar beside it holds, if anything."""
     question = (
         '<lf-group id="q0" label="Question"><h3 id="q0-h">Question</h3><lf-options id="o0" multiple>'
         '<lf-option id="o0-1">One</lf-option><lf-option id="o0-2">Two</lf-option>'
@@ -469,7 +537,14 @@ def prose_sections(n: int) -> str:
         "</section>"
         for g in range(1, n + 1)
     )
-    return page("Prose", question + sections)
+    return page("Prose", question + sections, track)
+
+
+def contents_sections(n: int) -> str:
+    """`prose_sections(n)` beside a track holding an `lf-toc`: a row, a marker and a
+    heading the reading position follows for each of the `n` sections, so the map's
+    fitting and the reading position grow with the outline."""
+    return prose_sections(n, track='<lf-toc id="contents"></lf-toc>')
 
 
 def steps(count: int, name: str = "") -> str:
@@ -588,11 +663,19 @@ def table_rows(n: int) -> str:
     return page("Rows", question + table)
 
 
-def page(title: str, body: str) -> str:
+def page(title: str, body: str, track: str = "") -> str:
+    """A page of `body` under its title, beside a sidebar's track holding `track` if
+    there is one."""
+    article = f'<article id="document"><h1>{title}</h1>{body}</article>'
+    main = (
+        '<main class="layout-sidebar"><aside><div class="layout-track">'
+        f'{track}</div></aside><div class="layout-column">{article}</div></main>'
+        if track
+        else f"<main>{article}</main>"
+    )
     return (
         f'<!doctype html><html lang="en"><head><title>{title}</title></head><body>'
-        f'<main><article id="document"><h1>{title}</h1>{body}</article></main>'
-        "</body></html>"
+        f"{main}</body></html>"
     )
 
 
@@ -606,7 +689,7 @@ def pick(g: int, *options: int, revision: int = 1) -> dict:
         "action": "choose",
         "detail": {"value": [f"o{g}-{i}" for i in options]},
         # Each ask takes several options, so a pick leaves it open until Done.
-        "facts": {"answered": False},
+        "answered": False,
     }
 
 
@@ -742,6 +825,8 @@ COLLECTIONS: dict[str, Collection] = {
     ),
     "rows": Collection(table_rows),
     "code": Collection(code_blocks),
+    # Prose beside a reading map of its sections.
+    "contents": Collection(contents_sections),
     "documents": Collection(side_documents, data=document_sources),
     "asktabs": Collection(side_asks),
     "widgets": Collection(
@@ -755,6 +840,11 @@ COLLECTIONS: dict[str, Collection] = {
     "cards": Collection(
         lambda n: board_sections(1, n, done=n),
         lambda n: [move(1, j, j) for j in range(1, n + 1)],
+    ),
+    "drafts": Collection(draft_sections),
+    "calldiffs": Collection(
+        call_diff_sections,
+        data=lambda n: {f"c{g}": call_diff(g) for g in range(1, n + 1)},
     ),
     "options": Collection(
         lambda n: page("Options", ask(1, options=n)),
@@ -1082,6 +1172,30 @@ def leave_field(tab: Tab) -> None:
     tab.page.keyboard.press("Escape")
 
 
+def open_editor(tab: Tab) -> Goals:
+    """Click the first draft's prose, which opens its editor with the caret there."""
+    tab.page.locator("lf-draft .lf-markdown-body p").first.click()
+    tab.page.locator("lf-draft .lf-draft-edit").first.wait_for()
+    tab.quiet(600)
+    return {}
+
+
+def discard_edit(tab: Tab) -> None:
+    """Escape throws the editor's words away and closes it, leaving no edit behind."""
+    tab.page.keyboard.press("Escape")
+
+
+def aim_at_root(tab: Tab) -> Goals:
+    """Rest the mouse over the first call diff's root, whose press folds or opens it."""
+    root = tab.page.locator("lf-call-diff .lf-call-group-summary").first
+    root.scroll_into_view_if_needed()
+    box = root.bounding_box()
+    assert box is not None
+    tab.page.mouse.move(box["x"] + box["width"] / 2, box["y"] + box["height"] / 2)
+    tab.quiet(600)
+    return {}
+
+
 def focus_option(tab: Tab) -> Goals:
     """Focus the first option's control, from which Tab crosses the same stops at every
     size: its ask's other controls and, after a short ask, the first link or listing."""
@@ -1228,8 +1342,15 @@ def triple_click(tab: Tab) -> None:
 
 def write_comment(tab: Tab, nth: int = 0) -> Goals:
     """Select the start of the `nth` passage (`PASSAGE`), open its comment and write
-    it."""
+    it. A selection an earlier input left, such as `select`'s of the title, goes
+    first, since its comment control can stand over the passage and take the drag."""
     tab.words = f"Bench comment {tab.bench.serial()}."
+    tab.page.evaluate("() => getSelection().removeAllRanges()")
+    until(
+        tab.page,
+        "() => !document.querySelector('.lf-fab-input')?.checkVisibility()",
+        "the earlier selection's comment control never went",
+    )
     x, y = tab.page.evaluate(PASSAGE, nth)
     tab.page.mouse.move(x + 2, y + 10)
     tab.page.mouse.down()
@@ -1559,6 +1680,15 @@ INPUTS: dict[str, Input] = {
     ),
     "key": Input(type_letter, 20, enter_field, each=False, after=60),
     "leave": Input(leave_field, 4, enter_field, after=200),
+    "edit": Input(
+        type_letter,
+        20,
+        open_editor,
+        leave=discard_edit,
+        each=False,
+        after=60,
+        needs="lf-draft",
+    ),
     "tab": Input(tab_step, 16, focus_option, each=False, after=100, needs="lf-option"),
     "walk": Input(walk_step, 8, halfway, each=False, after=300, needs="lf-option"),
     "scroll": Input(wheel_step, 32, halfway, each=False, after=50),
@@ -1621,6 +1751,7 @@ INPUTS: dict[str, Input] = {
         type_letter, 20, open_draft, leave=drop_draft, each=False, after=60, needs="h1"
     ),
     "open": Input(press, 4, aim_at_line, paints=True, after=400, needs="#patch"),
+    "fold": Input(press, 4, aim_at_root, each=False, after=100, needs="lf-call-diff"),
     "comment": Input(send, ready=write_comment, paints=True, after=400, needs="h1"),
     "resolve": Input(press, ready=aim_at_resolve, paints=True, after=400, needs="h1"),
     "move": Input(drop_card, ready=lift_card, paints=True, after=400, needs="lf-card"),

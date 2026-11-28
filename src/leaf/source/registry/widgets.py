@@ -74,13 +74,6 @@ def _validate_widget_schema(tag: str, entry: dict, path) -> None:
             raise registry_error(
                 "verb-detail-schema", path, tag, verb=verb, **schema_reading(error)
             ) from error
-    for fact, schema in entry.get("facts", {}).items():
-        try:
-            check_schema(schema)
-        except SchemaError as error:
-            raise registry_error(
-                "fact-schema", path, tag, fact=fact, **schema_reading(error)
-            ) from error
 
 
 def validate_widget_relations(
@@ -330,10 +323,6 @@ def _validate_widget_interactions(
     user_verbs = {verb for verb, _spec in state_specs(entry, writer="user")}
     if awaits and awaits["value"] not in user_verbs:
         raise registry_error("awaits-value", path, tag)
-    # Leaf reads whether the question is answered from the widget's `answered` fact, a
-    # boolean (`obligations.widget_facts`).
-    if awaits and entry.get("facts", {}).get("answered") != {"type": "boolean"}:
-        raise registry_error("awaits-answered", path, tag)
     # A retired obligation was asked and has ended, so the flag that retires it has to be
     # one registration already reads as stopping the widget asking.
     retired = awaits.get("retired")

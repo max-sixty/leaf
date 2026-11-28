@@ -886,7 +886,7 @@ def test_side_tabs_distinguish_withdrawn_obligations_from_answers(browser, serve
             "widget": "answered-options",
             "action": "choose",
             "detail": {"value": ["answered-pick"]},
-            "facts": {"answered": True},
+            "answered": True,
         },
     )
     page = open_page(browser, live_url(url))
@@ -979,7 +979,7 @@ def test_a_queue_row_names_an_answer_whose_widget_module_arrives_last(browser, s
             "widget": "o-a",
             "action": "choose",
             "detail": {"value": ["o-a-fix"]},
-            "facts": {"answered": True},
+            "answered": True,
         },
     )
     assert posted.ok, posted.text()

@@ -233,6 +233,11 @@ leaf page init ./workshop
 
 ![Room layout](/media/051bee487bfb5d13.png)
 
+| Room   | Chairs |
+| ------ | -----: |
+| `hall` |     40 |
+| Annex  |     12 |
+
 Tables seat four."""
 
 # A picture named by a reference, and one whose source spans two lines.
@@ -282,6 +287,10 @@ def test_a_draft_edits_where_it_reads(browser, serve, subtests):
     where the prose showed them, the editor taking each block's face and gaps from
     where it stands, an indented block's code as a fence's.
 
+    A table drawn as its source's lines stood shorter or taller than the prose's table,
+    moving every word below it. It is drawn as the prose's grid, its `|`s and delimiter
+    row unseen until the caret reaches it, and shown then where they stand.
+
     A draft that drew a line break at each of its source's would show a short line after
     each long one when wrapped for a wider editor. It reads as a Markdown file, a line
     break inside a paragraph a space, and its editor joins those lines too, so each
@@ -316,6 +325,9 @@ def test_a_draft_edits_where_it_reads(browser, serve, subtests):
             "Quoted",
             "Practice",
             "Heading",
+            "Chairs",
+            "hall",
+            "Annex",
             "Tables",
         ]
         draft.locator(".lf-draft-body img").evaluate("image => image.decode()")
@@ -347,6 +359,26 @@ def test_a_draft_edits_where_it_reads(browser, serve, subtests):
         opened = draft.evaluate(DRAFT_AS_DRAWN, words)
         assert opened["picture"][2:] == editing["picture"][2:], (opened, editing)
         assert opened["picture"][1] > editing["picture"][1]
+        # The caret in a table's cell shows its `|`s and delimiter row where they stand,
+        # moving no word of the table or after it, once the picture's source it leaves
+        # goes.
+        draft.evaluate(
+            "(draft, y) => scrollBy(0, draft.getBoundingClientRect().top + y - 200)",
+            opened["Annex"][1],
+        )
+        box = draft.bounding_box()
+        page.mouse.click(
+            box["x"] + opened["Annex"][0] + 2, box["y"] + opened["Annex"][1] + 5
+        )
+        expect(draft.locator("leaf-text")).to_be_focused()
+        rendered(page)
+        assert draft.evaluate(
+            "draft => window.marginEditorRoots.get(draft.querySelector('leaf-text'))"
+            ".querySelectorAll('.lf-md-pipe.lf-md-mark').length"
+        ), "the caret in a cell shows the table's pipes"
+        in_table = draft.evaluate(DRAFT_AS_DRAWN, words)
+        for word in ("Chairs", "hall", "Annex", "Tables"):
+            assert in_table[word] == editing[word], (word, in_table, editing)
         # A paragraph typed after the last one starts on the line it will stand on, the
         # blank line before it already standing as the gap.
         last_line = """draft => [...window.marginEditorRoots.get(draft.querySelector('leaf-text'))
@@ -1277,7 +1309,7 @@ def test_draft_comparison_detects_format_changes_but_not_the_same_current_edit(
             "widget": "source",
             "action": "edit",
             "detail": {"value": "Current **edit**."},
-            "facts": {"answered": True},
+            "answered": True,
         },
     )
     _publish(

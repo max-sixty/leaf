@@ -46,7 +46,7 @@ ACTION_ON_OBLIGATION = {
     "widget": "bracket",
     "action": "choose",
     "detail": {"value": ["br-steel"]},
-    "facts": {"answered": True},
+    "answered": True,
     "meaning": {
         "scope": "page",
         "unit": "bracket",

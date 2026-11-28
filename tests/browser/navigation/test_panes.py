@@ -1436,13 +1436,14 @@ def test_a_new_revision_restores_each_panes_semantic_landmark(browser, serve, na
 
 
 @pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
-def test_a_revision_that_replaces_a_pane_returns_the_reader_to_their_place_in_it(
+def test_a_revision_that_replaces_a_panes_body_returns_the_reader_to_their_place_in_it(
     engine, request, serve
 ):
-    """A revision that changes a pane's own attribute replaces the pane whole, so the
-    body the reader had scrolled is gone and the new one starts at its top. The new body
-    takes the region the old one held within the revision's own handoff, which puts the
-    passage the reader was on back where it stood."""
+    """A revision that writes a pane's body as another element replaces the body, so
+    the box the reader had scrolled is gone and the new one starts at its top. The new
+    body takes the region the old one held within the revision's own handoff, which puts
+    the passage the reader was on back where it stood. The pane itself is edited in
+    place, the name it gives assistive technology with its label."""
     page = open_page(
         request.getfixturevalue(engine), live_url(serve(READING_REGIONS_PAGE))
     )
@@ -1457,18 +1458,26 @@ def test_a_revision_that_replaces_a_pane_returns_the_reader_to_their_place_in_it
     }"""
     before = page.evaluate(landmark)
     replaced = body.element_handle()
+    pane = page.locator("#left-reading")
+    held = pane.element_handle()
 
-    stamp_page(
-        serve.page_dir,
-        READING_REGIONS_PAGE.replace(
-            'label="Left reading"', 'label="Left reading, renamed"'
-        ),
-        "rename the left pane",
+    revised = READING_REGIONS_PAGE.replace(
+        'label="Left reading"', 'label="Left reading, renamed"'
+    ).replace(
+        '<div>\n        <p id="left-start">', '<section>\n        <p id="left-start">'
     )
+    revised = revised.replace(
+        '<p id="left-end">Left end</p>\n      </div>',
+        '<p id="left-end">Left end</p>\n      </section>',
+    )
+    assert revised.count("<section>") == 1 and revised.count("</section>") == 1
+    stamp_page(serve.page_dir, revised, "rename the left pane and rewrite its body")
     wait_for_revision(page, 2)
     assert not replaced.evaluate("el => el.isConnected"), (
-        "the pane was patched in place"
+        "the body was patched in place"
     )
+    assert held.evaluate("el => el.isConnected"), "the pane was replaced"
+    expect(pane).to_have_attribute("aria-label", "Left reading, renamed")
     assert page.evaluate(landmark) == pytest.approx(before, abs=2)
     assert body.evaluate("el => el.scrollTop") > 0
 

@@ -187,7 +187,6 @@
       "required": ["id"]
     },
     "content": "empty",
-    "spine": true,
     "instructions": "Write it empty with a stable id. It outlines the nearest tab or part containing it, or the whole main when outside those views. Add `open` to show its compact inline links on arrival; the reader can still collapse them. Set `max-level` to leave out deeper headings that are local detail; by default it lists h2 to h6.",
     "example": "<h1>Migration plan</h1>\n<lf-toc id=\"plan-contents\"></lf-toc>\n<section><h2>Prepare</h2><p>Take a snapshot.</p><h3>Check capacity</h3><p>Leave headroom for the copy.</p></section>\n<section><h2>Move</h2><p>Shift one cohort at a time.</p></section>"
   },
@@ -213,7 +212,6 @@
     },
     "reading-role": "group",
     "flow": true,
-    "verbatim": true,
     "instructions": "Group what belongs together under a name. `label` names the group wherever Leaf names it, such as On Me, a link to it or a thread on it. The group draws none of it: give the group the heading the page needs inside it, as for any other part of the page. A widget that asks the user, such as `lf-options`, stands in the group whose label asks its question, with the premise and evidence the answer rests on (`references/authoring-on-me.md`, \"On the page\"); the innermost group round it is its question. A group asks nothing itself, and one holding no question is a named part of the page like any other.",
     "example": "<lf-group id=\"cache-q\" label=\"Which cache should the importer use?\">\n  <h3>Which cache should the importer use?</h3>\n  <p>Both hold a day of results; only Redis survives a restart.</p>\n  <lf-options id=\"cache\">\n    <lf-option id=\"cache-memory\" label=\"In memory\"><strong>In memory</strong> Nothing new to run.</lf-option>\n    <lf-option id=\"cache-redis\" label=\"Redis\" recommended><strong>Redis</strong> One more service, and no cold start after a deploy.</lf-option>\n  </lf-options>\n</lf-group>"
   },
@@ -244,9 +242,6 @@
       },
       "retired": "settled"
     },
-    "facts": {
-      "answered": { "type": "boolean" }
-    },
     "verbs": {
       "choose": {
         "record": {
@@ -272,21 +267,7 @@
         }
       },
       "answer": {
-        "detail": {
-          "properties": {
-            "options": {
-              "type": "array",
-              "items": { "type": "string" },
-              "uniqueItems": true
-            },
-            "picked": {
-              "type": "array",
-              "items": { "type": "string" },
-              "uniqueItems": true
-            }
-          },
-          "required": ["options", "picked"]
-        }
+        "detail": {}
       }
     },
     "outputs": {
@@ -438,7 +419,7 @@
         }
       }
     },
-    "instructions": "Use a board to show grouped work and status. When the user must make decisions, give them explicit controls or `lf-options` rather than relying on moving cards. When revising, place each card in the column and rank `state` gives it (`$verbs` defines ranks), unless the revision retracts that move by marking the card, not the board, `restated` (`authoring-revisions.md`, \"Honor user state\").\n\n## One answer in its question and on a board\n\nFor this composition, read the `lf-options` and `lf-option` instructions too.\n\nWhen the user answers proposals beside their cases and also needs every answer in one\nview to compare or rearrange, keep each answer in its question's `lf-options` and add a\nboard whose cards show those answers, rather than asking twice. Give each option a\n`value` naming the answer it gives, in words every question shares, and the board one\ncolumn per value with that `value`, plus one column without a value for proposals not\nyet answered or answered in the user's own words. An option without a `value` answers\nwith its id, which no other question shares. Each card's `shows` names its\nquestion's `lf-options`, and the card appears in the column matching that pick's value:\n\n```html\n<lf-group id=\"rail-q\" label=\"Keep the rail?\">\n  <h2>Keep the rail?</h2>\n  <p>…the case for the rail…</p>\n  <lf-options id=\"rail-choice\">\n    <lf-option id=\"rail-next\" value=\"next\">Next</lf-option>\n    <lf-option id=\"rail-later\" value=\"later\">Later</lf-option>\n  </lf-options>\n</lf-group>\n<!-- … the other proposals' questions … -->\n<lf-board id=\"plan\">\n  <lf-column id=\"plan-open\" label=\"Undecided\">\n    <lf-card id=\"plan-rail\" label=\"Keep the rail\" shows=\"rail-choice\"><strong>Keep the rail</strong></lf-card>\n  </lf-column>\n  <lf-column id=\"plan-next\" label=\"Next\" value=\"next\"></lf-column>\n  <lf-column id=\"plan-later\" label=\"Later\" value=\"later\"></lf-column>\n</lf-board>\n```\n\nA drop on the board answers through the `lf-options`, so the page holds one answer,\nwhich Undo and `restated` take back in both views. Options of one question may share\na `value`: a pick of any of them puts the card in that value's column. The user can't\nmove the card into that column on the board, since a drop wouldn't say which option\nthey pick; they pick in the question. When a revision writes the user's\npick into the `lf-options`, move the card to that pick's column too. The user can't reorder a\ncard that shows an answer within its column; where the order within a column is itself\nthe user's call, ask for it as its own question.",
+    "instructions": "Use a board to show grouped work and status. When the user must make decisions, give them explicit controls or `lf-options` rather than relying on moving cards. When revising, place each card in the column and rank `state` gives it (`$verbs` defines ranks), unless the revision retracts that move by marking the card, not the board, `restated` (`authoring-revisions.md`, \"Honor user state\").\n\n## One answer in its question and on a board\n\nFor this composition, read the `lf-options` and `lf-option` instructions too.\n\nWhen the user answers proposals beside their cases and also needs every answer in one\nview to compare or rearrange, keep each answer in its question's `lf-options` and add a\nboard whose cards show those answers, rather than asking twice. Give each option a\n`value` naming the answer it gives, in words every question shares, and the board one\ncolumn per value with that `value`, plus one column without a value for proposals not\nyet answered or answered in the user's own words. An option without a `value` answers\nwith its id, which no other question shares. Each card's `shows` names its\nquestion's `lf-options`, and the card appears in the column matching that pick's value:\n\n```html\n<lf-group id=\"rail-q\" label=\"Keep the rail?\">\n  <h2>Keep the rail?</h2>\n  <p>…the case for the rail…</p>\n  <lf-options id=\"rail-choice\">\n    <lf-option id=\"rail-next\" value=\"next\">Next</lf-option>\n    <lf-option id=\"rail-later\" value=\"later\">Later</lf-option>\n  </lf-options>\n</lf-group>\n<!-- … the other proposals' questions … -->\n<lf-board id=\"plan\">\n  <lf-column id=\"plan-open\" label=\"Undecided\">\n    <lf-card id=\"plan-rail\" label=\"Keep the rail\" shows=\"rail-choice\"><strong>Keep the rail</strong></lf-card>\n  </lf-column>\n  <lf-column id=\"plan-next\" label=\"Next\" value=\"next\"></lf-column>\n  <lf-column id=\"plan-later\" label=\"Later\" value=\"later\"></lf-column>\n</lf-board>\n```\n\nA drop on the board answers through the `lf-options`, so the page holds one answer,\nwhich Undo, or `restated` on the picked option, takes back in both views. Options of one question may share\na `value`: a pick of any of them puts the card in that value's column. The user can't\nmove the card into that column on the board, since a drop wouldn't say which option\nthey pick; they pick in the question. When a revision writes the user's\npick into the `lf-options`, move the card to that pick's column too. The user can't reorder a\ncard that shows an answer within its column; where the order within a column is itself\nthe user's call, ask for it as its own question.",
     "example": "<lf-board id=\"feeder-board\">\n  <lf-column id=\"col-todo\" label=\"To do\">\n    <lf-card id=\"card-heater\" label=\"Heated perch\"><strong>Heated perch</strong> Wire the south feeder.</lf-card>\n    <lf-card id=\"card-baffle\" label=\"Squirrel baffle\"><strong>Squirrel baffle</strong></lf-card>\n  </lf-column>\n  <lf-column id=\"col-doing\" label=\"Doing\">\n    <lf-card id=\"card-camera\" label=\"Camera mount\"><strong>Camera mount</strong></lf-card>\n  </lf-column>\n  <lf-column id=\"col-done\" label=\"Done\"></lf-column>\n</lf-board>"
   },
   "lf-column": {
@@ -586,9 +567,6 @@
         "required": [true]
       }
     },
-    "facts": {
-      "answered": { "type": "boolean" }
-    },
     "verbs": {
       "edit": {
         "record": {
@@ -629,7 +607,6 @@
       "required": ["id", "label"]
     },
     "reading-role": "pane",
-    "verbatim": true,
     "instructions": "For independent scrolling, place the pane as a full-height workspace\u2019s body or a direct cell; elsewhere the page scrolls. Wrap multiple body blocks in one div or section. Use label to name the region accessibly and its header for the visible heading. Put action widgets in the direct footer when they should remain reachable as the body scrolls.",
     "example": "<lf-pane id=\"detail\" label=\"Selected record\"><p>Read the selected record.</p></lf-pane>"
   },

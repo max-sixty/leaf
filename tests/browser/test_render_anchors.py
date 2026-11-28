@@ -4576,7 +4576,8 @@ def test_a_thread_a_closed_box_hides_stands_its_marker_on_the_box(
 ):
     """A thread whose passage a closed box hides, a closed disclosure, a tab not
     chosen or a diff file opened and closed again, stands its marker level with what
-    the page shows for the box, so the page shows that the box holds a thread. A press
+    the page shows for the box, its summary or tab, so the page shows that the box
+    holds a thread. A press
     on the marker opens the box and lands the user on the thread, on a phone too and
     after the box closed round the thread's open card. A suggestion the box hides
     offers no Accept until the box opens, even where a stylesheet lays the box out."""
@@ -4639,7 +4640,15 @@ def test_a_thread_a_closed_box_hides_stands_its_marker_on_the_box(
         expect(laid).to_be_visible()
 
     for case, face, opened, key in (
-        ("tab not chosen", page.locator("#tabs"), "#unchosen", "unchosen"),
+        (
+            "tab not chosen",
+            # The tab's name, which the panel's label names.
+            page.locator(
+                "#" + page.locator("#tab-two").get_attribute("aria-labelledby")
+            ),
+            "#unchosen",
+            "unchosen",
+        ),
         (
             "file opened and closed again",
             file.locator(":scope > summary"),
@@ -4676,6 +4685,136 @@ def test_a_thread_a_closed_box_hides_stands_its_marker_on_the_box(
         entry.click()
         expect(page.locator("#unchosen")).to_be_visible()
         expect(page.locator(PANEL_THREAD)).to_contain_text("About unchosen.")
+
+
+def test_a_thread_in_a_view_not_shown_stands_by_the_name_that_shows_it(
+    browser, serve, subtests
+):
+    """A thread in a part the page doesn't show stands its marker by that part's name
+    in the column of parts, not at the top of the page the parts fill, and a press on
+    it opens the part and lands on the thread. A thread in a side list's unchosen item
+    stands by that item's name, not by the first row of the list, and one whose item
+    the list has scrolled out of its view stands there once the list brings it back."""
+    url = serve(
+        leaf_page(
+            "Views not shown",
+            '<header><h1 id="title">Review</h1></header><lf-parts id="parts">'
+            '<lf-part id="part-one" label="One" summary="The part on screen">'
+            '<article class="layout-column"><p>Shown first.</p>'
+            '<lf-tabs id="queue" list="side">'
+            + "".join(
+                f'<lf-tab id="item-{n}" label="Item {n}">'
+                f'<p id="item-{n}-words">Item {n} words.</p></lf-tab>'
+                for n in range(1, 41)
+            )
+            + "</lf-tabs></article></lf-part>"
+            '<lf-part id="part-two" label="Two" summary="A part not shown">'
+            '<article class="layout-column"><p id="hidden-words">Words in part two.</p>'
+            "</article></lf-part></lf-parts>",
+            layout=None,
+        )
+    )
+    for section in ("hidden-words", "item-5-words", "item-38-words"):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": f"About {section}.",
+                "anchor": {"section": section},
+            },
+        )
+    page = open_page(browser, url)
+
+    def marker(key):
+        return page.locator(f'[data-lf-margin-for="{key}"] .lf-margin-marker')
+
+    def stands_by_name(key, panel):
+        entry = marker(key)
+        expect(entry).to_be_visible()
+        tab = page.locator(f'[role="tab"][aria-controls="{panel}"]').bounding_box()
+        top = entry.bounding_box()["y"]
+        assert tab["y"] - 2 <= top <= tab["y"] + tab["height"] / 2, (
+            f"the marker stands apart from the tab that shows #{panel}"
+        )
+
+    with subtests.test(case="part not shown"):
+        stands_by_name("hidden-words", "part-two")
+
+    with subtests.test(case="side list item not chosen"):
+        stands_by_name("item-5-words", "item-5")
+
+    with subtests.test(case="side list item scrolled into view"):
+        expect(marker("item-38-words")).to_be_hidden()
+        page.locator("#queue > .lf-tabstrip").evaluate(
+            "strip => { strip.scrollTop = strip.scrollHeight; }"
+        )
+        stands_by_name("item-38-words", "item-38")
+
+    with subtests.test(case="press"):
+        marker("hidden-words").click()
+        expect(page.locator("#hidden-words")).to_be_in_viewport()
+        expect(page.locator("#hidden-words")).to_have_class(
+            re.compile(r"\blf-mark-here\b")
+        )
+
+
+def test_the_threads_a_part_not_shown_holds_stand_one_marker_counting_them(
+    browser, serve
+):
+    """Threads on several passages of a part not shown stand one marker by the part's
+    name, badged with how many there are, rather than a marker each crowding the name.
+    A press opens the part, where each stands by its own words, and choosing another
+    part gathers them again."""
+    url = serve(
+        leaf_page(
+            "Gathered threads",
+            '<header><h1 id="title">Review</h1></header><lf-parts id="parts">'
+            '<lf-part id="part-one" label="One" summary="The part on screen">'
+            '<article class="layout-column"><p>Shown first.</p></article></lf-part>'
+            '<lf-part id="part-two" label="Two" summary="A part not shown">'
+            '<article class="layout-column"><p id="two-a">First words of two.</p>'
+            '<p id="two-b">Second words of two.</p></article></lf-part></lf-parts>',
+            layout=None,
+        )
+    )
+    for section in ("two-a", "two-b"):
+        append_carried_log_record(
+            serve.page_dir,
+            {
+                "kind": "comment",
+                "author": "user",
+                "revision": 1,
+                "text": f"About {section}.",
+                "anchor": {"section": section},
+            },
+        )
+    page = open_page(browser, url)
+
+    def row(key):
+        return page.locator(f'[data-lf-margin-for="{key}"]')
+
+    gathered = row("two-a").locator(".lf-margin-marker")
+    expect(gathered.locator(".lf-badge-count")).to_have_text("2")
+    expect(row("two-b").locator(".lf-margin-marker")).to_be_hidden()
+    tab = page.locator('[role="tab"][aria-controls="part-two"]').bounding_box()
+    top = gathered.bounding_box()["y"]
+    assert tab["y"] - 2 <= top <= tab["y"] + tab["height"] / 2, (
+        "the gathered marker stands apart from the part's name"
+    )
+
+    gathered.click()
+    expect(page.locator("#two-a")).to_be_in_viewport()
+    for key in ("two-a", "two-b"):
+        expect(row(key).locator(".lf-margin-marker")).to_be_visible()
+    expect(gathered.locator(".lf-badge-count")).to_have_count(0)
+
+    # The press opened the first thread's card, which holds the user in part two.
+    page.locator(".lf-margin-preview-close").click()
+    page.locator('[role="tab"][aria-controls="part-one"]').click()
+    expect(row("two-b").locator(".lf-margin-marker")).to_be_hidden()
+    expect(gathered.locator(".lf-badge-count")).to_have_text("2")
 
 
 def test_back_while_a_thread_s_file_loads_leaves_the_user_where_back_took_them(

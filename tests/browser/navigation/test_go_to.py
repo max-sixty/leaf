@@ -28,6 +28,7 @@ from render_harness import (
     resized,
     scroll_settled,
     shown,
+    spine_sidebar,
     told,
 )
 
@@ -171,6 +172,7 @@ def test_generated_hints_include_links_revealed_by_a_page_widget(browser, serve)
 <div style="height: 700px"></div>
 <section><h2 id="verify">Verify</h2><p>Compare the totals.</p></section></div>
 """,
+                head=spine_sidebar(),
                 layout="sidebar",
             )
         ),
@@ -722,7 +724,7 @@ def test_the_g_chord_selects_a_visible_tab_hint(browser, serve):
     # generated map keeps their activation and focus behavior.
     page.keyboard.press("g")
     expect(page.locator(f'{CHIPS}[data-lf-go-to-kind="Tab"]')).to_have_count(2)
-    page.keyboard.type(address_code(page, "Tab", "tab-bath"))
+    page.keyboard.type(address_code(page, "Tab", "lf-tab-tab-bath"))
 
     expect(tabs.nth(1)).to_have_attribute("aria-selected", "true")
     expect(tabs.nth(1)).to_be_focused()

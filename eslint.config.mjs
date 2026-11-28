@@ -594,8 +594,9 @@ const placementsRule = {
       arg.type === "SpreadElement" ||
       (arg.type === "Identifier" && /^opt/u.test(arg.name));
     // CodeMirror's imported state effect asks its view's scroll handler to reveal;
-    // it is not the browser method. Resolve the binding so aliases work and a local
-    // element merely named EditorView does not gain an exception.
+    // it is not the browser method. Resolve the binding to an `EditorView` a vendored
+    // bundle exports, the runtime's CodeMirror or a package's own, so aliases work and
+    // a local element merely named EditorView does not gain an exception.
     const editorReveal = (callee) => {
       if (callee.object.type !== "Identifier") return false;
       for (
@@ -609,9 +610,7 @@ const placementsRule = {
           (definition) =>
             definition.type === "ImportBinding" &&
             definition.node.imported?.name === "EditorView" &&
-            /(?:^|\/)vendor\/codemirror\.esm\.js$/u.test(
-              definition.parent.source.value,
-            ),
+            /(?:^|\/)vendor\/[^/]+\.js$/u.test(definition.parent.source.value),
         );
       }
       return false;
@@ -1852,9 +1851,8 @@ export default [
           // it is no new entry.
           "browser/runtime/records/thread/replies.js": ["focusin"],
           // A widget's own subtree, whose controls stand in its tree: whether focus is
-          // within the gloss, and the contents link the user last stood on.
+          // within the gloss.
           "packages/default/widgets/lf-gloss.js": ["focusin", "focusout"],
-          "packages/default/widgets/lf-toc.js": ["focusin"],
           // The text field's empty line hands focus that lands on it to the editor it
           // builds, in its own shadow tree.
           "browser/runtime/annotations/composing/text-field.js": ["focusin"],

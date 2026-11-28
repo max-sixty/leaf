@@ -75,7 +75,7 @@ import {
   syntax,
 } from "/runtime/lib/syntax-tokens.js";
 import { textWidth } from "/runtime/lib/text-width.js";
-import { diffArrays } from "/vendor/jsdiff.esm.js";
+import { diffArrays } from "/vendor/array-diff.esm.js";
 
 /** @typedef {import("../../../browser/types/contract.js").DataTextDocument} DocumentValue */
 

@@ -371,6 +371,19 @@ export const closedOver = (node) => {
 export const untilFound = (node) =>
   node instanceof HTMLElement && node.hidden === "until-found";
 
+// The elements an element's `aria-labelledby` names, found by id in its tree: a
+// control's label, or the tab that names a tab panel. Not its `ariaLabelledByElements`:
+// Firefox's content process crashes once the page and an isolated world, such as
+// Playwright's role locator, have both read that property
+// (https://bugzilla.mozilla.org/show_bug.cgi?id=2090055).
+export function labelledBy(element) {
+  const root = element.getRootNode();
+  if (!("getElementById" in root)) return [];
+  return (element.getAttribute("aria-labelledby") ?? "")
+    .split(/\s+/)
+    .flatMap((id) => (id && root.getElementById(id)) || []);
+}
+
 // Every element the browser draws at or under `root`, through the open shadow trees of
 // the hosts it draws, each tree in its own order, which a reading of the page as drawn
 // walks (render-checks/open-roots.js, `drawnPage`). An element that draws no box of its

@@ -6,7 +6,14 @@ import pytest
 from PIL import Image
 from playwright.sync_api import expect
 from render_cases_interaction import live_url
-from render_harness import leaf_page, open_page, resized, rgb_pixels, told
+from render_harness import (
+    leaf_page,
+    open_page,
+    resized,
+    rgb_pixels,
+    spine_sidebar,
+    told,
+)
 
 from leaf.source.render_checks import rendered, wait_until_ready
 
@@ -80,6 +87,7 @@ def test_contents_disclosure_keeps_its_links_focus_and_open_state(
         + '></lf-toc></div></aside><div class="layout-column"><h1>Report</h1>'
         '<section id="evidence"><h2>Evidence</h2><p>Read the counts.</p></section>'
         '<section id="decision"><h2>Decision</h2><p>Choose the next step.</p></section></div>',
+        head=spine_sidebar(),
         layout="sidebar",
     )
     page = open_page(browser, live_url(serve(source)))
@@ -193,6 +201,7 @@ def test_a_spine_sidebar_draws_its_map_only_beside_the_body(browser, serve):
         "margin contents",
         '<aside id="rail"><div class="layout-track"><lf-toc id="contents"></lf-toc>'
         f'</div></aside><div class="layout-column" id="body"><h1>Review</h1>{sections}</div>',
+        head=spine_sidebar(),
         layout="sidebar",
     )
     page = open_page(browser, live_url(serve(source)))
@@ -221,81 +230,81 @@ SECTIONS = "".join(
 MAP_TRACK = '<div class="layout-track"><lf-toc id="contents"></lf-toc></div>'
 
 
+# A bar the body fixes across the window, over the sidebar.
+FIXED_BAR = (
+    '<div id="bar" style="position: fixed; inset: 200px 0 auto; height: 40px;'
+    ' z-index: 5; background: canvas"></div>'
+)
+
+
 @pytest.mark.parametrize(
-    ("body", "head", "folded"),
+    "body",
     [
         pytest.param(
-            '<aside id="route"><div class="layout-track"><lf-toc id="contents"></lf-toc>'
-            '<p id="status">Two branches wait on review before the window opens.</p>'
-            f'</div></aside><div class="layout-column" id="body">{SECTIONS}</div>',
-            "",
-            False,
-            id="status-beside-the-map",
+            f'<aside id="route">{MAP_TRACK}</aside>'
+            f'<div class="layout-column" id="body">{SECTIONS}{FIXED_BAR}</div>',
+            id="map-before-the-body",
         ),
         pytest.param(
-            f'<div class="layout-column" id="body">{SECTIONS}</div>'
+            f'<div class="layout-column" id="body">{SECTIONS}{FIXED_BAR}</div>'
             f'<aside id="route">{MAP_TRACK}</aside>',
-            "",
-            False,
-            id="aside-after-the-body",
-        ),
-        pytest.param(
-            f'<aside id="route">{MAP_TRACK}</aside><div id="body">{SECTIONS}</div>',
-            "<style>main { --lf-aside: 56px; }</style>",
-            True,
-            id="narrow-sidebar-of-the-page",
+            id="map-after-the-body",
         ),
     ],
 )
-def test_a_sidebar_the_layout_does_not_narrow_keeps_the_map_s_words_shown(
-    browser, serve, body, head, folded
+def test_a_sidebar_the_page_leaves_alone_keeps_the_map_s_words_shown(
+    browser, serve, body
 ):
-    """Only a sidebar the Layout narrows to the map's spine lets the map rest as that
-    spine and lay its labels over the body. The prose stands centred in the window
-    beside an outline column too, whichever side of the body the aside stands on. A document's sidebar keeps a column's room
-    for a status beside the map, where the narrowed sidebar would have crushed the
-    status to a word a line, and for an aside after the body, where the labels would
-    have spread past the window's edge; the outline stands open in that column. A
-    narrow sidebar the page asks for keeps its width, too narrow for the outline's
-    words, so the map folds into the disclosure there rather than hiding labels its
-    track would clip."""
-    source = leaf_page("sidebar of a column", body, head=head, layout="sidebar")
+    """A document's sidebar keeps a column's room unless the page narrows it, so the
+    contents map stands open there as an outline, its label and every section's words
+    shown, whichever side of the body the aside stands on. The prose stands centred in
+    the window beside it, as a column page's does. Only a narrowed track paints over
+    the body, so a bar the body fixes over this sidebar takes the pointer there."""
+    source = leaf_page("sidebar of a column", body, layout="sidebar")
     page = open_page(browser, live_url(serve(source)))
     resized(page, 1440, 900)
     toc = page.locator("#contents")
-    expect(toc.locator(".lf-toc-rows")).not_to_have_css("display", "flex")
-    if folded:
-        expect(toc.locator("summary")).to_be_visible()
-        return
-    assert page.locator("#route").evaluate("node => node.offsetWidth") >= 200
+    assert page.locator("#route").evaluate("node => node.offsetWidth") == 240
     off_centre = page.evaluate(
         "() => { const box = document.querySelector('#body p').getBoundingClientRect();"
         " return Math.round((box.left + box.right) / 2 - innerWidth / 2); }"
     )
     assert abs(off_centre) <= 1, off_centre
+    expect(toc.locator(".lf-toc-markers")).to_be_hidden()
     expect(toc.locator(".lf-toc-heading")).to_be_visible()
     expect(toc.get_by_role("link", name="Section 1", exact=True)).to_have_css(
         "opacity", "1"
     )
+    over = page.evaluate("""() => {
+      const route = document.getElementById('route').getBoundingClientRect();
+      const bar = document.getElementById('bar').getBoundingClientRect();
+      const x = (route.left + route.right) / 2, y = bar.top + 20;
+      return {inRoute: route.top < y && y < route.bottom,
+              hit: document.elementFromPoint(x, y).id};
+    }""")
+    assert over == {"inRoute": True, "hit": "bar"}, over
 
 
 @pytest.mark.parametrize("direction", ["ltr", "rtl"])
 def test_a_contents_spine_rests_beside_the_prose_and_reveals_its_labels_over_it(
     browser, serve, direction
 ):
-    """The narrowed sidebar stands at the body's inline start in either direction, and
-    the prose stands centred in the window, as a column page's does. At
-    rest the map lays nothing over the prose, and pointing at its spine shows its labels
-    over the page past the spine's track, inside the window. On paper, where nothing
-    points at it, the sidebar takes a column's room and the outline reads whole."""
+    """A sidebar the page narrows by the rule page-layout.md gives stands at the body's
+    inline start in either direction, its track fixed in the window, and the prose
+    stands centred in the window, as a column page's does. At rest the map lays nothing
+    over the prose, and pointing at its spine shows its labels over the page past the
+    spine's track, inside the window. On paper, where nothing points at it, the rule
+    leaves the sidebar a column's room and the outline reads whole."""
     source = leaf_page(
         "contents spine",
         f'<aside id="route">{MAP_TRACK}</aside><div class="layout-column" id="body">'
         f"<h1>Review</h1>{SECTIONS}</div>",
+        head=spine_sidebar(),
         layout="sidebar",
     ).replace('<html lang="en">', f'<html lang="en" dir="{direction}">')
     page = open_page(browser, live_url(serve(source)))
     resized(page, 1440, 900)
+    expect(page.locator("#route > .layout-track")).to_have_css("position", "fixed")
     geometry = page.evaluate("""() => {
       const box = selector => document.querySelector(selector).getBoundingClientRect();
       const aside = box('#route'), prose = box('#body p'), rows = box('#contents .lf-toc-rows');
@@ -398,15 +407,14 @@ def test_a_contents_spine_fades_its_words_as_one_and_frees_the_prose_at_once(
         "contents spine fade",
         f'<aside id="route">{MAP_TRACK}</aside><div class="layout-column" id="body">'
         f"<h1>Review</h1>{body}</div>",
+        head=spine_sidebar(),
         layout="sidebar",
     )
     page = open_page(browser, live_url(serve(source)))
     resized(page, 1440, 900)
     toc = page.locator("#contents")
     if sections > 3:
-        expect(
-            toc.locator(".lf-toc-labels a:not([data-lf-toc-shown])").first
-        ).to_be_attached()
+        expect(toc.locator(".lf-toc-labels a[data-lf-toc-off]").first).to_be_attached()
     track = toc.bounding_box()
     y = track["y"] + 200
     page.mouse.move(track["x"] + 3, y)
@@ -490,16 +498,20 @@ def test_a_contents_spine_fades_its_words_as_one_and_frees_the_prose_at_once(
     assert len(set(rgb_pixels(past_track))) > 1, label
 
 
-def test_the_revealed_contents_spine_covers_every_box_the_body_paints(browser, serve):
+@pytest.mark.parametrize("body_class", ["layout-column", ""], ids=["column", "own"])
+def test_the_revealed_contents_spine_covers_every_box_the_body_paints(
+    browser, serve, body_class
+):
     """On a window narrow enough that the prose stands just past the spine, the revealed
     map lies over the body's start edge and covers every box the body paints there: a
     table, which the theme makes a positioned scroll box, bullets the page draws in
-    positioned boxes, and a box the page lifts with its own z-index. The narrowed
-    sidebar's Layout paints its aside over the body for this (layouts.css)."""
+    positioned boxes, and a box the page lifts with its own z-index. The Layout lifts
+    every track narrowed beside the body this way, a document's column and a body the
+    page lays out itself alike (layouts.css)."""
     source = leaf_page(
         "contents spine over positioned boxes",
         '<aside id="route"><div class="layout-track"><lf-toc id="contents"></lf-toc>'
-        '</div></aside><div class="layout-column" id="body"><h1>Review</h1>'
+        f'</div></aside><div class="{body_class}" id="body"><h1>Review</h1>'
         '<section id="s1"><h2>Steps</h2><ul class="steps" id="steps">'
         "<li>Drain the queue</li><li>Rotate the key</li></ul></section>"
         '<section id="s2"><h2>Owners</h2><table id="owners"><tr><th>Step</th>'
@@ -509,7 +521,7 @@ def test_the_revealed_contents_spine_covers_every_box_the_body_paints(browser, s
         head="<style>.steps li { position: relative; list-style: none; }"
         ' .steps li::before { content: ""; position: absolute; inset: 0.6em auto auto'
         " -1em; width: 0.4em; height: 0.4em; border-radius: 50%; background: currentColor; }"
-        " #lifted { position: relative; z-index: 3; }</style>",
+        " #lifted { position: relative; z-index: 3; }</style>" + spine_sidebar(),
         layout="sidebar",
     )
     page = open_page(browser, live_url(serve(source)))

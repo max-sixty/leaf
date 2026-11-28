@@ -2685,7 +2685,7 @@ CONTROL_SHAPES = {
     "queue": (
         '<lf-tabs id="queue" list="side"><lf-tab id="first" label="Primary" summary="pages"><p>Primary evidence.</p></lf-tab><lf-tab id="second" label="Backup" summary="pages"><p>Backup evidence.</p></lf-tab></lf-tabs>',
         "#queue [role=tab] .lf-tab-summary",
-        [("Primary", None), ("Backup", None)],
+        [("Primary pages", None), ("Backup pages", None)],
     ),
     # An editor's value never names it, and an authored id does.
     "editable-regions": (
@@ -2758,7 +2758,7 @@ CONTROL_PRESSES = {
     "a tab's summary": (
         '#queue [role=tab][aria-controls="second"] .lf-tab-summary',
         None,
-        "Backup",
+        "Backup pages",
     ),
     "a region": ("#focusable-regions > div >> nth=1", None, "Draft region"),
     "a picture": ("#pictures > figure svg", None, "Cost chart"),

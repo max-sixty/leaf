@@ -1474,7 +1474,10 @@ def test_print_wraps_diff_lines_and_keeps_file_headers_in_place(browser, serve):
     )
     assert len(numbers) == printed["rows"]
     assert all(
-        number["visible"] and number["number"].isdigit() and number["plus"] == "none"
+        number["visible"]
+        and number["number"].split()
+        and all(part.isdigit() for part in number["number"].split())
+        and number["plus"] == "none"
         for number in numbers
     ), numbers
     page.emulate_media(media="screen")

@@ -336,11 +336,13 @@ class DraftEditing {
         },
       ],
     };
-    declare(host, { lfCommands: this.#commands });
     // Leaf stands Copy last in the toolbar (`lfBar`), so Tab from the editor reaches
     // Save first. It copies the source the box shows, the editor's while it is open.
-    host.lfCopy = () => this.#editor?.value ?? this.#args.saved;
-    host.lfBar = tools;
+    declare(room, {
+      lfCommands: this.#commands,
+      lfCopy: () => this.#editor?.value ?? this.#args.saved,
+      lfBar: tools,
+    });
     host.dataset.lfCopy = "Markdown";
     this.#listen();
     // A recovered edit outranks the authored text: the user typed it and never got it
@@ -469,7 +471,7 @@ class DraftEditing {
     if (this.#editor) this.#editor.readOnly = !args.available;
     if (!this.#rests) this.#holdText();
     // The toolbar has drawn the controls and title the rows name: Leaf reads them again.
-    if (drew) declare(this.#host, { lfCommands: this.#commands });
+    if (drew) declare(this.#room, { lfCommands: this.#commands });
   }
 
   close() {
@@ -479,7 +481,6 @@ class DraftEditing {
     for (const stop of this.#stops.splice(0)) stop();
     this.#host.removeAttribute("aria-busy");
     delete this.#host.dataset.lfCopy;
-    this.#host.lfCopy = this.#host.lfBar = undefined;
   }
 
   #control(key: Tool) {

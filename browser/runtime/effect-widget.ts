@@ -50,23 +50,63 @@
    by its lowercased tag, with the event as `detail`, as `BrowserHost.defineElement`
    dispatches one.
 
-   Declarations. What Leaf reads off the element itself, its keys (`lfCommands`) and
-   its visual parts (`lfParts`), a widget states with `declare(node, declarations)`
-   from a Mount, where `node` is the element or one its view drew: they stand on the
-   element while the root does. Each call says them (`lf-commands`, and `lf-layout`
-   for parts), so Leaf reads again what they read. A widget gives the Mount, as its
-   args, what its declarations read, such as the step a row's `when` reads, and
+   Declarations. A widget sets each member Leaf reads off its element, such as its keys
+   (`lfCommands`) or its thread outlets (`threadOutlets`), with
+   `declare(node, declarations)` from a Mount, where `node` is one its view drew.
+   `DECLARED` lists those members, and `declare` refuses any other key. Each stands on
+   the element until the root closes. A Mount on a node the view drew for another
+   widget, such as a child widget's element, declares for this widget. Each call says
+   what it set (`lf-commands` for keys, `lf-layout` for the rest), so Leaf reads it
+   again. A widget gives the Mount, as its args, what its declarations read, and
    declares on each change of them (the Mount's `changes`), the one hook Effect UI
-   gives on a draw the component's own Model starts. After a draw the adapter
-   started, from a set of `state`, an input or a member, the element also says
-   `lf-commands` for everything under it, so Leaf reads again every key scope there,
-   including one that is a single node's own `lfCommands`, such as a control's, and
-   `lf-layout` where it declares parts.
+   gives on a draw the component's own Model starts. After a draw the adapter started,
+   from a set of `state`, an input or a member, the element also says `lf-commands`
+   for everything under it, and `lf-layout` where it declares parts. A member Leaf
+   reads off a node the view draws, such as a child outlet's `lfHold` or a row's
+   `lfPreview`, the view sets on that node with `.prop`.
 
-   Drawing follows the protocol's "Drawing" rule. The first mount draws before
-   `connectedCallback` returns. A later set draws in Effect UI's flush, a microtask
-   later and before the next frame, so each set that gives new props dispatches a
-   `pending-task` whose promise settles after that flush.
+   Drawing follows the protocol's "Drawing" rule. The root mounts once the element has
+   connected and the host has made its sets for this connection, so its first props
+   hold them all: as `connectedCallback` returns where no host cancels `lf-connect` or
+   the host made its sets inside it, and otherwise at the end of the host's pass that
+   sets `state`, a microtask later, which the pass waits on through the `pending-task`
+   the element dispatches for the mount. A property set earlier, as a sibling
+   connecting first may set one, waits for that mount. A later set draws in Effect
+   UI's flush, a microtask later and before the next frame, so each set that gives new
+   props dispatches a `pending-task` whose promise settles after that flush.
+
+   Focus, typed words and moves. A draw patches the nodes it keeps, so focus, a field's
+   words and its caret stay where they are, and a keyed node moved among its parent's
+   children moves with `moveBefore`, which keeps them too (the selection in a
+   contenteditable collapses, in every engine). A keyed node is matched only among its
+   parent's children, so a node a draw moves to another parent is a new node there,
+   with no focus or words, and a removed node takes focus with it. So:
+
+   - Around each draw it starts, from a set or a member, the adapter holds the user's
+     place by the key of the drawn datum they are in (`data-lf-datum`, module-state.md,
+     "Marking drawn data"), which the widget declares: where they last stood, if that
+     stands again, as where a nested widget's hold put them back; else on their own
+     node where it survived the draw; else on the datum now carrying that key among
+     the widget's own, else on the nearest one still drawn. It lands on the datum
+     itself, a stop lent where it is no control, never on a control in it chosen by its
+     look nor on the first one a boxless datum draws; where a datum takes no focus, it
+     tries the next node its key marks, then the next key's (`holdFocus`,
+     `alike: false`). The last
+     place it tries is the widget's own element, with a stop lent, as where a removal
+     empties its list or the user's node stood in none of the widget's datums. It puts
+     the user back only while their focus is lost, so a nested widget's hold and this
+     one need no order between them.
+   - A row the widget moves to another parent, and whose user should stay on their
+     control with their words and caret, it writes as a keep-alive child
+     (`h.keepAlive`): its nodes move with it, and the hold puts the user back on theirs.
+   - A draw the component's own message starts has no hold (Effect UI's limits,
+     below), so where it removes or moves the user's row, the user lands on the body
+     unless the component says where they go.
+   - A native disclosure's `open` is the browser's until a gesture makes the fold part
+     of the page's state (root AGENTS.md). The view writes `open` as an attribute that
+     doesn't change, which Effect UI writes only as the element arrives, hears folds
+     with `toggle`, and folds through the node from a Mount where the widget folds
+     (lf-call-diff.js, lf-toc.js).
 
    Failure. A root that fails, or inputs that throw, report the failure as the
    element's `error` and show Leaf's failure box beside the authored children, which
@@ -74,12 +114,12 @@
    successful reading of the inputs removes the box; a failed root stands failed until
    the element connects again.
 
-   Lifecycle. The element dispatches `lf-connect` as it connects, so Leaf dresses its
-   shadow root and makes its sets first; where Leaf cancels the event, the element
-   mounts once `state` arrives. A descendant's `lf-connect` reads `inputs` again, since
-   a revision may have replaced the members they read. Moving the element keeps its
-   root (`connectedMoveCallback`), and leaving the document closes it a microtask
-   later, as `defineElement`'s elements do.
+   Lifecycle. The element dispatches `lf-connect` each time it connects, so Leaf
+   dresses its shadow root and makes its sets first; where Leaf cancels the event, the
+   element mounts once Leaf has set `state` for this connection. A descendant's
+   `lf-connect` reads `inputs` again, since a revision may have replaced the members
+   they read. Moving the element keeps its root (`connectedMoveCallback`), and leaving
+   the document closes it a microtask later, as `defineElement`'s elements do.
 
    Effect UI's limits that shape this module:
 
@@ -91,14 +131,30 @@
    - A root gives its owner no hook on a flush: `Renderer.Root` has `model`, `send`
      and `setProps`, and the per-flush `commit` is the host's own. So the adapter
      hears only the draws it starts, and a draw from the component's own messages is
-     said by the widget's Mount (Declarations).
-   - A keyed child is matched only among its parent's children (`patchList`), so a
-     keyed node that a draw moves to another parent is a new node there, and focus on
-     the old one drops to the body. Around each draw it starts, the adapter holds the
-     user's place by the key of the drawn datum they are on (`data-lf-datum`,
-     module-state.md, "Marking drawn data"). Once the draw has landed, it puts them on
-     the node that now carries that key, or on the nearest datum still drawn
-     (`holdFocus`).
+     said by the widget's Mount (Declarations), and holds the user's place by no key.
+     The idiom tried for that place: the update that removes or moves the user's row
+     issues `HtmlCommand.focus` on a ref to the control they go to (`Html.ref`,
+     `.ref(ref.at(key))`), which focuses it once the draw lands; a keep-alive row that
+     asks to move issues it on its own control, since a ref reaches only the instance
+     that issues the Command. It lands the user there in Chromium and Firefox, and
+     needs `HtmlCommand`, which `/vendor/effect-ui.js` doesn't export yet.
+   - The controlled `.open()` writes the Model's value on every draw, over a fold the
+     browser made whose `toggle` hasn't arrived, as a script's reveal, a summary press
+     or find in page makes one: a draw in that task closes it again, and the Model
+     never hears it. So a widget leaves `open` to the browser (Focus, above).
+   - A keep-alive child moved to another parent keeps its nodes and the words in them,
+     but focus in it drops to the body: the kernel takes the nodes out of the old
+     parent before it puts them in the new one, and `insert` uses `moveBefore` only
+     within one parent. The adapter's hold puts the user back for a draw it starts;
+     for the component's own move, only the row's own `HtmlCommand.focus` does.
+   - A datum that is a host whose shadow root delegates focus hands the hold's focus to
+     its first control, open root or closed, as on main: the hold can't see past it.
+   - Where no datum takes focus, as where every row is boxless (`display: contents`),
+     the hold leaves the user on the widget's own element.
+   - Where a widget's own draw hides the user's node and a nested widget's later draw
+     in the same pass draws it anew, the outer hold runs first and leaves the user on
+     the outer widget or its row, one Tab from their control. Landing them on it would
+     take holds that restore after every draw of the pass, innermost first.
    - A render that changes a node's attributes removes the ones it drops before it
      sets the new ones (`patchAttrs`), so an `<a>` that trades `href` for `tabindex`
      loses focusability for an instant and Chromium blurs it. A widget keeps such a
@@ -135,8 +191,27 @@ export type WidgetOptions = {
   members?: Record<string, Member>;
 };
 
+// Every member Leaf reads off a widget's element (runtime-globals.d.ts), `lfHold`
+// included, which Leaf reads off the outlet a widget returns, the element itself where
+// the widget is its own outlet.
+const DECLARED = [
+  "lfCommands",
+  "lfParts",
+  "lfPreview",
+  "lfCopy",
+  "lfBar",
+  "lfWord",
+  "lfSays",
+  "lfRevealDatum",
+  "lfElementsFor",
+  "lfDataDatum",
+  "lfDatumLabel",
+  "threadOutlets",
+  "lfHold",
+] as const;
+
 /** What a widget states on its element for Leaf to read. */
-export type Declarations = Pick<HTMLElement, "lfCommands" | "lfParts">;
+export type Declarations = Partial<Pick<HTMLElement, (typeof DECLARED)[number]>>;
 
 type Root = {
   setProps: (props: unknown) => void;
@@ -152,26 +227,37 @@ let mounts = 0;
 // time-sliced HtmlScheduler, as later tasks.
 const microtasks = new Scheduler.MixedScheduler("sync");
 
-// Each standing root's element, and its container, a shadow root or a light box, to
-// the element, which `declare` finds from a node the root drew.
+// Each standing root's container, a shadow root or a light box, to its element, which
+// `declare` finds from a node the root drew.
 const elementOf = new WeakMap<Node, HTMLElement>();
+// The members each element's widget declared, which its root's close clears.
+const declaredOn = new WeakMap<HTMLElement, Set<string>>();
 
-/** State `declarations` on the widget whose root drew `node`, or on the widget `node`
- *  is, until that root closes, and say them, so Leaf reads them again. */
-export function declare(node: Node, declarations: Declarations) {
-  let at: Node | null = node;
+// The widget whose root drew the nodes at `at` and below.
+const drawerOf = (at: Node | null) => {
   while (at && !elementOf.has(at)) at = at.parentNode;
-  const element = at && elementOf.get(at);
+  return at ? elementOf.get(at) : undefined;
+};
+
+/** State `declarations` on the widget whose root drew `node`, until that root closes,
+ *  and say them, so Leaf reads them again. */
+export function declare(node: Node, declarations: Declarations) {
+  const element = drawerOf(node.parentNode);
   if (!element) throw new Error("declare: the node stands in no widget's root");
-  const { lfCommands, lfParts } = declarations;
-  if ("lfCommands" in declarations) {
-    element.lfCommands = lfCommands;
+  // Every own key, symbols included, since `Object.assign` copies those too.
+  const keys = Reflect.ownKeys(declarations);
+  const unread = keys.find(
+    (key) => !(DECLARED as readonly PropertyKey[]).includes(key),
+  );
+  if (unread !== undefined)
+    throw new TypeError(`declare: Leaf reads no ${String(unread)} off an element`);
+  Object.assign(element, declarations);
+  const declared = declaredOn.get(element) ?? new Set();
+  for (const key of keys) declared.add(key as string);
+  declaredOn.set(element, declared);
+  if (keys.includes("lfCommands"))
     element.dispatchEvent(new CustomEvent(COMMANDS, { bubbles: true, composed: true }));
-  }
-  if ("lfParts" in declarations) {
-    element.lfParts = lfParts;
-    layoutChanged(element);
-  }
+  if (keys.some((key) => key !== "lfCommands")) layoutChanged(element);
 }
 
 /** Define `tag` as a widget that draws `component`, an Effect UI HTML component whose
@@ -197,7 +283,7 @@ export function defineWidget(
           set(this: InstanceType<typeof Widget>, value: unknown) {
             this.#properties = { ...this.#properties, [name]: value };
             if (this.#root) this.#update();
-            else this.#mount();
+            else this.#ask();
           },
         });
       for (const [name, { get, set }] of Object.entries(members))
@@ -231,8 +317,15 @@ export function defineWidget(
     // failed, which only connecting again mends.
     #failure: HTMLElement | undefined = undefined;
     #failed = false;
-    // Leaf answered `lf-connect`: it sets `state`, and nothing mounts before it has.
+    // Whether the element stands in the document, whether it is dispatching
+    // `lf-connect`, whether Leaf answered this connection's, and whether Leaf has set
+    // `state` since: nothing mounts before Leaf's sets for the connection.
+    #connected = false;
+    #connecting = false;
     #hosted = false;
+    #fresh = false;
+    // A mount waiting for the end of the host's pass of sets.
+    #asking = false;
     // Moved by `reread`, and read with the inputs, so the watch reads them again.
     #asked = signal(0);
     #reread = () => {
@@ -243,17 +336,15 @@ export function defineWidget(
       super();
       if (shadow) this.attachShadow({ mode: "open" });
       // A page may set a property before this module defines the tag, which leaves an
-      // own property hiding the accessor. Its value moves into the props here, without
-      // the accessor's mount: an element upgraded in the document mounts from
-      // `connectedCallback`, once Leaf has answered `lf-connect`. A member's value
-      // goes through its accessor, which holds the message for that mount.
+      // own property hiding the accessor. Each such value goes through its accessor
+      // instead, which keeps it for the mount: an element upgraded in the document
+      // mounts from `connectedCallback`.
       const own = this as unknown as Record<string, unknown>;
-      for (const name of [...properties, ...Object.keys(members)])
+      for (const name of ["state", ...properties, ...Object.keys(members)])
         if (Object.hasOwn(this, name)) {
           const value = own[name];
           delete own[name];
-          if (name in members) own[name] = value;
-          else this.#properties = { ...this.#properties, [name]: value };
+          own[name] = value;
         }
       // The box goes beside the authored children, which stay as they are.
       placesFailure(this, (box) => {
@@ -266,13 +357,7 @@ export function defineWidget(
       // A listener on a shadow host sees itself as the target of an event from inside
       // its root, so the element that connected is read off the path.
       this.addEventListener(CONNECT, (event) => {
-        if (inputs && this.#root && event.composedPath()[0] !== this)
-          untracked(() => {
-            const next = this.#read();
-            if (!next) return;
-            this.#inputs = next;
-            this.#update();
-          });
+        if (inputs && this.#root && event.composedPath()[0] !== this) this.#reread();
       });
     }
 
@@ -281,16 +366,24 @@ export function defineWidget(
     }
     set state(value) {
       this.#state = value;
+      this.#fresh = true;
       if (this.#root) this.#update();
-      else this.#mount();
+      else this.#ask();
     }
 
     connectedCallback() {
+      this.#connected = true;
       if (this.#root) return;
       untracked(() => {
-        this.#hosted ||= !this.dispatchEvent(
-          new Event(CONNECT, { bubbles: true, composed: true, cancelable: true }),
-        );
+        this.#fresh = false;
+        this.#connecting = true;
+        try {
+          this.#hosted = !this.dispatchEvent(
+            new Event(CONNECT, { bubbles: true, composed: true, cancelable: true }),
+          );
+        } finally {
+          this.#connecting = false;
+        }
         this.#mount();
       });
     }
@@ -299,15 +392,17 @@ export function defineWidget(
     connectedMoveCallback() {}
 
     disconnectedCallback() {
+      this.#connected = false;
       queueMicrotask(() => {
         if (this.isConnected || !this.#scope) return;
         const scope = this.#scope;
         this.#ended = this.#root?.model();
         this.#unwatch?.();
         if (this.#container) elementOf.delete(this.#container);
-        elementOf.delete(this);
         if (!this.shadowRoot) (this.#container as Element | undefined)?.remove();
-        this.lfCommands = this.lfParts = undefined;
+        const own = this as unknown as Record<string, unknown>;
+        for (const key of declaredOn.get(this) ?? []) own[key] = undefined;
+        declaredOn.delete(this);
         this.#root = this.#scope = this.#unwatch = this.#container = undefined;
         Effect.runFork(Scope.close(scope, Exit.void));
       });
@@ -335,9 +430,26 @@ export function defineWidget(
       return { ...this.#inputs, ...this.#properties, state: this.#state };
     }
 
+    // Whether the host has made its sets for this connection: at once where no host
+    // answered `lf-connect`, and once it has set `state` where one did.
+    #ready() {
+      return this.#connected && !this.#connecting && (!this.#hosted || this.#fresh);
+    }
+
+    // A set the host makes after `lf-connect` returns belongs to a pass of sets that is
+    // still running, so the mount waits for its end. The pass waits on the mount.
+    #ask() {
+      if (this.#asking || !this.#ready()) return;
+      this.#asking = true;
+      const mounted = Promise.resolve().then(() => {
+        this.#asking = false;
+        this.#mount();
+      });
+      this.dispatchEvent(new PendingTaskEvent(mounted));
+    }
+
     #mount() {
-      if (this.#root || !this.isConnected) return;
-      if (this.#hosted && this.#state === undefined) return;
+      if (this.#root || !this.isConnected || !this.#ready()) return;
       this.#failed = false;
       this.#mended();
       if (inputs) {
@@ -360,7 +472,7 @@ export function defineWidget(
       const scope = (this.#scope = Scope.makeUnsafe());
       // A shadow root is a container as an element is, as `defineElement` mounts one.
       const container = (this.#container = this.shadowRoot ?? this.#box());
-      elementOf.set(container, this).set(this, this);
+      elementOf.set(container, this);
       const mounting = BrowserHost.mountEffect(
         component,
         this.#props(),
@@ -412,12 +524,19 @@ export function defineWidget(
     }
 
     // The root draws a change in Effect UI's flush, the microtask that `setProps` or
-    // `send` queued, so a task queued now runs after it. The user's place is held
-    // across it by the key of the datum they are on (Effect UI's limits, above).
+    // `send` queued, so a task queued now runs after it. Where that draw takes away the
+    // node the user is on, they land on the datum now carrying its key, or the nearest
+    // one still drawn (Focus, typed words and moves, above).
     #redraws() {
-      const restore = holdFocus(this, { key: "data-lf-datum" });
+      const restore = holdFocus(this, {
+        key: "data-lf-datum",
+        alike: false,
+        owns: (item) => drawerOf(item.parentNode) === this,
+      });
+      // The widget's own element, with a stop lent, is the last place a hold tries, as
+      // where a removal empties the list.
       const drawn = Promise.resolve().then(() => {
-        restore?.();
+        restore?.(this);
         this.#drawn();
       });
       this.dispatchEvent(new PendingTaskEvent(drawn));

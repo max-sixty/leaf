@@ -34,6 +34,7 @@
 import { capitalized } from "../lib/words.js";
 import { copyControl, pressCopy } from "../transport/copy-control.js";
 import { watchArrivals } from "../dom/arrivals.js";
+import { LAYOUT } from "../lib/widget-events.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../base/page-paint.js";
 import {
   aimControl,
@@ -138,16 +139,27 @@ function declareCopy(pre: Element, copy: ReturnType<typeof copyControl>, noun: s
   );
 }
 
-// A declared block's control stands after it, in the widget's tree, until the block
-// leaves or stops declaring. Standing it there is a sibling arriving beside the block,
-// which asks again, so a block whose control already stands is passed by. A block
-// whose widget draws a toolbar of its own marks over it (`lfBar`, a `.lf-mark-bar`
-// the widget places and shows) takes Copy as that toolbar's last mark instead.
+// A declared block's control stands after it, in the widget's tree, as a toolbar of its
+// own (`data-lf-bar`), until the block leaves or stops declaring. Standing it there is a
+// sibling arriving beside the block, which asks again, so a block whose control already
+// stands is passed by. A block whose widget draws a toolbar of its own marks over it
+// (`lfBar`, a `.lf-mark-bar` the widget places and shows) takes Copy as that toolbar's
+// last mark instead, in the toolbar's frame. Where Copy stands and the frame it wears
+// are settled together, on each arrival and each `lf-layout`: the widget's renderer
+// may add a mark after Copy, or empty the toolbar, which takes Copy out with it.
 const DECLARED = "[data-lf-copy]";
-const standing = (block: Element, copy: Element | undefined) =>
-  block instanceof HTMLElement && block.lfBar
-    ? copy?.parentNode === block.lfBar
-    : copy?.previousSibling === block;
+// The toolbar Copy joins, where the block names one still in the page: a toolbar the
+// widget's renderer has taken out is none.
+const barOf = (block: Element) =>
+  block instanceof HTMLElement && block.lfBar?.isConnected ? block.lfBar : undefined;
+const standing = (block: Element, copy: Element | undefined) => {
+  const bar = barOf(block);
+  return bar
+    ? copy?.parentNode === bar &&
+        !copy.nextElementSibling &&
+        !copy.hasAttribute("data-lf-bar")
+    : copy?.previousSibling === block && copy.hasAttribute("data-lf-bar");
+};
 // A tap that stands the user on the block shows its toolbar under the finger; only a
 // press that began on the toolbar presses one of its marks, as with a lone Copy.
 const guardedBars = new WeakSet();
@@ -186,9 +198,9 @@ function prepareDeclaredBlocks(blocks: Element[]) {
     });
   for (const { block, noun, pending } of prepared) {
     const copy = aimControl(pending);
-    const bar = block instanceof HTMLElement ? block.lfBar : undefined;
+    const bar = barOf(block);
+    copy.toggleAttribute("data-lf-bar", !bar);
     if (bar) {
-      copy.toggleAttribute("data-lf-bar", false);
       guardBar(bar);
       move(bar, copy, null);
     } else {
@@ -207,6 +219,13 @@ export function watchCodeBlocks() {
       controls.get(block)?.remove();
       projectCommandScope(block, COPY_SCOPE, null);
     },
+  });
+  // A widget that declares, changes or withdraws its toolbar after its block arrived
+  // says `lf-layout` (effect-widget.js, `declare`), and Copy stands again.
+  document.addEventListener(LAYOUT, (event) => {
+    const [block] = event.composedPath();
+    if (block instanceof Element && block.matches(DECLARED))
+      prepareDeclaredBlocks([block]);
   });
   // Native prose blocks scroll sideways, including in rendered thread messages.
   watchArrivals(

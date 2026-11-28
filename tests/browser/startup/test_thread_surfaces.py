@@ -413,6 +413,72 @@ customElements.define('lf-test-card', class extends LeafElement {
     expect(named.locator(":scope > .lf-test-threads .lf-fab-input")).to_be_focused()
 
 
+def test_a_component_that_declares_its_outlets_after_it_draws_seats_its_threads(
+    browser, serve
+):
+    """An Effect UI component declares `threadOutlets` from a Mount a moment after its
+    first draw, as one that waits on its own drawing does. Until then its thread has a
+    marker in the margin; once declared, the thread stands in the outlet the component
+    drew."""
+    entry = {
+        "description": "A seat that offers its threads an outlet once it has drawn.",
+        "attributes": {"properties": {}, "required": ["id"]},
+        "content": "empty",
+        "example": '<lf-test-seat id="seat-example"></lf-test-seat>',
+    }
+    module = """
+import { Component, Effect, Html, Mount, Schema } from '/vendor/effect-ui.js';
+import { declare, defineWidget, widgetProps } from '/runtime/effect-widget.js';
+const SeatLater = Mount.make('SeatLater', {}, (node) =>
+  Effect.sync(() => {
+    window.seatLater = () =>
+      declare(node, { threadOutlets: (targets) => targets.map(() => node) });
+  }).pipe(Effect.as(Component.noop)),
+);
+const Seat = Html.component({
+  name: 'Seat',
+  props: Schema.Struct({ ...widgetProps }),
+  model: Schema.Struct({}),
+  message: Schema.Never,
+}).make({
+  init: () => ({}),
+  update: {},
+  view: (h) => h.div.class('test-outlet').onMount(SeatLater()),
+});
+defineWidget('lf-test-seat', Seat);
+"""
+    page = open_page(
+        browser,
+        live_url(
+            serve(
+                leaf_page(
+                    "Seats",
+                    '<h1 id="title">Seats</h1><lf-test-seat id="seat"></lf-test-seat>',
+                ),
+                layer_registry={"lf-test-seat": entry},
+                layer_widgets={"lf-test-seat.js": module},
+                events=[
+                    {
+                        "id": f"{1:032x}",
+                        "kind": "comment",
+                        "author": "user",
+                        "revision": 1,
+                        "text": "Seat this thread here.",
+                        "anchor": {"section": "seat"},
+                    }
+                ],
+            )
+        ),
+    )
+    outlet = page.locator("#seat .test-outlet")
+    markers = page.locator('.lf-margin-marker[data-lf-kinds~="comment"]')
+    expect(markers).to_have_count(1)
+    expect(outlet.locator(".lf-page-thread")).to_have_count(0)
+    page.evaluate("() => window.seatLater()")
+    expect(outlet.locator(".lf-page-thread")).to_contain_text("Seat this thread here.")
+    expect(markers).to_have_count(0)
+
+
 def test_page_thread_surface_owns_exact_source_elsewhere_in_main(browser, serve):
     url = serve(
         leaf_page(

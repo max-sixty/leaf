@@ -517,9 +517,11 @@ class GroupLight {
    *  change. @type {WeakMap<Element, string>} */
   #faces = new WeakMap();
 
-  /** @param {HTMLElement} host @param {(message: any) => void} send */
-  constructor(host, send) {
+  /** @param {HTMLElement} host @param {Node} slot the group's slot, which its view drew
+   *  and its keys are declared from @param {(message: any) => void} send */
+  constructor(host, slot, send) {
     this.host = host;
+    this.slot = slot;
     this.send = send;
     this.#drawn = drawnBy.get(host) ?? {
       added: new Map(),
@@ -669,7 +671,7 @@ class GroupLight {
         when: () => doneAvailable(state()),
         run: () => this.send(OptionsMessage.PressedDone()),
       });
-    declare(host, { lfCommands: { title: SECTION, rows } });
+    declare(this.slot, { lfCommands: { title: SECTION, rows } });
   }
 
   // The `choice` output, said with `change` each time it moves.
@@ -741,7 +743,7 @@ const ShowChoice = Mount.makeStream(
         const host = /** @type {HTMLElement} */ (
           /** @type {ShadowRoot} */ (slot.getRootNode()).host
         );
-        const light = new GroupLight(host, (message) =>
+        const light = new GroupLight(host, slot, (message) =>
           Queue.offerUnsafe(queue, message),
         );
         light.show(show);

@@ -16,15 +16,20 @@
  * persistent invocation instances.
  *
  * An Effect UI component (runtime/effect-widget.js) draws the document Leaf sets as
- * `value`, in a box after the element's (empty) authored content. Its Model is the
- * roots the reader folded, by root key, so a capture that keeps a root keeps its fold.
+ * `value`, in a box after the element's (empty) authored content. Each root's fold is
+ * the browser's, as root AGENTS.md has open disclosures, and no copy of it stands in
+ * the Model: the view opens a root as it arrives and writes its `open` no more, and
+ * one Mount (`Folds`) reads the roots' folds where it needs them, makes the widget's
+ * own folds through their nodes, and keeps Expand all and Collapse all saying which
+ * they do. A capture that keeps a root keeps its node, and its fold.
  * Rows are keyed by call within their root, so a row the next capture keeps under the
  * same root keeps its nodes, and the selection or focus on it. A row a capture moves
  * under another root is a new node there, in that root's fold, since Effect UI keys
- * children within one parent. Focus on the row follows it by its datum key
- * (effect-widget.js), and a folded destination opens to show it (`FollowRow`), since
- * the user's place outweighs a fold made before the row arrived. A row moved without
- * focus leaves its destination's fold as it was. After each commit the root says the
+ * children within one parent. A user on the row lands on the new row by its datum key,
+ * the row itself rather than its location link (effect-widget.js), and a folded
+ * destination opens to show it, since the user's place outweighs a fold made before
+ * the row arrived. A row moved without focus leaves its destination's fold as it was.
+ * After each commit the root says the
  * value it drew (`drawn`, host/element-data.js), so Leaf stamps the rows' datum marks
  * with that value's snapshot. */
 import {
@@ -32,6 +37,7 @@ import {
   Effect,
   Html,
   Mount,
+  Queue,
   Schema,
   Stream,
   UiSchema,
@@ -136,26 +142,12 @@ const CallDiffProps = Schema.Struct({
   diff: Schema.String,
 });
 
-const CallDiffModel = Schema.Struct({ closed: Schema.Array(Schema.String) });
+const CallDiffModel = Schema.Struct({});
 
 export const CallDiffMessage = UiSchema.TaggedEnum({
-  ToggledGroup: { key: Schema.String, open: Schema.Boolean },
-  ClickedToggle: {},
+  Folded: { open: Schema.Boolean },
   ClickedLocation: { key: Schema.String, text: Schema.String },
 });
-
-// Expand all and Collapse all draw their action's symbol, which a view's attributes
-// can't write (controls.js, `pressAttributes`), and say the count as their name.
-const OfferToggle = Mount.make(
-  "OfferToggle",
-  { args: { action: Schema.String, label: Schema.String } },
-  (node, _args, changes) =>
-    Stream.runForEach(changes, ({ action, label }) =>
-      Effect.sync(() => {
-        offerActionElement(node, "symbol", "lf-call-toggle", label, { action });
-      }),
-    ).pipe(Effect.as(Component.noop)),
-);
 
 // After each commit, the element says the value it drew, and whether it drew one.
 const ReportDrawn = Mount.make(
@@ -172,49 +164,100 @@ const ReportDrawn = Mount.make(
     ).pipe(Effect.as(Component.noop)),
 );
 
-// The user on a row a capture moves into a folded root goes with it there. The mount
-// hears each commit once its rows are patched, and asks the Model to open that root.
-// Effect UI draws a message sent during a flush in that flush, so the root stands open
-// before defineWidget's hold puts the user back on the row by its key
-// (effect-widget.js). The mount follows where the user is, except that a change
-// removing or hiding their node leaves it on the node they lost.
-const FollowRow = Mount.makeStream(
-  "FollowRow",
+// The roots' folds, which the browser holds (each root's `open`, which the view writes
+// only as the root arrives), read and made here, where the widget needs them:
+//
+// - Expand all and Collapse all: the control reads the roots' folds as it is pressed,
+//   folds every root, and says the fold it made, which the update announces. Its face,
+//   the action's symbol and the count as its name, which a view's attributes can't
+//   write (controls.js, `pressAttributes`), follows each root's fold, heard with
+//   `toggle`, and each commit, with no draw of the capture.
+// - The user on a row a capture moves into a folded root goes with it there: the mount
+//   hears each commit once its rows are patched, before defineWidget's hold puts the
+//   user back on the row by its key (effect-widget.js), and opens that root. It follows
+//   where the user is, except that a change removing or hiding their node leaves it on
+//   the node they lost.
+const Folds = Mount.makeStream(
+  "Folds",
   { args: { value: Schema.NullOr(Document) } },
   (node, _args, changes) =>
-    Stream.unwrap(
+    Stream.callback((queue) =>
       Effect.gen(function* () {
+        const roots = () => [...node.querySelectorAll("details.lf-call-group")];
+        const control = () => node.querySelector(":scope > .lf-call-tools > button");
+        let face = null;
+        let faced = null;
+        let expanding = false;
+        const paint = () => {
+          const button = control();
+          if (!button) return;
+          const all = roots();
+          const expand = all.some((root) => !root.open);
+          expanding = expand;
+          const word = all.length === 1 ? "root" : "roots";
+          const label = `${expand ? "Expand" : "Collapse"} all ${all.length} call-tree ${word}`;
+          if (label === face && button === faced) return;
+          face = label;
+          faced = button;
+          offerActionElement(button, "symbol", "lf-call-toggle", label, {
+            action: expand ? "expand-all" : "collapse-all",
+          });
+        };
+        const press = (event) => {
+          const button = control();
+          if (
+            !button ||
+            !(event.target instanceof Node) ||
+            !button.contains(event.target)
+          )
+            return;
+          const all = roots();
+          const open = all.some((root) => !root.open);
+          for (const root of all) if (root.open !== open) root.open = open;
+          paint();
+          Queue.offerUnsafe(queue, open);
+        };
         let held = null;
-        yield* Effect.acquireRelease(
-          Effect.sync(() =>
-            onCurrentLocation((at, cause) => {
-              if (cause !== "drop") held = at && node.contains(at) ? at : null;
+        const stop = onCurrentLocation((at, cause) => {
+          if (cause !== "drop") held = at && node.contains(at) ? at : null;
+        });
+        // A root's fold can only turn the face to Expand all, and its opening only back
+        // from it, so the toggles a bulk press sets off read nothing.
+        const toggled = (event) => {
+          const root = event.target;
+          if (root.matches?.("details.lf-call-group") && root.open === expanding)
+            paint();
+        };
+        node.addEventListener("click", press);
+        node.addEventListener("toggle", toggled, true);
+        yield* Effect.addFinalizer(() =>
+          Effect.sync(() => {
+            stop();
+            node.removeEventListener("click", press);
+            node.removeEventListener("toggle", toggled, true);
+          }),
+        );
+        paint();
+        yield* Effect.forkScoped(
+          Stream.runForEach(changes, () =>
+            Effect.sync(() => {
+              // The folded root that now holds the row the commit took the user from.
+              const key = held?.isConnected
+                ? null
+                : held?.closest("[data-lf-datum]")?.getAttribute("data-lf-datum");
+              const root = key
+                ? node
+                    .querySelector(`[data-lf-datum="${CSS.escape(key)}"]`)
+                    ?.closest("details")
+                : null;
+              if (root && !root.open) root.open = true;
+              paint();
             }),
           ),
-          (stop) => Effect.sync(stop),
-        );
-        // The folded root that now holds the row the commit took the user from.
-        const destination = () => {
-          const key = held?.isConnected
-            ? null
-            : held?.closest("[data-lf-datum]")?.getAttribute("data-lf-datum");
-          const group = key
-            ? node
-                .querySelector(`[data-lf-datum="${CSS.escape(key)}"]`)
-                ?.closest("details")
-            : null;
-          return group && !group.open ? group.getAttribute("data-lf-call-group") : null;
-        };
-        return changes.pipe(
-          Stream.map(destination),
-          Stream.filter((root) => root !== null),
         );
       }),
     ),
 );
-
-const rootKeys = (value) =>
-  value ? recordsOf(value).groups.map(({ root }) => root.key) : [];
 
 export const CallDiff = Html.component({
   name: "CallDiff",
@@ -222,24 +265,14 @@ export const CallDiff = Html.component({
   model: CallDiffModel,
   message: CallDiffMessage,
 }).make({
-  init: () => ({ closed: [] }),
+  init: () => ({}),
   update: {
-    ToggledGroup: ($, { key, open }) =>
-      $.evolve({
-        closed: (closed) =>
-          open
-            ? closed.filter((folded) => folded !== key)
-            : [...new Set([...closed, key])],
-      }),
-    ClickedToggle: ($) => {
-      const keys = rootKeys($.props.value);
-      const open = keys.some((key) => $.model.closed.includes(key));
-      return $.evolve({ closed: open ? [] : keys }).run(
+    Folded: ($, { open }) =>
+      $.run(
         Announce.make({
           words: `${open ? "Expanded" : "Collapsed"} all call-tree roots`,
         }),
-      );
-    },
+      ),
     ClickedLocation: ($, { key, text }) =>
       $.run(
         NavigateToDatum.make({
@@ -251,7 +284,7 @@ export const CallDiff = Html.component({
         }),
       ),
   },
-  view: (h, model) => {
+  view: (h) => {
     const value = h.props.value ?? null;
     const frame = h.div.style({ display: "contents" }).onMount(ReportDrawn({ value }));
     if (!value)
@@ -317,16 +350,12 @@ export const CallDiff = Html.component({
     const records = recordsOf(value);
     const rows = records.groups.flatMap(({ root, children }) => [root, ...children]);
     const roots = records.groups.length;
-    const closed = new Set(model.closed);
-    const expand = records.groups.some(({ root }) => closed.has(root.key));
     const rootsWord = roots === 1 ? "root" : "roots";
     return frame.children(
       h.div
         .style({ display: "contents" })
         .onMount(
-          FollowRow({ value }).pipe(
-            Mount.map((key) => CallDiffMessage.ToggledGroup({ key, open: true })),
-          ),
+          Folds({ value }).pipe(Mount.map((open) => CallDiffMessage.Folded({ open }))),
         )
         .children(
           h.div
@@ -342,14 +371,8 @@ export const CallDiff = Html.component({
                 .children(
                   `${roots} changed ${rootsWord} · ${counted(rows, "added")} added · ${counted(rows, "removed")} removed · ${rows.length} items`,
                 ),
-              h.button
-                .onMount(
-                  OfferToggle({
-                    action: expand ? "expand-all" : "collapse-all",
-                    label: `${expand ? "Expand" : "Collapse"} all ${roots} call-tree ${rootsWord}`,
-                  }),
-                )
-                .on("click", CallDiffMessage.ClickedToggle()),
+              // Its face and its press are `Folds`'.
+              h.button,
             ),
           h.div
             .key("meta")
@@ -370,14 +393,14 @@ export const CallDiff = Html.component({
               .key(`group:${root.key}`)
               .class("lf-call-group")
               .attr("data-lf-call-group", root.key)
-              .open(!closed.has(root.key))
-              .on("toggle", ({ open }) =>
-                CallDiffMessage.ToggledGroup({ key: root.key, open }),
-              )
+              // Every root opens as it arrives; from then on its fold is the
+              // browser's, which no draw writes (`Folds`).
+              .attr("open", "")
               .children(
                 h.summary
                   .class("lf-call-line lf-call-group-summary lf-disclosure-marker")
                   .attrs(marks(root))
+
                   .children(...words(root, groupLabel([root, ...children]))),
                 h.div
                   .class("lf-call-group-body lf-text-scroller")

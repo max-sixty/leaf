@@ -77,15 +77,27 @@ test("an element no host answers draws as it connects, and a set draws by the ti
   el.remove();
 });
 
-test("an element whose lf-connect a host cancels mounts once state is set", () => {
-  const el = widget({ shadow: true });
+test("an element whose lf-connect a host cancels mounts at the end of the pass that sets its state, with every set of the pass", async () => {
+  const el = /** @type {HTMLElement & {state: unknown, note: string}} */ (
+    widget({ shadow: true, properties: ["note"] })
+  );
   const answer = (/** @type {Event} */ event) => event.preventDefault();
   document.addEventListener("lf-connect", answer);
+  /** @type {PromiseLike<unknown>[]} */
+  const pending = [];
+  el.addEventListener("pending-task", (event) =>
+    pending.push(/** @type {any} */ (event).complete),
+  );
   try {
     document.body.append(el);
     assert.equal(shown(el), undefined);
+    // The host's pass sets `state` first, then a recorded property.
     el.state = { decide: { value: "ship" } };
+    el.note = "recorded";
+    assert.equal(pending.length, 1);
+    await pending[0];
     assert.equal(shown(el), "ship");
+    assert.equal(el.shadowRoot?.querySelector(".note")?.textContent, "recorded");
   } finally {
     document.removeEventListener("lf-connect", answer);
     el.remove();
@@ -303,7 +315,18 @@ test("inputs that throw show the box beside the authored children until they rea
 });
 
 // A widget that draws the items `state.shelves` names, each list on a shelf of its
-// own, as its drawn data: each item is keyed by its name and marked with it.
+// own, each item a field keyed by its name. With `kept`, each item is a keep-alive
+// child, which Effect UI moves between shelves with its nodes.
+const ShelfItem = Html.component({
+  name: "ShelfItem",
+  props: Schema.Struct({ name: Schema.String }),
+  model: Schema.Struct({}),
+  message: Schema.Never,
+}).make({
+  init: () => ({}),
+  update: {},
+  view: (h) => h.input.attr("data-lf-datum", h.props.name),
+});
 const Shelves = Html.component({
   name: "Shelves",
   props: Schema.Struct({ ...widgetProps }),
@@ -312,44 +335,286 @@ const Shelves = Html.component({
 }).make({
   init: () => ({}),
   update: {},
-  view: (h) =>
-    h.div.children(
-      .../** @type {{shelves: string[][]}} */ (h.props.state).shelves.map(
-        (items, shelf) =>
-          h.section
-            .key(`shelf-${shelf}`)
-            .children(
-              ...items.map((item) =>
-                h.button.key(item).attr("data-lf-datum", item).children(item),
-              ),
-            ),
+  view: (h) => {
+    const { shelves, kept } = /** @type {{shelves: string[][], kept?: boolean}} */ (
+      h.props.state
+    );
+    const items = (/** @type {string[]} */ list) =>
+      kept
+        ? h.keepAlive(
+            ({ key, props }) =>
+              /** @type {any} */ (props).state.shelves.flat().includes(key),
+            (s) => list.map((name) => ShelfItem(s, { key: name, props: { name } })),
+          )
+        : list.map((name) => h.input.key(name).attr("data-lf-datum", name));
+    return h.div.children(
+      ...shelves.map((list, shelf) =>
+        h.section.key(`shelf-${shelf}`).children(...items(list)),
       ),
-    ),
+    );
+  },
 });
 
-test("an item a new state moves to another shelf keeps the user on it", async () => {
+/** @param {{shelves: string[][], kept?: boolean}} state */
+function shelves(state) {
   const tag = `lf-effect-${++tags}`;
   defineWidget(tag, Shelves);
   const el = /** @type {HTMLElement & {state: unknown}} */ (
     document.createElement(tag)
   );
-  el.state = { shelves: [["kept", "moved"], []] };
+  el.state = state;
   document.body.append(el);
   /** @type {PromiseLike<unknown>[]} */
   const pending = [];
   el.addEventListener("pending-task", (event) =>
     pending.push(/** @type {any} */ (event).complete),
   );
-  const item = () => el.querySelector('[data-lf-datum="moved"]');
-  const before = /** @type {HTMLButtonElement} */ (item());
+  const item = (/** @type {string} */ name) =>
+    /** @type {HTMLInputElement | null} */ (
+      el.querySelector(`[data-lf-datum="${name}"]`)
+    );
+  return { el, pending, item };
+}
+
+test("an item a new state moves along its shelf keeps its node, the user and their words", async () => {
+  const { el, pending, item } = shelves({ shelves: [["moved", "kept"]] });
+  const before = /** @type {HTMLInputElement} */ (item("moved"));
   before.focus();
+  before.value = "unsent";
   try {
-    el.state = { shelves: [["kept"], ["moved"]] };
+    el.state = { shelves: [["kept", "moved"]] };
     await Promise.all(pending);
-    // Effect UI matches keys among one parent's children, so the item is a new node.
-    assert.notEqual(item(), before);
-    assert.equal(item()?.parentElement, el.querySelectorAll("section")[1]);
-    assert.equal(document.activeElement, item());
+    assert.equal(item("moved"), before);
+    assert.equal(el.querySelector("section")?.lastElementChild, before);
+    assert.equal(document.activeElement, before);
+    assert.equal(before.value, "unsent");
+  } finally {
+    el.remove();
+  }
+});
+
+test("an item a new state moves to another shelf, or removes, leaves the user on the datum carrying its key, else the nearest", async () => {
+  const { el, pending, item } = shelves({ shelves: [["a", "moved", "c"], []] });
+  /** @type {HTMLInputElement} */ (item("moved")).focus();
+  try {
+    el.state = { shelves: [["a", "c"], ["moved"]] };
+    await Promise.all(pending);
+    assert.equal(document.activeElement, item("moved"));
+    el.state = { shelves: [["a", "c"], []] };
+    await Promise.all(pending);
+    assert.equal(document.activeElement, item("c"));
+  } finally {
+    el.remove();
+  }
+});
+
+test("a row a new state moves or removes lands the user on the row, never on a control chosen by its look", async () => {
+  const tag = `lf-effect-${++tags}`;
+  defineWidget(
+    tag,
+    Html.component({
+      name: "Acts",
+      props: Schema.Struct({ ...widgetProps }),
+      model: Schema.Struct({}),
+      message: Schema.Never,
+    }).make({
+      init: () => ({}),
+      update: {},
+      view: (h) =>
+        h.div.children(
+          .../** @type {{shelves: string[][]}} */ (h.props.state).shelves.map(
+            (items, shelf) =>
+              h.section.key(`shelf-${shelf}`).children(
+                ...items.map((item) =>
+                  h.div
+                    .key(item)
+                    .attr("data-lf-datum", item)
+                    .children(
+                      // A moved row gains a control like the user's before theirs.
+                      shelf ? h.button.class("act").children("Undo") : null,
+                      h.button.class("act").children("Remove"),
+                      h.button.class("act").children("Move"),
+                    ),
+                ),
+              ),
+          ),
+        ),
+    }),
+  );
+  const el = /** @type {HTMLElement & {state: unknown}} */ (
+    document.createElement(tag)
+  );
+  el.state = { shelves: [["a", "b", "c"], []] };
+  document.body.append(el);
+  /** @type {PromiseLike<unknown>[]} */
+  const pending = [];
+  el.addEventListener("pending-task", (event) =>
+    pending.push(/** @type {any} */ (event).complete),
+  );
+  const row = (/** @type {string} */ item) =>
+    el.querySelector(`[data-lf-datum="${item}"]`);
+  try {
+    const remove = /** @type {HTMLButtonElement} */ (
+      el.querySelectorAll('[data-lf-datum="b"] .act')[1]
+    );
+    remove.focus();
+    el.state = { shelves: [["a", "c"], ["b"]] };
+    await Promise.all(pending);
+    assert.equal(document.activeElement, row("b"));
+    el.state = { shelves: [["a", "c"], []] };
+    await Promise.all(pending);
+    assert.equal(document.activeElement, row("c"));
+  } finally {
+    el.remove();
+  }
+});
+
+test("a nested widget's hold that puts the user back ends the hold of the widget around it", async () => {
+  const inner = `lf-effect-${++tags}`;
+  defineWidget(
+    inner,
+    Html.component({
+      name: "InnerRows",
+      props: Schema.Struct({ ...widgetProps }),
+      model: Schema.Struct({}),
+      message: Schema.Never,
+    }).make({
+      init: () => ({}),
+      update: {},
+      view: (h) => {
+        const state = /** @type {{shelves?: string[][]}} */ (h.props.state);
+        return h.div.children(
+          ...(state?.shelves ?? [["a", "b"], []]).map((items, shelf) =>
+            h.section
+              .key(`shelf-${shelf}`)
+              .children(
+                ...items.map((item) =>
+                  h.button.key(item).class("edit").attr("data-lf-datum", item),
+                ),
+              ),
+          ),
+        );
+      },
+    }),
+  );
+  const tag = `lf-effect-${++tags}`;
+  defineWidget(
+    tag,
+    Html.component({
+      name: "Around",
+      props: Schema.Struct({ ...widgetProps }),
+      model: Schema.Struct({}),
+      message: Schema.Never,
+    }).make({
+      init: () => ({}),
+      update: {},
+      view: (h) =>
+        h.div.children(
+          h.p.children(/** @type {{label?: string}} */ (h.props.state)?.label ?? ""),
+          h.el(inner).key("inner"),
+        ),
+    }),
+  );
+  const el = /** @type {HTMLElement & {state: unknown}} */ (
+    document.createElement(tag)
+  );
+  el.state = { label: "before" };
+  document.body.append(el);
+  const rows = /** @type {HTMLElement & {state: unknown}} */ (el.querySelector(inner));
+  rows.state = { shelves: [["a", "b"], []] };
+  await new Promise((resolve) => setTimeout(resolve));
+  const edit = () => el.querySelector('[data-lf-datum="b"]');
+  try {
+    /** @type {HTMLButtonElement} */ (edit()).focus();
+    // In one task, the nested widget moves the row and the widget around it redraws.
+    rows.state = { shelves: [["a"], ["b"]] };
+    el.state = { label: "after" };
+    await new Promise((resolve) => setTimeout(resolve));
+    assert.equal(document.activeElement, edit());
+  } finally {
+    el.remove();
+  }
+});
+
+test("a widget's hold finds the user's item among its own, not a nested widget's of the same key", async () => {
+  const inner = `lf-effect-${++tags}`;
+  defineWidget(
+    inner,
+    Html.component({
+      name: "Inner",
+      props: Schema.Struct({ ...widgetProps }),
+      model: Schema.Struct({}),
+      message: Schema.Never,
+    }).make({
+      init: () => ({}),
+      update: {},
+      view: (h) => h.input.class("inner").attr("data-lf-datum", "same"),
+    }),
+  );
+  const tag = `lf-effect-${++tags}`;
+  defineWidget(
+    tag,
+    Html.component({
+      name: "Outer",
+      props: Schema.Struct({ ...widgetProps }),
+      model: Schema.Struct({}),
+      message: Schema.Never,
+    }).make({
+      init: () => ({}),
+      update: {},
+      view: (h) => {
+        const moved = /** @type {{moved?: boolean}} */ (h.props.state)?.moved;
+        const row = h.input.key("same").class("outer").attr("data-lf-datum", "same");
+        return h.div.children(
+          h.section.key("first").children(moved ? null : row),
+          h.el(inner).key("inner"),
+          h.section.key("second").children(moved ? row : null),
+        );
+      },
+    }),
+  );
+  const el = /** @type {HTMLElement & {state: unknown}} */ (
+    document.createElement(tag)
+  );
+  el.state = {};
+  document.body.append(el);
+  /** @type {PromiseLike<unknown>[]} */
+  const pending = [];
+  el.addEventListener("pending-task", (event) =>
+    pending.push(/** @type {any} */ (event).complete),
+  );
+  try {
+    /** @type {HTMLInputElement} */ (el.querySelector(".outer")).focus();
+    el.state = { moved: true };
+    await Promise.all(pending);
+    assert.equal(document.activeElement, el.querySelector(".outer"));
+  } finally {
+    el.remove();
+  }
+});
+
+test("a new state that empties the list leaves the user on the widget, not the body", async () => {
+  const { el, pending, item } = shelves({ shelves: [["only"]] });
+  /** @type {HTMLInputElement} */ (item("only")).focus();
+  try {
+    el.state = { shelves: [[]] };
+    await Promise.all(pending);
+    assert.equal(document.activeElement, el);
+  } finally {
+    el.remove();
+  }
+});
+
+test("a keep-alive item a new state moves to another shelf keeps its node and the words in it", async () => {
+  const { el, pending, item } = shelves({ shelves: [["moved"], []], kept: true });
+  const before = /** @type {HTMLInputElement} */ (item("moved"));
+  before.value = "unsent";
+  try {
+    el.state = { shelves: [[], ["moved"]], kept: true };
+    await Promise.all(pending);
+    assert.equal(item("moved"), before);
+    assert.equal(before.parentElement, el.querySelectorAll("section")[1]);
+    assert.equal(before.value, "unsent");
   } finally {
     el.remove();
   }

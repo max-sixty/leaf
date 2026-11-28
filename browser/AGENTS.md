@@ -987,9 +987,12 @@ visible change").
 
 Leaf is moving everything it draws to Effect UI, so that every view is written,
 tested and maintained one way, and Lit and `LeafElement` leave the tree. Every widget,
-Leaf's bundled widgets and other authors' alike, becomes an Effect UI component
-defined with `defineWidget` (`runtime/effect-widget.js`). So the package interface
-holds one way to write a widget, and a new widget is written that way. Leaf's chrome,
+Leaf's bundled widgets and other authors' alike, is its declaration, plus an Effect UI
+component defined with `defineWidget` (`runtime/effect-widget.js`) if it draws
+anything. A widget that draws nothing, such as a group that only names what it holds,
+has no module: Leaf sets on its element what its declaration states, such as its role
+and name. So the package interface holds one way to write a widget, and a new widget
+is written that way. Leaf's chrome,
 the views the runtime draws itself, such as the floating panel and Threads, moves too,
 one component at a time, since each component keeps one renderer (below). Until the
 move ends, a widget may still be a `LeafElement` (`runtime/lib/leaf-element.js`),

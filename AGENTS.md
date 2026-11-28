@@ -549,7 +549,7 @@ keep a look, a first paint or a behaviour exactly as it was, the name goes, and 
 change shows what a user will see differently. Some promises in `SOUL.md` hold on
 every widget, such as keeping focus on the control the user is using when the widget
 redraws. Leaf keeps such a promise in its own code, so a widget's author writes
-nothing for it: in `defineWidget`, which every widget is moving to
+nothing for it: in `defineWidget`, which every widget that draws is moving to
 (`browser/AGENTS.md`, "Renderers"), or in the runtime code that sets the widget's
 properties and hears its events. A name that exists to help widgets keep such a
 promise, such as a function they call, stays only until Leaf can keep the promise

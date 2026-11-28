@@ -22,9 +22,9 @@ needing something of Leaf asks, before it adds a name:
   APIs add nothing to the interface. Neither does shared web code that keeps none of
   the page's state, which belongs in the library (`../browser/AGENTS.md`, "The library
   of shared web code").
-- **Whether Leaf can do it without the widget's help.** Every widget moves to
-  `defineWidget` (`../browser/AGENTS.md`, "Renderers"), and Leaf sets the properties of
-  the element it defines, hears its events, and reads what the element and its
+- **Whether Leaf can do it without the widget's help.** Every widget that draws moves
+  to `defineWidget` (`../browser/AGENTS.md`, "Renderers"), and Leaf sets the properties
+  of the element it defines, hears its events, and reads what the element and its
   stylesheet state. Work Leaf does there holds for every widget with no code in the
   widget, so prefer it to a function or service the widget calls.
 - **Which kind of thing it is.** Each kind of thing a package leans on Leaf for takes

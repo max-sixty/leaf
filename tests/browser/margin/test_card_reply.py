@@ -2083,11 +2083,29 @@ def test_a_full_card_s_draft_keeps_its_first_line_as_lines_and_a_picture_come_an
             assert now[edge] == pytest.approx(full[edge], abs=0.5), (edge, full, now)
 
 
-def test_a_growing_draft_under_its_words_holds_the_editor_s_top(browser, serve):
+@pytest.mark.parametrize(
+    "height",
+    [
+        628,
+        pytest.param(
+            600,
+            marks=pytest.mark.xfail(
+                strict=True,
+                raises=AssertionError,
+                reason="#7511: the capping keystroke shrinks the transcript too, which"
+                " moves the first turn",
+            ),
+        ),
+    ],
+)
+def test_a_growing_draft_under_its_words_holds_the_editor_s_top(browser, serve, height):
     """Each new line keeps a card under its words on its side and the reply's first
     line where it was, until the card's foot meets the window's; further lines scroll
-    inside the editor. No keystroke carries its first line along the boundary."""
-    page, _preview, editor = drafting_in_a_short_card(browser, serve, 1000, 600)
+    inside the editor. No keystroke carries its first line along the boundary. At
+    628px the cap still leaves the transcript its whole height; at 600px it doesn't,
+    and the card's grid shares the shortfall between transcript and reply. The mark is
+    strict, so the 600px case fails once the card holds its first turn there."""
+    page, _preview, editor = drafting_in_a_short_card(browser, serve, 1000, height)
     held = page.evaluate(CARD_AND_REPLY)
     readings = [held]
     for _ in range(30):

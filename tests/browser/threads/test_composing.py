@@ -685,13 +685,17 @@ def test_pending_messages_stay_readable_through_admission(browser, serve, surfac
     assert region.locator(".lf-msg-head").evaluate_all(
         "heads => heads.every(head => head.parentElement.matches('.lf-msg'))"
     ), "a message header was moved outside its message"
+    # The thread's actions share a line with what heads it: in an inline thread, the
+    # first message's name; on a margin card, the thread's title.
+    line = ".lf-msg-head" if surface == "composer-widget" else ".lf-margin-thread-title"
     assert region.evaluate(
-        """root => {
-          const head = root.querySelector('.lf-msg-head').getBoundingClientRect();
+        """(root, line) => {
+          const head = root.querySelector(line).getBoundingClientRect();
           const action = root.querySelector('.lf-resolve').getBoundingClientRect();
           const center = action.top + action.height / 2;
           return head.top <= center && center <= head.bottom && head.right <= action.left;
-        }"""
+        }""",
+        line,
     ), "keeping the header inside its message gave thread actions a separate row"
 
     def reading():

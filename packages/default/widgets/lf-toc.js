@@ -20,10 +20,13 @@
  * Its forms. The box its track gives it chooses the form (toc.css): in flow, or in a
  * track stacked above or below the body, a native disclosure; beside the body with room
  * for words, an open outline; in a document's sidebar narrowed to the map's spine, a
- * reading map. The disclosure's open state is the Model's (`open`), the reader's own
- * choice. Where the form hides its summary, the outline stands open (`exposed`, which
- * `FollowPosture` hears), and returning to flow restores the reader's choice, unless a
- * focused link needs to remain reachable.
+ * reading map. The disclosure's open state is the browser's, the reader's own choice,
+ * as root AGENTS.md has open disclosures: the view writes `open` only as the
+ * disclosure arrives, so no draw, such as the one each step of reading starts, undoes a
+ * press the Model would hear only with `toggle`, a task later. Where the form hides
+ * its summary, the outline stands open (`FollowPosture` opens it through the node), and
+ * returning to flow restores the reader's choice, unless a focused link needs to remain
+ * reachable.
  *
  * The map (`FitMap`). Each section's marker stands at its section's place on the
  * document's scale, so the quiet spine describes the document before its labels appear
@@ -76,6 +79,7 @@
  * already says, and that preview describes the link to a screen reader where focus
  * lands on it. */
 import {
+  Component,
   Effect,
   Equal,
   Html,
@@ -797,51 +801,43 @@ const TocProps = Schema.Struct({
 });
 
 const TocModel = Schema.Struct({
-  // The reader's own choice for the disclosure, and whether the form hides its summary
-  // and so stands the outline open.
-  open: Schema.Boolean,
-  exposed: Schema.Boolean,
   // The row the reader is in, and the rows the map leaves off, by index.
   current: Schema.Number,
   offMap: Schema.Array(Schema.Number),
 });
 
 export const TocMessage = UiSchema.TaggedEnum({
-  Toggled: { open: Schema.Boolean },
-  Exposed: { open: Schema.Boolean },
-  Returned: { keep: Schema.Boolean },
   Read: { current: Schema.Number },
   Fitted: { offMap: Schema.Array(Schema.Number) },
 });
 
 // The summary's box coming and going, heard as the form hides it, so the outline stands
 // open, and shows it again. As it hides, the disclosure's own state is the reader's
-// last choice, which a press's toggle, queued as a task the browser may fold into the
-// form's opening, can't be trusted to have told. As it returns, whether focus is on a
-// link the outline must keep open.
-
-const FollowPosture = Mount.makeStream("FollowPosture", {}, (summary) =>
-  Stream.callback((queue) =>
-    Effect.gen(function* () {
-      let exposed;
-      const sizes = sizeObserver(() => {
-        const now = getComputedStyle(summary).display === "none";
-        if (now === exposed) return;
-        exposed = now;
-        const details = summary.parentElement;
+// last choice, kept for its return; as it returns, that choice comes back, or the
+// outline stays open where focus is on a link in it.
+const FollowPosture = Mount.make("FollowPosture", {}, (summary) =>
+  Effect.gen(function* () {
+    let exposed;
+    let chosen = false;
+    const sizes = sizeObserver(() => {
+      const now = getComputedStyle(summary).display === "none";
+      if (now === exposed) return;
+      const was = exposed;
+      exposed = now;
+      const details = summary.parentElement;
+      if (now) {
+        chosen = details.open;
+        details.open = true;
+      } else if (was) {
         const rows = details.querySelector(".lf-toc-rows");
         const focused = summary.getRootNode().activeElement;
-        Queue.offerUnsafe(
-          queue,
-          now
-            ? { exposed: true, open: details.open }
-            : { exposed: false, keep: Boolean(focused && rows?.contains(focused)) },
-        );
-      });
-      sizes.observe(summary);
-      yield* Effect.addFinalizer(() => Effect.sync(() => sizes.disconnect()));
-    }),
-  ),
+        details.open = chosen || Boolean(focused && rows?.contains(focused));
+      }
+    });
+    sizes.observe(summary);
+    yield* Effect.addFinalizer(() => Effect.sync(() => sizes.disconnect()));
+    return Component.noop;
+  }),
 );
 
 const FitMap = Mount.makeStream(
@@ -905,13 +901,8 @@ export const Toc = Html.component({
   model: TocModel,
   message: TocMessage,
 }).make({
-  init: ($) => ({ open: $.props.open, exposed: false, current: 0, offMap: [] }),
+  init: () => ({ current: 0, offMap: [] }),
   update: {
-    // The disclosure follows the reader's press while its summary shows; while the
-    // form stands it open, the toggle is the form's.
-    Toggled: ($, { open }) => ($.model.exposed ? $.model : $.evolve({ open })),
-    Exposed: ($, { open }) => $.evolve({ exposed: true, open }),
-    Returned: ($, { keep }) => $.evolve({ exposed: false, open: $.model.open || keep }),
     Read: ($, { current }) => $.evolve({ current }),
     Fitted: ($, { offMap }) => $.evolve({ offMap }),
   },
@@ -975,20 +966,11 @@ export const Toc = Html.component({
         head(h.p.class("lf-toc-heading lf-label")),
         h.details
           .class("lf-toc-disclosure")
-          .open(model.exposed || model.open)
-          .on("toggle", ({ open }) => TocMessage.Toggled({ open }))
+          .attr("open", h.props.open ? "" : undefined)
           .children(
             head(
               h.summary.class("lf-toc-toggle lf-label lf-disclosure-marker"),
-            ).onMount(
-              FollowPosture().pipe(
-                Mount.map((posture) =>
-                  posture.exposed
-                    ? TocMessage.Exposed({ open: posture.open })
-                    : TocMessage.Returned({ keep: posture.keep }),
-                ),
-              ),
-            ),
+            ).onMount(FollowPosture()),
             h.div
               .class("lf-toc-rows")
               .onMount(

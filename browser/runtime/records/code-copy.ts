@@ -148,8 +148,12 @@ function declareCopy(pre: Element, copy: ReturnType<typeof copyControl>, noun: s
 // are settled together, on each arrival and each `lf-layout`: the widget's renderer
 // may add a mark after Copy, or empty the toolbar, which takes Copy out with it.
 const DECLARED = "[data-lf-copy]";
+// The toolbar Copy joins, where the block names one still in the page: a toolbar the
+// widget's renderer has taken out is none.
+const barOf = (block: Element) =>
+  block instanceof HTMLElement && block.lfBar?.isConnected ? block.lfBar : undefined;
 const standing = (block: Element, copy: Element | undefined) => {
-  const bar = block instanceof HTMLElement ? block.lfBar : undefined;
+  const bar = barOf(block);
   return bar
     ? copy?.parentNode === bar &&
         !copy.nextElementSibling &&
@@ -194,7 +198,7 @@ function prepareDeclaredBlocks(blocks: Element[]) {
     });
   for (const { block, noun, pending } of prepared) {
     const copy = aimControl(pending);
-    const bar = block instanceof HTMLElement ? block.lfBar : undefined;
+    const bar = barOf(block);
     copy.toggleAttribute("data-lf-bar", !bar);
     if (bar) {
       guardBar(bar);

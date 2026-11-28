@@ -341,6 +341,10 @@ class GestureWords:
             return {"form": "set", "value": detail["value"]}
         if spec.get("creates"):
             return {"form": "add", "words": self.name(event, detail[spec["unit"]])}
+        if self._value_verb(event):
+            # Done, by the pick it answered with (`_voice`).
+            _, picked = self._voice(event)
+            return {"form": "answer", "chosen": [self.name(event, i) for i in picked]}
         return {"form": "verb", "verb": event["action"]}
 
     def declaration(self, event: dict) -> dict:

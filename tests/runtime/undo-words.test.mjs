@@ -18,6 +18,13 @@ const set = {
   seq: 1,
   ts: "2026-11-27T00:00:00Z",
 };
+const done = {
+  ...set,
+  widget: "route",
+  action: "answer",
+  attempt: "done-route",
+  detail: {},
+};
 let taken = 0;
 // A reading whose undo list holds `event`, read as `gesture`.
 const reading = (event, gesture) =>
@@ -34,22 +41,34 @@ const reading = (event, gesture) =>
     },
   });
 
-test("Undo says the value an action set, and an empty one as cleared", async () => {
-  document.body.innerHTML = '<div id="detail" aria-label="Detail"></div>';
-  applicationState.setPhase("ready");
-  applicationState.identify(1);
-  const { withdraw } = createUndo({
-    post: () => Promise.resolve({}),
-    stateApplying: () => false,
-    unaccountedGesture: () => false,
-  });
-  const undone = async (value) => {
-    const event = { ...set, detail: { value } };
-    applicationState.adopt(reading(event, { form: "set", value }));
-    await withdraw(event);
-    return String(noticeReading().message);
-  };
+document.body.innerHTML =
+  '<div id="detail" aria-label="Detail"></div><div id="route" aria-label="Which route?"></div>';
+applicationState.setPhase("ready");
+applicationState.identify(1);
+const { withdraw } = createUndo({
+  post: () => Promise.resolve({}),
+  stateApplying: () => false,
+  unaccountedGesture: () => false,
+});
+// What the notice says once Undo has taken back `event`, read as `gesture`.
+const undone = async (event, gesture) => {
+  applicationState.adopt(reading(event, gesture));
+  await withdraw(event);
+  return String(noticeReading().message);
+};
 
-  assert.match(await undone("7"), /^Undone: set “Detail” to “7” /);
-  assert.match(await undone(""), /^Undone: cleared “Detail” /);
+test("Undo says the value an action set, and an empty one as cleared", async () => {
+  const setTo = (value) =>
+    undone({ ...set, detail: { value } }, { form: "set", value });
+  assert.match(await setTo("7"), /^Undone: set “Detail” to “7” /);
+  assert.match(await setTo(""), /^Undone: cleared “Detail” /);
+});
+
+test("Undo says what Done answered with, and an empty pick as only answered", async () => {
+  const answered = (chosen) => undone(done, { form: "answer", chosen });
+  assert.match(
+    await answered(["Fast path", "Slow path"]),
+    /^Undone: answered “Which route\?” with “Fast path”, “Slow path” /,
+  );
+  assert.match(await answered([]), /^Undone: answered “Which route\?” /);
 });

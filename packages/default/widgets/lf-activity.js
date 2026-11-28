@@ -133,6 +133,12 @@ function gesturePhrase(gesture) {
         ? { what: "set", after: `to ${quoted(value)}` }
         : { what: "cleared" };
     }
+    case "answer": {
+      const chosen = gesture.chosen.map(named).join(", ");
+      return chosen
+        ? { what: "answered", after: `with ${chosen}` }
+        : { what: "answered" };
+    }
     default:
       return { what: `recorded ${quoted(gesture.verb)} on` };
   }

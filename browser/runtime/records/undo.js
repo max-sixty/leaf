@@ -208,6 +208,10 @@ function actionWords(event, gesture) {
       const value = labelWords(gesture.value);
       return value ? `set ${widget} to ${quoted(value)}` : `cleared ${widget}`;
     }
+    case "answer": {
+      const chosen = gesture.chosen.map((words) => quoted(words)).join(", ");
+      return `answered ${widget}${chosen ? ` with ${chosen}` : ""}`;
+    }
     case "verb":
       return `recorded “${gesture.verb}” on ${widget}`;
     default:

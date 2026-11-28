@@ -728,7 +728,9 @@
       "description": "What an action did, in its record form's terms and its own document's words (`gesture_words.GestureWords.gesture`).",
       "type": "object",
       "properties": {
-        "form": { "enum": ["choice", "move", "edit", "add", "set", "verb"] },
+        "form": {
+          "enum": ["choice", "move", "edit", "add", "set", "answer", "verb"]
+        },
         "chosen": { "type": "array", "items": { "type": "string" } },
         "unit": { "type": "string" },
         "to": { "type": "string" },
@@ -749,6 +751,10 @@
         { "properties": { "form": { "const": "edit" } }, "required": [] },
         { "properties": { "form": { "const": "add" } }, "required": ["words"] },
         { "properties": { "form": { "const": "set" } }, "required": ["value"] },
+        {
+          "properties": { "form": { "const": "answer" } },
+          "required": ["chosen"]
+        },
         { "properties": { "form": { "const": "verb" } }, "required": ["verb"] }
       ],
       "additionalProperties": false

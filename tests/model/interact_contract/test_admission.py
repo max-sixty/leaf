@@ -573,6 +573,43 @@ def test_history_and_undo_say_the_value_a_user_set():
     assert view["undo"][0]["gesture"] == {"form": "set", "value": "7"}
 
 
+def test_history_and_undo_say_what_done_answered_with():
+    """Done names no option of its own, so history and the undo offer word it by the
+    pick it answered with, as that pick's own document names the options."""
+    page = model.leaf_page(
+        "Route",
+        """<lf-options id="route" multiple>
+  <lf-option id="fast" label="Fast path"><strong>Fast path</strong> Ships on Friday.</lf-option>
+  <lf-option id="slow">Slow path</lf-option>
+</lf-options>
+<lf-activity id="feed"></lf-activity>""",
+    )
+    events = (
+        {
+            "kind": "action",
+            "widget": "route",
+            "action": "choose",
+            "detail": {"value": ["fast", "slow"]},
+            "answered": False,
+        },
+        {
+            "kind": "action",
+            "widget": "route",
+            "action": "answer",
+            "detail": {},
+            "answered": True,
+        },
+    )
+
+    reading = model.reading(page, events)
+    answered = {"form": "answer", "chosen": ["Fast path", "Slow path"]}
+    for row in reading["history"]:
+        assert served_state_error(row, "HistoryRow") is None
+    assert reading["history"][0]["gesture"] == answered
+    [view] = reading["views"].values()
+    assert view["undo"][0]["gesture"] == answered
+
+
 def test_a_widget_that_asks_says_on_each_gesture_whether_it_is_answered():
     """A gesture of a widget that asks without its word would answer nothing however
     the user acted, so the door refuses an act or an undo of it that leaves the word

@@ -352,6 +352,20 @@ export const CallDiff = Html.component({
                 h.summary
                   .class("lf-call-line lf-call-group-summary lf-disclosure-marker")
                   .attrs(marks(root))
+                  // A press folds through the Model, which writes `open`. Left to the
+                  // browser, the fold reaches the Model with `toggle` a frame later,
+                  // and a draw in that frame writes the Model's stale `open` over it.
+                  .on(
+                    "click",
+                    (press) =>
+                      press.alt || press.ctrl || press.meta || press.shift
+                        ? undefined
+                        : CallDiffMessage.ToggledGroup({
+                            key: root.key,
+                            open: closed.has(root.key),
+                          }),
+                    { preventDefault: true },
+                  )
                   .children(...words(root, groupLabel([root, ...children]))),
                 h.div
                   .class("lf-call-group-body lf-text-scroller")

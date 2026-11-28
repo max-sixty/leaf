@@ -507,10 +507,11 @@ const frameOf = (node: Node | null) => {
 // Carried down, each element answers once for everything under it; asked per text node,
 // the same answers came from a climb apiece, most of them to the body.
 //
-// Three of the facts stop at a shadow boundary and the rest cross it, because that is
-// how the readings they carry are defined: `closest` for chrome, silence and the
-// generated marks, the climb through hosts (`closestAcross`, `upFrom`) for blocks, the
-// element words are read in and cells. A declared root therefore starts its tree-local facts over (`crossed`).
+// Chrome and the generated marks stop at a shadow boundary and the rest cross it,
+// because that is how the readings they carry are defined: `closest` for chrome and the
+// generated marks, the climb through hosts (`closestAcross`, `upFrom`) for silence,
+// blocks, the element words are read in and cells. A declared root therefore starts its
+// tree-local facts over (`crossed`).
 //
 // The same rules asked of one element are `contextAt`: the element's ancestors folded
 // through `enter` from the top. A walk starts from it at its root, and the reading

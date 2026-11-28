@@ -245,7 +245,9 @@ leaf-text.lf-fab-input,
   }
 }
 @container (style(--lf-block-frame: 1) or style(--lf-block-frame: trim) or style(--lf-frame-end: 1)) and (not style(--lf-holds-edge: 1)) {
-  :where(:not(.lf-ui, [data-lf-gen], [popover], script, style, template)):nth-last-child(
+  :where(
+    :not(.lf-ui, [data-lf-gen], [popover], script, style, template)
+  ):nth-last-child(
     1 of :not(.lf-ui, [data-lf-gen], [popover], script, style, template)
   ) {
     margin-block-end: 0;

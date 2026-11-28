@@ -34,6 +34,7 @@
 import { capitalized } from "../lib/words.js";
 import { copyControl, pressCopy } from "../transport/copy-control.js";
 import { watchArrivals } from "../dom/arrivals.js";
+import { LAYOUT } from "../lib/widget-events.js";
 import { PAGE_PAINT_ATTRIBUTE } from "../base/page-paint.js";
 import {
   aimControl,
@@ -207,6 +208,13 @@ export function watchCodeBlocks() {
       controls.get(block)?.remove();
       projectCommandScope(block, COPY_SCOPE, null);
     },
+  });
+  // A widget that declares its toolbar after its block arrived says `lf-layout`
+  // (effect-widget.js, `declare`), and Copy moves into that toolbar.
+  document.addEventListener(LAYOUT, (event) => {
+    const [block] = event.composedPath();
+    if (block instanceof Element && block.matches(DECLARED))
+      prepareDeclaredBlocks([block]);
   });
   // Native prose blocks scroll sideways, including in rendered thread messages.
   watchArrivals(

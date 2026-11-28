@@ -65,9 +65,11 @@
    for everything under it, and `lf-layout` where it declares parts.
 
    Drawing follows the protocol's "Drawing" rule. The root mounts once the element has
-   connected and the host has made its sets for this connection: as
-   `connectedCallback` returns where no host cancels `lf-connect`, and otherwise at the
-   host's set of `state`, the last of its pass. A property set earlier, as a sibling
+   connected and the host has made its sets for this connection, so its first props
+   hold them all: as `connectedCallback` returns where no host cancels `lf-connect` or
+   the host made its sets inside it, and otherwise at the end of the host's pass that
+   sets `state`, a microtask later, which the pass waits on through the `pending-task`
+   the element dispatches for the mount. A property set earlier, as a sibling
    connecting first may set one, waits for that mount. A later set draws in Effect
    UI's flush, a microtask later and before the next frame, so each set that gives new
    props dispatches a `pending-task` whose promise settles after that flush.
@@ -83,7 +85,8 @@
    datum they are in (`data-lf-datum`, module-state.md, "Marking drawn data"), which
    the widget declares: where the draw took their node away, they land on the datum
    now carrying that key among its own, else the nearest one still drawn, on the
-   datum itself (`holdFocus`, `alike: false`). A draw the component's own message starts has no
+   control at their control's place among those like it, or on the datum
+   (`holdFocus`). A draw the component's own message starts has no
    such hold, since Effect UI gives no hook before its flush. A widget whose rows move
    between parents writes each row as a keep-alive child (`h.keepAlive`), whose nodes
    move with it and keep the user's words.
@@ -143,7 +146,8 @@ export const widgetProps = { state: Schema.optional(Schema.Unknown) };
 
 /** A property that reads and writes the component's Model. */
 
-// Every member Leaf reads off a widget's element (runtime-globals.d.ts).
+// Every member Leaf reads off a widget's element (runtime-globals.d.ts), `lfHold`
+// included, which Leaf reads off an outlet a widget returns, the widget's element too.
 const DECLARED = [
   "lfCommands",
   "lfParts",
@@ -157,6 +161,7 @@ const DECLARED = [
   "lfDataDatum",
   "lfDatumLabel",
   "threadOutlets",
+  "lfHold",
 ];
 
 /** What a widget states on its element for Leaf to read. */
@@ -217,7 +222,7 @@ export function defineWidget(
           set(value) {
             this.#properties = { ...this.#properties, [name]: value };
             if (this.#root) this.#update();
-            else this.#mount();
+            else this.#ask();
           },
         });
       for (const [name, { get, set }] of Object.entries(members))
@@ -258,6 +263,8 @@ export function defineWidget(
     #connecting = false;
     #hosted = false;
     #fresh = false;
+    // A mount waiting for the end of the host's pass of sets.
+    #asking = false;
     // Moved by `reread`, and read with the inputs, so the watch reads them again.
     #asked = signal(0);
     #reread = () => {
@@ -300,7 +307,7 @@ export function defineWidget(
       this.#state = value;
       this.#fresh = true;
       if (this.#root) this.#update();
-      else this.#mount();
+      else this.#ask();
     }
 
     connectedCallback() {
@@ -362,10 +369,26 @@ export function defineWidget(
       return { ...this.#inputs, ...this.#properties, state: this.#state };
     }
 
+    // Whether the host has made its sets for this connection: at once where no host
+    // answered `lf-connect`, and once it has set `state` where one did.
+    #ready() {
+      return this.#connected && !this.#connecting && (!this.#hosted || this.#fresh);
+    }
+
+    // A set the host makes after `lf-connect` returns belongs to a pass of sets that is
+    // still running, so the mount waits for its end. The pass waits on the mount.
+    #ask() {
+      if (this.#asking || !this.#ready()) return;
+      this.#asking = true;
+      const mounted = Promise.resolve().then(() => {
+        this.#asking = false;
+        this.#mount();
+      });
+      this.dispatchEvent(new PendingTaskEvent(mounted));
+    }
+
     #mount() {
-      if (this.#root || !this.isConnected || !this.#connected || this.#connecting)
-        return;
-      if (this.#hosted && !this.#fresh) return;
+      if (this.#root || !this.isConnected || !this.#ready()) return;
       this.#failed = false;
       this.#mended();
       if (inputs) {
@@ -441,7 +464,6 @@ export function defineWidget(
     #redraws() {
       const restore = holdFocus(this, {
         key: "data-lf-datum",
-        alike: false,
         owns: (item) => drawerOf(item.parentNode) === this,
       });
       const drawn = Promise.resolve().then(() => {

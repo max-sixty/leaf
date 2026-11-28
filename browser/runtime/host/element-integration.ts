@@ -268,25 +268,28 @@ function host(element: Element) {
     reading
       ? reading !== shown || asks !== answered || returned
       : (!passed || returned) && asked.has(element) && !records;
-  // `state` is the pass's last set, after the recorded properties, so an element that
-  // builds once its `state` arrives reads every set of the pass.
-  const setState = (reading: WidgetReading | null, failures: unknown[]) =>
-    attempt(failures, () => {
-      const state = reading ? widgetState(reading) : NO_VERBS;
-      const heard = asks;
-      untracked(() => {
-        for (const { verb, property } of properties) {
+  // `state` comes first, so a recorded property's setter reads the state it belongs to,
+  // and each set has its own attempt, so one that throws keeps no other from the
+  // element. A pass any of them threw in is owed again whole.
+  const setState = (reading: WidgetReading | null, failures: unknown[]) => {
+    const state = reading ? widgetState(reading) : NO_VERBS;
+    const heard = asks;
+    const before = failures.length;
+    attempt(failures, () => untracked(() => Object.assign(element, { state })));
+    for (const { verb, property } of properties)
+      attempt(failures, () =>
+        untracked(() => {
           const value = valueOf(reading, verb);
-          if (shown && valueOf(shown, verb) === value) continue;
+          if (shown && valueOf(shown, verb) === value) return;
           if (text(Reflect.get(element, property)) !== value)
             setProperty(property, value);
-        }
-        Object.assign(element, { state });
-      });
-      shown = reading;
-      answered = heard;
-      returned = false;
-    });
+        }),
+      );
+    if (failures.length > before) return;
+    shown = reading;
+    answered = heard;
+    returned = false;
+  };
   // Whether Leaf is setting a recorded property, when an event the element dispatches
   // is its answer to that set. The element may dispatch no `change` for the set, so
   // Leaf tells the property's readers (data.js) as the set returns.

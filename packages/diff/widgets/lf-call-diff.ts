@@ -20,8 +20,10 @@
  * Rows are keyed by call within their root, so a row the next capture keeps under the
  * same root keeps its nodes, and the selection or focus on it. A row a capture moves
  * under another root is a new node there, in that root's fold, since Effect UI keys
- * children within one parent, and focus on the old one drops to the body. After each
- * commit the root says the
+ * children within one parent. Focus on the row follows it by its datum key
+ * (effect-widget.js), and a folded destination opens to show it (`FollowRow`), since
+ * the user's place outweighs a fold made before the row arrived. A row moved without
+ * focus leaves its destination's fold as it was. After each commit the root says the
  * value it drew (`drawn`, host/element-data.js), so Leaf stamps the rows' datum marks
  * with that value's snapshot. */
 import {
@@ -35,6 +37,7 @@ import {
 } from "/vendor/effect-ui.js";
 import { Announce, NavigateToDatum } from "/runtime/widget-services.js";
 import { defineWidget, widgetProps } from "/runtime/effect-widget.js";
+import { onCurrentLocation } from "/runtime/widget-api.js";
 import { offerActionElement } from "/runtime/lib/controls.js";
 import type {
   DataCalldiff,
@@ -192,6 +195,47 @@ const ReportDrawn = Mount.make(
     ).pipe(Effect.as(Component.noop)),
 );
 
+// The user on a row a capture moves into a folded root goes with it there. The mount
+// hears each commit once its rows are patched, and asks the Model to open that root.
+// Effect UI draws a message sent during a flush in that flush, so the root stands open
+// before defineWidget's hold puts the user back on the row by its key
+// (effect-widget.js). The mount follows where the user is, except that a change
+// removing or hiding their node leaves it on the node they lost.
+const FollowRow = Mount.makeStream(
+  "FollowRow",
+  { args: { value: Schema.NullOr(Document) } },
+  (node: HTMLElement, _args, changes) =>
+    Stream.unwrap(
+      Effect.gen(function* () {
+        let held: Element | null = null;
+        yield* Effect.acquireRelease(
+          Effect.sync(() =>
+            onCurrentLocation((at, cause) => {
+              if (cause !== "drop") held = at && node.contains(at) ? at : null;
+            }),
+          ),
+          (stop) => Effect.sync(stop),
+        );
+        // The folded root that now holds the row the commit took the user from.
+        const destination = () => {
+          const key = held?.isConnected
+            ? null
+            : held?.closest("[data-lf-datum]")?.getAttribute("data-lf-datum");
+          const group = key
+            ? node
+                .querySelector(`[data-lf-datum="${CSS.escape(key)}"]`)
+                ?.closest("details")
+            : null;
+          return group && !group.open ? group.getAttribute("data-lf-call-group") : null;
+        };
+        return changes.pipe(
+          Stream.map(destination),
+          Stream.filter((root): root is string => root !== null),
+        );
+      }),
+    ),
+);
+
 const rootKeys = (value: DataCalldiff | null | undefined) =>
   value ? recordsOf(value).groups.map(({ root }) => root.key) : [];
 
@@ -203,13 +247,17 @@ export const CallDiff = Html.component({
 }).make({
   init: () => ({ closed: [] }),
   update: {
+    // The `toggle` that answers the Model's own write of `open` folds nothing, and
+    // leaves the Model as it stands rather than drawing the capture again.
     ToggledGroup: ($, { key, open }) =>
-      $.evolve({
-        closed: (closed) =>
-          open
-            ? closed.filter((folded) => folded !== key)
-            : [...new Set([...closed, key])],
-      }),
+      $.model.closed.includes(key) !== open
+        ? $.model
+        : $.evolve({
+            closed: (closed) =>
+              open
+                ? closed.filter((folded) => folded !== key)
+                : [...closed, key],
+          }),
     ClickedToggle: ($) => {
       const keys = rootKeys($.props.value);
       const open = keys.some((key) => $.model.closed.includes(key));
@@ -302,6 +350,11 @@ export const CallDiff = Html.component({
     return frame.children(
       h.div
         .style({ display: "contents" })
+        .onMount(
+          FollowRow({ value }).pipe(
+            Mount.map((key) => CallDiffMessage.ToggledGroup({ key, open: true })),
+          ),
+        )
         .children(
           h.div
             .key("tools")

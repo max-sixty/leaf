@@ -77,15 +77,27 @@ test("an element no host answers draws as it connects, and a set draws by the ti
   el.remove();
 });
 
-test("an element whose lf-connect a host cancels mounts once state is set", () => {
-  const el = widget({ shadow: true });
+test("an element whose lf-connect a host cancels mounts at the end of the pass that sets its state, with every set of the pass", async () => {
+  const el = /** @type {HTMLElement & {state: unknown, note: string}} */ (
+    widget({ shadow: true, properties: ["note"] })
+  );
   const answer = (/** @type {Event} */ event) => event.preventDefault();
   document.addEventListener("lf-connect", answer);
+  /** @type {PromiseLike<unknown>[]} */
+  const pending = [];
+  el.addEventListener("pending-task", (event) =>
+    pending.push(/** @type {any} */ (event).complete),
+  );
   try {
     document.body.append(el);
     assert.equal(shown(el), undefined);
+    // The host's pass sets `state` first, then a recorded property.
     el.state = { decide: { value: "ship" } };
+    el.note = "recorded";
+    assert.equal(pending.length, 1);
+    await pending[0];
     assert.equal(shown(el), "ship");
+    assert.equal(el.shadowRoot?.querySelector(".note")?.textContent, "recorded");
   } finally {
     document.removeEventListener("lf-connect", answer);
     el.remove();

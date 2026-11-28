@@ -2,9 +2,11 @@
 /* Canonical Thread placement into exact widget seats and one page presentation.
 
    A widget whose element has a `threadOutlets` method is a seat for as long as it
-   stands upgraded: `watchThreadSurfaces` registers it once its module has defined it and
-   retires it when it leaves, over the same arrival lifetime every element owner holds
-   (`watchArrivals`, dom/arrivals.js), so a move within one batch keeps it. The runtime asks
+   stands upgraded and has the method: `watchThreadSurfaces` registers it once its
+   module has defined it and retires it when it leaves, over the same arrival lifetime
+   every element owner holds (`watchArrivals`, dom/arrivals.js), so a move within one
+   batch keeps it. A widget that sets or removes the method later says `lf-layout`, as
+   `declare` does (effect-widget.js), and is registered or retired then. The runtime asks
    the widget itself for outlets with
    `owner.threadOutlets(targets, {signal, collection, onCommit})` on every thread pass.
    The widget says its seats changed as it says any change in what it holds, with
@@ -41,6 +43,7 @@ import { sameAnchor } from "../../base/anchor-coordinate.js";
 import { drawnThreadId, drawnThreadsWithId } from "./selectors.js";
 import { registry } from "../../state/registry.js";
 import { watchArrivals } from "../../dom/arrivals.js";
+import { LAYOUT } from "../../lib/widget-events.js";
 import { renderThreadSurface, clearThreadSurface } from "./inline.js";
 import { readThreads, threadIdNamed, threadNamed } from "./state.js";
 import { seatOf, seatRoot } from "../../state/thread/model.js";
@@ -70,41 +73,59 @@ export function watchThreadSurfaces(commands) {
   // watch covers every such tag and asks each element.
   const tags = Object.keys(registry.$modules ?? {});
   if (!tags.length) return;
-  watchArrivals(tags.join(","), [], {
-    arrive(owner) {
-      if (registrations.has(owner)) return;
-      // Every door that brings a tag in imports its module before connecting its
-      // markup (`records/widget-loader.js`), and this watch starts after startup's upgrade, so
-      // an undefined owner failed to upgrade, which its module's failure reports.
-      if (!owner.matches(":defined")) return;
-      const outlets = owner.threadOutlets;
-      if (typeof outlets !== "function") return;
-      // A thread names its widget by id (`widgetTarget`), so an instance without one
-      // can seat no thread and open no comment box. It registers nothing, which leaves
-      // its opener null, and reports that as the widget's own failure, which the
-      // page's error report and the render check carry without a press.
-      if (!owner.id) {
-        reportWidgetFailure(
-          owner,
-          new TypeError(
-            "a widget that shows threads needs an id on each instance, and this one has none",
-          ),
-        );
-        return;
-      }
-      register(
+  // Each widget refused for want of an id, which is said once however often it asks.
+  const refused = new WeakSet();
+  const offer = (owner) => {
+    if (registrations.has(owner)) return;
+    // Every door that brings a tag in imports its module before connecting its
+    // markup (`records/widget-loader.js`), and this watch starts after startup's upgrade, so
+    // an undefined owner failed to upgrade, which its module's failure reports.
+    if (!owner.matches(":defined")) return;
+    if (typeof owner.threadOutlets !== "function") return;
+    // A thread names its widget by id (`widgetTarget`), so an instance without one
+    // can seat no thread and open no comment box. It registers nothing, which leaves
+    // its opener null, and reports that as the widget's own failure, which the
+    // page's error report and the render check carry without a press.
+    if (!owner.id) {
+      if (refused.has(owner)) return;
+      refused.add(owner);
+      reportWidgetFailure(
         owner,
-        (targets, context) => {
-          const result = Reflect.apply(outlets, owner, [targets, context]);
-          return result;
-        },
-        commands,
-        "widget",
+        new TypeError(
+          "a widget that shows threads needs an id on each instance, and this one has none",
+        ),
       );
-    },
+      return;
+    }
+    // The method is asked for as each pass asks, so a widget that declares it again
+    // is asked the one it declared last.
+    register(
+      owner,
+      (targets, context) => {
+        const outlets = owner.threadOutlets;
+        const result = outlets
+          ? Reflect.apply(outlets, owner, [targets, context])
+          : targets.map(() => null);
+        return result;
+      },
+      commands,
+      "widget",
+    );
+  };
+  const upgraded = new Set(tags);
+  watchArrivals(tags.join(","), [], {
+    arrive: offer,
     leave(owner) {
       registrations.get(owner)?.handle.unregister();
     },
+  });
+  // A widget may declare its outlets after it arrives, or take them away, and says so
+  // with `lf-layout` (effect-widget.js, `declare`).
+  document.addEventListener(LAYOUT, (event) => {
+    const [owner] = event.composedPath();
+    if (!(owner instanceof Element) || !upgraded.has(owner.localName)) return;
+    if (typeof owner.threadOutlets === "function") offer(owner);
+    else registrations.get(owner)?.handle.unregister();
   });
 }
 

@@ -781,13 +781,30 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
     # at rest, since a hover state read against a resting one compares nothing.
     page.mouse.move(4, 4)
 
-    # The slotted shortcut hint keeps the text field's quiet placeholder ink.
-    # Typography shared with sent messages must not turn an empty hint into prose.
-    hint_ink = """hint => [getComputedStyle(hint).color,
-        getComputedStyle(hint.querySelector('kbd')).color]"""
+    # The slotted shortcut hint keeps the text field's quiet placeholder ink, so
+    # typography shared with sent messages doesn't turn an empty hint into prose, and
+    # its key wears the keycap ink of every other key badge.
+    hint_ink = """hint => {
+        const ink = (el, token) => {
+            const probe = el.appendChild(document.createElement('span'));
+            probe.style.color = `var(${token})`;
+            const color = getComputedStyle(probe).color;
+            probe.remove();
+            return color;
+        };
+        const key = hint.querySelector('kbd');
+        return {
+            hint: getComputedStyle(hint).color,
+            quiet: ink(hint, '--lf-quiet'),
+            key: getComputedStyle(key).color,
+            keycap: ink(hint, '--lf-ink-2'),
+        };
+    }"""
     hint = page.locator(".lf-fab-input .lf-compose-placeholder")
     expect(hint).to_be_visible()
-    assert len(set(hint.evaluate(hint_ink))) == 1
+    inks = hint.evaluate(hint_ink)
+    assert inks["hint"] == inks["quiet"], inks
+    assert inks["key"] == inks["keycap"], inks
 
     # The editor's frame is drawn by the moving surface. Compare that paint with
     # the button's own border and fill, rather than the transparent editor's CSS.
@@ -828,7 +845,9 @@ def test_the_floating_response_bar_has_one_compact_face(browser, serve):
         != "none"
     ), "the field that floats over the page says nothing about its elevation"
     page.locator(".lf-fab-input").click()
-    assert len(set(hint.evaluate(hint_ink))) == 1
+    inks = hint.evaluate(hint_ink)
+    assert inks["hint"] == inks["quiet"], inks
+    assert inks["key"] == inks["keycap"], inks
 
 
 # One rendered key face: the geometry a physical press claims wherever Leaf draws it, and

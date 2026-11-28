@@ -2569,7 +2569,7 @@ def plan_caveat(page: Page) -> None:
 
 def code_note(page: Page) -> None:
     """The first code block with a note, the note in view."""
-    page.locator("lf-code pre lf-note").first.evaluate(
+    page.locator("lf-code lf-note").first.evaluate(
         "note => note.scrollIntoView({block: 'center'})"
     )
 
@@ -2738,7 +2738,7 @@ def multiline_passage(page: Page) -> None:
 def code_copy_by_pointer(page: Page) -> None:
     """Code's corner control revealed by hovering its source."""
     code_note(page)
-    page.locator("lf-code pre").first.hover()
+    page.locator("lf-code pre:has(.lf-code-line)").first.hover()
 
 
 def code_copy_by_keyboard(page: Page) -> None:
@@ -2915,7 +2915,9 @@ def diff_line_composer(page: Page) -> None:
 def code_source_by_touch(page: Page) -> None:
     """Code stood on by touch, its corner Copy shown by the tap."""
     code_note(page)
-    page.locator("lf-code pre").first.tap(position={"x": 60, "y": 20})
+    page.locator("lf-code pre:has(.lf-code-line)").first.tap(
+        position={"x": 60, "y": 20}
+    )
 
 
 def pane_focused(page: Page) -> None:

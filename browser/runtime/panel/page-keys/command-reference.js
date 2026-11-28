@@ -150,7 +150,7 @@ commandReferenceDialog.append(commandReferenceSearch, commandReferenceClose);
  * @typedef {{row: Command, sequence: Scope["sequence"]}} ReferenceRow
  * @typedef {{title?: Scope["title"], reach?: Scope["reach"], when?: Scope["when"], at?: Scope["at"], liveInCommandReference?: Scope["liveInCommandReference"]}} ReferenceMetadata
  * @typedef {ReferenceMetadata & {rows: Map<string | symbol, ReferenceRow>}} ReferenceSection
- * @typedef {{id: string, rowId: string, keyId: string, descriptionId: string, sectionId: string, sectionTitle: string,
+ * @typedef {{id: string, rowId: string, sectionId: string, sectionTitle: string,
  * order: number, sequenceControl: boolean, keyLabel: boolean, steps: readonly string[], keySequence: ReturnType<typeof keySequenceModel> | null,
  * title: string, description: string, actionable: boolean, available: boolean, unavailableMessage: string,
  * bindingForms: readonly {display: string, spoken: string}[], directWords: string, familyWords: string}} ReferenceEntry
@@ -500,8 +500,6 @@ function captureCommandReferenceCatalog() {
         const entry = Object.freeze({
           id,
           rowId: `lf-command-reference-row-${entryIndex}`,
-          keyId: `lf-command-reference-key-${entryIndex}`,
-          descriptionId: `lf-command-reference-description-${entryIndex}`,
           sectionId: `lf-command-reference-section-${sectionOrder}`,
           sectionTitle,
           order: sectionEntries.length,
@@ -729,34 +727,24 @@ function activateCommandEntry(entry) {
 // A command is one option of the results' listbox, a row (control-faces.js,
 // `ACTION_FACES`) holding its title, its keys and its description, so the whole row is
 // the press and wears the row's wash and ring. One that can't run from the catalog, a
-// gesture with no command to run, stands as a disabled option at the same face.
+// gesture with no command to run, stands as a disabled option at the same face. The
+// row's words are its accessible name, so every option says its keys and description
+// to a screen reader whether or not it runs from here, and a voice-control user who
+// says any of the words the row shows reaches it (WCAG 2.5.3, Label in Name).
 /** @param {ReferenceEntry} entry @param {boolean} [promoted] @param {boolean} [shown] */
 function commandEntryTemplate(entry, promoted = false, shown = true) {
   const selected = commandReferenceView.selectedCommandId === entry.id;
-  const titleId = `${entry.rowId}-title`;
   const scope = promoted
     ? html`<span class="lf-command-reference-scope">${entry.sectionTitle}</span>`
     : nothing;
   // Whitespace in these cells is observable to accessibility and command consumers.
   // prettier-ignore
-  const cells = html`<span class="lf-command-reference-action"><span id=${titleId} class="lf-command-reference-title-words">${entry.title}</span>${scope}</span><span class="lf-command-reference-key">${
+  const cells = html`<span class="lf-command-reference-action"><span class="lf-command-reference-title-words">${entry.title}</span>${scope}</span><span class="lf-command-reference-key">${
       entry.keySequence
-        ? keySequenceTemplate(entry.keySequence, {
-            id: entry.keyId,
-            label: entry.keyLabel,
-          })
+        ? keySequenceTemplate(entry.keySequence, { label: entry.keyLabel })
         : nothing
-    }</span>${entry.description ? html`<span id=${entry.descriptionId} class="lf-command-reference-description">${entry.description}</span>` : nothing}`;
+    }</span>${entry.description ? html`<span class="lf-command-reference-description">${entry.description}</span>` : nothing}`;
   const rowClass = `lf-command-reference-row${entry.sequenceControl ? " lf-sequence-command" : ""}`;
-  // Every option says its keys and its description to a screen reader, whether or not
-  // it runs from here.
-  const describedBy =
-    [
-      entry.keySequence ? entry.keyId : null,
-      entry.description ? entry.descriptionId : null,
-    ]
-      .filter(Boolean)
-      .join(" ") || nothing;
   if (!entry.actionable)
     return html`<div
       id=${entry.rowId}
@@ -764,8 +752,6 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
       ${offeredAction("row", rowClass)}
       data-lf-command=${entry.id}
       aria-disabled="true"
-      aria-labelledby=${titleId}
-      aria-describedby=${describedBy}
       ?hidden=${!shown}
     >
       ${cells}
@@ -779,8 +765,6 @@ function commandEntryTemplate(entry, promoted = false, shown = true) {
     data-lf-available=${String(entry.available)}
     data-lf-selected=${String(selected)}
     aria-selected=${String(selected)}
-    aria-labelledby=${titleId}
-    aria-describedby=${describedBy}
     .lfPreview=${() => {
       const detail = [
         entry.description,

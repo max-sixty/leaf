@@ -539,6 +539,14 @@ class GroupLight {
     this.host.removeEventListener("beforematch", this.#reveal, true);
   }
 
+  // A revision replaces an option it changed with a new node, which the args don't
+  // show: the new node needs its face and record, and the bindings name the node they
+  // reach. The slot says when the nodes it draws change.
+  redraw() {
+    this.#scopeKey = "";
+    if (this.args) this.show(this.args);
+  }
+
   /** @param {any} args */
   show(args) {
     const first = !this.args;
@@ -739,7 +747,14 @@ const ShowChoice = Mount.makeStream(
           Queue.offerUnsafe(queue, message),
         );
         light.show(show);
-        yield* Effect.addFinalizer(() => Effect.sync(() => light.close()));
+        const redraw = () => light.redraw();
+        slot.addEventListener("slotchange", redraw);
+        yield* Effect.addFinalizer(() =>
+          Effect.sync(() => {
+            slot.removeEventListener("slotchange", redraw);
+            light.close();
+          }),
+        );
         yield* Effect.forkScoped(
           Stream.runForEach(changes, (/** @type {any} */ next) =>
             Effect.sync(() => light.show(next.show)),

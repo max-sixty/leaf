@@ -294,16 +294,20 @@ customElements.define(
         // Focus the browser shows lands the reader on a point, the one they are on, the
         // one the keys left them on, or the first, which the arrows then step from: the
         // keyboard's from then on. Focus Leaf puts on a point has put them on it already
-        // (`#focusOn`).
+        // (`#focusOn`). The chart reads focus once the script that moved it is done, so
+        // focus that passes through, as Leaf lands Tab's start on the chart and blurs it
+        // when Escape lets go of a comment's card (dom/focus.js, `landAtReading`), puts
+        // the reader on nothing.
         this.addEventListener(
           "focus",
-          () => {
-            if (this.#reading && this.matches(":focus-visible"))
-              this.#choose(
-                this.#at ?? this.#place ?? step(this.#reading, null, "first"),
-                "focus",
-              );
-          },
+          () =>
+            queueMicrotask(() => {
+              if (this.#reading && this.matches(":focus-visible"))
+                this.#choose(
+                  this.#at ?? this.#place ?? step(this.#reading, null, "first"),
+                  "focus",
+                );
+            }),
           { signal },
         );
         // Leaving the chart takes the ring off a point the keys hold, which stays the

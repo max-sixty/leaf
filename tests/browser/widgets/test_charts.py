@@ -2190,25 +2190,8 @@ def test_a_comment_takes_the_point_a_chart_s_ring_is_on(engine, request, serve):
     expect(page.locator("#p-bins svg[role=img]")).to_be_visible()
     quote = page.locator("#lf-composer-quote")
 
-    page.locator("#before").focus()
-    page.keyboard.press("Tab")
-    expect(page.locator("#p-line")).to_be_focused()
-    for key in ("ArrowRight", "ArrowDown"):
-        page.keyboard.press(key)
-    assert said(page) == ["week May 11, 2026", "team frontend", "hours 21"]
-    # The points the keys reached join no list a reader picks from: each chart offers a
-    # screen reader one response, to the whole chart.
-    render_checks_model.rendered(page)
-    expect(page.locator(".lf-visual-action")).to_have_text(["Respond to chart"] * 3)
-    page.keyboard.press("c")
-    expect(quote).to_have_text(
-        "\u00a7 chart \u00b7 week May 11, 2026, team frontend, hours 21"
-    )
-    page.keyboard.type("Why did frontend rise?")
-    with sending(page, "the line's comment"):
-        page.keyboard.press("Enter")
-
-    # The reader reads the dot's value, which stays up under Alt, and puts the bin's
+    # The pointer's comments come before the line's, since the card a send opens beside
+    # the line's point stands over the dots below it. The reader reads the dot's value, which stays up under Alt, and puts the bin's
     # reading and its ring away with Escape before pressing Alt.
     preview = page.locator(PREVIEW)
     for chart, index, words, escaped in (
@@ -2245,13 +2228,32 @@ def test_a_comment_takes_the_point_a_chart_s_ring_is_on(engine, request, serve):
         with sending(page, f"{chart}'s comment"):
             page.keyboard.press("Enter")
 
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(page.locator("#p-line")).to_be_focused()
+    for key in ("ArrowRight", "ArrowDown"):
+        page.keyboard.press(key)
+    assert said(page) == ["week May 11, 2026", "team frontend", "hours 21"]
+    # The points the keys reached join no list a reader picks from: each chart offers a
+    # screen reader one response, to the whole chart.
+    render_checks_model.rendered(page)
+    expect(page.locator(".lf-visual-action")).to_have_text(["Respond to chart"] * 3)
+    page.keyboard.press("c")
+    expect(quote).to_have_text(
+        "\u00a7 chart \u00b7 week May 11, 2026, team frontend, hours 21"
+    )
+    page.keyboard.type("Why did frontend rise?")
+    with sending(page, "the line's comment"):
+        page.keyboard.press("Enter")
+
     anchors = [
         event["anchor"]
         for event in events_model.read_events(serve.page_dir)
         if event["kind"] == "comment"
     ]
     assert anchors == [
-        {"section": chart, "visual": visual} for chart, visual in POINT_IDS.items()
+        {"section": chart, "visual": POINT_IDS[chart]}
+        for chart in ("p-dots", "p-bins", "p-line")
     ]
 
 
@@ -2525,3 +2527,25 @@ def test_c_on_a_commented_point_continues_its_thread_beside_one_on_the_chart(
     )
     expect(reply).to_be_focused()
     expect(page.locator(".lf-composer")).to_be_hidden()
+
+
+@pytest.mark.parametrize("engine", ["browser", "firefox_browser"])
+def test_escape_from_a_point_s_card_leaves_the_chart_s_ring_off(engine, request, serve):
+    """Escape from the card of a comment on a point the keys reached lets go of it,
+    landing Tab's start beside the chart without putting the reader on a point: the
+    ring and its aim stay off, and the focus that passes through the chart writes
+    nothing to them, which the browser fixture's write watch would report."""
+    page = open_page(clocked(request.getfixturevalue(engine)), serve(POINTS_PAGE))
+    expect(page.locator("#p-line svg[role=img]")).to_be_visible()
+    page.locator("#before").focus()
+    page.keyboard.press("Tab")
+    expect(page.locator("#p-line")).to_be_focused()
+    page.keyboard.press("ArrowRight")
+    page.keyboard.press("c")
+    page.keyboard.type("Why did frontend rise?")
+    with sending(page, "the line's comment"):
+        page.keyboard.press("Enter")
+    page.keyboard.press("Escape")
+    expect(page.locator("#p-line")).not_to_be_focused()
+    expect(page.locator("#p-line .lf-chart-at")).to_have_attribute("display", "none")
+    expect(page.locator("#p-line .lf-chart-aim")).to_have_attribute("display", "none")

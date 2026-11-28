@@ -1,6 +1,8 @@
 """Where keyboard focus goes and returns: scroll boxes' Tab stops, keyboard scrolling,
 hand-back as layers close, focus kept through moves, and the frame audit."""
 
+import re
+
 import pytest
 from interact_support import append_carried_log_record
 from playwright.sync_api import TimeoutError as PlaywrightTimeout
@@ -887,7 +889,7 @@ def test_a_reference_command_finishes_its_gesture_before_a_newer_control(
     page.keyboard.press("?")
     search = page.get_by_role("combobox", name="Search commands")
     search.fill("comment on the control")
-    command = page.get_by_role("option", name="Comment on the control", exact=True)
+    command = page.get_by_role("option", name=re.compile(r"^Comment on the control\b"))
     expect(command).to_be_visible()
     expect(command).to_have_attribute("data-lf-available", "true")
     with held_frames(page):

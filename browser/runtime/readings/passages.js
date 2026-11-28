@@ -277,7 +277,7 @@ export function renderRetired(el, outcome) {
 // still open, where the same suggestion on the page keeps both.
 export function settledAway(el) {
   let at = el;
-  for (; at; at = at.parentElement) if (retiredSlot(at)) return true;
+  for (; at; at = upFrom(at)) if (retiredSlot(at)) return true;
   const nodes = [...el.childNodes];
   return (
     nodes.some((n) => isElement(n) && retiredSlot(n)) &&
@@ -453,10 +453,11 @@ const frameOf = (node) => {
 // Carried down, each element answers once for everything under it; asked per text node,
 // the same answers came from a climb apiece, most of them to the body.
 //
-// Three of the facts stop at a shadow boundary and the rest cross it, because that is
-// how the readings they carry are defined: `closest` for chrome, silence and the
-// generated marks, the climb through hosts (`closestAcross`, `upFrom`) for blocks, the
-// element words are read in and cells. A declared root therefore starts its tree-local facts over (`crossed`).
+// Chrome and the generated marks stop at a shadow boundary and the rest cross it,
+// because that is how the readings they carry are defined: `closest` for chrome and the
+// generated marks, the climb through hosts (`closestAcross`, `upFrom`) for silence,
+// blocks, the element words are read in and cells. A declared root therefore starts its
+// tree-local facts over (`crossed`).
 //
 // The same rules asked of one element are `contextAt`: the element's ancestors folded
 // through `enter` from the top. A walk starts from it at its root, and the reading
@@ -558,10 +559,11 @@ function enter(ctx, el, inFrame = true) {
   };
 }
 // The tree-local facts start over inside a declared shadow root, as `closest` does.
+// Silence is not one of them: a slot the user's decision took off the page takes the
+// trees of the widgets inside it along, as a settled group's label in its own root.
 const crossed = (ctx) => ({
   ...ctx,
   chrome: false,
-  silenced: false,
   generated: false,
   gen: null,
 });

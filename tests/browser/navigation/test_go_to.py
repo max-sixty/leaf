@@ -765,21 +765,29 @@ def test_go_to_names_leaf_s_own_controls_but_not_its_own_way_out(browser, serve)
         "Close Go to"
     )
     routes = heard_routes(page)
-    assert {"Link, One", "Control, Menu", "Control, On Me", "Control, Threads"} <= set(
-        routes
-    ), routes
+    # A tab is named by the words it shows, its list and its count.
+    assert {
+        "Link, One",
+        "Control, Menu",
+        "Control, On Me 0",
+        "Control, Threads 0",
+    } <= set(routes), routes
     assert any(route.startswith("Control, Page menu") for route in routes), routes
     assert not [route for route in routes if "Go to" in route or "esc" in route], routes
-    for name in ("Menu", "On Me", "Threads"):
+    for name, heard in (
+        ("Menu", "Menu"),
+        ("On Me", "On Me 0"),
+        ("Threads", "Threads 0"),
+    ):
         tab = page.locator(".lf-fp-tab", has_text=name).bounding_box()
         chip = page.locator(
-            f'{CHIPS}[data-lf-hint-code="{routes[f"Control, {name}"]}"]'
+            f'{CHIPS}[data-lf-hint-code="{routes[f"Control, {heard}"]}"]'
         ).bounding_box()
         assert tab and chip, name
         middle = (chip["x"] + chip["width"] / 2, chip["y"] + chip["height"] / 2)
         assert middle[0] > tab["x"] + 2 and middle[1] > tab["y"] + 2, (name, chip, tab)
 
-    assert routes["Control, On Me"] == "M", routes
+    assert routes["Control, On Me 0"] == "M", routes
 
     page.keyboard.press("Escape")
     expect(page.locator("body")).not_to_have_attribute("data-lf-go-to-active", "")

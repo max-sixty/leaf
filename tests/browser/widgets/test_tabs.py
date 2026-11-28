@@ -1321,7 +1321,8 @@ def test_a_tab_strip_keeps_its_open_tab_in_its_one_row(browser, serve):
     }"""
     # Focus brings itself into view, so the tabs opened before the window narrows are
     # left unfocused.
-    for name in ("View framed 11", "View queue 11"):
+    # A side list's row is named by the words it shows, its summary included.
+    for name in ("View framed 11", "View queue 11 sev 11 · suggested fix"):
         tab = page.get_by_role("tab", name=name, exact=True)
         tab.click()
         tab.blur()

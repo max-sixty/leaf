@@ -42,12 +42,12 @@ def test_code_reference_keeps_command_context_and_cancel_destination(browser, se
     expect(leaf).to_be_focused()
     pre.tap()
     page.keyboard.press("?")
-    reference.get_by_role("option", name="Unwrap lines", exact=True).tap()
+    reference.get_by_role("option", name=re.compile(r"^Unwrap lines\b")).tap()
     expect(pre).to_be_focused()
     assert pre.evaluate("e => e.scrollWidth > e.clientWidth")
     page.locator("#code").get_by_role("button", name="Copy code", exact=True).tap()
     open_keyboard_shortcuts(page)
-    reference.get_by_role("option", name="Wrap lines", exact=True).tap()
+    reference.get_by_role("option", name=re.compile(r"^Wrap lines\b")).tap()
     rendered(page)
     assert pre.evaluate("e => e.scrollWidth <= e.clientWidth")
     notes = page.get_by_role("textbox", name="Notes")
@@ -94,7 +94,7 @@ def test_code_wrapping_keeps_source_copy_and_reader_choice(browser, serve):
     # A finger starts at the source, then uses the existing command reference.
     pre.tap(position={"x": 30, "y": 20})
     open_keyboard_shortcuts(page)
-    page.get_by_role("option", name="Unwrap lines", exact=True).tap()
+    page.get_by_role("option", name=re.compile(r"^Unwrap lines\b")).tap()
     expect(pre).to_be_focused()
     assert pre.evaluate("e => e.scrollWidth > e.clientWidth")
     assert pre.evaluate("e => e.clientHeight") < before["height"]
@@ -118,7 +118,7 @@ def test_code_wrapping_keeps_source_copy_and_reader_choice(browser, serve):
     assert pre.evaluate("e => e.scrollLeft") >= horizontal
     open_keyboard_shortcuts(page)
     page.locator(".lf-command-reference").get_by_role(
-        "option", name="Copy code", exact=True
+        "option", name=re.compile(r"^Copy code\b")
     ).tap()
     expect(pre).to_be_focused()
     assert page.evaluate("navigator.clipboard.readText()") == code.rstrip("\n")

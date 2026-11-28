@@ -270,13 +270,14 @@ def test_a_passage_s_field_left_for_another_target_shows_no_c(browser, serve):
 def test_a_press_that_drops_the_selected_words_takes_c_from_their_field(browser, serve):
     """A press elsewhere drops the selected words, so their field shows no `c` while the
     press is held. `c` then comments on the page while nothing is selected, and on the
-    words a drag has reached once it reaches some."""
+    words a drag has reached once it reaches some. The press lands on the heading, which
+    the box under the paragraph leaves clear."""
     page = open_page(browser, serve(TARGETS_PAGE))
     prose = page.locator("#prose").bounding_box()
-    caption = page.locator("#fig figcaption").bounding_box()
+    heading = page.locator("#t").bounding_box()
     field = page.locator(".lf-fab-input")
     comment = page.locator('.lf-fp-field leaf-text[name="comment"]')
-    y = caption["y"] + caption["height"] / 2
+    y = heading["y"] + heading["height"] / 2
 
     def select_prose():
         select(
@@ -286,7 +287,7 @@ def test_a_press_that_drops_the_selected_words_takes_c_from_their_field(browser,
             steps=12,
         )
         expect(field).to_have_attribute("placeholder", "Comment… c")
-        page.mouse.move(caption["x"] + 1, y)
+        page.mouse.move(heading["x"] + 1, y)
         page.mouse.down()
         expect(field).to_have_attribute("placeholder", "Comment…")
 
@@ -298,12 +299,12 @@ def test_a_press_that_drops_the_selected_words_takes_c_from_their_field(browser,
     expect(comment).not_to_be_focused()
 
     select_prose()
-    page.mouse.move(caption["x"] + caption["width"] - 1, y, steps=8)
-    page.wait_for_function("() => String(getSelection()).includes('sample')")
+    page.mouse.move(heading["x"] + heading["width"] - 1, y, steps=8)
+    page.wait_for_function("() => String(getSelection()).includes('Targets')")
     expect(field).to_have_attribute("placeholder", "Comment…")
     page.keyboard.press("c")
     expect(field).to_be_focused()
-    expect(field).to_have_attribute("aria-label", re.compile("sample"))
+    expect(field).to_have_attribute("aria-label", re.compile("Targets"))
     page.mouse.up()
 
 
@@ -841,6 +842,10 @@ def test_the_box_beside_a_tall_target_waits_at_the_window_s_top_through_a_scroll
         page.keyboard.press("c")
         expect(page.locator(".lf-fab-input")).to_be_focused()
         page.keyboard.type("Take the left one")
+    # `m` brings the ask to the window's head, where the box's frame, which reserves a
+    # card's head line above its field, already meets the window's top; scrolling back
+    # stands the box clear of it, so the scroll below has a top to take it to.
+    gesture_writes(page, -100)
     rendered(page)
     stood = page.locator(".lf-fab-bar").bounding_box()["y"]
     writes, frames, samples = gesture_writes(

@@ -142,13 +142,14 @@ so all the options fit the window together. A difference of size or extent, such
 much of a thread a panel shows, reads at a scale where the words inside it don't, and a
 picture that links its original keeps the detail a click away.
 
-The `lf-options` and `lf-option` instructions give their markup and
-presentation, including when to set option cards side by side with `across`.
+The instructions of the widget that asks for the pick give its markup and
+presentation, including when to set its options side by side.
 
 ## One answer in its question and on a board
 
 When the user needs answers beside their cases and together on a board, keep one
-answer in both views. Read the `lf-board` instructions for composing those views.
+answer in both views. The instructions of the widget that draws the board say how to
+compose those views.
 
 ## Permission
 
@@ -175,10 +176,9 @@ action and the evidence the user needs in the question's heading and prose:
 ```
 
 Approval of an editable proposal applies to the submitted values, while later edits
-remain a working copy. A playground records its complete values together on submission
-([playground authoring](../../../packages/playground/instructions/author.md)); a draft
-edit and an options pick are independent answers. Choose a composition that keeps the
-approved wording or settings distinct from subsequent edits.
+remain a working copy. A playground records its complete values together on
+submission; a draft edit and an options pick are independent answers. Choose a
+composition that keeps the approved wording or settings distinct from subsequent edits.
 
 The pick belongs to the `lf-options` and its id, `publish-report`, not to the `lf-group`
 round it. Unrelated edits and page stamps keep it. If the action or evidence changes

@@ -190,6 +190,7 @@ overrides:
 
 patchedDependencies:
   '@awesome.me/webawesome': fceb7eeb7836acd3f8a507a353484cce187114be8655cde1daacdb904714b653
+  '@effect/ui': f78be13139437cab411fd56e1f5e8a5c313cb57d3e68b5993ff1d02a05996fa6
   '@floating-ui/dom': a4068154e932aa84d9335be05a60e3f9d922fa91a428bb3e166796abb14317d3
   '@observablehq/plot': 287f29a373405c14698250037f75a680273ff96945ca1524f038be1cb42d5c75
   '@pierre/diffs': 3cde8de80968604582f62e01f7c192deacdb0d513653bee4b026b70a226e23f1
@@ -242,7 +243,7 @@ importers:
         version: 1.6.0(@aws-sdk/credential-provider-node@3.972.88)(@modelcontextprotocol/sdk@1.32.2(supports-color@10.2.2)(zod@4.6.7))(@smithy/hash-node@4.5.2)(@smithy/signature-v4@5.7.4)(google-auth-library@11.3.4(supports-color@10.2.2))(supports-color@10.2.2)(ws@8.22.0)(zod@4.6.7)
       '@effect/ui':
         specifier: https://pkg.pr.new/Effect-TS/ui/@effect/ui@7bff56b
-        version: https://pkg.pr.new/Effect-TS/ui/@effect/ui@7bff56b(effect@4.1.5)
+        version: https://pkg.pr.new/Effect-TS/ui/@effect/ui@7bff56b(patch_hash=f78be13139437cab411fd56e1f5e8a5c313cb57d3e68b5993ff1d02a05996fa6)(effect@4.1.5)
       '@eslint/js':
         specifier: 10.0.1
         version: 10.0.1(eslint@10.15.0(jiti@2.7.0)(supports-color@10.2.2))
@@ -6452,7 +6453,7 @@ snapshots:
       marked: 18.0.11
       marked-cjk-friendly: 0.1.2(marked@18.0.11)
 
-  '@effect/ui@https://pkg.pr.new/Effect-TS/ui/@effect/ui@7bff56b(effect@4.1.5)':
+  '@effect/ui@https://pkg.pr.new/Effect-TS/ui/@effect/ui@7bff56b(patch_hash=f78be13139437cab411fd56e1f5e8a5c313cb57d3e68b5993ff1d02a05996fa6)(effect@4.1.5)':
     dependencies:
       effect: 4.1.5
 

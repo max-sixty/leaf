@@ -1069,7 +1069,7 @@ def test_co_located_headings_share_the_current_title_and_lens_position(browser, 
 def test_the_lens_follows_the_scroll_in_every_engine(request, serve, engine):
     """The lens shows the reader's place by the browser's own scroll timeline in each
     engine Leaf supports, at the top, the middle and the foot of the document, while
-    the map itself stands still in the window."""
+    the map, once its track sticks, stands still in the window."""
     source = contents_page(
         "contents lens in every engine",
         """
@@ -1100,7 +1100,9 @@ def test_the_lens_follows_the_scroll_in_every_engine(request, serve, engine):
         track.append(lens.bounding_box()["y"] - stood[-1])
     top, middle, foot = track
     assert top < middle < foot and foot > top + 300, track
-    assert max(stood) - min(stood) < 0.5, stood
+    # The map opens level with the page's first line and rises to its sticking line,
+    # so it stands still from the middle on (layouts.css).
+    assert abs(stood[2] - stood[1]) < 0.5, stood
 
 
 @pytest.mark.parametrize(

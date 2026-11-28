@@ -5030,7 +5030,8 @@ export function createFloatingPanel({
   // and wears the door's key as its Go-to chip (`data-lf-command`), so the user meets
   // the key where they reach for the list. A tab is named by the words it shows, its
   // list and its count, as "Threads 2", so a user who speaks what they see reaches it
-  // (WCAG 2.5.3, Label in Name). Rejected: the list's name alone with the count as its
+  // (WCAG 2.5.3, Label in Name), while its preview's keys follow the list's name alone,
+  // "Threads", not "Threads 2". Rejected: the list's name alone with the count as its
   // description, which left the count out of the name the user speaks.
   /** @template {string} T @param {readonly T[]} names @param {T} current
    * @param {(name: T) => string} label @param {(name: T) => unknown} choose
@@ -5048,7 +5049,7 @@ export function createFloatingPanel({
             data-lf-command=${opens ?? nothing}
             .lfPreview=${() => {
               const steps = opens ? commandBindingsNow(opens) : [];
-              return steps.length ? { keys: [steps] } : null;
+              return steps.length ? { name: label(name), keys: [steps] } : null;
             }}
             @click=${() => {
               refit();

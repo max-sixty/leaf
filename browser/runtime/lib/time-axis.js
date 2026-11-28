@@ -44,7 +44,7 @@
  * before the lanes, so their marks paint over its lines, and it lets the pointer
  * through to the drawing it covers. A tick's label takes the drawing's type, so the
  * drawing sets a line that fits the ruler. The labels are words the module writes
- * (`module-plain-elements.md`, "Words it writes").
+ * (`module-widgets.md`, "Words it writes").
  *
  * Ruler ticks fall on the smallest step in STEPS that keeps major ticks
  * AXIS_TICK_SPACING apart, with two to five minor ticks between them. Below a second

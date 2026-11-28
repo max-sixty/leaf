@@ -25,12 +25,13 @@ tag, but module state is lost.
 ## A page script
 
 A page script is ordinary JavaScript over the page's DOM: it queries elements, listens,
-draws with the DOM, lit-html or a canvas, animates with CSS or the Web Animations API,
-and builds plain elements that page CSS styles. Leaf asks four things of it:
+draws with the DOM, Lit (every Lit name from `/vendor/lit.js`) or a canvas, animates
+with CSS or the Web Animations API, and builds plain elements that page CSS styles. Leaf
+asks four things of it:
 
 - Send whatever the agent must hear through a widget, such as a playground's
   contributor or actions (the playground package's author instructions),
-  `lf-options`, `lf-draft`, or a page widget that records it with `lf-action`
+  `lf-options`, `lf-draft`, or a page widget that records it with `RecordAction`
   (`module-state.md`, "Reading and recording state"). State the script keeps itself,
   in memory or `localStorage`, never reaches the log.
 - Leaf hears a key after the listeners on the page's elements, so a listener on an

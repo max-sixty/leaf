@@ -28,8 +28,9 @@ assert:
       from /runtime/widget-api.js, writes its entries as plain objects, returns the
       current Edit or Save/Cancel reading from one producer, gives each action one
       route to its effect, updates that registration after the editing or disabled
-      state changes, and unregisters on disconnect, in `disconnectedCallback` or in
-      the cleanup of `whileConnected`, which the same module exports. An action's
+      state changes, and unregisters on disconnect: in `disconnectedCallback`, in
+      the cleanup of `whileConnected`, which the same module exports, or in the
+      release of a Mount that holds the registration (`Effect.acquireRelease`). An action's
       route to its effect is one of two, and both pass. The first is the `activate`
       callback the answer passes to `registerContribution`. The second is a command
       the widget declares: an entry names it by setting `scope` to the object the
@@ -59,11 +60,14 @@ assert:
       reward an agent for admitting such assumptions. A native keyboard route
       through Leaf controls and Page Map is sufficient, and keys of the widget's own
       are optional. An answer that declares commands, for keys or for entries to
-      name, must set a plain object it writes as the element's `lfCommands` and
-      dispatch an `lf-commands` event on the element, unless its element extends
-      `LeafElement`, which dispatches the event after each draw. Where a row has a
-      `when` or a computed field that reads the widget's state, the answer must
-      dispatch the event again after that state changes. That event is Leaf's public
+      name, must state a plain object it writes as the element's `lfCommands`:
+      through `declare(node, { lfCommands })`, imported from
+      /runtime/effect-widget.js, which sets it and dispatches the `lf-commands`
+      event, or by setting it and dispatching that event on the element itself.
+      Where a row has a `when` or a computed field that reads the widget's state, the
+      answer must declare again or dispatch the event again after that state changes,
+      unless the state arrives as a prop of a component `defineWidget` defines, whose
+      element says the event after each draw a prop starts. That event is Leaf's public
       interface, and dispatching it is not a failure. Importing a function that
       builds the scope is a failure, since /runtime/widget-api.js exports none. This
       case grades no other field of a command scope or of its rows. A key and a press

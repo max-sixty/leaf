@@ -216,8 +216,8 @@ summary from before a compaction, doesn't carry its rules.
   package widget, or using a Leaf helper `page-behavior.md` doesn't describe in a page
   script. It maps each kind of thing a package leans on Leaf for to the reference that
   describes it, and lists every function Leaf exports, under the section that describes
-  it. For a widget, read `references/module-plain-elements.md` with it, the protocol
-  between Leaf and a widget's element. Then, as the behavior needs them:
+  it. For a widget, read `references/module-widgets.md` with it: a widget's module,
+  with its props, Commands and declarations. Then, as the behavior needs them:
   `references/module-reading.md` for reading the page, content helpers, obligations
   and history; `references/module-state.md` for recorded state, data, authenticated
   HTTP connections and LLM generation;

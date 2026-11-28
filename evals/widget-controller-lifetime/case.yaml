@@ -7,48 +7,51 @@ metadata:
     - lifecycle
 vars:
   prompt: |
-    Write the lifecycle methods for a Leaf package widget that displays its declared
-    status and the availability of its status action. It can be removed temporarily
-    and the same element reinserted later. While removed it should do no rendering;
-    on return it should show the latest reading without duplicate callbacks.
+    Write the module for a Leaf package widget that displays its declared status and
+    the availability of its status action. It can be removed temporarily and the same
+    element reinserted later. While removed it should do no rendering; on return it
+    should show the latest reading without duplicate callbacks.
     It also displays its declared external-data source named "builds" and the
     page's history. Those readings must catch up when it returns with whatever
     changed while it was absent.
 
     Use Leaf's supported semantic widget API. The
     widget also registers a native window resize listener to measure its local
-    inspector; keep that listener active only while the element is connected.
+    inspector, with a `measureInspector(node)` that already exists; keep that listener
+    active only while the element is connected.
     The external source contains a list of {id, label} build records. Show each label
     in a retained paragraph that users can comment on, following the same build across
-    source replacements. Include the data-rendering method as well as the lifecycle
-    methods; other rendering and measurement methods already exist.
+    source replacements.
 assert:
   - type: llm-rubric
     metric: reading-owner-lifetime
     value: |
-      Pass only if the widget extends LeafElement and its render() reads the declared
-      status and the action's availability synchronously from the state Leaf sets on
-      the element, this.state, with no subscription of its own to the widget's state
-      that the native connection callbacks stop or recreate. It must rely on LeafElement
-      to pause while detached and catch up on reinsertion. The native window resize
-      listener must still be registered on connection and removed on disconnection,
-      through whileConnected or connection callbacks that call the super method; fail
-      if it lasts the element's whole life.
+      Pass only if the widget is an Effect UI component that `defineWidget` defines and
+      its view reads the declared status and the action's availability from the `state`
+      prop Leaf sets, with no subscription of its own to the widget's state and nothing
+      the module stops or recreates as the element leaves and returns. It must rely on
+      the element `defineWidget` defines to stop drawing while detached and draw the
+      latest reading on return. The native window resize listener must be added only
+      while the element is connected and removed as it leaves: in a Mount's scope, as
+      through `Effect.acquireRelease` or a Stream the Mount runs, or in `whileConnected`;
+      fail if it lasts the element's whole life. Fail if the module extends `LeafElement`
+      or imports Lit.
   - type: llm-rubric
     metric: reading-subscription-lifetime
     value: |
-      Pass only if render(), or a method it calls synchronously, reads the property the
-      "builds" input names, such as this.value, and readHistory(), so LeafElement follows
-      both and draws them again on return with whatever changed while the widget was away. Fail if the widget watches either
-      through a separate subscription, such as a data watcher, or stops
-      and recreates anything for them in the native connection callbacks. Rendering
-      methods may be assumed to exist as the prompt allows.
+      Pass only if the property the "builds" input names, such as `value`, reaches the
+      component as a prop it names in `defineWidget`'s `properties`, and `readHistory()`
+      is read in the component's `inputs`, so the element follows both and the
+      component draws them again on return with whatever changed while the widget was
+      away. Fail if the widget watches either through a separate subscription, such as
+      a data watcher, or stops and recreates anything for them itself.
   - type: llm-rubric
     metric: renderer-owned-projection
     value: |
-      Pass only if the data-rendering method places retained nodes itself, marks each
-      build paragraph with data-lf-datum and a data-lf-identity of its id, and then
-      dispatches a drawn event whose detail names the value it drew, so comments follow
-      that build with the correct source revision. Either setChildren or Leaf's public
-      render with keyed repeat can own placement. Fail if the method replaces every
-      paragraph on every update rather than retaining their nodes.
+      Pass only if the view draws each build's paragraph keyed by the build's id, so a
+      paragraph keeps its node across source replacements, marks each with
+      data-lf-datum and a data-lf-identity of its id, and a Mount whose args hold the
+      value and the keys of the paragraphs drawn dispatches a `drawn` event on the
+      element whose detail names the value the view drew, after each commit that
+      changes either, so comments follow that build with the correct source revision. Fail if the view replaces every paragraph on every update rather than
+      keeping their nodes.

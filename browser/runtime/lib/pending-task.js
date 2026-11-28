@@ -3,7 +3,7 @@
    protocol for a component's asynchronous work spells it: a `pending-task` event,
    bubbling and composed, whose `complete` promise settles once the drawing is in, or the
    element shows why it could not draw. A host that waits for its components' drawing
-   hears it, as a Leaf page holds its presentation on it (module-plain-elements.md,
+   hears it, as a Leaf page holds its presentation on it (module-widgets.md,
    "Drawing"); a page that waits for nothing ignores it.
 
    ```js

@@ -64,10 +64,11 @@ the target hears a `command` event.
 ```
 
 ```js
-this.addEventListener("command", (event) => {
-  if (event.command === "--seek") this.hold(event.source.value);
-});
+const seek = (event) => event.command === "--seek" && hold(event.source.value);
+element.addEventListener("command", seek, { signal });
 ```
+
+A component listens from a Mount whose release aborts `signal`.
 
 A custom command's name starts with `--`; HTML's own, such as `show-modal` and
 `toggle-popover`, act on dialogs and popovers. The request's argument is the button's
@@ -93,7 +94,7 @@ on that button would send nothing. It sends the event `cancelable`, as the brows
 does, so the target can refuse it:
 
 ```js
-const taken = elementById(this.getAttribute("for"), this)?.dispatchEvent(
+const taken = elementById(element.getAttribute("for"), element)?.dispatchEvent(
   new CommandEvent("command", {
     command: "--set-amount",
     source: Object.assign(document.createElement("button"), {
@@ -107,13 +108,12 @@ const taken = elementById(this.getAttribute("for"), this)?.dispatchEvent(
 
 A module that draws a button in the page writes the same attributes as an authored
 one, taking the id from its own reference attribute, as in
-`commandfor=${this.getAttribute("for")}`. The browser makes the press, so the button
-needs no click listener and no `lfCommands` row, a key and a finger press it as a
-pointer does, and it works the same on a page without Leaf. A press does nothing until
-the target's module has loaded, as with any control a module wires. A button in a
-shadow tree can't send a request to a target outside that tree this way, since the
-target sees the shadow's host as `event.source`, so a module drawing there sends from
-its button's click listener as above.
+`.attr("commandfor", h.props.target)`. The browser makes the press, so the button needs
+no click listener and no `lfCommands` row, a key and a finger press it as a pointer
+does, and it works the same on a page without Leaf. A press does nothing until
+the target's module has loaded, as with any control a module wires. In a shadow tree,
+`commandfor` finds no target outside that tree, so a module drawing there sends from
+its button's click listener as above, with `document.getElementById` off Leaf.
 
 ## User state
 
@@ -163,7 +163,7 @@ The record kind fixes the event's payload, a closed object with every field requ
   attribute holds no other JSON type, so a number is recorded as its digits. It is
   the kind of a record that names none, so `{ "attr": "verdict" }` is a value record.
   The record may also name the element's property that holds the value, so that Leaf
-  records it with no module code (`module-plain-elements.md`,
+  records it with no module code (`module-widgets.md`,
   "`record.property`").
 - `position` sends `{unit, value, rank}`: the moved element's id, the destination
   container's id, and the element's rank there. A container is an element of the tag `record.within` names, a declared
@@ -258,12 +258,13 @@ keep its widget on the page, such as a decided question collapsed with its optio
 obligation's question, its region and its words (`authoring-on-me.md`, "On the page"),
 so a widget needs no prompt of its own.
 
-The module reads this state as `this.state` and records it with `record()`
-([module-state.md, "Reading and recording state"](module-state.md#reading-and-recording-state)),
-words answers with `static answerWords` ([module-state.md, "Declared widget
-state"](module-state.md#declared-widget-state)), and reads obligations with `readObligations()`
-([module-reading.md, "Reading obligations and the
-On lists"](module-reading.md#reading-obligations-and-the-on-lists)).
+The component draws this state and records it with `RecordAction`
+([module-state.md, "Reading and recording
+state"](module-state.md#reading-and-recording-state)), words answers with `static
+answerWords` ([module-state.md, "Declared widget
+state"](module-state.md#declared-widget-state)), and reads obligations with
+`readObligations()` ([module-reading.md, "Reading obligations and the On
+lists"](module-reading.md#reading-obligations-and-the-on-lists)).
 
 ## Instance input contracts
 
@@ -386,7 +387,7 @@ binds the `value` input, it refuses the `<pre>`. Where the widget has a `value` 
 and the markup binds only its other inputs, it takes the element with or without a
 `<pre>`, since those inputs may supply the data in its place, as `lf-diff`'s two
 compared texts do. Say in the widget's `instructions` which the widget wants, and
-report a `<pre>` it won't read as an `error` (`module-plain-elements.md`, "`error`").
+report a `<pre>` it won't read as an `error` (`module-widgets.md`, "`error`").
 
 ```json
 {
@@ -421,12 +422,12 @@ A widget may also hold a typed value for other widgets to read, such as the file
 diff lists or the step a film shows. Its registry entry declares
 `"outputs": {"files": {"contract": "file-list"}}`; the contract is an ordinary
 `$data.contracts` entry, and the output's name is the element property that holds it.
-The module sets that property to the complete value, or `null` while it has none, and
-then dispatches `change` on the element, as a form control does for `value`:
+A Mount sets that property on the element to the complete value, or `null` while it
+has none, then dispatches `change` on it, as a form control does for `value`:
 
 ```js
-this.files = { files: entries };
-this.dispatchEvent(new Event("change"));
+element.files = { files: entries };
+element.dispatchEvent(new Event("change"));
 ```
 
 A consumer reads an external source or another widget's output through the same kind
@@ -460,14 +461,13 @@ its readers nothing while another output changes. Hold what changes often, such 
 selection, as a small output of its own beside the large one. Dispatch it on the
 element itself: a control inside the element says a bubbling `change` of its own,
 which Leaf doesn't count, and which a module listening on its own element tells apart
-by `event.target`. Where a verb also records the property (`module-plain-elements.md`,
+by `event.target`. Where a verb also records the property (`module-widgets.md`,
 "`record.property`"), its `record` names the event that reports a change, so Leaf
 also reads the property again at that event, even from a control inside the element,
 and after Leaf sets the recorded value.
 
-Leaf sets the consumer's property before the producer's `dispatchEvent` returns. A
-consumer that draws in its setter has drawn by then; a consumer that extends
-`LeafElement` draws after the dispatch returns, in the same frame.
+Leaf sets the consumer's property before the producer's `dispatchEvent` returns, and
+the consumer draws it in the same frame.
 
 On a page without Leaf the same module needs no import for this, and the host does
 the binding itself: `review.addEventListener("change", () => (tree.value = review.files))`.

@@ -405,7 +405,7 @@ candidates, with their rows, counts and measurements, from it, so they can't dis
 for the same reason a canvas or SVG instrument converts pointer input to model
 coordinates once, and gives the same edits a keyboard route. Give each item a stable
 element id, so the user can point at it in Design mode. Dispatch `lf-layout`
-(`references/module-plain-elements.md`, "`lf-layout`") after a gesture changes
+(`references/module-widgets.md`, "`lf-layout`") after a gesture changes
 geometry.
 
 Before handoff, exercise the user's comparison and submission journey through the states

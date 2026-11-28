@@ -34,7 +34,7 @@ leaf package run NAME SCRIPT [ARGS]...
 a CSS-only widget needs, and often all a theme does. Each `--widget TAG` adds a
 working starter under that tag, a yes-or-no choice: its declaration, its module at
 `widgets/<tag>.js` and its rule in `defaults.css`. The starter is a small widget that
-records what the user presses (`module-plain-elements.md`), there to be changed into
+records what the user presses (`module-widgets.md`), there to be changed into
 the widget you need: each of its three parts is yours to rewrite, or to delete where
 your widget needs none.
 
@@ -307,7 +307,7 @@ what it holds: a comment's quote then stays inside one of its authored children,
 keeps it on its words when the module moves them. Whatever the module adds to a
 verbatim widget stands inside a box of controls the library built
 (`module-controls.md`), with no words marked `data-lf-said`, which would make them the
-page's (`module-plain-elements.md`, "Words it writes").
+page's (`module-widgets.md`, "Words it writes").
 
 A declaration names each of its element's attributes in `properties`, and the schema's
 other keywords, such as `required`, constrain the attributes named there. `page check`

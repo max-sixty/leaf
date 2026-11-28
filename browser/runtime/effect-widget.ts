@@ -1,5 +1,5 @@
 /* A widget written as an Effect UI component, on the protocol any custom element has
-   with its host (module-plain-elements.md): properties in, events out. This header is
+   with its host (module-widgets.md): properties in, events out. This header is
    the contract a widget builds against.
 
    `defineWidget(tag, component, options)` defines `tag` as a plain custom element that

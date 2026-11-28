@@ -8,27 +8,16 @@ in [packages.md, "A widget"](packages.md#a-widget), and its state and data sourc
 
 ## The interface
 
-A widget is a custom element that Leaf drives from outside. On an element whose tag
-declares `verbs` or `inputs`, Leaf sets the widget's state and its bound data as
-properties, and the element answers with events: one records a gesture, one takes it
-back, and others say that it is drawing, holding something for the user or failing.
-[module-plain-elements.md](module-plain-elements.md) gives each property, event and
-mark of that protocol. A widget that only records state and reads bound data imports
-nothing. One that draws with Lit usually extends `LeafElement`, the Lit element on that
-protocol, and one that draws from a page reading either does (`module-plain-elements.md`,
-"`LeafElement`") or is an Effect UI component that `defineWidget` defines
-(`/runtime/effect-widget.js`, whose header gives its contract): Leaf's reading and
-what its `inputs` read arrive as props, and it records gestures through Command
-services (`/runtime/widget-services.js`).
+[module-widgets.md](module-widgets.md) says what a widget's module is, and gives its
+props, Commands and declarations.
 
 Whatever a package leans on Leaf for is one of these kinds, and each kind has its own
-form, or one for each way of writing the widget. Find a need's kind, then read the
-section that describes its form:
+form. Find a need's kind, then read the section that describes its form:
 
 | A package leans on Leaf for                    | The form it takes                       | Described in                               |
 | ---------------------------------------------- | --------------------------------------- | ------------------------------------------ |
 | What Leaf must know before any module runs     | A key of the tag's declaration          | `packages.md`, "A widget"                  |
-| What changes while the page runs               | The widget protocol                     | `module-plain-elements.md`                 |
+| What changes while the page runs               | A prop, a Command or a declaration      | `module-widgets.md`                        |
 | What a widget and a page's author both need    | An element Leaf defines on every page   | `module-state.md`, "Time readings"         |
 | What only Leaf can do or know                  | A function or a Command service         | "Functions"; `widget-services.js`          |
 | A theme's choice                               | A custom property the sheet reads       | `package-themes.md`, "Theme tokens"        |
@@ -44,19 +33,16 @@ property about scrolling or a sticky header is described with that subject, in
 writes as any web page does. That is no part of Leaf's interface, and nor is the
 library ("Shared web code").
 
-Whatever an element can't do through the protocol, such as reading the page's words or
-its obligations, keeping the user's place, moving focus or keeping a draft, is a
-function it imports from `/runtime/widget-api.js`, as a page script does; "Functions"
-lists them all. An Effect UI component asks for some of these acts through a Command
-service. Lit's templates come from `/vendor/lit.js`, Lit's own module, the one path its
-names come from, such as `render`, `html`, `svg`, `nothing`, `repeat`, `keyed`,
-`live`, `ref`, `createRef`, `classMap`, `styleMap`, `guard`, `unsafeHTML` and
-`noChange`. Of the runtime's other modules, import only those the kernel registry
-(`browser/runtime/kernel-registry.json`) lists in `$public-modules`: `portable-api.js`
-("A widget that also runs off Leaf"), the library's ("Shared web code"), and, for an
-Effect UI component, `effect-widget.js` and `widget-services.js`. Each module's header
-gives its contract.
-Don't query Leaf's own chrome or copy a runtime helper.
+Whatever a component can't do through its props, Commands and declarations, such as
+reading the page's words or its obligations, keeping the user's place, moving focus or
+keeping a draft, is usually a function it imports from `/runtime/widget-api.js`, as a
+page script does; "Functions" lists them all. A component reads the page through such a
+function in its `options.inputs`, and acts through one where no Command of Leaf's does
+the act (`module-widgets.md`). Of the runtime's other modules, import only those the
+kernel registry (`browser/runtime/kernel-registry.json`) lists in `$public-modules`:
+`effect-widget.js` and `widget-services.js`, `portable-api.js` ("A widget that also runs
+off Leaf") and the library's ("Shared web code"). Each module's header gives its
+contract. Don't query Leaf's own chrome or copy a runtime helper.
 
 ### Functions
 
@@ -148,7 +134,8 @@ In [module-controls.md](module-controls.md):
 share, such as the constructors of Leaf's controls, a time axis, a move's rank, code's
 syntax colours and the words for a thrown value. It is not part of Leaf's interface: a
 library module keeps none of the page's state and calls nothing of Leaf's. A widget
-imports a module by its path, as it imports Lit, and the module works off Leaf too.
+imports a module by its path, as it imports Effect UI, and the module works off Leaf
+too.
 Like `widget-api.js`, the library can change in any update.
 [The directory](../../../browser/runtime/lib/) lists the modules, and each module's
 header and comments say what it exports. A module Leaf writes in TypeScript keeps its
@@ -178,10 +165,11 @@ does without them, on a Leaf page too:
 - In place of `motion`, it moves a box with a transition in its stylesheet, as
   `lf-timeline` moves its playhead (`module-scroll-and-motion.md`, "Motion").
 
-Leaf adds its services through the protocol's properties, events and declarations
-(`module-plain-elements.md`), and a plain host ignores them all: there the widget's
-`state` is never set, it binds no key, shows no preview, offers no comment target and
-says nothing aloud. Off Leaf:
+`effect-widget.js` and `widget-services.js` load there too. Leaf adds its services
+through the element's props, Commands and declarations (`module-widgets.md`), and a
+plain host ignores them all: there the widget's `state` is never set, a Command of
+Leaf's records nothing, and the widget binds no key, shows no preview, offers no
+comment target and says nothing aloud. Off Leaf:
 
 - A button that must work there makes its own press, from its own click listener: its
   command row names it as `control` and has no `run`, and the widget draws it
@@ -197,24 +185,23 @@ says nothing aloud. Off Leaf:
 - Leaf stops no motion there for a user who asked for less, so the widget's sheet
   declares its motion under `@media (prefers-reduced-motion: no-preference)`.
 
-`lf-chart` and `lf-code` in the default package, `lf-diagram`, `lf-motion` and
-`lf-timeline` are the worked examples.
+`lf-motion` and `lf-timeline` are the worked examples.
 
 ## What a behavior module owes
 
 This is what a widget owes; a page script owes only what `page-behavior.md`, "A page
 script", lists.
 
-- Build once, behind a first-connection guard, and hold each connection's listeners,
-  observers and registrations in `whileConnected` ("Upgrade", "Connection lifetimes").
-  For an Effect UI component, `defineWidget` owns the build and its lifetime.
+- Leave the build and its lifetime to `defineWidget`, and hold each listener,
+  observer and registration a Mount starts in the Mount's scope ("Connection
+  lifetimes").
 - Wire no input inside an exhibit, which Leaf marks `data-lf-exhibit` ("Upgrade").
 - Read the page's words with `says()`, and name a part with `named()`,
   never with `textContent` (`module-reading.md`, "Reading the page"). A widget that
   also runs off Leaf imports neither ("A widget that also runs off Leaf").
 - Build injected controls, and a press that looks like Leaf's controls by its role,
   with the library's control constructors (`module-controls.md`). Mark words the
-  widget writes apart from the author's with `data-lf-gen` (`module-plain-elements.md`,
+  widget writes apart from the author's with `data-lf-gen` (`module-widgets.md`,
   "Words it writes").
 - Keep the widget's visible geometry stable as its state updates ("First paint"), and
   meet the rest of [interface-goals.md](interface-goals.md).
@@ -222,9 +209,10 @@ script", lists.
   write a value only where it changes ("Scheduling paints", "Writes that change
   nothing").
 - Keep each kind of state where `module-state.md`, "Where a widget keeps its state",
-  puts it: record what the user makes with `lf-action`, and keep how they look at the
-  widget in `tabStore`.
-- Declare commands at upgrade, as an element's `lfCommands` (`module-input.md`,
+  puts it: record what the user makes with `RecordAction`, keep what they are doing in
+  the widget in the component's Model, and keep how they look at the widget in
+  `tabStore`.
+- Declare commands with `declare`, as the element's `lfCommands` (`module-input.md`,
   "Commands and keyboard routes").
 - Move focus with `focusDestination`, never `element.focus()` (`module-input.md`,
   "Focus and layers").
@@ -233,50 +221,48 @@ script", lists.
 
 ## Upgrade
 
-A custom element builds behind a guard that passes only on its first connection, since
-`connectedCallback` runs again each time a revision or a thread puts the element back.
-The library's [`once.js`](../../../browser/runtime/lib/once.js) holds that guard, and an
-element that imports nothing keeps a flag of its own. Use `disconnectedCallback` only
-for teardown that must happen at once, such as cancelling a grab or removing hoisted
-UI.
-
 A widget inside an element whose `exhibit` declaration applies (including its optional
 `when` condition), such as `lf-sample`, is quoted, and Leaf marks that element
 `data-lf-exhibit`. A quoted widget never takes the user's edits. Its verbs are never
 `available`, and before wiring a drag grip, a command or anything else that sends
-input back, it asks `this.matches("[data-lf-exhibit] *")`. Its presentation and view
-state still work.
+input back, it asks `element.matches("[data-lf-exhibit] *")`, as `options.inputs`
+can. Its
+presentation and view state still work.
 
-When an upgrade or one part of it fails, the widget shows the failure in place of what
-failed rather than a blank, and dispatches the `error` event
-(`module-plain-elements.md`, "`error`"). The library's
-[`failure.js`](../../../browser/runtime/lib/failure.js) does both, and its header says
+When the component or its `options.inputs` fails, the element shows the failure beside
+the authored children rather than a blank, and reports it as an `error`
+(`module-widgets.md`, "`error`"). A Mount whose own work fails shows and reports it with
+the library's [`failure.js`](../../../browser/runtime/lib/failure.js), whose header says
 where the box goes and what removes it.
 
 ## Connection lifetimes
 
-A revision or a thread can take a widget out of the page and put it back. Behind the
-element's first-connection guard, register `whileConnected(element, start)` once for
-what a connection holds:
+A revision or a thread can take a widget out of the page and put it back. The element
+closes the component's root as it leaves, and with it each Mount's scope, so a Mount
+acquires what it holds with `Effect.acquireRelease`, whose release runs as its node
+goes:
 
 ```js
-connectedCallback() {
-  if (this.built) return;
-  this.built = true;
-  const schedulePaint = frameFor(this, () => this.measure());
-  whileConnected(this, (signal) => {
-    window.addEventListener("resize", schedulePaint, { signal });
-    // What the signal can't end is this connection's cleanup.
-    const sizes = sizeObserver(schedulePaint);
-    sizes.observe(this.body);
-    return () => sizes.disconnect();
-  });
-}
+const FollowResize = Mount.make("FollowResize", {}, (node) =>
+  Effect.acquireRelease(
+    Effect.sync(() => {
+      const schedulePaint = frameFor(node, () => measure(node));
+      const sizes = sizeObserver(schedulePaint);
+      sizes.observe(node);
+      return sizes;
+    }),
+    (sizes) => Effect.sync(() => sizes.disconnect()),
+  ).pipe(Effect.as(Component.noop)),
+);
 ```
 
-Leaf calls `start(signal)` now and on each return. When the element leaves, Leaf aborts
-the signal and runs the cleanup `start` returned. If `start` throws, Leaf never calls
-it again. `whileConnected` returns a function that ends the registration for good.
+Code that holds something outside a Mount, such as a registration `options.inputs`
+makes the
+first time it reads, registers `whileConnected(element, start)` once for what a
+connection holds. Leaf calls `start(signal)` now and on each return. When the element
+leaves, Leaf aborts the signal and runs the cleanup `start` returned. If `start`
+throws, Leaf never calls it again. `whileConnected` returns a function that ends the
+registration for good.
 
 Moving an element within the page doesn't count as leaving. When a revision replaces a
 widget, the old element's cleanup runs before the new one's `start`, so a registration
@@ -291,7 +277,8 @@ unfinished work but keep finished nodes.
 A revision that changes anything in a widget's markup replaces the whole widget with a
 new element, and the user loses what they had open in it. A module that builds beside
 the widget's authored content, and leaves every node the author wrote where it is,
-declares `static lfPatch = "members"` on its element's class. Leaf then keeps the
+declares `static lfPatch = "members"` on its element's class, which `defineWidget`'s
+`statics: { lfPatch: "members" }` sets. Leaf then keeps the
 widget and patches the markup inside it as it patches the rest of the page: it writes
 the words, attributes and elements the revision changed, and puts each element's
 children back in the order the revision gives them.
@@ -359,22 +346,21 @@ the page wait for the work each has started; `page check --render` starts what
 `whenNear` holds.
 Before deferring work that resizes the widget, ask `growthIsSeen(element)`: if growing
 now would move what the user sees, say the work with a `pending-task` event instead
-(`module-plain-elements.md`, "Drawing"), so it lands before presentation.
+(`module-widgets.md`, "Drawing"), so it lands before presentation.
 
 ### First paint
 
 Each widget renders when its module loads, then updates that same view from Leaf's
 readings.
 
-- Draw a widget's complete view in one place: its `state` setter, its one `render()`
-  or its component's view.
-  The same drawing handles fresh mounts, thread messages and later updates; do not add
-  a second initial renderer or transfer generated nodes between renderers.
+- Draw a widget's complete view in one place, its component's view. The same view
+  draws fresh mounts, thread messages and later updates; do not add a second initial
+  renderer or transfer generated nodes between renderers.
 - Size the widget in the package theme, including its initial authored drawing.
   A shadow template uses native slots for authored children, keeping their nodes and
   browser state in the light DOM.
-- Where the markup can't say how tall the drawing will be, declare `height` and add
-  the class `lf-rendered` once drawn.
+- Where the markup can't say how tall the drawing will be, declare `height`, and have
+  a Mount add the class `lf-rendered` to the element once drawn.
 - A widget that shows one member at a time declares `views: {members: "selector"}`;
   the browser matches the selector against each direct authored child, including
   while HTML is still arriving. A selector that depends on descendants, such as
@@ -386,19 +372,19 @@ readings.
 
 ## Rendering
 
-### Template rendering
+### The view
 
-`render(template, container)` draws synchronously, so a gesture's result shows in the
-same turn. Render only into containers the module generated, never into authored
-children, and once `render` draws into a container, change its children only through
-`render`. `repeat(items, identity, template)` keeps a row's nodes when rows reorder, but
-rebuilds a row that moves to another `repeat`; place nodes you keep yourself as
-"Retained nodes" describes. A widget keeps no reactive copy of its state; it reads it
-again in each render.
-
-Bind a property the user can also change with `live`, as in `.value=${live(value)}`, so
-a refused gesture restores the recorded value even when the template input is
-unchanged. Don't bind an initial default onto a property the browser owns.
+A component's view draws from its props and Model, first as the root mounts and
+then after each change in Effect UI's flush, before the next frame (`module-widgets.md`,
+"Drawing"). The view draws only into the box `defineWidget`
+gives it, never into authored children, and nothing else changes that box's children. A
+keyed child (`.key(…)`) keeps its node when its siblings reorder, but is matched only
+among its parent's children, so a child the view moves to another parent is a new node
+there unless the view writes it as a keep-alive child (`module-input.md`, "Focus and
+layers"). Place nodes the widget keeps
+itself as "Retained nodes" describes. The view reads Leaf's state from its props on each
+draw, and the Model keeps no copy of it. Don't bind an initial default onto a property
+the browser owns.
 
 ### Retained nodes
 
@@ -408,28 +394,31 @@ the whitespace between authored elements included, or `move(parent, node, before
 one node. Where nodes move between parents, place every list at once with
 `setChildLists([[parent, nodes], …])`, outer parents first. For a subtree the renderer
 owns entirely, `setRenderedChildren(parent, nodes)` edits only changed text and keeps a
-text selection the user made in it. A `LeafElement` places retained nodes in its
-`render()`, which then returns `nothing`.
+text selection the user made in it. A component places retained nodes, such as the
+authored members it orders, from a Mount, on each change of the args that order them
+(the Mount's `changes`).
 
-These helpers, `render` and `repeat` keep the user's focus in a moved node, so a reorder
-needs no `holdFocus`; a plain `append` or `insertBefore` of a node already in the page
-blurs it. A moved editable loses its selection even under `moveBefore`, so a
-custom element holding a Leaf editor view (`leafEditorView()`) calls the view's
-`placeSelection()` from its `connectedMoveCallback`.
+These helpers keep the user's focus in a moved node, so a reorder needs no
+`holdFocus`; a plain `append` or `insertBefore` of a node already in the page blurs it.
+A moved editable loses its selection even under `moveBefore`. A Leaf editor view
+(`leafEditorView()`) puts it back when its `placeSelection()` is called after the move,
+and the element `defineWidget` defines gives its component no hook on a move, so a
+widget that holds one loses the user's selection when a revision moves it.
 
 ### Shadow stages and styles
 
 Declare `shadow` where the user should quote and comment on the words a widget's
 shadow root shows; a root attached any other way is opaque to comments.
 
-An element that attaches an open shadow root and says `lf-connect` gets the page's
-shared stylesheet and comment support there (`module-plain-elements.md`,
-"`lf-connect`"), as a `LeafElement` whose class says `static shadow = true` does.
-Attaching the root says where the widget draws, and the tag's `shadow` says the user
-may quote what it draws, so a widget that wants both does both. Use native slots for
-authored children, and read presentation inputs from the host and those children.
+A widget drawn with `shadow: true` gets the page's shared stylesheet and comment
+support in its root (`module-widgets.md`, "`lf-connect`"). `shadow: true` says where
+the widget draws, and the tag's `shadow` says the user may quote what it draws, so a
+widget that wants both does both. The view draws a native `<slot>` for authored
+children, and `options.inputs` reads presentation inputs from the host and those
+children.
 
-An imperative renderer uses `shadowStage(host, nodes)`, never `attachShadow`; it applies
+An imperative renderer in a Mount stages a node the view drew, as
+`shadowStage(node, nodes)`, never `attachShadow`; it applies
 the same styles and returns the root. Stage a retained container and render into that
 container. This API clears authored light children and supplies no slots, so read what
 the renderer needs before staging.

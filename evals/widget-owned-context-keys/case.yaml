@@ -23,17 +23,20 @@ assert:
     metric: judgment
     value: |
       Pass only if the snippet declares the classifier's commands through the public
-      interface: the scope is an object set as the classifier's `lfCommands`, and an
-      `lf-commands` event is dispatched on the classifier. It declares one command per
-      existing action.
+      interface: the scope is an object set as the classifier's `lfCommands`, either
+      with `declare(node, { lfCommands })` from a Mount, imported from
+      /runtime/effect-widget.js, which sets it and says `lf-commands`, or by setting it
+      and dispatching an `lf-commands` event on the classifier. It declares one command
+      per existing action.
       Pass and Keep have stable dotted ids, concise titles, ordinary ArrowLeft and
       ArrowRight keys, explicit contextKeys 1 and 2, decision: true, their real
       controls, requested bindingBadge seats or explicit null, canClassify availability,
       and direct invocation of classify("pass") / classify("keep") from run. The command
       declaration owns native button clicks and disabled state, so the response removes
-      the separate click listeners and disabled painters instead of calling click(). It attaches the
-      declaration to the classifier and dispatches `lf-commands` on it when availability
-      changes.
+      the separate click listeners and disabled painters instead of calling click(). Where
+      availability changes, the scope is declared again or `lf-commands` is dispatched
+      again, unless `when` reads only what a set of the component's props changes,
+      after which its element says the event itself.
       It does not attach the complete local-arrow scope to the section around it, assign numbers
       from live actions, duplicate callbacks into a second row list, install
       keydown listeners, or calculate focus/hint visibility itself. It leaves native

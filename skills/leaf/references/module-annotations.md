@@ -10,25 +10,45 @@ A widget puts its actions and statuses in the page's margin with
 `t` reach them, and inserts nothing into the page's content. `target` is an element, or
 a function returning the one the actions currently sit beside. Set `source` to the
 widget that owns them when the controls have to sit beside an ancestor that outlives
-it. For example, behind the first-connection guard of a widget whose `save()` method
-does the work:
+it. A component registers from a Mount, which holds the registration while its node
+stands. For example, in `lf-notes`, whose `save(element)` does the work and whose view
+gives the Mount whether Save is disabled:
 
 ```js
-import { registerContribution, whileConnected } from "/runtime/widget-api.js";
+import { registerContribution } from "/runtime/widget-api.js";
+import { closestAcross } from "/runtime/lib/shadow-tree.js";
 
-whileConnected(this, () => {
-  this.actions = registerContribution({
-    key: this.id,
-    target: this,
-    read: () => ({
-      kind: "action",
-      subject: this.getAttribute("aria-label"),
-      entries: [{ key: "save", glyph: "✓", label: "Save", disabled: this.disabled }],
+const OfferSave = Mount.make(
+  "OfferSave",
+  { args: { disabled: Schema.Boolean } },
+  (node, args, changes) =>
+    Effect.gen(function* () {
+      const element = closestAcross(node, "lf-notes");
+      let { disabled } = args;
+      const actions = yield* Effect.acquireRelease(
+        Effect.sync(() =>
+          registerContribution({
+            key: element.id,
+            target: element,
+            read: () => ({
+              kind: "action",
+              subject: element.getAttribute("aria-label"),
+              entries: [{ key: "save", glyph: "✓", label: "Save", disabled }],
+            }),
+            activate: () => save(element),
+          }),
+        ),
+        (actions) => Effect.sync(() => actions.unregister()),
+      );
+      yield* Stream.runForEach(changes, (next) =>
+        Effect.sync(() => {
+          disabled = next.disabled;
+          actions.update();
+        }),
+      );
+      return Component.noop;
     }),
-    activate: () => this.save(),
-  });
-  return () => this.actions.unregister();
-});
+);
 ```
 
 `read()` returns data, never controls: the actions available in the widget's current
@@ -44,9 +64,10 @@ defaults to its key. An entry for one of the widget's declared commands instead 
 `scope` to the object that declares the command, the one the widget holds as
 `lfCommands` (`module-input.md`, "Commands and keyboard routes"), and `activation` to
 the command's id, and Leaf disables it with the command and runs the command's own
-`run`. A command the widget adds for one of
-these entries calls `this.actions.activate(key)`, so a key and a press do the same
-thing.
+`run`, so the command's `run` is that entry's one route to the effect. A key the widget
+adds for an entry with no `scope`, such as Save above, is a command whose `run` calls
+`actions.activate(key)` on the registration, so the key and a press take that entry's
+one route.
 
 `kind` says what the whole contribution is: `action` by default, or `change`, `comment`,
 `on-me`, `activity` and the margin's other kinds. `read()` may also return `readings`,
@@ -82,8 +103,9 @@ a name, and the `visual` declaration admits the id, a nonempty string with no
 whitespace. A mark inside a shadow root is not read.
 
 Where marks can't say it, the element states its parts as its `lfParts` property, an
-object Leaf reads each time it needs the parts. Set it where the widget builds itself,
-behind its first-connection guard. Its `read()` returns the parts drawn
+object Leaf reads each time it needs the parts, which a component states with
+`declare(node, {lfParts})` from a Mount (`module-widgets.md`, "`lf-layout`"), as
+`lf-timeline` does. Its `read()` returns the parts drawn
 now as `{id, element, label}`, in place of the marks, and may name an element in the
 visual's shadow root. A part may also name `surface`, the descendant of its element
 whose paint Leaf's marks follow, so a part that holds others, as a board's column
@@ -95,9 +117,9 @@ visible already, so cancel work that would hide it. `label(id)` names a part in
 Threads, in its margin entry and in Page Map without changing the visual, or returns
 `null`. Each member is optional.
 
-Leaf reads the parts again each time it sets a plain element's properties
-(`module-plain-elements.md`). A visual whose parts or their positions change at another
-time dispatches `lf-layout` on itself (`module-plain-elements.md`, "`lf-layout`"): a
+Leaf reads the parts again each time it sets the widget's properties
+(`module-widgets.md`). A visual whose parts or their positions change at another time
+says `lf-layout` on its element (`module-widgets.md`, "`lf-layout`"): a
 part's margin entry stands level with the part, and Leaf learns that a part moved
 inside the visual only from it.
 
@@ -274,12 +296,12 @@ Where nothing there shows it, Leaf asks again with `request.last` set, and a sec
 page, as Leaf's Show on page does, and the page now shows the thread, Leaf asks with
 `request.page` set, and a reader that draws the thread elsewhere returns `false` to
 put its view away. `request` also carries `part`, `message`, `focus`, `signal` and
-`current()`; Leaf handles focus, scrolling and arrival. The feature
-gallery's `lf-conversation-workspace` is the worked example.
+`current()`; Leaf handles focus, scrolling and arrival.
 
 ### Widget-local Thread placement
 
-A widget whose element has a `threadOutlets` method shows threads inside itself: beside
+A widget whose element has a `threadOutlets` method, which a component declares
+(`module-widgets.md`), shows threads inside itself: beside
 its own projected data, as `lf-diff` does beside lines, or about the widget as a whole,
 as a task in `examples/command-hub.page/` does at its foot. The method is the
 declaration, and the registry says nothing. Leaf calls
@@ -292,26 +314,31 @@ comment box. A target on a datum names it in `anchor.datum`, with its element at
 `placement.datumElement`; a passage running across several data names the last there and
 the first in `anchor.from`. A target with no `anchor.datum` is the widget itself: a
 thread anchored to its element and nothing inside it. A thread on a passage or a visual
-part of the widget is never a target, and stays in the margin. Here `this.outletFor` is
-the widget's own method that finds or makes the outlet beside a datum (`lf-diff`'s
+part of the widget is never a target, and stays in the margin. Here `outletFor` is
+the widget's own function that finds or makes the outlet beside a datum (`lf-diff`'s
 `threadOutletFor`):
 
 ```js
-threadOutlets(targets, { onCommit }) {
-  this.beginThreadSurface();
-  const outlets = targets.map((target) => this.outletFor(target));
-  onCommit(() => this.retireUnusedOutlets());
-  return outlets;
-}
+declare(node, {
+  threadOutlets: (targets, { onCommit }) => {
+    beginThreadSurface();
+    const outlets = targets.map((target) => outletFor(target));
+    onCommit(() => retireUnusedOutlets());
+    return outlets;
+  },
+});
 ```
 
 Return `null` for data that is filtered out, collapsed or not loaded, and its thread
 stays in the margin; a widget that seats only its data returns `null` for itself too.
-After a change that only shows or hides data, as a fold or a filter does, dispatch an
-`lf-layout` event on the widget (`module-plain-elements.md`, "`lf-layout`"), and Leaf
+After a change that only shows or hides data, as a fold or a filter does, say an
+`lf-layout` event on the widget (`module-widgets.md`, "`lf-layout`"), and Leaf
 calls `threadOutlets` again. A change that also resizes the
 widget still needs the event: after a resize alone, Leaf measures the widget again and
 does not call `threadOutlets`.
+
+Leaf asks for the method on each placement pass, and registers or retires the widget
+when `declare` says `lf-layout`, so outlets that arrive with a later draw are used.
 
 A thread names its widget by `id`, so a widget that shows threads needs an `id` on
 each instance and should require it in its schema: Leaf reports an instance without
@@ -320,30 +347,32 @@ one as a failure of that widget and registers no surface for it.
 The widget creates, lays out and removes its outlets, and Leaf fills them, drawing each
 thread as a card with its own frame that fills the outlet and stands on the ground the
 widget declares where it paints one (`--lf-ground`). So an outlet's box is the cards'
-shape, and the outlet draws no frame of its own. A card fills its outlet at any
-width. `--lf-thread-card-min` is the narrowest a card stands beside the page, and an
-outlet that insets its cards reads it to leave them that room. Leaf folds an outlet's
-resolved threads into a disclosure of class `lf-resolved-threads`, and the widget may
-size the disclosure's summary, of class `lf-resolved-summary`, as it sizes its own
-rows. An outlet you stop returning may
-still hold the comment box the user is typing in, so remove outlets only in `onCommit`,
-which runs once this pass's placement takes effect, and keep returned ones in the
-document while redrawing around them. A widget that must remove a node holding outlets
-at another time, such as when its data goes, first calls
-`threadSurface(this).release(node)`, before any `holdFocus`, and the comment box leaves
-the widget's outlets under `node` with the user still writing in it. If `threadOutlets`
-throws, Leaf returns the widget's threads to the margin until the next pass.
+shape, and the outlet draws no frame of its own. A card fills its outlet at any width.
+`--lf-thread-card-min` is the narrowest a card stands beside the page, and an outlet
+that insets its cards reads it to leave them that room. Leaf folds an outlet's resolved
+threads into a disclosure of class `lf-resolved-threads`, and the widget may size the
+disclosure's summary, of class `lf-resolved-summary`, as it sizes its own rows. An
+outlet you stop returning may still hold the comment box the user is typing in, so
+remove outlets only in `onCommit`, which runs once this pass's placement takes effect,
+and keep returned ones in the document while redrawing around them. A widget that must
+remove a node holding outlets at another time, such as when its data goes, first calls
+`threadSurface(element).release(node)`, before any `holdFocus`, and the comment box
+leaves the widget's outlets under `node` with the user still writing in it. If
+`threadOutlets` throws, Leaf returns the widget's threads to the margin until the next
+pass.
 
-`threadSurface(this).open` is the reactive opener for the comment box on the widget or
-one of its data items, or `null` while no surface is registered, as in an export, which
-holds no thread and can send none. Read it while rendering and offer comment controls
-only when it exists; call it with the datum, or with the widget itself, to open the box
-in the outlet `threadOutlets` returns for it. Leaf keeps the draft and the sending.
-Registration can follow the widget's first drawing, and departure retires the opener
-until the widget returns.
+`threadSurface(element).open` is the reactive opener for the comment box on the widget
+or one of its data items, or `null` while no surface is registered, as in an export,
+which holds no thread and can send none. A component reads it in `options.inputs`, which
+follows its registration, and offers comment controls only while it exists; call it with
+the datum, or with the widget itself, to open the box in the outlet `threadOutlets`
+returns for it. Leaf keeps the draft and the sending. Registration can follow the
+widget's first drawing, and departure retires the opener until the widget returns.
 
 The comment box standing in an outlet the widget returns for itself can offer a second
-send. Set the outlet's `lfHold` to its words, such as `"Send & pause"`, and the box
+send. Set the outlet's `lfHold` to its words, such as `"Send & pause"` (`declare` sets
+it where the widget's own element is the outlet, and the view's `.prop("lfHold", …)` on
+an outlet it draws), and the box
 shows a button under those words beside Send, which Tab reaches after Send. Its comment
 carries `holds`, naming the widget, so the widget is held while that thread is open,
 and resolving the thread releases it.

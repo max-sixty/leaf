@@ -72,7 +72,7 @@ one. Where two boxes take one name under one such element, both are regions, but
 revision that replaces the two returns the user to their place in one of them alone.
 A box in a thread message is a region whose place Leaf keeps only while the box stands.
 Leaf finds the marks in the page, in a stage `shadowStage` builds and in the open
-shadow root of an element that has said `lf-connect` (`module-plain-elements.md`).
+shadow root of an element that has said `lf-connect` (`module-widgets.md`).
 
 Give the marked box a scrolling overflow (`auto` or `scroll`) only on an axis where its
 content can outgrow it. A scrolling body bounds what stands in it, such as the card of
@@ -269,12 +269,13 @@ leaves (`module-state.md`, "State only this tab keeps"), and any other widget se
 what it hides, as one that stacks its views in one cell does, may set
 `content-visibility: visible` with `visibility: hidden` on it; the browser's find then
 skips it, but Leaf's travel still opens it. Leaf waits for the `updateComplete` of each
-Lit element holding what it revealed before placing the target, so a widget whose view
-switch finishes later extends its own `updateComplete`.
+element holding what it revealed that has one before placing the target. The element
+`defineWidget` defines has none, so Leaf waits for no view switch its component draws
+after the `beforematch` listeners have run.
 
 Leaf writes the page's history entries, and a widget writes none: one whose members
 are the page's views says so, and Leaf adds an entry for each switch between them
-(`module-plain-elements.md`, "The page's views"). Leaf keeps where the user was on each
+(`module-widgets.md`, "The page's views"). Leaf keeps where the user was on each
 entry, and Back, Forward and a reload return them there. An entry a press adds says the
 press takes the user somewhere, as a link's does, so its result may scroll away the
 control pressed. Where an entry's fragment still names a place the page doesn't show
@@ -318,9 +319,12 @@ listener which keys act next, as after a card is grabbed, give `detail` as
 "Command rows"). After the words Leaf names each row's keys and title, such as
 `Escape cancel`, leaving out a row no key would run as the words are said.
 
-An `lf-error` event, dispatched the same way, tells the user that something they did
-has not taken, such as a value the server refused (`module-plain-elements.md`,
-"`lf-error`").
+An `lf-error` event, dispatched the same way with the words as its `detail`, tells
+the user that something they did has not taken, such as a value the server refused.
+The floating panel's field says the words while it is empty, until the user's next edit
+there, and the leaf's menu lists them under Errors until the user dismisses them. A
+failure in the widget itself is an `error` (`module-widgets.md`, "`error`"), never an
+`lf-error`.
 
 A `data-lf-quiet` attribute gives an element words screen readers say at its start,
 but the screen doesn't show: Leaf writes them there while the attribute stands, and

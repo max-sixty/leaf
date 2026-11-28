@@ -32,12 +32,12 @@ either form URL-encoded, and `elementById` decodes it; any other address is read
 written.
 
 Pass the element that holds the address as `from`, as in
-`elementById(this.getAttribute("for"), this)`. An agent's message can repeat ids the
-page holds, so an address written in a message names that message's element first and
-the page's after it. An id neither holds can still name an element Leaf draws, such as
-a widget in a reply a Thread shows. The lookup reaches into widgets' shadow trees,
-which `getElementById` misses, and names nothing inside a member a decision has
-retired (`retired-when`, `package-data.md`).
+`elementById(element.getAttribute("for"), element)`. An agent's message can repeat ids
+the page holds, so an address written in a message names that message's element first
+and the page's after it. An id neither holds can still name an element Leaf draws, such
+as a widget in a reply a Thread shows. The lookup reaches into widgets' shadow trees,
+which `getElementById` misses, and names nothing inside a member a decision has retired
+(`retired-when`, `package-data.md`).
 
 Leaf's floating panel, its dialogs and the margin's rows stand inside an element of
 class `lf-chrome`, and so does a widget in a reply the panel shows. The library's
@@ -175,10 +175,10 @@ symbol and the words its press says.
 
 ## Page readings
 
-Each function here returns a page reading. A `LeafElement`'s `render()` or an Effect UI
-component's `inputs` that reads one synchronously runs again when the reading changes
-(`module-plain-elements.md`, "`LeafElement`"; `/runtime/effect-widget.js`); a read after
-an `await` is not followed.
+Each function here returns a page reading. A component's `options.inputs` that reads
+one
+synchronously runs again when the reading changes, and gives the component new props
+(`module-widgets.md`); a read after an `await` is not followed.
 
 ### Reading obligations and the On lists
 
@@ -295,20 +295,18 @@ thread, whether it was undone, the agent's name as `agent`, and a gesture's word
 widget restoring something from `tabStore` compares it with the history once `phase` is
 `ready`.
 
-A widget an agent reports on reads `readReports(this)` as it draws its `state`, in a
-`LeafElement`'s `render()` or a plain element's `state` setter: `{phase, reports}`.
-`phase` turns `ready` once the server's reading has arrived and the state the reports
-describe is drawn. Until then the widget draws no report: a `render()` returns
-`noChange`. Leaf sets the widget's `state` again as `phase` turns `ready`, so it draws
-its reports then. Each report has `id`, `target`, `source`, `action`,
-`detail`, `text`, `ts` and `disposition`: `effective`, `outranked` by a newer report
-on the same unit and verb, or `settled` by a stamped version. The element form is for
-the widget's own drawing: its `phase` waits on that element's drawing, and Leaf sets
-only that element's `state` again. Pass `{kind: "widget", id}` for another widget's
-reports, `{kind: "thread", id}` for a Thread's, or nothing for all of them. Their
-`phase` is the page's, and only a `LeafElement`'s `render()` or an Effect UI
-component's `inputs` follows them: nothing sets a plain element's `state` when they
-move.
+A widget an agent reports on reads `readReports(element)` in its `options.inputs`:
+`{phase, reports}`. `phase` turns `ready` once the server's reading has arrived and the
+state the reports describe is drawn. Until then the widget draws no report. Leaf sets
+the widget's `state` again as `phase` turns `ready`, and `options.inputs`, which read
+the reports, runs again then, so the component draws its reports. Each
+report has `id`, `target`, `source`, `action`, `detail`, `text`, `ts` and `disposition`:
+`effective`, `outranked` by a newer report on the same unit and verb, or `settled` by a
+stamped version. The element form is for the widget's own drawing: its `phase` waits on
+that element's drawing, and Leaf sets only that element's `state` again. Pass `{kind:
+"widget", id}` for another widget's reports, `{kind: "thread", id}` for a Thread's, or
+nothing for all of them. Their `phase` is the page's, and the component's
+`options.inputs` follows them as a page reading.
 
 ### Reading version changes
 

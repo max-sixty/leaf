@@ -261,11 +261,11 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
 /* A track the page narrowed to the map's spine, beside the body and too narrow for
  * words, holds the map; stacked, the track is as wide as the body and holds the
  * disclosure. Under a mouse the Layout lets a track lay the labels over the body
- * where its aside before the body is narrower than 8rem (layouts.css). A sticking
- * track stands its 16px focus room inside its aside, so a track narrower than 6rem
- * is one the Layout lifts at any root font size of 8px or more, and the map rests as
- * a spine only there, under a mouse. Elsewhere a track narrower than the outline's
- * 8rem holds the disclosure. The map's box is the track's width, where it takes the
+ * where its aside before the body is narrower than 128px (layouts.css). A sticking
+ * track stands its 16px focus room inside its aside, so a track narrower than 96px
+ * is always one the Layout lifts, and the map rests as a spine only there, under a
+ * mouse. Elsewhere a track narrower than the outline's 8rem holds the disclosure. The
+ * map's box is the track's width, where it takes the
  * pointer and draws its spine, markers and marks; its labels keep their own measure
  * past it, toward the body, faded out and taking no pointer until it reveals them.
  * Pointing at the map, focus inside it or the go-to sequence reveals them over the
@@ -282,7 +282,7 @@ lf-toc .lf-toc-disclosure:not([open]) > .lf-toc-toggle::after {
  * end padding stops the track, which left it about 100px short of the track's end at
  * every other scroll position. */
 @media screen and (hover: hover) and (pointer: fine) {
-  @container (width < 6rem) and style(--lf-track-beside: 1) {
+  @container (width < 96px) and style(--lf-track-beside: 1) {
     /* A window under 480px tall doesn't stick the track or state its room, so there
        the map fills the window. */
     lf-toc {

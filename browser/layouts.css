@@ -826,7 +826,7 @@
     --lf-aside: calc(var(--lf-sidebar) - var(--lf-sp-4));
   }
   /* A sidebar whose one aside comes before the body, on a screen where a fine pointer
-   * can reach into the aside, lets a track too narrow for words (8rem) lay what its
+   * can reach into the aside, lets a track narrower than 128px lay what its
    * element reveals over the body, as the contents map lays its
    * labels from its spine (toc.css). What the element reveals spreads from the track
    * toward the inline end, into the room before a column body's prose and, on a
@@ -843,9 +843,11 @@
    * clear of a footer after it, and wrapped above the body it keeps its place in flow.
    * Every other track keeps clipping: one in an aside after the body, since what it
    * revealed would spread past the window's edge; every track under touch, where
-   * nothing reaches in by pointing, and where a phone's large text can leave even a
-   * wrapped aside narrower than 8rem; and paper, where nothing reaches in at all and a
-   * fixed track would stand on every sheet.
+   * nothing reaches in by pointing; and paper, where nothing reaches in at all and a
+   * fixed track would stand on every sheet. The width is in pixels, as the sidebar's
+   * own widths are, so the 240px sidebar a page leaves alone stays a scrolling track
+   * whatever the reader's text size. Rejected: 8rem, under which a 32px root font
+   * lifted that sidebar's track and fixed it with no scroll.
    * The Layout narrows no sidebar itself: the aside is a size container and takes no
    * width from its content, so a page that wants the map's spine narrows its own
    * sidebar with `--lf-aside`, under a mouse, where a pointer rests on the spine
@@ -859,14 +861,14 @@
   @media screen and (hover: hover) and (pointer: fine) {
     .layout-sidebar:has(> aside:only-of-type ~ :not(header, footer)) {
       & > aside > .layout-track {
-        @container (width < 8rem) {
+        @container (width < 128px) {
           overflow: visible;
           z-index: 1;
         }
         /* Beside the body, and where the window scrolls the page rather than a
          * scroller round the sidebar. */
         @media (min-height: 480px) {
-          @container (width < 8rem) and style(--lf-sidebar-spans-page: 1) and (not style(--lf-track-scroll-behavior: flow)) {
+          @container (width < 128px) and style(--lf-sidebar-spans-page: 1) and (not style(--lf-track-scroll-behavior: flow)) {
             position: fixed;
             inline-size: 100cqi;
             margin-block: 0;
@@ -881,7 +883,7 @@
      * track sticks, the sticking rule below, later in the same layer, sets its
      * position instead. */
     :where(.layout-sidebar > aside) > .layout-track {
-      @container (width < 8rem) {
+      @container (width < 128px) {
         position: relative;
       }
     }

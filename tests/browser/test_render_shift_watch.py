@@ -1377,15 +1377,16 @@ def test_a_carry_draws_the_way_of_a_step_news_may_take(browser, fault, key, prot
                 unstanding: [{ '--carry': '0px 40px' }, { '--carry': '0px 40px', offset: 0.5 },
                   { '--carry': '0px 0px' }],
               }[fault] ?? [{ '--carry': `0px ${from}px` }, { '--carry': `0px ${to}px` }];
-              // An overshoot is a transform's roundtrip, which the watch fails only
-              // where several readings find it (tests/shift_watch.js, "Runs of
-              // motion"), so it runs as long as a carry a key interrupts.
-              const duration = key || fault === 'overshoot' ? 1600 : 200;
+              const duration = key ? 1600 : 200;
               const carry = () => [row, port].map((part) => {
                 part.style.translate = 'var(--carry)';
                 return part.animate(keyframes, { duration, fill: 'forwards' });
               });
               window.carries = carry();
+              // An overshoot is a transform's roundtrip, which the watch fails only
+              // where several readings find it (tests/shift_watch.js, "Runs of
+              // motion"), so the test holds it and steps it frame by frame.
+              if (fault === 'overshoot') window.carries.forEach((carry) => carry.pause());
               // Re-timed from where it is drawn before any frame draws it, as
               // dom/box-motion.js re-times a carry a second delivery reaches.
               if (fault === 'retimed') {
@@ -1412,7 +1413,9 @@ def test_a_carry_draws_the_way_of_a_step_news_may_take(browser, fault, key, prot
           document.getElementById('source').append(next);
         }"""
     )
-    if key:
+    if fault == "overshoot":
+        step_carries(page, key)
+    elif key:
         page.wait_for_function("window.carries?.[0]?.currentTime > 400")
         page.keyboard.press("Shift")
     page.wait_for_function(
@@ -1425,6 +1428,29 @@ def test_a_carry_draws_the_way_of_a_step_news_may_take(browser, fault, key, prot
     else:
         errors = consume_browser_errors(page, {"code": "moved-without-input"})
         assert names_move(errors, "button#head"), errors
+
+
+def step_carries(page, key):
+    """Draw the held overshoot's poses past the destination, each through several
+    frames the watch reads, then return the carries to it. With `key`, Shift is
+    pressed first, on a pose short of the destination, and its rendering ends before
+    the overshoot is drawn."""
+    page.wait_for_function(
+        "window.carries?.every((carry) => carry.playState === 'paused')"
+    )
+    pose = """progress => window.carries.forEach((carry) => {
+      carry.currentTime = progress * carry.effect.getComputedTiming().duration;
+    })"""
+    if key:
+        page.evaluate(pose, 0.25)
+        page.evaluate(FRAMES, 4)
+        page.keyboard.press("Shift")
+        page.evaluate(FRAMES, 10)
+    # 10, 20 and 5 px past where the rise puts the head (the keyframes' 0.6 offset).
+    for progress in (0.5, 0.6, 0.9):
+        page.evaluate(pose, progress)
+        page.evaluate(FRAMES, 4)
+    page.evaluate("() => window.carries.forEach((carry) => carry.finish())")
 
 
 @pytest.mark.parametrize("rides", [False, True], ids=["alone", "with-the-stream"])

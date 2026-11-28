@@ -724,7 +724,7 @@ def test_the_g_chord_selects_a_visible_tab_hint(browser, serve):
     # generated map keeps their activation and focus behavior.
     page.keyboard.press("g")
     expect(page.locator(f'{CHIPS}[data-lf-go-to-kind="Tab"]')).to_have_count(2)
-    page.keyboard.type(address_code(page, "Tab", "tab-bath"))
+    page.keyboard.type(address_code(page, "Tab", "lf-tab-tab-bath"))
 
     expect(tabs.nth(1)).to_have_attribute("aria-selected", "true")
     expect(tabs.nth(1)).to_be_focused()

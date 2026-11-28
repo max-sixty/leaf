@@ -1036,10 +1036,6 @@ def test_evidence_close_folds_room_but_retires_controls_immediately(
     summary.click()
     assert details.evaluate("d=>d.open")
     assert height() == pytest.approx(full, abs=1)
-    # Each toggle's own reading is taken at once, above. The next toggle waits for
-    # `rendered`: Effect UI writes the Model's `open` back in the frame after a
-    # `toggle` event, which undoes a toggle made before that frame.
-    rendered(page)
     summary.press("Enter")
     assert not details.evaluate("d=>d.open")
     closed = height()
@@ -1052,10 +1048,8 @@ def test_evidence_close_folds_room_but_retires_controls_immediately(
         )
         == "hidden"
     )
-    rendered(page)
     summary.press("Enter")
     assert height() == pytest.approx(full, abs=1)
-    rendered(page)
     page.emulate_media(reduced_motion="reduce")
     summary.click()
     assert not details.evaluate("d=>d.open")
@@ -1066,7 +1060,6 @@ def test_evidence_close_folds_room_but_retires_controls_immediately(
         )
         == "hidden"
     )
-    rendered(page)
     details.evaluate("d => d.open = true")
     assert height() == pytest.approx(full, abs=1)
 

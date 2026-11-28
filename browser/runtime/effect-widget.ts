@@ -84,15 +84,14 @@
 
    - Around each draw it starts, from a set or a member, the adapter holds the user's
      place by the key of the drawn datum they are in (`data-lf-datum`, module-state.md,
-     "Marking drawn data"), which the widget declares: on their own node where it
-     survived the draw, else on the datum now carrying that key among those of the
-     widget that drew theirs, a nested widget's where they were in one, else on the
-     nearest one still drawn. It lands on the datum itself, a stop lent
+     "Marking drawn data"), which the widget declares: where they last stood, if that
+     stands again, as where a nested widget's hold put them back; else on their own
+     node where it survived the draw; else on the datum now carrying that key among
+     the widget's own, else on the nearest one still drawn. It lands on the datum itself, a stop lent
      where it is no control, never on a control in it chosen by its look nor on the
      first one a boxless datum draws; where a datum takes no focus, it tries the next
-     node its key marks, then the next key's, then the element of the widget that drew
-     their datum, with a stop lent, as where a removal empties its list (`holdFocus`,
-     `alike: false`). It puts the user back only while their focus is lost, so a nested
+     node its key marks, then the next key's, then the widget's own element, with a
+     stop lent, as where a removal empties its list (`holdFocus`, `alike: false`). It puts the user back only while their focus is lost, so a nested
      widget's hold and this one need no order between them.
    - A row the widget moves to another parent, and whose user should stay on their
      control with their words and caret, it writes as a keep-alive child
@@ -523,7 +522,7 @@ export function defineWidget(
       const restore = holdFocus(this, {
         key: "data-lf-datum",
         alike: false,
-        ownerOf: (item) => drawerOf(item.parentNode),
+        owns: (item) => drawerOf(item.parentNode) === this,
       });
       const drawn = Promise.resolve().then(() => {
         restore?.();

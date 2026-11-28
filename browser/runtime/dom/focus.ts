@@ -1459,58 +1459,34 @@ export const likeSelector = (control: Element) =>
 // false it lands on the item itself, a stop lent where it is no control, and never on
 // a control in it chosen by its tag and classes nor on one a boxless item draws first:
 // where an item takes no focus, it tries the next node its key marks, then the next
-// key's.
-//
-// Keys may be a widget's own, where a scope holds widgets that each key their items:
-// `ownerOf` names the widget that drew an item. The place a hold looks up is then the
-// user's item under the widget that drew it, which is the same place for every hold
-// that lost the same focus, whichever restores first; where that widget has left the
-// page, the item around the user that the nearest widget still standing drew; and
-// failing both, the user's key among every item under the scope. Where none of those
-// takes focus, as where a removal empties the list, the user lands on that widget's
-// own element.
+// key's, then the scope itself, as where a removal empties the list. `owns` says which keyed items are the
+// scope's own, where a scope holds another's, as a widget holds a nested widget whose
+// keys are its own.
 export function holdFocus(
   scope: Element,
   {
     key = null,
     alike = true,
-    ownerOf,
-  }: {
-    key?: string | null;
-    alike?: boolean;
-    ownerOf?: (item: Element) => Element | undefined;
-  } = {},
+    owns = () => true,
+  }: { key?: string | null; alike?: boolean; owns?: (item: Element) => boolean } = {},
 ): FocusRestore | null {
   const node = heldIn(scope);
   if (!node) return null;
   const restore = holdOn(node, { itself: !alike });
   if (!key) return restore;
-  // The items around the user, from theirs outward, one for each widget that drew one,
-  // or their nearest alone where no widget is named.
-  const levels: { owner: Element | undefined; item: Element }[] = [];
-  for (let at = node as Element | null; at && renderedUnder(at, scope); ) {
-    if (at === scope) break;
-    const owner = ownerOf?.(at);
-    if (at.matches(`[${key}]`) && !levels.some((level) => level.owner === owner)) {
-      levels.push({ owner, item: at });
-      if (!ownerOf) break;
-    }
-    at = renderedParent(at);
-  }
-  const item = levels[0]?.item;
-  if (!item) return restore;
-  // The items a widget drew, or every item under the scope where none is named, read
-  // in the tree they stand in: the widget's own, or the scope's or a shadow tree in it,
-  // read as the hold is taken.
+  const isItem = (each: Element) => each.matches(`[${key}]`) && owns(each);
+  let item: Element | null = node;
+  while (item && !isItem(item)) item = renderedParent(item);
+  if (!item || item === scope || !renderedUnder(item, scope)) return restore;
+  // The items are read in the tree the held one stands in, which is the scope's own or a
+  // shadow tree inside it.
   const tree = item.getRootNode() === scope.getRootNode() ? scope : item.getRootNode();
-  const itemsOf = (owner: Element | undefined) =>
-    [...(owner ? (owner.shadowRoot ?? owner) : tree).querySelectorAll(`[${key}]`)].filter(
-      (each) => renderedUnder(each, scope) && (!owner || ownerOf?.(each) === owner),
+  const items = () =>
+    [...tree.querySelectorAll(`[${key}]`)].filter(
+      (item) => renderedUnder(item, scope) && owns(item),
     );
   // A key marking several nodes of one place counts once, where it first stands.
-  const keys = [
-    ...new Set(itemsOf(levels[0]?.owner).map((each) => each.getAttribute(key))),
-  ];
+  const keys = [...new Set(items().map((each) => each.getAttribute(key)))];
   const at = keys.indexOf(item.getAttribute(key));
   const order = [keys[at], ...keys.slice(at + 1), ...keys.slice(0, at).reverse()];
   // In an item, the control like the one the user was on, as Remove for Remove, read
@@ -1524,21 +1500,15 @@ export function holdFocus(
     control = host;
   }
   const like = likeSelector(control);
+  const [same, ...rest] = order;
   return (...standIns) => {
-    // The widget whose items the restore looks in: the one that drew the user's, or the
-    // nearest around it still standing, whose item around the user is the place.
-    const level = levels.find(({ owner }) => !owner || owner.isConnected);
-    const owner = level ? level.owner : undefined;
-    const first = !level || level === levels[0];
-    const same = level ? level.item.getAttribute(key) : order[0];
-    const rest = first ? order.slice(1) : [];
     // The items now present, by key, read once for the whole restore: a list whose keys
     // all changed tries every held key against it.
     let byKey: Map<string | null | undefined, Element[]> | null = null;
     const keyed = (value: string | null | undefined) => {
       if (!byKey) {
         byKey = new Map();
-        for (const each of itemsOf(level ? owner : undefined)) {
+        for (const each of items()) {
           const at = each.getAttribute(key);
           let group = byKey.get(at);
           if (!group) {
@@ -1591,13 +1561,12 @@ export function holdFocus(
       // search of the items.
       if (!focusLost()) return deepFocus() === node;
       if (drawn(node) && restore()) return true;
-      // Where the list has emptied, the widget that drew it, with a stop lent.
-      const home = owner && owner.isConnected ? [owner] : [];
+      // Where the list has emptied, the holder itself, with a stop lent.
       return restore(
         ...keyed(same).filter(placeable),
         ...rest.map(neighbour),
         ...standIns,
-        ...home,
+        scope,
       );
     }
     return restore(() => find(same), ...rest.map(neighbour), ...standIns);
@@ -1729,7 +1698,12 @@ function holdOn(held: Element, { itself = false } = {}): FocusRestore {
   return (...standIns) => {
     if (placements !== began) return false;
     if (!focusLost()) return deepFocus() === held;
-    for (const standIn of [held, ...standIns]) {
+    // Where the user last stood, as where another hold put them back, if it stands
+    // again, before the place this hold held: every hold that lost the same focus
+    // lands there, whichever runs first.
+    const latest = lastLocation?.deref();
+    const back = latest && latest !== held && drawn(latest) ? [latest] : [];
+    for (const standIn of [...back, held, ...standIns]) {
       // A reader of a restore before, or a function stand-in, that moved the user said
       // a newer word, and no later stand-in lands over it.
       if (placements !== began) return false;
